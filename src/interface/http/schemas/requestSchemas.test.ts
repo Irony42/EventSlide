@@ -18,11 +18,14 @@ import {
   guestListQuery,
   moderationDecisionBody,
   moderationQueueQuery,
+  galleryMediaParams,
   moderatorInvitationBody,
+  passwordResetRequestBody,
   photoListQuery,
   photoParams,
   photoVariantParams,
   reactionBody,
+  reactionParams,
   secondFactorLoginBody,
   secondFactorProofOf,
   shareLinkBody,
@@ -31,7 +34,14 @@ import {
   uploadFields,
   wallQuery,
 } from './requestSchemas'
+import { MODERATION_MODES } from '../../../domain/events/eventSettings'
+import { EmailAddress } from '../../../domain/users/emailAddress'
+import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { THEME_FONTS, THEME_FRAMES, THEME_MATERIALS } from '../../../domain/events/eventTheme'
+import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
+import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
+import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
+import { REACTION_KINDS } from '../../../domain/reactions/reactionKind'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { Slug } from '../../../domain/shared/slug'
 
@@ -756,5 +766,128 @@ describe('the two bodies of an invitation (G2-09)', () => {
 
   it('writes the invitation in French when the form names no language', () => {
     expect(moderatorInvitationBody.parse({ email: 'a@example.test' }).locale).toBe('fr')
+  })
+})
+
+/**
+ * Every closed vocabulary a request names is built from the domain constant that owns it
+ * (HTTP-M-11). They were literal arrays beside comments saying the vocabulary came from the
+ * domain, so a value the domain gained was a `400` at the boundary with nothing red. Each case
+ * walks the constant: add a value there and it is accepted here, or the case that names it says so.
+ */
+describe('the vocabularies a request names come from the domain (HTTP-M-11)', () => {
+  const PHOTO = '11111111-1111-4111-8111-111111111111'
+  const NO_SUCH_WORD = 'applause'
+
+  it.each(REACTION_KINDS)('accepts the reaction kind %s, in a body and in a path', (kind) => {
+    expect(reactionBody.safeParse({ kind }).success).toBe(true)
+    expect(reactionParams.safeParse({ eventSlug: 'mariage', photoId: PHOTO, kind }).success).toBe(
+      true,
+    )
+  })
+
+  it.each(MODERATION_DECISIONS)(
+    'accepts the moderation decision %s, alone and in bulk',
+    (decision) => {
+      expect(moderationDecisionBody.safeParse({ decision }).success).toBe(true)
+      expect(bulkModerationBody.safeParse({ photoIds: [PHOTO], decision }).success).toBe(true)
+    },
+  )
+
+  it.each(SERVED_VARIANTS)(
+    'accepts the media variant %s, for a host and for a gallery',
+    (variant) => {
+      expect(
+        photoVariantParams.safeParse({ eventSlug: 'mariage', photoId: PHOTO, variant }).success,
+      ).toBe(true)
+      expect(galleryMediaParams.safeParse({ linkId: PHOTO, photoId: PHOTO, variant }).success).toBe(
+        true,
+      )
+    },
+  )
+
+  it.each([...PHOTO_STATUSES, 'all'])('accepts the photo filter %s, in both listings', (status) => {
+    expect(photoListQuery.safeParse({ status }).success).toBe(true)
+    expect(moderationQueueQuery.safeParse({ status }).success).toBe(true)
+  })
+
+  it.each(EVENT_STATUSES)('accepts the event status %s', (status) => {
+    expect(eventStatusBody.safeParse({ status }).success).toBe(true)
+  })
+
+  it.each(MODERATION_MODES)('accepts the moderation mode %s in the settings', (moderation) => {
+    expect(updateSettingsBody.safeParse({ moderation }).success).toBe(true)
+  })
+
+  it('refuses a word that no vocabulary holds, in each of them', () => {
+    expect(reactionBody.safeParse({ kind: NO_SUCH_WORD }).success).toBe(false)
+    expect(
+      reactionParams.safeParse({ eventSlug: 'mariage', photoId: PHOTO, kind: NO_SUCH_WORD })
+        .success,
+    ).toBe(false)
+    expect(moderationDecisionBody.safeParse({ decision: NO_SUCH_WORD }).success).toBe(false)
+    expect(
+      bulkModerationBody.safeParse({ photoIds: [PHOTO], decision: NO_SUCH_WORD }).success,
+    ).toBe(false)
+    expect(moderationQueueQuery.safeParse({ status: NO_SUCH_WORD }).success).toBe(false)
+    expect(
+      galleryMediaParams.safeParse({ linkId: PHOTO, photoId: PHOTO, variant: NO_SUCH_WORD })
+        .success,
+    ).toBe(false)
+    expect(
+      photoVariantParams.safeParse({
+        eventSlug: 'mariage',
+        photoId: PHOTO,
+        variant: NO_SUCH_WORD,
+      }).success,
+    ).toBe(false)
+    expect(photoListQuery.safeParse({ status: NO_SUCH_WORD }).success).toBe(false)
+    expect(eventStatusBody.safeParse({ status: NO_SUCH_WORD }).success).toBe(false)
+    expect(updateSettingsBody.safeParse({ moderation: NO_SUCH_WORD }).success).toBe(false)
+  })
+
+  it('keeps the staged upload out of what a request may ask to be served', () => {
+    // `source` is the guest's un-stripped original, on its way to the transcoder: it is a
+    // stored variant and never a served one.
+    expect(
+      photoVariantParams.safeParse({ eventSlug: 'mariage', photoId: PHOTO, variant: 'source' })
+        .success,
+    ).toBe(false)
+    // And the public gallery, which hands originals to strangers, is the surface where it matters most.
+    expect(
+      galleryMediaParams.safeParse({ linkId: PHOTO, photoId: PHOTO, variant: 'source' }).success,
+    ).toBe(false)
+  })
+
+  it('bounds a host’s page at 200 rows in both listings', () => {
+    for (const schema of [photoListQuery, moderationQueueQuery]) {
+      expect(schema.safeParse({ limit: '200' }).success).toBe(true)
+      expect(schema.safeParse({ limit: '201' }).success).toBe(false)
+    }
+  })
+})
+
+/** One bound for an e-mail address wherever a person types one (HTTP-L-09). */
+describe('an e-mail address has one bound where a person types one (HTTP-L-09)', () => {
+  const longest = `${'a'.repeat(EmailAddress.maxLength - '@example.org'.length)}@example.org`
+  const oneTooLong = `a${longest}`
+  const places: readonly (readonly [string, (email: string) => boolean])[] = [
+    ['the sign-in', (email) => loginBody.safeParse({ email, password: 'x' }).success],
+    [
+      'the password reset request',
+      (email) => passwordResetRequestBody.safeParse({ email }).success,
+    ],
+    ['the moderator invitation', (email) => moderatorInvitationBody.safeParse({ email }).success],
+  ]
+
+  it('is the length the domain lets an address be, 254', () => {
+    expect(EmailAddress.maxLength).toBe(254)
+    expect(longest).toHaveLength(254)
+    expect(oneTooLong).toHaveLength(255)
+  })
+
+  it.each(places)('accepts 254 characters and refuses 255 in %s', (_place, accepts) => {
+    expect(accepts(longest)).toBe(true)
+    expect(accepts(oneTooLong)).toBe(false)
   })
 })
