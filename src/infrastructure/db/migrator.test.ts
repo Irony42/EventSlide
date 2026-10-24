@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { FakeClock } from '../../application/testing/fakeClock'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { MigrationError, migrate, status, type Migration } from './migrator'
 import { migrations } from './migrations'
@@ -156,6 +157,38 @@ describe('migrator', () => {
   it.each([0, -1, 1.5])('rejects the invalid migration id %s', (id) => {
     const db = freshDb()
     expect(() => migrate(db, [{ id, name: 'bad', sql: `SELECT 1` }])).toThrow(/positive integer/)
+    closeDatabase(db)
+  })
+
+  it('stamps each migration with the instant the clock gave it', () => {
+    const db = freshDb()
+    const clock = new FakeClock(new Date('2031-04-05T06:07:08.000Z'))
+    const list: Migration[] = [
+      { id: 1, name: 'one', sql: `SELECT 1` },
+      { id: 2, name: 'two', sql: `SELECT 1` },
+    ]
+
+    migrate(db, [list[0]!], clock)
+    clock.advance(1_000)
+    migrate(db, list, clock)
+
+    expect(status(db, list).applied.map((row) => row.appliedAt)).toEqual([
+      '2031-04-05T06:07:08.000Z',
+      '2031-04-05T06:07:09.000Z',
+    ])
+    closeDatabase(db)
+  })
+
+  it('stamps with the real clock when it is given none', () => {
+    const db = freshDb()
+    const list: Migration[] = [{ id: 1, name: 'one', sql: `SELECT 1` }]
+    const before = Date.now()
+
+    migrate(db, list)
+
+    const stamped = Date.parse(status(db, list).applied[0]?.appliedAt ?? '')
+    expect(stamped).toBeGreaterThanOrEqual(before)
+    expect(stamped).toBeLessThanOrEqual(Date.now())
     closeDatabase(db)
   })
 

@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Logger } from '../../../application/ports/logger'
 import { mailFailure, type Mailer } from '../../../application/ports/mailer'
 import { err } from '../../../domain/shared/result'
-import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import { makeIssueInvitation } from '../../../application/usecases/auth/issueInvitation'
 import { makeRegisterModerator } from '../../../application/usecases/auth/registerModerator'
 import { makeChangeEventStatus } from '../../../application/usecases/events/changeEventStatus'
@@ -44,13 +43,7 @@ import { FakeMembershipRepository } from '../../../application/testing/fakeMembe
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
-import {
-  asClientId,
-  asEventId,
-  asGuestId,
-  asUserId,
-  type EventId,
-} from '../../../domain/shared/ids'
+import { asClientId, asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import { Event } from '../../../domain/events/event'
 import { Slug } from '../../../domain/shared/slug'
@@ -59,6 +52,7 @@ import { buildHarness, signInAs } from '../testing/middlewareHarness'
 import type { HttpDeps, RequestContext } from '../types'
 import type { HttpUseCases } from '../useCases'
 import { currentUser, eventRoutes, hostScope } from './eventRoutes'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
 /**
  * D-14: the self-hosted defaults `makeCreateEvent` and `makeRotateJoinCode` get
@@ -147,33 +141,6 @@ const SCHEDULED_CLOSE_AT = '2026-06-21T04:00:00.000Z'
 /** Before the harness clock: what the host sends when they forget to advance the date. */
 const ALREADY_PAST = '2026-06-20T02:00:00.000Z'
 
-const notPartOfTheseRoutes = (method: string): never => {
-  throw new Error(`MediaStore.${method} is not part of the host's event routes`)
-}
-
-/**
- * Only `deleteEvent` belongs to this surface — a purge. The rest of the port throws, so
- * a handler that quietly started reading bytes would fail loudly rather than pass
- * against a permissive stub.
- */
-class PurgingMediaStore implements MediaStore {
-  readonly purged: EventId[] = []
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    this.purged.push(eventId)
-  }
-
-  put = async (): Promise<void> => notPartOfTheseRoutes('put')
-  exists = async (): Promise<boolean> => notPartOfTheseRoutes('exists')
-  stat = async (): Promise<MediaMetadata | null> => notPartOfTheseRoutes('stat')
-  openRead = async (): Promise<AsyncIterable<Uint8Array> | null> => notPartOfTheseRoutes('openRead')
-  read = async (): Promise<Uint8Array | null> => notPartOfTheseRoutes('read')
-  delete = async (): Promise<void> => notPartOfTheseRoutes('delete')
-  usedBytes = async (): Promise<number> => notPartOfTheseRoutes('usedBytes')
-  listEvents = async (): Promise<readonly EventId[]> => notPartOfTheseRoutes('listEvents')
-  list = async (): Promise<readonly StoredObject[]> => notPartOfTheseRoutes('list')
-}
-
 /**
  * A stand-in for the use cases this module never calls.
  *
@@ -194,7 +161,7 @@ interface World {
   readonly users: FakeUserRepository
   readonly tokens: FakeAccountTokenRepository
   readonly mailer: FakeMailer
-  readonly media: PurgingMediaStore
+  readonly media: InMemoryMediaStore
 }
 
 interface BuildWorldOptions {
@@ -219,7 +186,7 @@ const buildWorld = ({
   // and a membership carries the address of a real account.
   const clients = new FakeClientRepository()
   const events = new FakeEventRepository({ memberships, photos, guests, clients })
-  const media = new PurgingMediaStore()
+  const media = new InMemoryMediaStore().forbidEnumeration('the host event routes')
   const ids = new SequentialIdGenerator()
   // The foreign keys the real table has: an invitation names an author and an event that exist.
   const tokens = new FakeAccountTokenRepository()
@@ -1842,10 +1809,13 @@ describe('the host event routes', () => {
 
     it('removes the media too, so no bytes are left with nothing to find them by', async () => {
       const agent = await signedIn(world, 'owner')
+      await world.media.put(WEDDING, aPhoto().contentHash, 'original', Uint8Array.of(1))
+      await world.media.put(GALA, aPhoto().contentHash, 'original', Uint8Array.of(1))
 
       await agent.delete(`/api/events/${SLUG}`)
 
-      expect(world.media.purged).toEqual([WEDDING])
+      expect(await world.media.usedBytes(WEDDING)).toBe(0)
+      expect(await world.media.usedBytes(GALA)).toBe(1)
     })
 
     it('leaves another event untouched', async () => {

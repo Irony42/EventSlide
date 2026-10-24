@@ -2,15 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asGuestId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import {
   MEDIA_VARIANTS,
   type ByteRange,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-  type StoredObject,
 } from '../../ports/mediaStore'
 import { aClip, aPhoto, type PhotoInput } from '../../testing/builders'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
@@ -20,120 +16,7 @@ import {
   type MediaViewer,
   type PhotoMedia,
 } from './getPhotoMedia'
-
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  /**
-   * How many byte streams have been opened.
-   *
-   * Counted because "how many" is the whole of a descriptor leak: `openRead` on the
-   * filesystem store opens the file when the stream is *constructed*, so a stream
-   * nobody reads still costs a descriptor until something destroys it.
-   */
-  opened = 0
-
-  /** Keys whose size is still known but whose bytes have gone. */
-  private readonly unreadable = new Set<string>()
-
-  /**
-   * Models the retention purge deleting a file between the size check and the open —
-   * the one window in which a media read can fail after it has already succeeded.
-   */
-  vanishAfterStat(eventId: EventId, hash: ContentHash): this {
-    for (const variant of MEDIA_VARIANTS) this.unreadable.add(this.key(eventId, hash, variant))
-    return this
-  }
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : {
-            byteSize: bytes.length,
-            contentType: 'image/jpeg',
-            // Not a fact any of these tests depends on; the sweep is the only reader.
-            modifiedAt: new Date(0),
-          }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    range?: ByteRange,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    const key = this.key(eventId, hash, variant)
-    this.opened += 1
-    const bytes = this.objects.get(key)
-    if (bytes === undefined || this.unreadable.has(key)) return null
-    // A range outside the object answers `null`, as the filesystem store does: a `206`
-    // over an empty stream is a player waiting for bytes that will never come.
-    if (range !== undefined && (range.start >= bytes.length || range.end < range.start)) return null
-    const served =
-      range === undefined
-        ? bytes
-        : bytes.slice(range.start, Math.min(range.end, bytes.length - 1) + 1)
-    return (async function* () {
-      yield served
-    })()
-  }
-
-  async read(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  // Reconciliation only. A use case that started enumerating the store would fail
-  // loudly here rather than pass against a permissive stub.
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error(`listEvents is not part of a media read`)
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error(`list is not part of a media read`)
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
-}
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 
 const EVENT = asEventId('event-1')
 const OTHER_EVENT = asEventId('event-2')
@@ -168,7 +51,7 @@ describe('getPhotoMedia', () => {
 
   beforeEach(() => {
     photos = new FakePhotoRepository()
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('a media read')
     getPhotoMedia = makeGetPhotoMedia({ photos, media })
   })
 
@@ -444,7 +327,7 @@ describe('getPhotoMedia: byte ranges', () => {
 
   beforeEach(() => {
     photos = new FakePhotoRepository()
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('a media read')
     getPhotoMedia = makeGetPhotoMedia({ photos, media })
   })
 

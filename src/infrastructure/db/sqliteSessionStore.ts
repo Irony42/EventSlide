@@ -1,5 +1,6 @@
 import { Store, type SessionData } from 'express-session'
 import type { Db } from './connection'
+import type { Clock } from '../../application/ports/clock'
 import type { Logger } from '../../application/ports/logger'
 import { setBackgroundInterval } from '../time/backgroundTimers'
 
@@ -19,6 +20,13 @@ import { setBackgroundInterval } from '../time/backgroundTimers'
 export interface SqliteSessionStoreOptions {
   readonly db: Db
   readonly logger: Logger
+  /**
+   * Where "now" comes from: a session expires when this clock says so. The absolute
+   * seven-day cap in `authz` is judged by an injected clock too. (`express-session` works out
+   * a cookie's relative `maxAge` from the wall clock before it reaches `set`; that is a
+   * duration, so any clock is consistent with it.)
+   */
+  readonly clock: Clock
   /** How often expired rows are swept. */
   readonly sweepIntervalMs?: number
 }
@@ -35,16 +43,19 @@ interface SessionRow {
 export class SqliteSessionStore extends Store {
   private readonly db: Db
   private readonly logger: Logger
+  private readonly clock: Clock
   private readonly sweepTimer: NodeJS.Timeout
 
   constructor({
     db,
     logger,
+    clock,
     sweepIntervalMs = DEFAULT_SWEEP_INTERVAL_MS,
   }: SqliteSessionStoreOptions) {
     super()
     this.db = db
     this.logger = logger
+    this.clock = clock
 
     // Sweep once at construction, so a restart after a long shutdown does not carry
     // a backlog of dead rows into the first request.
@@ -63,7 +74,7 @@ export class SqliteSessionStore extends Store {
         .prepare<[string, number], SessionRow>(
           `SELECT data FROM sessions WHERE sid = ? AND expires_at > ?`,
         )
-        .get(sid, Date.now())
+        .get(sid, this.nowMs())
 
       // An expired row is reported as absent rather than deleted here: `get` is on
       // every authenticated request, and the sweeper already owns removal.
@@ -129,7 +140,7 @@ export class SqliteSessionStore extends Store {
         .prepare<[number], { count: number }>(
           `SELECT COUNT(*) AS count FROM sessions WHERE expires_at > ?`,
         )
-        .get(Date.now())
+        .get(this.nowMs())
       callback(null, row?.count ?? 0)
     } catch (error) {
       callback(error)
@@ -148,7 +159,7 @@ export class SqliteSessionStore extends Store {
   /** Removes expired rows. Returns the count, for the test and the log line. */
   sweep(): number {
     try {
-      const result = this.db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(Date.now())
+      const result = this.db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(this.nowMs())
       if (result.changes > 0) {
         this.logger.debug('swept expired sessions', { removed: result.changes })
       }
@@ -172,11 +183,15 @@ export class SqliteSessionStore extends Store {
     // already expired fell through to the default lifetime and was silently revived
     // for another twelve hours.
     const maxAge = session.cookie?.maxAge
-    if (typeof maxAge === 'number' && Number.isFinite(maxAge)) return Date.now() + maxAge
+    if (typeof maxAge === 'number' && Number.isFinite(maxAge)) return this.nowMs() + maxAge
 
     const expires = session.cookie?.expires
     if (expires instanceof Date && Number.isFinite(expires.getTime())) return expires.getTime()
 
-    return Date.now() + DEFAULT_TTL_MS
+    return this.nowMs() + DEFAULT_TTL_MS
+  }
+
+  private nowMs(): number {
+    return this.clock.now().getTime()
   }
 }

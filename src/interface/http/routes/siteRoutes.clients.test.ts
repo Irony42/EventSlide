@@ -135,6 +135,11 @@ describe('POST /api/site/clients', () => {
 
   it.each([
     ['an address that is not one', { ...BODY, ownerEmail: 'pas-une-adresse' }, 'email.malformed'],
+    [
+      'an address of three hundred characters',
+      { ...BODY, ownerEmail: `${'a'.repeat(300)}@example.org` },
+      'email.tooLong',
+    ],
     ['a name that is empty', { ...BODY, clientName: '' }, 'clientName.empty'],
     [
       'a ceiling the catalogue refuses',

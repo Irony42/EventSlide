@@ -15,7 +15,6 @@ import {
   type EventInput,
 } from '../../testing/builders'
 import { CallLog } from '../../testing/callLog'
-import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -25,6 +24,7 @@ import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeTranscodeNextClip, type TranscodeNextClip } from './transcodeNextClip'
 import { CapturingLogger } from '../../testing/capturingLogger'
+import { CountingClientRepository } from '../../testing/countingClientRepository'
 
 /**
  * One pass of the queue. These are the tests that hold the line the whole clip design
@@ -67,18 +67,6 @@ const POLICY = {
 const sourceBytes = (
   overrides: Parameters<typeof fakeClipBytes>[0] = { width: 1920, height: 1080, durationMs: 9_000 },
 ) => fakeClipBytes(overrides)
-
-/** Counts the reads, so "an event with no client never asks" is a number. */
-class CountingClientRepository extends FakeClientRepository {
-  contextReads = 0
-
-  override async contextForEvent(
-    ...args: Parameters<FakeClientRepository['contextForEvent']>
-  ): ReturnType<FakeClientRepository['contextForEvent']> {
-    this.contextReads += 1
-    return super.contextForEvent(...args)
-  }
-}
 
 describe('transcodeNextClip', () => {
   let events: FakeEventRepository
