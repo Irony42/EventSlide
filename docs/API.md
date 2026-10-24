@@ -1681,6 +1681,10 @@ Streams the album. Moderator or above. Includes only statuses the domain's `isIn
 accepts — `published` and `hidden`, **never** `rejected`. 1.0's ZIP shipped every row
 regardless of status, so a host who carefully rejected a photo handed it out anyway.
 
+Each photograph is archived as its stored original (`.jpg`) and each clip as its transcode
+(`.mp4`), the same full-quality file the shared gallery's own archive carries; a row whose
+file is gone is skipped with a warning rather than aborting the download.
+
 `Content-Disposition: attachment; filename="<slug>-album.zip"`, from the resolved event's
 canonical slug and never from the path, so the download cannot be called something the
 wall and the printed card do not. `Cache-Control: no-store` and no `Content-Length`: the

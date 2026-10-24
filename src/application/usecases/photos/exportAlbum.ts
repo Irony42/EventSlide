@@ -1,13 +1,16 @@
+import type { ContentHash } from '../../../domain/photos/contentHash'
+import type { ServedVariant } from '../../../domain/photos/mediaVariant'
 import type { Photo } from '../../../domain/photos/photo'
 import { isInAlbum, PHOTO_STATUSES, type PhotoStatus } from '../../../domain/photos/photoStatus'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
+import type { ArchiveWriter } from '../../ports/archiveWriter'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
-import type { PhotoPage, PhotoRepository } from '../../ports/photoRepository'
+import type { PhotoRepository } from '../../ports/photoRepository'
+import { albumEntries } from '../shared/albumEntries'
 
 /**
  * The album a host downloads after the event, as a ZIP.
@@ -19,20 +22,20 @@ import type { PhotoPage, PhotoRepository } from '../../ports/photoRepository'
  * a photo handed it out anyway in the archive. The predicate lives in the domain and is
  * asked, never reimplemented as a status list here.
  *
+ * **Clips are in it.** A host who exports and then purges must not lose their videos. A
+ * photograph is archived as its stored `original` and a clip as its transcode, the same
+ * full-quality file the shared gallery's download serves, from the same table
+ * (`albumEntries`). The host's ZIP used to ask every row for an `original`, which a clip
+ * does not have, and skipped every one of them with a warning.
+ *
  * **Nothing is materialised.** Rows arrive a page at a time from the repository, bytes one
  * chunk at a time from the media store, and the archive is emitted as chunks. A
  * four-thousand-photo wedding is several gigabytes; buffering it is how a self-hosted
  * box with 2 GB of RAM dies at 80% of a download.
  */
 
-/** Full quality: the point of the export is that the host keeps their photos. */
-const ALBUM_VARIANT = 'original'
-
 /** Asked of the domain once, rather than restated as a list of statuses. */
 const ALBUM_STATUSES: readonly PhotoStatus[] = PHOTO_STATUSES.filter(isInAlbum)
-
-/** Rows per read while listing the album. Each is one statement, run to completion. */
-const ALBUM_PAGE_SIZE = 200
 
 export interface ExportAlbumInput {
   readonly eventId: EventId
@@ -62,69 +65,32 @@ export const makeExportAlbum = ({
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
     /**
-     * The stream, or `null` when the file is not there.
+     * One row's bytes, or `null` when the file is not there.
      *
      * One call says both: `openRead` answers `null` for a missing file instead of throwing,
      * and the `archiver` adapter streams the bytes without knowing their length, so there is
      * nothing to ask the store beforehand. A file the retention purge removed while a host
      * is downloading is simply absent when its turn comes.
      */
-    const open = async (photo: Photo): Promise<Omit<ArchiveEntry, 'name'> | null> => {
-      const bytes = await media.openRead(eventId, photo.contentHash, ALBUM_VARIANT)
-      if (bytes === null) return null
+    const open = (_photo: Photo, hash: ContentHash, variant: ServedVariant) =>
+      media.openRead(eventId, hash, variant)
 
-      return { bytes, modifiedAt: photo.createdAt }
-    }
-
-    /**
-     * Pages rather than a row stream, because of what a row stream holds open.
-     *
-     * A row stream keeps one better-sqlite3 statement iterating across every `await` below
-     * it, and while a statement is iterating the connection refuses every write. That would
-     * be tolerable if the archive listed the whole album at once, a second or two. It asks
-     * for an entry only when it is ready to write it (see `archiverWriter`), so the same
-     * statement would stay open for as long as the download lasts: measured, an upload to
-     * any other event failed for the whole of a host's slow download. Each page here is one
-     * statement that runs to completion before anything else happens, the shape
-     * `downloadGalleryArchive` also reads in.
-     *
-     * An entry is also asked for only when the archive is about to write it, so the file
-     * `open` returns is the one about to be read: one descriptor at a time, not one per photo.
-     */
-    const entries = async function* (): AsyncIterable<ArchiveEntry> {
-      let sequence = 0
-      let cursor: string | null = null
-      do {
-        const page: PhotoPage = await photos.list(eventId, {
+    return ok(
+      archive.stream(
+        albumEntries({
+          photos,
+          eventId,
+          slug: event.slug.value,
           statuses: ALBUM_STATUSES,
-          limit: ALBUM_PAGE_SIZE,
-          ...(cursor === null ? {} : { cursor }),
-        })
-        for (const photo of page.items) {
-          const opened = await open(photo)
-          if (opened === null) {
-            // Skipped rather than fatal: headers are long since sent by the time an entry
-            // is read, so one orphaned row must not abort a multi-gigabyte download.
-            logger.warn('album export skipped a photo with no stored original', {
+          open,
+          skipped: (photo) => {
+            logger.warn('album export skipped a photo with no stored file', {
               eventId,
               photoId: photo.id,
             })
-            continue
-          }
-
-          sequence += 1
-          // Server-generated throughout — a counter, the digest's first characters and a
-          // validated slug. No guest-supplied filename reaches the archive, so no entry
-          // name can carry a path.
-          const name = `${event.slug.value}/${String(sequence).padStart(4, '0')}-${
-            photo.contentHash.short
-          }.jpg`
-          yield { name, ...opened }
-        }
-        cursor = page.nextCursor
-      } while (cursor !== null)
-    }
-
-    return ok(archive.stream(entries()))
+          },
+        }),
+      ),
+    )
   }
 }

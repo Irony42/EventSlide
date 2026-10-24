@@ -28,7 +28,8 @@ import type { ShareLink } from './shareLink'
  *   GPS and the device serial stripped on ingest (`sharpImageProcessor.ts`), so the file a
  *   stranger downloads from a public link carries no coordinates of anybody's home. A
  *   clip has no original by design (`mediaVariant.ts`); its download is the transcode,
- *   which kept only the picture and the sound.
+ *   which kept only the picture and the sound. It is also what the host's own album export
+ *   archives for each row, so the two ZIPs cannot disagree about a clip.
  */
 
 export type GalleryRendition = 'preview' | 'view' | 'download'

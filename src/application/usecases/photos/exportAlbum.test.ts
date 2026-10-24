@@ -13,7 +13,7 @@ import {
   type StoredObject,
   type PhotoVariant,
 } from '../../ports/mediaStore'
-import { anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
+import { aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
@@ -107,6 +107,9 @@ class InMemoryMediaStore implements MediaStore {
     return total
   }
 }
+
+/** A clip's two files. Distinct sizes, so a test can tell the transcode from the poster by length. */
+const BYTES_PER_CLIP_FILE = { video: 20, poster: 2 } as const
 
 interface RecordedEntry {
   readonly name: string
@@ -202,6 +205,15 @@ describe('exportAlbum', () => {
     return photo.contentHash
   }
 
+  /** A published clip with both of its files on the disk, which is what a finished transcode leaves. */
+  const seedClip = async (input: PhotoInput): Promise<ContentHash> => {
+    const clip = aClip({ eventId: 'event-1', ...input })
+    photos.seed(clip)
+    await media.put(clip.eventId, clip.contentHash, 'video', new Uint8Array(BYTES_PER_CLIP_FILE.video))
+    await media.put(clip.eventId, clip.hashFor('poster'), 'poster', new Uint8Array(BYTES_PER_CLIP_FILE.poster))
+    return clip.contentHash
+  }
+
   /** Consumes the archive, as the HTTP layer piping it to the response would. */
   const drain = async (result: Result<AsyncIterable<Uint8Array>, DomainError>): Promise<number> => {
     if (!result.ok) throw new Error(`expected an archive, got ${result.error.code}`)
@@ -263,6 +275,67 @@ describe('exportAlbum', () => {
     await drain(await exportAlbum({ eventId: EVENT }))
 
     expect(archive.entries.map((entry) => entry.modifiedAt)).toEqual([atPlus(5_000)])
+  })
+
+  // ---------------------------------------------------------------- clips --
+
+  /**
+   * A clip has no `original` (`mediaVariant.ts`): the file the host keeps is its transcode.
+   * The album used to ask every row for an `original`, so every clip was skipped with a
+   * warning and a host who exported and then purged lost their videos.
+   */
+  it('archives a clip, as its transcode, named for what it is', async () => {
+    const hash = await seedClip({ id: 'c1', status: 'published' })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(namesInArchive()).toEqual([`camille-et-sacha/0001-${hash.short}.mp4`])
+  })
+
+  it('archives the clip transcode itself, not its poster', async () => {
+    await seedClip({ id: 'c1', status: 'published' })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(archive.entries.map((entry) => entry.bytesRead)).toEqual([BYTES_PER_CLIP_FILE.video])
+  })
+
+  it('does not warn that it skipped a clip that is there', async () => {
+    await seedClip({ id: 'c1', status: 'published' })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(logger.lines).toEqual([])
+  })
+
+  it('carries photographs and clips in one album, numbered together', async () => {
+    const photo = await seedPhoto({ id: 'p1', status: 'published', createdAt: atPlus(1_000) })
+    const clip = await seedClip({ id: 'c1', status: 'published', createdAt: atPlus(0) })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(namesInArchive()).toEqual([
+      `camille-et-sacha/0001-${photo.short}.jpg`,
+      `camille-et-sacha/0002-${clip.short}.mp4`,
+    ])
+  })
+
+  it('keeps a hidden clip, as it keeps a hidden photograph, and leaves a rejected one out', async () => {
+    const hidden = await seedClip({ id: 'c-hidden', status: 'hidden', createdAt: atPlus(1_000) })
+    await seedClip({ id: 'c-rejected', status: 'rejected', createdAt: atPlus(0) })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(namesInArchive()).toEqual([`camille-et-sacha/0001-${hidden.short}.mp4`])
+  })
+
+  it('skips a clip whose transcode is gone, and says so', async () => {
+    photos.seed(aClip({ id: 'c-orphan', eventId: 'event-1', status: 'published' }))
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(archive.entries).toEqual([])
+    expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
   it('emits the archive as chunks rather than one buffer', async () => {
