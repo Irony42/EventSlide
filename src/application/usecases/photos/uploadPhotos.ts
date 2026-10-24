@@ -341,7 +341,10 @@ export const makeUploadPhotos = ({
      *
      * If the question cannot be asked — the same locked database that sent us here — the
      * file stays. A leaked file is swept by `sweepOrphanedMedia`; a deleted file that a
-     * row names cannot be rebuilt by anything.
+     * row names cannot be rebuilt by anything. For the same reason an unlink that fails
+     * is logged and not thrown: the refusal loop below runs after the batch has committed,
+     * and a throw there would leave the stored photos unannounced and the guest with a 500
+     * for photographs that are in the album.
      */
     const discardUnlessReferenced = async (hash: ContentHash): Promise<void> => {
       try {
@@ -353,7 +356,15 @@ export const makeUploadPhotos = ({
         })
         return
       }
-      await media.delete(eventId, hash)
+
+      try {
+        await media.delete(eventId, hash)
+      } catch (cause) {
+        logger.warn('could not remove media this upload wrote; leaving it for the sweep', {
+          eventId,
+          cause: String(cause),
+        })
+      }
     }
 
     const unwind = async (): Promise<void> => {
@@ -361,11 +372,11 @@ export const makeUploadPhotos = ({
     }
 
     /**
-     * For each photo of a batch the insert raised on: the row that now holds its digest.
+     * For each photo of a batch the insert did not keep: the row that now holds its digest.
      *
-     * Nothing of this request is committed when the insert raises, so any row found is
-     * somebody else's. A lookup that fails is the same answer as no twin — the caller
-     * then reports a failed save, which is what a raise it cannot explain deserves.
+     * This request never commits one digest twice, so any row found is somebody else's.
+     * A lookup that fails is the same answer as no twin — the caller then reports a failed
+     * save, or a refusal, which is what an answer it cannot explain deserves.
      */
     const twinsCommittedFirst = async (
       batch: readonly Photo[],
@@ -531,12 +542,13 @@ export const makeUploadPhotos = ({
     // duplicate check above makes it raise for the whole batch. Asking again tells the two
     // apart without matching on a driver's message — a photo whose digest now has a row has
     // lost to that row and is answered `duplicate`, exactly as `uploadClip` answers the
-    // same race, and the rest of the batch is written without it. Each pass drops at least
-    // one photo, so this ends; a raise with no twin behind it is a real failure.
+    // same race, and the rest of the batch is written without it. A pass that raises drops
+    // at least one photo, so one pass per photo is all there can ever be; a raise with no
+    // twin behind it is a real failure.
     let pending: readonly Photo[] = created
     const lostTo = new Map<PhotoId, PhotoId>()
     let admissions: readonly PhotoAdmission[] = []
-    while (pending.length > 0) {
+    for (let pass = 0; pass < created.length && pending.length > 0; pass += 1) {
       try {
         admissions = await photos.saveManyWithinLimits(eventId, pending, {
           quotaBytes,
@@ -568,6 +580,16 @@ export const makeUploadPhotos = ({
       if (admission.refusal !== null) refusals.set(admission.photoId, admission.refusal)
     }
 
+    // A limit is decided before the unique index is reached, so the same race that raises
+    // above can also surface as a refusal: a guest double-tapping the same photograph at
+    // their limit has the second tap turned away for a photograph the album already holds.
+    // Telling them it was refused is telling them to retry a photo that is there, and an
+    // offline outbox drops a refused entry. A refused photo whose bytes now have a row is
+    // a duplicate of that row.
+    const twinsOfRefused = await twinsCommittedFirst(
+      pending.filter((photo) => refusals.has(photo.id)),
+    )
+
     const turnedAway = new Map<PhotoId, DomainError>()
     const admitted: Photo[] = []
     for (const photo of pending) {
@@ -576,7 +598,10 @@ export const makeUploadPhotos = ({
         admitted.push(photo)
         continue
       }
-      turnedAway.set(photo.id, refusalError(refusal, photo.byteSize))
+
+      const twin = twinsOfRefused.get(photo.id)
+      if (twin === undefined) turnedAway.set(photo.id, refusalError(refusal, photo.byteSize))
+      else lostTo.set(photo.id, twin)
 
       // Its row was never written, so its media must not stay on the disk that the
       // quota exists to protect. Media is addressed by content, though, and the request

@@ -165,6 +165,14 @@ class InMemoryMediaStore implements MediaStore {
     return this
   }
 
+  private deletesFail = false
+
+  /** Simulates an unlink the operating system refuses (a permission, a busy handle). */
+  failDeletes(): this {
+    this.deletesFail = true
+    return this
+  }
+
   /** Every variant currently held for one photo, in a stable order. */
   variantsOf(eventId: EventId, hash: ContentHash): readonly MediaVariant[] {
     return MEDIA_VARIANTS.filter((variant) => this.objects.has(this.key(eventId, hash, variant)))
@@ -224,6 +232,7 @@ class InMemoryMediaStore implements MediaStore {
   }
 
   async delete(eventId: EventId, hash: ContentHash): Promise<void> {
+    if (this.deletesFail) throw new Error('EPERM: operation not permitted, unlink')
     for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
   }
 
@@ -325,15 +334,20 @@ class LostRacePhotoRepository extends FakePhotoRepository {
 }
 
 /**
- * A byte-identical photo of another guest, committed **after** this request's duplicate
+ * Byte-identical photos of other guests, committed **after** this request's duplicate
  * check and **before** its insert: the race `(event_id, content_hash)` being unique turns
  * into a raise for the whole batch, exactly as it does in SQLite.
+ *
+ * One twin per insert, named `rival-1`, `rival-2`, …, so a test can make the retry itself
+ * lose a second race.
  */
 class RivalCommitsBeforeInsertPhotoRepository extends FakePhotoRepository {
-  private committed = false
+  private readonly waiting: string[]
+  private committed = 0
 
-  constructor(private readonly rivalHash: string) {
+  constructor(...rivalHashes: readonly string[]) {
     super()
+    this.waiting = [...rivalHashes]
   }
 
   override async saveManyWithinLimits(
@@ -341,9 +355,10 @@ class RivalCommitsBeforeInsertPhotoRepository extends FakePhotoRepository {
     photos: readonly Photo[],
     limits: PhotoAdmissionLimits,
   ): Promise<readonly PhotoAdmission[]> {
-    if (!this.committed) {
-      this.committed = true
-      await this.save(aPhoto({ id: 'rival', eventId, contentHash: this.rivalHash }))
+    const next = this.waiting.shift()
+    if (next !== undefined) {
+      this.committed += 1
+      await this.save(aPhoto({ id: `rival-${this.committed}`, eventId, contentHash: next }))
     }
     return super.saveManyWithinLimits(eventId, photos, limits)
   }
@@ -365,7 +380,7 @@ class RivalCommitsMidRequestPhotoRepository extends FakePhotoRepository {
     const found = await super.findByContentHash(eventId, hash)
     this.lookups += 1
     if (this.lookups === 2) {
-      await this.save(aPhoto({ id: 'rival', eventId, contentHash: this.rivalHash }))
+      await this.save(aPhoto({ id: 'rival-1', eventId, contentHash: this.rivalHash }))
     }
     return found
   }
@@ -952,7 +967,7 @@ describe('uploadPhotos', () => {
     expect(kinds(result)).toEqual(['duplicate', 'stored'])
     expect((await rival.list(EVENT)).items.map((photo) => photo.id).sort()).toEqual([
       'photo-2',
-      'rival',
+      'rival-1',
     ])
   })
 
@@ -967,8 +982,8 @@ describe('uploadPhotos', () => {
     })
 
     expect(outcomesOf(result)).toMatchObject([
-      { kind: 'duplicate', photoId: 'rival' },
-      { kind: 'duplicate', photoId: 'rival' },
+      { kind: 'duplicate', photoId: 'rival-1' },
+      { kind: 'duplicate', photoId: 'rival-1' },
       { kind: 'stored' },
     ])
   })
@@ -983,8 +998,31 @@ describe('uploadPhotos', () => {
       files: [aFile('sunset'), aFile('cake')],
     })
 
-    const twin = await rival.findById(EVENT, asPhotoId('rival'))
+    const twin = await rival.findById(EVENT, asPhotoId('rival-1'))
     expect(twin === null ? [] : media.variantsOf(EVENT, twin.contentHash)).toEqual(MEDIA_VARIANTS)
+  })
+
+  it('keeps answering duplicate when a second twin is committed while the retry is being written', async () => {
+    seedEvent()
+    const rivals = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'), hashOf('cake'))
+
+    const result = await uploadInto(rivals)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake'), aFile('tea')],
+    })
+
+    expect(outcomesOf(result)).toMatchObject([
+      { kind: 'duplicate', photoId: 'rival-1' },
+      { kind: 'duplicate', photoId: 'rival-2' },
+      { kind: 'stored', photoId: 'photo-3' },
+    ])
+    // The outcome alone could not tell a stored photo from one reported and never written.
+    expect((await rivals.list(EVENT)).items.map((photo) => photo.id).sort()).toEqual([
+      'photo-3',
+      'rival-1',
+      'rival-2',
+    ])
   })
 
   it('announces and publishes only what was stored when a file of the batch lost to a twin', async () => {
@@ -1079,6 +1117,66 @@ describe('uploadPhotos', () => {
     await uploadInto(lost)({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
     expect(media.objectCount).toBe(3)
+  })
+
+  it('answers duplicate, not a refusal, for a turned-away photo whose bytes the album now holds', async () => {
+    seedEvent()
+    const lost = new LostRacePhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(lost)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('sunset')],
+    })
+
+    expect(outcomesOf(result)).toMatchObject([
+      { kind: 'duplicate', photoId: 'winner' },
+      { kind: 'duplicate', photoId: 'winner' },
+    ])
+  })
+
+  it('does not tell a guest at their photo limit that the photograph they double-tapped was refused', async () => {
+    // The limit is decided before the unique index is reached, so the second tap is turned
+    // away for a photograph the first one just stored.
+    seedEvent({ settings: { maxPhotosPerGuest: 2 } })
+    photos.seed(aPhoto({ id: 'earlier', eventId: 'event-1' }))
+
+    const taps = await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+    ])
+
+    expect(taps.flatMap((tap) => kinds(tap)).sort()).toEqual(['duplicate', 'stored'])
+    expect(await photos.countByAuthor(EVENT, asGuestId('guest-1'))).toBe(2)
+  })
+
+  it('still refuses a photo the write turned away when no row holds its bytes', async () => {
+    seedEvent()
+    const full = new FullPhotoRepository(LIMIT_REFUSAL)
+
+    const result = await uploadInto(full)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset')],
+    })
+
+    expect(kinds(result)).toEqual(['refused'])
+  })
+
+  it('answers every file when the unlink of a turned-away photo fails after the batch committed', async () => {
+    // An unlink that throws here would leave the stored photo unannounced and answer a 500
+    // for a photograph that is in the album.
+    seedEvent({ quotaBytes: 1_500_000 })
+    media.failDeletes()
+
+    const results = await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: OTHER_GUEST, files: [aFile('cake')] }),
+    ])
+
+    expect(results.flatMap((result) => kinds(result)).sort()).toEqual(['refused', 'stored'])
+    expect(bus.published.map((event) => event.type)).toEqual(['photo.uploaded'])
+    expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
   it('announces nothing for a photo the write turned away', async () => {
@@ -1218,7 +1316,7 @@ describe('uploadPhotos', () => {
       files: [aFile('sunset'), aFile('cake')],
     })
 
-    const twin = await rival.findById(EVENT, asPhotoId('rival'))
+    const twin = await rival.findById(EVENT, asPhotoId('rival-1'))
     expect(!result.ok && result.error.code).toBe('photo.mediaWriteFailed')
     expect(twin === null ? [] : media.variantsOf(EVENT, twin.contentHash)).toEqual(MEDIA_VARIANTS)
   })
