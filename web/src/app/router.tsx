@@ -4,7 +4,7 @@ import { PageTitle } from '../design-system/components/PageTitle'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DeferredLocale } from '../lib/i18n/LocaleProvider'
-import { useAbout } from './useAbout'
+import { useAbout, useAboutAnswered } from './useAbout'
 import type { UiText } from '../lib/i18n/translations'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
@@ -372,6 +372,14 @@ export function AppRoutes() {
   // registered and a direct visit to its address is the not-found screen, as for any address
   // nobody wrote (G2-00 / P3-21).
   const siteAdmin = useAbout().features.siteAdmin
+  const aboutAnswered = useAboutAnswered()
+  const { pathname } = useLocation()
+  // The console's addresses exist only on a box that says so, and a box has not said so yet: a
+  // reload of `/admin/site` would be answered "not found" for the moments before it does, and then
+  // be the console. Waited for here, and only here: no other address waits on the box.
+  if (!aboutAnswered && (pathname === '/admin/site' || pathname.startsWith('/admin/site/'))) {
+    return <RouteFallback />
+  }
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
