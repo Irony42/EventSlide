@@ -49,6 +49,30 @@ const onBox = (limits: readonly ClientLimitsDto[], extra: Partial<Api> = {}) =>
 const open = (api: Api) => renderWithProviders(<ClientSpacePage />, { api, route: '/admin/client' })
 
 describe('ClientSpacePage', () => {
+  it('says an account that belongs to no client has nothing to show, instead of an empty page', async () => {
+    open(onBox([]))
+
+    expect(await screen.findByRole('heading', { name: fr.clientSpace.noLimits })).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('says the limits could not be read, as a failure and not as "no limit", and reads them again on request', async () => {
+    const myLimits = vi
+      .fn<Api['myLimits']>()
+      .mockRejectedValueOnce(ApiError.network())
+      .mockResolvedValue({ clients: [aClientLimits()] })
+
+    open(onBox([], { myLimits }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    expect(screen.queryByRole('heading', { name: fr.clientSpace.noLimits })).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
+
+    expect(await screen.findByRole('heading', { name: 'Atelier Alpha' })).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('shows an owner their limits with how much of each they have used', async () => {
     const limits = aClientLimits({
       meters: [{ kind: 'events', used: 9, max: 10, level: 'warning' }],
@@ -178,6 +202,14 @@ describe('ClientSpacePage', () => {
     // for another try.
     expect(await screen.findByText(fr.errors.network)).toBeVisible()
     expect(screen.getByRole('button', { name: fr.clientSpace.auditMore })).toBeEnabled()
+  })
+
+  it('says the log could not be read, a level below the card that holds it', async () => {
+    const clientAudit = vi.fn<Api['clientAudit']>().mockRejectedValue(ApiError.network())
+    open(onBox([aClientLimits()], { clientAudit }))
+
+    expect(await screen.findByRole('heading', { level: 3, name: fr.app.loadFailed })).toBeVisible()
+    expect(screen.queryByText(fr.clientSpace.auditEmpty)).toBeNull()
   })
 
   it('says the log is empty rather than showing nothing', async () => {

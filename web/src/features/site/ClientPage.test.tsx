@@ -204,10 +204,10 @@ describe('a client’s page: its events', () => {
       .mockResolvedValue({ items: [aSiteEvent()], next: null })
     open(withClient(aSiteClient(), { siteClientEvents }))
 
-    expect(await screen.findByText(fr.admin.loadFailed)).toBeVisible()
+    expect(await screen.findByText(fr.app.loadFailed)).toBeVisible()
     expect(await heading()).toBeVisible()
 
-    const alert = screen.getByText(fr.admin.loadFailed).closest('[role="alert"]') as HTMLElement
+    const alert = screen.getByText(fr.app.loadFailed).closest('[role="alert"]') as HTMLElement
     await userEvent.click(within(alert).getByRole('button', { name: fr.app.retry }))
 
     expect(await screen.findByRole('table', { name: fr.site.eventsTableLabel })).toBeVisible()
