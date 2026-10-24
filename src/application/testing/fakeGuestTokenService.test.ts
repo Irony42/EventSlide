@@ -48,7 +48,16 @@ describe('FakeGuestTokenService', () => {
     ])
   })
 
-  it('is twelve hours, which is what the real token lives for', () => {
-    expect(FAKE_GUEST_TOKEN_MAX_AGE_MS).toBe(43_200_000)
+  it('refuses a token dated in the future, which could outlive its window', () => {
+    const now = new Date(AT.getTime() - 1)
+
+    const verified = tokens.verify(tokens.issue(claims), now)
+
+    expect(!verified.ok && verified.error.code).toBe('guestToken.expired')
+  })
+
+  it('refuses a token with an empty event or guest', () => {
+    expect(tokens.verify(`token||${GUEST}|${AT.getTime()}`, AT).ok).toBe(false)
+    expect(tokens.verify(`token|${EVENT}||${AT.getTime()}`, AT).ok).toBe(false)
   })
 })

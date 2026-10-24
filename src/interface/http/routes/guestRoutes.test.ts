@@ -183,7 +183,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
   const photos = new FakePhotoRepository()
   const missions = new FakeMissionRepository(photos)
   const reactions = new FakeReactionRepository()
-  const media = new InMemoryMediaStore()
+  const media = new InMemoryMediaStore().forbidEnumeration('the guest surface')
   const upload = new ScriptedUploadPhotos()
   const ids = new SequentialIdGenerator()
   const budget = options.budget ?? { windowMs: 60_000, maxPerWindow: 30 }

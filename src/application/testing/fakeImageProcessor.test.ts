@@ -16,6 +16,12 @@ describe('tagBytes and readTag', () => {
 })
 
 describe('FakeImageProcessor', () => {
+  it('can tell the variants apart, because their longest edges differ', () => {
+    const edges = MEDIA_VARIANTS.map((variant) => VARIANT_SPECS[variant].maxWidth)
+
+    expect(new Set(edges).size).toBe(MEDIA_VARIANTS.length)
+  })
+
   describe('probe', () => {
     it('answers a 4032 x 3024 jpeg for a file nobody scripted', async () => {
       const probed = await new FakeImageProcessor().probe(tagBytes('a'))
@@ -120,7 +126,7 @@ describe('FakeImageProcessor', () => {
 
       expect(display.ok).toBe(true)
       expect(!thumb.ok && [thumb.error.kind, thumb.error.code]).toEqual([
-        'unexpected',
+        'invalid',
         'image.renderFailed',
       ])
     })

@@ -44,7 +44,20 @@ export class FakePasswordHasher implements PasswordHasher {
   readonly verifications: { readonly attempt: string; readonly hash: PasswordHash }[] = []
   readonly dummyHash: PasswordHash = 'hash:mot-de-passe-factice'
 
+  private readonly waiters: { readonly count: number; readonly resolve: () => void }[] = []
+
   constructor(private readonly options: FakePasswordHasherOptions = {}) {}
+
+  /**
+   * Resolves once `count` comparisons have started, and is already resolved if they have.
+   *
+   * What a test awaits while `gate` holds them open, instead of polling: the moment a
+   * comparison is inside `verify` is the moment this resolves.
+   */
+  whenVerifying(count = 1): Promise<void> {
+    if (this.verifications.length >= count) return Promise.resolve()
+    return new Promise((resolve) => this.waiters.push({ count, resolve }))
+  }
 
   async hash(password: Password): Promise<PasswordHash> {
     return this.options.produces?.(password) ?? `hash:${password.value}`
@@ -52,6 +65,9 @@ export class FakePasswordHasher implements PasswordHasher {
 
   async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
     this.verifications.push({ attempt, hash })
+    for (const waiter of this.waiters) {
+      if (this.verifications.length >= waiter.count) waiter.resolve()
+    }
     await this.options.gate
     return hash === `hash:${attempt}` || hash === this.options.alsoVerifies?.(attempt)
   }

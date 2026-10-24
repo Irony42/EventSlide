@@ -92,7 +92,7 @@ export class FakeImageProcessor implements ImageProcessor {
 
     const script = this.scripts.get(tag) ?? {}
     if (script.renderErrorAt === variant) {
-      return { ok: false, error: DomainError.unexpected('image.renderFailed') }
+      return { ok: false, error: DomainError.invalid('image.renderFailed') }
     }
 
     const box = dimensionsFrom(spec.maxWidth, spec.maxHeight)

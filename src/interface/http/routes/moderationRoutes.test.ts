@@ -196,7 +196,7 @@ type World = Harness & Adapters
 const world = (): World => {
   const photos = new FakePhotoRepository()
   const reactions = new FakeReactionRepository()
-  const media = new InMemoryMediaStore()
+  const media = new InMemoryMediaStore().forbidEnumeration('the moderation routes')
   const adapters: Adapters = { photos, reactions, media }
 
   const harness = buildHarness({
@@ -747,7 +747,7 @@ describe('POST /api/events/:eventSlug/moderation/bulk', () => {
  * principal is present, and `server.ts` is not this module's to edit.
  */
 describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
-  it('lets a moderator delete any photo in their event, media before row', async () => {
+  it('lets a moderator delete any photo in their event, and the bytes go with it', async () => {
     const agent = await signedIn(subject, 'moderator')
     const published = aPhoto({ id: P.published, eventId: WEDDING })
     await subject.media.put(published.eventId, published.contentHash, 'original', Uint8Array.of(1))

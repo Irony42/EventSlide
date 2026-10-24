@@ -81,7 +81,7 @@ suites as the SQLite adapters (§4).
 | `InMemoryMediaStore`       | byte buffers copied in and out, reports real sizes; held to `mediaStoreContract`                                           |
 | `FakeImageProcessor`       | deterministic metadata, simulates rotation and failure on demand; `calls` records the order of `probe` and `render`        |
 | `FakeContentHasher`        | a deterministic 64-character digest the domain accepts as a `ContentHash`; `returnGarbage()` is the broken adapter         |
-| `FakeGuestTokenService`    | `token\|<event>\|<guest>\|<ms>`: verifies, is malformed, or is past twelve hours                                           |
+| `FakeGuestTokenService`    | `token\|<event>\|<guest>\|<ms>`: verifies, is malformed, or is past 36 hours (the real limit) or dated in the future       |
 | `FakeArchiveWriter`        | records each entry and the bytes pulled from it; can emit a zip header and the content, or fail on the first entry         |
 | `CountingClientRepository` | `FakeClientRepository` that counts `contextForEvent`, so "never reads the client" is a number                              |
 | `FakeClock`                | `now()`, `advance(ms)`                                                                                                     |

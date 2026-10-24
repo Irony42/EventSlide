@@ -65,6 +65,7 @@ describe('InMemoryMediaStore', () => {
 
     expect(media.variantsOf(WEDDING, hashOf('aa'))).toEqual(['video', 'poster'])
   })
+
   it('counts every byte stream asked for, found or not', async () => {
     await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
 
@@ -79,12 +80,14 @@ describe('InMemoryMediaStore', () => {
     await media.put(WEDDING, hashOf('aa'), 'video', Uint8Array.of(1))
     await media.put(WEDDING, hashOf('bb'), 'display', Uint8Array.of(1))
 
+    await media.put(GALA, hashOf('aa'), 'display', Uint8Array.of(1))
     media.vanishAfterStat(WEDDING, hashOf('aa'))
 
     expect((await media.stat(WEDDING, hashOf('aa'), 'display'))?.byteSize).toBe(3)
     expect(await media.openRead(WEDDING, hashOf('aa'), 'display')).toBeNull()
     expect(await media.openRead(WEDDING, hashOf('aa'), 'video')).toBeNull()
     expect(await media.openRead(WEDDING, hashOf('bb'), 'display')).not.toBeNull()
+    expect(await media.openRead(GALA, hashOf('aa'), 'display')).not.toBeNull()
   })
 
   it('can refuse an unlink, and keeps the bytes when it does', async () => {
@@ -116,5 +119,7 @@ describe('InMemoryMediaStore', () => {
     await expect(media.deleteEvent(GALA)).rejects.toThrow('media root is read-only')
 
     expect(await media.listEvents()).toEqual([GALA])
+    expect(await media.usedBytes(GALA)).toBe(1)
+    expect(await media.usedBytes(WEDDING)).toBe(0)
   })
 })

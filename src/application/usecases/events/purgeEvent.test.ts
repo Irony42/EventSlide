@@ -12,12 +12,14 @@ const GALA = asEventId('evt-gala')
 const OWNER = asUserId('user-host')
 const MODERATOR = asUserId('user-mod')
 const STRANGER = asUserId('user-stranger')
+
 const HASH = aPhoto().contentHash
 
 describe('purgeEvent', () => {
   let events: FakeEventRepository
   let memberships: FakeMembershipRepository
   let media: InMemoryMediaStore
+  let calls: CallLog
   let purgeEvent: PurgeEvent
 
   beforeEach(async () => {
@@ -26,7 +28,8 @@ describe('purgeEvent', () => {
     media = new InMemoryMediaStore()
     await media.put(WEDDING, HASH, 'original', Uint8Array.of(1))
     await media.put(GALA, HASH, 'original', Uint8Array.of(1))
-    purgeEvent = makePurgeEvent({ events, memberships, media })
+    calls = new CallLog()
+    purgeEvent = makePurgeEvent({ events, memberships, media: calls.watch('media', media) })
 
     events.seed(
       anEvent({ id: WEDDING, ownerId: OWNER, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
@@ -42,10 +45,20 @@ describe('purgeEvent', () => {
     await memberships.grant({ eventId: GALA, userId: STRANGER, role: 'owner', grantedAt: AT })
   })
 
-  it('deletes the media of the event it was asked for', async () => {
+  /** What is left on the disk for the wedding and for the gala, in bytes. */
+  const bytesLeft = async (): Promise<number[]> => [
+    await media.usedBytes(WEDDING),
+    await media.usedBytes(GALA),
+  ]
+
+  /** Every call the use case made on the media store, which for a purge is one or none. */
+  const mediaCalls = (): readonly string[] => calls.names
+
+  it('deletes the media of the event it was asked for, and asks the store for nothing else', async () => {
     await purgeEvent({ eventId: WEDDING, actorId: OWNER })
 
-    expect(await media.listEvents()).toEqual([GALA])
+    expect(await bytesLeft()).toEqual([0, 1])
+    expect(mediaCalls()).toEqual(['media.deleteEvent'])
   })
 
   it('deletes the row, whose cascade takes the photos, guests and reactions with it', async () => {
@@ -110,7 +123,8 @@ describe('purgeEvent', () => {
   it('deletes no media when a moderator tries', async () => {
     await purgeEvent({ eventId: WEDDING, actorId: MODERATOR })
 
-    expect(await media.listEvents()).toEqual([WEDDING, GALA])
+    expect(await bytesLeft()).toEqual([1, 1])
+    expect(mediaCalls()).toEqual([])
   })
 
   it('keeps the row when a moderator tries', async () => {
@@ -138,7 +152,8 @@ describe('purgeEvent', () => {
   it('touches neither the row nor the media of another event', async () => {
     await purgeEvent({ eventId: GALA, actorId: OWNER })
 
-    expect(await media.listEvents()).toEqual([WEDDING, GALA])
+    expect(await bytesLeft()).toEqual([1, 1])
+    expect(mediaCalls()).toEqual([])
   })
 
   it('leaves the other event standing', async () => {
@@ -156,6 +171,7 @@ describe('purgeEvent', () => {
   it('asks the media store for nothing when the event does not exist', async () => {
     await purgeEvent({ eventId: asEventId('evt-nothing'), actorId: OWNER })
 
-    expect(await media.listEvents()).toEqual([WEDDING, GALA])
+    expect(await bytesLeft()).toEqual([1, 1])
+    expect(mediaCalls()).toEqual([])
   })
 })

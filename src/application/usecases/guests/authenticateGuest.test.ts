@@ -15,16 +15,6 @@ import {
   FakeGuestTokenService,
 } from '../../testing/fakeGuestTokenService'
 
-/**
- * A token a test can both mint and read: `token|<eventId>|<guestId>|<issuedAt ms>`.
- *
- * Local rather than shared, because the real service's whole job is the HMAC and a
- * faked signature asserts nothing — `hmacTokenService` has its own ring-3 tests. What
- * this use case owes is what happens *after* a token verifies: the claims are checked
- * against the event in the URL and against the guest row. So the double models exactly
- * the three verify outcomes the port promises, and nothing else.
- */
-
 const WEDDING = asEventId('event-1')
 const GALA = asEventId('event-2')
 const LEA = asGuestId('guest-1')

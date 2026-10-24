@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { asUserId } from '../../../domain/shared/ids'
 import type { PasswordHash } from '../../../domain/users/user'
 import { AT, aUser } from '../../testing/builders'
@@ -163,7 +163,7 @@ describe('authenticateUser', () => {
         }),
       )
       const pending = authenticate({ email: 'hote@example.test', password: PASSWORD }, gated)
-      await vi.waitFor(() => expect(gated.verifications).toHaveLength(1))
+      await gated.whenVerifying()
       await change()
       open()
       return pending

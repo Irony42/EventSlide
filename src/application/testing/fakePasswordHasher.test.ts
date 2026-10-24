@@ -89,28 +89,59 @@ describe('FakePasswordHasher', () => {
     })
   })
 
-  describe('gate', () => {
-    it('holds every comparison open until it is let go, having recorded that each started', async () => {
-      let release: () => void = () => undefined
+  describe('gate and whenVerifying', () => {
+    const gated = (): { hasher: FakePasswordHasher; open: () => void } => {
+      let open: () => void = () => undefined
       const gate = new Promise<void>((resolve) => {
-        release = resolve
+        open = resolve
       })
-      const hasher = new FakePasswordHasher({ gate })
+      return { hasher: new FakePasswordHasher({ gate }), open }
+    }
 
-      const answers = Promise.all([hasher.verify('a', 'hash:a'), hasher.verify('b', 'hash:a')])
-      await Promise.resolve()
+    const drain = async (): Promise<void> => {
+      for (let tick = 0; tick < 20; tick += 1) await Promise.resolve()
+    }
 
-      expect(hasher.verifications).toHaveLength(2)
+    it('holds every comparison open until it is let go, having recorded that each started', async () => {
+      const { hasher, open } = gated()
       let settled = false
+      const answers = Promise.all([hasher.verify('a', 'hash:a'), hasher.verify('b', 'hash:a')])
       void answers.then(() => {
         settled = true
       })
-      await Promise.resolve()
+
+      await hasher.whenVerifying(2)
+      await drain()
+
+      expect(hasher.verifications).toHaveLength(2)
       expect(settled).toBe(false)
 
-      release()
+      open()
 
       expect(await answers).toEqual([true, false])
+    })
+
+    it('resolves when the n-th comparison starts, not before', async () => {
+      const { hasher } = gated()
+      let reached = false
+      void hasher.whenVerifying(2).then(() => {
+        reached = true
+      })
+
+      void hasher.verify('a', 'hash:a')
+      await drain()
+      expect(reached).toBe(false)
+
+      void hasher.verify('b', 'hash:b')
+      await drain()
+      expect(reached).toBe(true)
+    })
+
+    it('is already resolved when the comparisons have started', async () => {
+      const hasher = new FakePasswordHasher()
+      await hasher.verify('a', 'hash:a')
+
+      await expect(hasher.whenVerifying(1)).resolves.toBeUndefined()
     })
   })
 })

@@ -23,7 +23,7 @@ import { asEventId } from '../../../domain/shared/ids'
  * interrupted `put` (left alone while young, reaped by `list` once abandoned, never listed),
  * a file the store could not have written, and what a failing filesystem does. What stays
  * in `inMemoryMediaStore.test.ts`: the scripted conditions (`failWritesAfter`, `failDeletes`,
- * `vanishAfterStat`), the `opened` count and the `forbidEnumeration` tripwire.
+ * `failEventPurges`, `vanishAfterStat`), the `opened` count and the `forbidEnumeration` tripwire.
  */
 
 export interface MediaStoreSubject {

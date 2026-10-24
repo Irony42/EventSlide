@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { asAccountTokenId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { issueAccountToken } from '../../../domain/users/accountToken'
 import type { AccountTokenRepository } from '../../ports/accountTokenRepository'
-import type { PasswordHasher } from '../../ports/passwordHasher'
 import { AT, aUser, anAccountToken } from '../../testing/builders'
 import { FakeAccountTokenRepository } from '../../testing/fakeAccountTokenRepository'
 import { FakeClock } from '../../testing/fakeClock'
@@ -292,12 +291,7 @@ describe('resetPassword', () => {
     // A salted algorithm never does; a broken adapter might. Saving it would report success
     // for a change that did not happen, and the epoch would end sessions for nothing.
     const token = await issueLink()
-    const stuck: PasswordHasher = {
-      dummyHash: 'hash:factice',
-      hash: async () => 'hash:ancien-mot-de-passe',
-      verify: async () => false,
-      needsRehash: () => false,
-    }
+    const stuck = new FakePasswordHasher({ produces: () => 'hash:ancien-mot-de-passe' })
 
     const result = await makeResetPassword({
       users,

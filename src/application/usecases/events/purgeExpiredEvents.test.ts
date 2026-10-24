@@ -4,6 +4,7 @@ import { asEventId } from '../../../domain/shared/ids'
 import { AT, aClient, aPhoto, anEvent, atPlus } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
+import { CallLog } from '../../testing/callLog'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { makePurgeExpiredEvents, type PurgeExpiredEvents } from './purgeExpiredEvents'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
@@ -28,13 +29,31 @@ describe('purgeExpiredEvents', () => {
   let events: FakeEventRepository
   let media: InMemoryMediaStore
   let clock: FakeClock
+  let calls: CallLog
   let purgeExpiredEvents: PurgeExpiredEvents
+
+  /** The store as the sweep sees it: every call it makes is written down. */
+  const watched = (store: InMemoryMediaStore): InMemoryMediaStore => {
+    calls = new CallLog()
+    return calls.watch('media', store)
+  }
+
+  /** What is left on the disk for the wedding and for the gala, in bytes. */
+  const bytesLeft = async (): Promise<number[]> => [
+    await media.usedBytes(WEDDING),
+    await media.usedBytes(GALA),
+  ]
 
   beforeEach(async () => {
     events = new FakeEventRepository()
     media = await storeHoldingBoth()
     clock = new FakeClock(SWEEP_AT)
-    purgeExpiredEvents = makePurgeExpiredEvents({ events, media, clock, capNoticeDays: 30 })
+    purgeExpiredEvents = makePurgeExpiredEvents({
+      events,
+      media: watched(media),
+      clock,
+      capNoticeDays: 30,
+    })
   })
 
   const seedExpiredWedding = (): void => {
@@ -54,7 +73,8 @@ describe('purgeExpiredEvents', () => {
 
     await purgeExpiredEvents()
 
-    expect(await media.listEvents()).toEqual([GALA])
+    expect(await bytesLeft()).toEqual([0, 1])
+    expect(calls.names).toEqual(['media.deleteEvent'])
   })
 
   it('purges the row of an event past its retention deadline', async () => {
@@ -109,7 +129,8 @@ describe('purgeExpiredEvents', () => {
   it('asks the media store for nothing when nothing is due', async () => {
     await purgeExpiredEvents()
 
-    expect(await media.listEvents()).toEqual([WEDDING, GALA])
+    expect(await bytesLeft()).toEqual([1, 1])
+    expect(calls.names).toEqual([])
   })
 
   // ------------------------------------------------------- one bad disk, forty events --
@@ -127,7 +148,12 @@ describe('purgeExpiredEvents', () => {
         }),
       )
       media = await storeHoldingBoth([GALA])
-      purgeExpiredEvents = makePurgeExpiredEvents({ events, media, clock, capNoticeDays: 30 })
+      purgeExpiredEvents = makePurgeExpiredEvents({
+        events,
+        media: watched(media),
+        clock,
+        capNoticeDays: 30,
+      })
     })
 
     it('carries on to the events behind it', async () => {
@@ -160,7 +186,7 @@ describe('purgeExpiredEvents', () => {
     })
 
     const purgeWith = (capNoticeDays: number): PurgeExpiredEvents =>
-      makePurgeExpiredEvents({ events, media, clock, capNoticeDays })
+      makePurgeExpiredEvents({ events, media: watched(media), clock, capNoticeDays })
 
     const seedKeptForEver = (closedAt: Date): void => {
       events.seed(
@@ -181,7 +207,7 @@ describe('purgeExpiredEvents', () => {
       const report = await purgeWith(30)()
 
       expect(report).toEqual({ purged: [WEDDING], failed: [] })
-      expect(await media.listEvents()).toEqual([GALA])
+      expect(await bytesLeft()).toEqual([0, 1])
     })
 
     it('leaves it until then', async () => {

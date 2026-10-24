@@ -17,6 +17,7 @@ import {
   aPhoto,
   type PhotoInput,
 } from '../../../application/testing/builders'
+import type { Photo } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
@@ -437,8 +438,12 @@ const CLIP = '7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c'
 const MP4 = Uint8Array.from({ length: 64 }, (_unused, index) => index)
 const POSTER = Uint8Array.of(0xff, 0xd8, 0xff, 0x01)
 
+/** The published clip the clip tests are about: the same row wherever it is built. */
+const aPublishedClip = (): Photo =>
+  aClip({ id: CLIP, eventId: WEDDING, status: 'published', clip: {} })
+
 const seedClip = async (world: World): Promise<void> => {
-  const clip = aClip({ id: CLIP, eventId: WEDDING, status: 'published', clip: {} })
+  const clip = aPublishedClip()
   world.photos.seed(clip)
   await world.media.put(clip.eventId, clip.contentHash, 'video', MP4)
   const facet = clip.facet
@@ -623,7 +628,7 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant — a clip', () => {
     // because by then only this layer knows whether a null open is a missing file or a
     // range question — and `photo.mediaMissing` is the code that means a row points at
     // bytes that are gone, which is a corruption worth an operator's attention.
-    const clip = aClip({ id: CLIP, eventId: WEDDING, status: 'published', clip: {} })
+    const clip = aPublishedClip()
     world.media.vanishAfterStat(clip.eventId, clip.contentHash)
 
     const response = await getJson(world, mediaPath(CLIP, 'video'))
