@@ -5,6 +5,7 @@ import type {
   PurgeExpiredEventsReport,
 } from '../application/usecases/events/purgeExpiredEvents'
 import type { PruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
+import type { FinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
 
 /**
  * The trigger the retention setting never had.
@@ -39,6 +40,12 @@ export interface RetentionSweeperDeps {
   readonly purge: PurgeExpiredEvents
   /** The audit log's own retention (roadmap §10.8). Required, so the wiring cannot forget it. */
   readonly pruneAuditLog: PruneAuditLog
+  /**
+   * The end of an offboarding (G2-14 part 3): the accounts and the client row of every client whose
+   * albums this very sweep has just purged. Required, so the wiring cannot forget it, and run
+   * **after** the purge, because a client is finalised only once it has no event left.
+   */
+  readonly finalizeOffboardedClients: FinalizeOffboardedClients
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
   readonly clock: Clock
@@ -64,6 +71,7 @@ export interface RetentionSweeper {
 export const createRetentionSweeper = ({
   purge,
   pruneAuditLog,
+  finalizeOffboardedClients,
   logger,
   clock,
   intervalMs,
@@ -85,6 +93,35 @@ export const createRetentionSweeper = ({
    * own return value is down for the whole of that prune whenever the purge throws.
    */
   let sweeping = false
+
+  /**
+   * The offboarded clients' half of a sweep. Never throws, for the reason `pruneAudit` gives, and
+   * run before it: a finalisation writes audit lines, and those should be in the log the prune reads.
+   * A client that could not be finished is an error, not a warning: its accounts and its client row
+   * are still there, and the ids are what an operator needs. The next sweep tries again.
+   */
+  const finalizeClients = async (): Promise<void> => {
+    try {
+      const report = await finalizeOffboardedClients()
+      if (report.finalized.length > 0) {
+        logger.info('retention sweep finalised offboarded clients', {
+          finalized: report.finalized.length,
+          finalizedIds: report.finalized.join(' '),
+          accountsDeleted: report.accountsDeleted,
+        })
+      }
+      if (report.failed.length > 0) {
+        logger.error('retention sweep could not finalise every offboarded client', {
+          failed: report.failed.length,
+          failedIds: report.failed.join(' '),
+        })
+      }
+    } catch (error) {
+      logger.error('offboarded clients could not be finalised', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 
   /**
    * The audit log's half of a sweep. Never throws: it runs in a `finally`, where a throw
@@ -167,6 +204,7 @@ export const createRetentionSweeper = ({
     } finally {
       // After the events, whatever became of them, and still inside the overlap guard: a
       // second tick must not start a sweep while this one is still pruning.
+      await finalizeClients()
       await pruneAudit()
       sweeping = false
     }

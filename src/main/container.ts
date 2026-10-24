@@ -474,6 +474,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       : createRetentionSweeper({
           purge: usecases.purgeExpiredEvents,
           pruneAuditLog: usecases.pruneAuditLog,
+          finalizeOffboardedClients: usecases.finalizeOffboardedClients,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,
