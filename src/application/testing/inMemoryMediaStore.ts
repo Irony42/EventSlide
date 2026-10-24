@@ -24,9 +24,14 @@ import type { EventId } from '../../domain/shared/ids'
  * is stored; every rendition has the content type the adapter gives it; and an event stays
  * listed after its last object is deleted, until the event itself is purged.
  *
- * `failWritesAfter` is the only scripted behaviour: a disk filling up part-way through
- * a request is the one condition a test cannot otherwise reach, and unwinding on it is
- * the behaviour 1.0 got wrong.
+ * The scripted behaviours are the conditions a test cannot otherwise reach, each of which
+ * a use case or a route once got wrong or must be shown to survive: `failWritesAfter`, a disk
+ * filling up part-way through a request, and unwinding on it was the behaviour 1.0 got wrong;
+ * `failDeletes`, an unlink the operating system refuses; `failEventPurges`, a media root that
+ * went read-only under a retention sweep; `vanishAfterStat`, the retention
+ * purge taking a file between the size check and the open; and `opened`, a count of the byte
+ * streams asked for, because how many is the whole of a descriptor leak. `forbidEnumeration`
+ * is the other way round: a tripwire, for a test of a surface that must never walk the store.
  */
 export class InMemoryMediaStore implements MediaStore {
   private readonly objects = new Map<string, Uint8Array>()
@@ -59,10 +64,57 @@ export class InMemoryMediaStore implements MediaStore {
   constructor(private readonly clock?: Clock) {}
 
   private budget = Number.POSITIVE_INFINITY
+  private deletesFail = false
+  private readonly unreadable = new Set<string>()
+  private enumerationRefusedFor: string | null = null
+  private readonly purgesFail = new Set<EventId>()
+
+  /**
+   * How many byte streams have been asked for, found or not.
+   *
+   * Counted because "how many" is the whole of a descriptor leak: `openRead` on the
+   * filesystem store opens the file when the stream is *constructed*, so a stream nobody
+   * reads still costs a descriptor until something destroys it.
+   */
+  opened = 0
 
   /** Simulates a disk filling up: the next `writes` succeed and the rest throw. */
   failWritesAfter(writes: number): this {
     this.budget = writes
+    return this
+  }
+
+  /** Simulates an unlink the operating system refuses (a permission, a busy handle). */
+  failDeletes(): this {
+    this.deletesFail = true
+    return this
+  }
+
+  /**
+   * Models the retention purge deleting a file between the size check and the open — the one
+   * window in which a media read can fail after it has already succeeded. `stat` goes on
+   * reporting the size; `openRead` answers `null`, for every rendition of the digest.
+   */
+  vanishAfterStat(eventId: EventId, hash: ContentHash): this {
+    for (const variant of ALL_MEDIA_VARIANTS) this.unreadable.add(this.key(eventId, hash, variant))
+    return this
+  }
+
+  /** Events whose purge blows up: a read-only media root, a disk that went away. */
+  failEventPurges(...eventIds: readonly EventId[]): this {
+    for (const eventId of eventIds) this.purgesFail.add(eventId)
+    return this
+  }
+
+  /**
+   * Makes `list` and `listEvents` throw, naming the surface they are not part of.
+   *
+   * Only the reconciliation sweep enumerates a store. A test of anything else says so, and a
+   * use case or handler that started walking the store fails loudly rather than passing
+   * against a store that shrugs.
+   */
+  forbidEnumeration(surface: string): this {
+    this.enumerationRefusedFor = surface
     return this
   }
 
@@ -75,6 +127,12 @@ export class InMemoryMediaStore implements MediaStore {
 
   get objectCount(): number {
     return this.objects.size
+  }
+
+  private refuseIfForbidden(method: string): void {
+    if (this.enumerationRefusedFor !== null) {
+      throw new Error(`${method} is not part of ${this.enumerationRefusedFor}`)
+    }
   }
 
   private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
@@ -129,8 +187,10 @@ export class InMemoryMediaStore implements MediaStore {
     variant: MediaVariant,
     range?: ByteRange,
   ): Promise<AsyncIterable<Uint8Array> | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined) return null
+    this.opened += 1
+    const key = this.key(eventId, hash, variant)
+    const bytes = this.objects.get(key)
+    if (bytes === undefined || this.unreadable.has(key)) return null
     if (range === undefined) return once(new Uint8Array(bytes))
     if (range.start >= bytes.length || range.end < range.start) return null
     return once(bytes.slice(range.start, Math.min(range.end, bytes.length - 1) + 1))
@@ -146,6 +206,7 @@ export class InMemoryMediaStore implements MediaStore {
   }
 
   async delete(eventId: EventId, hash: ContentHash): Promise<void> {
+    if (this.deletesFail) throw new Error('EPERM: operation not permitted, unlink')
     for (const variant of ALL_MEDIA_VARIANTS) {
       const key = this.key(eventId, hash, variant)
       this.objects.delete(key)
@@ -154,6 +215,7 @@ export class InMemoryMediaStore implements MediaStore {
   }
 
   async deleteEvent(eventId: EventId): Promise<void> {
+    if (this.purgesFail.has(eventId)) throw new Error('media root is read-only')
     this.events.delete(eventId)
     for (const key of [...this.objects.keys()]) {
       if (key.startsWith(`${eventId}|`)) {
@@ -172,10 +234,12 @@ export class InMemoryMediaStore implements MediaStore {
   }
 
   async listEvents(): Promise<readonly EventId[]> {
+    this.refuseIfForbidden('listEvents')
     return [...this.events]
   }
 
   async list(eventId: EventId): Promise<readonly StoredObject[]> {
+    this.refuseIfForbidden('list')
     const found: StoredObject[] = []
     for (const [key, bytes] of this.objects) {
       const held = this.held.get(key)

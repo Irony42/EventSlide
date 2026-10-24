@@ -6,7 +6,6 @@ import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/aut
 import { sendNoContent } from '../presenters/send'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
-import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import {
   aMission,
   AT,
@@ -38,10 +37,10 @@ import {
 import { makeWithdrawReaction } from '../../../application/usecases/reactions/withdrawReaction'
 import { makeRenameGuest } from '../../../application/usecases/guests/renameGuest'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
-import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asGuestId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
 /**
  * The guest surface, driven through a real Express app.
@@ -92,65 +91,6 @@ const NO_TOKEN = ''
 type Client = ReturnType<typeof request>
 
 // ------------------------------------------------------------- test doubles --
-
-const unreached = (method: string): string =>
-  `MediaStore.${method} is not reached from the guest surface`
-
-/**
- * A `MediaStore` that records deletions, answers how old an object is, and refuses
- * everything else.
- *
- * Two methods are reachable from here — a guest taking a photo back is a `delete`, and
- * `deletePhoto` asks `stat` how recently the bytes were written before it unlinks them,
- * because bytes written moments ago may belong to a row that has not committed yet. The
- * rest throw rather than answering politely, so a route that started reading or writing
- * bytes itself fails loudly instead of passing against a store that shrugs.
- */
-class RecordingMediaStore implements MediaStore {
-  readonly deleted: string[] = []
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    this.deleted.push(`${eventId}:${hash.value}`)
-  }
-
-  async put(): Promise<void> {
-    throw new Error(unreached('put'))
-  }
-
-  async exists(): Promise<boolean> {
-    throw new Error(unreached('exists'))
-  }
-
-  async stat(): Promise<MediaMetadata | null> {
-    // Written at the epoch: old enough that the concurrent-writer guard has nothing to
-    // say, so what these tests are about — who may delete what — is what decides.
-    return { byteSize: 1, contentType: 'image/jpeg', modifiedAt: new Date(0) }
-  }
-
-  async openRead(): Promise<AsyncIterable<Uint8Array> | null> {
-    throw new Error(unreached('openRead'))
-  }
-
-  async read(): Promise<Uint8Array | null> {
-    throw new Error(unreached('read'))
-  }
-
-  async deleteEvent(): Promise<void> {
-    throw new Error(unreached('deleteEvent'))
-  }
-
-  async usedBytes(): Promise<number> {
-    throw new Error(unreached('usedBytes'))
-  }
-
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error(unreached('listEvents'))
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error(unreached('list'))
-  }
-}
 
 /**
  * A programmable `uploadPhotos`.
@@ -212,7 +152,7 @@ interface Subject {
   readonly app: Express
   readonly photos: FakePhotoRepository
   readonly reactions: FakeReactionRepository
-  readonly media: RecordingMediaStore
+  readonly media: InMemoryMediaStore
   readonly missions: FakeMissionRepository
   readonly upload: ScriptedUploadPhotos
   /** Paths the stand-in moderator handler answered, so a deferral is observable. */
@@ -243,7 +183,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
   const photos = new FakePhotoRepository()
   const missions = new FakeMissionRepository(photos)
   const reactions = new FakeReactionRepository()
-  const media = new RecordingMediaStore()
+  const media = new InMemoryMediaStore().forbidEnumeration('the guest surface')
   const upload = new ScriptedUploadPhotos()
   const ids = new SequentialIdGenerator()
   const budget = options.budget ?? { windowMs: 60_000, maxPerWindow: 30 }
@@ -872,6 +812,8 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
 describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
   it('lets the author take back their own pending photo inside the window', async () => {
     const subject = buildSubject()
+    const pending = aPhoto({ id: PENDING, eventId: WEDDING })
+    await subject.media.put(pending.eventId, pending.contentHash, 'original', Uint8Array.of(1))
 
     const response = await request(subject.app)
       .delete(`${BASE}/photos/${PENDING}`)
@@ -879,7 +821,7 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
 
     expect(response.status).toBe(204)
     expect(await subject.photos.findById(asEventId(WEDDING), asPhotoId(PENDING))).toBe(null)
-    expect(subject.media.deleted).toHaveLength(1)
+    expect(subject.media.variantsOf(pending.eventId, pending.contentHash)).toEqual([])
     expect(subject.harness.bus.published).toContainEqual(
       expect.objectContaining({ type: 'photo.deleted' }),
     )
