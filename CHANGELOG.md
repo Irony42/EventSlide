@@ -194,6 +194,12 @@ Read these before you upgrade, and back up with the version you run now.
 - **The host dashboard's `usedBytes` now counts the clip sources still waiting in the queue**
   as well as the photographs (#117), so it can read higher than before while clips are queued.
   It is the figure an upload is checked against.
+- **Three small answers changed** (#191). A moderator whose browser also holds a guest cookie (a host
+  who scanned their own QR code) is now answered as a moderator by
+  `DELETE /api/events/:slug/photos/:photoId`, where it was refused as a guest. A wall stream that is
+  open when the host archives the event now ends at its next heartbeat and frees its slot, where it
+  stayed open. `HttpDeps.guests` and `HttpDeps.guestTokens` no longer exist, which only matters to
+  code that builds the server itself.
 - **The server logs one line per request** (#104): the route pattern, never the raw URL,
   with status, duration and a request id. An unhandled error's stack trace is now logged in
   production too. On `SIGTERM` or `SIGINT`, `GET /api/ready` answers 503 at once and open
@@ -263,6 +269,13 @@ Read these before you upgrade, and back up with the version you run now.
   `acceptTerms: true` and answers `400 terms.notAccepted` without it, and the acceptance writes the
   audit entry `account.termsAccepted` with the version, in the transaction that spends the link. A
   box that sets neither, or only the address, looks and behaves as before.
+- **Two guest routes that had no door** (#190). `GET /api/join/:code` says which event a printed join
+  code names before the phone joins it: the name and what a guest may do there, the same `404` for
+  an unknown, draft, closed and archived event as the join gives, and one per-address budget shared
+  with `POST /api/join`, so the lookup tests codes no faster than the join did.
+  `PATCH /api/events/:slug/guests/:guestId` lets a guest change the name their photos are signed
+  with, their own and nobody else's. No screen calls either yet. A join code in a request path is
+  now written to the log as `/api/join/:token`.
 - **Support links, optional** (#119). `DONATION_URL` and `BUDGET_URL`, empty by default: a
   link in the host footer and on `/about`, and a closable card on the page of a closed event.
 - **Settings whose default is today's behaviour**: `MAX_STREAMS_PER_CLIENT`,
