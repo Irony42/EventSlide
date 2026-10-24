@@ -252,8 +252,8 @@ export const buildServer = ({
   /**
    * **One bucket for the guest's other writes (HTTP-H-01), same reason, same arrangement.**
    *
-   * A caption, taking a photo back, withdrawing a reaction and acknowledging the privacy
-   * notice are four routes in two routers and one guest; built inside each router they would
+   * A caption, taking a photo back, withdrawing a reaction, renaming oneself and
+   * acknowledging the privacy notice are five routes in two routers and one guest; built inside each router they would
    * be two allowances under `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`.
    */
   const guestWriteRateLimiter = guestWriteLimiter(config.rateLimits.guestWritePerMinute)

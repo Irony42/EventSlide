@@ -326,8 +326,8 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
       /**
        * Every other write a guest token can make: a caption, taking a photo back, withdrawing a
-       * reaction, acknowledging the privacy notice (HTTP-H-01). Per client address **and** event, one
-       * bucket for all four, built once in `server.ts`.
+       * reaction, acknowledging the privacy notice, renaming oneself (HTTP-H-01). Per client address **and** event, one
+       * bucket for all five, built once in `server.ts`.
        *
        * A backstop sized for a room, not a tuned figure. A whole venue shares one access point,
        * and what it legitimately sends is bounded by the budgets above: twelve uploads and twenty
