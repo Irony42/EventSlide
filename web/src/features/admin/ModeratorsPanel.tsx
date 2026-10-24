@@ -8,7 +8,7 @@ import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from './components/AsyncState'
+import { Async } from '../../design-system/components/Async'
 import { useModerators } from './hooks/useEventData'
 import { useInviteModerator, useRevokeModerator } from './hooks/useEventActions'
 import styles from './ModeratorsPanel.module.css'
@@ -32,7 +32,8 @@ const roleLabel = (moderator: ModeratorDto, text: UiText): string =>
 export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const t = useTranslations()
   const { locale } = useLocale()
-  const { data: moderators, loading, error, reload } = useModerators(slug)
+  const moderators = useModerators(slug)
+  const { reload } = moderators
   const invite = useInviteModerator()
   const revoke = useRevokeModerator()
   const toast = useToast()
@@ -49,7 +50,7 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
   const [inviteFailure, setInviteFailure] = useState<string | null>(null)
   const [selected, setSelected] = useState<ModeratorDto | null>(null)
 
-  const list = moderators ?? []
+  const list = moderators.data ?? []
   /**
    * An event with no owner can never be settled again — its settings, its join code
    * and its purge all require one. The server refuses to remove the last one; the UI
@@ -116,47 +117,45 @@ export function ModeratorsPanel({ slug }: ModeratorsPanelProps) {
 
   return (
     <Card as="h2" title={t.admin.moderators}>
-      {loading ? <Pending label={t.app.loading} /> : null}
-
-      {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
-
-      {!loading && error === null && list.length === 0 ? (
-        <EmptyState as="h3" title={t.admin.moderatorsEmpty} />
-      ) : null}
-
-      {!loading && error === null && list.length > 0 ? (
-        <ul className={styles['list']}>
-          {list.map((moderator) => {
-            const lastOwner = moderator.role === 'owner' && owners <= 1
-            return (
-              <li key={moderator.userId} className={styles['row']}>
-                <div className={styles['identity']}>
-                  <span className={styles['email']}>{moderator.email}</span>
-                  {moderator.displayName === null ? null : (
-                    <span className={styles['meta']}>{moderator.displayName}</span>
+      <Async
+        state={moderators}
+        as="h3"
+        empty={<EmptyState as="h3" title={t.admin.moderatorsEmpty} />}
+      >
+        {(rows) => (
+          <ul className={styles['list']}>
+            {rows.map((moderator) => {
+              const lastOwner = moderator.role === 'owner' && owners <= 1
+              return (
+                <li key={moderator.userId} className={styles['row']}>
+                  <div className={styles['identity']}>
+                    <span className={styles['email']}>{moderator.email}</span>
+                    {moderator.displayName === null ? null : (
+                      <span className={styles['meta']}>{moderator.displayName}</span>
+                    )}
+                  </div>
+                  <Badge tone={moderator.role === 'owner' ? 'accent' : 'neutral'}>
+                    {roleLabel(moderator, t)}
+                  </Badge>
+                  {lastOwner ? (
+                    <span className={styles['locked']}>{t.admin.lastOwnerHint}</span>
+                  ) : (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      loading={revoke.pending === moderator.userId}
+                      disabled={revoke.busy}
+                      onClick={() => setSelected(moderator)}
+                    >
+                      {t.admin.revokeModerator}
+                    </Button>
                   )}
-                </div>
-                <Badge tone={moderator.role === 'owner' ? 'accent' : 'neutral'}>
-                  {roleLabel(moderator, t)}
-                </Badge>
-                {lastOwner ? (
-                  <span className={styles['locked']}>{t.admin.lastOwnerHint}</span>
-                ) : (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    loading={revoke.pending === moderator.userId}
-                    disabled={revoke.busy}
-                    onClick={() => setSelected(moderator)}
-                  >
-                    {t.admin.revokeModerator}
-                  </Button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Async>
 
       {pending === null ? null : (
         <div className={styles['created']}>

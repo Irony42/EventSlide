@@ -61,7 +61,7 @@ describe('the console’s clients', () => {
     openConsole('/admin/site', consoleApi({ siteClients }))
 
     const failure = await screen.findByRole('alert')
-    expect(failure).toHaveTextContent(fr.admin.loadFailed)
+    expect(failure).toHaveTextContent(fr.app.loadFailed)
     expect(screen.queryByRole('table')).toBeNull()
 
     await userEvent.click(within(failure).getByRole('button', { name: fr.app.retry }))
@@ -406,7 +406,7 @@ describe('opening a client', () => {
     openConsole('/admin/site', api)
 
     await userEvent.click(await screen.findByRole('button', { name: fr.site.newClient }))
-    const failure = await screen.findByText(fr.admin.loadFailed)
+    const failure = await screen.findByText(fr.app.loadFailed)
     expect(screen.queryByLabelText(fr.site.maxEvents)).toBeNull()
 
     await userEvent.click(

@@ -227,6 +227,8 @@ describe('MissionsPanel', () => {
     render(api)
 
     expect(await screen.findByRole('button', { name: fr.app.retry })).toBeVisible()
+    // Inside a card whose title is a level 2, so the failure is a level 3 and not a second 2.
+    expect(screen.getByRole('heading', { level: 3, name: fr.app.loadFailed })).toBeVisible()
   })
 
   it('renders a prompt as text, never as markup', () => {
