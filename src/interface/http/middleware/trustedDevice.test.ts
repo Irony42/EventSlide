@@ -96,8 +96,8 @@ describe('the trusted-device cookie', () => {
       `v1.${payload}.${mac}A`,
       `v1.${'a'.repeat(5_000)}.${mac}`,
       'x'.repeat(100_000),
-      // 43 characters, 86 bytes: the right length to a character count and the wrong one to
-      // `timingSafeEqual`, which throws on it. A forged cookie must not be a 500.
+      // 43 characters, 86 bytes: the right length to a character count and the wrong one in
+      // bytes. A forged cookie must not be a 500.
       `v1.${payload}.${E_ACUTE.repeat(43)}`,
       `v1.${payload}.${NUL.repeat(43)}`,
       `v1.${payload}.${mac?.slice(0, 42)}${E_ACUTE}`,
