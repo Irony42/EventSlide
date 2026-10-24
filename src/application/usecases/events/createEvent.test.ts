@@ -12,6 +12,7 @@ import { AT, aClient, aClientCeilings, aUser, anEvent } from '../../testing/buil
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { SaturatedJoinCodeEventRepository } from '../../testing/saturatedEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
@@ -58,28 +59,11 @@ const joinCode = (value: string): JoinCode => {
   return parsed.value
 }
 
-/** A box whose join-code space answers "taken" to everything — what the bound is for. */
-class SaturatedEventRepository extends FakeEventRepository {
-  override async joinCodeTaken(): Promise<boolean> {
-    return true
-  }
-}
-
 /** The same bound, for the random slug suffix's own retry loop. */
 class SlugSaturatedEventRepository extends FakeEventRepository {
   asked = 0
 
   override async slugTaken(): Promise<boolean> {
-    this.asked += 1
-    return true
-  }
-}
-
-/** Counts the candidates it was asked about, so the bound is a number and not a feeling. */
-class CountingSaturatedEventRepository extends SaturatedEventRepository {
-  asked = 0
-
-  override async joinCodeTaken(): Promise<boolean> {
     this.asked += 1
     return true
   }
@@ -401,7 +385,7 @@ describe('createEvent', () => {
   })
 
   it('gives up rather than looping when no join code is free', async () => {
-    const saturated = new SaturatedEventRepository()
+    const saturated = new SaturatedJoinCodeEventRepository()
     const create = makeCreateEvent({
       events: saturated,
       clients,
@@ -420,7 +404,7 @@ describe('createEvent', () => {
   })
 
   it('asks about five join codes and no more before it gives up', async () => {
-    const saturated = new CountingSaturatedEventRepository()
+    const saturated = new SaturatedJoinCodeEventRepository()
     const create = makeCreateEvent({
       events: saturated,
       clients,
@@ -437,10 +421,12 @@ describe('createEvent', () => {
 
     expect(saturated.asked).toBe(5)
     expect(!result.ok && result.error.details).toEqual({ attempts: 5 })
+    // The box is broken, not the host's input: a 500 for the operator, not a 409 to retry.
+    expect(!result.ok && result.error.kind).toBe('unexpected')
   })
 
   it('saves nothing when it cannot allocate a join code', async () => {
-    const saturated = new SaturatedEventRepository()
+    const saturated = new SaturatedJoinCodeEventRepository()
     const create = makeCreateEvent({
       events: saturated,
       clients,

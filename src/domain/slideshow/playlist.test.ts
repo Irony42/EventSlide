@@ -150,10 +150,10 @@ describe('playlistRevision', () => {
     expect(EMPTY.revision).not.toBe(playlistOf('a').revision)
   })
 
-  // Fixed values, because the revision is a wire fact: every projector on every box derives it from
-  // the same ids and compares it with the one the server announces. Any change to the mixing, the
-  // seed or the separator changes every revision at once, and nothing else here would notice,
-  // since each other case compares two values from the same implementation.
+  // Fixed values: the server announces the revision and every projector compares it with the one
+  // it holds, so a changed mixing, seed or separator makes every wall refetch at once, and nothing
+  // else here would notice, since each other case compares two values from the same
+  // implementation. A deliberate change updates these three literals and nothing else.
   it.each([
     { ids: [] as readonly string[], revision: '1efc4f' },
     { ids: ['a', 'b'], revision: '1n7dmhi' },
