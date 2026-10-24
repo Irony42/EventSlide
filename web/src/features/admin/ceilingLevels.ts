@@ -38,7 +38,7 @@ export interface ContactAction {
 /**
  * The call to action of the banner and of the suspension screen: **"contact your operator"**,
  * as a link to the address the operator published (`OPERATOR_CONTACT_EMAIL`, already shaped by
- * `useAbout` into one plain address that `mailto:` can carry), or `null` when the box published
+ * `aboutAnswer.ts` into one plain address that `mailto:` can carry), or `null` when the box published
  * none, in which case the screens say it in words and link nowhere.
  *
  * An upgrade address (`links.upgrade`) is the paid plan's, and no box here publishes one.

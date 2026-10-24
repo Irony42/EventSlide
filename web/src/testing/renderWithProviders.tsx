@@ -2,7 +2,9 @@ import { render, type RenderResult } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactElement, ReactNode } from 'react'
 import { vi } from 'vitest'
+import { AboutProvider } from '../app/AboutProvider'
 import { ApiProvider } from '../app/ApiProvider'
+import { SessionProvider } from '../app/SessionProvider'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DEFAULT_EVENT_THEME } from '../design-system/eventTheme'
 import { LocaleProvider } from '../lib/i18n/LocaleProvider'
@@ -574,6 +576,13 @@ export interface RenderWithProvidersOptions {
    * above is a fixed instant.
    */
   readonly locale?: Locale
+  /**
+   * Whether to mount a `SessionProvider` around `ui`. **Yes unless a test says otherwise**:
+   * a host-screen component under test has no `HostLayout` above it. A test of the route
+   * table passes `false`, so that the provider `HostLayout` mounts is the one under test and
+   * a layout that forgot it fails loudly instead of being served by this one.
+   */
+  readonly session?: boolean
 }
 
 export interface RenderWithProvidersResult extends RenderResult {
@@ -594,20 +603,32 @@ export const renderWithProviders = (
   const route = options.route ?? '/'
   const path = options.path
   const locale = options.locale ?? 'fr'
+  const session = options.session ?? true
+
+  /** One scope for the whole test: a component under test never crosses the area's border. */
+  const Session = ({ children }: { readonly children: ReactNode }) =>
+    session ? <SessionProvider scope="test">{children}</SessionProvider> : <>{children}</>
 
   const Providers = ({ children }: { readonly children: ReactNode }) => (
     <LocaleProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[route]}>
         <ApiProvider api={api}>
-          <ToastProvider>
-            {path === undefined ? (
-              children
-            ) : (
-              <Routes>
-                <Route path={path} element={children} />
-              </Routes>
-            )}
-          </ToastProvider>
+          {/* `main.tsx` mounts the first, `HostLayout` the second: a component under test
+              has neither above it, so both are here. Neither asks the server until a reader
+              mounts. A route-level test opts out of the second (`session: false`). */}
+          <AboutProvider>
+            <Session>
+              <ToastProvider>
+                {path === undefined ? (
+                  children
+                ) : (
+                  <Routes>
+                    <Route path={path} element={children} />
+                  </Routes>
+                )}
+              </ToastProvider>
+            </Session>
+          </AboutProvider>
         </ApiProvider>
       </MemoryRouter>
     </LocaleProvider>

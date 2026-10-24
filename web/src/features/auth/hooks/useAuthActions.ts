@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { useForgetSession } from '../../../app/useSession'
 import { useApi } from '../../../app/useApi'
 import type { SecondFactorProof } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
@@ -43,6 +44,7 @@ export interface LoginState {
 export const useLogin = (): LoginState => {
   const api = useApi()
   const t = useTranslations()
+  const forgetSession = useForgetSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,7 +54,12 @@ export const useLogin = (): LoginState => {
       setError(null)
       try {
         const answer = await api.login(email, password)
-        return 'secondFactorRequired' in answer ? 'secondFactor' : 'signedIn'
+        if ('secondFactorRequired' in answer) return 'secondFactor'
+        // Whatever the shared session said before ("nobody", read by the page that sent the
+        // person here) is not true any more, and the page they return to may be outside the
+        // console, where no change of scope will say so.
+        forgetSession()
+        return 'signedIn'
       } catch (cause) {
         // One message for every failure, because the server sends one code for an
         // unknown address and for a wrong password. Telling the two apart in the UI
@@ -63,7 +70,7 @@ export const useLogin = (): LoginState => {
         setSubmitting(false)
       }
     },
-    [api, t],
+    [api, forgetSession, t],
   )
 
   return { submit, submitting, error }
@@ -96,6 +103,7 @@ const OVER_FOR_GOOD = new Set(['auth.secondFactorExpired'])
 export const useSecondFactorLogin = (): SecondFactorLoginState => {
   const api = useApi()
   const t = useTranslations()
+  const forgetSession = useForgetSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -105,6 +113,7 @@ export const useSecondFactorLogin = (): SecondFactorLoginState => {
       setError(null)
       try {
         await api.loginSecondFactor(proof)
+        forgetSession()
         return { kind: 'signedIn' }
       } catch (cause) {
         const reason = errorMessage(cause, t)
@@ -116,7 +125,7 @@ export const useSecondFactorLogin = (): SecondFactorLoginState => {
         setSubmitting(false)
       }
     },
-    [api, t],
+    [api, forgetSession, t],
   )
 
   return { submit, submitting, error }
@@ -130,6 +139,7 @@ export interface PasswordChange {
 export const useChangePassword = (): AuthActionState<PasswordChange> => {
   const api = useApi()
   const t = useTranslations()
+  const forgetSession = useForgetSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -139,6 +149,10 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
       setError(null)
       try {
         await api.changePassword(currentPassword, newPassword)
+        // The session read before this said the account must choose a password, and the gate
+        // holds every admin address shut on that answer: without a new read the host would be
+        // sent back to the screen they have just finished.
+        forgetSession()
         return true
       } catch (cause) {
         // Every rule about what makes a password acceptable lives on the server, and
@@ -150,7 +164,7 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
         setSubmitting(false)
       }
     },
-    [api, t],
+    [api, forgetSession, t],
   )
 
   return { submit, submitting, error }

@@ -30,9 +30,9 @@ import styles from './AccountMenu.module.css'
  * buttons, every one of them a Tab stop. The `menu` pattern promises arrow-key roving that a
  * list of three does not need, and promising it without keeping it is worse than not.
  *
- * Renders nothing until the session has said it is signed in. It asks `GET /api/auth/me`
- * itself, because this is mounted in a layout that also serves `/login`: a menu that assumed a
- * session would flash on the way in.
+ * Renders nothing until the session has said it is signed in. It reads the shared session
+ * (`SessionProvider`) rather than assuming one, because this is mounted in a layout that also
+ * serves `/login`: a menu that assumed a session would flash on the way in.
  *
  * **The client space** (G2-16 / P3-17) is offered above them to a member of a client, on a box
  * that has one. Not here yet: the operator's console entry (`canOperateSite`). There is no console to open
