@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { Event } from '../../../domain/events/event'
+import { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
@@ -9,7 +9,8 @@ import { AT, aGuest, anEvent, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
-import { makeAuthenticateGuest } from './authenticateGuest'
+import type { Guest } from '../../../domain/guests/guest'
+import { makeAuthenticateGuest, PRESENCE_WRITE_INTERVAL_MS } from './authenticateGuest'
 
 /**
  * A token a test can both mint and read: `token|<eventId>|<guestId>|<issuedAt ms>`.
@@ -62,9 +63,19 @@ const aWedding = (status: EventStatus = 'live'): Event =>
 const aGala = (): Event =>
   anEvent({ id: GALA, slug: GALA_SLUG, name: 'Gala Nova', joinCode: 'R40T9W' })
 
+/** Counts the writes, because "recorded as seen" and "written on every request" are different rules. */
+class CountingGuestRepository extends FakeGuestRepository {
+  saves = 0
+
+  override async save(guest: Guest): Promise<void> {
+    this.saves += 1
+    await super.save(guest)
+  }
+}
+
 describe('authenticateGuest', () => {
   let events: FakeEventRepository
-  let guests: FakeGuestRepository
+  let guests: CountingGuestRepository
   let clock: FakeClock
   const tokens = new FakeGuestTokenService()
 
@@ -76,7 +87,8 @@ describe('authenticateGuest', () => {
 
   beforeEach(() => {
     events = new FakeEventRepository().seed(aWedding(), aGala())
-    guests = new FakeGuestRepository().seed(aGuest({ id: LEA, eventId: WEDDING }))
+    guests = new CountingGuestRepository()
+    guests.seed(aGuest({ id: LEA, eventId: WEDDING }))
     clock = new FakeClock()
   })
 
@@ -101,6 +113,54 @@ describe('authenticateGuest', () => {
 
     const stored = await guests.findById(WEDDING, LEA)
     expect(stored?.lastSeenAt).toEqual(atPlus(90_000))
+  })
+
+  // ---------------------------------------------------------------- presence --
+
+  /**
+   * This runs on every guest request: a reaction tap, a poll of "my photos", an upload. The
+   * host's count is read through a five-minute window, so a row written each time is cost with
+   * no reader. The interval is what is left of the stamp: coarse, and far below the window.
+   */
+  it('does not write the guest row again within the presence interval', async () => {
+    clock.advance(90_000)
+    await authenticate(tokenFor(WEDDING, LEA))
+    clock.advance(PRESENCE_WRITE_INTERVAL_MS - 1)
+
+    await authenticate(tokenFor(WEDDING, LEA))
+
+    expect(guests.saves).toBe(1)
+  })
+
+  it('writes the guest row again once the presence interval has passed, boundary included', async () => {
+    clock.advance(90_000)
+    await authenticate(tokenFor(WEDDING, LEA))
+    clock.advance(PRESENCE_WRITE_INTERVAL_MS)
+
+    await authenticate(tokenFor(WEDDING, LEA))
+
+    expect((await guests.findById(WEDDING, LEA))?.lastSeenAt).toEqual(
+      atPlus(90_000 + PRESENCE_WRITE_INTERVAL_MS),
+    )
+  })
+
+  it('hands back the guest as seen now even when it skipped the write', async () => {
+    clock.advance(1_000)
+
+    const result = await authenticate(tokenFor(WEDDING, LEA))
+
+    expect(result.ok && result.value.guest.lastSeenAt).toEqual(atPlus(1_000))
+    expect(guests.saves).toBe(0)
+  })
+
+  it('keeps the host count honest for a guest who joined long ago and is still uploading', async () => {
+    // The sentence the header of this use case promises, in the terms the console reads it.
+    clock.advance(60 * 60 * 1_000)
+
+    await authenticate(tokenFor(WEDDING, LEA))
+
+    const since = new Date(clock.now().getTime() - 5 * 60 * 1_000)
+    expect(await guests.countActive(WEDDING, since)).toBe(1)
   })
 
   // ------------------------------------------------------------------ the token --
@@ -222,19 +282,41 @@ describe('authenticateGuest', () => {
   // ------------------------------------------------------------------ the event --
 
   /**
-   * A device token grants identity only while the doors are open. Uploads have their
-   * own gate, but a party that is over stops handing out identity too — otherwise
-   * `archived`, which is terminal precisely because the media may be gone, would still
-   * mint sessions.
+   * Identity is not the lifecycle. A guest at a closed event can still look at their own
+   * photographs, and one who uploads to it is told `event.notAcceptingUploads` by the use case
+   * that owns that rule — a sentence they can act on — instead of a 404 they cannot. The
+   * middleware never asked, and this use case now says so once.
    */
   it.each<EventStatus>(['draft', 'closed', 'archived'])(
-    'refuses a guest of a %s event, which no longer accepts guests',
+    'still resolves a guest of a %s event, because who they are does not depend on the party',
     async (status) => {
       await events.save(aWedding(status))
 
       const result = await authenticate(tokenFor(WEDDING, LEA))
 
-      expect(!result.ok && result.error.code).toBe('event.notFound')
+      expect(result.ok && result.value.guest.id).toBe(LEA)
     },
   )
+
+  describe('for the event of a suspended client (G2-14, roadmap §10.7)', () => {
+    beforeEach(async () => {
+      await events.save(Event.restore({ ...aWedding().toProps(), clientSuspendedAt: AT }))
+    })
+
+    it('answers exactly as it does for an event that does not exist', async () => {
+      const suspended = await authenticate(tokenFor(WEDDING, LEA))
+      const unknown = await authenticate(tokenFor(WEDDING, LEA), 'un-autre-mariage')
+
+      expect(suspended).toEqual(unknown)
+      expect(!suspended.ok && suspended.error.code).toBe('event.notFound')
+    })
+
+    it('does not record presence at it', async () => {
+      clock.advance(90_000)
+
+      await authenticate(tokenFor(WEDDING, LEA))
+
+      expect(guests.saves).toBe(0)
+    })
+  })
 })

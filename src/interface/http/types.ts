@@ -14,6 +14,7 @@ import type {
   UserRepository,
 } from '../../application/ports/userRepository'
 import type { GuestTokenService } from '../../application/ports/guestTokenService'
+import type { AuthenticateGuest } from '../../application/usecases/guests/authenticateGuest'
 import type { Mailer } from '../../application/ports/mailer'
 import type { SecondFactorRepository } from '../../application/ports/secondFactorRepository'
 import type { AccessLogOptions } from './middleware/accessLog'
@@ -92,6 +93,11 @@ export interface HttpDeps {
    */
   readonly secondFactors: Pick<SecondFactorRepository, 'find'>
   readonly guestTokens: GuestTokenService
+  /**
+   * What `requireGuest` asks about a device token: the one implementation of "which guest of
+   * which event is this, and may they be here", which also stamps the guest as seen.
+   */
+  readonly authenticateGuest: AuthenticateGuest
   /**
    * One fact about the mailer: whether it can deliver. It is what `/api/about` publishes as
    * `features.forgotPassword`, and it is the same fact `requestPasswordReset` answers

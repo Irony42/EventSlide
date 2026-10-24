@@ -1857,10 +1857,10 @@ the moderation queue; nothing published itself.
 Revocation is the targeted control, and it holds on its own against the phone in the
 room. Two gates, and the second is what makes the first worth pressing:
 
-| Gate                                           | Where                                                                         | Answer                                                           |
-| ---------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| The token the guest is holding stops granting  | `requireGuest` (middleware) and `authenticateGuest` (use case), independently | `403 guest.revoked` on upload, delete, caption, reaction         |
-| The device cannot re-join for a fresh identity | `joinEvent` (`src/application/usecases/guests/joinEvent.ts`)                  | `404 event.notFound`, no guest row, no cookie, no `guest.joined` |
+| Gate                                           | Where                                                              | Answer                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| The token the guest is holding stops granting  | `requireGuest`, which asks `authenticateGuest`: one implementation | `403 guest.revoked` on upload, delete, caption, reaction         |
+| The device cannot re-join for a fresh identity | `joinEvent` (`src/application/usecases/guests/joinEvent.ts`)       | `404 event.notFound`, no guest row, no cookie, no `guest.joined` |
 
 `joinEvent` reads the device token the phone presents, and a token naming a **revoked
 guest of this event** refuses the join instead of falling through to a new row. Without
