@@ -518,7 +518,9 @@ export const guestRoutes = ({
    * renamed is then compared **by the use case** with who the token names: the acting guest
    * comes from the verified token and the target from the path, and a different target is
    * `403 auth.forbidden` before any row is read, so the route cannot be used to learn which
-   * guest ids exist. A host or moderator has no guest cookie here and is a `401`: this is not
+   * guest ids exist. Then the use case asks the rule an upload is held to, `acceptsUploads()`, and
+   * a closed or archived event is `409 event.notAcceptingUploads`: the name is printed on its wall,
+   * unmoderated. A host or moderator has no guest cookie here and is a `401`: this is not
    * the host surface, and a host editing a guest's name is not a feature.
    *
    * Limited with the guest's other writes (HTTP-H-01): the token is free.

@@ -585,8 +585,8 @@ export const requireStepUp =
  *
  * It deliberately does NOT check the event's lifecycle, and the use case does not either.
  * Identity and permission are not the same question as "may this action happen now": a guest at a
- * closed event can still view their own photos, and only the upload use case knows that it needs
- * `acceptsUploads()`. Putting the lifecycle check here would either block reads that should work,
+ * closed event can still view their own photos, and only the use cases that write (an upload, a
+ * rename) know that they need `acceptsUploads()`. Putting the lifecycle check here would either block reads that should work,
  * or duplicate a rule the use case has to enforce anyway.
  */
 export const requireGuest =

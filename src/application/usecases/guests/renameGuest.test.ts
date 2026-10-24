@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Event } from '../../../domain/events/event'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
 import { aGuest, anEvent, atPlus } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -113,6 +114,32 @@ describe('renameGuest', () => {
     })
 
     expect(!result.ok && result.error.code).toBe('auth.forbidden')
+  })
+
+  it('refuses a rename at the event of a suspended client, as an upload there is refused', async () => {
+    // `acceptsUploads()` is false while the client is suspended: the rule is the upload's own, not a
+    // copy of its status test.
+    await events.delete(WEDDING)
+    events.seed(
+      Event.restore({
+        ...anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status: 'live' }).toProps(),
+        clientSuspendedAt: atPlus(0),
+      }),
+    )
+
+    const result = await renameSelf('Léa B.')
+
+    expect(!result.ok && result.error.code).toBe('event.notAcceptingUploads')
+  })
+
+  it('asks about the event before it reads any guest row', async () => {
+    await events.delete(WEDDING)
+    events.seed(anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status: 'closed' }))
+    const absent = asGuestId('guest-inconnu')
+
+    const result = await renameSelf('Léa B.', absent)
+
+    expect(!result.ok && result.error.code).toBe('event.notAcceptingUploads')
   })
 
   it('answers an event that is not there as such', async () => {
