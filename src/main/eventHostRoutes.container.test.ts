@@ -16,6 +16,11 @@ import { createContainer, type Container } from './container'
  * in neither the use-case bag nor `src/main/usecases.ts`. They are in both now, and the one line
  * that joins a route to the thing it calls is in the container, which no ring-4 test builds. This
  * boots the real one, signs the box's owner in and asks each route.
+ *
+ * What this does **not** pin is the event bus `renameEvent` publishes on (`bus: adapters.bus`): the
+ * container does not expose it, and the signal's consumers are the streams, which
+ * `renameEvent.test.ts` covers against a fake. That line was as unguarded when the route composed
+ * the use case.
  */
 
 const OWNER = 'hote@example.org'
@@ -109,7 +114,8 @@ describe('the host routes whose use cases the container now builds', () => {
       .delete(`/api/events/${SLUG}/moderators/${ownerId}`)
       .set(CSRF_HEADER, csrf())
 
-    expect(revoked.status).toBeGreaterThanOrEqual(400)
+    // The use case's own rule, by name: any other refusal (a missing token, a 500, a stub) would not do.
+    expect([revoked.status, revoked.body.error.code]).toEqual([409, 'membership.lastOwner'])
     const listed = await agent.get(`/api/events/${SLUG}/moderators`)
     expect(JSON.stringify(listed.body)).toContain(OWNER)
   })
