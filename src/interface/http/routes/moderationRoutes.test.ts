@@ -127,7 +127,7 @@ const usecasesFor = (
     acceptInvitation: notWired,
     createEvent: notWired,
     getEventBySlug: notWired,
-    getEventLimits: async () => ({ quotaBytes: 0, liveWindowEnd: null }),
+    getEventView: async () => Promise.reject(new Error('test.useCaseNotWired')),
     listEventsForHost: notWired,
     resolveJoinCode: notWired,
     identifyMediaViewer: notWired,

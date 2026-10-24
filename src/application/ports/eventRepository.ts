@@ -8,19 +8,27 @@ import type { Result } from '../../domain/shared/result'
 import type { Slug } from '../../domain/shared/slug'
 
 /**
- * A host's dashboard row. Deliberately not an `Event`: listing twenty events must not
- * mean hydrating twenty aggregates plus their settings, and the dashboard needs counts
- * the aggregate does not carry.
+ * What an event holds, counted: the part of a dashboard row that the aggregate does not know.
+ * `usedBytes` is the sum every reader of an event's bytes shares (photographs **and** the clips
+ * still waiting to be transcoded), so what a host is shown is what the upload path will enforce.
  */
-export interface EventSummary {
-  readonly id: EventId
-  readonly slug: string
-  readonly name: string
-  readonly status: EventStatus
+export interface EventCounts {
   readonly photoCount: number
   readonly pendingCount: number
   readonly guestCount: number
   readonly usedBytes: number
+}
+
+/**
+ * A host's dashboard row. Deliberately not an `Event`: listing twenty events must not
+ * mean hydrating twenty aggregates plus their settings, and the dashboard needs counts
+ * the aggregate does not carry.
+ */
+export interface EventSummary extends EventCounts {
+  readonly id: EventId
+  readonly slug: string
+  readonly name: string
+  readonly status: EventStatus
   readonly createdAt: Date
 }
 
@@ -58,6 +66,14 @@ export interface EventRepository {
 
   /** Events the user owns or moderates, newest first. */
   listForUser(userId: UserId): Promise<readonly EventSummary[]>
+
+  /**
+   * The counts of **one** event, the same four a dashboard row carries and read the same way,
+   * for the answer that shows a single event. Reading the whole dashboard to keep one row of it
+   * costs more with every event the host has ever run. An event that does not exist counts
+   * zero everywhere: nobody asks for a count they were not first handed an event for.
+   */
+  countsOf(id: EventId): Promise<EventCounts>
 
   /**
    * Every event of a client, in any status, oldest first and then by id. **For ending an
