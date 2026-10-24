@@ -40,10 +40,16 @@ const EVENT_SLUG = 'mariage-marguerite-et-anselme'
 const UNKNOWN_WALL = '/api/events/personne-ne-lit-ceci/wall'
 
 test.describe('the operator’s console', () => {
-  let app: TestApp
+  let booted: TestApp | undefined
   let factor: OperatorFactor
   let clientName: string
   let joinCode: string
+
+  /** The server this worker booted: only the desktop project boots one. */
+  const box = (): TestApp => {
+    if (booted === undefined) throw new Error('this project booted no server')
+    return booted
+  }
 
   // eslint-disable-next-line no-empty-pattern -- Playwright reads the first parameter's destructuring to know which fixtures are wanted, so it has to be a pattern even when it is empty.
   test.beforeEach(async ({}, testInfo) => {
@@ -55,7 +61,11 @@ test.describe('the operator’s console', () => {
 
   // eslint-disable-next-line no-empty-pattern -- same reason as the beforeEach above.
   test.beforeAll(async ({}, testInfo) => {
-    app = await startTestApp({ worker: testInfo.workerIndex, env: HOSTED })
+    // The other projects skip every test below, and would otherwise boot a server, an account and
+    // an enrolment for nothing.
+    if (testInfo.project.name !== 'chromium-desktop') return
+    booted = await startTestApp({ worker: testInfo.workerIndex, env: HOSTED })
+    const app = booted
 
     // A client that holds a live event, made before the operator has an authenticator: the helper
     // signs the operator in over the API with the password alone, as a box that has not asked for
@@ -69,14 +79,14 @@ test.describe('the operator’s console', () => {
   })
 
   test.afterAll(async () => {
-    await app.dispose()
+    await booted?.dispose()
   })
 
   /** The operator's own sign-in, through the real form: the password, then the code. */
   const signIn = async (page: Page): Promise<void> => {
-    await page.goto(app.url('/login'))
-    await page.getByLabel(fr.auth.email).fill(app.owner.email)
-    await page.getByLabel(fr.auth.password).fill(app.owner.password)
+    await page.goto(box().url('/login'))
+    await page.getByLabel(fr.auth.email).fill(box().owner.email)
+    await page.getByLabel(fr.auth.password).fill(box().owner.password)
     await page.getByRole('button', { name: fr.auth.submit }).click()
 
     // The password was right and no session exists yet: the page asks for the code. The step after
@@ -99,20 +109,22 @@ test.describe('the operator’s console', () => {
     page,
     request,
   }) => {
-    await signIn(page)
-
-    // ---- into the console, from the account menu -------------------------------------
-
-    await page.getByRole('button', { name: fr.auth.accountMenu }).click()
-
-    // From here on, every request the console makes is on the record. The dashboard the sign-in
-    // landed on read the operator's own events, and that is not the console.
+    // Every request the browser makes is on the record from the start, and what counts is what
+    // follows the click that opens the console: the dashboard the sign-in lands on reads the
+    // operator's own events, and that is not the console. An index and not a moment, so a request
+    // the dashboard started late cannot be mistaken for the console's.
     const paths: string[] = []
     page.on('request', (made) => {
       const url = new URL(made.url())
       if (url.pathname.startsWith('/api/')) paths.push(url.pathname)
     })
 
+    await signIn(page)
+
+    // ---- into the console, from the account menu -------------------------------------
+
+    await page.getByRole('button', { name: fr.auth.accountMenu }).click()
+    const consoleStartsAt = paths.length
     await page.getByRole('link', { name: fr.site.menuLink }).click()
     await expect(page.getByRole('heading', { level: 1, name: fr.site.clientsTitle })).toBeVisible()
     await expect(page.getByText(fr.site.consoleIntro)).toBeVisible()
@@ -125,14 +137,19 @@ test.describe('the operator’s console', () => {
     await noContentOnScreen(page)
 
     // The client's public wall answers while the client is in good standing.
-    expect((await request.get(app.url(`/api/events/${EVENT_SLUG}/wall`))).status()).toBe(200)
+    expect((await request.get(box().url(`/api/events/${EVENT_SLUG}/wall`))).status()).toBe(200)
 
     // ---- the client's own page: its event as a shape ---------------------------------
 
     await row.getByRole('link', { name: clientName }).click()
     await expect(page.getByRole('heading', { level: 1, name: clientName })).toBeVisible()
     await expect(page.getByRole('table', { name: fr.site.eventsTableLabel })).toBeVisible()
-    await expect(page.getByText(fr.site.eventStatuses.live)).toBeVisible()
+    // In the events table: "live" is also in the client's own summary ("1 (1 en direct)").
+    await expect(
+      page
+        .getByRole('table', { name: fr.site.eventsTableLabel })
+        .getByText(fr.site.eventStatuses.live),
+    ).toBeVisible()
     await noContentOnScreen(page)
 
     // ---- the first write: a confirmation is asked for, once --------------------------
@@ -144,7 +161,7 @@ test.describe('the operator’s console', () => {
 
     const prompt = page.getByRole('dialog', { name: fr.site.stepUpTitle })
     await expect(prompt).toBeVisible()
-    await prompt.getByLabel(fr.auth.password).fill(app.owner.password)
+    await prompt.getByLabel(fr.auth.password).fill(box().owner.password)
     // A recovery code: it confirms a step-up as well as an app's code does, and it is what a
     // spec uses for the third code in a row, which the window of the clock cannot give.
     await prompt.getByRole('button', { name: fr.auth.secondFactorRecoveryToggle }).click()
@@ -157,8 +174,8 @@ test.describe('the operator’s console', () => {
     await expect(page.getByRole('button', { name: fr.site.resume })).toBeVisible()
 
     // The public wall is gone, exactly as an event that was never there.
-    const wall = await request.get(app.url(`/api/events/${EVENT_SLUG}/wall`))
-    const nothing = await request.get(app.url(UNKNOWN_WALL))
+    const wall = await request.get(box().url(`/api/events/${EVENT_SLUG}/wall`))
+    const nothing = await request.get(box().url(UNKNOWN_WALL))
     expect(wall.status()).toBe(404)
     expect(await wall.json()).toEqual(await nothing.json())
 
@@ -173,19 +190,26 @@ test.describe('the operator’s console', () => {
     await expect(page.getByText(fr.site.resumed)).toBeVisible()
     await expect(page.getByRole('button', { name: fr.site.suspend })).toBeVisible()
     await expect(page.getByRole('dialog', { name: fr.site.stepUpTitle })).toHaveCount(0)
-    expect((await request.get(app.url(`/api/events/${EVENT_SLUG}/wall`))).status()).toBe(200)
+    expect((await request.get(box().url(`/api/events/${EVENT_SLUG}/wall`))).status()).toBe(200)
 
     // ---- the log says both, in words --------------------------------------------------
 
-    await page.getByRole('link', { name: fr.site.navAudit }).click()
-    await expect(page.getByText(fr.site.actions['client.suspended'])).toBeVisible()
-    await expect(page.getByText(fr.site.actions['client.resumed'])).toBeVisible()
+    // The section link, not the client page's "see this client's log". And the log's own lines:
+    // "Client suspendu." is also the toast's sentence, which is still on screen for a few seconds.
+    await page
+      .getByRole('navigation', { name: fr.site.navLabel })
+      .getByRole('link', { name: fr.site.navAudit })
+      .click()
+    const log = page.locator('ol')
+    await expect(log.getByText(fr.site.actions['client.suspended'])).toBeVisible()
+    await expect(log.getByText(fr.site.actions['client.resumed'])).toBeVisible()
     await noContentOnScreen(page)
 
     // ---- and all of it without the console ever asking for what a client made -----------
 
-    expect(paths.some((path) => path.startsWith('/api/site/'))).toBe(true)
-    expect(paths.filter((path) => /^\/api\/(events|gallery)/.test(path))).toEqual([])
+    const fromTheConsole = paths.slice(consoleStartsAt)
+    expect(fromTheConsole.some((path) => path.startsWith('/api/site/'))).toBe(true)
+    expect(fromTheConsole.filter((path) => /^\/api\/(events|gallery)/.test(path))).toEqual([])
   })
 
   test('an operator who has not enrolled is sent to enrol, and is not shown a console of refusals', async ({
