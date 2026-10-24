@@ -206,6 +206,10 @@ describe('the upgrade to 3.0 against the code it describes', () => {
       expect(section, `${padded} in the 3.0 section`).toContain(padded)
       expect(entry, `${padded} in the 3.0.0 entry`).toContain(padded)
     }
+    // The first boot logs the ids it applied; the page quotes them as a range.
+    expect(flat(section), 'the range of ids the first boot logs').toContain(
+      `ids ${Math.min(...ids)} to ${Math.max(...ids)}`,
+    )
   })
 
   it('names the Docker Compose version that the long form of env_file in compose.yaml needs', () => {
