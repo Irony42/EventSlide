@@ -92,8 +92,8 @@ export interface ModerationQueueView {
   readonly items: readonly ModerationQueueRow[]
   /**
    * Photos still waiting on the host, across the whole event rather than the page in
-   * hand. The domain's `pendingCount` counts the rows it is given, which would make the
-   * badge shrink to the page size the moment the host applied a limit.
+   * hand: counting the rows of the page would make the badge shrink to the page size the
+   * moment the host applied a limit.
    */
   readonly pendingCount: number
 }

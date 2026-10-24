@@ -150,7 +150,7 @@ export class Guest {
     return this.with({ revokedAt: at })
   }
 
-  /** Whether the device token still grants anything. Being in the room is `isStale`. */
+  /** Whether the device token still grants anything. Being in the room is `lastSeenAt`, which the host's count reads. */
   isActive(): boolean {
     return this.props.revokedAt === null
   }

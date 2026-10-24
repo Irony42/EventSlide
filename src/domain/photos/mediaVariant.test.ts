@@ -26,7 +26,6 @@ describe('media variants', () => {
     expect([...SERVED_VARIANTS]).not.toContain(STAGED_SOURCE)
     expect([...ALL_MEDIA_VARIANTS]).toContain(STAGED_SOURCE)
   })
-
 })
 
 describe('VARIANTS_BY_KIND', () => {
