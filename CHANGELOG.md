@@ -274,6 +274,10 @@ Read these before you upgrade, and back up with the version you run now.
 
 ### Added
 
+- **A guest can rename themself, and a phone can check a join code before joining** (#190):
+  `PATCH /api/events/:slug/guests/:guestId` changes the name a guest's photos are signed with, their
+  own and nobody else's, and `GET /api/join/:code` says which event a code names, with the same
+  answer and the same per-address budget as `POST /api/join`.
 - **The pages for the account flows** (G2-10, #143). `/invite/:token` opens a mailed or copied
   invitation: it says what the link is for and when it ends, takes a name and a password, or accepts
   as the account that is already signed in, and says one sentence for every dead link. A person whose
@@ -437,7 +441,7 @@ Read these before you upgrade, and back up with the version you run now.
 ### Security
 
 - **A guest can no longer write without limit** (#187): editing a caption, deleting a photo,
-  withdrawing a reaction and acknowledging the privacy notice share one allowance per client and
+  withdrawing a reaction, acknowledging the privacy notice and renaming oneself (#190) share one allowance per client and
   event, `GUEST_WRITE_RATE_LIMIT_PER_MINUTE` (default 300, at most 6000), and are answered `429`
   above it. Before, one guest could send these as fast as the network allowed.
 - **A stolen session no longer survives a password change** (#125): the credentials epoch ends
