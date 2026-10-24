@@ -52,6 +52,9 @@ describe('inMemoryEventBus', () => {
     expect(() => bus.publish(photoPublished())).not.toThrow()
     expect(healthy).toHaveBeenCalledTimes(1)
     expect(logger.messages('warn')).toContain('event bus subscriber threw')
+    expect(logger.find('event bus subscriber threw')?.context).toMatchObject({
+      error: 'projector exploded',
+    })
   })
 
   it('a subscriber that throws a non-Error still cannot fail the publisher', () => {
@@ -69,6 +72,9 @@ describe('inMemoryEventBus', () => {
     expect(() => bus.publish(photoPublished())).not.toThrow()
     expect(healthy).toHaveBeenCalledTimes(1)
     expect(logger.messages('warn')).toContain('event bus subscriber threw')
+    expect(logger.find('event bus subscriber threw')?.context).toMatchObject({
+      error: 'projector exploded',
+    })
   })
 
   it('unsubscribing after the bus has been closed is not an error', () => {
