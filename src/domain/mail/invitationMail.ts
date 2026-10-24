@@ -177,7 +177,7 @@ export const invitationMail = ({
  * front of it is the operator's own: its access log must be told not to record `/invite/*`, as
  * the hosted instance's is (free plan F-13 and G5-02).
  *
- * `publicUrl` is the configured origin without a trailing slash (`env.ts` strips it), so this
+ * `publicUrl` is the configured origin without a trailing slash (the config loader strips it), so this
  * only joins.
  */
 export const invitationLink = (publicUrl: string, token: string): string =>

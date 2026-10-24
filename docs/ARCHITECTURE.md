@@ -769,7 +769,9 @@ switched off for this one file. It exports
 `loadConfig(source: Record<string, string | undefined>)`, taking the environment as an
 argument so tests pass a plain object and never mutate global state.
 
-The schema is `buildSchema` in `src/infrastructure/config/env.ts`, and what it declares is the
+The schema is `buildSchema` in `src/infrastructure/config/schema.ts`, built from the fields of
+`schemaPrimitives.ts`, `linkFields.ts` and `featureFields.ts` and mapped into `AppConfig`
+(`appConfig.ts`) by `load.ts`; `env.ts` is the two entry points. What the schema declares is the
 source of truth: the defaults, the ranges and the names. It is not copied here because a copy
 drifted (a snippet once declared `UPLOAD_TEMP_DIR`, a media root that is not the default, and
 `z.coerce.boolean()`, which reads the string `false` as true). `.env.example` lists every key, and

@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { configSources } from './configSources'
 
 /**
  * `docs/UPGRADING.md` (roadmap G3-09 / P4-11), held to the code it describes.
@@ -23,8 +24,14 @@ import { describe, expect, it } from 'vitest'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (...segments: string[]): string => readFileSync(join(ROOT, ...segments), 'utf8')
 
-/** A source file as one string, with the seams of `'a' + 'b'` closed so a phrase can be found. */
-const source = (...segments: string[]): string => read(...segments).replace(/`\s*\+\s*`/g, '')
+/** Source text with the seams of a template-literal concatenation closed, so a phrase can be found. */
+const closeSeams = (text: string): string => text.replace(/`\s*\+\s*`/g, '')
+
+/** A source file as one string, seams closed. */
+const source = (...segments: string[]): string => closeSeams(read(...segments))
+
+/** The configuration module as one string, seams closed. */
+const configSource = (): string => closeSeams(configSources())
 
 /** Running text: Prettier wraps lines, and a phrase can break across one. */
 const flat = (text: string): string => text.replace(/\s+/g, ' ')
@@ -174,7 +181,7 @@ describe('the messages docs/UPGRADING.md says to expect', () => {
   })
 
   it('cites the three boot warnings 3.0.0 added, which are warnings and not refusals', () => {
-    const env = source('src', 'infrastructure', 'config', 'env.ts')
+    const env = configSource()
 
     expect(prose).toContain('`PUBLIC_URL`')
     expect(prose).toContain('`TRUST_PROXY_HOPS=0`')
@@ -372,7 +379,7 @@ describe('a setting that was documented and is read by nothing (docs/UPGRADING.m
   })
 
   it('is warned about at boot by the code that still validates it', () => {
-    const env = source('src', 'infrastructure', 'config', 'env.ts')
+    const env = configSource()
 
     expect(env).toContain(`${NAME}: positiveInt(`)
     expect(env).toContain(`${NAME} is deprecated and does nothing`)
@@ -380,7 +387,7 @@ describe('a setting that was documented and is read by nothing (docs/UPGRADING.m
 
   it('names the same release for its removal in the warning and in the entry', () => {
     // Four places carry the version; an operator who reads one must not be told another.
-    const env = source('src', 'infrastructure', 'config', 'env.ts')
+    const env = configSource()
 
     expect(env).toContain('it will be removed in 4.0.0')
     expect(flat(deprecated)).toContain('removed in 4.0.0')

@@ -1,10 +1,21 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig, loadMaintenanceConfig, resolveSourceUrl } from './env'
 import { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { OPERATOR_NAME_MAX_LENGTH } from '../../domain/privacy/privacyNotice'
 import { Password } from '../../domain/users/password'
+
+/**
+ * The source of the configuration module as one string (every file of this folder but the tests): the
+ * schema is in several files now, and what a test reading it means is "the module says this".
+ */
+const configSource = (): string =>
+  readdirSync(__dirname)
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+    .sort()
+    .map((name) => readFileSync(join(__dirname, name), 'utf8'))
+    .join('\n')
 
 /**
  * Ring 3. `loadConfig` takes its source as a parameter, so every case here is a plain
@@ -1066,11 +1077,9 @@ describe('loadConfig', () => {
         // without anybody remembering to extend a list. This holds the other half: the
         // family this file lists is the family the schema has, so a new variable that
         // arrives with no test of its own still meets the mode check.
-        const declared = [
-          ...readFileSync(resolve(__dirname, 'env.ts'), 'utf8').matchAll(
-            /^ {6}(NEW_CLIENT_[A-Z0-9_]+):/gm,
-          ),
-        ].map((match) => match[1] ?? '')
+        const declared = [...configSource().matchAll(/^ {6}(NEW_CLIENT_[A-Z0-9_]+):/gm)].map(
+          (match) => match[1] ?? '',
+        )
 
         expect(declared.length).toBeGreaterThan(0)
         expect([...declared].sort()).toEqual([...ALL].sort())

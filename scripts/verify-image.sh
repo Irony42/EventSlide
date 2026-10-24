@@ -217,7 +217,7 @@ fi
 # ------------------------------------------------- refusing a misconfigured boot --
 section "A misconfigured boot is refused, readably"
 
-# No SESSION_SECRET, no GUEST_TOKEN_SECRET, NODE_ENV=production. env.ts must name both
+# No SESSION_SECRET, no GUEST_TOKEN_SECRET, NODE_ENV=production. The config must name both
 # and exit 78 (EX_CONFIG) rather than throw. This is the first thing a first-time
 # operator meets when they skip the two secrets, so it has to read like a sentence.
 set +e
@@ -246,7 +246,7 @@ fi
 
 # The same refusal with **no environment named at all**, which is the case the image's
 # own `ENV NODE_ENV=production` hides. `-e NODE_ENV=` blanks it, so this drives the
-# default in `env.ts` rather than the Dockerfile's line: a box that is never told which
+# default in `config/schema.ts` rather than the Dockerfile's line: a box that is never told which
 # environment it is in must land on the strict one. While that default was
 # `development`, this exact command booted a server signing sessions and guest tokens
 # with two constants published in this repository, and said nothing.

@@ -91,7 +91,7 @@ promised, and a pull request is held to it. `scripts/changelogPolicy.test.ts` an
   same pull request: who is affected, what to change and in which order, how to tell it
   worked. Once one has merged, the next release is a major.
 - **A refusal at boot starts as a warning.** If an installation that runs today would be
-  refused, log a warning instead (`computeWarnings` in `src/infrastructure/config/env.ts`) and
+  refused, log a warning instead (`computeWarnings` in `src/infrastructure/config/load.ts`) and
   refuse only in a major. A default that destroys data starts as an opt-in.
 - **Something to remove is deprecated first**, with a warning logged when it is used where
   the code can, for at least one minor release and 90 days.
