@@ -75,7 +75,10 @@ import type {
   UploadPhotosResult,
 } from '../../../application/usecases/photos/uploadPhotos'
 import type { PhotoReactionsView } from '../../../application/usecases/reactions/getPhotoReactions'
-import type { WallPlaylistView } from '../../../application/usecases/slideshow/getWallPlaylist'
+import type {
+  WallMissionStanding,
+  WallPlaylistView,
+} from '../../../application/usecases/slideshow/getWallPlaylist'
 import type { PhotoId } from '../../../domain/shared/ids'
 import type { MembershipWithUser } from '../../../application/ports/userRepository'
 import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
@@ -83,7 +86,6 @@ import type { IssuedInvitation } from '../../../application/usecases/auth/issueI
 import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
 import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
 import type { MissionSummary } from '../../../application/usecases/missions/listMissions'
-import type { WallMissionStanding } from '../../../application/usecases/slideshow/getWallPlaylist'
 import type { CreatedShareLink } from '../../../application/usecases/gallery/createShareLink'
 import type { ArchiveGrant, MediaGrant } from '../../../application/usecases/gallery/galleryAccess'
 import type { ShareLinkView } from '../../../application/usecases/gallery/getShareLink'
