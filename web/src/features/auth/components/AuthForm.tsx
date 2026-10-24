@@ -1,6 +1,6 @@
 import type { FormEvent, ReactNode } from 'react'
 import { Button } from '../../../design-system/components/Button'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { Notice } from '../../../design-system/components/Notice'
 import { AuthPage } from './AuthPage'
 import styles from './AuthForm.module.css'
 
@@ -20,24 +20,6 @@ export interface AuthFormProps {
   /** The fields. Each one brings its own `Field` so the label wiring stays local. */
   readonly children: ReactNode
   readonly footer?: ReactNode
-}
-
-/**
- * A failure the reader has to be told about, announced when it appears.
- *
- * Mounted only when there is something to say: inserting a `role="alert"` node is what
- * every current screen reader announces, and an always-present empty alert would make
- * `getByRole('alert')` ambiguous for the rest of the page.
- */
-export function AuthAlert({ children }: { readonly children: ReactNode }) {
-  return (
-    <p className={styles['alert']} role="alert">
-      <span className={styles['alertGlyph']}>
-        <StatusIcon tone="danger" />
-      </span>
-      {children}
-    </p>
-  )
 }
 
 /**
@@ -72,8 +54,16 @@ export function AuthForm({
           Mounted only when there is a failure: inserting a role="alert" node is what
           every current screen reader announces, and an always-present empty alert
           would make getByRole('alert') ambiguous for the rest of the page.
+
+          The form-level failure, not attached to a field: the server answers "one of
+          these two is wrong" and says no more, so pointing at the e-mail box would be a
+          guess the UI is not entitled to make.
         */}
-        {error === null ? null : <AuthAlert>{error}</AuthAlert>}
+        {error === null ? null : (
+          <Notice tone="danger" role="alert" variant="boxed">
+            {error}
+          </Notice>
+        )}
 
         <div className={styles['actions']}>
           <Button type="submit" variant="primary" loading={submitting}>

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Button } from '../../design-system/components/Button'
 import { Dialog } from '../../design-system/components/Dialog'
 import { Field } from '../../design-system/components/Field'
-import { StatusIcon } from '../../design-system/components/StatusIcon'
+import { Notice } from '../../design-system/components/Notice'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './PurgeEventDialog.module.css'
@@ -79,12 +79,9 @@ export function PurgeEventDialog({
       }
     >
       <div className={styles['body']}>
-        <p className={styles['warning']}>
-          <span className={styles['warningGlyph']}>
-            <StatusIcon tone="danger" />
-          </span>
+        <Notice tone="danger" variant="boxed">
           {t.admin.purgeWarning}
-        </p>
+        </Notice>
         <Field label={t.admin.purgeConfirmLabel} hint={t.admin.purgeConfirmHint(slug)}>
           {(control) => (
             <TextInput

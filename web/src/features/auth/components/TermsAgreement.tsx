@@ -1,6 +1,6 @@
 import { useId, type Ref } from 'react'
 import { NewTabLink } from '../../../app/NewTabLink'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { Notice } from '../../../design-system/components/Notice'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './TermsAgreement.module.css'
 
@@ -73,10 +73,15 @@ export function TermsAgreement({
         </p>
       )}
       {error === undefined ? null : (
-        <p className={styles['error']} id={errorId} role="alert">
-          <StatusIcon tone="danger" />
+        <Notice
+          tone="danger"
+          role="alert"
+          variant="inline"
+          id={errorId}
+          className={styles['error']}
+        >
           {error}
-        </p>
+        </Notice>
       )}
     </div>
   )
