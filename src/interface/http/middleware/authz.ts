@@ -593,14 +593,14 @@ export const requireGuest =
   ({ authenticateGuest }: Pick<HttpDeps, 'authenticateGuest'>): RequestHandler =>
   (req, res, next) => {
     void (async () => {
-      const raw = req.cookies?.[GUEST_COOKIE]
-      if (typeof raw !== 'string' || raw.length === 0) {
+      const token = guestTokenOf(req)
+      if (token === undefined) {
         sendError(res, DomainError.unauthenticated('auth.required'))
         return
       }
 
       const authenticated = await authenticateGuest({
-        token: raw,
+        token,
         eventSlug: req.params['eventSlug'],
       })
       if (!authenticated.ok) {
@@ -617,6 +617,64 @@ export const requireGuest =
   }
 
 export const GUEST_COOKIE = 'es_guest'
+
+/**
+ * The raw `es_guest` cookie, or `undefined` when the request carries none or an empty one.
+ *
+ * The one reader of that cookie outside the join: `requireGuest`, `deferToHostSurface` and the
+ * media route all ask "did this request present a device token", and an empty value is the same
+ * answer as an absent one (it is what a cleared or never-set cookie looks like on the wire). What
+ * the token *means* is never decided here: it is untrusted until `GuestTokenService.verify`.
+ */
+export const guestTokenOf = (req: Request): string | undefined => {
+  const raw: unknown = req.cookies?.[GUEST_COOKIE]
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined
+}
+
+/**
+ * For a path two principals share: hands the request to the next router, the host's, when
+ * the caller is somebody that router owns - and otherwise lets the guest router answer.
+ *
+ * `DELETE /events/:eventSlug/photos/:photoId` is a guest taking back their own photo (section 3 of
+ * docs/API.md) and a moderator deleting any photo (section 6). `requireGuest` answers 401 rather
+ * than calling `next()`, so without a hand-off the second is a dead endpoint.
+ *
+ * **Membership first, the cookie second** (HTTP-M-02). A session that holds a moderator-level role
+ * in the event of the path is the host's, whatever cookie it also carries: a host who scanned
+ * their own QR code in the browser they moderate from is a guest of the event for thirty-six
+ * hours, and answering that browser as the guest told a moderator deleting somebody else's photo
+ * `403 photo.deleteForbidden`, and one holding another event's cookie `403 guest.wrongEvent`. The
+ * media route makes the same choice ("the broader identity wins"). A caller with no such role is
+ * dispatched on the cookie as before: with one, the guest router answers (a guest at somebody
+ * else's event must not be sent into `requireRole` and told 404); with none, this hands on, and
+ * `requireRole` answers a caller with neither credential `401 auth.required`.
+ *
+ * `next('router')` leaves the router rather than skipping a handler, the only way the next
+ * `/api` router gets a chance to match. The role is read the way `requireRole` reads it, from
+ * `deps.memberships.roleFor`, and only for a request that carries a session.
+ */
+export const deferToHostSurface =
+  (deps: Pick<HttpDeps, 'events' | 'memberships'>): RequestHandler =>
+  (req, _res, next) => {
+    void (async () => {
+      const user = req.context.user
+      const slug = Slug.create(req.params['eventSlug'])
+      if (user !== undefined && slug.ok) {
+        const event = await deps.events.findBySlug(slug.value)
+        const role = event === null ? null : await deps.memberships.roleFor(event.id, user.userId)
+        if (role !== null && canModerate(role)) {
+          next('router')
+          return
+        }
+      }
+
+      if (guestTokenOf(req) === undefined) {
+        next('router')
+        return
+      }
+      next()
+    })().catch(next)
+  }
 
 /**
  * Resolves the event for a public route (the wall, the join lookup) without requiring
@@ -639,8 +697,12 @@ export const resolvePublicEvent =
       // A suspended client's wall is the same 404 as an event that does not exist (G2-14). The one
       // route that is also a host's (the media of a photograph, which a moderation grid reads)
       // asks for `visible` and judges the viewer itself, because members may still read.
-      const hidden = options.suspended === 'hidden' && event?.isClientSuspended() === true
-      if (!event || !event.servesWall() || hidden) {
+      // `servesPublicWall` is the one definition, asked again at every beat of an open stream. A
+      // member may read through a suspension, so that route asks for the lifecycle alone.
+      const served =
+        event !== null &&
+        (options.suspended === 'visible' ? event.servesWall() : event.servesPublicWall())
+      if (!event || !served) {
         sendError(res, DomainError.notFound('event.notFound'))
         return
       }

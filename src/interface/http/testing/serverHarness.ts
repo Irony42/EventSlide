@@ -105,6 +105,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   deletePhoto: notWired('deletePhoto'),
   setPhotoCaption: notWired('setPhotoCaption'),
   getPhotoMedia: notWired('getPhotoMedia'),
+  identifyMediaViewer: notWired('identifyMediaViewer'),
 
   uploadClip: notWired('uploadClip'),
   getClipJob: notWired('getClipJob'),

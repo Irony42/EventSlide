@@ -285,6 +285,23 @@ describe('the guest-token writes are rate-limited per client address and event (
     expect(another.status).toBe(204)
   })
 
+  it('does not spend a guest allowance on a moderator who also holds a guest cookie (HTTP-M-02)', async () => {
+    // A moderator is dispatched to the host's router before the cookie is read, so the limiter
+    // behind that deferral never counts them, whatever else the browser carries.
+    const subject = buildSubject(1)
+    const send = await browserOn(subject, subject.wedding)
+    expect((await send(TAKE_BACK)).status).toBe(204)
+    expect((await send(TAKE_BACK)).status).toBe(429)
+    const { agent, csrf } = await signedInAs(subject.harness.app, MODERATOR_EMAIL)
+
+    const moderated = await agent
+      .delete(TAKE_BACK.path)
+      .set(CSRF_HEADER, csrf)
+      .set('Cookie', `${GUEST_COOKIE}=${subject.wedding}`)
+
+    expect(moderated.status).toBe(204)
+  })
+
   it('does not spend a guest allowance on a moderator deleting a photo, who carries no guest cookie', async () => {
     // `DELETE /photos/:id` is two endpoints on one path: the guest's own photo and the
     // moderator's any photo. The moderator's request has no guest cookie, so the guest router

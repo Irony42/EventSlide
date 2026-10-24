@@ -317,6 +317,20 @@ describe('Event capabilities', () => {
     expect(anEvent({ status: 'archived' }).servesWall()).toBe(false)
   })
 
+  it('serves the public wall only while the lifecycle serves it and its client is not suspended', () => {
+    // The one definition both the opening of a public request and every beat of an open stream ask.
+    const suspended = (status: 'live' | 'closed' | 'archived'): Event =>
+      Event.restore({ ...anEvent({ status }).toProps(), clientSuspendedAt: new Date(0) })
+
+    expect(anEvent({ status: 'live' }).servesPublicWall()).toBe(true)
+    expect(anEvent({ status: 'closed' }).servesPublicWall()).toBe(true)
+    expect(anEvent({ status: 'archived' }).servesPublicWall()).toBe(false)
+    expect(anEvent({ status: 'draft' }).servesPublicWall()).toBe(false)
+    expect(suspended('live').servesPublicWall()).toBe(false)
+    // Suspension does not change the lifecycle's own answer.
+    expect(suspended('live').servesWall()).toBe(true)
+  })
+
   it('allows moderation until the event is archived', () => {
     expect(anEvent({ status: 'closed' }).allowsModeration()).toBe(true)
     expect(anEvent({ status: 'archived' }).allowsModeration()).toBe(false)

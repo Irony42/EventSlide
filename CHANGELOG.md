@@ -255,6 +255,12 @@ Read these before you upgrade, and back up with the version you run now.
 - **The host dashboard's `usedBytes` now counts the clip sources still waiting in the queue**
   as well as the photographs (#117), so it can read higher than before while clips are queued.
   It is the figure an upload is checked against.
+- **Three small answers changed** (#191). A moderator whose browser also holds a guest cookie (a host
+  who scanned their own QR code) is now answered as a moderator by
+  `DELETE /api/events/:slug/photos/:photoId`, where it was refused as a guest. A wall stream that is
+  open when the host archives the event now ends at its next heartbeat and frees its slot, where it
+  stayed open. `HttpDeps.guests` and `HttpDeps.guestTokens` no longer exist, which only matters to
+  code that builds the server itself.
 - **The server logs one line per request** (#104): the route pattern, never the raw URL,
   with status, duration and a request id. An unhandled error's stack trace is now logged in
   production too. On `SIGTERM` or `SIGINT`, `GET /api/ready` answers 503 at once and open
@@ -277,7 +283,8 @@ Read these before you upgrade, and back up with the version you run now.
 - **A guest can rename themself, and a phone can check a join code before joining** (#190):
   `PATCH /api/events/:slug/guests/:guestId` changes the name a guest's photos are signed with, their
   own and nobody else's, and `GET /api/join/:code` says which event a code names, with the same
-  answer and the same per-address budget as `POST /api/join`.
+  answer and the same per-address budget as `POST /api/join`. A join code in a request path is now
+  written to the log as `/api/join/:token`.
 - **The pages for the account flows** (G2-10, #143). `/invite/:token` opens a mailed or copied
   invitation: it says what the link is for and when it ends, takes a name and a password, or accepts
   as the account that is already signed in, and says one sentence for every dead link. A person whose

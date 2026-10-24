@@ -3,17 +3,14 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Logger } from '../../../application/ports/logger'
 import type { ByteRange } from '../../../application/ports/mediaStore'
-import type { MediaViewer, PhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
-import type { Event } from '../../../domain/events/event'
-import { canModerate } from '../../../domain/events/eventRole'
+import type { PhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/authz'
+import { guestTokenOf, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { contentRange, parseByteRange, unsatisfiedRange } from '../presenters/byteRange'
 import { errorBody, sendError } from '../presenters/send'
 import { photoVariantParams } from '../schemas/requestSchemas'
-import type { HttpDeps } from '../types'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
 /**
@@ -47,7 +44,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * thirty unrelated use cases to exercise a photo download.
  */
 export type MediaRouteDeps = Pick<RouteDeps, 'deps'> & {
-  readonly usecases: Pick<HttpUseCases, 'exportAlbum' | 'getPhotoMedia'>
+  readonly usecases: Pick<HttpUseCases, 'exportAlbum' | 'getPhotoMedia' | 'identifyMediaViewer'>
 }
 
 /** A year. Safe only because the name is the content hash — see {@link etagFor}. */
@@ -89,70 +86,6 @@ export const streamOrAbandon = async (
     logger.error(message, { error: error instanceof Error ? error.message : String(error) })
     res.destroy()
   }
-}
-
-/**
- * The identity checks `requireGuest` makes through `authenticateGuest`, but silent on failure
- * and **deliberately not stamping the guest as seen**: this is the route a wall of thumbnails
- * reads, and a write per image is the cost the stamp's interval exists to avoid.
- *
- * A cookie that fails any of them leaves the caller **public** rather than rejected: a
- * guest at another wedding, or one whose event was purged and recreated, may still look
- * at this event's published photos, and answering 401 would break the public wall for
- * anyone who has ever joined anything. Failing open is safe here precisely because the
- * public viewer is the least privileged one.
- *
- * The event id in the claims is compared against the event resolved from the URL, never
- * against an id the client sent. That comparison is the cross-event attack, and its
- * absence is what let 1.0's upload endpoint write to any event name a client asked for.
- */
-const guestViewer = async (
-  deps: HttpDeps,
-  req: Request,
-  event: Event,
-): Promise<MediaViewer | null> => {
-  const raw: unknown = req.cookies?.[GUEST_COOKIE]
-  if (typeof raw !== 'string' || raw.length === 0) return null
-
-  const claims = deps.guestTokens.verify(raw, deps.clock.now())
-  if (!claims.ok) return null
-  if (claims.value.eventId !== event.id) return null
-
-  // The row is what makes a signed, stateless token revocable at all, so it is read on
-  // every request rather than trusted from the signature.
-  const guest = await deps.guests.findById(event.id, claims.value.guestId)
-  if (guest === null || guest.isRevoked()) return null
-
-  return { kind: 'guest', guestId: guest.id }
-}
-
-/**
- * Who is asking, in the use case's own vocabulary.
- *
- * This is identity, not permission. `getPhotoMedia` owns the policy — which viewer may
- * read which variant of which status — and this route only tells it who turned up.
- * Resolving a role through `deps.memberships` is the same work `requireRole` does; it is
- * merely optional here, because a projector holding the public wall URL is a legitimate
- * caller of this route and must not be turned away before the policy has been applied.
- *
- * The order is deliberate. A host who is also carrying a guest cookie for their own
- * event is a moderator: the broader identity wins, or the host's own moderation grid
- * would show them less than they are entitled to see.
- *
- * `canModerate` is asked rather than the two roles being listed. Both of today's roles
- * satisfy it, so the negative branch is unreachable — that is the price of a check that
- * does not silently start granting the day a third, weaker role is added.
- */
-const viewerFor = async (deps: HttpDeps, req: Request, event: Event): Promise<MediaViewer> => {
-  const user = req.context.user
-  if (user) {
-    const role = await deps.memberships.roleFor(event.id, user.userId)
-    // A session with no membership of *this* event is a member of the public here, and
-    // is told nothing more than the public is told.
-    if (role !== null && canModerate(role)) return { kind: 'moderator', userId: user.userId }
-  }
-
-  return (await guestViewer(deps, req, event)) ?? { kind: 'public' }
 }
 
 /**
@@ -248,13 +181,16 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
         return sendError(res, DomainError.notFound('event.notFound'))
       }
 
-      const viewer = await viewerFor(deps, req, event)
-
-      // The public, and a guest, are answered as for an event that is not there; a moderator of a
-      // suspended client still reads (roadmap §10.7; G2-14).
-      if (event.isClientSuspended() && viewer.kind !== 'moderator') {
-        return sendError(res, DomainError.notFound('event.notFound'))
-      }
+      // Who turned up, in the use case's vocabulary (HTTP-H-02): the one answer to "who is this" for
+      // a route with a public caller. It also answers the public and a guest as for an event that is
+      // not there when the client is suspended, and a moderator still reads (roadmap §10.7; G2-14).
+      const identified = await usecases.identifyMediaViewer({
+        event,
+        guestToken: guestTokenOf(req),
+        userId: req.context.user?.userId,
+      })
+      if (!identified.ok) return sendError(res, identified.error)
+      const viewer = identified.value
 
       // Parsed only now: a malformed id or variant is a 400 for an event that serves, and must not
       // be what tells a suspended client's slug from an unknown one (G2-14).

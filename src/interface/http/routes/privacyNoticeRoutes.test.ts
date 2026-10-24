@@ -52,13 +52,13 @@ const buildNoticeHarness = (operatorName: string | null): Harness =>
             getPrivacyNotice: makeGetPrivacyNotice({
               events: deps.events,
               clients: world.clients,
-              guests: deps.guests,
+              guests: world.guests,
               operatorName,
             }),
             acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
               events: deps.events,
               clients: world.clients,
-              guests: deps.guests,
+              guests: world.guests,
               clock: deps.clock,
               operatorName,
             }),

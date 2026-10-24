@@ -179,7 +179,8 @@ export const makeGetWallPlaylist =
     // are real. A `closed` event still serves — the projector is usually still on while
     // people say goodbye.
     // A suspended client's wall is the same answer as an event that does not exist (G2-14).
-    if (event === null || !event.servesWall() || event.isClientSuspended()) {
+    // `servesPublicWall` is the one definition the middleware and the stream's beat ask as well.
+    if (event === null || !event.servesPublicWall()) {
       return err(DomainError.notFound('event.notFound'))
     }
 

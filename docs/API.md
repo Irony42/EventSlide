@@ -607,8 +607,8 @@ to every screen that has the wall or a console open, so a guest token is not by 
 answer. The limiter runs before the token is verified, as the upload and reaction ones do. The
 number is a backstop sized for a room, not a tuned figure: a venue shares one address, and what it
 legitimately sends is bounded by the upload (12) and join (20) budgets, a few dozen a minute. A
-moderator's `DELETE` of the same path, sent without an `es_guest` cookie, is dispatched to §6 first
-and spends nothing here.
+moderator's `DELETE` of the same path is dispatched to §6 first, whatever `es_guest` cookie the
+browser also holds, and spends nothing here.
 
 † **Also throttled per account, with no lockout** (G3-04 / P4-07). The first five wrong
 passwords for an address from one network are free; from the sixth the answer is
@@ -1637,13 +1637,18 @@ call.
 
 **204**. **Errors** — `403 photo.deleteForbidden`,
 `403 event.guestSelfDeleteDisabled`, `404 photo.notFound`, `429 rate.limited` with a
-`Retry-After` (the guest-write bucket of §1; a moderator's request without an `es_guest` cookie is not
+`Retry-After` (the guest-write bucket of §1; a moderator's request is dispatched to §6 first and is not
 counted in it).
 
 This path is **shared with the moderator endpoint of the same name** in §6. The request
-is dispatched on the credential presented: with an `es_guest` cookie the guest rules
-above apply, and without one it is handled as the moderator endpoint — so a caller with
-neither credential gets `401 auth.required` from the role check.
+is dispatched on **membership first, then the credential presented**: a session that holds a
+moderator-level role in this event is answered as a moderator whatever `es_guest` cookie it
+also carries (a host who scanned their own QR code in the browser they moderate from is a
+guest of the event for 36 hours, and is still a host), the cookie of another event included.
+Otherwise, with an `es_guest` cookie the guest rules above apply, and without one it is
+handled as the moderator endpoint — so a caller with neither credential gets
+`401 auth.required` from the role check, and a signed-in account with no role here that holds a
+guest cookie is a guest.
 
 ### `PATCH /api/events/:slug/photos/:photoId/caption`
 
@@ -3646,6 +3651,12 @@ whole evening, so requests-per-minute bounds nothing that matters here.
 | Streams open at once per client key     | 12    | `429 rate.limited`                        |
 | Streams open at once across the process | 500   | `503 service.notReady`, `Retry-After: 30` |
 | Subscribers per event, in the bus       | 200   | `503 service.notReady`, `Retry-After`     |
+
+An open wall stream is checked again at **every heartbeat** (15 s) with the question that
+opened it: an event the host has since **archived**, or whose client has been suspended, ends
+the stream with a `retry:` of a minute, and frees its slot. A closed event still serves its
+wall, so closing one ends nothing. The moderation stream asks only that the event still exists
+and the account still holds a role in it.
 
 A slot is returned the moment the connection closes, so a client that reloads gets it
 straight back. The client key is the one every other limiter uses, IPv6 collapsed to its
