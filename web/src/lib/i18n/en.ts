@@ -211,6 +211,18 @@ export const en: UiText = {
     noticeRemovalOtherwise: 'Otherwise, ask the organiser: they can delete any photo.',
     noticeRemovalAskHost: 'Ask the organiser: they can delete any photo.',
     clipDoneImmediate: 'Video sent. It is going up on the screen.',
+
+    /* ---- Added by guest reactions. ---- */
+
+    reactionKinds: {
+      love: 'Love',
+      laugh: 'Haha',
+      wow: 'Wow',
+      cheers: 'Cheers',
+      clap: 'Applause',
+    },
+    reactionsGroup: (position: number) => `React to photo ${t.number(position)}`,
+    reactionsFailed: 'The reactions could not be loaded.',
   },
 
   ui: {
