@@ -583,6 +583,30 @@ const ENDPOINTS: readonly EndpointCase[] = [
       }),
   },
   {
+    name: 'siteOffboardClient',
+    verb: 'post',
+    path: `/api/site/clients/${CLIENT}/offboard`,
+    invoke: (client) => client.siteOffboardClient(CLIENT, 30),
+  },
+  {
+    name: 'siteDisableAccount',
+    verb: 'post',
+    path: `/api/site/accounts/${ACCOUNT}/disable`,
+    invoke: (client) => client.siteDisableAccount(ACCOUNT),
+  },
+  {
+    name: 'siteEnableAccount',
+    verb: 'post',
+    path: `/api/site/accounts/${ACCOUNT}/enable`,
+    invoke: (client) => client.siteEnableAccount(ACCOUNT),
+  },
+  {
+    name: 'siteDeleteAccount',
+    verb: 'del',
+    path: `/api/site/accounts/${ACCOUNT}`,
+    invoke: (client) => client.siteDeleteAccount(ACCOUNT),
+  },
+  {
     name: 'siteResetPassword',
     verb: 'post',
     path: `/api/site/accounts/${ACCOUNT}/password-reset`,
@@ -823,6 +847,18 @@ describe('the operator’s console requests', () => {
       locale: 'de',
       ceilings: { maxEvents: 1 },
     })
+  })
+
+  it('sends the window of an offboarding as whole days in one key, and nothing else', async () => {
+    await subject().siteOffboardClient(CLIENT, 30)
+
+    expect(only().body).toEqual({ graceDays: 30 })
+  })
+
+  it('deletes an account by its id alone, with no body', async () => {
+    await subject().siteDeleteAccount(ACCOUNT)
+
+    expect(only()).toMatchObject({ verb: 'del', path: `/api/site/accounts/${ACCOUNT}` })
   })
 
   it('names the client in the path and nothing else for a suspension, which has no body', async () => {
