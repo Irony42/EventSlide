@@ -90,6 +90,30 @@ describe('Password byte limit', () => {
     expect(result.ok && result.value.value).toBe(AT_THE_BYTE_LIMIT)
   })
 
+  // The width of a character changes at five code points, and a passphrase is measured against
+  // bcrypt's 72 bytes by adding them up: one off-by-one at an edge is a passphrase bcrypt silently
+  // truncates (or one refused that it would have read). Written as code points, never as the
+  // characters themselves, so the edges are visible and survive an editor's normalisation.
+  it.each([
+    { edge: 'U+007F, the last one-byte code point', codePoint: 0x7f, width: 1 },
+    { edge: 'U+0080, the first two-byte code point', codePoint: 0x80, width: 2 },
+    { edge: 'U+07FF, the last two-byte code point', codePoint: 0x7ff, width: 2 },
+    { edge: 'U+0800, the first three-byte code point', codePoint: 0x800, width: 3 },
+    { edge: 'U+D7FF, the last before the surrogates', codePoint: 0xd7ff, width: 3 },
+    { edge: 'U+E000, the first after the surrogates', codePoint: 0xe000, width: 3 },
+    { edge: 'U+10000, the first four-byte code point', codePoint: 0x10000, width: 4 },
+    { edge: 'U+10FFFF, the last code point', codePoint: 0x10ffff, width: 4 },
+  ])('measures $edge as $width bytes against the limit', ({ codePoint, width }) => {
+    const fill = (bytes: number): string =>
+      String.fromCodePoint(codePoint).repeat(4) + 'bravo-mariage-'.padEnd(bytes - 4 * width, 'x')
+    const atTheLimit = fill(Password.maxBytes)
+    const oneOver = `${atTheLimit}!`
+
+    expect(Password.create(atTheLimit).ok).toBe(true)
+    const refused = Password.create(oneOver)
+    expect(!refused.ok && refused.error.code).toBe('password.tooLong')
+  })
+
   it('refuses a passphrase one UTF-8 byte over the limit instead of truncating it', () => {
     const result = Password.create(OVER_THE_BYTE_LIMIT)
 
