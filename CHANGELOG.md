@@ -259,6 +259,18 @@ Read these before you upgrade, and back up with the version you run now.
   with status, duration and a request id. An unhandled error's stack trace is now logged in
   production too. On `SIGTERM` or `SIGINT`, `GET /api/ready` answers 503 at once and open
   event streams are told to reconnect in 2 seconds.
+- **Every `429` carries a `Retry-After`, and `/api` is `no-store` by default** (#192). The per-client
+  stream cap, a guest's reaction budget, invitations to one address and an operator's resets to one
+  inbox answered `429` with no wait; they now say one (30 s, the budget's window, an hour, an hour)
+  and repeat it as `details.retryAfterSeconds` in the body, as `upload.busy` now does (2 s). Every
+  answer under `/api` is `Cache-Control: no-store` unless its route sets its own, which the host's
+  event list, the event, its guests, its moderators (with their e-mail addresses) and its missions
+  did not: a browser or a proxy can no longer store them, or revalidate them with `If-None-Match`.
+  Media, `/api/about` and the event streams keep their own headers.
+- **The access log writes each key once per line** (#192). A routed request's line carried
+  `service`, `version`, `instance`, `requestId` and `route` twice, the first `route` being
+  `(unmatched)`: a collector that kept the first duplicate read the wrong route for every request.
+  `route` now sits after `duration`.
 - **Three boot warnings, never refusals** (#109, #120): production with no `PUBLIC_URL`,
   production with a secure cookie and `TRUST_PROXY_HOPS=0`, and, in production, `MAIL_FROM` set
   without `SMTP_URL`. A fourth, in every environment, is for the deprecated setting below (#172).
