@@ -38,6 +38,11 @@ test.describe('guest token scope', () => {
     expect(response.status()).toBe(404)
     expect((await response.json()).error.code).toBe('event.notFound')
 
+    // The control: a 404 is also what a typo in the slug answers, so the same cookie must still be good
+    // for the event it names, or the refusal above proves nothing about the comparison.
+    const own = await context.request.get(app.url(`/api/events/${wedding.slug}/photos/mine`))
+    expect(own.status()).toBe(200)
+
     await context.close()
   })
 

@@ -119,6 +119,15 @@ describe('authenticateGuest', () => {
     expect(result.ok && result.value.guest.id).toBe(LEA)
   })
 
+  it('writes no wrong-event line for a token that names the event asked about', async () => {
+    // The audit line is for a mismatch only: written on every request it would be a line per tap.
+    await authenticate(tokenFor(WEDDING, LEA))
+
+    expect(
+      logger.lines.find((entry) => entry.context?.['code'] === 'guest.wrongEvent'),
+    ).toBeUndefined()
+  })
+
   it('returns the event it resolved, so the caller never reads the slug twice', async () => {
     const result = await authenticate(tokenFor(WEDDING, LEA))
 

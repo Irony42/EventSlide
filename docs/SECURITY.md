@@ -521,8 +521,9 @@ compares the token's event id with the event resolved from `:eventSlug`: a valid
 the answer for an event that is not there (HTTP-M-03: the 403 it used to be, `guest.wrongEvent`, told a
 guest of any event which slugs exist, drafts and archived events included, where the public wall
 answers 404 for all three; the reason is now in the log only). A revoked guest is **403 `guest.revoked`**; a guest row that is gone entirely
-is **401 `guestToken.malformed`**, because the event was purged and recreated and the
-phone should re-join rather than be told it is forbidden forever.
+is **401 `guestToken.malformed`**, so that the phone drops the cookie and re-joins rather than
+being told it is forbidden forever. Both can only describe the event the token itself names: a
+purged and recreated slug has a new event id, so the old token takes the 404 branch above.
 
 ### Cookie flags
 
