@@ -9,6 +9,21 @@ import type { Result } from '../../../domain/shared/result'
  * fails to compile. 1.0 chose a status at each of forty-odd call sites, which is why
  * the same class of failure answered 400 in one route, 500 in another, and a redirect
  * in a third.
+ *
+ * **The exceptions, which write their own status and are the only ones** (HTTP-M-14; a rate
+ * limiter, a guard and every route go through `sendError`, including each 429, so that the
+ * `Retry-After` section 1 of docs/API.md promises is written in one place):
+ *
+ * - `416` for a `Range` that cannot be satisfied (`mediaRoutes.ts`): a property of one
+ *   representation and the header that asked for it, not a class of business failure, so
+ *   `DomainErrorKind` has no member for it;
+ * - `503` for "not ready" (`healthRoutes.ts`, `/api/ready`, whose body also carries the state of
+ *   each dependency) and for a stream the box cannot take (`rateLimit.ts`, `streamRoutes.ts`):
+ *   a correct answer about a temporary state, for which the kind that carries the code maps to 500;
+ * - `202` for a password-reset request (`authRoutes.ts`): the same empty answer for every
+ *   address, by design;
+ * - the unmatched `/api` path's `404` (`server.ts`) and a wall stream's body-less `404`
+ *   (`streamRoutes.ts`), which answer before or beside any use case.
  */
 const STATUS_BY_KIND: Readonly<Record<DomainErrorKind, number>> = {
   invalid: 400,

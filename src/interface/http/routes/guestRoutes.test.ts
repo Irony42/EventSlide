@@ -1076,6 +1076,8 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
 
     expect(response.status).toBe(429)
     expect(response.body.error.code).toBe('reaction.rateLimited')
+    // The budget's own window (60 s here): without it a phone retries at once.
+    expect(response.headers['retry-after']).toBe('60')
   })
 
   it('refuses every reaction when the host turned them off', async () => {

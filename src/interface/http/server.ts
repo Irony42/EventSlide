@@ -95,6 +95,16 @@ export const buildServer = ({
   // included, and so `req.context.requestId` already exists when it reads it.
   app.use(accessLog(config.accessLog))
 
+  // **Nothing under `/api` is stored by a browser or a proxy unless its route says so** (HTTP-M-15).
+  // The sentence "every principal-scoped read in this API says so explicitly" was false for five host
+  // reads (the event list, the event, its guests' names, its moderators' **e-mail addresses**, its
+  // missions): each route had to remember to say it, and the next would forget. A default is the
+  // fix, and a route that wants caching says so over it - the media route (`immutable`), the gallery's
+  // media, `/api/about` and the event streams do. Mounted here, ahead of the probes, the body parser
+  // and the session, so that an answer given before any router runs (a body the parser refuses, a
+  // probe, a session the store cannot read) has it too, and for every method.
+  app.use('/api', noStoreByDefault)
+
   // Liveness and readiness, before the body parser, the cookie parser and the session:
   // a probe is a machine with no cookie jar, and one that does happen to carry a stale
   // `es_session` must not be answered by way of the session store. An unusable store
@@ -332,6 +342,12 @@ export const buildServer = ({
   app.use(errorHandler())
 
   return app
+}
+
+/** `Cache-Control: no-store`, for a route to override with its own. */
+const noStoreByDefault: RequestHandler = (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store')
+  next()
 }
 
 const apiNotFound: RequestHandler = (_req, res) => {

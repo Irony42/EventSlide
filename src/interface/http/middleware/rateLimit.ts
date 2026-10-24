@@ -7,7 +7,7 @@ import {
   SECOND_FACTOR_FAILURES_PER_ACCOUNT,
   SECOND_FACTOR_FAILURE_WINDOW_MS,
 } from '../../../domain/users/secondFactor'
-import { errorBody } from '../presenters/send'
+import { errorBody, sendError } from '../presenters/send'
 import type { SessionPayload } from '../types'
 
 /**
@@ -38,6 +38,9 @@ import type { SessionPayload } from '../types'
  */
 export const clientKey = (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown')
 
+/** What a stream refused for want of a slot is told to wait, 429 or 503 alike. */
+export const STREAM_RETRY_AFTER_SECONDS = 30
+
 /** The bucket for a request with no event in its path — and for one whose event is not a slug. */
 const NO_EVENT = 'none'
 
@@ -65,17 +68,45 @@ const eventKey = (req: Request): string => {
   return slug.ok ? slug.value.value : NO_EVENT
 }
 
-const limiter = (perMinute: number, code: string, keyBy?: (req: Request) => string) =>
+interface LimiterOptions {
+  readonly windowMs: number
+  readonly limit: number
+  /** The `error.code` of the 429. */
+  readonly code: string
+  /** The bucket. Absent, `express-rate-limit`'s own: the client's address, IPv6 collapsed. */
+  readonly key?: (req: Request) => string
+  /** Count failures only: a request that answered below 400 gives its hit back. */
+  readonly skipSuccessful?: boolean
+}
+
+/**
+ * **The one `express-rate-limit` call of this module** (HTTP-L-04), and the one place a limited request
+ * is answered (HTTP-M-14): through `sendError`, so the 429 has the error shape and, because
+ * `express-rate-limit` sets `Retry-After` itself before it calls the handler, the header docs/API.md
+ * section 1 promises. Every other limiter below is this with its numbers.
+ */
+const windowLimiter = ({
+  windowMs,
+  limit,
+  code,
+  key,
+  skipSuccessful = false,
+}: LimiterOptions): RateLimitRequestHandler =>
   rateLimit({
-    windowMs: 60_000,
-    limit: perMinute,
+    windowMs,
+    limit,
+    ...(skipSuccessful ? { skipSuccessfulRequests: true } : {}),
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    ...(keyBy ? { keyGenerator: keyBy } : {}),
+    ...(key ? { keyGenerator: key } : {}),
     handler: (_req, res) => {
-      res.status(429).json(errorBody(DomainError.rateLimited(code)))
+      sendError(res, DomainError.rateLimited(code))
     },
   })
+
+/** A per-minute bucket: what every public door of this module is. */
+const limiter = (perMinute: number, code: string, keyBy?: (req: Request) => string) =>
+  windowLimiter({ windowMs: 60_000, limit: perMinute, code, ...(keyBy ? { key: keyBy } : {}) })
 
 /**
  * The join endpoint is the one an attacker would enumerate, so it is limited hardest
@@ -185,15 +216,11 @@ const accountKey = (req: Request): string => req.context.user?.userId ?? clientK
  * to the behaviour it is bounding, same as the gallery unlock's fifteen minutes is.
  */
 export const eventCreationLimiter = (perHour: number): RateLimitRequestHandler =>
-  rateLimit({
+  windowLimiter({
     windowMs: 60 * 60_000,
     limit: perHour,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    keyGenerator: accountKey,
-    handler: (_req, res) => {
-      res.status(429).json(errorBody(DomainError.rateLimited('event.creationRateLimited')))
-    },
+    code: 'event.creationRateLimited',
+    key: accountKey,
   })
 
 // ------------------------------------------------------------- invitations --
@@ -218,16 +245,7 @@ export const INVITATIONS_PER_ACCOUNT_PER_HOUR = 30
  * `requireRole`, which is what puts the account on the request.
  */
 export const invitationIssueLimiter = (perHour: number): RateLimitRequestHandler =>
-  rateLimit({
-    windowMs: 60 * 60_000,
-    limit: perHour,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    keyGenerator: accountKey,
-    handler: (_req, res) => {
-      res.status(429).json(errorBody(DomainError.rateLimited('rate.limited')))
-    },
-  })
+  windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
 // ------------------------------------------------------------ second factor --
 
@@ -266,16 +284,12 @@ const secondFactorAccountKey = (req: Request): string => {
  * only by their failures, which then cost the attacker the same quarter of an hour.
  */
 export const secondFactorAccountLimiter = (): RateLimitRequestHandler =>
-  rateLimit({
+  windowLimiter({
     windowMs: SECOND_FACTOR_FAILURE_WINDOW_MS,
     limit: SECOND_FACTOR_FAILURES_PER_ACCOUNT,
-    skipSuccessfulRequests: true,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    keyGenerator: secondFactorAccountKey,
-    handler: (_req, res) => {
-      res.status(429).json(errorBody(DomainError.rateLimited('auth.tooManySecondFactorAttempts')))
-    },
+    code: 'auth.tooManySecondFactorAttempts',
+    key: secondFactorAccountKey,
+    skipSuccessful: true,
   })
 
 // ----------------------------------------------------------- shared gallery --
@@ -345,16 +359,12 @@ export const galleryUnlockLimiters = ({
     { limit: perClient, keyGenerator: clientKey },
     { limit: perLink, keyGenerator: galleryLinkKey },
   ].map(({ limit, keyGenerator }) =>
-    rateLimit({
+    windowLimiter({
       windowMs: UNLOCK_WINDOW_MS,
       limit,
-      skipSuccessfulRequests: true,
-      standardHeaders: 'draft-7',
-      legacyHeaders: false,
-      keyGenerator,
-      handler: (_req, res) => {
-        res.status(429).json(errorBody(DomainError.rateLimited('gallery.tooManyAttempts')))
-      },
+      code: 'gallery.tooManyAttempts',
+      key: keyGenerator,
+      skipSuccessful: true,
     }),
   )
 
@@ -416,9 +426,10 @@ export const streamConnectionLimiter = ({
 
   return (req, res, next) => {
     if (openTotal >= total) {
-      // The server is full, not this client: `503`, the same answer `/api/ready` gives
-      // about a state that is temporary and nobody's fault.
-      res.setHeader('Retry-After', '30')
+      // **A documented exception to `sendError`'s status table** (HTTP-M-14, listed in `send.ts`):
+      // the server is full, not this client, so `503`, the same answer `/api/ready` gives about a
+      // state that is temporary and nobody's fault. The kind that carries the code maps to 500.
+      res.setHeader('Retry-After', String(STREAM_RETRY_AFTER_SECONDS))
       res.status(503).json(errorBody(DomainError.unexpected('service.notReady')))
       return
     }
@@ -426,7 +437,13 @@ export const streamConnectionLimiter = ({
     const key = clientKey(req)
     const held = openPerClient.get(key) ?? 0
     if (held >= perClient) {
-      res.status(429).json(errorBody(DomainError.rateLimited('rate.limited')))
+      // With the `Retry-After` section 1 promises every 429 (HTTP-M-04): it bypassed `sendError`
+      // and carried none. Thirty seconds, like its 503: a slot frees the moment one of this client's
+      // streams closes, and a reloading projector asks again at once.
+      sendError(
+        res,
+        DomainError.rateLimited('rate.limited', { retryAfterSeconds: STREAM_RETRY_AFTER_SECONDS }),
+      )
       return
     }
 
@@ -489,8 +506,12 @@ export const uploadConcurrencyLimiter = (max: number): RequestHandler => {
 
   return (_req, res, next) => {
     if (inFlight >= max) {
-      res.setHeader('Retry-After', String(UPLOAD_BUSY_RETRY_AFTER_SECONDS))
-      res.status(429).json(errorBody(DomainError.rateLimited('upload.busy')))
+      sendError(
+        res,
+        DomainError.rateLimited('upload.busy', {
+          retryAfterSeconds: UPLOAD_BUSY_RETRY_AFTER_SECONDS,
+        }),
+      )
       return
     }
 

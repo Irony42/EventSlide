@@ -1093,7 +1093,7 @@ It counts per client address **and** event together (a pair has 300, not an addr
 `guestWriteRateLimit.test.ts` pins each mount and its place ahead of `requireGuest`, the shared
 bucket and the key, and sweeps the route table so that a sixth guest write with no limiter fails.
 
-- Limits return **429** with `Retry-After` and the code `request.rateLimited`. A named
+- Limits return **429** with `Retry-After` and the code `rate.limited` (or the route's own, such as `reaction.rateLimited`). A named
   ring-4 test asserts the status; a limiter that silently allows everything is the
   classic dead control.
 - The join-code lookup (`GET /api/join/:code`) and the join itself spend **one** budget per

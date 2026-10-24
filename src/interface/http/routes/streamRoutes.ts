@@ -5,7 +5,7 @@ import type { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { requireRole, resolvePublicEvent } from '../middleware/authz'
-import { streamConnectionLimiter } from '../middleware/rateLimit'
+import { STREAM_RETRY_AFTER_SECONDS, streamConnectionLimiter } from '../middleware/rateLimit'
 import { errorBody } from '../presenters/send'
 import type { HttpDeps } from '../types'
 
@@ -355,7 +355,7 @@ export const drainStreams = (): void => {
  * connections a second, short enough that a projector rejoins within a song once the
  * screens that were hogging the channel have gone.
  */
-const RETRY_AFTER_SECONDS = '30'
+const RETRY_AFTER_SECONDS = String(STREAM_RETRY_AFTER_SECONDS)
 
 /**
  * Opens the channel for the event the middleware in front resolved.

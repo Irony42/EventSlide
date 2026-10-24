@@ -495,7 +495,8 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       // Never stored. This read carries the identity itself, and `rolling: true` on the
       // session means an authenticated one also carries a fresh `Set-Cookie` — so a
       // shared cache holding this response would hand one host's session to whoever
-      // asks next. Every principal-scoped read in this API says so explicitly.
+      // asks next. (`/api` is `no-store` by default now, `server.ts`; said here as well, since this
+      // read carries the identity itself and must not depend on a default staying.)
       res.setHeader('Cache-Control', 'no-store')
 
       // The account, not only the session. This is the answer the admin shell routes

@@ -101,6 +101,11 @@ Status codes come from the domain error kind, mapped in one place
 | `rateLimited`     | 429    | Too many attempts. `Retry-After` is set                |
 | `unexpected`      | 500    | A bug or an unavailable dependency                     |
 
+**Caching.** Everything under `/api` is `Cache-Control: no-store` unless its own entry says otherwise:
+the media of a photograph (§4, `immutable`, because its name is its content hash) and the event
+streams (§7) set their own. A route does not have to remember to say it, and one that forgot used to
+answer the host's list of moderators, with their e-mail addresses, with no header at all.
+
 **404 and 403 are used deliberately.** A photo, guest or reaction belonging to another
 event returns **404**, not 403 — a 403 would confirm the resource exists and turn the
 endpoint into an enumeration oracle. 403 is only for a principal who is genuinely in
@@ -578,6 +583,16 @@ at all (§2).
 Per minute, configurable, `429` with `Retry-After` when exceeded — **except event
 creation**, which is per **hour** and per **account** (see the row below and the
 paragraph beneath the table).
+
+**Every** `429` carries `Retry-After`, in seconds, whichever layer answers it. A limiter that counts
+requests says how long until its window turns over. A use case that counts what was done (a guest's
+reaction budget, invitations to one address, resets for one inbox) says **the length of its
+window**, the longest anyone is asked to wait: the count does not say when the oldest item ages
+out, and an upper bound is true. The stream cap below answers `30`. The wait is **also** repeated
+as `error.details.retryAfterSeconds` in the body for the stream cap, `429 upload.busy` and the three
+use-case refusals (`invitation.tooManyForAddress`, `reset.tooManyForAddress`,
+`reaction.rateLimited`), because a client that cannot read response headers can read the body; the
+other limiters' bodies carry the header only.
 
 | Endpoint                                                           | Default       | Bucket                     | Code                               |
 | ------------------------------------------------------------------ | ------------- | -------------------------- | ---------------------------------- |
@@ -2035,7 +2050,7 @@ address. There is no self-service reset on such a box and `features.forgotPasswo
 `GET /api/about` is `false`. The link is never returned in a response. **Errors** — `400
 request.invalid`, `429 rate.limited` (the sign-in budget, its own bucket, and the per-address
 throttle of §1 "Rate limits", whose `Retry-After` is the wait; both answer every address alike),
-and the CSRF codes like every write. Responses are `Cache-Control: no-store`, the rate-limit refusals aside.
+and the CSRF codes like every write. Responses are `Cache-Control: no-store`.
 
 ### `POST /api/auth/password-reset/confirm`
 
@@ -3648,7 +3663,7 @@ whole evening, so requests-per-minute bounds nothing that matters here.
 
 | Bound                                   | Value | Answer                                    |
 | --------------------------------------- | ----- | ----------------------------------------- |
-| Streams open at once per client key     | 12    | `429 rate.limited`                        |
+| Streams open at once per client key     | 12    | `429 rate.limited`, `Retry-After: 30`     |
 | Streams open at once across the process | 500   | `503 service.notReady`, `Retry-After: 30` |
 | Subscribers per event, in the bus       | 200   | `503 service.notReady`, `Retry-After`     |
 

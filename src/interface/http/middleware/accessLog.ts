@@ -103,13 +103,20 @@ export const accessLog = (options: AccessLogOptions): RequestHandler => {
       res: (res: Response) => ({ statusCode: res.statusCode }),
     },
     customAttributeKeys: { responseTime: 'duration' },
+    // **Only what is the same when the request starts and when it finishes.** `pino-http` evaluates
+    // this twice, and writes a second child binding unless the second string is already inside the
+    // first: a `route` computed here is `(unmatched)` at the start (nothing has matched yet) and the
+    // pattern at the end, so every key of every line of a routed request was written twice and the
+    // first `route` was the wrong one, which a collector that keeps the first duplicate would read
+    // for every request (HTTP-M-01). The route is added below, once, when the line is written.
     customProps: (req: Request) => ({
       service,
       version,
       instance,
       requestId: req.context.requestId,
-      route: routePatternFor(req),
     }),
+    customSuccessObject: (req, _res, value) => ({ ...value, route: routePatternFor(req) }),
+    customErrorObject: (req, _res, _error, value) => ({ ...value, route: routePatternFor(req) }),
     customLogLevel: (_req, res) => levelForStatus(res.statusCode),
     customSuccessMessage: (req, res) => `${req.method} ${routePatternFor(req)} ${res.statusCode}`,
     customErrorMessage: (req, res) => `${req.method} ${routePatternFor(req)} ${res.statusCode}`,

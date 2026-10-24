@@ -3,7 +3,7 @@ import type { DiskSpaceChecker } from '../../../application/ports/diskSpace'
 import { evaluateDiskSpace } from '../../../domain/shared/diskSpaceGuard'
 import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from './asyncHandler'
-import { errorBody } from '../presenters/send'
+import { sendError } from '../presenters/send'
 
 /**
  * The free-disk-space guard on uploads (G3-06 / P4-10).
@@ -42,7 +42,7 @@ export const createDiskSpaceGuard = ({
     const status = evaluateDiskSpace(freeBytesByPath, minFreeBytes)
 
     if (!status.sufficient) {
-      res.status(413).json(errorBody(DomainError.quotaExceeded('storage.boxFull')))
+      sendError(res, DomainError.quotaExceeded('storage.boxFull'))
       return
     }
 

@@ -14,10 +14,21 @@ import type { Logger } from '../../../application/ports/logger'
 import type { UserId } from '../../../domain/shared/ids'
 import { asUserId } from '../../../domain/shared/ids'
 import type { UserPrincipal } from '../types'
+import { SECOND_FACTOR_FAILURES_PER_ACCOUNT } from '../../../domain/users/secondFactor'
 import {
   eventCreationLimiter,
+  galleryLimiter,
+  galleryMediaLimiter,
+  galleryUnlockLimiters,
   guestWriteLimiter,
+  invitationIssueLimiter,
+  invitationLimiter,
+  joinLimiter,
+  loginLimiter,
+  passwordResetLimiter,
   reactionLimiter,
+  secondFactorAccountLimiter,
+  secondFactorLimiter,
   streamConnectionLimiter,
   uploadConcurrencyLimiter,
   uploadLimiter,
@@ -69,6 +80,85 @@ const behindOneProxy = (mount: (app: Express) => void): Express => {
   mount(app)
   return app
 }
+
+/**
+ * Every 429 a limiter writes has the error shape and a `Retry-After` (HTTP-M-04, HTTP-M-14).
+ *
+ * docs/API.md section 1 says every `rateLimited` sets the header, and seven limiters used to write
+ * the status and the body themselves; the header came from `express-rate-limit` for most and from
+ * nowhere for the stream's per-client cap. Walked over **every** limiter this module exports, so
+ * the next one is a line in this list or a red case, not a client that retries at once.
+ */
+describe('every limiter answers 429 with the error shape and a Retry-After', () => {
+  const withContext: RequestHandler = (req, _res, next) => {
+    req.context = { requestId: 'test', logger: noopLogger }
+    next()
+  }
+  /** A failure, so that the limiters that count failures only (`skipSuccessful`) count it. */
+  const failed: RequestHandler = (_req, res) => {
+    res.status(401).end()
+  }
+
+  /** Name, limiter, the code it answers, and the length of its window in seconds. */
+  const LIMITERS: readonly (readonly [string, RequestHandler, string, number])[] = [
+    ['joinLimiter', joinLimiter(1), 'rate.limited', 60],
+    ['loginLimiter', loginLimiter(1), 'rate.limited', 60],
+    ['passwordResetLimiter', passwordResetLimiter(1), 'rate.limited', 60],
+    ['invitationLimiter', invitationLimiter(1), 'rate.limited', 60],
+    ['uploadLimiter', uploadLimiter(1), 'rate.limited', 60],
+    ['reactionLimiter', reactionLimiter(1), 'reaction.rateLimited', 60],
+    ['guestWriteLimiter', guestWriteLimiter(1), 'rate.limited', 60],
+    ['eventCreationLimiter', eventCreationLimiter(1), 'event.creationRateLimited', 3_600],
+    ['invitationIssueLimiter', invitationIssueLimiter(1), 'rate.limited', 3_600],
+    ['secondFactorLimiter', secondFactorLimiter(1), 'rate.limited', 60],
+    [
+      'secondFactorAccountLimiter',
+      secondFactorAccountLimiter(),
+      'auth.tooManySecondFactorAttempts',
+      15 * 60,
+    ],
+    ['galleryLimiter', galleryLimiter(1), 'rate.limited', 60],
+    ['galleryMediaLimiter', galleryMediaLimiter(1), 'rate.limited', 60],
+    [
+      'galleryUnlockLimiters (per client)',
+      galleryUnlockLimiters({ perClient: 1, perLink: 1_000 })[0] as RequestHandler,
+      'gallery.tooManyAttempts',
+      15 * 60,
+    ],
+    [
+      'galleryUnlockLimiters (per link)',
+      galleryUnlockLimiters({ perClient: 1_000, perLink: 1 })[1] as RequestHandler,
+      'gallery.tooManyAttempts',
+      15 * 60,
+    ],
+  ]
+
+  it.each(LIMITERS)('%s', async (_name, limiter, code, windowSeconds) => {
+    const app = express()
+    app.post('/x', withContext, limiter, failed)
+
+    let refused: request.Response | undefined
+    for (
+      let attempt = 0;
+      attempt <= SECOND_FACTOR_FAILURES_PER_ACCOUNT && refused === undefined;
+      attempt += 1
+    ) {
+      const response = await request(app).post('/x')
+      if (response.status === 429) refused = response
+    }
+
+    expect(refused, 'the limiter never refused').toBeDefined()
+    expect(refused?.body.error.code).toBe(code)
+    // The wait is the rest of this limiter's own window, which is just begun: pinned from both sides so
+    // that an hour shrunk to a minute, or the reverse, is not a limiter that still says "some seconds".
+    const wait = Number(refused?.headers['retry-after'])
+    expect(wait).toBeLessThanOrEqual(windowSeconds)
+    expect(wait).toBeGreaterThanOrEqual(windowSeconds - 10)
+    // And the standard `RateLimit` pair (draft 7) that goes with it, which clients that read headers use.
+    expect(refused?.headers['ratelimit-policy']).toBeDefined()
+    expect(refused?.headers['ratelimit']).toBeDefined()
+  })
+})
 
 describe('the client key', () => {
   it.each([
@@ -408,7 +498,11 @@ describe('the stream connection limiter', () => {
     // reconnects every few minutes over eight hours must not exhaust its own budget.
     const port = await listening({ perClient: 1, total: 10 })
     const first = await connect(port, SAME_SUBNET[0])
-    expect((await connect(port, SAME_SUBNET[0])).status).toBe(429)
+    const refused = await connect(port, SAME_SUBNET[0])
+    expect(refused.status).toBe(429)
+    // Like the 503 of a full process: a slot frees the moment one of this client's streams closes
+    // (HTTP-M-04: this 429 used to bypass `sendError` and carry no header).
+    expect(refused.headers['retry-after']).toBe('30')
 
     first.close()
 
