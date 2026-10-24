@@ -10,12 +10,11 @@ import { SequentialIdGenerator } from '../../../application/testing/sequentialId
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
 import { asUserId } from '../../../domain/shared/ids'
-import type { Password } from '../../../domain/users/password'
-import type { PasswordHash } from '../../../domain/users/user'
 import { createPinoLogger } from '../../../infrastructure/logging/pinoLogger'
 import { CSRF_COOKIE, CSRF_HEADER } from '../middleware/csrf'
 import { captureAllOutputWhile } from './captureOutput'
 import { buildServerHarness } from './serverHarness'
+import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 
 /**
  * A password reset must write no credential into any log (docs/SECURITY.md §9; roadmap
@@ -37,19 +36,6 @@ import { buildServerHarness } from './serverHarness'
 const ADDRESS = 'canary-reset-7f3a9c1e@example.test'
 const NEW_PASSWORD = 'canary-new-password-7f3a9c1e5b2d'
 const INSTANCE = { service: 'eventslide', version: 'reset-canary', instance: 'reset-canary-box' }
-
-class FakeHasher {
-  readonly dummyHash: PasswordHash = 'hash:factice'
-  async hash(password: Password): Promise<PasswordHash> {
-    return `hash:${password.value}`
-  }
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    return hash === `hash:${attempt}`
-  }
-  needsRehash(): boolean {
-    return false
-  }
-}
 
 const journey = async (mailer: FakeMailer): Promise<{ token: string; link: string }> => {
   const logger = createPinoLogger({ level: 'trace', pretty: false, bindings: INSTANCE })
@@ -76,7 +62,7 @@ const journey = async (mailer: FakeMailer): Promise<{ token: string; link: strin
         users,
         tokens,
         secrets,
-        hasher: new FakeHasher(),
+        hasher: new FakePasswordHasher(),
         clock,
       }),
     },
