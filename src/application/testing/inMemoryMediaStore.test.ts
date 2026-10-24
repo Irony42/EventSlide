@@ -8,6 +8,7 @@ import { InMemoryMediaStore } from './inMemoryMediaStore'
 mediaStoreContract('in-memory', async () => ({ store: new InMemoryMediaStore() }))
 
 const WEDDING = asEventId('evt-wedding')
+const GALA = asEventId('evt-gala')
 
 const hashOf = (seed: string): ContentHash => {
   const result = ContentHash.create(seed.padEnd(64, '0').slice(0, 64))
@@ -63,5 +64,62 @@ describe('InMemoryMediaStore', () => {
     await media.put(WEDDING, hashOf('aa'), 'video', Uint8Array.of(1))
 
     expect(media.variantsOf(WEDDING, hashOf('aa'))).toEqual(['video', 'poster'])
+  })
+
+  it('counts every byte stream asked for, found or not', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+
+    await media.openRead(WEDDING, hashOf('aa'), 'display')
+    await media.openRead(WEDDING, hashOf('bb'), 'display')
+
+    expect(media.opened).toBe(2)
+  })
+
+  it('can lose a file between the size check and the open', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1, 2, 3))
+    await media.put(WEDDING, hashOf('aa'), 'video', Uint8Array.of(1))
+    await media.put(WEDDING, hashOf('bb'), 'display', Uint8Array.of(1))
+
+    await media.put(GALA, hashOf('aa'), 'display', Uint8Array.of(1))
+    media.vanishAfterStat(WEDDING, hashOf('aa'))
+
+    expect((await media.stat(WEDDING, hashOf('aa'), 'display'))?.byteSize).toBe(3)
+    expect(await media.openRead(WEDDING, hashOf('aa'), 'display')).toBeNull()
+    expect(await media.openRead(WEDDING, hashOf('aa'), 'video')).toBeNull()
+    expect(await media.openRead(WEDDING, hashOf('bb'), 'display')).not.toBeNull()
+    expect(await media.openRead(GALA, hashOf('aa'), 'display')).not.toBeNull()
+  })
+
+  it('can refuse an unlink, and keeps the bytes when it does', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+    media.failDeletes()
+
+    await expect(media.delete(WEDDING, hashOf('aa'))).rejects.toThrow(/EPERM/)
+
+    expect(await media.exists(WEDDING, hashOf('aa'), 'display')).toBe(true)
+  })
+
+  it('walks the store unless it was told this surface never does', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+
+    expect(await media.listEvents()).toEqual([WEDDING])
+    expect(await media.list(WEDDING)).toHaveLength(1)
+
+    media.forbidEnumeration('photo ingest')
+
+    await expect(media.listEvents()).rejects.toThrow('listEvents is not part of photo ingest')
+    await expect(media.list(WEDDING)).rejects.toThrow('list is not part of photo ingest')
+  })
+  it('can refuse to purge named events, and keeps their bytes when it does', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+    await media.put(GALA, hashOf('bb'), 'display', Uint8Array.of(1))
+    media.failEventPurges(GALA)
+
+    await media.deleteEvent(WEDDING)
+    await expect(media.deleteEvent(GALA)).rejects.toThrow('media root is read-only')
+
+    expect(await media.listEvents()).toEqual([GALA])
+    expect(await media.usedBytes(GALA)).toBe(1)
+    expect(await media.usedBytes(WEDDING)).toBe(0)
   })
 })
