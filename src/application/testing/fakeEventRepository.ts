@@ -9,6 +9,7 @@ import { purgeDeadline } from '../../domain/clients/purgeDeadline'
 import type {
   EventOwnerGrant,
   EventRepository,
+  EventCounts,
   EventSummary,
   PurgePolicy,
 } from '../ports/eventRepository'
@@ -184,21 +185,31 @@ export class FakeEventRepository implements EventRepository {
     return Promise.all(visible.map((event) => this.summarise(event)))
   }
 
-  private async summarise(event: Event): Promise<EventSummary> {
-    const counts = await this.links.photos?.countsByStatus(event.id)
-    const guests = await this.links.guests?.list(event.id)
+  /** One event's counts, from the photo and guest fakes it was given; zeros for what it was not. */
+  async countsOf(id: EventId): Promise<EventCounts> {
+    // Like the table: an event the repository does not hold has no rows to count, whatever the
+    // photo and guest fakes were seeded with.
+    if (!this.rows.has(id)) return { photoCount: 0, pendingCount: 0, guestCount: 0, usedBytes: 0 }
+    const counts = await this.links.photos?.countsByStatus(id)
+    const guests = await this.links.guests?.list(id)
     return {
-      id: event.id,
-      slug: event.slug.value,
-      name: event.name.value,
-      status: event.status,
       photoCount:
         counts === undefined
           ? 0
           : counts.pending + counts.published + counts.rejected + counts.hidden,
       pendingCount: counts?.pending ?? 0,
       guestCount: guests?.length ?? 0,
-      usedBytes: (await this.links.photos?.totalBytes(event.id)) ?? 0,
+      usedBytes: (await this.links.photos?.totalBytes(id)) ?? 0,
+    }
+  }
+
+  private async summarise(event: Event): Promise<EventSummary> {
+    return {
+      id: event.id,
+      slug: event.slug.value,
+      name: event.name.value,
+      status: event.status,
+      ...(await this.countsOf(event.id)),
       createdAt: event.createdAt,
     }
   }

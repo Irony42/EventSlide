@@ -133,6 +133,48 @@ describe('FakeEventRepository dashboard summary', () => {
     expect(summaries.map((summary) => summary.id)).toEqual([WEDDING])
   })
 
+  it('counts one event on its own, whatever its neighbours hold', async () => {
+    const photos = new FakePhotoRepository().seed(
+      aPhoto({ id: 'p1', eventId: WEDDING, status: 'pending', byteSize: 1_000 }),
+      aPhoto({
+        id: 'other-1',
+        eventId: asEventId('evt-gala'),
+        status: 'published',
+        byteSize: 90_000,
+      }),
+    )
+    const guests = new FakeGuestRepository().seed(
+      aGuest({ id: 'guest-lea', eventId: WEDDING }),
+      aGuest({ id: 'guest-gala', eventId: asEventId('evt-gala') }),
+      aGuest({ id: 'guest-gala-2', eventId: asEventId('evt-gala') }),
+    )
+    const events = new FakeEventRepository({ photos, guests }).seed(
+      anEvent({ id: WEDDING, ownerId: HOST }),
+      anEvent({ id: 'evt-gala', ownerId: HOST, slug: 'gala', joinCode: 'ZZZZZZ' }),
+    )
+
+    expect(await events.countsOf(WEDDING)).toEqual({
+      photoCount: 1,
+      pendingCount: 1,
+      guestCount: 1,
+      usedBytes: 1_000,
+    })
+  })
+
+  it('counts zero for an event it does not hold, even when photos name it', async () => {
+    const photos = new FakePhotoRepository().seed(
+      aPhoto({ id: 'orphan', eventId: asEventId('evt-nowhere'), byteSize: 5_000 }),
+    )
+    const events = new FakeEventRepository({ photos })
+
+    expect(await events.countsOf(asEventId('evt-nowhere'))).toEqual({
+      photoCount: 0,
+      pendingCount: 0,
+      guestCount: 0,
+      usedBytes: 0,
+    })
+  })
+
   it('reports zeros when nothing is linked, rather than inventing a count', async () => {
     const events = new FakeEventRepository().seed(anEvent({ id: WEDDING, ownerId: HOST }))
 

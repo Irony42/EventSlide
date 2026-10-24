@@ -390,6 +390,41 @@ export const eventRepositoryContract = (
       ])
     })
 
+    // ------------------------------------------------------------ one event's counts --
+
+    it('counts zero everywhere for an event with no activity', async () => {
+      await repo.save(anEvent({ id: 'evt-1', ownerId: HOST }))
+
+      expect(await repo.countsOf(asEventId('evt-1'))).toEqual({
+        photoCount: 0,
+        pendingCount: 0,
+        guestCount: 0,
+        usedBytes: 0,
+      })
+    })
+
+    it('counts zero for an event that does not exist, rather than failing', async () => {
+      expect(await repo.countsOf(asEventId('evt-nowhere'))).toEqual({
+        photoCount: 0,
+        pendingCount: 0,
+        guestCount: 0,
+        usedBytes: 0,
+      })
+    })
+
+    it('says of one event what its dashboard row says of it', async () => {
+      await repo.save(anEvent({ id: 'evt-1', ownerId: HOST }))
+
+      const [row] = await repo.listForUser(HOST)
+
+      expect(await repo.countsOf(asEventId('evt-1'))).toEqual({
+        photoCount: row?.photoCount,
+        pendingCount: row?.pendingCount,
+        guestCount: row?.guestCount,
+        usedBytes: row?.usedBytes,
+      })
+    })
+
     // ----------------------------------------------------------------- client --
 
     it('round-trips the client an event belongs to', async () => {
