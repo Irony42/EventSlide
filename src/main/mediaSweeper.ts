@@ -6,6 +6,8 @@ import type {
   SweepOrphanedMedia,
   SweepOrphanedMediaReport,
 } from '../application/usecases/media/sweepOrphanedMedia'
+import { createGuardedJob, type JobOutcome } from './guardedJob'
+import { createRepeater } from './repeater'
 
 /**
  * The timer for the media reconciliation sweep.
@@ -42,12 +44,7 @@ export interface MediaSweeperDeps {
   readonly firstDelayMs: number
 }
 
-export type MediaSweepOutcome =
-  | { readonly status: 'completed'; readonly report: SweepOrphanedMediaReport }
-  /** A sweep was already running. Nothing was attempted. */
-  | { readonly status: 'skipped' }
-  /** The sweep itself threw — the store could not be enumerated at all. */
-  | { readonly status: 'failed'; readonly error: unknown }
+export type MediaSweepOutcome = JobOutcome<SweepOrphanedMediaReport>
 
 export interface MediaSweeper {
   /** Idempotent. The first sweep happens one interval from now, never at startup. */
@@ -175,38 +172,24 @@ export const createMediaSweeper = ({
   intervalMs,
   firstDelayMs,
 }: MediaSweeperDeps): MediaSweeper => {
-  let timer: NodeJS.Timeout | null = null
-  let firstRun: NodeJS.Timeout | null = null
-
   /**
-   * The overlap guard, and it is not cosmetic here.
-   *
-   * Two sweeps over one event would both list the same orphan, both decide it is
-   * unreferenced and both delete it — harmless, because `MediaStore.delete` is
-   * idempotent — but they would also both walk every shard directory of every event on a
-   * disk that may be serving a projector. A slow sweep is the normal case on a spinning
-   * disk with four thousand photos.
+   * The overlap guard is not cosmetic here. Two sweeps over one event would both list the
+   * same orphan, both decide it is unreferenced and both delete it — harmless, because
+   * `MediaStore.delete` is idempotent — but they would also both walk every shard directory
+   * of every event on a disk that may be serving a projector. A slow sweep is the normal
+   * case on a spinning disk with four thousand photos.
    */
-  let inFlight: Promise<SweepOrphanedMediaReport> | null = null
-
-  const runOnce = async (): Promise<MediaSweepOutcome> => {
-    if (inFlight !== null) {
-      logger.warn('media reconciliation skipped, the previous sweep is still running')
-      return { status: 'skipped' }
-    }
-
-    const startedAt = clock.now()
-
-    try {
-      // Called inside the try and assigned before the first `await`, for the two reasons
-      // `retentionSweeper` documents: a synchronous throw must not escape as an unhandled
-      // rejection, and the guard above must see the run.
-      const run = sweep()
-      inFlight = run
-
-      const report = await run
-      const durationMs = clock.now().getTime() - startedAt.getTime()
-
+  const job = createGuardedJob({
+    logger,
+    clock,
+    run: sweep,
+    onSkipped: () =>
+      logger.warn('media reconciliation skipped, the previous sweep is still running'),
+    // The use case swallows a per-event failure by design, so reaching the catch means the
+    // store could not be enumerated at all, and losing the server because a directory could
+    // not be listed would be far worse than one skipped sweep.
+    failedMessage: 'media reconciliation failed',
+    describe: (report, durationMs) => {
       if (report.collected > 0) {
         logger.info('media reconciliation collected orphaned objects', {
           scanned: report.scanned,
@@ -232,51 +215,29 @@ export const createMediaSweeper = ({
           durationMs,
         })
       }
+    },
+  })
 
-      return { status: 'completed', report }
-    } catch (error) {
-      // The use case swallows a per-event failure by design, so reaching here means the
-      // store could not be enumerated at all. Caught because an unhandled rejection from
-      // a timer callback is fatal in `index.ts`, and losing the server because a
-      // directory could not be listed would be far worse than one skipped sweep.
-      logger.error('media reconciliation failed', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return { status: 'failed', error }
-    } finally {
-      inFlight = null
-    }
-  }
+  // Offset, then on the interval: see `firstDelayMs`.
+  const repeater = createRepeater({
+    everyMs: intervalMs,
+    firstDelayMs,
+    tick: () => void job.runOnce(),
+  })
 
   return {
-    runOnce,
+    runOnce: job.runOnce,
 
     start: () => {
-      if (firstRun !== null || timer !== null) return
+      if (repeater.active) return
 
-      // Offset, then on the interval: see `firstDelayMs`. Both handles are unref'd, so
-      // neither holds the process open past `docker stop` — same reasoning as the
-      // retention timer's.
-      firstRun = setTimeout(() => {
-        firstRun = null
-        void runOnce()
-        timer = setInterval(() => void runOnce(), intervalMs)
-        timer.unref()
-      }, firstDelayMs)
-      firstRun.unref()
+      repeater.start()
 
       logger.info('media reconciliation scheduled', { intervalMs, firstDelayMs })
     },
 
     stop: () => {
-      if (firstRun !== null) {
-        clearTimeout(firstRun)
-        firstRun = null
-      }
-      if (timer !== null) {
-        clearInterval(timer)
-        timer = null
-      }
+      repeater.stop()
 
       /**
        * A sweep in flight is abandoned, not awaited — and this one is safer to abandon
@@ -285,7 +246,7 @@ export const createMediaSweeper = ({
        * objects than it would have; the rest are still orphaned, still older than the
        * minimum age, and still collected next time.
        */
-      if (inFlight !== null) {
+      if (job.running) {
         logger.warn('shutting down during media reconciliation, the rest is left to the next run')
       }
     },

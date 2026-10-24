@@ -287,7 +287,8 @@ costs a photo test **and** a clip test at every call site, for the life of the p
 
 `src/main/clipWorker.ts` follows `retentionSweeper.ts`'s shape — a module of its own with
 `start`/`stop`/`runOnce`, an injected clock and logger, an overlap guard and an `unref`'d
-timer — and diverges on three points, each about a guest standing in a room: it is woken
+timer (`guardedJob.ts` and `repeater.ts`, which every background job shares) — and diverges
+on three points, each about a guest standing in a room: it is woken
 by a **fact on the bus** as well as by a tick, it **drains** rather than making one pass,
 and its **first pass is immediate**, because that first pass is also crash recovery.
 

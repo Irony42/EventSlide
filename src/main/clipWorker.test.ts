@@ -5,7 +5,7 @@ import { RecordingEventBus } from '../application/testing/recordingEventBus'
 import { asClipJobId, asEventId, asPhotoId } from '../domain/shared/ids'
 import { DomainError } from '../domain/shared/errors'
 import { ok, type Result } from '../domain/shared/result'
-import type { LogContext, Logger } from '../application/ports/logger'
+import { CapturingLogger } from '../application/testing/capturingLogger'
 import type { RecoverClipJobsReport } from '../application/usecases/clips/recoverClipJobs'
 import type { TranscodeNextClipOutcome } from '../application/usecases/clips/transcodeNextClip'
 
@@ -28,26 +28,6 @@ const INTERVAL_MS = 15_000
 const AT = new Date('2026-09-11T20:00:00.000Z')
 
 const EVENT = asEventId('evt-wedding')
-
-interface LoggedLine {
-  readonly level: string
-  readonly message: string
-}
-
-const recordingLogger = (): { logger: Logger; lines: LoggedLine[] } => {
-  const lines: LoggedLine[] = []
-  const at = (level: string) => (message: string) => {
-    lines.push({ level, message })
-  }
-  const logger: Logger = {
-    debug: at('debug'),
-    info: at('info'),
-    warn: at('warn'),
-    error: at('error'),
-    child: (_bindings: LogContext): Logger => logger,
-  }
-  return { logger, lines }
-}
 
 const transcoded = (id: string): TranscodeNextClipOutcome => ({
   kind: 'transcoded',
@@ -90,7 +70,8 @@ const noRecovery = async (): Promise<RecoverClipJobsReport> => ({ requeued: 0, a
 const build = (overrides: Partial<ClipWorkerDeps> = {}) => {
   const clock = new FakeClock(AT)
   const bus = new RecordingEventBus()
-  const { logger, lines } = recordingLogger()
+  const logger = new CapturingLogger()
+  const { lines } = logger
 
   const worker = createClipWorker({
     transcodeNext: async () => ok(IDLE),
@@ -354,6 +335,24 @@ describe('clipWorker', () => {
   })
 
   describe('stop', () => {
+    it('drains again when it is started after a stop, which the stopping flag would otherwise forbid', async () => {
+      // `stop` raises a flag that makes a drain in flight break out of its loop; a restart has
+      // to lower it, or the second life of the worker takes no clip at all.
+      const queue = queueOf()
+      const { worker, bus } = build({ transcodeNext: queue.take })
+      worker.start()
+      worker.stop()
+      worker.start()
+      await vi.advanceTimersByTimeAsync(0)
+      const before = queue.calls
+
+      bus.publish({ type: 'clip.queued', eventId: EVENT, clipJobId: asClipJobId('job-1') })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(queue.calls).toBeGreaterThan(before)
+      worker.stop()
+    })
+
     it('stops the timer', async () => {
       const queue = queueOf()
       const { worker } = build({ transcodeNext: queue.take })

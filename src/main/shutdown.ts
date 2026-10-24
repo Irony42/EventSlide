@@ -1,5 +1,6 @@
 import type { Container } from './container'
 import { drainStreams as drainOpenStreams } from '../interface/http/routes/streamRoutes'
+import { setBackgroundTimeout } from '../infrastructure/time/backgroundTimers'
 
 /**
  * Graceful shutdown, split out of `index.ts` so its ordering can be called directly
@@ -90,10 +91,10 @@ export const createShutdownHandler = (deps: ShutdownDeps): ((signal: string) => 
 
     // The backstop: an SSE stream is open for hours by design and will not close on
     // its own, so waiting for every connection would mean never exiting.
-    setTimeout(() => {
+    setBackgroundTimeout(() => {
       deps.container.logger.warn('shutdown grace elapsed, forcing exit')
       void deps.container.dispose().finally(() => exit(0))
-    }, grace).unref()
+    }, grace)
   }
 }
 
