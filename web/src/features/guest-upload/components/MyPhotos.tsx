@@ -6,8 +6,8 @@ import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { EmptyState } from '../../../design-system/components/EmptyState'
 import { IconButton } from '../../../design-system/components/IconButton'
+import { Notice } from '../../../design-system/components/Notice'
 import { Spinner } from '../../../design-system/components/Spinner'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
 import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
@@ -73,10 +73,9 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
     <Card as="h2" title={t.upload.mine} className={styles['mine']}>
       {error === null ? null : (
         <div className={styles['failure']}>
-          <p className={styles['error']} role="alert">
-            <StatusIcon tone="danger" />
+          <Notice tone="danger" role="alert" variant="inline">
             {error}
-          </p>
+          </Notice>
           <Button variant="secondary" onClick={onRetry}>
             {t.app.retry}
           </Button>

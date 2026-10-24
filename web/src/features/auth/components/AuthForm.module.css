@@ -4,32 +4,6 @@
   gap: var(--space-4);
 }
 
-/**
- * The form-level failure.
- *
- * Not attached to a field: the server answers "one of these two is wrong" and says no
- * more, so pointing at the e-mail box would be a guess the UI is not entitled to make.
- */
-.alert {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  font-size: var(--text-sm);
-}
-
-/* A span around the glyph, not a class on it: it carries the danger colour and keeps the
-   glyph from shrinking in the row. The design system's own Toast wraps it the same way. */
-.alertGlyph {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  color: var(--danger);
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;

@@ -116,30 +116,6 @@
   color: var(--text-secondary);
 }
 
-.danger,
-.warning,
-.success {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-}
-
-.danger {
-  color: var(--danger);
-}
-
-/* A full queue is a wait, not a fault. It must not be the same colour as a refusal. */
-.warning {
-  color: var(--warning);
-}
-
-.success {
-  color: var(--success);
-}
-
 .actions {
   display: flex;
   flex-direction: column;

@@ -49,21 +49,3 @@
   align-items: center;
   gap: var(--space-3);
 }
-
-.alert {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  font-size: var(--text-sm);
-}
-
-.alertGlyph {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  color: var(--danger);
-}

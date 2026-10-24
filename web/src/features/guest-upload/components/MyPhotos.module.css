@@ -9,14 +9,6 @@
   align-items: flex-start;
 }
 
-.error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--danger);
-  font-size: var(--text-sm);
-}
-
 .loading {
   display: flex;
   justify-content: center;
