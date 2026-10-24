@@ -1206,6 +1206,16 @@ export const fr = {
     'reset.tooManyForAddress':
       'Cette adresse a déjà reçu plusieurs réinitialisations. Réessayez dans une heure.',
     'account.disabled': 'Ce compte est désactivé.',
+    'account.operatorProtected': 'Le compte d’un opérateur ne peut être ni désactivé ni supprimé.',
+    'account.holdsEvents': 'Ce compte possède un évènement : transférez-le ou purgez-le d’abord.',
+    'account.holdsMedia':
+      'Ce compte a déposé des photos ou des vidéos, dont les fichiers resteraient sur le disque.',
+    'account.holdsReviews': 'Ce compte a modéré des photos, dont les lignes portent son nom.',
+    'account.lastClientOwner':
+      'Ce compte est le seul propriétaire d’un client qui a encore des membres ou des évènements : ajoutez un propriétaire, ou mettez fin à l’engagement du client.',
+    'client.graceInvalid': 'Ce délai n’est pas accepté : de 1 à 365 jours.',
+    'client.offboarding':
+      'La fin d’engagement de ce client est en cours : sa suspension ne se lève pas.',
     unknown: 'Une erreur est survenue. Réessayez dans un instant.',
     network: 'Connexion interrompue. Vérifiez votre réseau puis réessayez.',
     'request.invalid': 'Les informations envoyées ne sont pas valides.',
@@ -1899,6 +1909,10 @@ export const fr = {
       'account.resetApproved': 'Réinitialisation approuvée par un propriétaire.',
       'account.resetIssued': 'Réinitialisation émise.',
       'account.disabled': 'Compte désactivé.',
+      'client.offboarded': 'Fin d’engagement lancée.',
+      'client.finalized': 'Client supprimé à l’issue de la fin d’engagement.',
+      'account.enabled': 'Compte réactivé.',
+      'account.deleted': 'Compte supprimé.',
       'account.termsAccepted': 'Conditions d’utilisation acceptées.',
       'account.secondFactorEnrolled': 'Vérification en deux étapes activée.',
       'account.secondFactorDisabled': 'Vérification en deux étapes désactivée.',
@@ -1907,6 +1921,33 @@ export const fr = {
     },
     actionInvitationIssuedPending: 'Invitation émise ; elle attend l’accord d’un propriétaire.',
     actionOther: 'Une action a été enregistrée.',
+    disableAccount: 'Désactiver',
+    enableAccount: 'Réactiver',
+    deleteAccount: 'Supprimer',
+    disableTitle: 'Désactiver ce compte ?',
+    disableBody:
+      'Toutes ses sessions prennent fin à l’instant et la personne ne peut plus se connecter. Rien n’est supprimé : le réactiver lui rend l’accès, mais elle devra se reconnecter.',
+    accountDisabledDone: 'Compte désactivé.',
+    accountEnabledDone: 'Compte réactivé.',
+    deleteTitle: 'Supprimer ce compte ?',
+    deleteBody:
+      'C’est la réponse à une demande d’effacement. Le compte, ses appartenances, ses invitations, son second facteur et les liens de partage qu’il a créés disparaissent. Son adresse reste dans ses sessions en cours (sept jours au plus) et dans les liens déjà émis jusqu’à leur expiration. Cette action est définitive.',
+    accountDeletedDone: 'Compte supprimé.',
+    offboardTitle: 'Fin d’engagement',
+    offboardIntro:
+      'Les évènements en direct sont clôturés, les brouillons archivés, le client est suspendu, et ses albums sont purgés à l’issue du délai que vous donnez : c’est le temps dont il dispose pour exporter ce qu’il veut garder. Les comptes qui n’appartenaient qu’à lui sont supprimés à ce moment-là.',
+    graceDays: 'Délai avant la purge, en jours',
+    graceDaysHint: 'Un nombre entier de jours : les limites sont celles du serveur.',
+    offboardAction: 'Mettre fin à l’engagement',
+    offboardConfirmTitle: 'Mettre fin à l’engagement de ce client ?',
+    offboardConfirmBody: (days: number) =>
+      t.count(days, {
+        one: `Dans ${t.number(days)} jour, les albums de ce client seront purgés, sans retour possible. D’ici là, ses évènements en direct sont clôturés, ses brouillons archivés et le client suspendu.`,
+        other: `Dans ${t.number(days)} jours, les albums de ce client seront purgés, sans retour possible. D’ici là, ses évènements en direct sont clôturés, ses brouillons archivés et le client suspendu.`,
+      }),
+    offboardedDone: 'Fin d’engagement lancée.',
+    offboardingRunning:
+      'Cet engagement prend fin : les albums seront purgés à la date indiquée plus haut.',
   },
 
   /**

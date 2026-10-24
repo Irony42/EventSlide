@@ -264,6 +264,15 @@ export const es: UiText = {
     'reset.tooManyForAddress':
       'Esta dirección ya ha recibido varios restablecimientos. Inténtelo de nuevo dentro de una hora.',
     'account.disabled': 'Esta cuenta está desactivada.',
+    'account.operatorProtected': 'La cuenta de un operador no se puede desactivar ni eliminar.',
+    'account.holdsEvents': 'Esta cuenta posee un evento: transfiéralo o elimínelo antes.',
+    'account.holdsMedia': 'Esta cuenta subió fotos o vídeos, cuyos archivos quedarían en el disco.',
+    'account.holdsReviews': 'Esta cuenta revisó fotos, cuyas filas llevan su nombre.',
+    'account.lastClientOwner':
+      'Esta cuenta es la única propietaria de un cliente que aún tiene miembros o eventos: añada un propietario o ponga fin al compromiso del cliente.',
+    'client.graceInvalid': 'Este plazo no se acepta: de 1 a 365 días.',
+    'client.offboarding':
+      'El compromiso de este cliente está terminando: su suspensión no se puede levantar.',
     unknown: 'Se ha producido un error. Inténtelo de nuevo en un momento.',
     network: 'Se ha interrumpido la conexión. Revise su red e inténtelo de nuevo.',
     'request.invalid': 'Los datos enviados no son válidos.',
@@ -1311,6 +1320,10 @@ export const es: UiText = {
       'account.resetApproved': 'Restablecimiento aprobado por un propietario.',
       'account.resetIssued': 'Restablecimiento emitido.',
       'account.disabled': 'Cuenta desactivada.',
+      'client.offboarded': 'Fin del compromiso iniciado.',
+      'client.finalized': 'Cliente eliminado al terminar su compromiso.',
+      'account.enabled': 'Cuenta reactivada.',
+      'account.deleted': 'Cuenta eliminada.',
       'account.termsAccepted': 'Condiciones de uso aceptadas.',
       'account.secondFactorEnrolled': 'Verificación en dos pasos activada.',
       'account.secondFactorDisabled': 'Verificación en dos pasos desactivada.',
@@ -1319,6 +1332,33 @@ export const es: UiText = {
     },
     actionInvitationIssuedPending: 'Invitación emitida; espera la aprobación de un propietario.',
     actionOther: 'Se ha registrado una acción.',
+    disableAccount: 'Desactivar',
+    enableAccount: 'Reactivar',
+    deleteAccount: 'Eliminar',
+    disableTitle: '¿Desactivar esta cuenta?',
+    disableBody:
+      'Todas sus conexiones abiertas terminan al instante y la persona ya no puede iniciar sesión. No se elimina nada: al reactivarla recupera el acceso, pero tendrá que volver a iniciar sesión.',
+    accountDisabledDone: 'Cuenta desactivada.',
+    accountEnabledDone: 'Cuenta reactivada.',
+    deleteTitle: '¿Eliminar esta cuenta?',
+    deleteBody:
+      'Responde a una solicitud de supresión. La cuenta, sus pertenencias, sus invitaciones, su segundo factor y los enlaces para compartir que creó desaparecen. Su dirección permanece en sus conexiones abiertas (siete días como máximo) y en los enlaces ya emitidos hasta que caduquen. Esta acción es definitiva.',
+    accountDeletedDone: 'Cuenta eliminada.',
+    offboardTitle: 'Fin del compromiso',
+    offboardIntro:
+      'Los eventos en directo se cierran, los borradores se archivan, el cliente se suspende y sus álbumes se eliminan cuando termina el plazo que usted fija: es el tiempo que tiene el cliente para exportar lo que quiere conservar. Las cuentas que solo le pertenecían se eliminan entonces.',
+    graceDays: 'Plazo antes de la eliminación, en días',
+    graceDaysHint: 'Un número entero de días: los límites son los del servidor.',
+    offboardAction: 'Poner fin al compromiso',
+    offboardConfirmTitle: '¿Poner fin al compromiso de este cliente?',
+    offboardConfirmBody: (days: number) =>
+      t.count(days, {
+        one: `Dentro de ${t.number(days)} día, los álbumes de este cliente se eliminarán, sin vuelta atrás. Hasta entonces sus eventos en directo se cierran, sus borradores se archivan y el cliente se suspende.`,
+        other: `Dentro de ${t.number(days)} días, los álbumes de este cliente se eliminarán, sin vuelta atrás. Hasta entonces sus eventos en directo se cierran, sus borradores se archivan y el cliente se suspende.`,
+      }),
+    offboardedDone: 'Fin del compromiso en marcha.',
+    offboardingRunning:
+      'Este compromiso termina: los álbumes se eliminarán en la fecha indicada arriba.',
   },
 
   titles: {
