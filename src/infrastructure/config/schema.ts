@@ -325,6 +325,18 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
       REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
       /**
+       * Every other write a guest token can make: a caption, taking a photo back, withdrawing a
+       * reaction, acknowledging the privacy notice (HTTP-H-01). Per client address **and** event, one
+       * bucket for all four, built once in `server.ts`.
+       *
+       * A backstop sized for a room, not a tuned figure. A whole venue shares one access point,
+       * and what it legitimately sends is bounded by the budgets above: twelve uploads and twenty
+       * joins a minute at one address, so a few dozen captions, take-backs and acknowledgements.
+       * 300 is five a second, well clear of that and low enough to stop a loop. Lower it on a box
+       * whose events are small.
+       */
+      GUEST_WRITE_RATE_LIMIT_PER_MINUTE: positiveInt(300, 6000),
+      /**
        * Per **account** and per **hour**, not per minute (P4-09 / D-14):
        * `eventCreationLimiter` keys on who is signed in rather than on an address, so an
        * office or a venue's guest Wi-Fi shared by several hosts is not throttled as if
