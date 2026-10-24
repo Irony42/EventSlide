@@ -7,7 +7,6 @@ import type { PresenterContext } from '../presenters/presenters'
 import { sendNoContent } from '../presenters/send'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
-import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import {
   AT,
   aGuest,
@@ -25,10 +24,10 @@ import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobR
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListEventPhotos } from '../../../application/usecases/photos/listEventPhotos'
 import { makeGetTopPhotos } from '../../../application/usecases/reactions/getTopPhotos'
-import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
 /**
  * Ring 4: the wire contract and the authorization decision for the host's console.
@@ -65,56 +64,10 @@ const PRESENTER: PresenterContext = {
   clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: true },
 }
 
-/**
- * Only `delete` matters to a moderator removing a photo; the read paths belong to
- * `mediaRoutes`. Recording the deletion is what proves the file went before the row —
- * the row is the only record of the file's address, so the other order strands bytes
- * nobody can name.
- */
-class RecordingMediaStore implements MediaStore {
-  readonly deleted: string[] = []
-
-  async put(): Promise<void> {}
-
-  async exists(): Promise<boolean> {
-    return false
-  }
-
-  async stat(): Promise<MediaMetadata | null> {
-    return null
-  }
-
-  async openRead(): Promise<AsyncIterable<Uint8Array> | null> {
-    return null
-  }
-
-  async read(): Promise<Uint8Array | null> {
-    return null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    this.deleted.push(`${eventId}|${hash.value}`)
-  }
-
-  async deleteEvent(): Promise<void> {}
-
-  async usedBytes(): Promise<number> {
-    return 0
-  }
-
-  async listEvents(): Promise<readonly EventId[]> {
-    return []
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    return []
-  }
-}
-
 interface Adapters {
   readonly photos: FakePhotoRepository
   readonly reactions: FakeReactionRepository
-  readonly media: RecordingMediaStore
+  readonly media: InMemoryMediaStore
 }
 
 /**
@@ -243,7 +196,7 @@ type World = Harness & Adapters
 const world = (): World => {
   const photos = new FakePhotoRepository()
   const reactions = new FakeReactionRepository()
-  const media = new RecordingMediaStore()
+  const media = new InMemoryMediaStore()
   const adapters: Adapters = { photos, reactions, media }
 
   const harness = buildHarness({
@@ -796,12 +749,14 @@ describe('POST /api/events/:eventSlug/moderation/bulk', () => {
 describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
   it('lets a moderator delete any photo in their event, media before row', async () => {
     const agent = await signedIn(subject, 'moderator')
+    const published = aPhoto({ id: P.published, eventId: WEDDING })
+    await subject.media.put(published.eventId, published.contentHash, 'original', Uint8Array.of(1))
 
     const response = await agent.delete(`/api/events/mariage/photos/${P.published}`)
 
     expect(response.status).toBe(204)
     expect(await statusOf(subject, P.published)).toBeNull()
-    expect(subject.media.deleted).toHaveLength(1)
+    expect(subject.media.variantsOf(published.eventId, published.contentHash)).toEqual([])
     expect(subject.bus.published).toContainEqual(
       expect.objectContaining({ type: 'photo.deleted', photoId: P.published }),
     )
