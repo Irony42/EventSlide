@@ -1716,12 +1716,43 @@ the answer for another guest's reaction: the row is addressed by
 ```
 
 Every kind is always present and zeroed, so the client never handles a missing key.
-`Cache-Control: no-store`: a count is stale the instant it is read, and both the phone
-and the wall recount on the next SSE signal.
+`Cache-Control: no-store`: a count is stale the instant it is read. The wall pulses on the
+next SSE signal (`reaction.added`) without reading anything; the phone reads the row when
+its list opens and again only when a refusal says its screen was out of date (below).
 
 Note the consequence of this living in §3 rather than §2: it needs a guest token, so the
 **projector cannot read reaction counts**. The wall response carries `reactionsEnabled`
 and nothing else about reactions. `404 photo.notFound` for a photo outside this event.
+
+**Who calls these three.** The guest's phone, from "Vos envois" on `/e/:slug/upload`
+(`web/src/features/guest-upload/components/ReactionBar.tsx`), under every photo of the
+guest's own whose `status` is `published`, and only when the `allowReactions` the join
+returned (§2) is `true`. It reads the row once with the `GET` — for `mine`, which buttons
+to show pressed; the screen shows no counts — and then:
+
+- **sends or withdraws before the server has answered**, so the button moves under the
+  thumb; a refusal (`403 event.reactionsDisabled`, `409 reaction.notPublished`,
+  `429 reaction.rateLimited` — the limiter and the per-guest budget answer with the same
+  code) or a dropped connection takes that one tap back and says why, in the guest's
+  language, from the code alone;
+- **reads the row again after `409 reaction.alreadyExists`, `404 reaction.notFound` and a
+  dropped connection**, because each leaves the phone not knowing what the server holds — a
+  reply lost on venue Wi-Fi leaves the server with a reaction the phone thinks it never
+  sent. The buttons rest until the read has answered, and the read starts only once no
+  other tap is still in the air, so its answer cannot be older than a tap it would undo;
+- **never sends before the `GET` has answered**, so a tap cannot be refused for a reaction
+  the guest was never shown.
+
+Both inputs are snapshots. `allowReactions` is the one the join returned and the list is
+the one read when the page opened, so a host who switches reactions off mid-evening is
+noticed by the phone at its next refusal (`403 event.reactionsDisabled`, said in words), not
+before — and a withdrawal is still accepted, because the setting governs sending, not
+undoing. A photo approved after the page opened carries its buttons from the next read.
+
+The list is the guest's own photographs and nothing else: no guest-facing view of other
+people's photographs exists, so today the reactions a phone can give are to its own
+photographs, and the `counts` the `GET` returns can only ever be that guest's own. A view
+of the room's photographs on the phone would be a new surface, and its own decision.
 
 ---
 

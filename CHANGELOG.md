@@ -297,6 +297,9 @@ Read these before you upgrade, and back up with the version you run now.
 
 ### Added
 
+- **A guest can react to their published photos** (#188) when the host has reactions on: five
+  buttons under each photo in "my photos", one tap to react, a second to take it back, and the heart
+  reaches the wall live. Reacting to the rest of the room comes with the guest feed.
 - **A guest can rename themself, and a phone can check a join code before joining** (#190):
   `PATCH /api/events/:slug/guests/:guestId` changes the name a guest's photos are signed with, their
   own and nobody else's, and `GET /api/join/:code` says which event a code names, with the same

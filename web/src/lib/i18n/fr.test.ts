@@ -68,6 +68,8 @@ const NUMBERED: readonly [name: string, label: (position: number) => string][] =
   ['upload.removeItem', fr.upload.removeItem],
   ['upload.retryItem', fr.upload.retryItem],
   ['upload.deleteOwnNumbered', fr.upload.deleteOwnNumbered],
+  // One row of five reaction buttons per published photograph.
+  ['upload.reactionsGroup', fr.upload.reactionsGroup],
   // One per tile of the shared gallery's grid (roadmap §4.1), which is sixty at a time.
   ['gallery.openPhoto', fr.gallery.openPhoto],
   ['gallery.photoAlt', fr.gallery.photoAlt],
