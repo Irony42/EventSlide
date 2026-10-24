@@ -2820,7 +2820,7 @@ records the acceptance of the terms rides the `InvitationAcceptance` transaction
 
 Roadmap §10.4 and §10.6; paid plan P3-12 and D-06. **An operator sees shapes and sizes of a
 client's box, never what its guests made or typed.** `SiteOverview` is the read model the
-operator's console (G2-15) and API (G2-14) present: three listings — every client with its
+operator's console (G2-15, §23) and API (G2-14) present: three listings — every client with its
 ceilings and what it is using, one client's events, every account — returned as rows declared in
 `src/domain/site/siteOverviewRows.ts`. The routes that serve it are `GET /api/site/clients`,
 `/clients/:clientId/events` and `/accounts` (API.md §1), behind `requireOperator` and the second factor,
@@ -2866,8 +2866,8 @@ adapters, because `LIMIT -1` is "no limit" in SQLite.
 **`canOperateSite` on `GET /api/auth/me`** is the account's authority over the box, from the same
 column and the same predicate `requireOperator` uses, read from storage on that request. It
 grants nothing, is not part of the login response, is not reported for a disabled account, and
-does not change with `SITE_ADMIN` (the console entry the SPA will offer needs it and
-`features.siteAdmin` both true). It is named tests in `authRoutes.test.ts`.
+does not change with `SITE_ADMIN` (the console entry the SPA offers needs it and
+`features.siteAdmin` both true, §23). It is named tests in `authRoutes.test.ts`.
 
 **What this does not defend against.** It is a property of this port, not a firewall: a route
 that reads `EventRepository` instead of `SiteOverview` is not caught here, and is what the response sweep
@@ -3139,7 +3139,7 @@ reset.tooManyForAddress`.
   channel it already uses with them. **There is no list of pending reset requests for an owner to read**, as
   there is for invitations: an owner is shown an invitation's address, and a reset request is a request about
   somebody else's password, which an operator who wanted to surprise an owner would otherwise have put in front
-  of them unasked. Whether the console needs one is G2-15's to say.
+  of them unasked. The console does not list one either (G2-15, §23): it shows the request's state to the operator who made it, and nothing else.
 - **Disabling the last owner is not one of the six rules.** An operator can switch an account off
   (`disableAccount`). If that is the only owner of a client, nothing that waits for an owner can be
   approved, which is a lock and not an escalation: R1 and R2 fail closed. Who may disable whom, and the
@@ -3358,4 +3358,44 @@ and a mutation.
   A reset has no such exception: a refused mail is `409 reset.mailNotSent` and still no link. Held by
   `siteRoutes.clients.test.ts` and `siteRoutes.guard.test.ts`.
 - **A reset request is told to the owner by the operator**, not listed for them (§20).
-- **What is not here.** Handover of an event to another account, and the console that calls these routes (G2-15).
+- **What is not here.** Handover of an event to another account. The screens that call these routes are §23 (G2-15).
+
+## 23. The operator's console
+
+Roadmap §10.4; free plan G2-15, paid plan P3-16. The screens the operator's API (§22) is for: the
+clients (`/admin/site`), one client (`/admin/site/clients/:clientId`), the accounts
+(`/admin/site/accounts`) and the log (`/admin/site/audit`), under one layout with a confirmation prompt.
+**Nothing in it is an authorisation.** Every request is judged by the gate of §22 on the server, and a
+client that skipped every check below would meet `403` on every read. What the console owes is the other
+two halves: to **offer** only what can work, and to **show** only what the operator is entitled to see.
+Audience: the maintainer, on a laptop. It is the one screen in the product built around what its reader
+must not see, and its introduction says so.
+
+| Rule                                                                                                                                                                                                                                     | Held by                                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The console prints the fields the API declares and nothing else**: a slug, a join code, an event's name, a caption, a display name or a contact address that rode along on an answer is not on the screen                              | `ClientsPage.test.tsx`, `ClientPage.test.tsx`, `AccountsPage.test.tsx` and `AuditPage.test.tsx` each plant those strings in the answer and sweep the DOM; `operator-console.spec.ts` sweeps the real page for the slug, the join code and the name of a live event of a real client |
+| **No screen of the console asks for anything outside `/api/site`**: not an event, a photograph, a gallery, a wall, a guest, a mission, a moderator or the client's own space                                                             | Every screen test asserts that none of a listed set of `Api` methods was called (`NEVER_FROM_THE_CONSOLE`); `operator-console.spec.ts` records every request the browser makes while the operator navigates and asserts none goes to `/api/events` or `/api/gallery`                |
+| **No photograph, video or canvas can be on a console screen**                                                                                                                                                                            | Each screen test counts `img`, `video`, `picture`, `canvas` and `audio` in the page; `glassBackdrop.test.ts` walks the import graph of each page and refuses a `ground` claim whose subtree could render one; the ring-6 journey counts them in the running app                     |
+| **The console is offered on two flags, and on neither alone**: the route exists only where `features.siteAdmin` is true, and is shown only to an account that says `canOperateSite`; anybody else is answered the not-found screen       | `siteConsole.router.test.tsx`: the account menu entry and the address, for an operator on a box with no console, an ordinary account on a box that has one, and a signed-out visitor; each asks the server for nothing                                                              |
+| **A direct visit to the console's address is not "not found" while the box has not said it has one**                                                                                                                                     | `siteConsole.router.test.tsx` and `aboutAnswered.test.tsx`: the route waits for `GET /api/about` on that address family only, and a failed answer is an answer, the strict one                                                                                                      |
+| **A write that needs a confirmation asks for it once, and is sent again once, on a confirmation and on nothing else**: a second refusal is the answer, a person who gives up sends nothing, two writes refused together share one prompt | `StepUpProvider.test.tsx`; each write of each screen has a case where the server asks and the write goes through on the confirmation; `operator-console.spec.ts` shows the second write of a session opening no prompt                                                              |
+| **A session that has not passed a required second factor is shown what to do, not a screen of refusals**: sent to enrol, or asked to sign in again where the code is asked                                                               | `siteConsole.router.test.tsx` ("the second factor, where the box requires one") and the second case of `operator-console.spec.ts` on a real box                                                                                                                                     |
+| **A link the server hands back because no mail carried it is shown once, as text, and dropped when the box is closed**; where a mailer delivers there is no link on the screen because there is none in the answer                       | `ClientsPage.test.tsx`, `ClientPage.test.tsx` and `AccountsPage.test.tsx`: the link appears for `delivery: link` and for a reset an owner approved, never for `mail`, and is gone after "Close"                                                                                     |
+| **A change of ceilings sends what changed, with the reason, and nothing when nothing changed**; whether a figure or a reason is acceptable is the server's, and its sentence is what is shown                                            | `ceilingsForm.test.ts` (the patch), `ClientPage.test.tsx` (the reason is sent as typed and a refusal keeps the form)                                                                                                                                                                |
+| **A client being wound down is offered neither suspension nor its lifting**, because the server refuses to lift it                                                                                                                       | `ClientPage.test.tsx`, `siteLabels.test.ts` (winding down outranks the suspension that came with it)                                                                                                                                                                                |
+
+**What it does not do.**
+
+- **It reads one client by walking the listing.** There is no route that reads a single client, so
+  `/admin/site/clients/:clientId` reads `GET /api/site/clients` two hundred rows at a time until it meets the
+  id. A box run for a handful of clients reads one page; a box with thousands wants the route, and that is a
+  change to the operator's API and not to the screen.
+- **It has no screen for access requests, and none for what an operator may not see.** There is no route for
+  the first, and the second is §10.6: a time-boxed, announced, audited access that is a different item.
+- **Disabling or deleting an account, and ending an engagement, are not on it yet.** Each is its own
+  change; they are documented in §22 when their routes ship.
+- **The prompt is not a defence against a stolen session cookie by itself.** The confirmation is judged by
+  the server (`requireStepUp`, five minutes, `stepUpAt` in the server-side session); the dialog only collects
+  it. A page that skipped the dialog would meet `403 auth.stepUpRequired` on every write.
+- **The console cannot tell a client that does not exist from one that was deleted.** Both are
+  "this client is not found", which is all the operator can be told (§22).
