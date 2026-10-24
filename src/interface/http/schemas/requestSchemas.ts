@@ -1,8 +1,15 @@
 import { z } from 'zod'
 import { CLIENT_LOCALES, DEFAULT_CLIENT_LOCALE } from '../../../domain/clients/clientLocale'
 import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
+import { MODERATION_MODES } from '../../../domain/events/eventSettings'
+import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
 import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
+import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
+import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
+import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
+import { REACTION_KINDS } from '../../../domain/reactions/reactionKind'
+import { EmailAddress } from '../../../domain/users/emailAddress'
 import {
   accentHueRange,
   THEME_FONTS,
@@ -27,6 +34,36 @@ import {
  * (zod 3 spelled the first `z.object({...}).strict()`; zod 4 keeps that method as legacy and
  * the constructor says it where it is read.)
  */
+
+// ------------------------------------------------------------- vocabularies --
+//
+// Every closed vocabulary a request can name is built **from the domain constant that owns it**,
+// once, here. They used to be retyped as literal arrays next to comments saying the vocabulary
+// came from the domain (HTTP-M-11): a sixth reaction kind added to the domain would have been
+// a `400` for the new kind, with nothing red. `requestSchemas.test.ts` walks each constant, so
+// a value the domain gains is accepted at the boundary or a test says so.
+
+const reactionKind = z.enum(REACTION_KINDS)
+const moderationDecision = z.enum(MODERATION_DECISIONS)
+const servedVariant = z.enum(SERVED_VARIANTS)
+/** What a list may be filtered to: one status, or `all`, which is not a status. */
+const photoStatusFilter = z.enum([...PHOTO_STATUSES, 'all'] as const)
+const eventStatus = z.enum(EVENT_STATUSES)
+const moderationMode = z.enum(MODERATION_MODES)
+
+// ------------------------------------------------------------ shared bounds --
+//
+// A bound that two schemas share is one value, so they cannot drift (HTTP-L-09).
+
+/**
+ * An e-mail address as the sign-in, the reset request and the moderator invitation take it: as
+ * long as `EmailAddress` lets one be (254, the longest RFC 5321 allows), so the boundary and the
+ * domain cannot disagree. Whether it is an address is the domain's.
+ */
+const emailText = z.string().min(1).max(EmailAddress.maxLength)
+
+/** How many rows a host's list may ask for in one page. */
+const pageLimit = z.coerce.number().int().min(1).max(200).default(60)
 
 /** Matches `Slug`'s own rule so a malformed slug is a 400, not a database round-trip. */
 const slug = z
@@ -98,7 +135,7 @@ export const photoParams = z.object({ eventSlug: slug, photoId: uuid })
 export const photoVariantParams = z.object({
   eventSlug: slug,
   photoId: uuid,
-  variant: z.enum(['thumb', 'display', 'original', 'video', 'poster']),
+  variant: servedVariant,
 })
 
 export const clipJobParams = z.object({ eventSlug: slug, clipJobId: uuid })
@@ -106,7 +143,7 @@ export const clipJobParams = z.object({ eventSlug: slug, clipJobId: uuid })
 export const reactionParams = z.object({
   eventSlug: slug,
   photoId: uuid,
-  kind: z.enum(['love', 'laugh', 'wow', 'cheers', 'clap']),
+  kind: reactionKind,
 })
 
 export const moderatorParams = z.object({ eventSlug: slug, userId: uuid })
@@ -174,7 +211,7 @@ export const renameGuestBody = z.strictObject({
 })
 
 export const reactionBody = z.strictObject({
-  kind: z.enum(['love', 'laugh', 'wow', 'cheers', 'clap']),
+  kind: reactionKind,
 })
 
 /**
@@ -193,7 +230,7 @@ export const noticeAcknowledgementBody = z.strictObject({
 // --------------------------------------------------------------------- auth --
 
 export const loginBody = z.strictObject({
-  email: z.string().min(1).max(254),
+  email: emailText,
   // Not length-checked: the policy applies when a password is *chosen*, and an
   // account whose password predates a policy change must still be able to sign in.
   // A minimum here would also leak which passwords are plausible.
@@ -215,7 +252,7 @@ export const changePasswordBody = z.strictObject({
  * product's source language.
  */
 export const passwordResetRequestBody = z.strictObject({
-  email: z.string().min(1).max(254),
+  email: emailText,
   locale: z.enum(CLIENT_LOCALES).default(DEFAULT_CLIENT_LOCALE),
 })
 
@@ -343,7 +380,7 @@ export const renameEventBody = z.strictObject({ name: z.string().min(1).max(200)
  * `retentionDays` absent leaves it as it was.
  */
 export const updateSettingsBody = z.strictObject({
-  moderation: z.enum(['manual', 'auto']).optional(),
+  moderation: moderationMode.optional(),
   allowCaptions: z.boolean().optional(),
   allowReactions: z.boolean().optional(),
   allowClips: z.boolean().optional(),
@@ -397,7 +434,7 @@ export const updateSettingsBody = z.strictObject({
 })
 
 export const eventStatusBody = z.strictObject({
-  status: z.enum(['draft', 'live', 'closed', 'archived']),
+  status: eventStatus,
 })
 
 /**
@@ -430,7 +467,7 @@ export const eventScheduleBody = z.strictObject({
 })
 
 export const inviteModeratorBody = z.strictObject({
-  email: z.string().min(1).max(254),
+  email: emailText,
 })
 
 // --------------------------------------------------------------------- missions --
@@ -457,22 +494,22 @@ export const missionBody = z.strictObject({
 // --------------------------------------------------------------- moderation --
 
 export const moderationDecisionBody = z.strictObject({
-  decision: z.enum(['publish', 'reject', 'hide']),
+  decision: moderationDecision,
 })
 
 export const bulkModerationBody = z.strictObject({
   // Bounded: a bulk action is a screenful, not an entire album. An unbounded array
   // would let one request hold a transaction open across four thousand rows.
   photoIds: z.array(uuid).min(1).max(200),
-  decision: z.enum(['publish', 'reject', 'hide']),
+  decision: moderationDecision,
 })
 
 // ------------------------------------------------------------------ queries --
 
 /** `z.coerce` because query values arrive as strings. */
 export const photoListQuery = z.strictObject({
-  status: z.enum(['pending', 'published', 'rejected', 'hidden', 'all']).default('all'),
-  limit: z.coerce.number().int().min(1).max(200).default(60),
+  status: photoStatusFilter.default('all'),
+  limit: pageLimit,
   cursor: z.string().max(512).optional(),
 })
 
@@ -493,8 +530,8 @@ export const photoListQuery = z.strictObject({
  * `400 request.invalid`.
  */
 export const moderationQueueQuery = z.strictObject({
-  status: z.enum(['pending', 'published', 'rejected', 'hidden', 'all']).default('pending'),
-  limit: z.coerce.number().int().min(1).max(200).default(60),
+  status: photoStatusFilter.default('pending'),
+  limit: pageLimit,
 })
 
 /**
@@ -633,7 +670,7 @@ export const galleryPhotosQuery = z.strictObject({ cursor: z.string().min(1).max
 export const galleryMediaParams = z.object({
   linkId: uuid,
   photoId: uuid,
-  variant: z.enum(['thumb', 'display', 'original', 'video', 'poster']),
+  variant: servedVariant,
 })
 
 export const galleryArchiveParams = z.object({ linkId: uuid })
