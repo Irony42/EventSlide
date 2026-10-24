@@ -49,11 +49,13 @@ export interface ReactionBarProps {
 }
 
 /**
- * Under a published photo of the guest's own: the buttons to react to it.
+ * Under a photograph of the evening that is somebody else's: the buttons to react to it.
  *
- * Only ever mounted when the host has reactions on and the photo is on the wall — the
- * caller decides both, from the event the join returned and the status the server reported,
- * so a bar that is not wanted never asks the server anything.
+ * Only ever mounted when the host has reactions on and the photograph is on the wall and not
+ * the guest's own — the caller decides all three, from the wall's answer (which is the room's
+ * own list of published photographs, and says whether reactions are on) and the guest's own
+ * list, so a bar that is not wanted never asks the server anything. The server decides them
+ * again, and refuses what it must.
  *
  * **A refusal is spoken, a failed read is not.** What a guest caused by tapping — a spent
  * budget, a switch the host turned off, a dropped connection — is a `role="alert"`, because

@@ -581,6 +581,19 @@ export const es: UiText = {
       'Este vídeo no se puede reproducir aquí. Solo se muestra la imagen de vista previa.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Las fotos de la velada',
+    link: 'Ver las fotos de la velada',
+    back: 'Enviar fotos',
+    refresh: 'Actualizar',
+    more: 'Ver más fotos',
+    empty: 'Todavía no hay ninguna foto en la pantalla.',
+    emptyHint: 'Las fotos que apruebe el organizador aparecerán aquí.',
+    failed: 'No se han podido cargar las fotos. Inténtelo de nuevo.',
+    own: 'Su foto',
+  },
+
   wall: {
     empty: 'Las primeras fotos llegarán enseguida',
     emptyHint: 'Escanee el código QR para enviar las suyas.',
@@ -1379,6 +1392,7 @@ export const es: UiText = {
   titles: {
     join: 'Únase a la galería',
     upload: 'Envío de fotos',
+    feed: 'Fotos de la velada',
     wall: 'Pantalla del evento',
     gallery: 'Álbum compartido',
     about: 'Acerca de',

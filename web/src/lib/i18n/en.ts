@@ -559,6 +559,19 @@ export const en: UiText = {
     videoUnplayable: 'This video cannot be played here. Only the preview frame is shown.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Photos from the evening',
+    link: 'See the photos from the evening',
+    back: 'Send your photos',
+    refresh: 'Refresh',
+    more: 'Show more photos',
+    empty: 'No photo is on the screen yet.',
+    emptyHint: 'Photos the organisers approve will appear here.',
+    failed: 'The photos could not be loaded. Try again.',
+    own: 'Your photo',
+  },
+
   wall: {
     empty: 'The first photos will arrive soon',
     emptyHint: 'Scan the QR code to send yours.',
@@ -1333,6 +1346,7 @@ export const en: UiText = {
   titles: {
     join: 'Join the gallery',
     upload: 'Send photos',
+    feed: 'Photos from the evening',
     wall: 'Event screen',
     gallery: 'Shared album',
     about: 'About',

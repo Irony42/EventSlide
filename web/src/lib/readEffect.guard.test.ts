@@ -136,7 +136,7 @@ const BESPOKE: ReadonlyMap<string, { readonly count: number; readonly reason: st
     },
   ],
   [
-    'features/guest-upload/hooks/usePhotoReactions.ts',
+    'features/guest-feed/hooks/usePhotoReactions.ts',
     {
       count: 1,
       reason:

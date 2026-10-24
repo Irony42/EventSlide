@@ -85,6 +85,7 @@ describe('the scope', () => {
         'auth',
         'clientSpace',
         'errors',
+        'feed',
         'gallery',
         'join',
         'mobileModeration',

@@ -584,6 +584,19 @@ export const it: UiText = {
       'Questo video non può essere riprodotto qui. Si vede solo l’immagine di anteprima.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Le foto della serata',
+    link: 'Guarda le foto della serata',
+    back: 'Invia le foto',
+    refresh: 'Aggiorna',
+    more: 'Mostra altre foto',
+    empty: 'Nessuna foto è ancora sullo schermo.',
+    emptyHint: 'Le foto approvate dagli organizzatori compariranno qui.',
+    failed: 'Non è stato possibile caricare le foto. Riprovi.',
+    own: 'La sua foto',
+  },
+
   wall: {
     empty: 'Le prime foto stanno per arrivare',
     emptyHint: 'Scansioni il codice QR per inviare le sue foto.',
@@ -1349,6 +1362,7 @@ export const it: UiText = {
   titles: {
     join: 'Entri nella galleria',
     upload: 'Invio di foto',
+    feed: 'Foto della serata',
     wall: 'Schermo dell’evento',
     gallery: 'Album condiviso',
     about: 'Informazioni',

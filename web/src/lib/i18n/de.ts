@@ -606,6 +606,19 @@ export const de: UiText = {
       'Dieses Video kann hier nicht abgespielt werden. Zu sehen ist nur das Vorschaubild.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Die Fotos des Abends',
+    link: 'Fotos des Abends ansehen',
+    back: 'Eigene Fotos senden',
+    refresh: 'Aktualisieren',
+    more: 'Weitere Fotos anzeigen',
+    empty: 'Noch ist kein Foto auf dem Bildschirm.',
+    emptyHint: 'Fotos, die die Veranstalter freigegeben haben, erscheinen hier.',
+    failed: 'Die Fotos konnten nicht geladen werden. Versuchen Sie es erneut.',
+    own: 'Ihr Foto',
+  },
+
   wall: {
     empty: 'Die ersten Fotos kommen gleich',
     emptyHint: 'Scannen Sie den QR-Code und senden Sie Ihre eigenen Fotos.',
@@ -1391,6 +1404,7 @@ export const de: UiText = {
   titles: {
     join: 'Der Galerie beitreten',
     upload: 'Fotos senden',
+    feed: 'Fotos des Abends',
     wall: 'Bildschirm der Veranstaltung',
     gallery: 'Geteiltes Album',
     about: 'Info',
