@@ -245,6 +245,33 @@ export const it: UiText = {
   },
 
   errors: {
+    'clientName.empty': 'Dia un nome al cliente.',
+    'clientName.tooLong': 'Questo nome è troppo lungo.',
+    'clientName.invalid': 'Questo nome contiene un carattere non accettato.',
+    'clientCeilings.maxEventsInvalid': 'Questo numero di eventi non è accettato.',
+    'clientCeilings.maxEventsPerPeriodInvalid':
+      'Questo numero di eventi per periodo non è accettato.',
+    'clientCeilings.maxTotalBytesInvalid': 'Questo spazio totale non è accettato.',
+    'clientCeilings.maxEventQuotaBytesInvalid': 'Questa quota di evento non è accettata.',
+    'clientCeilings.maxRetentionDaysInvalid':
+      'Questa durata di conservazione non è accettata: da 1 a 3.650 giorni.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'Questa durata di diretta non è accettata: da 1 a 365 giorni.',
+    'clientCeilings.periodStartedAtInvalid': 'Questo inizio di periodo non è accettato.',
+    'clientCeilings.clipsAllowedInvalid': 'Questa impostazione dei video non è accettata.',
+    'clientCeilings.liveAllowedInvalid': 'Questa impostazione di apertura non è accettata.',
+    'audit.reasonInvalid':
+      'Il motivo deve stare su una riga di al massimo 200 caratteri, senza indirizzo e-mail.',
+    'reset.mailerRequired':
+      'Questa istanza non invia posta: non è possibile emettere alcun link di reimpostazione.',
+    'reset.mailNotSent':
+      'Il server di posta ha rifiutato il messaggio. Nessun link è stato emesso.',
+    'reset.approverUnavailable':
+      'Questo account non appartiene ad alcun cliente, o ne ha più di uno: nessun proprietario può approvare la richiesta.',
+    'reset.requestNotFound': 'Questa richiesta non esiste o non è ancora stata approvata.',
+    'reset.tooManyForAddress':
+      'Questo indirizzo ha già ricevuto diverse reimpostazioni. Riprovi tra un’ora.',
+    'account.disabled': 'Questo account è disattivato.',
     unknown: 'Si è verificato un errore. Riprovi tra un istante.',
     network: 'La connessione si è interrotta. Controlli la rete, poi riprovi.',
     'request.invalid': 'Le informazioni inviate non sono valide.',
@@ -1055,6 +1082,212 @@ export const it: UiText = {
     liveWindowEnd: (date: string) => `La finestra in diretta termina il ${date}.`,
   },
 
+  site: {
+    menuLink: 'Console dell’operatore',
+    consoleTitle: 'Console dell’operatore',
+    consoleIntro:
+      'Qui vede forme e dimensioni, mai ciò che i suoi clienti hanno creato: nessuna foto, nessun nome di evento.',
+    navLabel: 'Sezioni della console',
+    navClients: 'Clienti',
+    navAccounts: 'Account',
+    navAudit: 'Registro',
+    factorTitle: 'Verifica in due passaggi obbligatoria',
+    factorEnrol:
+      'Questa istanza la richiede all’operatore e il suo account non l’ha ancora attivata. La attivi, poi torni qui.',
+    factorEnrolLink: 'Attiva la verifica in due passaggi',
+    factorSignIn:
+      'Questo accesso non ha superato la verifica in due passaggi. Acceda di nuovo e inserisca il codice della sua app.',
+    factorSignOut: 'Accedi di nuovo',
+    stepUpTitle: 'Confermi la sua identità',
+    stepUpIntro:
+      'Questa azione modifica un’istanza condivisa. Inserisca la sua password, e il codice della sua app se ne ha una: la conferma vale cinque minuti.',
+    more: 'Mostra altro',
+
+    clientsTitle: 'Clienti',
+    clientsHint:
+      'Un cliente è un account, i suoi eventi e i suoi limiti. Lei legge le sue dimensioni, mai i suoi contenuti.',
+    newClient: 'Nuovo cliente',
+    clientsEmpty: 'Nessun cliente per ora.',
+    clientsEmptyHint:
+      'Apra un cliente: il suo proprietario riceve un invito e sceglie da sé la propria password.',
+    clientsTableLabel: 'I clienti dell’istanza',
+    clientColumn: 'Cliente',
+    statusColumn: 'Stato',
+    eventsColumn: 'Eventi',
+    membersColumn: 'Membri',
+    storageColumn: 'Spazio',
+    createdColumn: 'Aperto il',
+    statusActive: 'Attivo',
+    statusSuspended: 'Sospeso',
+    statusOffboarding: 'In chiusura',
+    eventsCell: (total: number, live: number) =>
+      `${t.number(total)} (${t.number(live)} in diretta)`,
+    storageOf: (used: string, max: string) => `${used} su ${max}`,
+    noCeiling: 'Nessun limite',
+
+    newClientTitle: 'Aprire un cliente',
+    newClientIntro:
+      'Il cliente viene aperto senza membri né eventi e il suo proprietario viene invitato via e-mail. Lei non sceglie mai la sua password.',
+    clientName: 'Nome del cliente',
+    ownerEmail: 'Indirizzo e-mail del proprietario',
+    inviteLanguage: 'Lingua dell’invito',
+    defaultsHint:
+      'I limiti sono quelli che questa istanza assegna per impostazione predefinita a un nuovo cliente. Svuoti un campo per non fissare alcun limite.',
+    createClient: 'Apri il cliente',
+    clientCreated: 'Cliente aperto.',
+
+    invitationMailed: (email: string) => `Un invito è stato inviato a ${email}.`,
+    invitationPending:
+      'L’invito è scritto, ma si apre solo con il consenso di un proprietario del cliente.',
+    invitationLinkTitle: 'Nessuna e-mail è partita',
+    invitationLinkBody:
+      'Questa istanza non può inviare posta, oppure il server di posta ha rifiutato questo messaggio. Questo link è l’unica copia: lo trasmetta al destinatario, poi chiuda questo riquadro.',
+    invitationLinkLabel: 'Link d’invito',
+    copyLink: 'Copia il link',
+    linkCopied: 'Link copiato.',
+    invitationValidUntil: (date: string) => `Valido fino al ${date}.`,
+
+    ceilingsLegend: 'Limiti',
+    maxEvents: 'Eventi, al massimo',
+    maxEventsPerPeriod: 'Eventi creati per periodo, al massimo',
+    maxTotalGigabytes: 'Spazio totale, in GB',
+    maxEventQuotaGigabytes: 'Quota di un evento, in GB',
+    maxRetentionDays: 'Conservazione dopo la chiusura, in giorni, al massimo',
+    maxLiveDays: 'Durata di una diretta, in giorni, al massimo',
+    clipsAllowed: 'Video consentiti',
+    liveAllowed: 'Apertura di eventi consentita',
+    renewPeriod: 'Rinnova il periodo adesso',
+    renewPeriodHint: 'Azzera il contatore degli eventi creati nel periodo.',
+    emptyMeansNone: 'Vuoto: nessun limite.',
+    notANumber: 'Inserisca un numero positivo.',
+
+    allClients: 'Tutti i clienti',
+    memberCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} membro`,
+        other: `${t.number(count)} membri`,
+      }),
+    periodEvents: (count: number) => `Creati nel periodo: ${t.number(count)}`,
+    suspendedSince: (date: string) => `Sospeso dal ${date}.`,
+    purgeOn: (date: string) => `Gli album saranno eliminati il ${date}.`,
+    suspend: 'Sospendi',
+    suspendTitle: 'Sospendere questo cliente?',
+    suspendBody:
+      'Il pubblico non vede più i suoi muri né le sue gallerie e i suoi membri non possono più scrivere nulla. Non viene eliminato nulla e nessun account viene disattivato.',
+    suspended: 'Cliente sospeso.',
+    resume: 'Revoca la sospensione',
+    resumeTitle: 'Revocare la sospensione?',
+    resumeBody: 'I muri e le gallerie del cliente tornano subito visibili.',
+    resumed: 'Sospensione revocata.',
+    rename: 'Rinomina',
+    renameTitle: 'Nome del cliente',
+    renamed: 'Cliente rinominato.',
+    ceilingsTitle: 'Limiti',
+    ceilingsReason: 'Motivo della modifica',
+    ceilingsReasonHint:
+      'Una frase su una riga, al massimo 200 caratteri, senza indirizzo e-mail. Viene scritta nel registro dell’operatore e il cliente non la legge. Solo motivi non finanziari: dimensione di un evento, capacità, abuso.',
+    ceilingsSave: 'Salva i limiti',
+    ceilingsSaved: 'Limiti salvati.',
+    ceilingsUnchanged: 'Nessun limite è cambiato.',
+    inviteTitle: 'Invitare in questo cliente',
+    inviteIntro:
+      'Una persona entra nell’account del cliente, mai in un evento. Se il cliente ha già eventi o membri, un proprietario deve approvare l’invito.',
+    inviteEmail: 'Indirizzo e-mail',
+    inviteRole: 'Ruolo',
+    inviteSend: 'Invita',
+    roleOwner: 'Proprietario',
+    roleMember: 'Membro',
+    eventsTitle: 'Eventi',
+    eventsHint: 'Solo forme e dimensioni: né nome, né indirizzo, né foto.',
+    eventsEmpty: 'Questo cliente non ha alcun evento.',
+    eventsTableLabel: 'Gli eventi del cliente',
+    eventColumn: 'Evento',
+    eventStatusColumn: 'Stato',
+    photosColumn: 'Foto',
+    usedColumn: 'Spazio usato',
+    startsColumn: 'Inizio previsto',
+    eventLabel: (short: string) => `Evento ${short}`,
+    eventStatuses: {
+      draft: 'Bozza',
+      live: 'In diretta',
+      closed: 'Chiuso',
+      archived: 'Archiviato',
+    },
+    photoCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto`,
+        other: `${t.number(count)} foto`,
+      }),
+    auditLink: 'Vedi il registro di questo cliente',
+
+    accountsTitle: 'Account',
+    accountsHint:
+      'Gli indirizzi delle persone che hanno un account su questa istanza, e nient’altro: né nome visualizzato, né password.',
+    accountsEmpty: 'Nessun account per ora.',
+    accountsTableLabel: 'Gli account dell’istanza',
+    addressColumn: 'Indirizzo',
+    roleColumn: 'Ruolo sull’istanza',
+    accountStateColumn: 'Stato',
+    lastLoginColumn: 'Ultimo accesso',
+    ownedColumn: 'Eventi posseduti',
+    clientsColumn: 'Clienti',
+    siteRoleOperator: 'Operatore',
+    accountActive: 'Attivo',
+    accountDisabled: 'Disattivato',
+    neverSignedIn: 'Mai',
+    mustChange: 'Deve cambiare la password',
+    resetPassword: 'Reimposta la password',
+    resetTitle: 'Reimpostare questa password?',
+    resetBody:
+      'Un link valido per un’ora parte verso l’indirizzo dell’account e da nessun’altra parte: lei non lo vede mai.',
+    resetSent: 'Il link è stato inviato all’indirizzo dell’account.',
+    resetPending: 'In attesa di un proprietario',
+    resetPendingBody:
+      'Questa istanza non invia posta. Un altro proprietario del cliente deve approvare la richiesta prima che il link le venga consegnato.',
+    resetFetch: 'Recupera il link approvato',
+    resetLinkTitle: 'Link di reimpostazione',
+    resetLinkBody:
+      'Funziona una sola volta. Lo trasmetta al titolare dell’account, poi chiuda questo riquadro.',
+
+    auditTitle: 'Registro',
+    auditHint:
+      'Tutto ciò che è stato fatto sull’istanza, dal più recente al più vecchio. Il motivo di una modifica dei limiti è la frase dell’operatore stesso.',
+    auditEmpty: 'Nessuna azione registrata per ora.',
+    auditMore: 'Mostra le azioni più vecchie',
+    auditFiltered: 'Registro di un solo cliente.',
+    auditShowAll: 'Mostra tutto il registro',
+    auditReason: (reason: string) => `Motivo: ${reason}`,
+    auditAccount: (short: string) => `account ${short}`,
+    auditClientLink: 'Vedi il cliente',
+    actors: {
+      operator: 'Operatore',
+      member: 'Membro',
+      system: 'Sistema',
+      integration: 'Integrazione',
+    },
+    actions: {
+      'client.created': 'Cliente aperto.',
+      'client.renamed': 'Cliente rinominato.',
+      'client.ceilingsChanged': 'Limiti modificati.',
+      'client.periodReset': 'Periodo rinnovato.',
+      'client.suspended': 'Cliente sospeso.',
+      'client.resumed': 'Sospensione revocata.',
+      'invitation.issued': 'Invito emesso.',
+      'invitation.approved': 'Invito approvato da un proprietario.',
+      'account.resetRequested': 'Reimpostazione della password richiesta.',
+      'account.resetApproved': 'Reimpostazione approvata da un proprietario.',
+      'account.resetIssued': 'Reimpostazione emessa.',
+      'account.disabled': 'Account disattivato.',
+      'account.termsAccepted': 'Condizioni d’uso accettate.',
+      'account.secondFactorEnrolled': 'Verifica in due passaggi attivata.',
+      'account.secondFactorDisabled': 'Verifica in due passaggi disattivata.',
+      'account.recoveryCodesRegenerated': 'Codici di recupero rinnovati.',
+      'account.recoveryCodeUsed': 'È stato usato un codice di recupero.',
+    },
+    actionInvitationIssuedPending: 'Invito emesso; attende il consenso di un proprietario.',
+    actionOther: 'È stata registrata un’azione.',
+  },
+
   titles: {
     join: 'Entri nella galleria',
     upload: 'Invio di foto',
@@ -1075,5 +1308,9 @@ export const it: UiText = {
     mobileModeration: 'Moderazione da telefono',
     settings: 'Impostazioni dell’evento',
     clientSpace: 'Area cliente',
+    site: 'Console dell’operatore',
+    siteClient: 'Cliente',
+    siteAccounts: 'Account dell’istanza',
+    siteAudit: 'Registro dell’istanza',
   },
 }

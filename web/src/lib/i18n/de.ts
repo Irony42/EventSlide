@@ -246,6 +246,33 @@ export const de: UiText = {
   },
 
   errors: {
+    'clientName.empty': 'Geben Sie dem Kunden einen Namen.',
+    'clientName.tooLong': 'Dieser Name ist zu lang.',
+    'clientName.invalid': 'Dieser Name enthält ein nicht zulässiges Zeichen.',
+    'clientCeilings.maxEventsInvalid': 'Diese Anzahl von Veranstaltungen wird nicht akzeptiert.',
+    'clientCeilings.maxEventsPerPeriodInvalid':
+      'Diese Anzahl von Veranstaltungen pro Zeitraum wird nicht akzeptiert.',
+    'clientCeilings.maxTotalBytesInvalid': 'Dieser Gesamtspeicher wird nicht akzeptiert.',
+    'clientCeilings.maxEventQuotaBytesInvalid': 'Dieses Kontingent wird nicht akzeptiert.',
+    'clientCeilings.maxRetentionDaysInvalid':
+      'Diese Aufbewahrungsdauer wird nicht akzeptiert: von 1 bis 3.650 Tagen.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'Diese Live-Dauer wird nicht akzeptiert: von 1 bis 365 Tagen.',
+    'clientCeilings.periodStartedAtInvalid': 'Dieser Zeitraumbeginn wird nicht akzeptiert.',
+    'clientCeilings.clipsAllowedInvalid': 'Diese Videoeinstellung wird nicht akzeptiert.',
+    'clientCeilings.liveAllowedInvalid': 'Diese Öffnungseinstellung wird nicht akzeptiert.',
+    'audit.reasonInvalid':
+      'Der Grund muss in eine Zeile mit höchstens 200 Zeichen passen, ohne E-Mail-Adresse.',
+    'reset.mailerRequired':
+      'Diese Instanz sendet keine E-Mails: Es kann kein Link zum Zurücksetzen ausgestellt werden.',
+    'reset.mailNotSent':
+      'Der Mailserver hat die Nachricht abgelehnt. Es wurde kein Link ausgestellt.',
+    'reset.approverUnavailable':
+      'Dieses Konto gehört keinem oder mehreren Kunden: Kein Inhaber kann die Anfrage genehmigen.',
+    'reset.requestNotFound': 'Diese Anfrage existiert nicht oder wurde noch nicht genehmigt.',
+    'reset.tooManyForAddress':
+      'Diese Adresse hat bereits mehrere Zurücksetzungen erhalten. Versuchen Sie es in einer Stunde erneut.',
+    'account.disabled': 'Dieses Konto ist deaktiviert.',
     unknown: 'Etwas ist schiefgelaufen. Versuchen Sie es gleich noch einmal.',
     network: 'Die Verbindung ist abgebrochen. Prüfen Sie Ihr Netz und versuchen Sie es erneut.',
     'request.invalid': 'Die gesendeten Angaben sind nicht gültig.',
@@ -1096,6 +1123,212 @@ export const de: UiText = {
     liveWindowEnd: (date: string) => `Das Live-Fenster endet am ${date}.`,
   },
 
+  site: {
+    menuLink: 'Betreiber-Konsole',
+    consoleTitle: 'Betreiber-Konsole',
+    consoleIntro:
+      'Sie sehen hier Formen und Größen, nie das, was Ihre Kunden erstellt haben: kein Foto, keinen Namen einer Veranstaltung.',
+    navLabel: 'Bereiche der Konsole',
+    navClients: 'Kunden',
+    navAccounts: 'Konten',
+    navAudit: 'Protokoll',
+    factorTitle: 'Bestätigung in zwei Schritten erforderlich',
+    factorEnrol:
+      'Diese Instanz verlangt sie vom Betreiber, und Ihr Konto hat sie noch nicht eingerichtet. Richten Sie sie ein und kehren Sie dann hierher zurück.',
+    factorEnrolLink: 'Bestätigung in zwei Schritten einrichten',
+    factorSignIn:
+      'Diese Anmeldung hat die Bestätigung in zwei Schritten nicht durchlaufen. Melden Sie sich erneut an und geben Sie den Code Ihrer App ein.',
+    factorSignOut: 'Erneut anmelden',
+    stepUpTitle: 'Bestätigen Sie Ihre Identität',
+    stepUpIntro:
+      'Diese Aktion ändert eine gemeinsam genutzte Instanz. Geben Sie Ihr Passwort ein, und den Code Ihrer App, falls Sie eine haben: Die Bestätigung gilt fünf Minuten.',
+    more: 'Mehr anzeigen',
+
+    clientsTitle: 'Kunden',
+    clientsHint:
+      'Ein Kunde ist ein Konto, seine Veranstaltungen und seine Grenzen. Sie lesen seine Größen, nie seine Inhalte.',
+    newClient: 'Neuer Kunde',
+    clientsEmpty: 'Noch kein Kunde.',
+    clientsEmptyHint:
+      'Eröffnen Sie einen Kunden: Der Inhaber erhält eine Einladung und wählt sein Passwort selbst.',
+    clientsTableLabel: 'Die Kunden der Instanz',
+    clientColumn: 'Kunde',
+    statusColumn: 'Status',
+    eventsColumn: 'Veranstaltungen',
+    membersColumn: 'Mitglieder',
+    storageColumn: 'Speicher',
+    createdColumn: 'Eröffnet am',
+    statusActive: 'Aktiv',
+    statusSuspended: 'Gesperrt',
+    statusOffboarding: 'Wird beendet',
+    eventsCell: (total: number, live: number) => `${t.number(total)} (${t.number(live)} live)`,
+    storageOf: (used: string, max: string) => `${used} von ${max}`,
+    noCeiling: 'Keine Grenze',
+
+    newClientTitle: 'Einen Kunden eröffnen',
+    newClientIntro:
+      'Der Kunde wird ohne Mitglied und ohne Veranstaltung eröffnet, und sein Inhaber wird per E-Mail eingeladen. Sie wählen nie sein Passwort.',
+    clientName: 'Name des Kunden',
+    ownerEmail: 'E-Mail-Adresse des Inhabers',
+    inviteLanguage: 'Sprache der Einladung',
+    defaultsHint:
+      'Die Grenzen sind die, die diese Instanz einem neuen Kunden standardmäßig gibt. Leeren Sie ein Feld, um keine Grenze zu setzen.',
+    createClient: 'Kunden eröffnen',
+    clientCreated: 'Kunde eröffnet.',
+
+    invitationMailed: (email: string) => `Eine Einladung wurde an ${email} gesendet.`,
+    invitationPending:
+      'Die Einladung ist geschrieben, gilt aber erst, wenn ein Inhaber des Kunden zustimmt.',
+    invitationLinkTitle: 'Es wurde keine E-Mail gesendet',
+    invitationLinkBody:
+      'Diese Instanz kann keine E-Mails senden, oder der Mailserver hat diese abgelehnt. Dieser Link ist die einzige Kopie: Geben Sie ihn an den Empfänger weiter und schließen Sie dann dieses Feld.',
+    invitationLinkLabel: 'Einladungslink',
+    copyLink: 'Link kopieren',
+    linkCopied: 'Link kopiert.',
+    invitationValidUntil: (date: string) => `Gültig bis ${date}.`,
+
+    ceilingsLegend: 'Grenzen',
+    maxEvents: 'Veranstaltungen, höchstens',
+    maxEventsPerPeriod: 'Veranstaltungen pro Zeitraum, höchstens',
+    maxTotalGigabytes: 'Gesamtspeicher in GB',
+    maxEventQuotaGigabytes: 'Kontingent einer Veranstaltung in GB',
+    maxRetentionDays: 'Aufbewahrung nach dem Ende, in Tagen, höchstens',
+    maxLiveDays: 'Dauer einer Live-Veranstaltung, in Tagen, höchstens',
+    clipsAllowed: 'Videos erlaubt',
+    liveAllowed: 'Öffnen von Veranstaltungen erlaubt',
+    renewPeriod: 'Zeitraum jetzt erneuern',
+    renewPeriodHint: 'Setzt den Zähler der im Zeitraum erstellten Veranstaltungen auf null.',
+    emptyMeansNone: 'Leer: keine Grenze.',
+    notANumber: 'Geben Sie eine positive Zahl ein.',
+
+    allClients: 'Alle Kunden',
+    memberCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Mitglied`,
+        other: `${t.number(count)} Mitglieder`,
+      }),
+    periodEvents: (count: number) => `Im Zeitraum erstellt: ${t.number(count)}`,
+    suspendedSince: (date: string) => `Gesperrt seit ${date}.`,
+    purgeOn: (date: string) => `Die Alben werden am ${date} gelöscht.`,
+    suspend: 'Sperren',
+    suspendTitle: 'Diesen Kunden sperren?',
+    suspendBody:
+      'Die Öffentlichkeit sieht seine Wände und Galerien nicht mehr, und seine Mitglieder können nichts mehr schreiben. Nichts wird gelöscht, und kein Konto wird deaktiviert.',
+    suspended: 'Kunde gesperrt.',
+    resume: 'Sperre aufheben',
+    resumeTitle: 'Sperre aufheben?',
+    resumeBody: 'Die Wände und Galerien des Kunden sind sofort wieder sichtbar.',
+    resumed: 'Sperre aufgehoben.',
+    rename: 'Umbenennen',
+    renameTitle: 'Name des Kunden',
+    renamed: 'Kunde umbenannt.',
+    ceilingsTitle: 'Grenzen',
+    ceilingsReason: 'Grund der Änderung',
+    ceilingsReasonHint:
+      'Ein Satz in einer Zeile, höchstens 200 Zeichen, ohne E-Mail-Adresse. Er steht im Protokoll des Betreibers, der Kunde liest ihn nicht. Nur nichtfinanzielle Gründe: Größe einer Veranstaltung, Kapazität, Missbrauch.',
+    ceilingsSave: 'Grenzen speichern',
+    ceilingsSaved: 'Grenzen gespeichert.',
+    ceilingsUnchanged: 'Keine Grenze hat sich geändert.',
+    inviteTitle: 'In diesen Kunden einladen',
+    inviteIntro:
+      'Eine Person tritt dem Konto des Kunden bei, nie einer Veranstaltung. Hat der Kunde bereits Veranstaltungen oder Mitglieder, muss ein Inhaber die Einladung genehmigen.',
+    inviteEmail: 'E-Mail-Adresse',
+    inviteRole: 'Rolle',
+    inviteSend: 'Einladen',
+    roleOwner: 'Inhaber',
+    roleMember: 'Mitglied',
+    eventsTitle: 'Veranstaltungen',
+    eventsHint: 'Nur Formen und Größen: kein Name, keine Adresse, kein Foto.',
+    eventsEmpty: 'Dieser Kunde hat keine Veranstaltung.',
+    eventsTableLabel: 'Die Veranstaltungen des Kunden',
+    eventColumn: 'Veranstaltung',
+    eventStatusColumn: 'Status',
+    photosColumn: 'Fotos',
+    usedColumn: 'Belegter Speicher',
+    startsColumn: 'Geplanter Beginn',
+    eventLabel: (short: string) => `Veranstaltung ${short}`,
+    eventStatuses: {
+      draft: 'Entwurf',
+      live: 'Live',
+      closed: 'Beendet',
+      archived: 'Archiviert',
+    },
+    photoCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto`,
+        other: `${t.number(count)} Fotos`,
+      }),
+    auditLink: 'Protokoll dieses Kunden ansehen',
+
+    accountsTitle: 'Konten',
+    accountsHint:
+      'Die Adressen der Personen, die ein Konto auf dieser Instanz haben, und sonst nichts: kein Anzeigename, kein Passwort.',
+    accountsEmpty: 'Noch kein Konto.',
+    accountsTableLabel: 'Die Konten der Instanz',
+    addressColumn: 'Adresse',
+    roleColumn: 'Rolle auf der Instanz',
+    accountStateColumn: 'Status',
+    lastLoginColumn: 'Letzte Anmeldung',
+    ownedColumn: 'Eigene Veranstaltungen',
+    clientsColumn: 'Kunden',
+    siteRoleOperator: 'Betreiber',
+    accountActive: 'Aktiv',
+    accountDisabled: 'Deaktiviert',
+    neverSignedIn: 'Nie',
+    mustChange: 'Muss sein Passwort ändern',
+    resetPassword: 'Passwort zurücksetzen',
+    resetTitle: 'Dieses Passwort zurücksetzen?',
+    resetBody:
+      'Ein eine Stunde gültiger Link geht an die Adresse des Kontos und nirgendwohin sonst: Sie sehen ihn nie.',
+    resetSent: 'Der Link wurde an die Adresse des Kontos gesendet.',
+    resetPending: 'Wartet auf einen Inhaber',
+    resetPendingBody:
+      'Diese Instanz sendet keine E-Mails. Ein anderer Inhaber des Kunden muss die Anfrage genehmigen, bevor Ihnen der Link übergeben wird.',
+    resetFetch: 'Genehmigten Link abrufen',
+    resetLinkTitle: 'Link zum Zurücksetzen',
+    resetLinkBody:
+      'Er funktioniert nur einmal. Geben Sie ihn an den Kontoinhaber weiter und schließen Sie dann dieses Feld.',
+
+    auditTitle: 'Protokoll',
+    auditHint:
+      'Alles, was auf der Instanz getan wurde, das Neueste zuerst. Der Grund einer Änderung der Grenzen ist der eigene Satz des Betreibers.',
+    auditEmpty: 'Noch keine Aktion aufgezeichnet.',
+    auditMore: 'Ältere Aktionen anzeigen',
+    auditFiltered: 'Protokoll eines einzelnen Kunden.',
+    auditShowAll: 'Gesamtes Protokoll anzeigen',
+    auditReason: (reason: string) => `Grund: ${reason}`,
+    auditAccount: (short: string) => `Konto ${short}`,
+    auditClientLink: 'Kunden ansehen',
+    actors: {
+      operator: 'Betreiber',
+      member: 'Mitglied',
+      system: 'System',
+      integration: 'Integration',
+    },
+    actions: {
+      'client.created': 'Kunde eröffnet.',
+      'client.renamed': 'Kunde umbenannt.',
+      'client.ceilingsChanged': 'Grenzen geändert.',
+      'client.periodReset': 'Zeitraum erneuert.',
+      'client.suspended': 'Kunde gesperrt.',
+      'client.resumed': 'Sperre aufgehoben.',
+      'invitation.issued': 'Einladung ausgestellt.',
+      'invitation.approved': 'Einladung von einem Inhaber genehmigt.',
+      'account.resetRequested': 'Zurücksetzen des Passworts angefordert.',
+      'account.resetApproved': 'Zurücksetzen von einem Inhaber genehmigt.',
+      'account.resetIssued': 'Zurücksetzen ausgestellt.',
+      'account.disabled': 'Konto deaktiviert.',
+      'account.termsAccepted': 'Nutzungsbedingungen akzeptiert.',
+      'account.secondFactorEnrolled': 'Bestätigung in zwei Schritten eingerichtet.',
+      'account.secondFactorDisabled': 'Bestätigung in zwei Schritten ausgeschaltet.',
+      'account.recoveryCodesRegenerated': 'Wiederherstellungscodes erneuert.',
+      'account.recoveryCodeUsed': 'Ein Wiederherstellungscode wurde verwendet.',
+    },
+    actionInvitationIssuedPending:
+      'Einladung ausgestellt; sie wartet auf die Zustimmung eines Inhabers.',
+    actionOther: 'Eine Aktion wurde aufgezeichnet.',
+  },
+
   titles: {
     join: 'Der Galerie beitreten',
     upload: 'Fotos senden',
@@ -1116,5 +1349,9 @@ export const de: UiText = {
     mobileModeration: 'Moderation am Telefon',
     settings: 'Einstellungen der Veranstaltung',
     clientSpace: 'Kundenbereich',
+    site: 'Betreiber-Konsole',
+    siteClient: 'Kunde',
+    siteAccounts: 'Konten der Instanz',
+    siteAudit: 'Protokoll der Instanz',
   },
 }
