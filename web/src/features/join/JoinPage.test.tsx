@@ -5,6 +5,8 @@ import { Route, Routes } from 'react-router-dom'
 import { JoinPage } from './JoinPage'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
+import notice from '../../design-system/components/Notice.module.css'
+import { classesOf, cls } from '../../testing/classesOf'
 import {
   aJoinResponse,
   aPublicEvent,
@@ -103,6 +105,25 @@ describe('JoinPage', () => {
     const field = screen.getByLabelText(fr.join.codeLabel)
     expect(field).toHaveValue('ZZZZZZ')
     expect(field).toBeEnabled()
+  })
+
+  it('frames the welcome step’s failure the way the host’s forms frame theirs, not as a bare red line', async () => {
+    // The same kind of failure on the guest's phone and on the host's laptop: one look. (A
+    // refused code is told on the code box itself, which is the field's own error.)
+    let attempt = 0
+    const api = fakeApi({
+      join: vi.fn(async () => {
+        attempt += 1
+        if (attempt === 1) return aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })
+        throw ApiError.network()
+      }),
+    })
+    renderJoin('/join/H7K2QM', api)
+
+    await userEvent.type(await screen.findByLabelText(/Votre prénom/), 'Léa')
+    await userEvent.click(screen.getByRole('button', { name: fr.join.submit }))
+
+    expect(classesOf(await screen.findByRole('alert'))).toContain(cls(notice, 'boxed'))
   })
 
   it('lets a guest stay anonymous on purpose', async () => {

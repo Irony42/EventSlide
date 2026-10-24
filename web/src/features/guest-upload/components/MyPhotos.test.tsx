@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
-import { fr } from '../../../lib/i18n/fr'
+import userEvent from '@testing-library/user-event'
 import { aGuestPhoto, fakeApi, renderWithProviders } from '../../../testing/renderWithProviders'
+import notice from '../../../design-system/components/Notice.module.css'
+import { fr } from '../../../lib/i18n/fr'
 import { classesOf, cls } from '../../../testing/classesOf'
 import { MyPhotos } from './MyPhotos'
 import styles from './MyPhotos.module.css'
@@ -30,6 +32,33 @@ describe('MyPhotos', () => {
       [cls(styles, 'photo')],
       [cls(styles, 'photo'), cls(styles, 'clipRow')],
     ])
+  })
+
+  it('shows a failed refresh above the thumbnails it kept, framed like the host’s failures, with a retry', async () => {
+    // The list is the one screen that tells a guest their photos arrived. A refresh that
+    // fails says so; it does not take the proof away.
+    const onRetry = vi.fn()
+    renderWithProviders(
+      <MyPhotos
+        slug="camille-et-sacha"
+        reactionsEnabled={false}
+        photos={[aGuestPhoto({ id: 'photo-1' })]}
+        loading={false}
+        error={fr.upload.mineFailed}
+        onRetry={onRetry}
+        onDelete={vi.fn(() => Promise.resolve())}
+      />,
+    )
+
+    const failure = screen.getByRole('alert')
+    expect(failure).toHaveTextContent(fr.upload.mineFailed)
+    expect(classesOf(failure)).toContain(cls(notice, 'boxed'))
+    const list = screen.getByRole('list')
+    expect(failure.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('listitem')).toBeVisible()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
+    expect(onRetry).toHaveBeenCalledOnce()
   })
 })
 

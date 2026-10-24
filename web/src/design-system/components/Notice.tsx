@@ -10,8 +10,7 @@ export type NoticeTone = StatusTone
  * failure, a caution or a disclosure that stands apart from what is around it.
  *
  * `inline`: no frame, and the sentence itself takes the tone's colour. For a line that is
- * attached to something else — the message under a field, under a progress bar, above a
- * retry button.
+ * attached to something else — the message under a field, under a progress bar.
  */
 export type NoticeVariant = 'boxed' | 'inline'
 
