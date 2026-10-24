@@ -651,7 +651,6 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger,
     bus: adapters.bus,
     events: adapters.events,
-    guests: adapters.guests,
     memberships: adapters.memberships,
     // Narrowed by `HttpDeps` to `siteRoleFor` and `authStateFor`: the whole adapter is
     // passed, and the HTTP layer can still only ask who operates the box and what
@@ -661,7 +660,6 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // Narrowed by `HttpDeps` to `find`: whether an account has an authenticator, and nothing
     // of what it holds.
     secondFactors: adapters.secondFactors,
-    guestTokens: adapters.guestTokens,
     authenticateGuest: usecases.authenticateGuest,
     // Narrowed by `HttpDeps` to the one fact the HTTP layer publishes.
     mailer,

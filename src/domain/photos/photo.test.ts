@@ -282,6 +282,48 @@ describe('Photo.canBeDeletedBy', () => {
   })
 })
 
+describe('Photo.deletionVerdict', () => {
+  const on = { allowGuestSelfDelete: true, guestSelfDeleteGraceMs: GRACE_MS }
+  const off = { allowGuestSelfDelete: false, guestSelfDeleteGraceMs: GRACE_MS }
+
+  it('allows what the photo allows when the host left self-deletion on', () => {
+    expect(aPendingPhoto().deletionVerdict(theAuthor, LAST_MOMENT_OF_GRACE, on)).toBe('allowed')
+    expect(aPublishedPhoto().deletionVerdict(theHost, AFTER_GRACE, on)).toBe('allowed')
+  })
+
+  it('says the host switched the feature off, to a guest and only to a guest', () => {
+    // The refusals stay distinct: a guest can act on this one (ask the host) and not on the other.
+    expect(aPendingPhoto().deletionVerdict(theAuthor, LAST_MOMENT_OF_GRACE, off)).toBe(
+      'selfDeleteDisabled',
+    )
+    expect(aPublishedPhoto().deletionVerdict(theHost, AFTER_GRACE, off)).toBe('allowed')
+  })
+
+  it('puts the host switch ahead of the photo own rule, so another guest photo is still the switch', () => {
+    expect(aPendingPhoto().deletionVerdict(anotherGuest, LAST_MOMENT_OF_GRACE, off)).toBe(
+      'selfDeleteDisabled',
+    )
+  })
+
+  it.each([
+    ['a published photo', aPublishedPhoto(), theAuthor, LAST_MOMENT_OF_GRACE],
+    ['a pending photo past the window', aPendingPhoto(), theAuthor, AFTER_GRACE],
+    ['somebody else photo', aPendingPhoto(), anotherGuest, LAST_MOMENT_OF_GRACE],
+  ])('is forbidden for a guest asking about %s, whatever the switch', (_what, photo, actor, now) => {
+    expect(photo.deletionVerdict(actor, now, on)).toBe('forbidden')
+  })
+
+  it('reads the grace window from the settings it is handed, to the millisecond', () => {
+    const photo = aPendingPhoto()
+
+    expect(photo.deletionVerdict(theAuthor, LAST_MOMENT_OF_GRACE, on)).toBe('allowed')
+    expect(photo.deletionVerdict(theAuthor, AFTER_GRACE, on)).toBe('forbidden')
+    expect(
+      photo.deletionVerdict(theAuthor, AFTER_GRACE, { ...on, guestSelfDeleteGraceMs: GRACE_MS + 1 }),
+    ).toBe('allowed')
+  })
+})
+
 describe('Photo.canCaptionBeEditedBy', () => {
   it('lets a host recaption a photo at any time', () => {
     expect(aPublishedPhoto().canCaptionBeEditedBy(theHost, AFTER_GRACE, GRACE_MS)).toBe(true)

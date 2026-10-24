@@ -131,8 +131,12 @@ const notWired = async () => err(DomainError.unexpected('test.useCaseNotWired'))
  * Built here rather than in the shared harness because five sibling route modules are
  * using that harness, and each needs a different half of this list to be real.
  */
-const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): HttpUseCases => {
-  const { events, guests, memberships, bus, clock } = deps
+const usecasesFor = (
+  deps: HttpDeps,
+  { photos, reactions, media }: Adapters,
+  guests: Harness['guests'],
+): HttpUseCases => {
+  const { events, memberships, bus, clock } = deps
   return {
     authenticateUser: notWired,
     changePassword: notWired,
@@ -173,6 +177,7 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     getEventLimits: async () => ({ quotaBytes: 0, liveWindowEnd: null }),
     listEventsForHost: notWired,
     resolveJoinCode: notWired,
+    identifyMediaViewer: notWired,
     updateEventSettings: notWired,
     rotateJoinCode: notWired,
     changeEventStatus: notWired,
@@ -239,7 +244,7 @@ const world = (): World => {
   const adapters: Adapters = { photos, reactions, media }
 
   const harness = buildHarness({
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))
       app.post(
         '/sign-in/moderator',
@@ -248,7 +253,11 @@ const world = (): World => {
       app.post('/sign-in/gala', signInAs({ userId: GALA_OWNER, email: 'gala@example.test' }))
       app.use(
         '/api',
-        moderationRoutes({ deps, usecases: usecasesFor(deps, adapters), presenter: PRESENTER }),
+        moderationRoutes({
+          deps,
+          usecases: usecasesFor(deps, adapters, base.guests),
+          presenter: PRESENTER,
+        }),
       )
     },
   })

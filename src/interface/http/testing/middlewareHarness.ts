@@ -15,6 +15,7 @@ import { RecordingEventBus } from '../../../application/testing/recordingEventBu
 import { AT } from '../../../application/testing/builders'
 import { makeAuthenticateGuest } from '../../../application/usecases/guests/authenticateGuest'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
+import type { GuestTokenService } from '../../../application/ports/guestTokenService'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
 import type { Logger } from '../../../application/ports/logger'
@@ -118,6 +119,8 @@ export interface TestWorld {
    */
   readonly clients: FakeClientRepository
   readonly guests: FakeGuestRepository
+  /** The real HMAC service, for a use case a test builds over this world. Not on `deps`: no route reads it. */
+  readonly guestTokens: GuestTokenService
   readonly memberships: FakeMembershipRepository
   /** Accounts, for the one thing the HTTP layer asks them: who operates the box. */
   readonly users: FakeUserRepository
@@ -178,11 +181,9 @@ export const buildTestWorld = (
     logger,
     bus,
     events,
-    guests,
     memberships,
     users,
     secondFactors,
-    guestTokens,
     authenticateGuest: makeAuthenticateGuest({
       events,
       guests,
@@ -200,6 +201,7 @@ export const buildTestWorld = (
     events,
     clients,
     guests,
+    guestTokens,
     diskSpaceChecker,
     memberships,
     users,

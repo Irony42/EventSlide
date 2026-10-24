@@ -104,6 +104,14 @@ const buildSubject = (): Harness =>
       app.get('/events/:eventSlug/wall', resolvePublicEvent(deps), (req, res) => {
         res.json({ name: req.context.event?.name.value })
       })
+      // The one public route that is also a host's: members read through a suspension.
+      app.get(
+        '/events/:eventSlug/media',
+        resolvePublicEvent(deps, { suspended: 'visible' }),
+        (req, res) => {
+          res.json({ name: req.context.event?.name.value })
+        },
+      )
 
       // The shape every operator-only route of §10.2 onwards will have. There is no such
       // route in the product yet — the console, the clients and the invitations are their
@@ -1046,6 +1054,48 @@ describe('resolvePublicEvent', () => {
 
   it('answers 404 for an unknown slug', async () => {
     await request(harness().app).get('/events/nope/wall').expect(404)
+  })
+
+  describe('for an event whose client is suspended (G2-14, roadmap §10.7)', () => {
+    const seedSuspendedEvent = (
+      subject: ReturnType<typeof harness>,
+      status: 'live' | 'archived' = 'live',
+    ): void => {
+      subject.events.seed(
+        Event.restore({
+          ...anEvent({ slug: 'mariage', status }).toProps(),
+          clientSuspendedAt: AT,
+        }),
+      )
+    }
+
+    it('answers 404 exactly as it does for an event that does not exist', async () => {
+      // `Event.servesPublicWall`: the lifecycle serves it and the client is not suspended. The
+      // wall's use case refuses it a second time, so this is the only place the middleware
+      // gate on its own can be seen.
+      const subject = harness()
+      seedSuspendedEvent(subject)
+
+      const suspended = await request(subject.app).get('/events/mariage/wall')
+      const unknown = await request(subject.app).get('/events/nope/wall')
+
+      expect(suspended.status).toBe(404)
+      expect(suspended.body).toEqual(unknown.body)
+    })
+
+    it('lets the event through to a route that judges the viewer itself, when asked to', async () => {
+      const subject = harness()
+      seedSuspendedEvent(subject)
+
+      await request(subject.app).get('/events/mariage/media').expect(200)
+    })
+
+    it('still refuses an archived event on that route: members read through a suspension, not an archive', async () => {
+      const subject = harness()
+      seedSuspendedEvent(subject, 'archived')
+
+      await request(subject.app).get('/events/mariage/media').expect(404)
+    })
   })
 })
 

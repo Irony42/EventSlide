@@ -6,6 +6,10 @@ import type {
   GetPhotoMediaInput,
   MediaViewer,
 } from '../../../application/usecases/photos/getPhotoMedia'
+import {
+  makeIdentifyMediaViewer,
+  type IdentifyMediaViewer,
+} from '../../../application/usecases/photos/identifyMediaViewer'
 import { AT, anEvent, aUser } from '../../../application/testing/builders'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
@@ -1142,13 +1146,25 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       // the assertion is on what the use case was actually handed: `public`, which is what
       // decides that a pending photograph stays unreadable.
       const viewers: MediaViewer[] = []
+      // The real identification, over the world the harness builds: it is the thing asked.
+      const identify: { current?: IdentifyMediaViewer } = {}
       const subject = operatorHarness({
         usecases: {
+          identifyMediaViewer: async (input) => {
+            if (identify.current === undefined) throw new Error('identification was not built yet')
+            return identify.current(input)
+          },
           getPhotoMedia: async (input: GetPhotoMediaInput) => {
             viewers.push(input.viewer)
             return err(DomainError.notFound('photo.notFound'))
           },
         },
+      })
+      identify.current = makeIdentifyMediaViewer({
+        guests: subject.guests,
+        tokens: subject.guestTokens,
+        memberships: subject.deps.memberships,
+        clock: subject.clock,
       })
       seedClientEvent(subject)
       const { agent } = await signInAsOperator(subject)

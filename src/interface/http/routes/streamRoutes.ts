@@ -253,7 +253,11 @@ export const openStream = ({
   const stillServed = async (): Promise<boolean> => {
     const current = await deps.events.findById(eventId)
     if (current === null) return false
-    if (suspension === 'ends' && current.isClientSuspended()) return false
+    // The public wall asks what opened it, so an event the host has since archived, or whose
+    // client has been suspended, ends the stream: a stream opened while the event was live used to
+    // stay open after it was archived and keep its slot of the per-client cap. A moderation feed
+    // (`'serves'`) reads through a suspension and an archive alike: its members still moderate.
+    if (suspension === 'ends' && !current.servesPublicWall()) return false
     // `roleFor` is null for a disabled account and for one that is gone: the same read every request makes.
     return member === undefined || (await deps.memberships.roleFor(eventId, member)) !== null
   }
