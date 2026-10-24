@@ -299,7 +299,7 @@ why each change was made and what there was no warning for.
 4. **Look at the settings.** The server checks the new ones at boot and exits with code 78 on a
    value that does not fit, naming the variable, so if your environment already sets one of these
    names for another purpose, change or remove it first. An empty value counts as not set, except
-   for `REQUIRE_OPERATOR_2FA` and the seven numeric limits (the rows of the table below from
+   for `REQUIRE_OPERATOR_2FA` and the eight numeric limits (the rows of the table below from
    `MIN_FREE_DISK_BYTES` to `RETENTION_CAP_NOTICE_DAYS`), which it stops. [`.env.example`](../.env.example) says
    what each is for.
 
@@ -319,6 +319,7 @@ why each change was made and what there was no warning for.
    | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000` | a positive whole number                                                                                 |
    | `MAX_CONCURRENT_UPLOAD_REQUESTS`                                                        | `4`          | a whole number, 1 to 1000                                                                               |
    | `MAX_QUEUED_CLIPS_PER_EVENT`                                                            | `20`         | a whole number, 1 to 500                                                                                |
+   | `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`                                                     | `300`        | a whole number, 1 to 6000                                                                               |
    | `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`              | 12, 500, 200 | whole numbers, up to 10000, 100000 and 10000                                                            |
    | `RETENTION_CAP_NOTICE_DAYS`                                                             | `30`         | a whole number, 1 to 365                                                                                |
    | `SQLITE_SHUTDOWN_CHECKPOINT`                                                            | `truncate`   | `truncate`, `passive` or `none`                                                                         |

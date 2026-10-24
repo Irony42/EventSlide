@@ -436,6 +436,10 @@ Read these before you upgrade, and back up with the version you run now.
 
 ### Security
 
+- **A guest can no longer write without limit** (#187): editing a caption, deleting a photo,
+  withdrawing a reaction and acknowledging the privacy notice share one allowance per client and
+  event, `GUEST_WRITE_RATE_LIMIT_PER_MINUTE` (default 300, at most 6000), and are answered `429`
+  above it. Before, one guest could send these as fast as the network allowed.
 - **A stolen session no longer survives a password change** (#125): the credentials epoch ends
   every session minted before it.
 - **Guessing a password is slowed per account, without locking anyone out** (#128), and the
