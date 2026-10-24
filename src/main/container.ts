@@ -45,6 +45,7 @@ import { randomIdGenerator } from '../infrastructure/crypto/randomIdGenerator'
 import { createSequentialIdGenerator } from '../infrastructure/crypto/sequentialIdGenerator'
 import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHasher'
 import { createInMemoryEventBus } from '../infrastructure/realtime/inMemoryEventBus'
+import { createInMemorySignInAttempts } from '../infrastructure/security/inMemorySignInAttempts'
 import { createPinoLogger } from '../infrastructure/logging/pinoLogger'
 import { nullMailer } from '../infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
@@ -424,6 +425,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       config.mfa.encryptionKey === null
         ? null
         : createAesGcmMfaVault({ keyMaterial: config.mfa.encryptionKey }),
+    // One counter for the box, so every request of a sign-in meets the same number.
+    signInAttempts: createInMemorySignInAttempts({ clock: systemClock }),
     invitationAcceptance: new SqliteInvitationAcceptance(db),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.

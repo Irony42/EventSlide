@@ -20,6 +20,7 @@ import { FakeMfaVault } from './fakeMfaVault'
 import { FakePasswordHasher } from './fakePasswordHasher'
 import { FakeSecondFactorRepository } from './fakeSecondFactorRepository'
 import { FakeSecretTokens } from './fakeSecretTokens'
+import { FakeSignInAttempts } from './fakeSignInAttempts'
 import { FakeTotpEngine } from './fakeTotpEngine'
 import { FakeUserRepository } from './fakeUserRepository'
 import { CapturingLogger } from './capturingLogger'
@@ -110,12 +111,14 @@ export const aSecondFactorWorld = ({
     clock,
     logger: wiredLogger,
   })
+  const attempts = new FakeSignInAttempts()
   const verifySecondFactor = makeVerifySecondFactor({
     users,
     factors,
     vault,
     engine,
     secrets,
+    attempts,
     audit,
     clock,
     logger: wiredLogger,
@@ -159,6 +162,8 @@ export const aSecondFactorWorld = ({
     hasher,
     engine,
     secrets,
+    /** What the sign-ins' second-factor guesses are counted in. */
+    attempts,
     vault,
     logger: wiredLogger,
     /** What the default logger heard. Empty when a test brought its own. */
