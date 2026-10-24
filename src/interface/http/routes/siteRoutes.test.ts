@@ -19,7 +19,7 @@ import { ADDRESS, ID, NEWCOMER, aBox } from '../testing/siteBox'
  * lapsed `403` on a write, and an operator who has all of it is answered.
  */
 
-type Method = 'get' | 'post' | 'put' | 'patch'
+type Method = 'get' | 'post' | 'put' | 'patch' | 'delete'
 
 interface SiteRoute {
   readonly method: Method
@@ -73,6 +73,13 @@ const ROUTES: readonly SiteRoute[] = [
   },
   {
     method: 'post',
+    path: `/api/site/clients/${ID.clientEmpty}/offboard`,
+    body: { graceDays: 30 },
+    success: 204,
+    write: true,
+  },
+  {
+    method: 'post',
     path: `/api/site/clients/${ID.clientEmpty}/invitations`,
     body: { email: NEWCOMER, role: 'owner' },
     success: 201,
@@ -83,6 +90,24 @@ const ROUTES: readonly SiteRoute[] = [
     path: `/api/site/accounts/${ID.owner}/password-reset`,
     body: {},
     success: 200,
+    write: true,
+  },
+  {
+    method: 'post',
+    path: `/api/site/accounts/${ID.member}/disable`,
+    success: 204,
+    write: true,
+  },
+  {
+    method: 'post',
+    path: `/api/site/accounts/${ID.member}/enable`,
+    success: 204,
+    write: true,
+  },
+  {
+    method: 'delete',
+    path: `/api/site/accounts/${ID.member}`,
+    success: 204,
     write: true,
   },
 ]
@@ -98,6 +123,8 @@ const send = (caller: Caller, route: SiteRoute): request.Test => {
       return caller.agent.put(route.path).set(CSRF_HEADER, caller.csrf).send(body)
     case 'patch':
       return caller.agent.patch(route.path).set(CSRF_HEADER, caller.csrf).send(body)
+    case 'delete':
+      return caller.agent.delete(route.path).set(CSRF_HEADER, caller.csrf).send(body)
   }
 }
 

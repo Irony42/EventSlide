@@ -26,6 +26,7 @@ import {
   accountIdParams,
   type CeilingsBody,
   clientIdParams,
+  offboardClientBody,
   operatorInvitationBody,
   operatorPasswordResetBody,
   provisionClientBody,
@@ -101,6 +102,10 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'setClientCeilings'
     | 'suspendClient'
     | 'resumeClient'
+    | 'offboardClient'
+    | 'disableAccount'
+    | 'enableAccount'
+    | 'deleteAccount'
     | 'inviteToClientAsOperator'
     | 'issuePasswordResetForAccount'
   >
@@ -353,6 +358,31 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
   )
 
   /**
+   * Ends a client's engagement (roadmap §10.7): live events closed, drafts archived, the client
+   * frozen, and its albums given a purge date `graceDays` away, after which the retention sweep
+   * purges them and finalises the client. Idempotent: `204` also for a client already being
+   * offboarded, which keeps its first date. `400 client.graceInvalid` outside 1 to 365 days.
+   */
+  router.post(
+    '/clients/:clientId/offboard',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const operator = operatorOf(req, res)
+      if (operator === null) return
+      const params = clientIdParams.parse(req.params)
+      const body = offboardClientBody.parse(req.body)
+
+      const result = await usecases.offboardClient({
+        clientId: asClientId(params.clientId),
+        actor: { kind: 'operator', userId: operator },
+        graceDays: body.graceDays,
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
    * Invites somebody into a client's account (the operator guard's **R1**). Into a client that has
    * an event or a member the invitation is written as waiting and opens nothing until one of its
    * owners approves it; the answer says which (`pendingApproval`). The link is in the answer only
@@ -410,6 +440,69 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
       sendResult(res, result, (response, outcome) =>
         sendJson(response, toOperatorPasswordResetDto(outcome)),
       )
+    }),
+  )
+
+  /**
+   * Switches an account off, ending every session it has. An operator's account is not switched off
+   * from here, another's or its own (`403 account.operatorProtected`). Idempotent: `204` also for
+   * an account already off, and one set of lines only.
+   */
+  router.post(
+    '/accounts/:userId/disable',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const operator = operatorOf(req, res)
+      if (operator === null) return
+      const params = accountIdParams.parse(req.params)
+
+      const result = await usecases.disableAccount({
+        userId: asUserId(params.userId),
+        actor: { kind: 'operator', userId: operator },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** Switches an account back on. The sessions it had stay ended. Idempotent. */
+  router.post(
+    '/accounts/:userId/enable',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const operator = operatorOf(req, res)
+      if (operator === null) return
+      const params = accountIdParams.parse(req.params)
+
+      const result = await usecases.enableAccount({
+        userId: asUserId(params.userId),
+        actor: { kind: 'operator', userId: operator },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * Deletes an account, for a person's erasure request (GDPR). Refused for an operator (`403
+   * account.operatorProtected`), for an account that owns an event (`409 account.holdsEvents`)
+   * and for one that wrote media (`409 account.holdsMedia`). The one irreversible route of the
+   * operator's API, which is why it is last and why it asks for a step-up like every write.
+   */
+  router.delete(
+    '/accounts/:userId',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const operator = operatorOf(req, res)
+      if (operator === null) return
+      const params = accountIdParams.parse(req.params)
+
+      const result = await usecases.deleteAccount({
+        userId: asUserId(params.userId),
+        actor: { kind: 'operator', userId: operator },
+      })
+
+      sendResultNoContent(res, result)
     }),
   )
 

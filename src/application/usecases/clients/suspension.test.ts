@@ -164,6 +164,21 @@ describe('suspendClient and resumeClient', () => {
       expect(await standing()).toEqual(NOW)
     })
 
+    it('refuses a client whose engagement has ended, with 409 client.offboarding, and lifts nothing (G2-14 part 3)', async () => {
+      const client = await clients.findById(CLIENT)
+      if (client === null) throw new Error('fixture')
+      await clients.save(client.offboard(NOW, atPlus(30 * 86_400_000)))
+
+      const result = await resume({ clientId: CLIENT, actor: OPERATOR })
+
+      expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
+        'conflict',
+        'client.offboarding',
+      ])
+      expect(await standing()).toEqual(NOW)
+      expect(audit.all().map((record) => record.action)).toEqual(['client.suspended'])
+    })
+
     it('freezes it again after a resumption, with the later instant: each suspension is its own act', async () => {
       await resume({ clientId: CLIENT, actor: OPERATOR })
       const lateSuspend = makeSuspendClient({ clients, audit, clock: new FakeClock(atPlus(5)) })

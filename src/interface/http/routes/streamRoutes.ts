@@ -3,7 +3,7 @@ import type { DomainEvent, Unsubscribe } from '../../../application/ports/eventB
 import type { Logger } from '../../../application/ports/logger'
 import type { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { EventId } from '../../../domain/shared/ids'
+import type { EventId, UserId } from '../../../domain/shared/ids'
 import { requireRole, resolvePublicEvent } from '../middleware/authz'
 import { streamConnectionLimiter } from '../middleware/rateLimit'
 import { errorBody } from '../presenters/send'
@@ -180,6 +180,13 @@ export interface StreamOptions {
    * that is gone ends it. Absent means `'ends'`, the refusal.
    */
   readonly suspension?: 'ends' | 'serves'
+  /**
+   * The account behind a moderation feed (G2-14 part 3, plan item A-22). Its authority is read again at
+   * every beat, as it is on every request: an account that was switched off or deleted since the
+   * feed opened, or that lost its place in the event, is told to wait and ended, so a console left
+   * open does not outlive the account behind it. Absent for the public wall, which has no account.
+   */
+  readonly member?: UserId
 }
 
 /**
@@ -200,6 +207,7 @@ export const openStream = ({
   lastEventId,
   res,
   suspension = 'ends',
+  member,
 }: StreamOptions): Result<Unsubscribe, DomainError> => {
   let closed = false
   const channel = acquireChannel(eventId)
@@ -244,7 +252,10 @@ export const openStream = ({
   // a database blip must not blank every projector on the box.
   const stillServed = async (): Promise<boolean> => {
     const current = await deps.events.findById(eventId)
-    return current !== null && (suspension === 'serves' || !current.isClientSuspended())
+    if (current === null) return false
+    if (suspension === 'ends' && current.isClientSuspended()) return false
+    // `roleFor` is null for a disabled account and for one that is gone: the same read every request makes.
+    return member === undefined || (await deps.memberships.roleFor(eventId, member)) !== null
   }
 
   const beat = async (): Promise<void> => {
@@ -358,7 +369,7 @@ const RETRY_AFTER_SECONDS = '30'
  * correct answer about a temporary state, and the client's own backoff is built for it.
  */
 export const streamHandler =
-  (deps: HttpDeps, suspension: 'ends' | 'serves' = 'ends'): RequestHandler =>
+  (deps: HttpDeps, channel: 'wall' | 'moderation' = 'wall'): RequestHandler =>
   (req, res) => {
     const event = req.context.event
     if (event === undefined) {
@@ -372,7 +383,10 @@ export const streamHandler =
       eventId: event.id,
       lastEventId: req.get('last-event-id'),
       res,
-      suspension,
+      suspension: channel === 'moderation' ? 'serves' : 'ends',
+      ...(channel === 'moderation' && req.context.user !== undefined
+        ? { member: req.context.user.userId }
+        : {}),
     })
 
     if (opened.ok) return
@@ -409,7 +423,7 @@ export const streamRoutes = (deps: HttpDeps): Router => {
     '/events/:eventSlug/moderation/stream',
     connections,
     requireRole('moderator', deps),
-    streamHandler(deps, 'serves'),
+    streamHandler(deps, 'moderation'),
   )
 
   return router

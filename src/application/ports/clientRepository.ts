@@ -120,4 +120,21 @@ export interface ClientRepository {
    * count and not a roster: nothing here reads who the members are.
    */
   countMembers(clientId: ClientId): Promise<number>
+
+  /**
+   * The accounts that belong to this client, in any role, switched off or not. **For the
+   * finalisation of an offboarded client only** (G2-14 part 3): it decides which accounts go with
+   * the client, which is the one place the product has to know who they are. No route returns it
+   * (the operator's reads count members and never name them), and `[]` is the answer for a client
+   * with none and for one that does not exist.
+   */
+  memberIds(clientId: ClientId): Promise<readonly UserId[]>
+
+  /**
+   * The clients whose engagement has ended and that have nothing left to wait for: `purge_after`
+   * is set and has passed, and no event of theirs remains, in any status, because the retention
+   * sweep purged them. Earliest deadline first, then by id, at most `limit`. A client that has
+   * not been offboarded has no `purge_after`, so it is never in this list however empty it is.
+   */
+  listDueForFinalization(now: Date, limit: number): Promise<readonly ClientId[]>
 }

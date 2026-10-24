@@ -407,6 +407,28 @@ export const eventRepositoryContract = (
       expect((await repo.findById(asEventId('evt-1')))?.clientId).toBeNull()
     })
 
+    describe('listByClient (G2-14 part 3)', () => {
+      it('lists the events of a client in any status, oldest first, and of no other client', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+        await clients.save(aClient({ id: 'client-other' }))
+        await repo.save(nthEvent(2, CLIENT))
+        await repo.save(nthEvent(1, CLIENT))
+        await repo.save(nthEvent(3, 'client-other'))
+        await repo.save(nthEvent(4))
+
+        const listed = await repo.listByClient(asClientId(CLIENT))
+
+        expect(listed.map((event) => event.id)).toEqual([asEventId('evt-1'), asEventId('evt-2')])
+      })
+
+      it('gives nothing for a client with no event and for one that does not exist', async () => {
+        await clients.save(aClient({ id: CLIENT }))
+
+        expect(await repo.listByClient(asClientId(CLIENT))).toEqual([])
+        expect(await repo.listByClient(asClientId('ghost'))).toEqual([])
+      })
+    })
+
     describe('the standing of its client (roadmap §10.7, G2-14)', () => {
       const stored = async () => {
         const event = await repo.findById(asEventId('evt-1'))

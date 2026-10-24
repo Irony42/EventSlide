@@ -18,6 +18,7 @@ import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepos
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
+import { SqliteAccountHoldings } from '../infrastructure/db/sqliteAccountHoldings'
 import { SqliteSiteOverview } from '../infrastructure/db/sqliteSiteOverview'
 import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccountTokenRepository'
 import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondFactorRepository'
@@ -410,6 +411,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     clients: new SqliteClientRepository(db),
     audit: new SqliteAuditLog(db),
     siteOverview: new SqliteSiteOverview(db),
+    accountHoldings: new SqliteAccountHoldings(db),
     accountTokens: new SqliteAccountTokenRepository(db),
     secretTokens: sha256SecretTokens,
     mailer,
@@ -472,6 +474,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       : createRetentionSweeper({
           purge: usecases.purgeExpiredEvents,
           pruneAuditLog: usecases.pruneAuditLog,
+          finalizeOffboardedClients: usecases.finalizeOffboardedClients,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,

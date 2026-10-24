@@ -261,7 +261,7 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
 
 1. **Be on 2.1.0, and back up with it.** The newest release of the 2.x line carries the Docker
    backup commands the steps [above](#upgrading-with-docker) use, and it is the version that
-   can restore the archive if you go back: 3.0.0 applies migrations 008, 009, 010, 011, 012 and 013, and
+   can restore the archive if you go back: 3.0.0 applies migrations 008, 009, 010, 011, 012, 013 and 014, and
    2.1.0 refuses a database that holds them ("downgrading is not supported"). A build of
    2.1.0 reports `2.0.0` in `GET /api/health`, in its image tag and in its backup manifest,
    because the tag was cut before `package.json` was bumped: `git describe --tags --match 'v*'`
@@ -323,7 +323,7 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
 Then take the steps of [Upgrading with Docker](#upgrading-with-docker), or
 [without](#without-docker), with `vX.Y.Z` as `v3.0.0`.
 
-**How to tell it worked.** The first boot logs `applied migrations` with the ids 8 to 13
+**How to tell it worked.** The first boot logs `applied migrations` with the ids 8 to 14
 (only the ones your database lacked) and then the listening line; `GET /api/health` answers
 `"version": "3.0.0"` and `GET /api/ready` answers 200. If the boot exits with code 78, the log
 names the setting to fix. If anything else looks wrong, go back as [described above](#going-back):
