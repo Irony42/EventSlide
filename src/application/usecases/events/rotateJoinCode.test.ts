@@ -33,6 +33,16 @@ class SaturatedEventRepository extends FakeEventRepository {
   }
 }
 
+/** Counts the candidates it was asked about, so the bound is a number and not a feeling. */
+class CountingSaturatedEventRepository extends SaturatedEventRepository {
+  asked = 0
+
+  override async joinCodeTaken(): Promise<boolean> {
+    this.asked += 1
+    return true
+  }
+}
+
 /** A generator that under-delivers entropy: the port lying, which `JoinCode` refuses. */
 class ShortEntropyIdGenerator extends SequentialIdGenerator {
   override bytes(count: number): Uint8Array {
@@ -146,6 +156,25 @@ describe('rotateJoinCode', () => {
       const result = await rotate({ eventId: WEDDING, actorId: OWNER })
 
       expect(!result.ok && result.error.code).toBe('event.joinCodeExhausted')
+    })
+
+    it('asks about five join codes and no more before it gives up', async () => {
+      const counting = new CountingSaturatedEventRepository()
+      counting.seed(
+        anEvent({ id: WEDDING, slug: 'camille-et-sacha', ownerId: OWNER, joinCode: PRINTED_CODE }),
+      )
+      const rotateCounting = makeRotateJoinCode({
+        events: counting,
+        memberships,
+        ids,
+        bus,
+        joinCodeLength: 6,
+      })
+
+      const result = await rotateCounting({ eventId: WEDDING, actorId: OWNER })
+
+      expect(counting.asked).toBe(5)
+      expect(!result.ok && result.error.details).toEqual({ attempts: 5 })
     })
 
     it('leaves the printed code working, which is better than no code at all', async () => {

@@ -92,6 +92,12 @@ describe('DisplayName.create', () => {
 })
 
 describe('DisplayName.createOptional', () => {
+  it('keeps a name of exactly the minimum length, so one letter is a name and not anonymity', () => {
+    const result = DisplayName.createOptional('Z')
+
+    expect(result.ok && result.value?.value).toBe('Z')
+  })
+
   it('treats an absent name as staying anonymous', () => {
     const result = DisplayName.createOptional(undefined)
 

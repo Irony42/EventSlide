@@ -99,6 +99,31 @@ describe('getWallPlaylist', () => {
     expect(result.ok && result.value.playlist.items).toEqual(['photo-2', 'photo-1'])
   })
 
+  /**
+   * The wall is a public endpoint, and the query it can provoke is bounded here rather than by
+   * whatever the client typed: `windowSize` has no ceiling of its own, so only the read's does.
+   */
+  it('reads at most five hundred photos however large a window is asked for, keeping the newest', async () => {
+    events.seed(wedding)
+    for (let index = 0; index < 501; index += 1) {
+      photos.seed(
+        aPhoto({
+          id: `photo-${String(index).padStart(3, '0')}`,
+          eventId: 'event-1',
+          status: 'published',
+          createdAt: atPlus(index * 1_000),
+        }),
+      )
+    }
+
+    const result = await ask({ windowSize: 10_000 })
+
+    const items = result.ok ? result.value.playlist.items : []
+    expect(items).toHaveLength(500)
+    expect(items).not.toContain('photo-000')
+    expect(items[0]).toBe('photo-500')
+  })
+
   it.each(['pending', 'rejected', 'hidden'] as const)(
     'never puts a %s photo on the wall',
     async (status: PhotoStatus) => {

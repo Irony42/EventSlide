@@ -67,7 +67,20 @@ class SaturatedEventRepository extends FakeEventRepository {
 
 /** The same bound, for the random slug suffix's own retry loop. */
 class SlugSaturatedEventRepository extends FakeEventRepository {
+  asked = 0
+
   override async slugTaken(): Promise<boolean> {
+    this.asked += 1
+    return true
+  }
+}
+
+/** Counts the candidates it was asked about, so the bound is a number and not a feeling. */
+class CountingSaturatedEventRepository extends SaturatedEventRepository {
+  asked = 0
+
+  override async joinCodeTaken(): Promise<boolean> {
+    this.asked += 1
     return true
   }
 }
@@ -332,6 +345,8 @@ describe('createEvent', () => {
 
       expect(!result.ok && result.error.code).toBe('event.slugExhausted')
       expect(!result.ok && result.error.kind).toBe('unexpected')
+      expect(saturatedSlugs.asked).toBe(5)
+      expect(!result.ok && result.error.details).toEqual({ attempts: 5 })
     })
 
     it('refuses a name that folds away to nothing even with a suffix to append', async () => {
@@ -402,6 +417,26 @@ describe('createEvent', () => {
     const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
 
     expect(!result.ok && result.error.code).toBe('event.joinCodeExhausted')
+  })
+
+  it('asks about five join codes and no more before it gives up', async () => {
+    const saturated = new CountingSaturatedEventRepository()
+    const create = makeCreateEvent({
+      events: saturated,
+      clients,
+      users,
+      eventCreation: 'anyAccount',
+      ids,
+      clock,
+      defaultQuotaBytes: DEFAULT_QUOTA,
+      maxQuotaBytes: null,
+      ...CORE_DEFAULTS,
+    })
+
+    const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+    expect(saturated.asked).toBe(5)
+    expect(!result.ok && result.error.details).toEqual({ attempts: 5 })
   })
 
   it('saves nothing when it cannot allocate a join code', async () => {

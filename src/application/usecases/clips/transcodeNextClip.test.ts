@@ -225,6 +225,21 @@ describe('transcodeNextClip', () => {
       expect(photo.contentHash.equals(facet.posterHash)).toBe(false)
     })
 
+    it('charges the quota for both files of the clip, because both are on the disk it protects', async () => {
+      await transcodeNextClip()
+
+      const photo = await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))
+      const facet = photo?.facet
+      if (photo === null || photo === undefined || facet?.kind !== 'clip') {
+        throw new Error('expected a stored clip')
+      }
+      const video = await media.stat(EVENT, photo.contentHash, 'video')
+      const poster = await media.stat(EVENT, facet.posterHash, 'poster')
+      expect(video?.byteSize).toBeGreaterThan(0)
+      expect(poster?.byteSize).toBeGreaterThan(0)
+      expect(photo.byteSize).toBe((video?.byteSize ?? 0) + (poster?.byteSize ?? 0))
+    })
+
     it('marks the job done and stops charging the staged source', async () => {
       const before = await photos.totalBytes(EVENT)
       await transcodeNextClip()
