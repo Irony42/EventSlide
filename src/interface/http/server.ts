@@ -8,6 +8,7 @@ import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser, enforceSessionAge, requirePasswordCurrent } from './middleware/authz'
 import {
   eventCreationLimiter,
+  guestWriteLimiter,
   uploadConcurrencyLimiter,
   uploadLimiter,
 } from './middleware/rateLimit'
@@ -249,6 +250,15 @@ export const buildServer = ({
   const uploadRateLimiter = uploadLimiter(config.rateLimits.uploadPerMinute)
 
   /**
+   * **One bucket for the guest's other writes (HTTP-H-01), same reason, same arrangement.**
+   *
+   * A caption, taking a photo back, withdrawing a reaction and acknowledging the privacy
+   * notice are four routes in two routers and one guest; built inside each router they would
+   * be two allowances under `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`.
+   */
+  const guestWriteRateLimiter = guestWriteLimiter(config.rateLimits.guestWritePerMinute)
+
+  /**
    * **The upload concurrency semaphore (G3-06 / P4-10), same reason, same arrangement.**
    *
    * A counter closed over by the middleware function itself, so calling
@@ -265,6 +275,7 @@ export const buildServer = ({
     guestRoutes({
       ...routeDeps,
       uploadRateLimiter,
+      guestWriteRateLimiter,
       uploadConcurrencyLimiter: sharedUploadConcurrencyLimiter,
     }),
   )
@@ -284,7 +295,7 @@ export const buildServer = ({
   )
   // The privacy notice a guest reads before their first upload (roadmap §5.1). Its own
   // path under the event, so where it sits among the routers is for reading order only.
-  app.use('/api', privacyNoticeRoutes(routeDeps))
+  app.use('/api', privacyNoticeRoutes({ ...routeDeps, guestWriteRateLimiter }))
   app.use('/api', mediaRoutes(routeDeps))
   // The shared gallery (roadmap §4.1): public, token-gated, with its own limits and its
   // own headers. Its own router so that nothing mounted for the host's surface — a role

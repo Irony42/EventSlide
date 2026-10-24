@@ -261,6 +261,7 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       joinPerMinute: raw.JOIN_RATE_LIMIT_PER_MINUTE,
       loginPerMinute: raw.LOGIN_RATE_LIMIT_PER_MINUTE,
       reactionPerMinute: raw.REACTION_RATE_LIMIT_PER_MINUTE,
+      guestWritePerMinute: raw.GUEST_WRITE_RATE_LIMIT_PER_MINUTE,
       galleryPerMinute: raw.GALLERY_RATE_LIMIT_PER_MINUTE,
       galleryMediaPerMinute: raw.GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE,
       galleryUnlockPerClient: raw.GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT,
