@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isAbortError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../errorMessage'
+import { messageForError } from '../../../lib/i18n/translations'
 
 export interface LoaderState<T> {
   /** `null` until the first answer arrives. Absence is not emptiness. */
@@ -85,7 +86,7 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
         if (!current) return
         // The abort came from this effect's own cleanup — StrictMode mounts twice —
         // and is not a failure to report to the host.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
+        if (isAbortError(cause)) return
         // The previous data stays: a failed refresh must not blank a page the host is
         // reading, it must say that the refresh failed.
         setAnswer((previous) => ({
@@ -114,7 +115,7 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
    * chose, and the read effect above depends on nothing but the request.
    */
   const error = useMemo<string | null>(
-    () => (answer.failure === null ? null : errorMessage(answer.failure.cause, t)),
+    () => (answer.failure === null ? null : messageForError(answer.failure.cause, t)),
     [answer.failure, t],
   )
 

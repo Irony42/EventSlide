@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { isAbortError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useSwipeDecision } from '../hooks/useSwipeDecision'
 import type { SwipeIntent } from '../swipe/swipeGesture'
@@ -112,7 +113,7 @@ export function SwipeCard({
     void element.play().catch((cause: unknown) => {
       // The card's own doing: the photo changed under the gesture and this element is
       // gone. There is no host waiting on it and nothing to report.
-      if (cause instanceof DOMException && cause.name === 'AbortError') return
+      if (isAbortError(cause)) return
 
       /**
        * Refused. The one refusal worth arguing with is the autoplay policy.

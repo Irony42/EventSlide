@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { PhotoPicker } from './PhotoPicker'
 import { fr } from '../../../lib/i18n/fr'
+import styles from './PhotoPicker.module.css'
+import { classesOf, cls } from '../../../testing/classesOf'
 
 /**
  * The two ways a photo gets into the queue, from the guest's side of the phone.
@@ -26,6 +28,16 @@ describe('PhotoPicker', () => {
 
     expect(screen.getByLabelText(fr.upload.addPhotos)).toBe(libraryInput())
     expect(libraryInput()).not.toHaveAttribute('tabindex', '-1')
+  })
+
+  it('gives the library button both its classes: the shared action look and its own', () => {
+    // The library is the one control with a class of its own; the camera shares the look.
+    render(<PhotoPicker onPick={vi.fn()} />)
+
+    expect(classesOf(libraryInput().labels?.[0])).toEqual([
+      cls(styles, 'action'),
+      cls(styles, 'library'),
+    ])
   })
 
   it('queues nothing when the guest opens the picker and closes it again', () => {

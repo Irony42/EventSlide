@@ -233,6 +233,16 @@ const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
     'no event, and what it changes is what every other router reads of an event, not what it holds',
   'post /api/site/clients/:clientId/resume':
     'lifts a suspension (`resumeClient`): the same one column and one audit line',
+  'post /api/site/clients/:clientId/offboard':
+    "ends an engagement (`offboardClient`): it moves the client's events by status and dates the purge of its\n" +
+    'albums; it reads no content, and what it destroys is destroyed later by the retention sweep, not here',
+  'post /api/site/accounts/:userId/disable':
+    'switches an account off (`disableAccount`): one column of the users table and its audit lines; it reads no\n' +
+    'event, and refuses an operator',
+  'post /api/site/accounts/:userId/enable': 'switches an account back on (`enableAccount`)',
+  'delete /api/site/accounts/:userId':
+    'deletes an account for an erasure request (`deleteAccount`): it counts what the account holds and refuses an\n' +
+    'owner of an event, an author of media and an operator; it reads no content',
   'post /api/site/clients/:clientId/invitations':
     'invites somebody into a client’s **account** (`inviteToClientAsOperator`, R1), waiting ' +
     'for an owner where the client is in use; it grants no event role, which R4 forbids',

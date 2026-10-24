@@ -4,7 +4,6 @@ import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
 import { asEventId, asPhotoId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
-import type { LogContext, Logger } from '../../ports/logger'
 import {
   AT,
   aClient,
@@ -25,6 +24,7 @@ import { FakeVideoTranscoder, fakeClipBytes, notAClip } from '../../testing/fake
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeTranscodeNextClip, type TranscodeNextClip } from './transcodeNextClip'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 /**
  * One pass of the queue. These are the tests that hold the line the whole clip design
@@ -54,30 +54,6 @@ const hasher: ContentHasher = {
     }
     return digest.slice(0, 64)
   },
-}
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
 }
 
 const POLICY = {
@@ -223,6 +199,21 @@ describe('transcodeNextClip', () => {
       expect(await media.exists(EVENT, photo.contentHash, 'video')).toBe(true)
       expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(true)
       expect(photo.contentHash.equals(facet.posterHash)).toBe(false)
+    })
+
+    it('charges the quota for both files of the clip, because both are on the disk it protects', async () => {
+      await transcodeNextClip()
+
+      const photo = await photos.findById(EVENT, asPhotoId('clip-job-1-photo'))
+      const facet = photo?.facet
+      if (photo === null || photo === undefined || facet?.kind !== 'clip') {
+        throw new Error('expected a stored clip')
+      }
+      const video = await media.stat(EVENT, photo.contentHash, 'video')
+      const poster = await media.stat(EVENT, facet.posterHash, 'poster')
+      expect(video?.byteSize).toBeGreaterThan(0)
+      expect(poster?.byteSize).toBeGreaterThan(0)
+      expect(photo.byteSize).toBe((video?.byteSize ?? 0) + (poster?.byteSize ?? 0))
     })
 
     it('marks the job done and stops charging the staged source', async () => {

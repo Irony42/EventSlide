@@ -81,6 +81,22 @@ export const AUDIT_ACTIONS = {
    * already suspended is not an act and leaves no second line.
    */
   'client.suspended': { subject: 'client', details: {} },
+  /**
+   * An operator ended a client's engagement (`offboardClient`, G2-14 part 3): its live events were
+   * closed, its drafts archived, the client frozen and its albums given a purge date `graceDays`
+   * away, which is the window in which the client exports what it wants. The counts say how many
+   * events moved; which ones is the content the log does not hold.
+   */
+  'client.offboarded': {
+    subject: 'client',
+    details: { graceDays: detail.integer, closed: detail.integer, archived: detail.integer },
+  },
+  /**
+   * The sweep finished an offboarding (`finalizeOffboardedClients`, G2-14 part 3): every event of
+   * the client was purged, the accounts that belonged to nothing else were deleted, and the client
+   * itself is gone. The subject is now a pseudonym, and the entry is written by `system`.
+   */
+  'client.finalized': { subject: 'client', details: {} },
   /** An operator lifted a suspension (`resumeClient`, G2-14). */
   'client.resumed': { subject: 'client', details: {} },
   /**
@@ -104,6 +120,17 @@ export const AUDIT_ACTIONS = {
    * the log never holds an address.
    */
   'account.disabled': { subject: 'account', details: {} },
+  /** An operator switched an account back on (`enableAccount`, G2-14 part 3). */
+  'account.enabled': { subject: 'account', details: {} },
+  /**
+   * An account was deleted, for a person's erasure request or because its client was finalised
+   * (`deleteAccount`, `finalizeOffboardedClients`, G2-14 part 3). The subject is the opaque id the
+   * account had, which is now **a pseudonym**: nothing in `users` answers to it any more, and the
+   * actor pointer of every line the account ever wrote is nulled by the foreign key. One line per
+   * client the account belonged to, carrying that client's id, so the owner's trail says that a
+   * member's account is gone; one line with no client for an account that belonged to none.
+   */
+  'account.deleted': { subject: 'account', details: {} },
   /**
    * An account confirmed an authenticator (`confirmTotpEnrollment`, G2-13 / P3-15). The
    * subject is the account itself: there is nothing else to say, and above all not the

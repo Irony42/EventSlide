@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
-import { ApiError } from '../../../lib/http'
-import { messageForCode } from '../../../lib/i18n/translations'
+import { ApiError, isAbortError } from '../../../lib/http'
+import { messageForCode, messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { shouldQueue } from '../../../lib/offline/outboxPolicy'
 import { downscaleImage } from './downscaleImage'
@@ -272,7 +272,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       } catch (cause) {
         // An abort is this hook's own doing — the guest removed the row, or the screen
         // unmounted — and in both cases there is no row left to report it on.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
+        if (isAbortError(cause)) return
 
         // A dropped connection or a server that could not answer is not this photo's
         // fault, so it is kept rather than reported. This is the whole feature: the
@@ -283,7 +283,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         patch(id, {
           state: 'failed',
           progress: 0,
-          error: cause instanceof ApiError ? messageForCode(cause.code, t) : t.errors.unknown,
+          error: messageForError(cause, t),
           // A dropped connection is worth another press. A request the server refused
           // on its merits is not: it fails identically the second time.
           retryable: !(cause instanceof ApiError && cause.isClientFault),

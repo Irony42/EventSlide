@@ -1,4 +1,5 @@
 import { useId, type ChangeEvent, type Ref } from 'react'
+import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './PhotoPicker.module.css'
 
@@ -40,7 +41,7 @@ export function PhotoPicker({ onPick, libraryRef }: PhotoPickerProps) {
 
   return (
     <div className={styles['picker']}>
-      <label className={`${styles['action']} ${styles['library']}`} htmlFor={libraryId}>
+      <label className={cx(styles['action'], styles['library'])} htmlFor={libraryId}>
         <span>{t.upload.addPhotos}</span>
         <input
           ref={libraryRef}

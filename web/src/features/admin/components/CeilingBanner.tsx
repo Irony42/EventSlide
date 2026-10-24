@@ -1,4 +1,5 @@
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { cx } from '../../../design-system/classNames'
 import { formatBytes } from '../../../lib/format'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import type { CeilingMeterDto, ClientLimitsDto } from '../../../lib/api/dto'
@@ -48,7 +49,7 @@ export function CeilingBanner({ limits, contact }: CeilingBannerProps) {
 
   return (
     <section
-      className={`${styles['banner']} ${styles[level]}`}
+      className={cx(styles['banner'], styles[level])}
       aria-label={t.clientSpace.bannerLabel}
       data-level={level}
     >

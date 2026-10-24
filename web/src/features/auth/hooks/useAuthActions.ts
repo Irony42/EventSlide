@@ -4,7 +4,7 @@ import { useApi } from '../../../app/useApi'
 import type { SecondFactorProof } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../errorMessage'
+import { messageForError } from '../../../lib/i18n/translations'
 
 /**
  * The write actions of the auth surface, as view-state.
@@ -64,7 +64,7 @@ export const useLogin = (): LoginState => {
         // One message for every failure, because the server sends one code for an
         // unknown address and for a wrong password. Telling the two apart in the UI
         // would turn the form into an account-enumeration oracle.
-        setError(errorMessage(cause, t))
+        setError(messageForError(cause, t))
         return 'refused'
       } finally {
         setSubmitting(false)
@@ -116,7 +116,7 @@ export const useSecondFactorLogin = (): SecondFactorLoginState => {
         forgetSession()
         return { kind: 'signedIn' }
       } catch (cause) {
-        const reason = errorMessage(cause, t)
+        const reason = messageForError(cause, t)
         setError(reason)
         return cause instanceof ApiError && OVER_FOR_GOOD.has(cause.code)
           ? { kind: 'expired', reason }
@@ -158,7 +158,7 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
         // Every rule about what makes a password acceptable lives on the server, and
         // its code is what picks the sentence — length, reuse, and "too common" all
         // arrive here the same way.
-        setError(errorMessage(cause, t))
+        setError(messageForError(cause, t))
         return false
       } finally {
         setSubmitting(false)
@@ -207,7 +207,7 @@ export const useSignOut = (): SignOutState => {
         await steps()
         return { ok: true }
       } catch (cause) {
-        return { ok: false, message: errorMessage(cause, t) }
+        return { ok: false, message: messageForError(cause, t) }
       } finally {
         setBusy(false)
       }

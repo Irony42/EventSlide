@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { wallBudgetProps } from '../../design-system/budget'
+import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
 import { Button } from '../../design-system/components/Button'
 import { Dialog } from '../../design-system/components/Dialog'
@@ -67,15 +68,6 @@ const nextLayout = (current: WallLayout): WallLayout => {
   return LAYOUT_CYCLE[(at + 1) % LAYOUT_CYCLE.length] ?? current
 }
 
-/**
- * Joins class names.
- *
- * A CSS Module is typed as an index signature, so every class is `string | undefined`,
- * and a primitive that declares `className?: string` refuses the `undefined` half.
- */
-const classes = (...parts: readonly (string | false | undefined)[]): string =>
-  parts.filter(Boolean).join(' ')
-
 interface WallNoticeProps {
   readonly tone: StatusTone
   readonly text: string
@@ -93,8 +85,8 @@ interface WallNoticeProps {
  */
 function WallNotice({ tone, text, delayed = false }: WallNoticeProps) {
   return (
-    <p className={classes(styles['notice'], styles[tone], delayed && styles['delayed'])}>
-      <StatusIcon tone={tone} className={classes(styles['noticeIcon'])} />
+    <p className={cx(styles['notice'], styles[tone], delayed && styles['delayed'])}>
+      <StatusIcon tone={tone} className={styles['noticeIcon']} />
       {text}
     </p>
   )
@@ -298,7 +290,7 @@ export function WallPage() {
             <Spinner size="lg" label={text.app.loading} />
           ) : (
             <div className={styles['failure']} role="alert">
-              <StatusIcon tone="danger" className={classes(styles['failureIcon'])} />
+              <StatusIcon tone="danger" className={styles['failureIcon']} />
               <h1 className={styles['failureTitle']}>
                 {error instanceof ApiError
                   ? messageForCode(error.code, text)

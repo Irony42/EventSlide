@@ -104,6 +104,12 @@ export const operatorInvitationBody = z.strictObject({
 })
 
 /**
+ * `POST /api/site/clients/:clientId/offboard`. The window is judged by the use case (`400
+ * client.graceInvalid` outside 1 to 365 whole days), so there is one rule and one answer for it.
+ */
+export const offboardClientBody = z.strictObject({ graceDays: z.number() })
+
+/**
  * `POST /api/site/accounts/:userId/password-reset`. `approvalId` is the id an owner of the
  * account's client approved, to redeem it on a box with no mail relay and
  * `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`; it is an id and never a secret.

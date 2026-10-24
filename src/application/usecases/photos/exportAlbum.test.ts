@@ -15,7 +15,7 @@ import {
 import { aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
-import { CapturingLogger } from '../../testing/galleryWorld'
+import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */

@@ -145,7 +145,7 @@ const emailOf = (raw: string): EmailAddress => {
   return parsed.value
 }
 
-type Method = 'get' | 'post' | 'put' | 'patch'
+type Method = 'get' | 'post' | 'put' | 'patch' | 'delete'
 
 describe('the operator and the accounts it brought in, on the events of a client they have no part in', () => {
   /**
@@ -334,6 +334,22 @@ describe('the operator and the accounts it brought in, on the events of a client
       {
         name: 'asks for a reset link for the account it invited',
         run: () => act('post', `/api/site/accounts/${accomplice}/password-reset`),
+      },
+      {
+        name: 'switches the customer’s account off',
+        run: () => act('post', `/api/site/accounts/${JEAN}/disable`),
+      },
+      {
+        name: 'switches it back on',
+        run: () => act('post', `/api/site/accounts/${JEAN}/enable`),
+      },
+      {
+        name: 'deletes the account it invited',
+        run: () => act('delete', `/api/site/accounts/${accomplice}`),
+      },
+      {
+        name: 'ends the client’s engagement',
+        run: () => act('post', `/api/site/clients/${clientId}/offboard`, { graceDays: 30 }),
       },
     ]
 

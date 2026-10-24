@@ -105,6 +105,28 @@ describe('applyEventSchedules', () => {
     expect((await stored(WEDDING)).status).toBe('live')
   })
 
+  it('reports nothing refused for a schedule that was applied', async () => {
+    // `scheduleSweeper` logs a warning for a non-empty `refused`, so a report that listed the
+    // events it opened as refused would be a warning on every pass.
+    seedWedding()
+
+    const report = await applyEventSchedules()
+
+    expect(report.refused).toEqual([])
+  })
+
+  it('reports nothing refused for a closing that was applied either', async () => {
+    // Closing and archiving are never refused (docs/API.md), so a refusal reported for one is a
+    // false warning at the end of every party.
+    seedWedding({ status: 'live', scheduledOpenAt: null })
+    clock.set(CLOSE_AT)
+
+    const report = await applyEventSchedules()
+
+    expect(report.closed).toEqual([WEDDING])
+    expect(report.refused).toEqual([])
+  })
+
   it('opens an event whose opening was missed while the server was down', async () => {
     // The failure this feature exists to remove: nobody was listening at 18:00. The
     // next sweep must open the party, not wait for an instant that has gone.

@@ -37,6 +37,9 @@ export const makeResumeClient =
   async ({ clientId, actor }) => {
     const client = await clients.findById(clientId)
     if (client === null) return err(DomainError.notFound('client.notFound'))
+    // An engagement that has ended is not undone by lifting the freeze (G2-14 part 3): its albums are
+    // dated for purge, and a client that came back would be purged under its own feet.
+    if (client.isOffboarding()) return err(DomainError.conflict('client.offboarding'))
     if (!client.isSuspended()) return ok(undefined)
 
     const entry = AuditEntry.create({

@@ -195,8 +195,8 @@ every path below it, at a segment boundary — `/api/sites` is not in it and ans
 unknown path does. What it carries is below: the box's **reads** (clients, a client's events, accounts,
 the audit log, the defaults a new client starts with) and the operator's **acts on a client and its
 owner** (open one, rename it, change its ceilings, invite into it, reset a password). Its suspension and resumption are here as well;
-Offboarding and the accounts' own acts (switch off, switch on, delete) arrive with their own items
-and are documented here when they ship.
+The operator's acts on **accounts** (switch off, switch on, delete) and on the **end of an engagement**
+(offboard) are here too.
 
 A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) without a valid token meets
 CSRF (below) first, in both modes — `403 request.csrfMissing` or `request.csrfMismatch` —
@@ -247,6 +247,10 @@ once before a session of writes. The reads ask for none. A state-changing reques
 | `POST /api/site/clients/:clientId/resume`        | lift a suspension                               |   yes   | `client.resumed`                                    |
 | `POST /api/site/clients/:clientId/invitations`   | invite somebody into a client's account         |   yes   | `invitation.issued`                                 |
 | `POST /api/site/accounts/:userId/password-reset` | reset an account's password                     |   yes   | `account.resetRequested`, `account.resetIssued`     |
+| `POST /api/site/clients/:clientId/offboard`      | end an engagement                               |   yes   | `client.offboarded`                                 |
+| `POST /api/site/accounts/:userId/disable`        | switch an account off                           |   yes   | `account.disabled` (one line per client)            |
+| `POST /api/site/accounts/:userId/enable`         | switch an account back on                       |   yes   | `account.enabled` (one line per client)             |
+| `DELETE /api/site/accounts/:userId`              | delete an account (erasure request)             |   yes   | `account.deleted` (one line per client)             |
 
 **The reads show shapes and sizes, never what a client or a guest made.** A client row is an id, a name,
 its ceilings, the instants it was created, suspended and set to be purged, and four counts and a byte sum;
@@ -419,7 +423,7 @@ No body. **204**. Suspension is **one column** (`clients.suspended_at`) and one 
 changes status, no photograph is touched, and the ceilings are as they were when it is lifted. Both are
 idempotent: freezing a frozen client keeps its first instant and writes no second line, and lifting a client that is
 not frozen writes nothing. The line is written before the column, so a failure to record leaves the client as it
-was. **404** `client.notFound`.
+was. **404** `client.notFound`. `resume` refuses a client whose engagement has ended (`offboard`) with **409** `client.offboarding`.
 
 What a suspended client is told, per surface (docs/SECURITY.md §22):
 
@@ -461,6 +465,43 @@ writes), a second to another address waits, and a person re-sent their own link 
 is read **from storage on this call**, not on the route's word. `link` is in the answer **only where no mail went out**:
 a box with no relay, **or a relay that refused this mail**. **404** `client.notFound`; **400** `email.malformed` or `request.invalid`; **429**
 `invitation.tooManyForAddress` once an address has had its five an hour.
+
+#### `POST /api/site/clients/:clientId/offboard`
+
+`{ "graceDays": 1..365 }`, whole days, and nothing else. **204**. Ends an engagement: the client's **live events are
+closed and its drafts archived** (an event already closed or archived is left as it is, because its album is what the
+client may still export), the client is **suspended** as by `suspend`, and its albums are given a **purge date**
+`graceDays` from now. The retention sweep that already runs purges every event of a client whose date has passed, and
+then finalises the client (docs/SECURITY.md §22): the accounts that were nothing but its own are deleted, the others
+are only removed from it, and the client row goes. One audit line, `client.offboarded`, carries the window and how many
+events were closed and archived, never which. Idempotent: a client already being offboarded keeps its first date,
+whatever the second request asks for, and writes nothing. The purge date is an **upper bound**: an event's own retention, or a ceiling on the client, purges it sooner, and the earliest deadline wins. **400** `client.graceInvalid` outside the range (and
+`request.invalid` for a body that is not exactly one number), **404** `client.notFound`. A suspended client
+that is offboarding cannot be resumed.
+
+#### `POST /api/site/accounts/:userId/disable` and `.../enable`
+
+No body. **204**. `disable` switches an account off and ends every session it has; `enable` switches it back on, and the
+sessions it had **stay ended** (the person signs in again). Both are idempotent and write **one line per client the
+account belongs to**, each carrying that client's id (one with no client for an account that belongs to none), so the
+owner's own trail says that a member's account was switched off. **403** `account.operatorProtected` for an
+operator's account, another one's or the caller's own, which `disable` refuses and no route can switch off; **404**
+`user.notFound`.
+
+#### `DELETE /api/site/accounts/:userId`
+
+No body. **204**. Deletes an account for a person's **erasure request** (GDPR). Its memberships, the invitations written
+to it, its second factor and the share links it created go with it, and the actor pointer on every audit line it wrote is
+set to null by the foreign key, which is the whole erasure on the log's side: the lines stay and nothing on them says who.
+One `account.deleted` line per client it belonged to is written first. **What it does not erase**: the address is also in
+the account's live sessions (until they expire, seven days at most) and in the invitation and reset links ever written to
+it (until the opportunistic expiry sweep removes them). Refused with **403** `account.operatorProtected` (an operator's
+account, switched off or not), **409** `account.holdsEvents` (it **owns** an event: hand it over or purge it first),
+**409** `account.holdsMedia` (it **wrote** photographs or clips, whose files would stay on disk), **409**
+`account.holdsReviews` (it **reviewed** photographs, whose rows name the reviewer and which the schema refuses to leave
+with none) and **409** `account.lastClientOwner` (it is the only owner of a client that still has other members or an
+event, which would be orphaned: add an owner first, or offboard the client); **404** `user.notFound`, including the
+second time.
 
 #### `POST /api/site/accounts/:userId/password-reset`
 

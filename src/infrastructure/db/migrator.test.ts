@@ -240,15 +240,13 @@ describe('the real schema', () => {
 
   /**
    * Foreign keys whose parent table no product code path deletes a row from, so that nothing
-   * ever looks their children up by the key. `users`: an account is switched off
-   * (`users.disabled_at`) and kept; `UserRepository.delete` has no caller, and
-   * `events.owner_id` refuses it while the account still owns an event.
-   * `scripts/userDeletionScope.test.ts` fails the day that stops being true; take `users`
-   * out of this map then, and the test below asks for the indexes.
+   * ever looks their children up by the key. **Empty since migration 014**: `users` was the one
+   * entry, on the ground that an account is switched off and kept, and the operator now deletes one
+   * (`deleteAccount`) and the sweep deletes a finalised client's (`finalizeOffboardedClients`), so every
+   * foreign key that points at `users` is indexed. A parent goes back in here only with a sentence that
+   * a test holds true, as `scripts/userDeletionScope.test.ts` did for this one.
    */
-  const PARENTS_NEVER_DELETED = new Map<string, string>([
-    ['users', 'an account is switched off, not deleted; nothing calls UserRepository.delete'],
-  ])
+  const PARENTS_NEVER_DELETED = new Map<string, string>([])
 
   /** Every foreign key of the migrated schema, with the plan of the lookup a delete of its parent makes. */
   const foreignKeys = (db: Db): { child: string; column: string; parent: string; plan: string }[] =>

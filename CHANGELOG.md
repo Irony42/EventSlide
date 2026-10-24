@@ -177,12 +177,15 @@ Read these before you upgrade, and back up with the version you run now.
   008 (clients, and `events.client_id` and `events.opened_at`), 009 (the audit log), 010
   (account tokens, and the `credentials_changed_at` and `email_verified_at` columns of
   `users`), 011 (an operator's second factor: `user_totp` and `user_recovery_codes`), 012
-  (`account_tokens.client_id` and `client_role`, the client an invitation is for) and 013
+  (`account_tokens.client_id` and `client_role`, the client an invitation is for), 013
   (five indexes on the foreign keys that deleting a guest, a mission or an event follows, so
   that purging an event no longer reads every photograph of the box once per guest: 320 ms
   became 5 ms on a box of thirty events of a hundred guests and a thousand photographs, and the
   server answers nothing else while it runs;
-  building them takes a moment on a large database).
+  building them takes a moment on a large database) and 014 (eight indexes on the foreign keys that
+  point at `users`, so that deleting an account, which the operator now does for an erasure request and
+  the retention sweep does for a client whose engagement has ended, does not read the whole audit log
+  once per account; they take a moment on a large database too).
   Migrations are not reversed, and 2.1.0 refuses a database that holds them
   ("downgrading is not supported"), so back up first.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because

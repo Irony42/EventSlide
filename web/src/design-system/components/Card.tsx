@@ -1,4 +1,5 @@
 import type { ElementType, HTMLAttributes, ReactNode } from 'react'
+import { cx } from '../classNames'
 import styles from './Card.module.css'
 
 export type CardHeadingLevel = 'h1' | 'h2' | 'h3'
@@ -36,7 +37,7 @@ export function Card({
   // plain panel, and an unlabelled <section> would add a level to the outline for
   // nothing.
   const Wrapper: ElementType = title === undefined ? 'div' : 'section'
-  const classes = [styles['card'], className].filter(Boolean).join(' ')
+  const classes = cx(styles['card'], className)
 
   return (
     <Wrapper {...rest} className={classes}>

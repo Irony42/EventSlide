@@ -1,10 +1,11 @@
+import { cx } from '../classNames'
 import styles from './StatusIcon.module.css'
 
 export type StatusTone = 'neutral' | 'success' | 'danger' | 'warning' | 'accent'
 
 export interface StatusIconProps {
   readonly tone: StatusTone
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /**
@@ -33,7 +34,7 @@ const PATHS: Record<StatusTone, string> = {
 }
 
 export function StatusIcon({ tone, className }: StatusIconProps) {
-  const classes = [styles['icon'], className].filter(Boolean).join(' ')
+  const classes = cx(styles['icon'], className)
 
   return (
     <svg className={classes} viewBox="0 0 16 16" aria-hidden="true" focusable="false">

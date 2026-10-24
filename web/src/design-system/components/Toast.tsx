@@ -2,6 +2,7 @@ import { Button } from './Button'
 import { CloseIcon } from './CloseIcon'
 import { IconButton } from './IconButton'
 import { StatusIcon, type StatusTone } from './StatusIcon'
+import { cx } from '../classNames'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Toast.module.css'
 
@@ -18,7 +19,7 @@ export interface ToastProps {
   /** An undo, typically. Its presence extends the toast's life — see ToastProvider. */
   readonly action?: ToastAction
   readonly onDismiss: () => void
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /**
@@ -29,7 +30,7 @@ export interface ToastProps {
  */
 export function Toast({ tone, message, action, onDismiss, className }: ToastProps) {
   const t = useTranslations()
-  const classes = [styles['toast'], styles[tone], className].filter(Boolean).join(' ')
+  const classes = cx(styles['toast'], styles[tone], className)
 
   return (
     <div className={classes} data-tone={tone}>

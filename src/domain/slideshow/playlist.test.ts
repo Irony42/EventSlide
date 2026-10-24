@@ -138,6 +138,18 @@ describe('playlistRevision', () => {
     expect(EMPTY.revision).not.toBe(playlistOf('a').revision)
   })
 
+  // Fixed values: the server announces the revision and every projector compares it with the one
+  // it holds, so a changed mixing, seed or separator makes every wall refetch at once, and nothing
+  // else here would notice, since each other case compares two values from the same
+  // implementation. A deliberate change updates these three literals and nothing else.
+  it.each([
+    { ids: [] as readonly string[], revision: '1efc4f' },
+    { ids: ['a', 'b'], revision: '1n7dmhi' },
+    { ids: ['photo-1', 'photo-2', 'photo-3'], revision: '1uacp29' },
+  ])('fingerprints $ids as $revision, on every box', ({ ids, revision }) => {
+    expect(playlistRevision(ids.map(asPhotoId))).toBe(revision)
+  })
+
   it('still fingerprints an empty playlist, so a wall with no photos has a revision', () => {
     expect(playlistRevision([]).length).toBeGreaterThan(0)
   })

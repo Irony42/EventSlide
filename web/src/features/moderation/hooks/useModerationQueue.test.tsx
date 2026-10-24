@@ -407,6 +407,9 @@ describe('useModerationQueue', () => {
 
     await waitFor(() => expect(result.current.error).not.toBeNull())
     expect(result.current.loading).toBe(false)
+    // An Error the consoles can branch on, carrying what was thrown, and not the bare string.
+    expect(result.current.error).toBeInstanceOf(Error)
+    expect(result.current.error?.message).toBe('chunk de réponse illisible')
   })
 
   it('says a decision failed in French when the failure carries no error code', async () => {

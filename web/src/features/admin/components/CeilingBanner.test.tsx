@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import { CeilingBanner } from './CeilingBanner'
+import styles from './CeilingBanner.module.css'
+import { classesOf, cls } from '../../../testing/classesOf'
 import { fr } from '../../../lib/i18n/fr'
 import { aClientLimits, renderWithProviders } from '../../../testing/renderWithProviders'
 import type { CeilingMeterDto, ClientLimitsDto } from '../../../lib/api/dto'
@@ -64,6 +66,16 @@ describe('CeilingBanner', () => {
     // The other meter is close too, and is told as well.
     expect(banner).toHaveTextContent('Stockage')
   })
+
+  it.each(['warning', 'reached'] as const)(
+    'wears the class of its %s level after its own',
+    (level) => {
+      show(aClientLimits(meters(events(level === 'reached' ? 10 : 9, level))))
+
+      const banner = screen.getByRole('region', { name: fr.clientSpace.bannerLabel })
+      expect(classesOf(banner)).toEqual([cls(styles, 'banner'), cls(styles, level)])
+    },
+  )
 
   it('says opening events is paused when the operator has switched it off, with no meter at all', () => {
     const base = aClientLimits()

@@ -99,6 +99,62 @@ describe('getWallPlaylist', () => {
     expect(result.ok && result.value.playlist.items).toEqual(['photo-2', 'photo-1'])
   })
 
+  /**
+   * The wall is a public endpoint, and the query it can provoke is bounded here rather than by
+   * whatever the client typed. The cap shows twice: in what the repository is asked for, which
+   * is what bounds the work (the wall re-reads on every signal, and a window of two hundred
+   * would hide an unbounded read behind the same answer), and in what a use case handed a
+   * larger window than the route ever sends can return.
+   */
+  it('asks the repository for at most five hundred photos, whatever the window', async () => {
+    events.seed(wedding)
+    const limits: (number | undefined)[] = []
+    const recording = new (class extends FakePhotoRepository {
+      override async list(
+        ...args: Parameters<FakePhotoRepository['list']>
+      ): ReturnType<FakePhotoRepository['list']> {
+        limits.push(args[1]?.limit)
+        return super.list(...args)
+      }
+    })()
+    const recorded = makeGetWallPlaylist({
+      events,
+      photos: recording,
+      guests,
+      missions: new FakeMissionRepository(recording),
+    })
+
+    await recorded({
+      slug: wedding.slug,
+      layout: null,
+      slideIntervalMs: null,
+      windowSize: 10_000,
+    })
+
+    expect(limits).toEqual([500])
+  })
+
+  it('plays at most five hundred photos however large a window is asked for, keeping the newest', async () => {
+    events.seed(wedding)
+    for (let index = 0; index < 501; index += 1) {
+      photos.seed(
+        aPhoto({
+          id: `photo-${String(index).padStart(3, '0')}`,
+          eventId: 'event-1',
+          status: 'published',
+          createdAt: atPlus(index * 1_000),
+        }),
+      )
+    }
+
+    const result = await ask({ windowSize: 10_000 })
+
+    const items = result.ok ? result.value.playlist.items : []
+    expect(items).toHaveLength(500)
+    expect(items).not.toContain('photo-000')
+    expect(items).toContain('photo-500')
+  })
+
   it.each(['pending', 'rejected', 'hidden'] as const)(
     'never puts a %s photo on the wall',
     async (status: PhotoStatus) => {

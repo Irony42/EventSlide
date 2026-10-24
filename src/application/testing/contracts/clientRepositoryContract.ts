@@ -510,6 +510,72 @@ export const clientRepositoryContract = (
       expect(await repo.countMembers(asClientId('ghost'))).toBe(0)
     })
 
+    // --------------------------------------------------------------- memberIds --
+
+    it('names the members of a client in any role, and of no other', async () => {
+      await repo.save(aClient({ id: 'client-1' }))
+      await repo.save(aClient({ id: 'client-2' }))
+      await repo.grantMember(aMembership(asClientId('client-1'), OWNER, 'owner'))
+      await repo.grantMember(aMembership(asClientId('client-1'), MEMBER, 'member'))
+      await repo.grantMember(aMembership(asClientId('client-2'), OWNER, 'owner'))
+
+      expect([...(await repo.memberIds(asClientId('client-1')))].sort()).toEqual([MEMBER, OWNER])
+      expect(await repo.memberIds(asClientId('client-2'))).toEqual([OWNER])
+      expect(await repo.memberIds(asClientId('ghost'))).toEqual([])
+    })
+
+    // ---------------------------------------------------- listDueForFinalization --
+
+    describe('listDueForFinalization (G2-14 part 3)', () => {
+      const FINALIZED_AT = atPlus(10_000)
+
+      it('lists an offboarded client whose deadline passed and that holds no event', async () => {
+        await repo.save(aClient({ id: 'client-1', purgeAfter: atPlus(5_000) }))
+
+        expect(await repo.listDueForFinalization(FINALIZED_AT, 10)).toEqual([
+          asClientId('client-1'),
+        ])
+      })
+
+      it('does not list a client that was never offboarded, however empty', async () => {
+        await repo.save(aClient({ id: 'client-1' }))
+
+        expect(await repo.listDueForFinalization(FINALIZED_AT, 10)).toEqual([])
+      })
+
+      it('does not list a client before its deadline, and does at the very instant', async () => {
+        await repo.save(aClient({ id: 'client-1', purgeAfter: FINALIZED_AT }))
+
+        expect(await repo.listDueForFinalization(atPlus(9_999), 10)).toEqual([])
+        expect(await repo.listDueForFinalization(FINALIZED_AT, 10)).toEqual([
+          asClientId('client-1'),
+        ])
+      })
+
+      it('does not list a client that still holds an event, in any status: the sweep has not purged it yet', async () => {
+        await repo.save(aClient({ id: 'client-1', purgeAfter: atPlus(5_000) }))
+        await linkEvent(WEDDING, asClientId('client-1'))
+
+        expect(await repo.listDueForFinalization(FINALIZED_AT, 10)).toEqual([])
+      })
+
+      it('lists the earliest deadline first, then by id, and at most the limit', async () => {
+        await repo.save(aClient({ id: 'client-b', purgeAfter: atPlus(2_000) }))
+        await repo.save(aClient({ id: 'client-a', purgeAfter: atPlus(2_000) }))
+        await repo.save(aClient({ id: 'client-c', purgeAfter: atPlus(1_000) }))
+
+        expect(await repo.listDueForFinalization(FINALIZED_AT, 10)).toEqual([
+          asClientId('client-c'),
+          asClientId('client-a'),
+          asClientId('client-b'),
+        ])
+        expect(await repo.listDueForFinalization(FINALIZED_AT, 2)).toEqual([
+          asClientId('client-c'),
+          asClientId('client-a'),
+        ])
+      })
+    })
+
     // ------------------------------------------------------------- deleteIfEmpty --
 
     it('deletes a client with no member and no event', async () => {

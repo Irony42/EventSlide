@@ -1,4 +1,5 @@
 import { forwardRef, type InputHTMLAttributes } from 'react'
+import { cx } from '../classNames'
 import styles from './TextInput.module.css'
 
 export type TextInputVariant = 'text' | 'code'
@@ -19,9 +20,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
   { variant = 'text', className, type = 'text', ...rest },
   ref,
 ) {
-  const classes = [styles['input'], variant === 'code' ? styles['code'] : '', className]
-    .filter(Boolean)
-    .join(' ')
+  const classes = cx(styles['input'], variant === 'code' && styles['code'], className)
 
   return <input {...rest} ref={ref} type={type} className={classes} />
 })

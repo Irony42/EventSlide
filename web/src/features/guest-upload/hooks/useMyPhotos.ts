@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApi } from '../../../app/useApi'
-import { ApiError } from '../../../lib/http'
+import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { GuestPhotoDto } from '../../../lib/api/dto'
@@ -82,7 +82,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         if (!current) return
         // The abort is this effect's own cleanup — StrictMode mounts twice — and not
         // a failure to report to the guest.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
+        if (isAbortError(cause)) return
         setState({ photos: [], loading: false, failure: { kind: 'load' } })
       },
     )

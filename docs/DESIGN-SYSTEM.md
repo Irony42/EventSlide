@@ -293,6 +293,12 @@ jobs rather than one face applied to everything.
 fourth bespoke button is how a design system dies. Each is a `.tsx` plus a colocated
 CSS Module, `forwardRef` if focusable.
 
+Class names are joined with `cx(styles['a'], cond && styles['b'], className)` from
+`web/src/design-system/classNames.ts`, and nothing else: a CSS Module class is
+`string | undefined`, so a template literal prints the word "undefined" into the
+attribute, and every primitive's `className` prop accepts `undefined` for the same
+reason. `classNames.guard.test.ts` fails on the old spellings.
+
 | Primitive        | Purpose                                                                                                        | Accessibility requirement it carries                                                                                                                                                     |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Button`         | Every action. Variants `primary` \| `secondary` \| `ghost` \| `danger`; sizes `sm` \| `md` \| `lg`; `loading`. | Real `<button type>`. `loading` sets `aria-busy` and keeps the label — a spinner-only button announces nothing. `disabled` when loading. Never `outline: none`.                          |

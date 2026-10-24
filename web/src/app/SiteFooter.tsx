@@ -1,3 +1,4 @@
+import { cx } from '../design-system/classNames'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { NewTabLink } from './NewTabLink'
 import { useAbout } from './useAbout'
@@ -63,7 +64,7 @@ export function SiteFooter({
 }: SiteFooterProps) {
   const text = useTranslations()
   const { sourceUrl, links } = useAbout()
-  const operatorLink = `${styles['link']} ${styles['operatorLink']}`
+  const operatorLink = cx(styles['link'], styles['operatorLink'])
 
   return (
     <footer className={styles['footer']}>
@@ -99,7 +100,7 @@ export function SiteFooter({
         </NewTabLink>
       ) : null}
       {supportLink && links.donate !== undefined ? (
-        <NewTabLink href={links.donate} className={`${styles['link']} ${styles['support']}`}>
+        <NewTabLink href={links.donate} className={cx(styles['link'], styles['support'])}>
           {text.about.supportLink}
         </NewTabLink>
       ) : null}
