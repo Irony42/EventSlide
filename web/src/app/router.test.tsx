@@ -161,7 +161,7 @@ describe('AppRoutes', () => {
     at('/admin/evenements')
 
     expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
-    expect(screen.queryByRole('heading', { name: fr.upload.title })).toBeNull()
+    expect(screen.queryByRole('heading', { name: fr.upload.notJoinedTitle })).toBeNull()
   })
 
   it('answers an unknown guest-looking address with a 404 too', async () => {
