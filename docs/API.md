@@ -581,6 +581,7 @@ paragraph beneath the table).
 | Endpoint                                                           | Default       | Bucket                     | Code                               |
 | ------------------------------------------------------------------ | ------------- | -------------------------- | ---------------------------------- |
 | `POST /api/join`                                                   | 20            | client IP                  | `rate.limited`                     |
+| `GET /api/join/:code`                                              | 20            | client IP, same as join    | `rate.limited`                     |
 | `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                     |
 | `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                     |
 | `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                     |
@@ -592,13 +593,13 @@ paragraph beneath the table).
 | `POST /api/events/:slug/photos`                                    | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/clips`                                     | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/photos/:id/reactions`                      | 30            | client IP **and** event    | `reaction.rateLimited`             |
-| the four other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                     |
+| the five other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                     |
 | `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
 | `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
 | `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
 
-‡ **One bucket, four routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
-their photo back), `DELETE …/photos/:id/reactions/:kind` and
+‡ **One bucket, five routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
+their photo back), `DELETE …/photos/:id/reactions/:kind`, `PATCH …/guests/:guestId` (a guest renaming themself) and
 `POST …/privacy-notice/acknowledgement` all spend the same allowance, `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`.
 The device token costs nothing to get (`POST /api/join` is public), and a caption edit is announced
 to every screen that has the wall or a console open, so a guest token is not by itself a reason to
@@ -634,7 +635,7 @@ knows the password can ask for; a request that budget refuses is not counted as 
 concurrency instead, two per client and four for the box, because one request is minutes
 of disk reads.
 
-The guest write endpoints (uploads, reactions and the four of the ‡ row) key on IP **and** event on purpose: a whole table of
+The guest write endpoints (uploads, reactions and the five of the ‡ row) key on IP **and** event on purpose: a whole table of
 guests shares one access point and therefore one public IP, so a per-IP-only limit would
 throttle the venue rather than an abuser, and a burst on one event must not close
 another event running on the same box. IPv6 addresses are collapsed to their /56 subnet,
@@ -958,6 +959,41 @@ The revoked case sets no cookie and creates no guest — that refusal is what ke
 revocation from being undone by re-scanning the QR code on the table (`docs/SECURITY.md`
 §11). `400 joinCode.wrongLength`, `400 joinCode.malformed`, `400 displayName.tooLong`,
 `429 rate.limited`.
+
+### `GET /api/join/:code`
+
+Which event a join code names, **before** the phone commits to it. `POST /api/join` creates a
+guest and sets the `es_guest` cookie, so without this lookup the only way to learn which wedding a
+printed card belongs to is to join it. Public, like the join: the holder of a printed card has no
+credential but the card. The code is normalised exactly as the join's is, so `h7k2-qm` is
+`H7K2QM`.
+
+**200**
+
+```json
+{
+  "slug": "camille-et-sacha",
+  "name": "Camille & Sacha",
+  "acceptsGuests": true,
+  "allowCaptions": true,
+  "allowReactions": true
+}
+```
+
+Everything a guest needs to confirm "yes, this is the wedding I am at", and nothing else: no
+owner, quota, count, id, theme or upload limit, and never the code back. `acceptsGuests` is true
+whenever this answers at all; it is stated rather than implied, so the page shows its form
+because the server said the doors are open. The lookup **creates no guest, sets no cookie and
+announces nothing**: looking is not joining. `Cache-Control: no-store`, because rotating the join
+code (§6) changes what a code names.
+
+**Errors** — `404 event.notFound` for an unknown code and for an event that is `draft`, `closed`
+or `archived`: the answer `POST /api/join` gives, for the reason it gives it (a distinguishable
+"not open yet" would let someone enumerate which codes exist). `400 joinCode.wrongLength`,
+`400 joinCode.malformed`, `400 request.invalid` (more than 32 characters), `429 rate.limited` with
+a `Retry-After`. It spends **the same per-address budget as `POST /api/join`** (§1 "Rate limits"):
+looking and joining answer one question, so they get one allowance, and exposing the lookup does
+not make codes testable any faster than they were.
 
 ### `GET /api/events/:slug/wall`
 
@@ -1658,6 +1694,41 @@ Note the consequence of this living in §3 rather than §2: it needs a guest tok
 and nothing else about reactions. `404 photo.notFound` for a photo outside this event.
 
 ---
+
+### `PATCH /api/events/:slug/guests/:guestId`
+
+A guest changing the name their photos are signed with. **Their own, and nobody else's**:
+`:guestId` must be the guest the `es_guest` token names. The name is projected in front of a room,
+so being able to edit another guest's would be a way to put words under somebody else's photo.
+
+```json
+{ "displayName": "Léa D." }
+```
+
+`displayName` is **required and nullable**, as the caption is: `null` or a blank string takes the
+name off the wall, and `{}` is a `400 request.invalid`, because "leave it as it was" is not an
+intent this endpoint has. A name follows the join's rules: one line, invisible characters
+removed, at most 40 characters once folded. The boundary's own bound is 120, so a name of 41 to
+120 characters is `400 displayName.tooLong` (with `details.max`) and one longer is
+`400 request.invalid`.
+
+**200**
+
+```json
+{ "guestId": "…", "displayName": "Léa D." }
+```
+
+`displayName` is the name **as stored**, trimmed and folded: what the wall will print, `null` for
+no name. `Cache-Control: no-store`. The event's lifecycle is deliberately not consulted: a guest at
+a closed party may still correct the spelling of their own name on an album that is still being
+viewed.
+
+**Errors** — `403 auth.forbidden` when `:guestId` is not the guest the token names, **and equally
+for an id that names nobody**: the comparison is made before any row is read, so the route cannot
+be used to learn which guest ids exist. `403 guest.wrongEvent`, `403 guest.revoked`,
+`401 auth.required` / `401 guestToken.*` (a host's or moderator's session is not a guest token, and
+there is no host route that renames a guest), `404 event.notFound`, `400 request.invalid`,
+`400 displayName.tooLong`, `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ## 4. Media
 
@@ -3608,16 +3679,10 @@ GraphQL.
 >
 > Sections 1–8 above are the contract: every route there exists and behaves as written.
 > **This section is the opposite** — it is the list of places where the server does _not_
-> do what a reader would expect, plus, in §9.10, two routes that have been **proposed and
-> never built**.
+> do what a reader would expect.
 >
 > If you are an agent or an integrator: §1–8 is what you may rely on. Treat anything you
-> find only in §9 as a bug report, not as a specification. In particular
-> `GET /api/join/:code` and `PATCH /api/events/:slug/guests/:guestId` in §9.10 **answer
-> `404 route.notFound` today**, from the unmatched-`/api` fallback in
-> `server.ts` — they are sketches of a shape that was judged natural, not endpoints.
-> Calling one, or writing a client that expects one, will fail against the running
-> server.
+> find only in §9 as a bug report, not as a specification.
 >
 > Each entry is labelled. **doc corrected above** means §1–8 was wrong and has been
 > fixed, so the entry is history. **code defect**, **stale code** and **drift** mean the
@@ -3747,50 +3812,3 @@ how likely anyone is to hit them:
 
 `server.unexpected` deliberately has none: it falls through to the generic sentence,
 which is the correct copy for a bug.
-
-### 9.10 Two use cases are wired into the container with no route in front of them
-
-Confirmed, and both are real: `makeResolveJoinCode`
-(`src/application/usecases/events/resolveJoinCode.ts`, wired at
-`src/main/usecases.ts:136`, declared at `src/interface/http/useCases.ts:62`) and
-`makeRenameGuest` (`src/application/usecases/guests/renameGuest.ts`, wired at
-`src/main/usecases.ts:180`, declared at `useCases.ts:71`). Both have unit tests; neither
-is called by any router.
-
-They are not the same kind of gap.
-
-`resolveJoinCode` answers the question `/join/:code` asks before a guest commits: it
-returns the event's name and whether captions and reactions are on, with the same
-"unknown code and closed event are indistinguishable" rule as `POST /api/join`. Without a
-route the join page cannot show a guest **which** event they are about to join before
-they hand over a name — the client must call `POST /api/join`, which creates the guest
-and sets the cookie, to find out. The natural shape is `GET /api/join/:code`, public,
-rate-limited like the POST. It is a deliberate contract addition, not a bug fix, so it is
-not written into §2 above.
-
-`renameGuest` is the guest's ability to correct the name their photos are signed with —
-and that name is projected in front of a room. `PATCH /api/events/:slug/guests/:guestId`
-with the guest token, answering `403 auth.forbidden` when the acting guest is not the
-target and `404 guest.notFound` when the id is not in this event, is what the use case is
-already written for.
-
-Neither is documented above, because this file specifies what the server implements.
-
-**Still open on 12 September, and re-verified**: `src/main/usecases.ts:136` and `:180` wire
-both, `useCases.ts:12` and `:19` declare both, `grep` over
-`src/interface/http/routes/` finds them in no router — only in the route tests, which
-stub them as deliberately unwired. Dead code that looks alive is worse than dead code that
-looks dead, and this has been true across two reviews.
-
-The decision is not deferrable much longer, and neither branch is a schema change, which
-is why it did not travel with 9.3 and 9.4: **giving them routes** means a handler in
-`publicRoutes.ts` for `GET /api/join/:code` (public, rate-limited like the POST) and one in
-`guestRoutes.ts` for `PATCH /api/events/:slug/guests/:guestId` — `renameGuest` takes an
-`actingGuestId` from the verified device token and refuses any other target, so it belongs
-behind the guest-token middleware and **cannot** be mounted on the host surface in
-`eventRoutes.ts`. **Deleting them** means the two use-case files, their unit tests, and the
-lines in `usecases.ts` and `useCases.ts`. What deletion loses is worth writing down before
-anyone takes it: the join page can then only tell a guest which event they are joining by
-calling `POST /api/join`, which creates the guest and sets the cookie — the guest commits
-before they can confirm they are at the right wedding — and a guest who mistypes the name
-projected under their photos has no way to correct it.
