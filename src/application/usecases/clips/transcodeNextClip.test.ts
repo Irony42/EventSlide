@@ -4,7 +4,6 @@ import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
 import { asEventId, asPhotoId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
-import type { LogContext, Logger } from '../../ports/logger'
 import {
   AT,
   aClient,
@@ -25,6 +24,7 @@ import { FakeVideoTranscoder, fakeClipBytes, notAClip } from '../../testing/fake
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeTranscodeNextClip, type TranscodeNextClip } from './transcodeNextClip'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 /**
  * One pass of the queue. These are the tests that hold the line the whole clip design
@@ -54,30 +54,6 @@ const hasher: ContentHasher = {
     }
     return digest.slice(0, 64)
   },
-}
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
 }
 
 const POLICY = {

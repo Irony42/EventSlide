@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { asEventId } from '../../../domain/shared/ids'
-import type { LogContext, Logger } from '../../ports/logger'
 import { AT, aClip, aClipJob, anEvent, aPhoto, atPlus } from '../../testing/builders'
 import type { ContentHasher } from '../../ports/contentHasher'
 import { CallLog } from '../../testing/callLog'
@@ -15,6 +14,7 @@ import { FakeClock } from '../../testing/fakeClock'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { makeSweepOrphanedMedia, type SweepOrphanedMedia } from './sweepOrphanedMedia'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 /**
  * The collector the rest of the media story depends on.
@@ -47,30 +47,6 @@ const hashOf = (seed: string): ContentHash => {
   const result = ContentHash.create(hexOf(seed))
   if (!result.ok) throw new Error(`bad fixture hash: ${seed}`)
   return result.value
-}
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
 }
 
 describe('sweepOrphanedMedia', () => {

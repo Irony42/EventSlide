@@ -4,7 +4,7 @@ import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrate } from './migrator'
 import { migrations } from './migrations'
 import { SqliteSessionStore } from './sqliteSessionStore'
-import { silentLogger } from '../logging/pinoLogger'
+import { silentLogger } from '../../application/testing/capturingLogger'
 
 const sessionWith = (maxAge: number, extra: Record<string, unknown> = {}): SessionData =>
   ({

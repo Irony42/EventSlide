@@ -2,31 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { createInMemoryEventBus, type InMemoryEventBus } from './inMemoryEventBus'
 import { eventBusContract } from '../../application/testing/contracts/eventBusContract'
 import type { DomainEvent, EventListener, Unsubscribe } from '../../application/ports/eventBus'
-import type { Logger } from '../../application/ports/logger'
+import { CapturingLogger, silentLogger } from '../../application/testing/capturingLogger'
 import { asEventId, asPhotoId, type EventId } from '../../domain/shared/ids'
-
-const silentLogger = (): Logger => {
-  const logger: Logger = {
-    debug: () => {},
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    child: () => logger,
-  }
-  return logger
-}
-
-const recordingLogger = (): { logger: Logger; warnings: string[] } => {
-  const warnings: string[] = []
-  const logger: Logger = {
-    debug: () => {},
-    info: () => {},
-    warn: (message) => void warnings.push(message),
-    error: () => {},
-    child: () => logger,
-  }
-  return { logger, warnings }
-}
 
 const WEDDING = asEventId('wedding')
 const GALA = asEventId('gala')
@@ -64,7 +41,7 @@ describe('inMemoryEventBus', () => {
   it('a throwing subscriber cannot fail the publisher', () => {
     // The publisher is on a guest's upload request path. A broken wall must not turn
     // a successful upload into a 500.
-    const { logger, warnings } = recordingLogger()
+    const logger = new CapturingLogger()
     const bus = createInMemoryEventBus({ logger })
     bus.subscribe(WEDDING, () => {
       throw new Error('projector exploded')
@@ -74,14 +51,14 @@ describe('inMemoryEventBus', () => {
 
     expect(() => bus.publish(photoPublished())).not.toThrow()
     expect(healthy).toHaveBeenCalledTimes(1)
-    expect(warnings).toContain('event bus subscriber threw')
+    expect(logger.messages('warn')).toContain('event bus subscriber threw')
   })
 
   it('a subscriber that throws a non-Error still cannot fail the publisher', () => {
     // `throw 'boom'` in a callback is not hypothetical, and an error report that says
     // `undefined` is how a broken projector stays broken. The publisher is on the
     // guest's upload path either way.
-    const { logger, warnings } = recordingLogger()
+    const logger = new CapturingLogger()
     const bus = createInMemoryEventBus({ logger })
     bus.subscribe(WEDDING, () => {
       throw 'projector exploded'
@@ -91,7 +68,7 @@ describe('inMemoryEventBus', () => {
 
     expect(() => bus.publish(photoPublished())).not.toThrow()
     expect(healthy).toHaveBeenCalledTimes(1)
-    expect(warnings).toContain('event bus subscriber threw')
+    expect(logger.messages('warn')).toContain('event bus subscriber threw')
   })
 
   it('unsubscribing after the bus has been closed is not an error', () => {
@@ -110,7 +87,7 @@ describe('inMemoryEventBus', () => {
     // which is indistinguishable from a live subscription. The caller could not tell it
     // had been refused, so the HTTP layer answered 200 and the projector behind it went
     // quiet for the rest of the evening while still reporting itself connected.
-    const { logger, warnings } = recordingLogger()
+    const logger = new CapturingLogger()
     const bus = createInMemoryEventBus({ logger, maxSubscribersPerEvent: 2 })
     bus.subscribe(WEDDING, vi.fn())
     bus.subscribe(WEDDING, vi.fn())
@@ -123,7 +100,9 @@ describe('inMemoryEventBus', () => {
     if (!result.ok) expect(result.error.code).toBe('service.notReady')
     expect(refused).not.toHaveBeenCalled()
     expect(bus.subscriberCount(WEDDING)).toBe(2)
-    expect(warnings).toContain('event bus subscriber limit reached, refusing subscription')
+    expect(logger.messages('warn')).toContain(
+      'event bus subscriber limit reached, refusing subscription',
+    )
   })
 
   it('accepts a subscription again once a slot is released', () => {
