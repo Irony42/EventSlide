@@ -2,10 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import { privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
-import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
-import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
 import { AT, aClient, aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
@@ -14,40 +11,7 @@ import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
 import { makeJoinEvent, type JoinEventInput } from './joinEvent'
-
-/**
- * A device token a test can read: `token|<eventId>|<guestId>|<issuedAt ms>`.
- *
- * Local to this file rather than shared, because the only thing worth asserting about
- * the real service is the HMAC, and a double cannot fake a signature into meaning
- * anything — `hmacTokenService` has its own ring-3 tests. What a join owes is that the
- * token names the event the code resolved to and the guest row it just created, and
- * that is legible here.
- *
- * `verify` is the exact inverse of `issue` and refuses everything else, which is all
- * the re-join path needs from it: the question a join asks a presented token is *which
- * guest of which event does this name*, and a signature this double cannot forge either
- * way would only move the assertions somewhere they prove less. Age is deliberately not
- * modelled — expiry is the HMAC service's own ring-3 test, and a stale token reaches
- * this use case as a refusal, which `an unreadable token` already covers.
- */
-class FakeGuestTokenService implements GuestTokenService {
-  issue({ eventId, guestId, issuedAt }: GuestTokenClaims): string {
-    return `token|${eventId}|${guestId}|${issuedAt.getTime()}`
-  }
-
-  verify(token: string): Result<GuestTokenClaims, DomainError> {
-    const [prefix, eventId, guestId, issuedAt] = token.split('|')
-    if (prefix !== 'token' || eventId === undefined || guestId === undefined) {
-      return err(DomainError.unauthenticated('guestToken.malformed'))
-    }
-    return ok({
-      eventId: asEventId(eventId),
-      guestId: asGuestId(guestId),
-      issuedAt: new Date(Number(issuedAt)),
-    })
-  }
-}
+import { FakeGuestTokenService } from '../../testing/fakeGuestTokenService'
 
 /** The cookie a phone would present on its way back in. */
 const deviceTokenFor = (eventId: EventId, guestId: GuestId): string =>

@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
-import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
-import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
 import { AT, aGuest, anEvent, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -13,6 +10,10 @@ import type { Guest } from '../../../domain/guests/guest'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeAuthenticateGuest, PRESENCE_WRITE_INTERVAL_MS } from './authenticateGuest'
 import { PRESENCE_WINDOW_MS } from './listGuests'
+import {
+  FAKE_GUEST_TOKEN_MAX_AGE_MS as MAX_AGE_MS,
+  FakeGuestTokenService,
+} from '../../testing/fakeGuestTokenService'
 
 /**
  * A token a test can both mint and read: `token|<eventId>|<guestId>|<issuedAt ms>`.
@@ -23,34 +24,6 @@ import { PRESENCE_WINDOW_MS } from './listGuests'
  * against the event in the URL and against the guest row. So the double models exactly
  * the three verify outcomes the port promises, and nothing else.
  */
-const MAX_AGE_MS = 12 * 60 * 60 * 1_000
-
-class FakeGuestTokenService implements GuestTokenService {
-  issue({ eventId, guestId, issuedAt }: GuestTokenClaims): string {
-    return `token|${eventId}|${guestId}|${issuedAt.getTime()}`
-  }
-
-  verify(token: string, now: Date): Result<GuestTokenClaims, DomainError> {
-    const [prefix, eventId, guestId, issuedAt] = token.split('|')
-    if (prefix !== 'token' || eventId === undefined || guestId === undefined) {
-      return err(DomainError.unauthenticated('guestToken.malformed'))
-    }
-
-    const issuedAtMs = Number(issuedAt)
-    if (!Number.isFinite(issuedAtMs)) {
-      return err(DomainError.unauthenticated('guestToken.malformed'))
-    }
-    if (now.getTime() - issuedAtMs > MAX_AGE_MS) {
-      return err(DomainError.unauthenticated('guestToken.expired'))
-    }
-
-    return ok({
-      eventId: asEventId(eventId),
-      guestId: asGuestId(guestId),
-      issuedAt: new Date(issuedAtMs),
-    })
-  }
-}
 
 const WEDDING = asEventId('event-1')
 const GALA = asEventId('event-2')
