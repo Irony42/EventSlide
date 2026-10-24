@@ -97,6 +97,22 @@ describe('AboutProvider', () => {
     expect(result.current.sourceUrl).not.toBe('')
   })
 
+  it('gives up its read when the app goes away', async () => {
+    const signals: AbortSignal[] = []
+    const api = fakeApi({
+      about: vi.fn((signal?: AbortSignal) => {
+        if (signal !== undefined) signals.push(signal)
+        return new Promise<About>(() => {})
+      }),
+    })
+    const { unmount } = renderHook(() => useAbout(), { wrapper: wrapperFor(api) })
+    await waitFor(() => expect(signals).toHaveLength(1))
+
+    unmount()
+
+    expect(signals[0]?.aborted).toBe(true)
+  })
+
   it('answers with the build’s own answer where no provider is mounted', () => {
     // A component under test with nothing above it renders what the footer renders before
     // the server has spoken: complete, never `undefined`.

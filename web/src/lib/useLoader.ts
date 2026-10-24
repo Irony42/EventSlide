@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { isAbortError } from '../../../lib/http'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { messageForError } from '../../../lib/i18n/translations'
+import { isAbortError } from './http'
+import { useTranslations } from './i18n/useTranslations'
+import { messageForError } from './i18n/translations'
 
 export interface LoaderState<T> {
   /** `null` until the first answer arrives. Absence is not emptiness. */
   readonly data: T | null
   readonly loading: boolean
-  /** A sentence in the language the host is reading, or `null`. */
+  /** A sentence in the language the reader is using, or `null`. */
   readonly error: string | null
   readonly reload: () => void
   /** Store what a mutation returned, so the screen updates without a second round trip. */
@@ -21,7 +21,7 @@ type Load<T> = (signal: AbortSignal) => Promise<T>
  *
  * The sentence is composed at render, from the active table, and that is the whole
  * reason this wrapper exists: storing the finished copy would put the table into the
- * read effect's dependencies, so a host changing language would re-read every screen —
+ * read effect's dependencies, so a reader changing language would re-read every screen —
  * and a refresh that then failed would replace the page they were looking at with an
  * error, for no reason except that they had chosen a language. `useMyPhotos` keeps the
  * guest's side of the same rule.
@@ -85,9 +85,9 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
       (cause: unknown) => {
         if (!current) return
         // The abort came from this effect's own cleanup — StrictMode mounts twice —
-        // and is not a failure to report to the host.
+        // and is not a failure to report to the reader.
         if (isAbortError(cause)) return
-        // The previous data stays: a failed refresh must not blank a page the host is
+        // The previous data stays: a failed refresh must not blank a page the reader is
         // reading, it must say that the refresh failed.
         setAnswer((previous) => ({
           load,
@@ -110,7 +110,7 @@ export const useLoader = <T>(load: Load<T>): LoaderState<T> => {
   )
 
   /**
-   * The sentence, composed here rather than where the failure was caught — so a host who
+   * The sentence, composed here rather than where the failure was caught — so a reader who
    * changes language while a refusal is on screen reads it in the language they just
    * chose, and the read effect above depends on nothing but the request.
    */

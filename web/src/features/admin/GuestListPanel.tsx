@@ -7,7 +7,7 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from './components/AsyncState'
+import { Async } from '../../design-system/components/Async'
 import { useGuests } from './hooks/useEventData'
 import { useRevokeGuest } from './hooks/useEventActions'
 import styles from './GuestListPanel.module.css'
@@ -30,7 +30,10 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
   const t = useTranslations()
   // The last-seen column is a date, and a date is read differently in each of the five.
   const { locale } = useLocale()
-  const { data, loading, error, reload } = useGuests(slug)
+  const guests = useGuests(slug)
+  const { reload } = guests
+  // The list the answer holds, so that `Async` can tell an empty one from none yet.
+  const roster = { ...guests, data: guests.data?.items ?? null }
   const revoke = useRevokeGuest()
   const toast = useToast()
   const [selected, setSelected] = useState<GuestDto | null>(null)
@@ -49,59 +52,57 @@ export function GuestListPanel({ slug, canRevoke }: GuestListPanelProps) {
     })
   }
 
-  const guests = data?.items ?? []
-
   return (
     <Card
       as="h2"
       title={t.admin.guestList}
-      {...(data === null ? {} : { subtitle: t.admin.guests(data.activeCount) })}
+      {...(guests.data === null ? {} : { subtitle: t.admin.guests(guests.data.activeCount) })}
     >
-      {loading ? <Pending label={t.app.loading} /> : null}
-
-      {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
-
-      {!loading && error === null && guests.length === 0 ? (
-        <EmptyState as="h3" title={t.admin.guestsEmpty} description={t.admin.guestsEmptyHint} />
-      ) : null}
-
-      {!loading && error === null && guests.length > 0 ? (
-        <ul className={styles['list']}>
-          {guests.map((guest) => {
-            const lastSeen = formatDateTime(guest.lastSeenAt, locale)
-            return (
-              <li key={guest.id} className={styles['row']}>
-                <div className={styles['identity']}>
-                  <span className={styles['name']}>
-                    {guest.displayName === null ? (
-                      <em className={styles['anonymous']}>{t.moderation.byAnonymous}</em>
-                    ) : (
-                      guest.displayName
-                    )}
-                  </span>
-                  <span className={styles['meta']}>
-                    <span>{t.admin.photos(guest.photoCount)}</span>
-                    <span>{t.admin.lastSeen(lastSeen ?? t.admin.dateUnknown)}</span>
-                  </span>
-                </div>
-                {guest.revoked ? (
-                  <Badge tone="danger">{t.admin.guestRevokedBadge}</Badge>
-                ) : canRevoke ? (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    loading={revoke.pending === guest.id}
-                    disabled={revoke.busy}
-                    onClick={() => setSelected(guest)}
-                  >
-                    {t.admin.revokeGuest}
-                  </Button>
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
+      <Async
+        state={roster}
+        as="h3"
+        empty={
+          <EmptyState as="h3" title={t.admin.guestsEmpty} description={t.admin.guestsEmptyHint} />
+        }
+      >
+        {(rows) => (
+          <ul className={styles['list']}>
+            {rows.map((guest) => {
+              const lastSeen = formatDateTime(guest.lastSeenAt, locale)
+              return (
+                <li key={guest.id} className={styles['row']}>
+                  <div className={styles['identity']}>
+                    <span className={styles['name']}>
+                      {guest.displayName === null ? (
+                        <em className={styles['anonymous']}>{t.moderation.byAnonymous}</em>
+                      ) : (
+                        guest.displayName
+                      )}
+                    </span>
+                    <span className={styles['meta']}>
+                      <span>{t.admin.photos(guest.photoCount)}</span>
+                      <span>{t.admin.lastSeen(lastSeen ?? t.admin.dateUnknown)}</span>
+                    </span>
+                  </div>
+                  {guest.revoked ? (
+                    <Badge tone="danger">{t.admin.guestRevokedBadge}</Badge>
+                  ) : canRevoke ? (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      loading={revoke.pending === guest.id}
+                      disabled={revoke.busy}
+                      onClick={() => setSelected(guest)}
+                    >
+                      {t.admin.revokeGuest}
+                    </Button>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </Async>
 
       <ConfirmDialog
         open={selected !== null}
