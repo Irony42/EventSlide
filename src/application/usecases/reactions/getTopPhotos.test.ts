@@ -194,6 +194,19 @@ describe('getTopPhotos', () => {
     expect(read).toEqual(['photo-1'])
   })
 
+  it('skips a reacted photo that is gone and still fills the panel from the ones behind it', async () => {
+    seedTwoPublished()
+    reactions.seed(
+      aReaction({ id: 'reaction-1', photoId: 'photo-9', guestId: 'guest-1' }),
+      aReaction({ id: 'reaction-2', photoId: 'photo-9', guestId: 'guest-2' }),
+      aReaction({ id: 'reaction-3', photoId: 'photo-1', guestId: 'guest-1' }),
+    )
+
+    const result = await rank(1)
+
+    expect(result.ok && result.value.map((entry) => entry.photo.id)).toEqual(['photo-1'])
+  })
+
   it('drops reactions whose photo is gone', async () => {
     reactions.seed(aReaction({ id: 'reaction-1', photoId: 'photo-9', guestId: 'guest-1' }))
 
