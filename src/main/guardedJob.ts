@@ -82,8 +82,6 @@ export const createGuardedJob = <Report>({
       })
       return { status: 'failed', error }
     } finally {
-      // Not `await afterwards?.()`: that awaits `undefined` when there is none, which costs
-      // every job a microtask the five originals did not spend.
       if (afterwards !== undefined) await afterwards()
       running = false
     }

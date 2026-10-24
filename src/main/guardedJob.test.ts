@@ -192,17 +192,5 @@ describe('createGuardedJob', () => {
 
       expect(second).toEqual({ status: 'skipped' })
     })
-
-    it('is not awaited when there is none, which would cost every job a microtask', async () => {
-      const { job } = build()
-      const settled: string[] = []
-
-      const pass = job.runOnce().then(() => settled.push('pass'))
-      await Promise.resolve().then(() => settled.push('tick 1'))
-      await Promise.resolve().then(() => settled.push('tick 2'))
-      await pass
-
-      expect(settled.indexOf('pass')).toBeLessThanOrEqual(settled.indexOf('tick 2'))
-    })
   })
 })

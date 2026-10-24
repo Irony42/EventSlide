@@ -128,6 +128,26 @@ describe('createMediaSweeper', () => {
     expect(sweep).toHaveBeenCalledTimes(1)
   })
 
+  it('sweeps first at its offset, so it does not walk the disk in the same minute as the retention sweep', async () => {
+    // The offset is the point of : both timers start at boot with the same
+    // interval, and without it the two long disk walks land together every time.
+    const sweep = vi.fn<SweepOrphanedMedia>(async () => nothingCollected)
+    const { sweeper } = build(sweep, { firstDelayMs: INTERVAL_MS / 4 })
+
+    sweeper.start()
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS / 4 - 1)
+    expect(sweep).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(sweep).toHaveBeenCalledTimes(1)
+
+    // And then on the interval, counted from that first sweep.
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS - 1)
+    expect(sweep).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(sweep).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps sweeping on the interval', async () => {
     const sweep = vi.fn<SweepOrphanedMedia>(async () => nothingCollected)
     const { sweeper } = build(sweep)
