@@ -103,7 +103,7 @@ export const it: UiText = {
     signedAs: (name: string) => `Le sue foto appariranno con il nome ${name}.`,
     signedAnonymous: 'Le sue foto appariranno senza nome.',
     mineEmpty: 'Non ha ancora inviato nessuna foto.',
-    mineFailed: 'Non è stato possibile mostrare i suoi invii. Riprovi.',
+    mineFailed: 'Non è stato possibile aggiornare l’elenco dei suoi invii. Riprovi.',
     mineAlt: 'La sua foto',
     deleteOwnNumbered: (position: number) => `Elimina la foto ${t.number(position)}`,
     notJoinedTitle: 'Entri nella galleria per inviare le sue foto',
