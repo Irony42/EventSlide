@@ -1,4 +1,3 @@
-import { canModerate } from '../../../domain/events/eventRole'
 import {
   buildQueue,
   defaultOrderFor,
@@ -15,6 +14,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * The moderation console's one read: the queue, plus the badge count.
@@ -152,8 +152,8 @@ export const makeGetModerationQueue =
       return err(DomainError.forbidden('auth.forbidden', { required: 'moderator' }))
     }
 
-    const role = await memberships.roleFor(eventId, actor.userId)
-    if (role === null || !canModerate(role)) return err(DomainError.notFound('event.notFound'))
+    const allowed = await requireEventRole(memberships, eventId, actor.userId, 'moderate')
+    if (!allowed.ok) return allowed
 
     // The repository narrows by status; the domain owns the order and the page. The
     // limit is deliberately *not* pushed down: the repository returns newest first, so

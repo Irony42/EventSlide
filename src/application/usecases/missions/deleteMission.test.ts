@@ -134,4 +134,20 @@ describe('deleteMission', () => {
     expect(!result.ok && result.error.code).toBe('event.immutable')
     expect(await missions.findById(WEDDING, asMissionId('m1'))).not.toBeNull()
   })
+
+  it('judges who is asking before what state the event is in: a stranger is told nothing of an archived one', async () => {
+    events.seed(
+      anEvent({
+        id: WEDDING,
+        ownerId: OWNER,
+        slug: 'camille-et-sacha',
+        joinCode: 'H7K2QM',
+        status: 'archived',
+      }),
+    )
+
+    const result = await ask({ actorId: STRANGER })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
 })

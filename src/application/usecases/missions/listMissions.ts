@@ -1,4 +1,3 @@
-import { canModerate } from '../../../domain/events/eventRole'
 import { isAchieved } from '../../../domain/missions/missionProgress'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -6,6 +5,7 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MissionRepository, MissionWithProgress } from '../../ports/missionRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * The host's own view of the list: every prompt, and how the room is answering it.
@@ -45,15 +45,8 @@ export const makeListMissions =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    // One condition rather than two, which is the shape `moderatePhoto` already has and
-    // for the same two reasons. A signed-in user with no part in this event is answered
-    // exactly as one asking about an event that does not exist, so this cannot be used to
-    // discover other people's weddings — and `canModerate` is *asked* rather than the
-    // qualifying roles being listed, so a role added later is refused by default. Both
-    // roles moderate today, so the second half is a guard against a future rather than a
-    // branch this event can take.
-    const role = await memberships.roleFor(eventId, actorId)
-    if (role === null || !canModerate(role)) return err(DomainError.notFound('event.notFound'))
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'moderate')
+    if (!allowed.ok) return allowed
 
     const listed = await missions.listWithProgress(eventId)
 

@@ -1,4 +1,3 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import { ShareLink } from '../../../domain/gallery/shareLink'
 import { ShareLinkLifetime } from '../../../domain/gallery/shareLinkLifetime'
 import { DomainError } from '../../../domain/shared/errors'
@@ -13,6 +12,7 @@ import type { IdGenerator } from '../../ports/idGenerator'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { ShareLinkRepository } from '../../ports/shareLinkRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * The host makes the link they will send after the event (docs/ROADMAP.md §4.1).
@@ -77,12 +77,8 @@ export const makeCreateShareLink =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    // `notFound` for a stranger, so this cannot confirm that the event exists.
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
 
     const lifetime = ShareLinkLifetime.create(lifetimeDays ?? undefined)
     if (!lifetime.ok) return lifetime
