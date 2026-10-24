@@ -84,7 +84,8 @@ export const requireEditable = (event: Event): Result<Event, DomainError> =>
  * A suspended client's members read and may not write (roadmap §10.7; G2-14): every use case that
  * changes an event on a host's behalf asks this, **after** the role (so a stranger is still told
  * what a stranger is told, and only somebody in scope learns that the client is frozen) and
- * **before** anything else about the request.
+ * **before** anything else about the request. `deletePhoto` has no role of its own: its host's
+ * role is the route's `requireRole`, which has already answered a stranger.
  *
  * It used to be a test on the HTTP verb in `requireRole` (a `GET` passed, anything else was
  * refused), which made it a rule no use case knew: a future read that has to be a `POST` would be

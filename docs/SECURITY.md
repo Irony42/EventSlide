@@ -3308,7 +3308,9 @@ unknown event answers**: the join, the guest surfaces, the wall and its feed, a 
 gallery link, a photograph's malformed id included (the ids are judged only after the answer is chosen), and an invitation to preview or accept, so a suspended client cannot be told from one that never existed by anyone who is not a member
 (`suspension.container.test.ts` compares each with an unknown slug over the real composition root). **Members keep
 their reads and lose their writes** with `403 client.suspended`, because the client is entitled to know why: the
-refusal is in `requireRole`, so a route added later is refused by default, and creating an event and approving an
+refusal is in the use cases (`requireWritable`, asked after the role by every host-side write), no longer a test on
+the verb in `requireRole`; a write route added later is held by a completeness case that names every non-GET route under
+an event as a host write or a guest write (`suspension.container.test.ts`), and creating an event and approving an
 operator's invitation or reset are refused in their use cases because no event route can see them. **A connection
 opened before the suspension does not outlive it**: the live feed re-reads the event at every heartbeat (plan item
 A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once. The moderation feed is the exception that follows from the second half: its members keep their reads, so only an event that is gone ends it.

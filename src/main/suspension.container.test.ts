@@ -7,6 +7,7 @@ import { loadConfig } from '../infrastructure/config/env'
 import { asUserId } from '../domain/shared/ids'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 import { mountedRoutes } from '../interface/http/testing/routeTable'
+import { buildServerHarness } from '../interface/http/testing/serverHarness'
 import { createContainer, type Container } from './container'
 
 /**
@@ -405,8 +406,10 @@ describe('a suspended client, through the real composition root', () => {
   })
 
   it('names every non-GET route under an event: a host write above, or a guest write', async () => {
-    const s = await boot()
-    const mounted = mountedRoutes(s.app)
+    // The routers, not the product: `buildServerHarness` mounts the same ones and no web client, whose
+    // `app.get(['/g', '/g/*splat'])` has an array path the walk refuses, and which exists only once
+    // `dist/client` has been built.
+    const mounted = mountedRoutes(buildServerHarness().app)
       .filter((route) => !['get', 'head', 'options'].includes(route.method.toLowerCase()))
       .map((route) => {
         const full = route.path.startsWith('/api')

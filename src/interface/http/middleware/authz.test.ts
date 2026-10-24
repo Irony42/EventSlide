@@ -90,7 +90,7 @@ const buildSubject = (): Harness =>
         res.json({ slug: req.context.event?.slug.value, role: req.context.role })
       })
 
-      // Every verb on one path: what a suspended client's member may still do is decided by the verb.
+      // Every verb on one path: what the middleware lets a member of a suspended client through to.
       app.all('/events/:eventSlug/anything', requireRole('moderator', deps), (_req, res) => {
         res.status(204).end()
       })

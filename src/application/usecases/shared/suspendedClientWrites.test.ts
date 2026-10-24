@@ -245,6 +245,47 @@ const CASES: readonly Case[] = [
   },
 ]
 
+/** The use cases that parse something of their own: each of these inputs would be refused by it on a live event. */
+const INVALID_INPUTS: readonly Pick<Case, 'name' | 'ask'>[] = [
+  {
+    name: 'renameEvent',
+    ask: ({ events, memberships }, actorId) =>
+      makeRenameEvent({ events, memberships, bus: gone() })({ eventId: EVENT, actorId, name: '' }),
+  },
+  {
+    name: 'registerModerator',
+    ask: ({ events, memberships }, actorId) =>
+      makeRegisterModerator({ events, memberships, users: gone(), issueInvitation: gone() })({
+        eventId: EVENT,
+        actorId,
+        email: 'lea',
+        locale: 'fr',
+      }),
+  },
+  {
+    name: 'createShareLink',
+    ask: ({ events, memberships }, actorId) =>
+      makeCreateShareLink({
+        events,
+        memberships,
+        shareLinks: gone(),
+        hasher: gone(),
+        signer: gone(),
+        ids: gone(),
+        clock: gone(),
+      })({ eventId: EVENT, actorId, lifetimeDays: -1 }),
+  },
+  {
+    name: 'updateEventSettings',
+    ask: ({ events, memberships }, actorId) =>
+      makeUpdateEventSettings({ events, memberships, clients: gone(), bus: gone() })({
+        eventId: EVENT,
+        actorId,
+        patch: { retentionDays: -5 },
+      }),
+  },
+]
+
 describe('a suspended client’s event refuses its members’ writes', () => {
   let events: FakeEventRepository
   let memberships: FakeMembershipRepository
@@ -293,6 +334,34 @@ describe('a suspended client’s event refuses its members’ writes', () => {
       expect(refusalOf(outcome)).toEqual(['notFound', 'event.notFound'])
     },
   )
+
+  // A frozen event that is also archived is still refused as frozen: the freeze is asked before
+  // the state rules (`event.immutable`, `event.notModeratable`, the lifecycle) that used to be
+  // reached only after the verb test had answered.
+  it.each(CASES)(
+    '$name: a frozen archived event is client.suspended, not its own state',
+    async (c) => {
+      events.seed(
+        Event.restore({
+          ...anEvent({ id: EVENT, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }).toProps(),
+          status: 'archived',
+          clientSuspendedAt: AT,
+        }),
+      )
+      const actor = c.member === 'owner' ? OWNER : MODERATOR
+
+      const outcome = await c.ask({ events, memberships }, actor)
+
+      expect(refusalOf(outcome)).toEqual(['forbidden', 'client.suspended'])
+    },
+  )
+
+  // ...and before the use case looks at what it was asked to do.
+  it.each(INVALID_INPUTS)('$name: a frozen event refuses before it judges the input', async (c) => {
+    const outcome = await c.ask({ events, memberships }, OWNER)
+
+    expect(refusalOf(outcome)).toEqual(['forbidden', 'client.suspended'])
+  })
 
   it.each(CASES.filter((c) => c.member === 'owner'))(
     '$name: a moderator is told auth.forbidden before anything about the client',
