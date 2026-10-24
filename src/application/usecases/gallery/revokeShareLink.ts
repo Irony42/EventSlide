@@ -1,4 +1,3 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -6,6 +5,7 @@ import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { ShareLinkRepository } from '../../ports/shareLinkRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * The host takes the link back. **Immediately**: every request a gallery makes — the page,
@@ -36,11 +36,8 @@ export const makeRevokeShareLink =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
 
     await shareLinks.revokeCurrent(eventId, clock.now())
     return ok(undefined)
