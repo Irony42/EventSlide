@@ -199,6 +199,14 @@ Read these before you upgrade, and back up with the version you run now.
   production with a secure cookie and `TRUST_PROXY_HOPS=0`, and `MAIL_FROM` set without
   `SMTP_URL`.
 
+### Deprecated
+
+- **`GUEST_SELF_DELETE_GRACE_SECONDS`** is read by nothing and will be removed in 4.0.0. How
+  long a guest may take a photo back is a setting of each event (`guestSelfDeleteGraceSeconds`,
+  chosen by its host), and this variable never reached it: a box that set it saw no change.
+  It is still validated, so a box that sets it boots as before, and 3.0.0 logs a warning at boot
+  that it does nothing. Remove it from your `.env`; `.env.example` no longer sets it.
+
 ### Added
 
 - **The pages for the account flows** (G2-10). `/invite/:token` opens a mailed or copied

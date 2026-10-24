@@ -352,3 +352,43 @@ describe('the places that must point at docs/UPGRADING.md', () => {
     expect(read(file)).toContain('(docs/UPGRADING.md)')
   })
 })
+
+describe('a setting that was documented and is read by nothing (docs/UPGRADING.md, the deprecation policy)', () => {
+  // A documented setting is removed in a major, and only after a deprecation: marked
+  // `### Deprecated` in the CHANGELOG and, where the code can, a warning logged when it is
+  // used. `GUEST_SELF_DELETE_GRACE_SECONDS` was validated and mapped into the config and read by
+  // nothing (the grace is a setting of each event), so it is kept parsing and warned about
+  // instead of being deleted outright. Nothing else says that the three agree.
+  const NAME = 'GUEST_SELF_DELETE_GRACE_SECONDS'
+  const deprecated = entry.slice(entry.indexOf('### Deprecated'))
+
+  it('is listed under Deprecated in the 3.0.0 entry, before the next heading', () => {
+    expect(entry).toContain('### Deprecated')
+    expect(deprecated.slice(0, deprecated.indexOf('\n### Added'))).toContain(`\`${NAME}\``)
+  })
+
+  it('is named on the upgrade page, as a setting to remove', () => {
+    expect(section).toContain(NAME)
+  })
+
+  it('is warned about at boot by the code that still validates it', () => {
+    const env = source('src', 'infrastructure', 'config', 'env.ts')
+
+    expect(env).toContain(`${NAME}: positiveInt(`)
+    expect(env).toContain(`${NAME} is deprecated and does nothing`)
+  })
+
+  it('names the same release for its removal in the warning and in the entry', () => {
+    // Four places carry the version; an operator who reads one must not be told another.
+    const env = source('src', 'infrastructure', 'config', 'env.ts')
+
+    expect(env).toContain('it will be removed in 4.0.0')
+    expect(flat(deprecated)).toContain('removed in 4.0.0')
+    expect(read('.env.example')).toContain('Removed in 4.0.0')
+  })
+
+  it('is no longer an active line of .env.example, which a host copies', () => {
+    // A copied line would set it, and the boot would warn about a setting the operator never chose.
+    expect(read('.env.example')).not.toMatch(new RegExp(`^${NAME}=`, 'm'))
+  })
+})
