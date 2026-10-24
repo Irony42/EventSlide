@@ -221,6 +221,18 @@ export const de: UiText = {
       'Andernfalls wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
     noticeRemovalAskHost: 'Wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
     clipDoneImmediate: 'Video gesendet. Es erscheint jetzt auf dem Bildschirm.',
+
+    /* ---- Added by guest reactions. ---- */
+
+    reactionKinds: {
+      love: 'Liebe',
+      laugh: 'Haha',
+      wow: 'Wow',
+      cheers: 'Prost',
+      clap: 'Applaus',
+    },
+    reactionsGroup: (position: number) => `Auf Foto ${t.number(position)} reagieren`,
+    reactionsFailed: 'Die Reaktionen konnten nicht geladen werden.',
   },
 
   ui: {
