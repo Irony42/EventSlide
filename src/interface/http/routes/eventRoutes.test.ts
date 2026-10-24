@@ -15,7 +15,10 @@ import {
 import { makeGetEventBySlug } from '../../../application/usecases/events/getEventBySlug'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
+import { makeListModerators } from '../../../application/usecases/events/listModerators'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
+import { makeRenameEvent } from '../../../application/usecases/events/renameEvent'
+import { makeRevokeModerator } from '../../../application/usecases/events/revokeModerator'
 import { makeRotateJoinCode } from '../../../application/usecases/events/rotateJoinCode'
 import { makeScheduleEvent } from '../../../application/usecases/events/scheduleEvent'
 import { makeUpdateEventSettings } from '../../../application/usecases/events/updateEventSettings'
@@ -326,6 +329,9 @@ const buildWorld = ({
           clock: deps.clock,
         }),
         purgeEvent: makePurgeEvent({ events, memberships, media }),
+        renameEvent: makeRenameEvent({ events, memberships, bus: deps.bus }),
+        listModerators: makeListModerators({ memberships }),
+        revokeModerator: makeRevokeModerator({ memberships }),
 
         joinEvent: absent('joinEvent'),
         renameGuest: absent('renameGuest'),

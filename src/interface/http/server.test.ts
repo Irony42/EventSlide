@@ -8,6 +8,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AT, aGuest, anEvent, aUser } from '../../application/testing/builders'
 import { CapturingLogger } from '../../application/testing/capturingLogger'
 import { DomainError } from '../../domain/shared/errors'
+import {
+  makeListModerators,
+  type ListModerators,
+} from '../../application/usecases/events/listModerators'
 import { asEventId, asUserId } from '../../domain/shared/ids'
 import { err, ok } from '../../domain/shared/result'
 import { GUEST_COOKIE } from './middleware/authz'
@@ -1139,12 +1143,19 @@ describe('buildServer: Cache-Control defaults to no-store under /api (HTTP-M-15)
   })
 
   it('marks the host reads that set no header of their own: the event list and the moderators with their addresses', async () => {
+    // The moderators come from the real use case, over the harness's own memberships.
+    const listing: { current?: ListModerators } = {}
     const subject = buildServerHarness({
       usecases: {
         authenticateUser: signInByAddress({ 'host@example.test': OWNER }),
         listEventsForHost: async () => ok([]),
+        listModerators: async (input) => {
+          if (listing.current === undefined) throw new Error('listModerators was not built yet')
+          return listing.current(input)
+        },
       },
     })
+    listing.current = makeListModerators({ memberships: subject.memberships })
     subject.users.seed(aUser({ id: OWNER, email: 'host@example.test' }))
     subject.events.seed(anEvent({ id: 'evt-1', slug: 'mariage', ownerId: OWNER, status: 'live' }))
     subject.memberships.seed({
