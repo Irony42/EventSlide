@@ -48,32 +48,48 @@ describe('the ports catalogue of docs/ARCHITECTURE.md §4', () => {
   )
   const rows = section
     .split('\n')
-    .filter((line) => /^\| `[A-Z][A-Za-z]+`\s+\|/.test(line))
-    .map((line) => /^\| `([A-Za-z]+)`/.exec(line)?.[1] ?? '')
+    .filter((line) => /^\| `[A-Z][A-Za-z0-9]+`\s+\|/.test(line))
+    .map((line) => /^\| `([A-Za-z0-9]+)`/.exec(line)?.[1] ?? '')
 
-  const portFiles = readdirSync(join(ROOT, 'src', 'application', 'ports')).filter(
-    (name) => name.endsWith('.ts') && !name.endsWith('.test.ts'),
-  )
+  const portFiles = walk(join(ROOT, 'src', 'application', 'ports'))
+    .filter((path) => /\.m?ts$/.test(path) && !/\.test\.m?ts$/.test(path))
+    .map((path) => relative(join(ROOT, 'src', 'application', 'ports'), path).replace(/\\/g, '/'))
 
-  const interfacesIn = (file: string): string[] =>
-    [...read('src', 'application', 'ports', file).matchAll(/^export interface ([A-Za-z]+)/gm)].map(
-      (match) => match[1] ?? '',
-    )
+  /**
+   * The ports a file declares: its exported interfaces that have a method. A value a port
+   * returns (a page, a probe, a record) has only fields, so it is not a port and needs no row;
+   * an interface with a method is, whatever it is called and however many share a file.
+   */
+  /**
+   * An interface with a method that has no adapter and needs no row: a seam between two fakes.
+   * `FakePhotoRepository` is given one so that an event's byte total can see the clip queue.
+   */
+  const NOT_PORTS = new Set(['StagedByteSource'])
+
+  const portsIn = (file: string): string[] => {
+    const text = read('src', 'application', 'ports', file)
+    return [...text.matchAll(/^export interface ([A-Za-z0-9]+)[^{]*\{\n([\s\S]*?)\n\}/gm)]
+      .filter((match) => !NOT_PORTS.has(match[1] ?? ''))
+      .filter((match) => /^ {2}(?:readonly )?[A-Za-z0-9]+(?:<[^>]*>)?\(/m.test(match[2] ?? ''))
+      .map((match) => match[1] ?? '')
+  }
 
   it('reads its rows, or this guard checks nothing', () => {
-    expect(rows.length).toBeGreaterThan(20)
+    expect(rows.length).toBeGreaterThan(30)
   })
 
-  it.each(portFiles)('has a row for the port declared in %s', (file) => {
-    const named = interfacesIn(file).filter((name) => rows.includes(name))
-
-    expect(named, `no interface of ${file} is a row of the table`).not.toEqual([])
+  it('finds a port in every port file, so no file escapes the comparison below', () => {
+    expect(portFiles.filter((file) => portsIn(file).length === 0)).toEqual([])
   })
 
-  it('names, in every row, an interface that a port file exports', () => {
-    const exported = new Set(portFiles.flatMap(interfacesIn))
+  it.each(portFiles)('has a row for every port declared in %s', (file) => {
+    expect(portsIn(file).filter((name) => !rows.includes(name))).toEqual([])
+  })
 
-    expect(rows.filter((name) => !exported.has(name))).toEqual([])
+  it('names, in every row, a port that a port file declares', () => {
+    const declared = new Set(portFiles.flatMap(portsIn))
+
+    expect(rows.filter((name) => !declared.has(name))).toEqual([])
   })
 
   it('lists each port once', () => {
@@ -89,39 +105,41 @@ describe('the file paths docs/ARCHITECTURE.md and docs/TESTING.md quote', () => 
    * (`db/sqliteEventRepository.ts`), so a path exists when some file of the repository ends with
    * it. A placeholder, a glob or an extension alone is not a path.
    */
-  const quotedPaths = (text: string): string[] => [
-    ...new Set(
-      [...text.matchAll(/`([A-Za-z0-9_@./-]+\.(?:ts|tsx|mts|sh|css|yaml|yml|json|md))`/g)]
-        .map((match) => match[1] ?? '')
-        .filter((path) => !path.startsWith('.') && !path.startsWith('/') && path.includes('.'))
-        // A call (`express.json`) is not a file: it has no folder and no source extension.
-        .filter(
-          (path) => !/^[a-z]+.json$/.test(path) || path.includes('/') || path === 'package.json',
-        ),
-    ),
-  ]
+  const SOURCE_EXTENSIONS = 'ts|tsx|mts|cts|js|mjs|cjs|sh|css|yaml|yml|json|md|sql'
 
   /**
-   * Files of 1.0, named where a document says what the rewrite replaced. They are gone on
-   * purpose, and a document that says so is not drifting.
+   * Files that are gone on purpose and named anyway: the ones of 1.0, where a document says what
+   * the rewrite replaced, and the old name of the lint config, where it tells the story of its
+   * rename. Each is listed in full, so a typo of a live path is not excused by it.
    */
-  const GONE_WITH_1_0 = new Set([
+  const GONE = new Set([
     'src/index.ts',
     'src/database.ts',
     'src/routes/pictures.ts',
     'routes/pictures.ts',
     'public/app.css',
+    'pictureStorage.ts',
     'frontend/pages/QRCodePage.tsx',
     'frontend/pages/UploadPage.tsx',
     'frontend/hooks/useSessionIndex.ts',
-    'pictureStorage.ts',
+    'eslint.config.js',
+    // A call, not a file.
+    'express.json',
   ])
+
+  /** The paths a text quotes in backticks. An extension alone (`.spec.ts`) is not a path. */
+  const quotedPaths = (text: string): string[] => [
+    ...new Set(
+      [...text.matchAll(new RegExp(`\`([A-Za-z0-9_@./-]+\\.(?:${SOURCE_EXTENSIONS}))\``, 'g'))]
+        .map((match) => match[1] ?? '')
+        .filter((path) => !GONE.has(path) && !path.startsWith('/'))
+        .filter((path) => !(path.startsWith('.') && !path.includes('/'))),
+    ),
+  ]
 
   const missing = (text: string): string[] =>
     quotedPaths(text).filter(
-      (path) =>
-        !GONE_WITH_1_0.has(path) &&
-        !files.some((file) => file === path || file.endsWith(`/${path}`)),
+      (path) => !files.some((file) => file === path || file.endsWith(`/${path}`)),
     )
 
   it('all exist in docs/ARCHITECTURE.md', () => {
@@ -135,6 +153,9 @@ describe('the file paths docs/ARCHITECTURE.md and docs/TESTING.md quote', () => 
   it('finds a path that is not there, which is what makes the two checks above mean something', () => {
     expect(missing('see `crypto/cryptoIdGenerator.ts` and `src/main/container.ts`')).toEqual([
       'crypto/cryptoIdGenerator.ts',
+    ])
+    expect(missing('the 1.0 `src/database.ts` and `.claude/skills/nothing/SKILL.md`')).toEqual([
+      '.claude/skills/nothing/SKILL.md',
     ])
   })
 
