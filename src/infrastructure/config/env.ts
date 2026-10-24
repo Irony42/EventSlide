@@ -1827,8 +1827,9 @@ export interface AppConfig {
 
   /**
    * Problems worth telling an operator about that are not worth refusing the boot
-   * over — see {@link computeWarnings}. Empty outside production, and usually empty
-   * inside it too; `src/main/index.ts` logs each one once, after the container
+   * over — see {@link computeWarnings}. The production-only ones are absent outside
+   * production (a deprecated setting is warned about everywhere), and the list is usually
+   * empty; `src/main/index.ts` logs each one once, after the container
    * exists. These start as warnings and stay warnings in a minor release: turning one
    * into a boot refusal is a breaking change for an existing self-hosted install, and
    * belongs in a major version with its own CHANGELOG entry, not a silent tightening.
@@ -1913,7 +1914,8 @@ interface WarningInputs {
 
 /**
  * Boot-time problems that are real but not worth a refusal — see `AppConfig.warnings`
- * and R-16 (roadmap: "self-hosters go silent on a changed default"). Both cases here are
+ * and R-16 (roadmap: "self-hosters go silent on a changed default"). Apart from a deprecated
+ * setting, which is wrong in every environment, the cases here are
  * a production boot that looks configured and is not, and both were a boot refusal in an
  * earlier draft; **`loadConfig` never throws for either**, because the configurations
  * they describe already run in the wild and a new refusal in a minor release would be

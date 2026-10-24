@@ -378,6 +378,15 @@ describe('a setting that was documented and is read by nothing (docs/UPGRADING.m
     expect(env).toContain(`${NAME} is deprecated and does nothing`)
   })
 
+  it('names the same release for its removal in the warning and in the entry', () => {
+    // Four places carry the version; an operator who reads one must not be told another.
+    const env = source('src', 'infrastructure', 'config', 'env.ts')
+
+    expect(env).toContain('it will be removed in 4.0.0')
+    expect(flat(deprecated)).toContain('removed in 4.0.0')
+    expect(read('.env.example')).toContain('Removed in 4.0.0')
+  })
+
   it('is no longer an active line of .env.example, which a host copies', () => {
     // A copied line would set it, and the boot would warn about a setting the operator never chose.
     expect(read('.env.example')).not.toMatch(new RegExp(`^${NAME}=`, 'm'))

@@ -62,7 +62,9 @@ A change that makes an existing installation behave differently arrives in two s
 1. **A minor warns.** The server logs a warning at boot, and the CHANGELOG lists it under
    "Behaviour changes to check before upgrading". 3.0.0 introduced three such warnings, for a
    production box with no `PUBLIC_URL`, for one with a secure cookie and `TRUST_PROXY_HOPS=0`,
-   and for `MAIL_FROM` set without `SMTP_URL`: they are warnings, and none stops the boot.
+   and for `MAIL_FROM` set without `SMTP_URL`: they are warnings, and none stops the boot. A
+   fourth says, in any environment, that `GUEST_SELF_DELETE_GRACE_SECONDS` does nothing: it is
+   deprecated, and 4.0.0 removes it.
 2. **The next major changes it, at the earliest.** A refusal to start is only ever added in a
    major, with its own `BREAKING` entry.
 
