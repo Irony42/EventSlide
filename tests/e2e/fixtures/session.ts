@@ -1,12 +1,10 @@
 /**
  * A cookie jar and a CSRF token over `fetch`: how the fixtures talk to the API, as a browser does.
  *
- * One client for everything that is not a page: seeding an event, signing the owner in, and the
- * specs about ceilings and operators whose every control is a refusal the server answers.
- * It used to be two (a seeding one in `startTestApp.ts` that froze the CSRF token at its first
- * value and kept duplicate cookie names in an array, and this one, which reads the cookie the
- * server last set), so a login that rotates the pair was handled by the one and left to luck in
- * the other.
+ * The client for what is not a page: seeding an event, signing the owner in, and the specs about
+ * ceilings and operators whose every control is a refusal the server answers. Two specs still
+ * carry a private one for their own reasons (`backup-restore.spec.ts` needs the raw `Response`;
+ * `operator-second-factor.spec.ts` keeps one per simulated browser).
  */
 
 /** A JSON object body, narrowed by whoever reads it: this suite never trusts a shape. */
@@ -41,6 +39,12 @@ export interface Session {
   ): Promise<Reply>
 }
 
+/**
+ * Opens a session on the server at `baseUrl`: any GET issues the readable `es_csrf` cookie, and
+ * every write echoes it in `x-csrf-token`, as a browser does. The token is read from the jar at
+ * each send, because the server rotates the pair on login and a header frozen at the first value
+ * would then disagree with the cookie it is compared to.
+ */
 export const sessionOn = async (baseUrl: string): Promise<Session> => {
   const jar = new Map<string, string>()
 
