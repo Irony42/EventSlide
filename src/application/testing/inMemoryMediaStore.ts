@@ -27,7 +27,8 @@ import type { EventId } from '../../domain/shared/ids'
  * The scripted behaviours are the conditions a test cannot otherwise reach, each of which
  * a use case or a route once got wrong or must be shown to survive: `failWritesAfter`, a disk
  * filling up part-way through a request, and unwinding on it was the behaviour 1.0 got wrong;
- * `failDeletes`, an unlink the operating system refuses; `vanishAfterStat`, the retention
+ * `failDeletes`, an unlink the operating system refuses; `failEventPurges`, a media root that
+ * went read-only under a retention sweep; `vanishAfterStat`, the retention
  * purge taking a file between the size check and the open; and `opened`, a count of the byte
  * streams asked for, because how many is the whole of a descriptor leak. `forbidEnumeration`
  * is the other way round: a tripwire, for a test of a surface that must never walk the store.
@@ -66,6 +67,7 @@ export class InMemoryMediaStore implements MediaStore {
   private deletesFail = false
   private readonly unreadable = new Set<string>()
   private enumerationRefusedFor: string | null = null
+  private readonly purgesFail = new Set<EventId>()
 
   /**
    * How many byte streams have been asked for, found or not.
@@ -95,6 +97,12 @@ export class InMemoryMediaStore implements MediaStore {
    */
   vanishAfterStat(eventId: EventId, hash: ContentHash): this {
     for (const variant of ALL_MEDIA_VARIANTS) this.unreadable.add(this.key(eventId, hash, variant))
+    return this
+  }
+
+  /** Events whose purge blows up: a read-only media root, a disk that went away. */
+  failEventPurges(...eventIds: readonly EventId[]): this {
+    for (const eventId of eventIds) this.purgesFail.add(eventId)
     return this
   }
 
@@ -207,6 +215,7 @@ export class InMemoryMediaStore implements MediaStore {
   }
 
   async deleteEvent(eventId: EventId): Promise<void> {
+    if (this.purgesFail.has(eventId)) throw new Error('media root is read-only')
     this.events.delete(eventId)
     for (const key of [...this.objects.keys()]) {
       if (key.startsWith(`${eventId}|`)) {

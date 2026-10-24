@@ -1,70 +1,31 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { EventId } from '../../../domain/shared/ids'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
-import type { MediaMetadata, MediaStore, StoredObject } from '../../ports/mediaStore'
-import { AT, anEvent } from '../../testing/builders'
+import { AT, anEvent, aPhoto } from '../../testing/builders'
+import { CallLog } from '../../testing/callLog'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { makePurgeEvent, type PurgeEvent } from './purgeEvent'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
 const OWNER = asUserId('user-host')
 const MODERATOR = asUserId('user-mod')
 const STRANGER = asUserId('user-stranger')
-
-const notPartOfAPurge = (method: string): never => {
-  throw new Error(`MediaStore.${method} is not part of purging an event`)
-}
-
-interface RecordingMediaStoreOptions {
-  /** Events whose purge blows up: a read-only media root, a disk that went away. */
-  readonly failing?: readonly EventId[]
-  /** Runs before the bytes go, so a test can observe the row that must still be there. */
-  readonly observe?: () => Promise<void>
-}
-
-/**
- * A media store that records the event purges asked of it.
- *
- * Only `deleteEvent` belongs to a purge; the rest of the port throws, so a use case
- * that quietly started reading bytes here would fail loudly instead of passing against
- * a permissive stub.
- */
-class RecordingMediaStore implements MediaStore {
-  readonly purged: EventId[] = []
-
-  constructor(private readonly options: RecordingMediaStoreOptions = {}) {}
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    await this.options.observe?.()
-    if (this.options.failing?.includes(eventId) === true) {
-      throw new Error('media root is read-only')
-    }
-    this.purged.push(eventId)
-  }
-
-  put = async (): Promise<void> => notPartOfAPurge('put')
-  exists = async (): Promise<boolean> => notPartOfAPurge('exists')
-  stat = async (): Promise<MediaMetadata | null> => notPartOfAPurge('stat')
-  openRead = async (): Promise<AsyncIterable<Uint8Array> | null> => notPartOfAPurge('openRead')
-  read = async (): Promise<Uint8Array | null> => notPartOfAPurge('read')
-  delete = async (): Promise<void> => notPartOfAPurge('delete')
-  usedBytes = async (): Promise<number> => notPartOfAPurge('usedBytes')
-  listEvents = async (): Promise<readonly EventId[]> => notPartOfAPurge('listEvents')
-  list = async (): Promise<readonly StoredObject[]> => notPartOfAPurge('list')
-}
+const HASH = aPhoto().contentHash
 
 describe('purgeEvent', () => {
   let events: FakeEventRepository
   let memberships: FakeMembershipRepository
-  let media: RecordingMediaStore
+  let media: InMemoryMediaStore
   let purgeEvent: PurgeEvent
 
   beforeEach(async () => {
     events = new FakeEventRepository()
     memberships = new FakeMembershipRepository()
-    media = new RecordingMediaStore()
+    media = new InMemoryMediaStore()
+    await media.put(WEDDING, HASH, 'original', Uint8Array.of(1))
+    await media.put(GALA, HASH, 'original', Uint8Array.of(1))
     purgeEvent = makePurgeEvent({ events, memberships, media })
 
     events.seed(
@@ -84,7 +45,7 @@ describe('purgeEvent', () => {
   it('deletes the media of the event it was asked for', async () => {
     await purgeEvent({ eventId: WEDDING, actorId: OWNER })
 
-    expect(media.purged).toEqual([WEDDING])
+    expect(await media.listEvents()).toEqual([GALA])
   })
 
   it('deletes the row, whose cascade takes the photos, guests and reactions with it', async () => {
@@ -99,25 +60,24 @@ describe('purgeEvent', () => {
    * on the disk with nothing left to find them by.
    */
   it('deletes the media while the row that names it is still there', async () => {
-    const rowPresentWhenMediaWent: boolean[] = []
-    const observing = new RecordingMediaStore({
-      observe: async () => {
-        rowPresentWhenMediaWent.push((await events.findById(WEDDING)) !== null)
-      },
-    })
+    const calls = new CallLog()
 
-    await makePurgeEvent({ events, memberships, media: observing })({
-      eventId: WEDDING,
-      actorId: OWNER,
-    })
+    await makePurgeEvent({
+      events: calls.watch('events', events),
+      memberships,
+      media: calls.watch('media', media),
+    })({ eventId: WEDDING, actorId: OWNER })
 
-    expect(rowPresentWhenMediaWent).toEqual([true])
+    expect(calls.sequenceOf('media.deleteEvent', 'events.delete')).toEqual([
+      'media.deleteEvent',
+      'events.delete',
+    ])
   })
 
   // ---------------------------------------------------------- a disk that fails --
 
   it('reports a media failure instead of throwing, so the job above can carry on', async () => {
-    const failing = new RecordingMediaStore({ failing: [WEDDING] })
+    const failing = new InMemoryMediaStore().failEventPurges(WEDDING)
 
     const result = await makePurgeEvent({ events, memberships, media: failing })({
       eventId: WEDDING,
@@ -128,7 +88,7 @@ describe('purgeEvent', () => {
   })
 
   it('leaves the row intact when the media could not be deleted, so the purge can be rerun', async () => {
-    const failing = new RecordingMediaStore({ failing: [WEDDING] })
+    const failing = new InMemoryMediaStore().failEventPurges(WEDDING)
 
     await makePurgeEvent({ events, memberships, media: failing })({
       eventId: WEDDING,
@@ -150,7 +110,7 @@ describe('purgeEvent', () => {
   it('deletes no media when a moderator tries', async () => {
     await purgeEvent({ eventId: WEDDING, actorId: MODERATOR })
 
-    expect(media.purged).toEqual([])
+    expect(await media.listEvents()).toEqual([WEDDING, GALA])
   })
 
   it('keeps the row when a moderator tries', async () => {
@@ -178,7 +138,7 @@ describe('purgeEvent', () => {
   it('touches neither the row nor the media of another event', async () => {
     await purgeEvent({ eventId: GALA, actorId: OWNER })
 
-    expect(media.purged).toEqual([])
+    expect(await media.listEvents()).toEqual([WEDDING, GALA])
   })
 
   it('leaves the other event standing', async () => {
@@ -196,6 +156,6 @@ describe('purgeEvent', () => {
   it('asks the media store for nothing when the event does not exist', async () => {
     await purgeEvent({ eventId: asEventId('evt-nothing'), actorId: OWNER })
 
-    expect(media.purged).toEqual([])
+    expect(await media.listEvents()).toEqual([WEDDING, GALA])
   })
 })

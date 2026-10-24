@@ -8,6 +8,7 @@ import { InMemoryMediaStore } from './inMemoryMediaStore'
 mediaStoreContract('in-memory', async () => ({ store: new InMemoryMediaStore() }))
 
 const WEDDING = asEventId('evt-wedding')
+const GALA = asEventId('evt-gala')
 
 const hashOf = (seed: string): ContentHash => {
   const result = ContentHash.create(seed.padEnd(64, '0').slice(0, 64))
@@ -105,5 +106,15 @@ describe('InMemoryMediaStore', () => {
 
     await expect(media.listEvents()).rejects.toThrow('listEvents is not part of photo ingest')
     await expect(media.list(WEDDING)).rejects.toThrow('list is not part of photo ingest')
+  })
+  it('can refuse to purge named events, and keeps their bytes when it does', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+    await media.put(GALA, hashOf('bb'), 'display', Uint8Array.of(1))
+    media.failEventPurges(GALA)
+
+    await media.deleteEvent(WEDDING)
+    await expect(media.deleteEvent(GALA)).rejects.toThrow('media root is read-only')
+
+    expect(await media.listEvents()).toEqual([GALA])
   })
 })
