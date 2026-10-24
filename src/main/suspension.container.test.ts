@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { loadConfig } from '../infrastructure/config/env'
 import { asUserId } from '../domain/shared/ids'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
+import { mountedRoutes } from '../interface/http/testing/routeTable'
+import { buildServerHarness } from '../interface/http/testing/serverHarness'
 import { createContainer, type Container } from './container'
 
 /**
@@ -81,6 +83,8 @@ const aBrowser = async (container: Container) => {
       note(await agent.post(path).set(CSRF_HEADER, csrf).send(body)),
     patch: async (path: string, body: object = {}) =>
       note(await agent.patch(path).set(CSRF_HEADER, csrf).send(body)),
+    delete: async (path: string, body: object = {}) =>
+      note(await agent.delete(path).set(CSRF_HEADER, csrf).send(body)),
   }
 }
 
@@ -313,20 +317,114 @@ describe('a suspended client, through the real composition root', () => {
     expect([wall.status, gallery.status, mine.status]).toEqual([200, 200, 200])
   })
 
-  it('lets its members read and refuses their writes with 403 client.suspended, before the body is read', async () => {
+  it('lets its members read, whatever they read', async () => {
     const s = await scene()
     await suspend(s)
 
     const read = await s.operator.get(`/api/events/${SLUG}`)
     const photos = await s.operator.get(`/api/events/${SLUG}/photos`)
-    const rename = await s.operator.patch(`/api/events/${SLUG}`, { name: 'Autre nom' })
-    const settings = await s.operator.patch(`/api/events/${SLUG}/settings`, { not: 'valid' })
-    const status = await s.operator.post(`/api/events/${SLUG}/status`, { status: 'closed' })
 
     expect([read.status, photos.status]).toEqual([200, 200])
-    for (const refused of [rename, settings, status]) {
-      expect([refused.status, refused.body.error.code]).toEqual([403, 'client.suspended'])
+  })
+
+  /**
+   * **Every write a host can make on a frozen event is refused, and the sweep reads the list off
+   * the router.** The rule is the use cases' (`requireWritable`), no longer a test on the verb in
+   * `requireRole`, so what makes it complete is that each of these routes reaches a use case
+   * that asks it. A write route mounted tomorrow is in neither list below, and the completeness
+   * case fails until somebody decides which it is. A body that is not valid is a 400 from the
+   * handler's own parse, ahead of the use case, so each body here is one the route accepts.
+   */
+  const ANY = '11111111-1111-4111-8111-111111111111'
+  const SOME_MISSION = { prompt: 'Le gâteau', scope: 'event' }
+
+  const HOST_WRITES: readonly {
+    readonly method: 'patch' | 'post' | 'delete'
+    readonly path: string
+    readonly body: object
+  }[] = [
+    { method: 'patch', path: '/api/events/:eventSlug', body: { name: 'Autre nom' } },
+    { method: 'patch', path: '/api/events/:eventSlug/settings', body: { moderation: 'auto' } },
+    { method: 'post', path: '/api/events/:eventSlug/status', body: { status: 'closed' } },
+    {
+      method: 'patch',
+      path: '/api/events/:eventSlug/schedule',
+      body: { scheduledOpenAt: null, scheduledCloseAt: null },
+    },
+    { method: 'post', path: '/api/events/:eventSlug/join-code', body: {} },
+    { method: 'delete', path: '/api/events/:eventSlug', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/guests/:guestId/revoke', body: {} },
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/moderators',
+      body: { email: 'lea@example.org' },
+    },
+    { method: 'delete', path: '/api/events/:eventSlug/moderators/:userId', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/missions', body: SOME_MISSION },
+    { method: 'patch', path: '/api/events/:eventSlug/missions/:missionId', body: SOME_MISSION },
+    { method: 'delete', path: '/api/events/:eventSlug/missions/:missionId', body: {} },
+    {
+      method: 'patch',
+      path: '/api/events/:eventSlug/photos/:photoId/status',
+      body: { decision: 'publish' },
+    },
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/moderation/bulk',
+      body: { photoIds: [ANY], decision: 'publish' },
+    },
+    { method: 'delete', path: '/api/events/:eventSlug/photos/:photoId', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/share-link', body: {} },
+    { method: 'delete', path: '/api/events/:eventSlug/share-link', body: {} },
+  ]
+
+  /** The guest's own writes: a guest's device token, never a host's session, and a suspended client's guests are the 404 above. */
+  const GUEST_WRITES: readonly string[] = [
+    'POST /api/events/:eventSlug/photos',
+    'POST /api/events/:eventSlug/clips',
+    'PATCH /api/events/:eventSlug/photos/:photoId/caption',
+    'PATCH /api/events/:eventSlug/guests/:guestId',
+    'POST /api/events/:eventSlug/photos/:photoId/reactions',
+    'DELETE /api/events/:eventSlug/photos/:photoId/reactions/:kind',
+    'POST /api/events/:eventSlug/privacy-notice/acknowledgement',
+  ]
+
+  it('refuses every write of a host on a frozen event with 403 client.suspended', async () => {
+    const s = await scene()
+    await suspend(s)
+
+    for (const write of HOST_WRITES) {
+      const url = write.path.replace(':eventSlug', SLUG).replace(/:[a-zA-Z]+/g, ANY)
+
+      const refused = await s.operator[write.method](url, write.body)
+
+      expect(
+        [write.method.toUpperCase(), write.path, refused.status, refused.body.error?.code],
+        `${write.method.toUpperCase()} ${write.path}`,
+      ).toEqual([write.method.toUpperCase(), write.path, 403, 'client.suspended'])
     }
+  })
+
+  it('names every non-GET route under an event: a host write above, or a guest write', async () => {
+    // The routers, not the product: `buildServerHarness` mounts the same ones and no web client, whose
+    // `app.get(['/g', '/g/*splat'])` has an array path the walk refuses, and which exists only once
+    // `dist/client` has been built.
+    const mounted = mountedRoutes(buildServerHarness().app)
+      .filter((route) => !['get', 'head', 'options'].includes(route.method.toLowerCase()))
+      .map((route) => {
+        const full = route.path.startsWith('/api')
+          ? route.path
+          : route.mount.replace(/\/$/, '') + route.path
+        return `${route.method.toUpperCase()} ${full}`
+      })
+      .filter((route) => route.includes('/api/events/:eventSlug'))
+    const named = new Set([
+      ...HOST_WRITES.map((write) => `${write.method.toUpperCase()} ${write.path}`),
+      ...GUEST_WRITES,
+    ])
+
+    expect(mounted.filter((route) => !named.has(route))).toEqual([])
+    expect([...named].filter((route) => !mounted.includes(route))).toEqual([])
   })
 
   it('refuses a new event to a member of the client, which is a write no event route can see', async () => {

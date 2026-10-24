@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
-import { AT, aUser } from '../../testing/builders'
+import { AT, anEvent, aUser } from '../../testing/builders'
+import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeRevokeModerator, type RevokeModerator } from './revokeModerator'
@@ -13,12 +14,17 @@ const MODERATOR = asUserId('user-mod')
 const STRANGER = asUserId('user-stranger')
 
 describe('revokeModerator', () => {
+  let events: FakeEventRepository
   let memberships: FakeMembershipRepository
   let revokeModerator: RevokeModerator
 
   beforeEach(() => {
+    events = new FakeEventRepository().seed(
+      anEvent({ id: WEDDING, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+      anEvent({ id: GALA, slug: 'gala-acme', joinCode: 'B4N9PT' }),
+    )
     memberships = new FakeMembershipRepository()
-    revokeModerator = makeRevokeModerator({ memberships })
+    revokeModerator = makeRevokeModerator({ events, memberships })
 
     memberships.seed(
       { eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT },
@@ -47,7 +53,7 @@ describe('revokeModerator', () => {
       { eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT },
       { eventId: WEDDING, userId: MODERATOR, role: 'moderator', grantedAt: AT },
     )
-    revokeModerator = makeRevokeModerator({ memberships })
+    revokeModerator = makeRevokeModerator({ events, memberships })
 
     const result = await revokeModerator({ eventId: WEDDING, actorId: OWNER, userId: MODERATOR })
 
