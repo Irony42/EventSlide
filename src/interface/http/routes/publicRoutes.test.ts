@@ -457,6 +457,7 @@ describe('POST /api/join', () => {
         joinPerMinute: 1,
         loginPerMinute: 10,
         reactionPerMinute: 30,
+        guestWritePerMinute: 300,
         galleryPerMinute: 60,
         galleryMediaPerMinute: 600,
         galleryUnlockPerClient: 10,

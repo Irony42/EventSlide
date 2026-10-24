@@ -16,6 +16,7 @@ import { asUserId } from '../../../domain/shared/ids'
 import type { UserPrincipal } from '../types'
 import {
   eventCreationLimiter,
+  guestWriteLimiter,
   reactionLimiter,
   streamConnectionLimiter,
   uploadConcurrencyLimiter,
@@ -70,21 +71,28 @@ const behindOneProxy = (mount: (app: Express) => void): Express => {
 }
 
 describe('the client key', () => {
-  it('collapses two addresses in one IPv6 subnet into a single bucket', async () => {
-    const app = behindOneProxy((subject) => {
-      subject.post('/events/:eventSlug/photos', uploadLimiter(1), noContent)
-    })
+  it.each([
+    ['uploads', uploadLimiter],
+    ['reactions', reactionLimiter],
+    ['guest writes', guestWriteLimiter],
+  ])(
+    'collapses two addresses in one IPv6 subnet into a single %s bucket',
+    async (_label, limiter) => {
+      const app = behindOneProxy((subject) => {
+        subject.post('/events/:eventSlug/photos', limiter(1), noContent)
+      })
 
-    await request(app)
-      .post('/events/mariage/photos')
-      .set('X-Forwarded-For', SAME_SUBNET[0])
-      .expect(204)
-    const second = await request(app)
-      .post('/events/mariage/photos')
-      .set('X-Forwarded-For', SAME_SUBNET[1])
+      await request(app)
+        .post('/events/mariage/photos')
+        .set('X-Forwarded-For', SAME_SUBNET[0])
+        .expect(204)
+      const second = await request(app)
+        .post('/events/mariage/photos')
+        .set('X-Forwarded-For', SAME_SUBNET[1])
 
-    expect(second.status).toBe(429)
-  })
+      expect(second.status).toBe(429)
+    },
+  )
 
   it('keeps a different IPv6 subnet in its own bucket', async () => {
     // The collapse must not go so far that one customer's burst limits another's.
@@ -164,6 +172,7 @@ describe('the event segment of an event-keyed limiter', () => {
   it.each([
     ['uploads', uploadLimiter],
     ['reactions', reactionLimiter],
+    ['guest writes', guestWriteLimiter],
   ])(
     'collapses every unparseable %s slug into one bucket, so invented slugs cannot mint a bucket each',
     async (_label, limiter) => {
@@ -264,6 +273,7 @@ describe('an event-keyed limiter on a route with no event in its path', () => {
   it.each([
     ['uploads', uploadLimiter],
     ['reactions', reactionLimiter],
+    ['guest writes', guestWriteLimiter],
   ])('still limits %s rather than keying on nothing', async (_label, limiter) => {
     // Both of these key on `:eventSlug`. Mounted where there is no such parameter the
     // key must stay stable per client, so the limit still holds — the alternative is a

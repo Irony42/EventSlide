@@ -8,7 +8,12 @@ import { asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
-import { reactionLimiter, uploadConcurrencyLimiter, uploadLimiter } from '../middleware/rateLimit'
+import {
+  guestWriteLimiter,
+  reactionLimiter,
+  uploadConcurrencyLimiter,
+  uploadLimiter,
+} from '../middleware/rateLimit'
 import {
   toGuestMissionDto,
   toGuestPhotoDto,
@@ -89,6 +94,16 @@ export interface GuestRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadRateLimiter?: RequestHandler
+  /**
+   * The bucket for the guest's other writes (HTTP-H-01): a caption, taking a photo back,
+   * withdrawing a reaction - and, from `privacyNoticeRoutes`, acknowledging the notice.
+   * **Built by the caller so that router can share this one**, for the reason
+   * `uploadRateLimiter` gives: a guest doing two of them is one guest.
+   *
+   * Optional only so a test can mount this router alone; production passes it. Absent, one
+   * is built here, so a route mounted without it is limited rather than open.
+   */
+  readonly guestWriteRateLimiter?: RequestHandler
   /**
    * The upload concurrency semaphore (G3-06 / P4-10), **shared with the clip route**
    * for the same reason `uploadRateLimiter` is: a guest sending a photo and a clip at
@@ -293,6 +308,7 @@ export const guestRoutes = ({
   usecases,
   maxUploadBytesPerRequest = MAX_UPLOAD_BYTES_PER_REQUEST,
   uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
+  guestWriteRateLimiter = guestWriteLimiter(deps.config.rateLimits.guestWritePerMinute),
   uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter(
     deps.config.uploads.maxConcurrentRequests,
   ),
@@ -477,10 +493,14 @@ export const guestRoutes = ({
    *
    * The shared path: without a guest cookie this defers to `moderationRoutes`, which
    * owns the same `DELETE` for a moderator.
+   *
+   * The limiter is after that deferral, so a moderator's delete, which carries no guest
+   * cookie, never spends a guest's allowance, and ahead of `requireGuest` (HTTP-H-01).
    */
   router.delete(
     '/events/:eventSlug/photos/:photoId',
     declineWithoutGuestToken,
+    guestWriteRateLimiter,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const params = photoParams.parse(req.params)
@@ -495,9 +515,15 @@ export const guestRoutes = ({
     }),
   )
 
-  /** The line projected under the photo. `null` clears it. */
+  /**
+   * The line projected under the photo. `null` clears it.
+   *
+   * Limited because each call is announced to every screen (`photo.captionChanged`) and
+   * the token that makes it is free (HTTP-H-01).
+   */
   router.patch(
     '/events/:eventSlug/photos/:photoId/caption',
+    guestWriteRateLimiter,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const params = photoParams.parse(req.params)
@@ -549,6 +575,7 @@ export const guestRoutes = ({
    */
   router.delete(
     '/events/:eventSlug/photos/:photoId/reactions/:kind',
+    guestWriteRateLimiter,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const params = reactionParams.parse(req.params)

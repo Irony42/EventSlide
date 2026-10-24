@@ -132,6 +132,25 @@ export const uploadLimiter = (perMinute: number): RateLimitRequestHandler =>
 export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'reaction.rateLimited', (req) => `${clientKey(req)}:${eventKey(req)}`)
 
+/**
+ * Every write a guest's device token can make that is not an upload or a reaction: a caption,
+ * taking a photo back, withdrawing a reaction, acknowledging the privacy notice (HTTP-H-01).
+ *
+ * The token is free - `POST /api/join` is public - so holding one proves nothing about the
+ * caller's intent, and a caption edit is announced to every screen holding the wall or a
+ * moderation console open (`photo.captionChanged`), so a loop on one pending photo was a
+ * stream of refetches for every watcher. Keyed by IP **and** event for the reason
+ * {@link uploadLimiter} gives, and mounted ahead of `requireGuest` so a flood is dropped
+ * before it costs an HMAC verification and two repository reads.
+ *
+ * **One bucket for all four routes, built once by the caller**: `express-rate-limit` mints a
+ * fresh `MemoryStore` per call, so a call inside each router would be two allowances under one
+ * configuration key (see `uploadRateLimiter` in `server.ts`). A guest captioning and
+ * acknowledging at once is one guest.
+ */
+export const guestWriteLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', (req) => `${clientKey(req)}:${eventKey(req)}`)
+
 // -------------------------------------------------------------- event creation --
 
 /**
