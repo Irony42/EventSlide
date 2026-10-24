@@ -96,6 +96,53 @@ const APPLICATION_FORBIDDEN = [
   },
 ]
 
+/**
+ * One module reads the environment, validates it once, and exports a typed object.
+ * Everything else takes configuration as a parameter.
+ *
+ * Every way of reaching the environment is listed, not only `process.env.NAME`: the
+ * selector used to be that one spelling, so a destructuring (`const { NAME } = process.env`),
+ * a spread and a bare `process.env` all passed. The first selector matches the node
+ * `process.env` itself, which is the inner node of every one of those, so each use is one
+ * message.
+ *
+ * It is a list because of how flat config merges: a later block that names
+ * `no-restricted-syntax` replaces what an earlier block said rather than adding to it, so
+ * the domain and application blocks, which add their own bans, spread this list too. They
+ * did not, and `src/domain` and `src/application` were not held to the rule at all.
+ * `scripts/lintBoundaries.test.ts` pins each spelling in each layer.
+ */
+const ENV_MESSAGE =
+  'process.env is read only by src/infrastructure/config/env.ts. Take the value as configuration instead.'
+
+const NO_PROCESS_ENV = [
+  {
+    selector: "MemberExpression[object.name='process'][property.name='env']",
+    message: ENV_MESSAGE,
+  },
+  // `process['env']`.
+  {
+    selector: "MemberExpression[object.name='process'][computed=true][property.value='env']",
+    message: ENV_MESSAGE,
+  },
+  // `globalThis.process.env` and `global.process.env`.
+  {
+    selector: "MemberExpression[object.property.name='process'][property.name='env']",
+    message: ENV_MESSAGE,
+  },
+  // `const { env } = process`, after which `env.NAME` names nothing the first selector sees.
+  {
+    selector: "VariableDeclarator[init.name='process'] > ObjectPattern > Property[key.name='env']",
+    message: ENV_MESSAGE,
+  },
+  // `import { env } from 'node:process'`.
+  {
+    selector:
+      "ImportDeclaration[source.value=/^(node:)?process$/] > ImportSpecifier[imported.name='env']",
+    message: ENV_MESSAGE,
+  },
+]
+
 /** `Date.now()`, `new Date()` and `Math.random()` make a test flaky by construction. */
 const NO_AMBIENT_NONDETERMINISM = [
   {
@@ -149,16 +196,7 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-console': 'error',
       'prefer-const': 'error',
-      'no-restricted-syntax': [
-        'error',
-        {
-          // One module reads the environment, validates it once, and exports a typed
-          // object. Everything else takes configuration as a parameter.
-          selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
-          message:
-            'process.env is read only by src/infrastructure/config/env.ts. Take the value as configuration instead.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...NO_PROCESS_ENV],
     },
   },
 
@@ -167,7 +205,7 @@ export default tseslint.config(
     files: ['src/domain/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: DOMAIN_FORBIDDEN }],
-      'no-restricted-syntax': ['error', ...NO_AMBIENT_NONDETERMINISM],
+      'no-restricted-syntax': ['error', ...NO_PROCESS_ENV, ...NO_AMBIENT_NONDETERMINISM],
     },
   },
 
@@ -176,7 +214,7 @@ export default tseslint.config(
     files: ['src/application/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: APPLICATION_FORBIDDEN }],
-      'no-restricted-syntax': ['error', ...NO_AMBIENT_NONDETERMINISM],
+      'no-restricted-syntax': ['error', ...NO_PROCESS_ENV, ...NO_AMBIENT_NONDETERMINISM],
     },
   },
 
@@ -331,7 +369,7 @@ export default tseslint.config(
     //
     // The exemption is narrow on purpose: only `testing/` folders, and only the import
     // boundary. Production code under `src/interface` still cannot reach an adapter.
-    files: ['src/interface/**/testing/**/*.ts', 'src/application/**/testing/**/*.ts'],
+    files: ['src/interface/**/testing/**/*.ts'],
     rules: {
       'no-restricted-imports': 'off',
     },
