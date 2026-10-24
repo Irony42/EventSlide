@@ -283,6 +283,17 @@ describe('a suspended client’s event refuses its members’ writes', () => {
     },
   )
 
+  it.each(CASES)(
+    '$name: an event that does not exist is event.notFound, to a member of nothing',
+    async (c) => {
+      const nothing = new FakeEventRepository()
+
+      const outcome = await c.ask({ events: nothing, memberships }, OWNER)
+
+      expect(refusalOf(outcome)).toEqual(['notFound', 'event.notFound'])
+    },
+  )
+
   it.each(CASES.filter((c) => c.member === 'owner'))(
     '$name: a moderator is told auth.forbidden before anything about the client',
     async (c) => {
