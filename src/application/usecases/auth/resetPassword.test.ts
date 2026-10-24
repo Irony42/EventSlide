@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asAccountTokenId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { issueAccountToken } from '../../../domain/users/accountToken'
-import type { Password } from '../../../domain/users/password'
-import type { PasswordHash } from '../../../domain/users/user'
 import type { AccountTokenRepository } from '../../ports/accountTokenRepository'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import { AT, aUser, anAccountToken } from '../../testing/builders'
@@ -11,22 +9,10 @@ import { FakeClock } from '../../testing/fakeClock'
 import { FakeSecretTokens } from '../../testing/fakeSecretTokens'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeResetPassword } from './resetPassword'
+import { FakePasswordHasher } from '../../testing/fakePasswordHasher'
 
 const HOUR = 60 * 60 * 1000
 const NEW_PASSWORD = 'une-phrase-de-passe-neuve'
-
-class FakeHasher implements PasswordHasher {
-  readonly dummyHash: PasswordHash = 'hash:factice'
-  async hash(password: Password): Promise<PasswordHash> {
-    return `hash:${password.value}`
-  }
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    return hash === `hash:${attempt}`
-  }
-  needsRehash(): boolean {
-    return false
-  }
-}
 
 describe('resetPassword', () => {
   let users: FakeUserRepository
@@ -50,7 +36,7 @@ describe('resetPassword', () => {
       users,
       tokens: deps.tokens ?? tokens,
       secrets,
-      hasher: new FakeHasher(),
+      hasher: new FakePasswordHasher(),
       clock,
     })({ token, newPassword })
 
@@ -285,15 +271,12 @@ describe('resetPassword', () => {
 
   it('puts the epoch after the hash, so a session issued while bcrypt ran does not outlive the reset', async () => {
     const token = await issueLink()
-    const slow: PasswordHasher = {
-      dummyHash: 'hash:factice',
-      hash: async (password) => {
+    const slow = new FakePasswordHasher({
+      produces: (password) => {
         clock.advance(250)
         return `hash:${password.value}`
       },
-      verify: async () => false,
-      needsRehash: () => false,
-    }
+    })
 
     await makeResetPassword({ users, tokens, secrets, hasher: slow, clock })({
       token,

@@ -15,18 +15,16 @@ import { FakeSecondFactorRepository } from '../../../application/testing/fakeSec
 import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
-import type { PasswordHasher } from '../../../application/ports/passwordHasher'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
 import { asUserId } from '../../../domain/shared/ids'
-import type { Password } from '../../../domain/users/password'
-import type { PasswordHash } from '../../../domain/users/user'
 import { TRUSTED_DEVICE_LIFETIME_MS } from '../../../domain/users/trustedDevice'
 import { TRUSTED_DEVICE_COOKIE, trustedDeviceCodec } from '../middleware/trustedDevice'
 import { unusedSecondFactorUseCases } from '../testing/signIn'
+import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 
 /**
  * The trusted-device cookie of the sign-in throttle (free plan G3-04b, on top of G3-04 / P4-07),
@@ -61,23 +59,6 @@ const NEW_PASSWORD = 'un-tout-nouveau-mot-de-passe'
 const WRONG = 'un-autre-mot-de-passe'
 
 const DAY = 24 * 60 * 60_000
-
-/** `hash:<plaintext>`, like the fake the other route tests use. */
-class PlainHasher implements PasswordHasher {
-  readonly dummyHash: PasswordHash = 'hash:*no-such-account*'
-
-  async hash(password: Password): Promise<PasswordHash> {
-    return `hash:${password.value}`
-  }
-
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    return hash === `hash:${attempt}`
-  }
-
-  needsRehash(): boolean {
-    return false
-  }
-}
 
 /**
  * Every subject listens on one port of its own for the whole test, instead of `supertest`
@@ -117,7 +98,7 @@ const subjectOf = ({
   const users = new FakeUserRepository()
   users.seed(aUser({ id: OWNER_ID, email: OWNER, displayName: 'Camille' }))
   users.seed(aUser({ id: OTHER_ID, email: OTHER, displayName: 'Autre' }))
-  const hasher = new PlainHasher()
+  const hasher = new FakePasswordHasher()
   const mailer = new FakeMailer()
   const tokens = new FakeAccountTokenRepository().withAccounts(asUserId(OWNER_ID))
   const secrets = new FakeSecretTokens()
