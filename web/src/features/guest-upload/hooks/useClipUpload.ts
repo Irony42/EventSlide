@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
-import { ApiError } from '../../../lib/http'
-import { messageForCode, type UiText } from '../../../lib/i18n/translations'
+import { ApiError, isAbortError } from '../../../lib/http'
+import { messageForCode, messageForError, type UiText } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   mayAnswerDifferently,
@@ -343,7 +343,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           job = await api.clipJob(slug, clipJobId, signal)
         } catch (cause) {
           if (run.current !== mine) return
-          if (cause instanceof DOMException && cause.name === 'AbortError') return
+          if (isAbortError(cause)) return
           // A poll that could not be answered is not the clip failing: the box is still
           // working on it and the phone's connection came and went. The one refusal that
           // is final is the job having been forgotten entirely.
@@ -489,7 +489,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           watch(job.clipJobId, mine, aborter.signal)
         } catch (cause) {
           if (run.current !== mine) return
-          if (cause instanceof DOMException && cause.name === 'AbortError') return
+          if (isAbortError(cause)) return
 
           if (cause instanceof ApiError && cause.status === 429) {
             // Backpressure, with the box's own estimate of when it clears. `details`
@@ -510,11 +510,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
             ...previous,
             stage: 'failed',
             progress: 0,
-            message: networkFault
-              ? t.upload.clipNotQueued
-              : cause instanceof ApiError
-                ? messageForCode(cause.code, t)
-                : t.errors.unknown,
+            message: networkFault ? t.upload.clipNotQueued : messageForError(cause, t),
             /**
              * A dropped connection is worth another press. A refusal on the merits is
              * not — the same bytes fail the same way — except a `429`, handled above.

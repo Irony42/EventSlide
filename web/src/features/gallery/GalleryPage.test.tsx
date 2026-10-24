@@ -147,6 +147,19 @@ describe('GalleryPage', () => {
     expect(screen.queryByRole('button', { name: fr.gallery.loadMore })).toBeNull()
   })
 
+  it('says why the next page could not be loaded, and keeps what is on screen', async () => {
+    const galleryPhotos = vi
+      .fn<Api['galleryPhotos']>()
+      .mockResolvedValueOnce({ items: [aGalleryPhoto({ id: 'p1' })], nextCursor: 'sealed.1' })
+      .mockRejectedValueOnce(ApiError.network())
+    render(fakeApi({ galleryPhotos }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.gallery.loadMore }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    expect(screen.getAllByRole('button', { name: /Agrandir/ })).toHaveLength(1)
+  })
+
   it('answers a dead link with one neutral screen', async () => {
     render(fakeApi(refusing('gallery.notAvailable', 404)))
 

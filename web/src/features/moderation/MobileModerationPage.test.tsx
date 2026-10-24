@@ -134,6 +134,8 @@ describe('MobileModerationPage', () => {
     renderPhone(api)
 
     expect(await screen.findByText(fr.moderation.loadFailed)).toBeInTheDocument()
+    // The reason, in the host's words, under the heading: not the code the server sent.
+    expect(screen.getByText(fr.errors.network)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
 
@@ -670,6 +672,32 @@ describe('a clip on the phone', () => {
     // taking the button away would make one network blip cost them that clip for the
     // rest of the session.
     expect(screen.getByRole('button', { name: fr.moderation.playVideo('Léa') })).toBeEnabled()
+  })
+
+  it('says nothing when the play() it asked for was aborted by the card changing under it', async () => {
+    // `pause()` and a swap of the source both reject a `play()` that has not settled with an
+    // `AbortError`. The card did that itself, and there is no host waiting on the answer: a
+    // "cannot be played" over a clip that is simply being replaced would be a false alarm.
+    const media = stubMediaElement()
+    media.play.mockRejectedValue(
+      new DOMException('The play() request was interrupted', 'AbortError'),
+    )
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([aClip()])) })
+    renderPhone(api)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: fr.moderation.playVideo('Léa') }),
+    )
+    await waitFor(() => expect(media.play).toHaveBeenCalledTimes(1))
+    // Past the rejection's own microtasks, which is where a refusal would be reported.
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText(fr.moderation.videoUnplayable)).toBeNull()
+    expect(screen.queryByText(fr.moderation.videoMuted)).toBeNull()
+    expect(media.play).toHaveBeenCalledTimes(1)
   })
 
   it('lets the host try again after a blip, and stops saying it failed', async () => {

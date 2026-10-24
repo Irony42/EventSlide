@@ -4,7 +4,7 @@ import type { InvitationAcceptance } from '../../../lib/api/client'
 import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../../lib/api/client'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../errorMessage'
+import { messageForError } from '../../../lib/i18n/translations'
 
 /**
  * What an invitation link is, as the reader's page needs it (G2-09 / P3-10, G2-10 / P3-11).
@@ -127,7 +127,7 @@ export const useAcceptInvitation = (token: string): AcceptInvitationState => {
         return {
           kind: 'refused',
           code: cause instanceof ApiError ? cause.code : 'unknown',
-          message: errorMessage(cause, t),
+          message: messageForError(cause, t),
         }
       } finally {
         setSubmitting(false)

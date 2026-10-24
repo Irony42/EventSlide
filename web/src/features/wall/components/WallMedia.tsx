@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cx } from '../../../design-system/classNames'
+import { isAbortError } from '../../../lib/http'
 import type { WallItemDto } from '../../../lib/api/dto'
 import styles from './WallMedia.module.css'
 
@@ -126,7 +127,7 @@ export function WallMedia({ item, plays, paused = false, alt, className }: WallM
       return
     }
     void element.play().catch((cause: unknown) => {
-      if (cause instanceof DOMException && cause.name === 'AbortError') return
+      if (isAbortError(cause)) return
       degrade()
     })
   }, [degrade, item.videoUrl, paused])

@@ -5,9 +5,10 @@ import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Spinner } from '../../design-system/components/Spinner'
 import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
+import { messageForError } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { SwipeCard } from './components/SwipeCard'
-import { queueErrorMessage, useModerationQueue } from './hooks/useModerationQueue'
+import { useModerationQueue } from './hooks/useModerationQueue'
 import type { ModerationDecision } from '../../lib/api/dto'
 import styles from './MobileModerationPage.module.css'
 
@@ -188,7 +189,7 @@ export function MobileModerationPage() {
           on screen, rather than replacing a usable queue with an error page. */}
       {queue.error !== null && queue.items.length > 0 ? (
         <p role="alert" className={styles['staleError']}>
-          {queueErrorMessage(queue.error, t)}
+          {messageForError(queue.error, t)}
         </p>
       ) : null}
 
@@ -201,7 +202,7 @@ export function MobileModerationPage() {
           <EmptyState
             as="h2"
             title={t.moderation.loadFailed}
-            description={queueErrorMessage(queue.error, t)}
+            description={messageForError(queue.error, t)}
             action={
               <Button variant="primary" onClick={queue.refresh}>
                 {t.app.retry}
