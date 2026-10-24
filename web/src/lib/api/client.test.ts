@@ -13,7 +13,7 @@ import { ApiError, type Transport, type UploadProgress } from '../http'
  * nobody asserts is a path that can drift.
  */
 
-type Verb = 'get' | 'post' | 'patch' | 'del' | 'upload'
+type Verb = 'get' | 'post' | 'put' | 'patch' | 'del' | 'upload'
 
 interface RecordedCall {
   readonly verb: Verb
@@ -49,6 +49,10 @@ const recorder: Transport = {
     calls.push({ verb: 'post', path, body, ...(signal ? { signal } : {}) })
     return reply as T
   },
+  put: async <T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
+    calls.push({ verb: 'put', path, body, ...(signal ? { signal } : {}) })
+    return reply as T
+  },
   patch: async <T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
     calls.push({ verb: 'patch', path, body, ...(signal ? { signal } : {}) })
     return reply as T
@@ -76,6 +80,7 @@ const recorder: Transport = {
 const refuses = (error: ApiError): Transport => ({
   get: () => Promise.reject(error),
   post: () => Promise.reject(error),
+  put: () => Promise.reject(error),
   patch: () => Promise.reject(error),
   del: () => Promise.reject(error),
   upload: () => Promise.reject(error),
@@ -110,6 +115,10 @@ interface EndpointCase {
 /** Every path here is transcribed from docs/API.md, not from `client.ts`. */
 /** A token-shaped value: 43 base64url characters, as the server mints them. */
 const GALLERY_TOKEN = 'Q'.repeat(43)
+
+/** Ids as the server mints them (`z.guid()`), for the operator's console. */
+const CLIENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const ACCOUNT = '11111111-1111-4111-8111-111111111111'
 
 const ENDPOINTS: readonly EndpointCase[] = [
   // public
@@ -497,6 +506,112 @@ const ENDPOINTS: readonly EndpointCase[] = [
     path: `/api/gallery/${GALLERY_TOKEN}/photos`,
     invoke: (client) => client.galleryPhotos(GALLERY_TOKEN, null),
   },
+  {
+    name: 'siteClients',
+    verb: 'get',
+    path: '/api/site/clients',
+    invoke: (client) => client.siteClients(),
+  },
+  {
+    name: 'siteClientEvents',
+    verb: 'get',
+    path: `/api/site/clients/${CLIENT}/events`,
+    invoke: (client) => client.siteClientEvents(CLIENT),
+  },
+  {
+    name: 'siteAccounts',
+    verb: 'get',
+    path: '/api/site/accounts',
+    invoke: (client) => client.siteAccounts(),
+  },
+  {
+    name: 'siteAudit',
+    verb: 'get',
+    path: '/api/site/audit',
+    invoke: (client) => client.siteAudit(),
+  },
+  {
+    name: 'siteClientDefaults',
+    verb: 'get',
+    path: '/api/site/client-defaults',
+    invoke: (client) => client.siteClientDefaults(),
+  },
+  {
+    name: 'siteProvisionClient',
+    verb: 'post',
+    path: '/api/site/clients',
+    invoke: (client) =>
+      client.siteProvisionClient({
+        clientName: 'Atelier Alpha',
+        ownerEmail: 'camille@example.com',
+        locale: 'fr',
+      }),
+  },
+  {
+    name: 'siteRenameClient',
+    verb: 'patch',
+    path: `/api/site/clients/${CLIENT}`,
+    invoke: (client) => client.siteRenameClient(CLIENT, 'Atelier Beta'),
+  },
+  {
+    name: 'siteSetCeilings',
+    verb: 'put',
+    path: `/api/site/clients/${CLIENT}/ceilings`,
+    invoke: (client) => client.siteSetCeilings(CLIENT, { maxEvents: 3 }, 'Forfait mis à jour'),
+  },
+  {
+    name: 'siteSuspendClient',
+    verb: 'post',
+    path: `/api/site/clients/${CLIENT}/suspend`,
+    invoke: (client) => client.siteSuspendClient(CLIENT),
+  },
+  {
+    name: 'siteResumeClient',
+    verb: 'post',
+    path: `/api/site/clients/${CLIENT}/resume`,
+    invoke: (client) => client.siteResumeClient(CLIENT),
+  },
+  {
+    name: 'siteInviteToClient',
+    verb: 'post',
+    path: `/api/site/clients/${CLIENT}/invitations`,
+    invoke: (client) =>
+      client.siteInviteToClient(CLIENT, {
+        email: 'sacha@example.com',
+        role: 'member',
+        locale: 'fr',
+      }),
+  },
+  {
+    name: 'siteOffboardClient',
+    verb: 'post',
+    path: `/api/site/clients/${CLIENT}/offboard`,
+    invoke: (client) => client.siteOffboardClient(CLIENT, 30),
+  },
+  {
+    name: 'siteDisableAccount',
+    verb: 'post',
+    path: `/api/site/accounts/${ACCOUNT}/disable`,
+    invoke: (client) => client.siteDisableAccount(ACCOUNT),
+  },
+  {
+    name: 'siteEnableAccount',
+    verb: 'post',
+    path: `/api/site/accounts/${ACCOUNT}/enable`,
+    invoke: (client) => client.siteEnableAccount(ACCOUNT),
+  },
+  {
+    name: 'siteDeleteAccount',
+    verb: 'del',
+    path: `/api/site/accounts/${ACCOUNT}`,
+    invoke: (client) => client.siteDeleteAccount(ACCOUNT),
+  },
+  {
+    name: 'siteResetPassword',
+    verb: 'post',
+    path: `/api/site/accounts/${ACCOUNT}/password-reset`,
+    invoke: (client) => client.siteResetPassword(ACCOUNT, { locale: 'fr' }),
+  },
 ]
 
 describe('every endpoint addresses the documented method and path', () => {
@@ -695,6 +810,73 @@ describe('the account-token requests', () => {
     await subject().invitation('a/b?c')
 
     expect(only().path).toBe('/api/invitations/a%2Fb%3Fc')
+  })
+})
+
+describe('the operator’s console requests', () => {
+  it('sends the reason with the ceilings, in one body, as a PUT', async () => {
+    await subject().siteSetCeilings(
+      CLIENT,
+      { maxEvents: 3, maxTotalBytes: null },
+      'Forfait mis à jour',
+    )
+
+    expect(only()).toMatchObject({
+      verb: 'put',
+      body: { ceilings: { maxEvents: 3, maxTotalBytes: null }, reason: 'Forfait mis à jour' },
+    })
+  })
+
+  it('keeps an explicit null in a ceilings patch, because null is how a ceiling is removed', async () => {
+    await subject().siteSetCeilings(CLIENT, { maxRetentionDays: null }, 'Plus de limite')
+
+    expect(JSON.stringify(only().body)).toContain('"maxRetentionDays":null')
+  })
+
+  it('sends the owner’s language with the invitation, which is the language it is mailed in', async () => {
+    await subject().siteProvisionClient({
+      clientName: 'Atelier Alpha',
+      ownerEmail: 'camille@example.com',
+      locale: 'de',
+      ceilings: { maxEvents: 1 },
+    })
+
+    expect(only().body).toEqual({
+      clientName: 'Atelier Alpha',
+      ownerEmail: 'camille@example.com',
+      locale: 'de',
+      ceilings: { maxEvents: 1 },
+    })
+  })
+
+  it('sends the window of an offboarding as whole days in one key, and nothing else', async () => {
+    await subject().siteOffboardClient(CLIENT, 30)
+
+    expect(only().body).toEqual({ graceDays: 30 })
+  })
+
+  it('deletes an account by its id alone, with no body', async () => {
+    await subject().siteDeleteAccount(ACCOUNT)
+
+    expect(only()).toMatchObject({ verb: 'del', path: `/api/site/accounts/${ACCOUNT}` })
+  })
+
+  it('names the client in the path and nothing else for a suspension, which has no body', async () => {
+    await subject().siteSuspendClient(CLIENT)
+
+    expect(only().body).toBeUndefined()
+  })
+
+  it('asks for the audit older than a line, for one client, in one page size', async () => {
+    await subject().siteAudit({ clientId: CLIENT, before: 17, limit: 50 })
+
+    expect(only().query).toEqual({ clientId: CLIENT, before: 17, limit: 50 })
+  })
+
+  it('escapes an id before it becomes a path segment', async () => {
+    await subject().siteSuspendClient('a/b')
+
+    expect(only().path).toBe('/api/site/clients/a%2Fb/suspend')
   })
 })
 

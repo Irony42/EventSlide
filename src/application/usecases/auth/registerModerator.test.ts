@@ -280,6 +280,23 @@ describe('registerModerator', () => {
     expect(tokens.all).toHaveLength(0)
   })
 
+  it('judges who is asking before what state the event is in: a stranger is told nothing of an archived one', async () => {
+    events.seed(
+      anEvent({
+        id: 'event-3',
+        ownerId: 'owner-1',
+        status: 'archived',
+        slug: 'mariage-2019',
+        joinCode: 'AAA111',
+      }),
+    )
+
+    const result = await invite({ eventId: asEventId('event-3'), actorId: asUserId('etrangere-1') })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+    expect(tokens.all).toHaveLength(0)
+  })
+
   it('refuses an address that is not an address, to an owner who is entitled to the reason', async () => {
     const result = await invite({ email: 'lea' })
 

@@ -9,6 +9,7 @@ import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DEFAULT_EVENT_THEME } from '../design-system/eventTheme'
 import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { installDialogStub } from './dialogStub'
+import { aSiteClientDefaults, aSiteInvitation, CLIENT_ID, noCeilings } from './siteFixtures'
 import type {
   Api,
   InvitationAcceptedDto,
@@ -503,6 +504,31 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   clientAudit: vi.fn(async () => ({ items: [], next: null })),
   pendingInvitations: vi.fn(async () => ({ items: [] })),
   approveInvitation: vi.fn(async () => undefined),
+
+  // The operator's console: empty pages and a no-op for every write, so a test states only the
+  // answers it is about. Nothing here is a photograph or an event's name, because none is sent.
+  siteClients: vi.fn(async () => ({ items: [], next: null })),
+  siteClientEvents: vi.fn(async () => ({ items: [], next: null })),
+  siteAccounts: vi.fn(async () => ({ items: [], next: null })),
+  siteAudit: vi.fn(async () => ({ items: [], next: null })),
+  siteClientDefaults: vi.fn(async () => aSiteClientDefaults()),
+  siteProvisionClient: vi.fn(async () => ({
+    clientId: CLIENT_ID,
+    invitation: aSiteInvitation(),
+  })),
+  siteRenameClient: vi.fn(async () => undefined),
+  siteSetCeilings: vi.fn(async () => ({ ceilings: noCeilings(), eventsCreatedInPeriod: 0 })),
+  siteOffboardClient: vi.fn(async () => undefined),
+  siteDisableAccount: vi.fn(async () => undefined),
+  siteEnableAccount: vi.fn(async () => undefined),
+  siteDeleteAccount: vi.fn(async () => undefined),
+  siteSuspendClient: vi.fn(async () => undefined),
+  siteResumeClient: vi.fn(async () => undefined),
+  siteInviteToClient: vi.fn(async () => ({ invitation: aSiteInvitation() })),
+  siteResetPassword: vi.fn(async () => ({
+    delivery: 'mail' as const,
+    expiresAt: '2026-06-20T22:00:00.000Z',
+  })),
 
   listEvents: vi.fn(async () => ({ items: [] })),
   createEvent: vi.fn(async () => anEventDto()),

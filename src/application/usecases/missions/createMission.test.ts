@@ -142,6 +142,22 @@ describe('createMission', () => {
     expect(bus.published).toEqual([])
   })
 
+  it('judges who is asking before what state the event is in: a stranger is told nothing of an archived one', async () => {
+    events.seed(
+      anEvent({
+        id: WEDDING,
+        ownerId: OWNER,
+        slug: 'camille-et-sacha',
+        joinCode: 'H7K2QM',
+        status: 'archived',
+      }),
+    )
+
+    const result = await ask({ actorId: STRANGER })
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
   // ------------------------------------------------------------------- rules --
 
   it('refuses a prompt the domain will not accept', async () => {

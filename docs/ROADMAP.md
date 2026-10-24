@@ -700,7 +700,7 @@ an account that does not exist yet.
 
 ### 10.4 The operator console (P1, effort M, risk: low)
 
-> **Partly shipped**: the read model it will present, and no route and no screen yet.
+> **Shipped in stages**: the read model it presents, the API that serves it, and (G2-15) the screens.
 > `SiteOverview` (G2-11 / P3-12) lists every client with its ceilings and what it is using, one
 > client's events, and every account — ids, statuses, dates and sizes, with a client's name and an
 > account's address as the only free text, so the "shapes and sizes, not photographs" below is a
@@ -710,7 +710,9 @@ an account that does not exist yet.
 > reports `canOperateSite`, the one input the account menu will need. **Shipped since (G2-14)**: the operator
 > API that serves it, `GET /api/site/clients`, `/clients/:clientId/events` and `/accounts` (API.md §1), with a
 > response-side sweep that plants content in every place it is kept and reads every answer of every route
-> (SECURITY.md §22). **Not built**: the console (G2-15), and an event's expiry date, which would have the overview read
+> (SECURITY.md §22). **Shipped since (G2-15)**: the console, `/admin/site` (SECURITY.md §23): the clients, one client with its
+> ceilings and the reason for changing them, the end of its engagement, the accounts (a reset, switching one off, on or away) and the log, behind the same gate and one confirmation prompt.
+> **Not built**: an event's expiry date, which would have the overview read
 > `events.settings`, the host's whole configuration blob, to get at the retention it holds.
 
 One screen the operator actually lives in: every client, their events, what state each is
@@ -806,9 +808,9 @@ on data it does not own, "what happened" stops being a question the git history 
 > the boot (exit 78, naming the variable) unless `SITE_ADMIN=on` (G2-04 / P3-05); each later
 > operator-only setting adds its own line to the same refinement in `env.ts`. The first slice
 > of the ring-6 half has landed with it: CI runs `tenant-isolation.spec.ts` under both creation
-> policies (the `chromium-client-members` Playwright project). **Still to come**, each with
-> the item that gives it something to act on: the SPA's `/admin/site` routes (which will read
-> that flag); the boot warning when clients exist and the mode is off; the remaining
+> policies (the `chromium-client-members` Playwright project). The SPA's `/admin/site` routes read
+> that flag since G2-15. **Still to come**, each with the item that gives it something to act
+> on: the boot warning when clients exist and the mode is off; the remaining
 > operator-only settings; and the rest of the ring-6 half — CI running rings 4 and 6 once per
 > `SITE_ADMIN` mode.
 

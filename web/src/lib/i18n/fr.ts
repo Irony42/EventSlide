@@ -1179,6 +1179,43 @@ export const fr = {
    * a guest's phone.
    */
   errors: {
+    /* ---- Added by features/site: codes the operator’s console can receive. ---- */
+    'clientName.empty': 'Donnez un nom au client.',
+    'clientName.tooLong': 'Ce nom est trop long.',
+    'clientName.invalid': 'Ce nom contient un caractère qui n’est pas accepté.',
+    'clientCeilings.maxEventsInvalid': 'Ce nombre d’évènements n’est pas accepté.',
+    'clientCeilings.maxEventsPerPeriodInvalid':
+      'Ce nombre d’évènements par période n’est pas accepté.',
+    'clientCeilings.maxTotalBytesInvalid': 'Ce stockage total n’est pas accepté.',
+    'clientCeilings.maxEventQuotaBytesInvalid': 'Ce quota d’évènement n’est pas accepté.',
+    'clientCeilings.maxRetentionDaysInvalid':
+      'Cette durée de conservation n’est pas acceptée : de 1 à 3 650 jours.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'Cette durée de direct n’est pas acceptée : de 1 à 365 jours.',
+    'clientCeilings.periodStartedAtInvalid': 'Ce début de période n’est pas accepté.',
+    'clientCeilings.clipsAllowedInvalid': 'Ce réglage des vidéos n’est pas accepté.',
+    'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
+    'audit.reasonInvalid':
+      'Le motif doit tenir sur une ligne de 200 caractères au plus, sans adresse e-mail.',
+    'reset.mailerRequired':
+      'Cette instance n’envoie pas de courrier : aucun lien de réinitialisation ne peut être émis.',
+    'reset.mailNotSent': 'Le serveur de messagerie a refusé le message. Aucun lien n’a été émis.',
+    'reset.approverUnavailable':
+      'Ce compte n’appartient à aucun client, ou à plusieurs : aucun propriétaire ne peut approuver la demande.',
+    'reset.requestNotFound': 'Cette demande n’existe pas, ou n’a pas encore été approuvée.',
+    'reset.tooManyForAddress':
+      'Cette adresse a déjà reçu plusieurs réinitialisations. Réessayez dans une heure.',
+    'account.disabled': 'Ce compte est désactivé.',
+    'account.operatorProtected': 'Le compte d’un opérateur ne peut être ni désactivé ni supprimé.',
+    'account.holdsEvents': 'Ce compte possède un évènement : transférez-le ou purgez-le d’abord.',
+    'account.holdsMedia':
+      'Ce compte a déposé des photos ou des vidéos, dont les fichiers resteraient sur le disque.',
+    'account.holdsReviews': 'Ce compte a modéré des photos, dont les lignes portent son nom.',
+    'account.lastClientOwner':
+      'Ce compte est le seul propriétaire d’un client qui a encore des membres ou des évènements : ajoutez un propriétaire, ou mettez fin à l’engagement du client.',
+    'client.graceInvalid': 'Ce délai n’est pas accepté. Indiquez un nombre entier de jours.',
+    'client.offboarding':
+      'La fin d’engagement de ce client est en cours : sa suspension ne se lève pas.',
     unknown: 'Une erreur est survenue. Réessayez dans un instant.',
     network: 'Connexion interrompue. Vérifiez votre réseau puis réessayez.',
     'request.invalid': 'Les informations envoyées ne sont pas valides.',
@@ -1676,6 +1713,245 @@ export const fr = {
     liveWindowEnd: (date: string) => `Le direct se termine le ${date}.`,
   },
 
+  /* ---- Added by features/site: the operator’s console (G2-15 / P3-16). ---- */
+  site: {
+    menuLink: 'Console de l’opérateur',
+    consoleTitle: 'Console de l’opérateur',
+    consoleIntro:
+      'Vous voyez ici des formes et des tailles, jamais ce que vos clients ont fabriqué : aucune photo, aucun nom d’évènement.',
+    navLabel: 'Sections de la console',
+    navClients: 'Clients',
+    navAccounts: 'Comptes',
+    navAudit: 'Journal',
+    factorTitle: 'Vérification en deux étapes requise',
+    factorEnrol:
+      'Cette instance l’exige de l’opérateur et votre compte ne l’a pas encore activée. Activez-la, puis revenez ici.',
+    factorEnrolLink: 'Activer la vérification en deux étapes',
+    factorSignIn:
+      'Cette connexion n’a pas passé la vérification en deux étapes. Reconnectez-vous et saisissez le code de votre application.',
+    factorSignOut: 'Se reconnecter',
+    stepUpTitle: 'Confirmez votre identité',
+    stepUpIntro:
+      'Cette action change une instance partagée. Saisissez votre mot de passe, et le code de votre application si vous en avez une : la confirmation vaut cinq minutes.',
+    more: 'Voir la suite',
+
+    clientsTitle: 'Clients',
+    clientsHint:
+      'Un client, c’est un compte, ses évènements et ses limites. Vous lisez ses tailles, jamais ses contenus.',
+    newClient: 'Nouveau client',
+    clientsEmpty: 'Aucun client pour le moment.',
+    clientsEmptyHint:
+      'Ouvrez un client : son propriétaire reçoit une invitation et choisit lui-même son mot de passe.',
+    clientsTableLabel: 'Les clients de l’instance',
+    clientColumn: 'Client',
+    statusColumn: 'État',
+    eventsColumn: 'Évènements',
+    membersColumn: 'Membres',
+    storageColumn: 'Stockage',
+    createdColumn: 'Ouvert le',
+    statusActive: 'Actif',
+    statusSuspended: 'Suspendu',
+    statusOffboarding: 'Fin d’engagement',
+    eventsCell: (total: number, live: number) => `${t.number(total)} (${t.number(live)} en direct)`,
+    storageOf: (used: string, max: string) => `${used} sur ${max}`,
+    noCeiling: 'Sans limite',
+
+    newClientTitle: 'Ouvrir un client',
+    newClientIntro:
+      'Le client est ouvert sans membre ni évènement, et son propriétaire est invité par e-mail, ou par un lien à lui transmettre si l’instance n’envoie pas de courrier. Vous ne choisissez jamais son mot de passe.',
+    clientName: 'Nom du client',
+    ownerEmail: 'Adresse e-mail du propriétaire',
+    inviteLanguage: 'Langue de l’invitation',
+    defaultsHint:
+      'Les limites sont celles que cette instance donne par défaut à un nouveau client. Videz un champ pour ne fixer aucune limite.',
+    createClient: 'Ouvrir le client',
+    clientCreated: 'Client ouvert.',
+
+    invitationMailed: (email: string) => `Une invitation a été envoyée à ${email}.`,
+    invitationPending:
+      'L’invitation est écrite, mais elle ne s’ouvre qu’avec l’accord d’un propriétaire du client.',
+    invitationLinkTitle: 'Aucun e-mail n’est parti',
+    invitationLinkBody:
+      'Cette instance ne peut pas envoyer de courrier, ou le serveur de messagerie a refusé celui-ci. Ce lien est la seule copie : transmettez-le à son destinataire, puis fermez cet encadré.',
+    invitationLinkLabel: 'Lien d’invitation',
+    copyLink: 'Copier le lien',
+    linkCopied: 'Lien copié.',
+    invitationValidUntil: (date: string) => `Valable jusqu’au ${date}.`,
+
+    ceilingsLegend: 'Limites',
+    maxEvents: 'Évènements, au plus',
+    maxEventsPerPeriod: 'Évènements créés par période, au plus',
+    maxTotalGigabytes: 'Stockage total, en Go',
+    maxEventQuotaGigabytes: 'Quota d’un évènement, en Go',
+    maxRetentionDays: 'Conservation après la clôture, en jours, au plus',
+    maxLiveDays: 'Durée d’un direct, en jours, au plus',
+    clipsAllowed: 'Vidéos autorisées',
+    liveAllowed: 'Ouverture d’évènements autorisée',
+    renewPeriod: 'Renouveler la période maintenant',
+    renewPeriodHint: 'Remet à zéro le compteur d’évènements créés sur la période.',
+    emptyMeansNone: 'Vide : aucune limite.',
+    notANumber: 'Saisissez un nombre positif.',
+
+    allClients: 'Tous les clients',
+    memberCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} membre`,
+        other: `${t.number(count)} membres`,
+      }),
+    periodEvents: (count: number) => `Créés sur la période : ${t.number(count)}`,
+    suspendedSince: (date: string) => `Suspendu depuis le ${date}.`,
+    purgeOn: (date: string) => `Les albums seront purgés au plus tard le ${date}.`,
+    suspend: 'Suspendre',
+    suspendTitle: 'Suspendre ce client ?',
+    suspendBody:
+      'Les invités ne peuvent plus rejoindre ses évènements ni y envoyer de photos, le public ne voit plus ses écrans ni ses galeries, et ses membres ne peuvent plus rien modifier. Rien n’est supprimé et aucun compte n’est désactivé.',
+    suspended: 'Client suspendu.',
+    resume: 'Lever la suspension',
+    resumeTitle: 'Lever la suspension ?',
+    resumeBody:
+      'Les écrans et les galeries du client redeviennent visibles aussitôt, et ses invités peuvent de nouveau rejoindre et envoyer des photos.',
+    resumed: 'Suspension levée.',
+    rename: 'Renommer',
+    renameTitle: 'Nom du client',
+    renamed: 'Client renommé.',
+    ceilingsTitle: 'Limites',
+    ceilingsReason: 'Motif du changement',
+    ceilingsReasonHint:
+      'Une phrase sur une ligne, 200 caractères au plus, sans adresse e-mail. Elle est inscrite au journal de l’opérateur et le client ne la lit pas. Motifs non financiers seulement : taille d’un évènement, capacité, abus.',
+    ceilingsSave: 'Enregistrer les limites',
+    ceilingsSaved: 'Limites enregistrées.',
+    ceilingsUnchanged: 'Aucune limite n’a changé.',
+    inviteTitle: 'Inviter dans ce client',
+    inviteIntro:
+      'Une personne entre dans le compte du client, jamais dans un évènement. Si le client a déjà des évènements ou des membres, un propriétaire doit approuver l’invitation.',
+    inviteEmail: 'Adresse e-mail',
+    inviteRole: 'Rôle',
+    inviteSend: 'Inviter',
+    roleOwner: 'Propriétaire',
+    roleMember: 'Membre',
+    eventsTitle: 'Évènements',
+    eventsHint: 'Des formes et des tailles seulement : ni nom, ni adresse, ni photo.',
+    eventsEmpty: 'Ce client n’a aucun évènement.',
+    eventsTableLabel: 'Les évènements du client',
+    eventColumn: 'Évènement',
+    eventStatusColumn: 'État',
+    photosColumn: 'Photos',
+    usedColumn: 'Espace utilisé',
+    startsColumn: 'Début prévu',
+    eventLabel: (short: string) => `Évènement ${short}`,
+    eventStatuses: {
+      draft: 'Brouillon',
+      live: 'En direct',
+      closed: 'Clôturé',
+      archived: 'Archivé',
+    },
+    photoCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo`,
+        other: `${t.number(count)} photos`,
+      }),
+    auditLink: 'Voir le journal de ce client',
+
+    accountsTitle: 'Comptes',
+    accountsHint:
+      'Les adresses des personnes qui ont un compte sur cette instance, et rien d’autre : ni nom affiché, ni mot de passe.',
+    accountsEmpty: 'Aucun compte pour le moment.',
+    accountsTableLabel: 'Les comptes de l’instance',
+    addressColumn: 'Adresse',
+    roleColumn: 'Rôle sur l’instance',
+    accountStateColumn: 'État',
+    lastLoginColumn: 'Dernière connexion',
+    ownedColumn: 'Évènements possédés',
+    clientsColumn: 'Clients',
+    siteRoleOperator: 'Opérateur',
+    accountActive: 'Actif',
+    accountDisabled: 'Désactivé',
+    neverSignedIn: 'Jamais',
+    mustChange: 'Doit changer son mot de passe',
+    resetPassword: 'Réinitialiser le mot de passe',
+    resetTitle: 'Réinitialiser ce mot de passe ?',
+    resetBody:
+      'Un lien valable une heure part vers l’adresse du compte, et nulle part ailleurs : vous ne le voyez que sur une instance qui n’envoie pas de courrier.',
+    resetSent: 'Le lien a été envoyé à l’adresse du compte.',
+    resetPending: 'En attente d’un propriétaire',
+    resetPendingBody:
+      'Cette instance n’envoie pas de courrier. Un autre propriétaire du client doit approuver la demande avant que le lien vous soit remis.',
+    resetFetch: 'Récupérer le lien approuvé',
+    resetLinkTitle: 'Lien de réinitialisation',
+    resetLinkBody:
+      'Il ne sert qu’une fois. Transmettez-le au titulaire du compte, puis fermez cet encadré.',
+
+    auditTitle: 'Journal',
+    auditHint:
+      'Tout ce qui s’est fait sur l’instance, du plus récent au plus ancien. Le motif d’un changement de limites est la phrase de l’opérateur.',
+    auditEmpty: 'Aucune action enregistrée pour le moment.',
+    auditMore: 'Voir les actions plus anciennes',
+    auditFiltered: 'Journal d’un seul client.',
+    auditShowAll: 'Voir tout le journal',
+    auditReason: (reason: string) => `Motif : ${reason}`,
+    auditAccount: (short: string) => `compte ${short}`,
+    actors: {
+      operator: 'Opérateur',
+      member: 'Membre',
+      system: 'Système',
+      integration: 'Intégration',
+    },
+    actions: {
+      'client.created': 'Client ouvert.',
+      'client.renamed': 'Client renommé.',
+      'client.ceilingsChanged': 'Limites modifiées.',
+      'client.periodReset': 'Période renouvelée.',
+      'client.suspended': 'Client suspendu.',
+      'client.resumed': 'Suspension levée.',
+      'invitation.issued': 'Invitation émise.',
+      'invitation.approved': 'Invitation approuvée par un propriétaire.',
+      'account.resetRequested': 'Réinitialisation de mot de passe demandée.',
+      'account.resetApproved': 'Réinitialisation approuvée par un propriétaire.',
+      'account.resetIssued': 'Réinitialisation émise.',
+      'account.disabled': 'Compte désactivé.',
+      'client.offboarded': 'Fin d’engagement lancée.',
+      'client.finalized': 'Client supprimé à l’issue de la fin d’engagement.',
+      'account.enabled': 'Compte réactivé.',
+      'account.deleted': 'Compte supprimé.',
+      'account.termsAccepted': 'Conditions d’utilisation acceptées.',
+      'account.secondFactorEnrolled': 'Vérification en deux étapes activée.',
+      'account.secondFactorDisabled': 'Vérification en deux étapes désactivée.',
+      'account.recoveryCodesRegenerated': 'Codes de secours renouvelés.',
+      'account.recoveryCodeUsed': 'Un code de secours a servi.',
+    },
+    actionInvitationIssuedPending: 'Invitation émise ; elle attend l’accord d’un propriétaire.',
+    actionOther: 'Une action a été enregistrée.',
+    accountActionsColumn: 'Actions sur le compte',
+    disableAccount: 'Désactiver',
+    enableAccount: 'Réactiver',
+    deleteAccount: 'Supprimer',
+    disableTitle: (address: string) => `Désactiver le compte de ${address} ?`,
+    disableBody:
+      'Toutes ses sessions prennent fin à l’instant et la personne ne peut plus se connecter. Rien n’est supprimé : le réactiver lui rend l’accès, mais elle devra se reconnecter.',
+    accountDisabledDone: 'Compte désactivé.',
+    accountEnabledDone: 'Compte réactivé.',
+    deleteTitle: (address: string) => `Supprimer le compte de ${address} ?`,
+    deleteBody:
+      'C’est la réponse à une demande d’effacement. Le compte, ses appartenances, les invitations qui lui étaient adressées, son second facteur et les liens de partage qu’il a créés disparaissent. Les lignes du journal qu’il a écrites restent, sans son nom, et les invitations qu’il a émises aussi. Son adresse reste dans ses sessions en cours (sept jours au plus) et dans les liens déjà émis jusqu’à leur expiration. Cette action est définitive.',
+    accountDeletedDone: 'Compte supprimé.',
+    offboardTitle: 'Fin d’engagement',
+    offboardIntro:
+      'Les évènements en direct sont clôturés, les brouillons archivés, le client est suspendu, et ses albums sont purgés au plus tard à l’issue du délai que vous donnez : c’est le temps dont il dispose pour exporter ce qu’il veut garder (la rétention propre à un évènement ou les limites du client peuvent purger plus tôt). Puis les comptes qui n’appartenaient qu’à lui et ne tiennent rien d’autre sont supprimés, et le client avec eux.',
+    graceDays: 'Délai avant la purge, en jours',
+    graceDaysHint: 'Un nombre entier de jours : les limites sont celles du serveur.',
+    offboardAction: 'Mettre fin à l’engagement',
+    offboardConfirmTitle: 'Mettre fin à l’engagement de ce client ?',
+    offboardConfirmBody: (days: number) =>
+      t.count(days, {
+        one: `Dans ${t.number(days)} jour au plus tard, les albums de ce client seront purgés, puis le client sera supprimé avec les comptes qui ne lui appartenaient qu’à lui et ne tiennent rien d’autre. Sans possibilité de retour : ni la date ni la suspension ne pourront être changées. D’ici là, ses évènements en direct sont clôturés, ses brouillons archivés et le client suspendu.`,
+        other: `Dans ${t.number(days)} jours au plus tard, les albums de ce client seront purgés, puis le client sera supprimé avec les comptes qui ne lui appartenaient qu’à lui et ne tiennent rien d’autre. Sans possibilité de retour : ni la date ni la suspension ne pourront être changées. D’ici là, ses évènements en direct sont clôturés, ses brouillons archivés et le client suspendu.`,
+      }),
+    offboardedDone: 'Fin d’engagement lancée.',
+    offboardingRunning:
+      'Cet engagement prend fin : les albums seront purgés au plus tard à la date indiquée plus haut.',
+    daysNotWhole: 'Indiquez un nombre entier de jours.',
+  },
+
   /**
    * The name of each page in the browser tab (`PageTitle`, WCAG 2.4.2).
    *
@@ -1705,6 +1981,10 @@ export const fr = {
     mobileModeration: 'Modération sur téléphone',
     settings: 'Réglages de l’évènement',
     clientSpace: 'Espace client',
+    site: 'Console de l’opérateur',
+    siteClient: 'Client',
+    siteAccounts: 'Comptes de l’instance',
+    siteAudit: 'Journal de l’instance',
   },
 } as const
 
