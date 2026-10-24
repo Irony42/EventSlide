@@ -133,13 +133,15 @@ describe('rankedPhotos', () => {
   })
 
   it('ranks every photo there is, because the caller decides how many it keeps', () => {
-    const byPhoto = mapOf([
-      ['photo-a', countsWith({ love: 1 })],
-      ['photo-b', countsWith({ love: 5 })],
-      ['photo-c', countsWith({ love: 3 })],
-    ])
+    const ids = Array.from({ length: 60 }, (_, index) => `photo-${String(index).padStart(2, '0')}`)
+    const byPhoto = mapOf(
+      ids.map((id, index): readonly [string, ReactionCounts] => [
+        id,
+        countsWith({ love: index + 1 }),
+      ]),
+    )
 
-    expect(rankedPhotos(byPhoto)).toHaveLength(3)
+    expect(rankedPhotos(byPhoto)).toEqual(ids.map((id) => asPhotoId(id)).reverse())
   })
 
   it('returns an empty ranking for an event nobody has reacted in', () => {
