@@ -1,5 +1,4 @@
 import type { Event } from '../../../domain/events/event'
-import { canManageEvent } from '../../../domain/events/eventRole'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -10,6 +9,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { clientContextOf } from '../clients/clientContextOf'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * Open the doors, close the party, archive the album.
@@ -51,13 +51,8 @@ export const makeChangeEventStatus =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    // `notFound` rather than `forbidden` for a caller with no part in the event, so
-    // this cannot be used to discover that the event exists.
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
 
     // The client's ceilings go **into** the transition: whether an event may go live is the
     // entity's rule (`live_allowed`, and the window `opened_at + max_live_days` that bounds

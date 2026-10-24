@@ -1,4 +1,3 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import type { Mission } from '../../../domain/missions/mission'
 import { MissionPrompt } from '../../../domain/missions/missionPrompt'
 import type { MissionScope } from '../../../domain/missions/missionScope'
@@ -9,6 +8,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEditable, requireEventRole } from '../shared/eventRole'
 
 /**
  * The host corrects a prompt, or changes who it is asked of.
@@ -45,15 +45,11 @@ export const makeUpdateMission =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
 
-    if (!event.allowsEditing()) {
-      return err(DomainError.conflict('event.immutable', { status: event.status }))
-    }
+    const editable = requireEditable(event)
+    if (!editable.ok) return editable
 
     // Scoped read: passing eventId is what makes another event's mission unreachable.
     const mission = await missions.findById(eventId, missionId)
