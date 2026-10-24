@@ -513,8 +513,8 @@ export const guestRoutes = ({
    * A guest correcting the name their photos are signed with - their own, and nobody else's.
    *
    * The name is projected in front of a room, so `requireGuest` is the whole authorization
-   * decision and it is a narrow one: the token must name **this** event (`403 guest.wrongEvent`
-   * otherwise) and a guest the host revoked is refused (`403 guest.revoked`). Who is being
+   * decision and it is a narrow one: the token must name **this** event (`404 event.notFound`,
+   * as for an event that is not there, otherwise) and a guest the host revoked is refused (`403 guest.revoked`). Who is being
    * renamed is then compared **by the use case** with who the token names: the acting guest
    * comes from the verified token and the target from the path, and a different target is
    * `403 auth.forbidden` before any row is read, so the route cannot be used to learn which

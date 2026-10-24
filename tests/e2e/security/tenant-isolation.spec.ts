@@ -35,8 +35,8 @@ test.describe('guest token scope', () => {
       multipart: { photos: { name: 'a.jpg', mimeType: 'image/jpeg', buffer: await bytesOf() } },
     })
 
-    expect(response.status()).toBe(403)
-    expect((await response.json()).error.code).toBe('guest.wrongEvent')
+    expect(response.status()).toBe(404)
+    expect((await response.json()).error.code).toBe('event.notFound')
 
     await context.close()
   })

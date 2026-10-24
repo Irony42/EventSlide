@@ -132,7 +132,6 @@ const DOCUMENTED_CODES: readonly string[] = [
   'event.reactionsDisabled',
   'event.guestSelfDeleteDisabled',
 
-  'guest.wrongEvent',
   'guest.revoked',
   'guestToken.expired',
   'guestToken.malformed',

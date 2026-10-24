@@ -643,7 +643,7 @@ export const guestTokenOf = (req: Request): string | undefined => {
  * in the event of the path is the host's, whatever cookie it also carries: a host who scanned
  * their own QR code in the browser they moderate from is a guest of the event for thirty-six
  * hours, and answering that browser as the guest told a moderator deleting somebody else's photo
- * `403 photo.deleteForbidden`, and one holding another event's cookie `403 guest.wrongEvent`. The
+ * `403 photo.deleteForbidden`, and one holding another event's cookie `404 event.notFound`. The
  * media route makes the same choice ("the broader identity wins"). A caller with no such role is
  * dispatched on the cookie as before: with one, the guest router answers (a guest at somebody
  * else's event must not be sent into `requireRole` and told 404); with none, this hands on, and

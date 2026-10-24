@@ -106,7 +106,7 @@ export const makeAuthenticateGuest =
 
     // The token's event against the URL's, the row, the revocation: one function, shared with
     // the media route's identity.
-    const found = await guestOfEvent(guests, claims.value, event)
+    const found = await guestOfEvent(guests, claims.value, event, logger)
     if (!found.ok) return found
     const guest = found.value
 

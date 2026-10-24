@@ -150,9 +150,9 @@ export const shouldQueue = (status: number): boolean => status === 0 || status >
  * the only reading under which a guest's evening is not spent by a host correcting a
  * typo (roadmap §2.1).
  *
- * `guest.wrongEvent` is pointedly absent: a guest who scans the after-party's QR code
- * overwrites their device token, and the wedding's queue must survive that rather than
- * be deleted by it. `event.quotaExceeded` is absent too — a host can raise a quota, and
+ * `event.notFound` is pointedly absent, and it is what `guest.wrongEvent` became (HTTP-M-03): a
+ * guest who scans the after-party's QR code overwrites their device token, and the wedding's queue
+ * must survive the `404` that follows rather than be deleted by it. `event.quotaExceeded` is absent too — a host can raise a quota, and
  * the twelve-hour expiry is a kinder bound than deletion on the first refusal.
  */
 const TERMINAL_CODES: ReadonlySet<string> = new Set([

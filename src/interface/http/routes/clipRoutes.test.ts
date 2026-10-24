@@ -499,8 +499,8 @@ describe('POST /api/events/:eventSlug/clips', () => {
         .set('Cookie', cookie(subject.galaToken))
         .attach('clip', aClipBody(), 'IMG_4021.MOV')
 
-      expect(response.status).toBe(403)
-      expect(response.body.error.code).toBe('guest.wrongEvent')
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('event.notFound')
       expect(subject.clips.all).toEqual([])
     })
 

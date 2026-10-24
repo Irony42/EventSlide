@@ -1262,7 +1262,6 @@ export const fr = {
     'event.immutable': 'Cet évènement est archivé et ne peut plus être modifié.',
     'event.illegalTransition': 'Ce changement d’état n’est pas possible.',
 
-    'guest.wrongEvent': 'Votre accès ne correspond pas à cette galerie.',
     'guest.revoked': 'Votre accès a été retiré par l’organisateur.',
     'guestToken.expired': 'Votre accès a expiré. Scannez à nouveau le QR code.',
     'guestToken.malformed': 'Votre accès n’est plus valide. Scannez à nouveau le QR code.',
