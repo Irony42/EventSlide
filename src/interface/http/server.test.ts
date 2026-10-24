@@ -287,19 +287,28 @@ describe('buildServer: liveness and readiness', () => {
     })
 
     it('keeps the number out of a 503 as well', async () => {
-      const { response } = await probed({ sufficient: true, freeBytes: FREE }, (subject) => {
-        subject.health.databaseReady = async () => false
-      })
+      const { response, logger } = await probed(
+        { sufficient: true, freeBytes: FREE },
+        (subject) => {
+          subject.health.databaseReady = async () => false
+        },
+      )
 
       expect(response.status).toBe(503)
       expect(JSON.stringify(response.body)).not.toContain('freeBytes')
       expect(JSON.stringify(response.body)).not.toContain(String(FREE))
+      // Every probe logs it, the failing ones included: a box that cannot reach its database is
+      // still a box whose margin the operator wants to know.
+      expect(logger.find('readiness: free disk space')?.context).toEqual({
+        sufficient: true,
+        freeBytes: FREE,
+      })
     })
 
     it('writes the number to the log at debug while there is room', async () => {
       const { logger } = await probed({ sufficient: true, freeBytes: FREE })
 
-      const line = logger.lines.find((entry) => entry.message === 'readiness: free disk space')
+      const line = logger.find('readiness: free disk space')
       expect([line?.level, line?.context]).toEqual(['debug', { sufficient: true, freeBytes: FREE }])
     })
 
@@ -307,11 +316,19 @@ describe('buildServer: liveness and readiness', () => {
       const { response, logger } = await probed({ sufficient: false, freeBytes: 1_000 })
 
       expect(response.body.checks.disk).toEqual({ sufficient: false })
-      const line = logger.lines.find((entry) => entry.message === 'readiness: free disk space')
+      const line = logger.find('readiness: free disk space')
       expect([line?.level, line?.context]).toEqual([
         'warn',
         { sufficient: false, freeBytes: 1_000 },
       ])
+    })
+
+    it('warns for a disk that could not be read, with a null where the number would be', async () => {
+      // The case with no number at all, which is the one an operator most needs to hear about.
+      const { logger } = await probed({ sufficient: false, freeBytes: null })
+
+      const line = logger.find('readiness: free disk space')
+      expect([line?.level, line?.context]).toEqual(['warn', { sufficient: false, freeBytes: null }])
     })
   })
 
@@ -325,6 +342,19 @@ describe('buildServer: liveness and readiness', () => {
 
     expect(response.status).toBe(200)
     expect(response.body.checks.disk).toEqual({ sufficient: false })
+  })
+
+  it('warns, with no number, when the probe itself rejects', async () => {
+    const logger = new CapturingLogger()
+    const subject = buildServerHarness({ logger })
+    subject.health.diskSpace = async () => {
+      throw new Error('ENOENT')
+    }
+
+    await request(subject.app).get('/api/ready')
+
+    const line = logger.find('readiness: free disk space')
+    expect([line?.level, line?.context]).toEqual(['warn', { sufficient: false, freeBytes: null }])
   })
 
   it('answers with service.notReady rather than a 500 when a dependency is down', async () => {

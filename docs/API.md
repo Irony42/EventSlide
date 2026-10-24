@@ -756,7 +756,8 @@ whole venue's wall out of service over headroom no request currently needs. `suf
 is the verdict on the tighter of the two checked paths, and is `false` when either could
 not be read. **The route says nothing more about the disk**: it is unauthenticated, and the
 exact free bytes of the volume the albums live on would let anyone watch an event fill the box.
-The margin is a log line instead, a `warn` when it is too thin and a `debug` otherwise.
+The margin is a log line instead (`readiness: free disk space`, with `sufficient` and `freeBytes`), a
+`warn` when it is too thin or could not be read and a `debug` otherwise.
 
 **Once a shutdown signal has been received, this always answers 503** —
 `{ "database": "unavailable", "media": "unavailable", "video": <as above> }` — whatever
