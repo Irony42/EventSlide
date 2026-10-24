@@ -114,6 +114,27 @@ describe('Password byte limit', () => {
     expect(!refused.ok && refused.error.code).toBe('password.tooLong')
   })
 
+  // Two units that are not a pair are not one code point, and a UTF-8 encoder writes three bytes
+  // (U+FFFD) for each lone surrogate. Counting the unit after a lone high surrogate as part of it
+  // measured twelve crafted pairs as 48 bytes where the encoder writes 72 and bcrypt reads only 72.
+  it('counts a lone high surrogate as the three bytes it is encoded as, not as half a pair', () => {
+    const loneHigh = String.fromCharCode(0xd800)
+    const crafted = `bravo-mariage-${(loneHigh + EURO_SIGN).repeat(12)}`
+
+    const result = Password.create(crafted)
+
+    expect(!result.ok && result.error.code).toBe('password.tooLong')
+  })
+
+  it('counts a high surrogate that ends the passphrase as three bytes too', () => {
+    const loneHigh = String.fromCharCode(0xd800)
+    const atTheLimit = `${'bravo-mariage-'.padEnd(Password.maxBytes - 6, 'x')}${loneHigh}${loneHigh}`
+
+    // 66 ASCII bytes and two lone surrogates of three bytes each: exactly the 72 bcrypt reads.
+    expect(Password.create(atTheLimit).ok).toBe(true)
+    expect(Password.create(`${atTheLimit}!`).ok).toBe(false)
+  })
+
   it('refuses a passphrase one UTF-8 byte over the limit instead of truncating it', () => {
     const result = Password.create(OVER_THE_BYTE_LIMIT)
 

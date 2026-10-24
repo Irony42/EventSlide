@@ -67,9 +67,18 @@ const utf8Length = (value: string): number => {
       bytes += 2
     } else if (unit >= 0xd800 && unit <= 0xdbff) {
       // A high surrogate: together with its low surrogate it encodes one code point
-      // in four bytes, so consume both units here.
-      bytes += 4
-      index += 1
+      // in four bytes, so consume both units here. On its own it is not text, and a UTF-8
+      // encoder writes U+FFFD for it, which is three bytes: swallowing the unit after it
+      // counted a crafted pair of units as four bytes and let a passphrase past the limit
+      // that bcrypt then truncates. `charCodeAt` past the end is NaN, which is not a low
+      // surrogate, so a high surrogate that ends the string is a lone one too.
+      const next = value.charCodeAt(index + 1)
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4
+        index += 1
+      } else {
+        bytes += 3
+      }
     } else {
       bytes += 3
     }
