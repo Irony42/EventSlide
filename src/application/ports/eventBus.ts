@@ -67,8 +67,6 @@ export type DomainEvent =
    */
   | { readonly type: 'clip.failed'; readonly eventId: EventId; readonly clipJobId: ClipJobId }
 
-export type DomainEventType = DomainEvent['type']
-
 export type Unsubscribe = () => void
 
 /**

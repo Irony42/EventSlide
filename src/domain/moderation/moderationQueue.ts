@@ -19,12 +19,6 @@ export interface QueueItem {
   readonly id: PhotoId
   readonly status: PhotoStatus
   readonly createdAt: Date
-  /**
-   * The row shows a badge when the photo carries guest text, because a caption is
-   * projected at the size of the room and has to be read before publishing. No rule
-   * here consults it; it travels with the row so the console needs no second query.
-   */
-  readonly hasCaption: boolean
 }
 
 /** The console's tabs. `all` is the album view rather than a moderation view. */

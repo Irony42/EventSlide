@@ -61,7 +61,6 @@ const toQueueItem = (photo: Photo): QueueItem => ({
   id: photo.id,
   status: photo.status,
   createdAt: photo.createdAt,
-  hasCaption: photo.caption !== null,
 })
 
 export const makeModeratePhotosBulk =

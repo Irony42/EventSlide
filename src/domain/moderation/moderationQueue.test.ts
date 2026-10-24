@@ -14,7 +14,6 @@ const anItem = (id: string, arrivedAt: string, status: PhotoStatus = 'pending'):
   id: asPhotoId(id),
   status,
   createdAt: new Date(arrivedAt),
-  hasCaption: false,
 })
 
 const ids = (items: readonly QueueItem[]): readonly string[] => items.map((item) => item.id)
