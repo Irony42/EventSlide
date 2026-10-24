@@ -423,7 +423,7 @@ No body. **204**. Suspension is **one column** (`clients.suspended_at`) and one 
 changes status, no photograph is touched, and the ceilings are as they were when it is lifted. Both are
 idempotent: freezing a frozen client keeps its first instant and writes no second line, and lifting a client that is
 not frozen writes nothing. The line is written before the column, so a failure to record leaves the client as it
-was. **404** `client.notFound`.
+was. **404** `client.notFound`. `resume` refuses a client whose engagement has ended (`offboard`) with **409** `client.offboarding`.
 
 What a suspended client is told, per surface (docs/SECURITY.md §22):
 
@@ -475,7 +475,7 @@ client may still export), the client is **suspended** as by `suspend`, and its a
 then finalises the client (docs/SECURITY.md §22): the accounts that were nothing but its own are deleted, the others
 are only removed from it, and the client row goes. One audit line, `client.offboarded`, carries the window and how many
 events were closed and archived, never which. Idempotent: a client already being offboarded keeps its first date,
-whatever the second request asks for, and writes nothing. **400** `client.graceInvalid` outside the range (and
+whatever the second request asks for, and writes nothing. The purge date is an **upper bound**: an event's own retention, or a ceiling on the client, purges it sooner, and the earliest deadline wins. **400** `client.graceInvalid` outside the range (and
 `request.invalid` for a body that is not exactly one number), **404** `client.notFound`. A suspended client
 that is offboarding cannot be resumed.
 
@@ -493,10 +493,15 @@ operator's account, another one's or the caller's own, which `disable` refuses a
 No body. **204**. Deletes an account for a person's **erasure request** (GDPR). Its memberships, the invitations written
 to it, its second factor and the share links it created go with it, and the actor pointer on every audit line it wrote is
 set to null by the foreign key, which is the whole erasure on the log's side: the lines stay and nothing on them says who.
-One `account.deleted` line per client it belonged to is written first. Refused with **403** `account.operatorProtected`
-(an operator's account), **409** `account.holdsEvents` (it **owns** an event: hand it over or purge it first) and **409**
-`account.holdsMedia` (it **wrote** photographs or clips, whose files would stay on disk); **404** `user.notFound`,
-including the second time. The last owner of a client can be deleted, and the client is then left without one.
+One `account.deleted` line per client it belonged to is written first. **What it does not erase**: the address is also in
+the account's live sessions (until they expire, seven days at most) and in the invitation and reset links ever written to
+it (until the opportunistic expiry sweep removes them). Refused with **403** `account.operatorProtected` (an operator's
+account, switched off or not), **409** `account.holdsEvents` (it **owns** an event: hand it over or purge it first),
+**409** `account.holdsMedia` (it **wrote** photographs or clips, whose files would stay on disk), **409**
+`account.holdsReviews` (it **reviewed** photographs, whose rows name the reviewer and which the schema refuses to leave
+with none) and **409** `account.lastClientOwner` (it is the only owner of a client that still has other members or an
+event, which would be orphaned: add an owner first, or offboard the client); **404** `user.notFound`, including the
+second time.
 
 #### `POST /api/site/accounts/:userId/password-reset`
 

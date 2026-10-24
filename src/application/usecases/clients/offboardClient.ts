@@ -36,7 +36,7 @@ export type OffboardClient = (input: OffboardClientInput) => Promise<Result<void
  *
  * - **Live events are closed and drafts archived**, so nothing is left running or openable. An
  *   event that is already closed or archived stays as it is: its album is what the client may still
- *   export.
+ *   export. A closed event's own schedule is cleared, so it cannot reopen itself.
  * - **The client is frozen**, as by `suspendClient` (its public surfaces answer as for an unknown
  *   event and its members read and cannot write), and **its albums are given a purge date**,
  *   `graceDays` from now, in `clients.purge_after`: the retention sweep already purges every event of
@@ -73,17 +73,30 @@ export const makeOffboardClient =
     let closed = 0
     let archived = 0
     for (const event of await events.listByClient(clientId)) {
+      let next: Event = event
       if (event.status === 'live') {
-        const next = event.close(at)
-        if (!next.ok) return next
-        moved.push(next.value)
+        const closing = event.close(at)
+        if (!closing.ok) return closing
+        next = closing.value
         closed += 1
       } else if (event.status === 'draft') {
-        const next = event.archive(at)
-        if (!next.ok) return next
-        moved.push(next.value)
+        const archiving = event.archive(at)
+        if (!archiving.ok) return archiving
+        next = archiving.value
         archived += 1
       }
+      // An event that is left closed must not be reopened by its own schedule: the schedule sweep
+      // would make it live again with no `closedAt`, and the purge reads `closedAt`, so the album
+      // would never be purged and the client never finalised. An archived event refuses a reopening.
+      if (
+        next.status !== 'archived' &&
+        (next.scheduledOpenAt !== null || next.scheduledCloseAt !== null)
+      ) {
+        const cleared = next.reschedule({ scheduledOpenAt: null, scheduledCloseAt: null }, at)
+        if (!cleared.ok) return cleared
+        next = cleared.value
+      }
+      if (next !== event) moved.push(next)
     }
 
     const entry = AuditEntry.create({

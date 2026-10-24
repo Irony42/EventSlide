@@ -55,6 +55,16 @@ describe('disableAccount', () => {
       expect((await audit.list({ limit: 10 })).items).toEqual([])
     })
 
+    it('answers an operator the same whether or not the account is already off', async () => {
+      users.seed(
+        aUser({ id: 'user-peer', email: 'pair@example.test', siteRole: 'operator' }).disable(AT),
+      )
+
+      const result = await disable('user-peer')
+
+      expect(!result.ok && result.error.code).toBe('account.operatorProtected')
+    })
+
     it('answers user.notFound for an account that does not exist', async () => {
       const result = await disable('ghost')
 

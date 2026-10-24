@@ -16,6 +16,12 @@ export interface AccountHoldingsCount {
    * that wrote media is not deleted.
    */
   readonly media: number
+  /**
+   * Photographs the account **reviewed** (approved or rejected). Their rows name the reviewer, and the
+   * schema refuses a host review with no reviewer (`photos_host_review_has_user`), so deleting the
+   * account would abort in the database: the use case says so first, with a code.
+   */
+  readonly reviews: number
   /** Events the account moderates or owns: its part in somebody's event, removed with it. */
   readonly eventMemberships: number
 }

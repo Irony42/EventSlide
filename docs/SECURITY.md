@@ -3309,10 +3309,15 @@ and a mutation.
   `deleteAccount` (an erasure request) and `finalizeOffboardedClients` (the sweep). `scripts/userDeletionScope.test.ts`
   holds the allow-list and is exercised against a third file, so widening it is a decision and not a line nobody read.
   Migration 014 indexes every foreign key that points at `users`, because deleting a row looks its children up.
-- **What an account holds decides whether it may go.** One that **owns an event** (`409 account.holdsEvents`) or **wrote
-  media** (`409 account.holdsMedia`) is refused: an album is somebody's, and the foreign key cascade would delete a
-  photograph's row and leave its file on disk. What an erasure does remove is the membership rows and the pointer: the
-  audit lines keep their place and lose their author, which is what `ON DELETE SET NULL` is for.
+- **What an account holds decides whether it may go.** One that **owns an event** (`409 account.holdsEvents`),
+  **wrote media** (`409 account.holdsMedia`: the cascade would delete a photograph's row and leave its file on disk) or
+  **reviewed a photograph** (`409 account.holdsReviews`: the schema refuses a host review with no reviewer, so the delete
+  would abort) is refused, and so is **the only owner of a client that still has other members or an event**
+  (`409 account.lastClientOwner`: operator rule R1 makes every invitation into such a client wait for an owner, so nobody
+  could be added again). An album is somebody's. What an erasure does remove is the membership rows and the pointer: the
+  audit lines keep their place and lose their author, which is what `ON DELETE SET NULL` is for. **What it does not
+  erase**: the address is also in the account's live sessions (seven days at most) and in the invitation and reset links
+  written to it (until the expiry sweep); the API says so.
 - **The trail names the client.** An act on an account writes one line per client the account belongs to, carrying the
   client's id, so an owner reads that a member's account was switched off, back on or deleted; an account that belongs to
   none leaves one line with no client. The subject is the account's opaque id, a pseudonym once the account is gone.
@@ -3326,8 +3331,10 @@ and a mutation.
 - **A feed does not outlive its account.** The moderation stream re-reads the account's place in the event at every
   heartbeat (plan item A-22), so an account switched off or deleted, or removed from the event, is told to wait and is ended
   within one beat; the wall's public feed has no account and keeps its suspension rule.
-- **Not here:** erasing media a moderator wrote (the account is refused instead), a self-service erasure (roadmap §5.2),
-  and a list of the accounts an erasure refused.
+- **Not here:** erasing media a moderator wrote, or a moderator who has reviewed photographs (the account is refused
+  instead; the second needs a schema change to the review constraint), erasing the sessions and tokens that hold the
+  address, a self-service erasure (roadmap §5.2), and a retry order that keeps a client that fails to finalise from
+  holding up later ones in the batch of twenty.
 
 **What the routes do not do.**
 

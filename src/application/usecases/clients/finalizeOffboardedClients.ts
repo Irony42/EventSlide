@@ -19,6 +19,8 @@ export interface FinalizeOffboardedClientsReport {
   readonly accountsDeleted: number
   /** Clients that could not be finished this time; the next sweep tries again. */
   readonly failed: readonly ClientId[]
+  /** Why, one entry per failed client, for the sweep to log: an id alone does not say what is stuck. */
+  readonly reasons: readonly { readonly clientId: ClientId; readonly reason: string }[]
 }
 
 export interface FinalizeOffboardedClientsDeps {
@@ -66,17 +68,20 @@ export const makeFinalizeOffboardedClients =
 
     const finalized: ClientId[] = []
     const failed: ClientId[] = []
+    const reasons: { clientId: ClientId; reason: string }[] = []
     let accountsDeleted = 0
 
     const goesWithTheClient = async (clientId: ClientId, userId: UserId): Promise<boolean> => {
       const user = await users.findById(userId)
-      if (user === null || user.isOperator()) return false
+      if (user === null || user.siteRole === 'operator') return false
       const elsewhere = (await clients.membershipsForUser(userId)).some(
         (membership) => membership.clientId !== clientId,
       )
       if (elsewhere) return false
       const held = await holdings.countFor(userId)
-      return held.events === 0 && held.media === 0 && held.eventMemberships === 0
+      return (
+        held.events === 0 && held.media === 0 && held.reviews === 0 && held.eventMemberships === 0
+      )
     }
 
     for (const clientId of due) {
@@ -100,6 +105,16 @@ export const makeFinalizeOffboardedClients =
           await clients.revokeMember(clientId, userId)
         }
 
+        // Asked before the closing line is written, so that line is never a statement about a client
+        // that was not finished: something that arrived since the listing (an event, a member) is the
+        // next sweep's to look at.
+        if (
+          (await clients.countEvents(clientId)) > 0 ||
+          (await clients.countMembers(clientId)) > 0
+        ) {
+          throw new Error('the client is not empty')
+        }
+
         const done = AuditEntry.create({
           at: clock.now(),
           actor,
@@ -113,10 +128,11 @@ export const makeFinalizeOffboardedClients =
 
         if (await clients.deleteIfEmpty(clientId)) finalized.push(clientId)
         else failed.push(clientId)
-      } catch {
+      } catch (error) {
         failed.push(clientId)
+        reasons.push({ clientId, reason: error instanceof Error ? error.message : String(error) })
       }
     }
 
-    return { finalized, accountsDeleted, failed }
+    return { finalized, accountsDeleted, failed, reasons }
   }

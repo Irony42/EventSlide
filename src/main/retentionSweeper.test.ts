@@ -88,7 +88,7 @@ const controllableSweep = (): {
   return state
 }
 
-const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [] }
+const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [], reasons: [] }
 
 const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
   const { logger, lines } = recordingLogger()
@@ -649,6 +649,7 @@ describe('createRetentionSweeper: the end of an offboarding (G2-14 part 3)', () 
         finalized: [asClientId('client-1'), asClientId('client-2')],
         accountsDeleted: 3,
         failed: [],
+        reasons: [],
       }),
     })
 
@@ -672,6 +673,7 @@ describe('createRetentionSweeper: the end of an offboarding (G2-14 part 3)', () 
         finalized: [],
         accountsDeleted: 0,
         failed: [asClientId('client-3')],
+        reasons: [{ clientId: asClientId('client-3'), reason: 'database is locked' }],
       }),
     })
 
@@ -680,7 +682,11 @@ describe('createRetentionSweeper: the end of an offboarding (G2-14 part 3)', () 
     expect(at(lines, 'error')).toContainEqual(
       expect.objectContaining({
         message: 'retention sweep could not finalise every offboarded client',
-        context: expect.objectContaining({ failed: 1, failedIds: 'client-3' }),
+        context: expect.objectContaining({
+          failed: 1,
+          failedIds: 'client-3',
+          reasons: 'client-3: database is locked',
+        }),
       }),
     )
   })

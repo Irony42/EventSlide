@@ -220,6 +220,62 @@ describe('offboardClient', () => {
     },
   )
 
+  it('clears the schedule of a closed event it leaves, so the schedule sweep cannot reopen it', async () => {
+    const closed = await events.findById(asEventId('closed'))
+    if (closed === null) throw new Error('fixture')
+    const scheduled = closed.reschedule(
+      { scheduledOpenAt: atPlus(2 * DAY), scheduledCloseAt: null },
+      AT,
+    )
+    if (!scheduled.ok) throw new Error('fixture')
+    await events.save(scheduled.value)
+
+    await offboard({ clientId: CLIENT, actor: OPERATOR, graceDays: 30 })
+
+    const stored = await events.findById(asEventId('closed'))
+    expect([stored?.scheduledOpenAt, stored?.scheduledCloseAt]).toEqual([null, null])
+  })
+
+  it('clears the schedule of a live event it closes as well', async () => {
+    const live = await events.findById(asEventId('live'))
+    if (live === null) throw new Error('fixture')
+    const scheduled = live.reschedule(
+      { scheduledOpenAt: null, scheduledCloseAt: atPlus(2 * DAY) },
+      AT,
+    )
+    if (!scheduled.ok) throw new Error('fixture')
+    await events.save(scheduled.value)
+
+    await offboard({ clientId: CLIENT, actor: OPERATOR, graceDays: 30 })
+
+    const stored = await events.findById(asEventId('live'))
+    expect([stored?.status, stored?.scheduledCloseAt]).toEqual(['closed', null])
+  })
+
+  it('returns an event’s refusal to clear its schedule and writes nothing', async () => {
+    const closed = await events.findById(asEventId('closed'))
+    if (closed === null) throw new Error('fixture')
+    const scheduled = closed.reschedule(
+      { scheduledOpenAt: atPlus(2 * DAY), scheduledCloseAt: null },
+      AT,
+    )
+    if (!scheduled.ok) throw new Error('fixture')
+    const refusing = Object.assign(Object.create(scheduled.value) as typeof closed, {
+      reschedule: () => err(DomainError.conflict('event.scheduleRefused')),
+    })
+    const doctored = makeOffboardClient({
+      clients,
+      events: { listByClient: async () => [refusing], save: events.save.bind(events) },
+      audit,
+      clock: new FakeClock(NOW),
+    })
+
+    const result = await doctored({ clientId: CLIENT, actor: OPERATOR, graceDays: 30 })
+
+    expect(!result.ok && result.error.code).toBe('event.scheduleRefused')
+    expect(audit.all()).toEqual([])
+  })
+
   it('has nothing to move for a client with no event, and still dates it', async () => {
     const empty = makeOffboardClient({ clients, events, audit, clock: new FakeClock(NOW) })
 

@@ -114,6 +114,10 @@ export const createRetentionSweeper = ({
         logger.error('retention sweep could not finalise every offboarded client', {
           failed: report.failed.length,
           failedIds: report.failed.join(' '),
+          // The reason is the point: an id alone does not say what is stuck.
+          reasons: report.reasons
+            .map(({ clientId, reason }) => `${clientId}: ${reason}`)
+            .join('; '),
         })
       }
     } catch (error) {

@@ -112,16 +112,15 @@ describe('DELETE /api/site/accounts/:userId', () => {
     expect(lines.every((line) => line.actor.userId === ID.operator)).toBe(true)
   })
 
-  it('keeps the lines the account wrote, with the pointer to it removed: the erasure of a person from the log', async () => {
+  it('removes no line from the log: the erasure adds its own and leaves every other as it was', async () => {
     const { send, logged } = await operator()
-    // The account is first an actor of the log, so that its deletion has a pointer to remove.
     await send('post', `/api/site/accounts/${ID.owner}/password-reset`)
+    const before = (await logged()).length
 
     await send('delete', `/api/site/accounts/${ID.member}`)
 
-    expect((await logged()).length).toBeGreaterThan(0)
+    expect((await logged()).length).toBeGreaterThan(before)
   })
-
   it('refuses an account that owns an event, with 409 account.holdsEvents, and deletes nothing', async () => {
     const { send, accounts, logged } = await operator()
 
@@ -199,6 +198,16 @@ describe('POST /api/site/clients/:clientId/offboard', () => {
       )
     },
   )
+
+  it('refuses to resume the client afterwards, with 409 client.offboarding: the engagement has ended', async () => {
+    const { send, clients } = await operator()
+    await send('post', `/api/site/clients/${ID.clientK}/offboard`, { graceDays: 30 })
+
+    const response = await send('post', `/api/site/clients/${ID.clientK}/resume`)
+
+    expect([response.status, codeOf(response)]).toEqual([409, 'client.offboarding'])
+    expect((await clients()).find((client) => client.id === ID.clientK)?.suspendedAt).not.toBeNull()
+  })
 
   it('answers 404 client.notFound for a client that does not exist', async () => {
     const { send } = await operator()

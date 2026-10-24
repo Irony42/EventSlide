@@ -57,7 +57,7 @@ export const makeDisableAccount =
   async ({ userId, actor }) => {
     const user = await users.findById(userId)
     if (user === null) return err(DomainError.notFound('user.notFound'))
-    if (user.isOperator()) return err(DomainError.forbidden('account.operatorProtected'))
+    if (user.siteRole === 'operator') return err(DomainError.forbidden('account.operatorProtected'))
     if (user.isDisabled()) return ok(undefined)
 
     const at = clock.now()

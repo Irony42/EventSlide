@@ -66,7 +66,7 @@ describe('finalizeOffboardedClients', () => {
   it('deletes the accounts that were nothing but the client’s, and the client', async () => {
     const report = await finalize()
 
-    expect(report).toEqual({ finalized: [CLIENT], accountsDeleted: 2, failed: [] })
+    expect(report).toEqual({ finalized: [CLIENT], accountsDeleted: 2, failed: [], reasons: [] })
     expect(await exists('user-owner')).toBe(false)
     expect(await exists('user-member')).toBe(false)
     expect(await clients.findById(CLIENT)).toBeNull()
@@ -83,6 +83,7 @@ describe('finalizeOffboardedClients', () => {
   it.each([
     ['owns an event', { events: 1 }],
     ['wrote media', { media: 1 }],
+    ['reviewed a photograph', { reviews: 1 }],
     ['has a part in an event', { eventMemberships: 1 }],
   ] as const)('keeps an account that %s, and still finalises the client', async (_name, held) => {
     holdings.holds(asUserId('user-member'), held)
@@ -100,6 +101,17 @@ describe('finalizeOffboardedClients', () => {
 
     expect(await exists('user-operator')).toBe(true)
     expect(await clients.findById(CLIENT)).toBeNull()
+  })
+
+  it('never deletes a switched-off operator either', async () => {
+    users.seed(
+      aUser({ id: 'user-old', email: 'ancien@example.test', siteRole: 'operator' }).disable(AT),
+    )
+    await seat(CLIENT, 'user-old')
+
+    await finalize()
+
+    expect(await exists('user-old')).toBe(true)
   })
 
   it('writes one account.deleted line per account and one client.finalized, by the sweeper, carrying the client', async () => {
@@ -127,7 +139,7 @@ describe('finalizeOffboardedClients', () => {
       clock: new FakeClock(atPlus(4_999)),
     })
 
-    expect(await early()).toEqual({ finalized: [], accountsDeleted: 0, failed: [] })
+    expect(await early()).toEqual({ finalized: [], accountsDeleted: 0, failed: [], reasons: [] })
     expect(await clients.findById(CLIENT)).not.toBeNull()
     expect(audit.all()).toEqual([])
   })
@@ -158,7 +170,8 @@ describe('finalizeOffboardedClients', () => {
 
     const report = await silent()
 
-    expect(report).toEqual({ finalized: [], accountsDeleted: 0, failed: [CLIENT] })
+    expect(report).toMatchObject({ finalized: [], accountsDeleted: 0, failed: [CLIENT] })
+    expect(report.reasons).toEqual([{ clientId: CLIENT, reason: 'audit.actorUserRequired' }])
     expect(await exists('user-owner')).toBe(true)
     expect(audit.all()).toEqual([])
   })
@@ -195,6 +208,44 @@ describe('finalizeOffboardedClients', () => {
 
     expect(report.finalized).toEqual([])
     expect(report.failed).toEqual([CLIENT])
+  })
+
+  it('records before it deletes: a failure to write the line leaves the account in place, and says why', async () => {
+    const broken = {
+      record: async () => {
+        throw new Error('disk full')
+      },
+    }
+    const failing = makeFinalizeOffboardedClients({
+      clients,
+      users,
+      holdings,
+      audit: broken,
+      clock: new FakeClock(DUE),
+    })
+
+    const report = await failing()
+
+    expect(await exists('user-owner')).toBe(true)
+    expect(await exists('user-member')).toBe(true)
+    expect(report.failed).toEqual([CLIENT])
+    expect(report.reasons).toEqual([{ clientId: CLIENT, reason: 'disk full' }])
+  })
+
+  it('writes no closing line for a client that is not empty after all: the line is never a false statement', async () => {
+    const racing = makeFinalizeOffboardedClients({
+      clients: Object.assign(Object.create(clients) as typeof clients, {
+        countMembers: async () => 1,
+      }),
+      users,
+      holdings,
+      audit,
+      clock: new FakeClock(DUE),
+    })
+
+    await racing()
+
+    expect(audit.all().filter((line) => line.action === 'client.finalized')).toEqual([])
   })
 
   it('does at most one batch of clients a sweep', async () => {

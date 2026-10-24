@@ -1,7 +1,7 @@
 import type { UserId } from '../../domain/shared/ids'
 import type { AccountHoldings, AccountHoldingsCount } from '../ports/accountHoldings'
 
-const NOTHING: AccountHoldingsCount = { events: 0, media: 0, eventMemberships: 0 }
+const NOTHING: AccountHoldingsCount = { events: 0, media: 0, reviews: 0, eventMemberships: 0 }
 
 /** What an account holds is stated by the test, because the fake has no events or photographs of its own. */
 export class FakeAccountHoldings implements AccountHoldings {
