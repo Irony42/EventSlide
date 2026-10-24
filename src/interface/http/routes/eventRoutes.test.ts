@@ -14,6 +14,7 @@ import {
 } from '../../../application/usecases/events/createEvent'
 import { makeGetEventBySlug } from '../../../application/usecases/events/getEventBySlug'
 import { makeGetEventLimits } from '../../../application/usecases/events/getEventLimits'
+import { makeGetEventView } from '../../../application/usecases/events/getEventView'
 import { makeListEventsForHost } from '../../../application/usecases/events/listEventsForHost'
 import { makeListModerators } from '../../../application/usecases/events/listModerators'
 import { makePurgeEvent } from '../../../application/usecases/events/purgeEvent'
@@ -298,7 +299,10 @@ const buildWorld = ({
           ...CORE_DEFAULTS,
         }),
         getEventBySlug: makeGetEventBySlug({ events }),
-        getEventLimits: makeGetEventLimits({ clients }),
+        getEventView: makeGetEventView({
+          events,
+          getEventLimits: makeGetEventLimits({ clients }),
+        }),
         listEventsForHost: makeListEventsForHost({ events }),
         resolveJoinCode: absent('resolveJoinCode'),
         identifyMediaViewer: absent('identifyMediaViewer'),

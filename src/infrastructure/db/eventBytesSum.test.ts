@@ -248,6 +248,14 @@ describe('the event byte sum', () => {
     ])
   })
 
+  it('is the number a single event’s own answer carries, queued clip sources included (HTTP-M-06)', async () => {
+    // `countsOf` is what the answer about one event reads, and it reads the same columns as the
+    // dashboard row; a sum that left the queued clips out here would show a host room that
+    // admission will not give.
+    expect((await events.countsOf(WEDDING)).usedBytes).toBe(WEDDING_USED)
+    expect((await events.countsOf(GALA)).usedBytes).not.toBe(WEDDING_USED)
+  })
+
   it('is the number the operator’s overview reports for the event, queued clip sources included', async () => {
     // The fifth reader. The operator sizes a client's events with this figure, and it must
     // be the one a guest is refused against — not a photograph-only sum that leaves the
