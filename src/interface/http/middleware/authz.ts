@@ -382,6 +382,12 @@ export const requirePasswordCurrent =
     })().catch(next)
   }
 
+/** The code a suspended client's member is refused a write with. Exported for the tests. */
+export const CLIENT_SUSPENDED_CODE = 'client.suspended'
+
+/** What a suspended client's members may still do: read. Everything else is a write. */
+const READ_ONLY_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS'])
+
 /**
  * Resolves `:eventSlug` and the caller's role in it, then checks the requirement.
  *
@@ -435,6 +441,15 @@ export const requireRole =
         // The caller is genuinely in scope for this event but lacks the role, so 403 is
         // honest here and reveals nothing they did not already know.
         sendError(res, DomainError.forbidden('auth.forbidden', { required }))
+        return
+      }
+
+      // A suspended client's members read and may not write (roadmap §10.7; G2-14). Asked after
+      // the role, so a stranger is still told what a stranger is told and only somebody in scope
+      // learns that the client is frozen, and for **every** route that resolves an event through
+      // here, so a write route added tomorrow is covered the day it is mounted.
+      if (event.isClientSuspended() && !READ_ONLY_METHODS.has(req.method)) {
+        sendError(res, DomainError.forbidden(CLIENT_SUSPENDED_CODE))
         return
       }
 
@@ -597,7 +612,9 @@ export const requireGuest =
       }
 
       const event = await deps.events.findBySlug(slug.value)
-      if (!event) {
+      // A suspended client's event is **the same 404 as an unknown one** (roadmap §10.7; G2-14):
+      // a guest's token, a join code or a link that worked yesterday tells them nothing today.
+      if (!event || event.isClientSuspended()) {
         sendError(res, DomainError.notFound('event.notFound'))
         return
       }
@@ -633,7 +650,10 @@ export const GUEST_COOKIE = 'es_guest'
  * read path cannot reach a draft or archived event at all.
  */
 export const resolvePublicEvent =
-  (deps: HttpDeps): RequestHandler =>
+  (
+    deps: HttpDeps,
+    options: { readonly suspended: 'hidden' | 'visible' } = { suspended: 'hidden' },
+  ): RequestHandler =>
   (req, res, next) => {
     void (async () => {
       const slug = Slug.create(req.params['eventSlug'])
@@ -642,7 +662,11 @@ export const resolvePublicEvent =
         return
       }
       const event = await deps.events.findBySlug(slug.value)
-      if (!event || !event.servesWall()) {
+      // A suspended client's wall is the same 404 as an event that does not exist (G2-14). The one
+      // route that is also a host's (the media of a photograph, which a moderation grid reads)
+      // asks for `visible` and judges the viewer itself, because members may still read.
+      const hidden = options.suspended === 'hidden' && event?.isClientSuspended() === true
+      if (!event || !event.servesWall() || hidden) {
         sendError(res, DomainError.notFound('event.notFound'))
         return
       }

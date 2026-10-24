@@ -178,7 +178,8 @@ export const makeGetWallPlaylist =
     // exist: a distinguishable "not open yet" would let anyone enumerate which slugs
     // are real. A `closed` event still serves — the projector is usually still on while
     // people say goodbye.
-    if (event === null || !event.servesWall()) {
+    // A suspended client's wall is the same answer as an event that does not exist (G2-14).
+    if (event === null || !event.servesWall() || event.isClientSuspended()) {
       return err(DomainError.notFound('event.notFound'))
     }
 

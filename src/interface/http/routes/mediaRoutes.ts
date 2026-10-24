@@ -234,10 +234,10 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
    */
   router.get(
     '/events/:eventSlug/photos/:photoId/:variant',
-    resolvePublicEvent(deps),
+    // A suspended client's members still read their own photographs, so the middleware lets the
+    // event through and the viewer decides below (G2-14).
+    resolvePublicEvent(deps, { suspended: 'visible' }),
     asyncHandler(async (req, res) => {
-      const params = photoVariantParams.parse(req.params)
-
       const event = req.context.event
       if (!event) {
         // `resolvePublicEvent` always populates it. This keeps the type honest without a
@@ -247,6 +247,16 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
       }
 
       const viewer = await viewerFor(deps, req, event)
+
+      // The public, and a guest, are answered as for an event that is not there; a moderator of a
+      // suspended client still reads (roadmap §10.7; G2-14).
+      if (event.isClientSuspended() && viewer.kind !== 'moderator') {
+        return sendError(res, DomainError.notFound('event.notFound'))
+      }
+
+      // Parsed only now: a malformed id or variant is a 400 for an event that serves, and must not
+      // be what tells a suspended client's slug from an unknown one (G2-14).
+      const params = photoVariantParams.parse(req.params)
 
       /**
        * **One call, and it opens nothing.**

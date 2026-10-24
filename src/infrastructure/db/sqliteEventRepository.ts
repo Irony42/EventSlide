@@ -63,6 +63,8 @@ interface EventRow {
   readonly scheduled_open_at: string | null
   readonly scheduled_close_at: string | null
   readonly schedule_discarded_at: string | null
+  /** Only the three single-event lookups select it (`WITH_CLIENT_STANDING`). */
+  readonly client_suspended_at?: string | null
 }
 
 /** Named rather than positional: sixteen columns in the right order by luck is no plan. */
@@ -108,6 +110,15 @@ interface CountRow {
 const EVENT_COLUMNS = `id, owner_id, name, slug, join_code, status, settings, quota_bytes,
                        created_at, starts_at, client_id, closed_at, opened_at,
                        scheduled_open_at, scheduled_close_at, schedule_discarded_at`
+
+/**
+ * What a **lookup of one event** adds: whether its client is suspended (roadmap §10.7), read from
+ * the client's own row on every call so that a suspension is in force on the next request. The
+ * three lookups the public surfaces use (by id, by slug, by join code) carry it; a listing does
+ * not, and its events read as not suspended, because nothing serves a guest from a listing.
+ */
+const WITH_CLIENT_STANDING = `${EVENT_COLUMNS},
+       (SELECT c.suspended_at FROM clients c WHERE c.id = events.client_id) AS client_suspended_at`
 
 /**
  * `strftime`'s format for every instant this query builds, so each one is ISO-8601 to the
@@ -438,6 +449,7 @@ const toEvent = (row: EventRow): Event =>
     scheduledOpenAt: fromNullableIsoText(row.scheduled_open_at),
     scheduledCloseAt: fromNullableIsoText(row.scheduled_close_at),
     scheduleDiscardedAt: fromNullableIsoText(row.schedule_discarded_at),
+    clientSuspendedAt: fromNullableIsoText(row.client_suspended_at ?? null),
   })
 
 const toSummary = (row: SummaryRow): EventSummary => ({
@@ -500,15 +512,15 @@ export class SqliteEventRepository implements EventRepository {
    */
   constructor(private readonly db: Db) {
     this.selectById = db.prepare<[string], EventRow>(
-      `SELECT ${EVENT_COLUMNS} FROM events WHERE id = ?`,
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE id = ?`,
     )
 
     this.selectBySlug = db.prepare<[string], EventRow>(
-      `SELECT ${EVENT_COLUMNS} FROM events WHERE slug = ?`,
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE slug = ?`,
     )
 
     this.selectByJoinCode = db.prepare<[string], EventRow>(
-      `SELECT ${EVENT_COLUMNS} FROM events WHERE join_code = ?`,
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE join_code = ?`,
     )
 
     // Correlated subqueries instead of a query per count: a host with twenty events

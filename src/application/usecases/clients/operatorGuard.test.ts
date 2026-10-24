@@ -251,6 +251,63 @@ describe('the operator guard', () => {
     })
   })
 
+  describe('a suspended client approves nothing (roadmap §10.7, G2-14)', () => {
+    beforeEach(async () => {
+      world = makeOperatorGuardWorld({ mailer: noRelay })
+      await world.seatTheClient()
+      const client = await world.clients.findById(asClientId(CLIENT_ID))
+      if (client === null) throw new Error('fixture')
+      await world.clients.save(client.suspend(AT))
+    })
+
+    it('refuses an owner the approval of an invitation with 403 client.suspended, and the link stays shut', async () => {
+      const waiting = await operatorInvites(CLIENT_ID, 'member')
+
+      const approval = await world.useCases.approveInvitation({
+        actorId: asUserId(OWNER_ID),
+        invitationId: waiting.id,
+      })
+
+      expect(!approval.ok && [approval.error.kind, approval.error.code]).toEqual([
+        'forbidden',
+        'client.suspended',
+      ])
+      expect(await opens(waiting.token)).toBe(false)
+    })
+
+    it('refuses an owner the approval of a reset request with 403 client.suspended', async () => {
+      const world2 = makeOperatorGuardWorld({ mailer: noRelay, mode: 'copyLinkWithOwnerApproval' })
+      await world2.seatTheClient()
+      const asked = await world2.useCases.issuePasswordResetForAccount({
+        actorId: asUserId(OPERATOR_ID),
+        userId: asUserId(MEMBER_ID),
+        locale: 'fr',
+      })
+      if (!asked.ok || asked.value.delivery !== 'pendingApproval') throw new Error('fixture')
+      const client = await world2.clients.findById(asClientId(CLIENT_ID))
+      if (client === null) throw new Error('fixture')
+      await world2.clients.save(client.suspend(AT))
+
+      const approval = await world2.useCases.approvePasswordReset({
+        actorId: asUserId(OWNER_2_ID),
+        requestId: asked.value.approvalId,
+      })
+
+      expect(!approval.ok && approval.error.code).toBe('client.suspended')
+    })
+
+    it('tells a stranger nothing of it: an account with no part in the client is still told it is not found', async () => {
+      const waiting = await operatorInvites(CLIENT_ID, 'member')
+
+      const approval = await world.useCases.approveInvitation({
+        actorId: asUserId(STRANGER_ID),
+        invitationId: waiting.id,
+      })
+
+      expect(!approval.ok && approval.error.code).toBe('invitation.notFound')
+    })
+  })
+
   describe('R1: an empty client admits exactly one live operator invitation (G2-14)', () => {
     beforeEach(() => {
       world = makeOperatorGuardWorld({ mailer: noRelay })

@@ -84,6 +84,19 @@ export interface EventProps {
    * the host answering the notice.
    */
   readonly scheduleDiscardedAt: Date | null
+  /**
+   * When the client that owns this event was suspended, or `null` while it is not (or the event
+   * has no client) — **derived, read-only and never saved** (roadmap §10.7; G2-14).
+   *
+   * It is the client's fact and not the event's, carried here because every surface that serves
+   * an event first loads it, and an event whose client is suspended has to be answered as if it
+   * were not there (`isClientSuspended`). The lookups by id, by slug and by join code fill it
+   * from the client's row on each read, so a suspension is in force on the very next request and
+   * a resumption lifts it as promptly. `save` never writes it, and an event read by any other
+   * query (a host's listing, the purge's) carries `null`: those do not ask, and nothing that
+   * serves a guest or a projector reads an event any other way.
+   */
+  readonly clientSuspendedAt?: Date | null
 }
 
 /**
@@ -266,6 +279,19 @@ export class Event {
 
   get scheduleDiscardedAt(): Date | null {
     return this.props.scheduleDiscardedAt
+  }
+
+  get clientSuspendedAt(): Date | null {
+    return this.props.clientSuspendedAt ?? null
+  }
+
+  /**
+   * Whether the client this event belongs to is suspended (roadmap §10.7). A suspended client's
+   * public surfaces answer **exactly what an unknown event answers**, and its members may read
+   * and may not write. See `clientSuspendedAt` for where the fact comes from.
+   */
+  isClientSuspended(): boolean {
+    return this.clientSuspendedAt !== null
   }
 
   // ----------------------------------------------------------------- lifecycle --
@@ -569,12 +595,23 @@ export class Event {
 
   // --------------------------------------------------------------- capabilities --
 
+  /**
+   * Whether a guest's upload is taken: the status says so **and the client is not suspended**
+   * (roadmap §10.7). A suspended client's guests are answered as if the event were not there
+   * (`requireGuest`), so this is the second line, for a caller that reaches a use case another way.
+   */
   acceptsUploads(): boolean {
-    return acceptsUploads(this.props.status)
+    return !this.isClientSuspended() && acceptsUploads(this.props.status)
   }
 
+  /**
+   * Whether a join code opens the event: the status says so **and the client is not suspended**.
+   * One expression feeds `joinEvent`, `resolveJoinCode` and `authenticateGuest`, which answer
+   * `event.notFound` to anything that is false, so a suspended client's printed QR code is the same
+   * dead end as a code nobody ever issued, and says nothing that confirms the event exists.
+   */
   acceptsGuests(): boolean {
-    return acceptsGuests(this.props.status)
+    return !this.isClientSuspended() && acceptsGuests(this.props.status)
   }
 
   servesWall(): boolean {

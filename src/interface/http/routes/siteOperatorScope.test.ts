@@ -228,6 +228,11 @@ const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
   'put /api/site/clients/:clientId/ceilings':
     'changes a client’s ceilings with a mandatory reason (`setClientCeilings`): the clients ' +
     'table and the audit log; no event is read or written',
+  'post /api/site/clients/:clientId/suspend':
+    'freezes a client (`suspendClient`): one column of the clients table and one audit line; it reads\n' +
+    'no event, and what it changes is what every other router reads of an event, not what it holds',
+  'post /api/site/clients/:clientId/resume':
+    'lifts a suspension (`resumeClient`): the same one column and one audit line',
   'post /api/site/clients/:clientId/invitations':
     'invites somebody into a client’s **account** (`inviteToClientAsOperator`, R1), waiting ' +
     'for an owner where the client is in use; it grants no event role, which R4 forbids',

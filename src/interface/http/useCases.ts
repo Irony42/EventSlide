@@ -22,7 +22,9 @@ import type { ApprovePasswordReset } from '../../application/usecases/clients/ap
 import type { InviteToClientAsOperator } from '../../application/usecases/clients/inviteToClientAsOperator'
 import type { ProvisionClientOwner } from '../../application/usecases/clients/provisionClientOwner'
 import type { RenameClient } from '../../application/usecases/clients/renameClient'
+import type { ResumeClient } from '../../application/usecases/clients/resumeClient'
 import type { SetClientCeilings } from '../../application/usecases/clients/setClientCeilings'
+import type { SuspendClient } from '../../application/usecases/clients/suspendClient'
 import type { ListSiteAccounts } from '../../application/usecases/site/listSiteAccounts'
 import type { ListSiteAudit } from '../../application/usecases/site/listSiteAudit'
 import type { ListSiteClientEvents } from '../../application/usecases/site/listSiteClientEvents'
@@ -147,6 +149,8 @@ export interface HttpUseCases {
   readonly provisionClientOwner: ProvisionClientOwner
   readonly renameClient: RenameClient
   readonly setClientCeilings: SetClientCeilings
+  readonly suspendClient: SuspendClient
+  readonly resumeClient: ResumeClient
   readonly inviteToClientAsOperator: InviteToClientAsOperator
   readonly issuePasswordResetForAccount: IssuePasswordResetForAccount
 

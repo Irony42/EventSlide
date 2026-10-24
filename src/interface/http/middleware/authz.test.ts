@@ -19,6 +19,7 @@ import { signedInAs, signInByAddress } from '../testing/signIn'
 import { anEvent, aGuest, aUser, AT } from '../../../application/testing/builders'
 import { CallLog } from '../../../application/testing/callLog'
 import { ok } from '../../../domain/shared/result'
+import { Event } from '../../../domain/events/event'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import type { HttpDeps, SessionPayload } from '../types'
 
@@ -85,6 +86,11 @@ const buildSubject = (): Harness =>
 
       app.get('/events/:eventSlug/moderate', requireRole('moderator', deps), (req, res) => {
         res.json({ slug: req.context.event?.slug.value, role: req.context.role })
+      })
+
+      // Every verb on one path: what a suspended client's member may still do is decided by the verb.
+      app.all('/events/:eventSlug/anything', requireRole('moderator', deps), (_req, res) => {
+        res.status(204).end()
       })
 
       app.get('/events/:eventSlug/manage', requireRole('owner', deps), (req, res) => {
@@ -511,6 +517,53 @@ describe('requireRole', () => {
 
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('event.notFound')
+  })
+
+  describe('for the event of a suspended client (G2-14, roadmap §10.7)', () => {
+    const WRITES = ['post', 'put', 'patch', 'delete'] as const
+
+    const frozen = (): Harness => {
+      const subject = harness()
+      seedWedding(subject)
+      subject.events.seed(
+        Event.restore({
+          ...anEvent({ id: WEDDING, slug: 'mariage', ownerId: HOST, joinCode: 'H7K2QM' }).toProps(),
+          clientSuspendedAt: AT,
+        }),
+      )
+      return subject
+    }
+
+    it('lets a member read, whatever the verb that reads', async () => {
+      const agent = await signedIn(frozen(), 'host')
+
+      expect((await agent.get('/events/mariage/anything')).status).toBe(204)
+      expect((await agent.head('/events/mariage/anything')).status).toBe(204)
+    })
+
+    it.each(WRITES)(
+      'refuses a member a %s with 403 client.suspended, which is not a 404: they may be told why',
+      async (verb) => {
+        const agent = await signedIn(frozen(), 'host')
+
+        const response = await agent[verb]('/events/mariage/anything')
+
+        expect([response.status, response.body.error.code]).toEqual([403, 'client.suspended'])
+      },
+    )
+
+    it.each([...WRITES, 'get'] as const)(
+      'tells a signed-in stranger the 404 an unknown event gets, whatever the verb (%s)',
+      async (verb) => {
+        const agent = await signedIn(frozen(), 'other')
+
+        const suspended = await agent[verb]('/events/mariage/anything')
+        const unknown = await agent[verb]('/events/un-mariage-inconnu/anything')
+
+        expect([suspended.status, suspended.body]).toEqual([404, unknown.body])
+        expect(suspended.body.error.code).toBe('event.notFound')
+      },
+    )
   })
 
   it('answers 404 for an event that does not exist', async () => {

@@ -124,7 +124,9 @@ import { makeApprovePasswordReset } from '../application/usecases/clients/approv
 import { makeInviteToClientAsOperator } from '../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
+import { makeResumeClient } from '../application/usecases/clients/resumeClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
+import { makeSuspendClient } from '../application/usecases/clients/suspendClient'
 import { makeListSiteAccounts } from '../application/usecases/site/listSiteAccounts'
 import { makeListSiteAudit } from '../application/usecases/site/listSiteAudit'
 import { makeListSiteClientEvents } from '../application/usecases/site/listSiteClientEvents'
@@ -873,6 +875,20 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clock: adapters.clock,
     }),
     setClientCeilings: makeSetClientCeilings({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * Freezing a client and lifting it (G2-14): `POST /api/site/clients/:clientId/suspend` and
+     * `/resume`, behind the operator's gate and a step-up.
+     */
+    suspendClient: makeSuspendClient({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    resumeClient: makeResumeClient({
       clients: adapters.clients,
       audit: adapters.audit,
       clock: adapters.clock,
