@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import { en } from '../../lib/i18n/en'
+import notice from '../../design-system/components/Notice.module.css'
+import { classesOf, cls } from '../../testing/classesOf'
 import {
   aGallery,
   aGalleryPhoto,
@@ -160,6 +162,18 @@ describe('GalleryPage', () => {
     expect(screen.getAllByRole('button', { name: /Agrandir/ })).toHaveLength(1)
   })
 
+  it('frames the failure of the next page, like the host’s failures, not as a bare red line', async () => {
+    const galleryPhotos = vi
+      .fn<Api['galleryPhotos']>()
+      .mockResolvedValueOnce({ items: [aGalleryPhoto({ id: 'p1' })], nextCursor: 'sealed.1' })
+      .mockRejectedValueOnce(ApiError.network())
+    render(fakeApi({ galleryPhotos }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.gallery.loadMore }))
+
+    expect(classesOf(await screen.findByRole('alert'))).toContain(cls(notice, 'boxed'))
+  })
+
   it('answers a dead link with one neutral screen', async () => {
     render(fakeApi(refusing('gallery.notAvailable', 404)))
 
@@ -238,7 +252,9 @@ describe('GalleryPage', () => {
       .mockResolvedValue(aGallery())
     render(fakeApi({ gallery }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    const failure = await screen.findByRole('alert')
+    expect(failure).toHaveTextContent(fr.errors.network)
+    expect(classesOf(failure)).toContain(cls(notice, 'boxed'))
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()

@@ -107,7 +107,7 @@ export function GalleryPage() {
     return (
       <Card as="h1" title={t.gallery.title} className={styles['card']}>
         <Robots />
-        <Notice tone="danger" role="alert" variant="inline">
+        <Notice tone="danger" role="alert" variant="boxed">
           {messageForError(state.failure, t)}
         </Notice>
         <Button variant="secondary" onClick={state.retry}>
@@ -168,7 +168,7 @@ export function GalleryPage() {
       )}
 
       {state.failure === null ? null : (
-        <Notice tone="danger" role="alert" variant="inline">
+        <Notice tone="danger" role="alert" variant="boxed">
           {messageForError(state.failure, t)}
         </Notice>
       )}
