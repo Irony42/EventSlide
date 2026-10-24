@@ -51,8 +51,9 @@ const SHARD_LENGTH = 2
  * The path of one object relative to the media root, with `/` as the separator.
  *
  * Pure text: it checks nothing. `fsMediaStore` validates the event id and the hash before it
- * calls this and proves the result is inside the root after, and the backup archive resolves
- * what it builds against its own root with the same guard.
+ * calls this and proves the result is inside the root after. The backup archive uses the result
+ * as an opaque key to match against the files it walked, and never opens it, so a row with an
+ * odd id yields a string that matches nothing and is reported as a missing file.
  */
 export const mediaObjectPath = (
   eventId: string,

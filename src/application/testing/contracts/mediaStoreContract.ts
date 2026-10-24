@@ -19,7 +19,7 @@ import { asEventId } from '../../../domain/shared/ids'
  * does, and the double is there to stand in for it.
  *
  * What stays in `fsMediaStore.test.ts` because it cannot be said of any store: the layout
- * on disk, an unsafe event id or digest refused before a path is built, the `.tmp` of an
+ * on disk (also pinned, path by path, in `mediaLayout.test.ts`), an unsafe event id or digest refused before a path is built, the `.tmp` of an
  * interrupted `put` (left alone while young, reaped by `list` once abandoned, never listed),
  * a file the store could not have written, and what a failing filesystem does. What stays
  * in `inMemoryMediaStore.test.ts`: `failWritesAfter`, the scripted full disk.

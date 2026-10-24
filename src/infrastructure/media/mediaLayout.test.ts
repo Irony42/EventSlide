@@ -20,6 +20,25 @@ describe('mediaObjectPath', () => {
     expect(mediaObjectPath(EVENT, HASH, variant)).toBe(path)
   })
 
+  it('keeps the event id exactly as it is given, case included', () => {
+    // `SAFE_SEGMENT` allows upper case and dots, and the id is a directory name on a disk that may
+    // be case-sensitive.
+    expect(mediaObjectPath('Mixed-Case.Event_1', HASH, 'thumb')).toBe(
+      `Mixed-Case.Event_1/thumb/ab/${HASH}.jpg`,
+    )
+  })
+
+  it('declares each variant with the type it is served as', () => {
+    expect(CONTENT_TYPE).toEqual({
+      original: 'image/jpeg',
+      display: 'image/jpeg',
+      thumb: 'image/jpeg',
+      video: 'video/mp4',
+      poster: 'image/jpeg',
+      source: 'application/octet-stream',
+    })
+  })
+
   it('shards by the first two characters of the hash', () => {
     const other = `cd${'ef'.repeat(31)}`
 

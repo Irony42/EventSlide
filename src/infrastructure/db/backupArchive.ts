@@ -57,7 +57,7 @@ import { checksumOf, migrate, MigrationError, type Migration } from './migrator'
  * <archive>/
  *   manifest.json                     counts, checksums, the migration ledger
  *   database.sqlite                   the VACUUM INTO snapshot
- *   media/<eventId>/<variant>/<ab>/<contentHash>.jpg
+ *   media/<eventId>/<variant>/<ab>/<contentHash>.<ext>   (laid out as `media/mediaLayout.ts` says)
  * ```
  *
  * ## Which half is captured first, and what the skew means
