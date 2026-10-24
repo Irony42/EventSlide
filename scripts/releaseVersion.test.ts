@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -153,20 +154,21 @@ describe('the CHANGELOG entries of the releases already published', () => {
   })
 })
 
-// What separates the two entries is a pull request number, with four exceptions. #103 is the last
+// What separates the two entries is a pull request number, with three exceptions. #103 is the last
 // pull request the GPL-3.0 release carries (the merge that `gpl-final` and `v2.1.0` name), and #104
 // the first one after it. A pull request cited on the wrong side of that is a change attributed to
 // the wrong licence and the wrong version, and nothing else in the toolchain reads those numbers.
 describe('the pull requests each CHANGELOG entry cites', () => {
   const LAST_PULL_REQUEST_OF_2_1_0 = 103
   /**
-   * Opened before #104 and merged after the commit `gpl-final` names, so they belong to 3.0.0 although
-   * they are numbered below it: the Dependabot bumps of zod (#52), Express (#93) and archiver
-   * (#94), and a test (#99). Found by asking `git merge-base --is-ancestor <merge commit> 5c26073`
-   * of every merged pull request, which is the only honest way to say which side of the boundary one
-   * is on; the number is a proxy that these four fall outside.
+   * Opened before #104 and merged to `main` after the commit `gpl-final` names, so they belong to
+   * 3.0.0 although they are numbered below it: the Dependabot bumps of zod (#52), Express (#93) and
+   * archiver (#94). Found by asking `git merge-base --is-ancestor <merge commit> 5c26073` of every
+   * merged pull request, which is the only honest way to say which side of the boundary one is on;
+   * the number is a proxy that these three fall outside. "Merged" is not "on main" either: #99 was
+   * merged into a stacked branch that main never took, so it is in no release and is cited by none.
    */
-  const OPENED_EARLIER_MERGED_AFTER: readonly number[] = [52, 93, 94, 99]
+  const OPENED_EARLIER_MERGED_AFTER: readonly number[] = [52, 93, 94]
   const pullRequests = (version: string): readonly number[] =>
     [...entryOf(version).body.matchAll(/(?<![\w&])#(\d+)\b/g)].map((match) => Number(match[1]))
 
@@ -185,13 +187,48 @@ describe('the pull requests each CHANGELOG entry cites', () => {
     }
   })
 
-  it('start after #103 in the entry of 3.0.0, bar the four opened earlier and merged after', () => {
+  it('start after #103 in the entry of 3.0.0, bar the three opened earlier and merged after', () => {
     const cited = pullRequests('3.0.0')
 
     expect(cited.length, 'pull requests cited by 3.0.0').toBeGreaterThan(0)
     const numberedBelow = [...new Set(cited.filter((n) => n <= LAST_PULL_REQUEST_OF_2_1_0))]
-    // Exactly the four: one that is missing is a change of this release the entry does not
+    // Exactly the three: one that is missing is a change of this release the entry does not
     // say, and one more is a change of the last GPL release attributed to the AGPL one.
     expect(numberedBelow.sort((a, b) => a - b)).toEqual(OPENED_EARLIER_MERGED_AFTER)
+  })
+})
+
+// The omission nothing above reads: a pull request that was merged and that the entry does not
+// cite. The history is the only source of "merged", so this runs where it is (a checkout, a
+// worktree) and not on a shallow clone such as the unit job's. It reads up to a fixed commit
+// rather than to HEAD, so a pull request that lands later, and writes its own line afterwards,
+// does not turn every other branch red; whoever adds those lines moves the commit forward.
+describe('the pull requests merged after gpl-final, up to the commit the entry was last written at', () => {
+  const ENTRY_WRITTEN_AT = 'c7f993b23e1900f91dbbe7c86370b32381264748'
+  const git = (...args: string[]): string =>
+    execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+
+  /** The numbers of the `Merge pull request #N` commits reachable from the commit, after the boundary. */
+  const mergedUpToTheEntry = (): readonly number[] | null => {
+    const boundary = read('.github', 'gpl-boundary').trim()
+    try {
+      git('cat-file', '-e', `${boundary}^{commit}`)
+      git('cat-file', '-e', `${ENTRY_WRITTEN_AT}^{commit}`)
+      const subjects = git('log', '--merges', '--format=%s', `${boundary}..${ENTRY_WRITTEN_AT}`)
+      return [...subjects.matchAll(/^Merge pull request #(\d+) /gm)].map((m) => Number(m[1]))
+    } catch {
+      return null
+    }
+  }
+  const merged = mergedUpToTheEntry()
+
+  it.skipIf(merged === null)('are all cited by the entry of 3.0.0', () => {
+    const cited = new Set(
+      [...entryOf('3.0.0').body.matchAll(/(?<![\w&])#(\d+)\b/g)].map((m) => Number(m[1])),
+    )
+    const missing = (merged ?? []).filter((number) => !cited.has(number))
+
+    expect(merged?.length, 'pull requests merged after gpl-final').toBeGreaterThan(70)
+    expect(missing, 'merged and not in the 3.0.0 entry').toEqual([])
   })
 })

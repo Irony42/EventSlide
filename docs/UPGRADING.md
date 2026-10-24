@@ -279,7 +279,10 @@ why each change was made and what there was no warning for.
    where it used to pass only the few the file names. Remove each line you did not mean to
    apply. Look first at `DATABASE_PATH` and `MEDIA_ROOT`: the values in `.env.example`
    (`./data/eventslide.sqlite`, `./media`) override the `/data` paths the image sets, and
-   point the server away from your volume. If you copied the file before 3.0.0, it also sets
+   point the server away from your volume. `PORT` too: `compose.yaml` publishes `${PORT:-4300}:4300`
+   and the server now listens on the `PORT` of `.env` inside the container, so a `PORT=8080` that only
+   meant "publish on 8080" leaves the mapping pointing at a port nothing listens on. Leave it out of
+   `.env`, or change the mapping. If you copied the file before 3.0.0, it also sets
    `GUEST_SELF_DELETE_GRACE_SECONDS`, which nothing ever read (the grace is a setting of each
    event): it is deprecated, 3.0.0 warns at boot that it does nothing, and you can remove it.
 3. **Check `PUBLIC_URL`.** It is the address in every join link, QR code and mail, and four
@@ -296,7 +299,8 @@ why each change was made and what there was no warning for.
 4. **Look at the settings.** The server checks the new ones at boot and exits with code 78 on a
    value that does not fit, naming the variable, so if your environment already sets one of these
    names for another purpose, change or remove it first. An empty value counts as not set, except
-   for `REQUIRE_OPERATOR_2FA`, which an empty value stops. [`.env.example`](../.env.example) says
+   for `REQUIRE_OPERATOR_2FA` and the seven numeric limits (the rows of the table below from
+   `MIN_FREE_DISK_BYTES` to `RETENTION_CAP_NOTICE_DAYS`), which it stops. [`.env.example`](../.env.example) says
    what each is for.
 
    | Setting                                                                                 | Default      | Accepts                                                                                                 |
@@ -351,14 +355,16 @@ why each change was made and what there was no warning for.
      wrong password instead of retrying at once. A browser that has signed in before presents the
      `es_device` cookie the sign-in sets and is counted on its own.
    - **A moderator is invited by link.** `POST /api/events/:slug/moderators` takes `{ "email" }`
-     and answers `201` with `status`, `expiresAt` and, when the box has no mail relay, a `link`; it
-     creates no account. A script that sent `temporaryPassword` or `displayName` now gets
+     and answers `201` with `status`, `expiresAt` and, when no mail went out (the box has no relay, or
+     the relay refused it), a `link`; it creates no account. An account may write 30 invitations an hour
+     (`429 rate.limited`). A script that sent `temporaryPassword` or `displayName` now gets
      `400 request.invalid`, and one that read `created` or `userId` finds neither. Stop typing a
      password, give the person the `link` (or let the mail carry it) and they make their own account
      when they open it. Sending a name and a password for an address that already has an account is
      `409 invitation.signInRequired`: that account signs in and accepts with an empty body; a dead one is `404 invitation.notFound`. An address is written
      to at most five times an hour: the sixth gets `429 invitation.tooManyForAddress`. Your own
-     reverse proxy must not log `/invite/*` or `/api/invitations/*`, which carry the token.
+     reverse proxy must not log `/invite/*`, `/api/invitations/*` or `/password/reset/*`, which carry a
+     token.
    - **The server runs on Express 5.** A path with a doubled slash no longer reaches a route:
      a request for `/api//health` answers 404, so a base URL that ends in `/api/` joined to a path that starts with
      `/` breaks, in a script or in a probe. A body with a number above 9007199254740991 (a quota,
@@ -369,6 +375,7 @@ why each change was made and what there was no warning for.
    `GET /api/me/limits` are mounted beside it: the CHANGELOG lists what they do, and every change an
    operator makes asks for a fresh confirmation of the person (`403 auth.stepUpRequired`). The operator
    is the first account the box ever had: 2.1.0 gave it the role, and it grants nothing inside an event.
+   It works from the console, `/admin/site`.
    - **Password resets.** An operator's reset is mailed to the account and never shown to the
      operator, so a box with no `SMTP_URL` cannot reset one (`409 reset.mailerRequired`). Set the relay
      (`SMTP_URL` and `MAIL_FROM`), or choose `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`, which

@@ -468,7 +468,13 @@ describe('every setting the configuration declares that 2.1.0 did not (docs/UPGR
   const added = declared.filter((name) => !SETTINGS_OF_2_1_0.has(name))
 
   /** What the entries newer than 3.0.0 say: a setting a later release adds is announced there. */
-  const laterEntries = read('CHANGELOG.md').split(/^## \[3\.0\.0\]/m)[0] ?? ''
+  // From the first entry's heading, not from the top of the file: the introduction names no setting
+  // as announced, and a name mentioned there would exempt a setting nobody announced.
+  const changelog = read('CHANGELOG.md')
+  const laterEntries = changelog.slice(
+    changelog.search(/^## \[/m),
+    changelog.search(/^## \[3\.0\.0\]/m),
+  )
 
   /** `name` as a whole word: `NEW_CLIENT_MAX_EVENTS` is not found inside `..._PER_PERIOD`. */
   const names = (text: string, name: string): boolean =>
@@ -514,6 +520,7 @@ describe('the routes the 3.0.0 entry and "Upgrading to 3.0" name', () => {
   it('are all in docs/API.md, spelled as it spells them', () => {
     const api = read('docs', 'API.md')
 
-    for (const route of routes) expect(api, route).toContain(route)
+    // With the closing backtick: `POST /api/auth/password` is a prefix of the route that resets one.
+    for (const route of routes) expect(api, route).toContain(`\`${route}\``)
   })
 })
