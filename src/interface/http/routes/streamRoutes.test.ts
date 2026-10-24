@@ -1,4 +1,5 @@
 import http from 'node:http'
+import type { Request } from 'express'
 import type { AddressInfo } from 'node:net'
 import supertest from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -692,6 +693,30 @@ describe('openStream', () => {
         })
         return sink
       }
+
+      it('is what the handler gives a moderation channel, and the wall channel is given none', async () => {
+        openForModerator()
+        const event = await world.events.findById(asEventId(WEDDING))
+        const request = {
+          context: { event, user: { userId: MODERATOR }, logger: world.deps.logger },
+          get: () => undefined,
+        } as unknown as Request
+        const through = (channel: 'wall' | 'moderation'): SseSink => {
+          const sink = new SseSink()
+          streamHandler(world.deps, channel)(request, asResponse(sink), () => undefined)
+          return sink
+        }
+        const moderation = through('moderation')
+        const wall = through('wall')
+        const stored = await world.users.findById(MODERATOR)
+        if (stored === null) throw new Error('fixture rejected')
+        await world.users.save(stored.disable(AT))
+
+        await vi.advanceTimersByTimeAsync(15_000)
+
+        expect(moderation.writableEnded).toBe(true)
+        expect(wall.writableEnded).toBe(false)
+      })
 
       it('stays open for an account that still holds its place, however many beats pass', async () => {
         const sink = openForModerator()
