@@ -138,7 +138,7 @@ const buildSubject = (
       authenticateUser: signInByAddress({ [MODERATOR_EMAIL]: MODERATOR }),
     },
   })
-  rename.current = makeRenameGuest({ guests: harness.guests })
+  rename.current = makeRenameGuest({ guests: harness.guests, events: harness.events })
   acknowledge.current = makeAcknowledgePrivacyNotice({
     events: harness.events,
     clients: harness.clients,

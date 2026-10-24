@@ -1750,15 +1750,16 @@ removed, at most 40 characters once folded. The boundary's own bound is 120, so 
 
 `displayName` is the name **as stored**, trimmed and folded: what the wall will print, `null` for
 no name. `Cache-Control: no-store`. A rename announces nothing, so a wall or a console that is
-already open shows the new name when it next reloads what it shows, not at once. The event's lifecycle is deliberately not consulted: a guest at
-a closed party may still correct the spelling of their own name on an album that is still being
-viewed.
+already open shows the new name when it next reloads what it shows, not at once. **Only while the event is `live`**, the rule an upload is held to: once the host
+closes the event the name printed under approved photographs is fixed, where an unmoderated guest could
+otherwise change it for the room after the host had finished moderating.
 
 **Errors** — `403 auth.forbidden` when `:guestId` is not the guest the token names, **and equally
 for an id that names nobody**: the comparison is made before any row is read, so the route cannot
 be used to learn which guest ids exist. `403 guest.revoked`,
 `401 auth.required` / `401 guestToken.*` (a host's or moderator's session is not a guest token, and
-there is no host route that renames a guest), `404 event.notFound`, `400 request.invalid`,
+there is no host route that renames a guest), `404 event.notFound`, **`409 event.notAcceptingUploads`**
+once the event is closed or archived (the answer an upload gets), `400 request.invalid`,
 `400 displayName.tooLong`, `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ## 4. Media

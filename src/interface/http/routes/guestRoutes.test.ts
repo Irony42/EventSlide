@@ -284,7 +284,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               budget,
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
-            renameGuest: makeRenameGuest({ guests: base.guests }),
+            renameGuest: makeRenameGuest({ guests: base.guests, events: deps.events }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
             getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
@@ -1301,25 +1301,29 @@ describe('PATCH /api/events/:eventSlug/guests/:guestId', () => {
     expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
   })
 
-  it('still lets a guest correct their own name once the event has closed, as the use case says', async () => {
-    // `renameGuest` deliberately does not consult the lifecycle: a guest at a closed party may
-    // correct the spelling of their own name on an album that is still being viewed. Pinned
-    // here because the sentence is documented (docs/API.md) and a gate on `acceptsUploads()`
-    // added to the handler would pass every other case.
-    const subject = buildSubject()
-    subject.harness.events.seed(
-      anEvent({ id: 'closed-id', slug: 'termine', joinCode: 'C10SED', status: 'closed' }),
-    )
-    subject.harness.guests.seed(aGuest({ id: GUEST, eventId: 'closed-id', displayName: 'Léa' }))
+  it.each(['closed', 'archived'] as const)(
+    'refuses a rename once the event is %s, with the 409 an upload gets, and keeps the name',
+    async (status) => {
+      // The name is printed on the wall of a closed event, unmoderated: the credit under photographs the
+      // host approved must not move after the host closed it. The rule is the upload's own
+      // (`acceptsUploads()`), so a guest is told what an upload would be told.
+      const subject = buildSubject()
+      subject.harness.events.seed(
+        anEvent({ id: 'ended-id', slug: 'termine', joinCode: 'C10SED', status }),
+      )
+      subject.harness.guests.seed(aGuest({ id: GUEST, eventId: 'ended-id', displayName: 'Léa' }))
 
-    const response = await request(subject.app)
-      .patch(`/api/events/termine/guests/${GUEST}`)
-      .set('Cookie', cookie(subject.harness.issueGuestToken('closed-id', GUEST)))
-      .send({ displayName: 'Léa D.' })
+      const response = await request(subject.app)
+        .patch(`/api/events/termine/guests/${GUEST}`)
+        .set('Cookie', cookie(subject.harness.issueGuestToken('ended-id', GUEST)))
+        .send({ displayName: 'Léa D.' })
 
-    expect(response.status).toBe(200)
-    expect(response.body.displayName).toBe('Léa D.')
-  })
+      expect(response.status).toBe(409)
+      expect(response.body.error.code).toBe('event.notAcceptingUploads')
+      expect(response.body.error.details).toEqual({ status })
+      expect(await nameOf(subject, 'ended-id', GUEST)).toBe('Léa')
+    },
+  )
 
   it('refuses a guest the host has revoked, who may no longer sign anything', async () => {
     const subject = buildSubject({ revoked: true })
