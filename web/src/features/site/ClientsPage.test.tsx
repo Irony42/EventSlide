@@ -326,12 +326,17 @@ describe('opening a client', () => {
     expect(screen.queryByText('https://photos.example.test/invite/UN-JETON')).toBeNull()
   })
 
-  it('does not print a link the server did not give, whatever the delivery says', async () => {
+  it('prints no link when the invitation went by mail, even if an answer carried one it should not have', async () => {
+    // The server sends a link only where no mail went out. A mail delivery that carries one is a
+    // server regression, and the screen does not turn it into something to copy and paste.
     const api = consoleApi({
       siteClientDefaults: vi.fn(async () => defaults),
       siteProvisionClient: vi.fn(async () => ({
         clientId: CLIENT_ID,
-        invitation: aSiteInvitation({ delivery: 'mail' }),
+        invitation: aSiteInvitation({
+          delivery: 'mail',
+          link: 'https://photos.example.test/invite/PLANTED-TOKEN',
+        }),
       })),
     })
     await openForm(api)
@@ -342,7 +347,7 @@ describe('opening a client', () => {
     await screen.findByText(fr.site.clientCreated)
 
     expect(screen.queryByText(fr.site.invitationLinkTitle)).toBeNull()
-    expect(document.body).not.toHaveTextContent(/https?:\/\//)
+    expect(document.body).not.toHaveTextContent(/PLANTED-TOKEN|https?:\/\//)
   })
 
   it('asks the operator to confirm themselves when the server says so, and opens the client on that confirmation', async () => {
