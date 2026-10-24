@@ -1096,6 +1096,7 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
           galleryUnlockPerClient: 10,
           galleryUnlockPerLink: 50,
           eventCreationPerHour: 20,
+          guestWritePerMinute: 300,
         },
       },
     })
