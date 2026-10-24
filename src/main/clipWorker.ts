@@ -3,6 +3,8 @@ import type { EventBus, Unsubscribe } from '../application/ports/eventBus'
 import type { Logger } from '../application/ports/logger'
 import type { RecoverClipJobs } from '../application/usecases/clips/recoverClipJobs'
 import type { TranscodeNextClip } from '../application/usecases/clips/transcodeNextClip'
+import { createGuardedJob, type JobOutcome } from './guardedJob'
+import { createRepeater } from './repeater'
 
 /**
  * The thing that actually turns a queued clip into a photo.
@@ -59,12 +61,7 @@ export interface DrainReport {
   readonly failed: number
 }
 
-export type DrainOutcome =
-  | { readonly status: 'completed'; readonly report: DrainReport }
-  /** A drain was already running. Nothing was attempted. */
-  | { readonly status: 'skipped' }
-  /** The pass itself threw — a closed or locked database, not a bad clip. */
-  | { readonly status: 'failed'; readonly error: unknown }
+export type DrainOutcome = JobOutcome<DrainReport>
 
 export interface ClipWorker {
   /** Idempotent. Recovers, drains once immediately, then on the bus and on the tick. */
@@ -86,19 +83,8 @@ export const createClipWorker = ({
   intervalMs,
   maxPerDrain = DEFAULT_MAX_PER_DRAIN,
 }: ClipWorkerDeps): ClipWorker => {
-  let timer: NodeJS.Timeout | null = null
   let unsubscribe: Unsubscribe | null = null
   let stopping = false
-
-  /**
-   * The overlap guard, and here it is not merely tidiness.
-   *
-   * Two drains would each claim a job — the claim is atomic, so they would not fight over
-   * one — and then run two encoders at once on a box whose whole design assumes one. The
-   * wall drops frames, and the guest whose clip is second waits longer than if they had
-   * queued. Concurrency 1 is the product decision; this is what enforces it.
-   */
-  let inFlight: Promise<DrainReport> | null = null
 
   const drain = async (): Promise<DrainReport> => {
     let transcoded = 0
@@ -124,30 +110,28 @@ export const createClipWorker = ({
     return { transcoded, failed }
   }
 
-  const runOnce = async (): Promise<DrainOutcome> => {
-    if (inFlight !== null) {
-      // Debug rather than a warning, unlike the sweeps: a drain overlapping a wake-up is
-      // the *expected* shape here — the bus announces a clip while the previous one is
-      // still encoding, several times an evening — and a warning per upload would be
-      // noise an operator learns to ignore.
-      logger.debug('clip drain skipped, one is already running')
-      return { status: 'skipped' }
-    }
-
-    const startedAt = clock.now()
-
-    try {
-      // Called inside the try, not before it: a `transcodeNext` that threw synchronously
-      // rather than returning a rejected promise would otherwise skip this catch and
-      // leave the timer's `void runOnce()` as an unhandled rejection, which `index.ts`
-      // treats as fatal. The assignment stays ahead of the first `await`, which is what
-      // makes the overlap guard above see it.
-      const run = drain()
-      inFlight = run
-
-      const report = await run
-      const durationMs = clock.now().getTime() - startedAt.getTime()
-
+  /**
+   * The overlap guard, and here it is not merely tidiness.
+   *
+   * Two drains would each claim a job — the claim is atomic, so they would not fight over
+   * one — and then run two encoders at once on a box whose whole design assumes one. The
+   * wall drops frames, and the guest whose clip is second waits longer than if they had
+   * queued. Concurrency 1 is the product decision; this is what enforces it.
+   */
+  const job = createGuardedJob({
+    logger,
+    clock,
+    run: drain,
+    // Debug rather than a warning, unlike the sweeps: a drain overlapping a wake-up is
+    // the *expected* shape here — the bus announces a clip while the previous one is
+    // still encoding, several times an evening — and a warning per upload would be
+    // noise an operator learns to ignore.
+    onSkipped: () => logger.debug('clip drain skipped, one is already running'),
+    // The use case swallows a per-clip failure by design, so reaching the catch means the
+    // database is closed, locked or gone, and losing the whole server because one clip
+    // could not be read would be a far worse outcome than a skipped drain.
+    failedMessage: 'clip drain failed',
+    describe: (report, durationMs) => {
       if (report.transcoded > 0 || report.failed > 0) {
         logger.info('clip drain finished', {
           transcoded: report.transcoded,
@@ -155,27 +139,16 @@ export const createClipWorker = ({
           durationMs,
         })
       }
+    },
+  })
 
-      return { status: 'completed', report }
-    } catch (error) {
-      // The use case swallows a per-clip failure by design, so reaching here means the
-      // database is closed, locked or gone. Caught because an unhandled rejection from a
-      // timer callback is fatal in `index.ts`, and losing the whole server because one
-      // clip could not be read would be a far worse outcome than a skipped drain.
-      logger.error('clip drain failed', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return { status: 'failed', error }
-    } finally {
-      inFlight = null
-    }
-  }
+  const repeater = createRepeater({ everyMs: intervalMs, tick: () => void job.runOnce() })
 
   return {
-    runOnce,
+    runOnce: job.runOnce,
 
     start: () => {
-      if (timer !== null) return
+      if (repeater.active) return
       stopping = false
 
       /**
@@ -189,19 +162,10 @@ export const createClipWorker = ({
        */
       unsubscribe = bus.subscribeAll((event) => {
         if (event.type !== 'clip.queued') return
-        void runOnce()
+        void job.runOnce()
       })
 
-      timer = setInterval(() => void runOnce(), intervalMs)
-
-      /**
-       * The timer must not be what keeps the process alive.
-       *
-       * Without this, `docker stop` waits out the full interval before Node's event loop
-       * empties, and the shutdown backstop in `index.ts` never gets to do its job because
-       * the process is not trying to exit in the first place.
-       */
-      timer.unref()
+      repeater.start()
 
       logger.info('clip worker started', { intervalMs, maxPerDrain })
 
@@ -224,7 +188,7 @@ export const createClipWorker = ({
             error: error instanceof Error ? error.message : String(error),
           })
         }
-        await runOnce()
+        await job.runOnce()
       })()
     },
 
@@ -235,10 +199,7 @@ export const createClipWorker = ({
         unsubscribe()
         unsubscribe = null
       }
-      if (timer !== null) {
-        clearInterval(timer)
-        timer = null
-      }
+      repeater.stop()
 
       /**
        * A drain in flight is abandoned, not awaited — the same call the sweeps make, and
@@ -252,7 +213,7 @@ export const createClipWorker = ({
        * ffmpeg still running. Without that, a new container starts the same job while the
        * old one holds a core for the rest of the evening.
        */
-      if (inFlight !== null) {
+      if (job.running) {
         logger.warn('shutting down during a clip transcode, it will be picked up at the next boot')
       }
     },

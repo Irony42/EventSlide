@@ -4,6 +4,8 @@ import type {
   ReapStaleReservations,
   ReapStaleReservationsReport,
 } from '../application/usecases/clips/reapStaleReservations'
+import { createGuardedJob, type JobOutcome } from './guardedJob'
+import { createRepeater } from './repeater'
 
 /**
  * The timer behind the reservation reaper.
@@ -40,12 +42,7 @@ export interface ReservationReaperDeps {
   readonly intervalMs: number
 }
 
-export type ReapOutcome =
-  | { readonly status: 'completed'; readonly report: ReapStaleReservationsReport }
-  /** A pass was already running. Nothing was attempted. */
-  | { readonly status: 'skipped' }
-  /** The pass itself threw — a closed or locked database. */
-  | { readonly status: 'failed'; readonly error: unknown }
+export type ReapOutcome = JobOutcome<ReapStaleReservationsReport>
 
 export interface ReservationReaper {
   /** Idempotent. Reaps once at startup, then on the interval. */
@@ -62,33 +59,18 @@ export const createReservationReaper = ({
   clock,
   intervalMs,
 }: ReservationReaperDeps): ReservationReaper => {
-  let timer: NodeJS.Timeout | null = null
-
-  /**
-   * The overlap guard. A second pass would find nothing the first had not already taken —
-   * the delete is transactional — so this is about not asking a busy database twice for
-   * the same answer rather than about correctness.
-   */
-  let inFlight: Promise<ReapStaleReservationsReport> | null = null
-
-  const runOnce = async (): Promise<ReapOutcome> => {
-    if (inFlight !== null) {
-      logger.debug('reservation reap skipped, one is already running')
-      return { status: 'skipped' }
-    }
-
-    const startedAt = clock.now()
-
-    try {
-      // Called inside the try and assigned before the first `await`, for the two reasons
-      // `retentionSweeper` documents: a synchronous throw must not escape as an unhandled
-      // rejection, and the guard above must see the run.
-      const run = reap()
-      inFlight = run
-
-      const report = await run
-      const durationMs = clock.now().getTime() - startedAt.getTime()
-
+  // The overlap guard, the catch that keeps a failed pass from becoming an unhandled
+  // rejection (fatal in `index.ts`) and the duration are `createGuardedJob`'s. The guard
+  // here is about not asking a busy database twice for the same answer rather than about
+  // correctness: a second pass would find nothing the first had not taken, because the
+  // delete is transactional.
+  const job = createGuardedJob({
+    logger,
+    clock,
+    run: reap,
+    onSkipped: () => logger.debug('reservation reap skipped, one is already running'),
+    failedMessage: 'reservation reap failed',
+    describe: (report, durationMs) => {
       if (report.reaped > 0) {
         logger.info('reaped clip reservations left by requests that died', {
           reaped: report.reaped,
@@ -99,31 +81,18 @@ export const createReservationReaper = ({
         // most of a log file.
         logger.debug('no stale clip reservations to reap', { durationMs })
       }
+    },
+  })
 
-      return { status: 'completed', report }
-    } catch (error) {
-      // Caught because an unhandled rejection from a timer callback is fatal in
-      // `index.ts`, and losing the server because one delete could not run would be far
-      // worse than a skipped pass — the next one is minutes away.
-      logger.error('reservation reap failed', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return { status: 'failed', error }
-    } finally {
-      inFlight = null
-    }
-  }
+  const repeater = createRepeater({ everyMs: intervalMs, tick: () => void job.runOnce() })
 
   return {
-    runOnce,
+    runOnce: job.runOnce,
 
     start: () => {
-      if (timer !== null) return
+      if (repeater.active) return
 
-      timer = setInterval(() => void runOnce(), intervalMs)
-      // The timer must not hold the process open past `docker stop`; same reasoning as
-      // every other timer here.
-      timer.unref()
+      repeater.start()
 
       logger.info('reservation reaper scheduled', { intervalMs })
 
@@ -136,21 +105,18 @@ export const createReservationReaper = ({
        * `--force-recreate` overlap, and it applies to this pass exactly as it does to
        * every later one.
        */
-      void runOnce()
+      void job.runOnce()
     },
 
     stop: () => {
-      if (timer !== null) {
-        clearInterval(timer)
-        timer = null
-      }
+      repeater.stop()
 
       /**
        * A pass in flight is abandoned, not awaited. It is one transactional delete: it
        * either committed or it did not, and the next boot's startup pass asks the same
        * question again.
        */
-      if (inFlight !== null) {
+      if (job.running) {
         logger.debug('shutting down during a reservation reap, the next boot asks again')
       }
     },
