@@ -711,7 +711,7 @@ an account that does not exist yet.
 > API that serves it, `GET /api/site/clients`, `/clients/:clientId/events` and `/accounts` (API.md §1), with a
 > response-side sweep that plants content in every place it is kept and reads every answer of every route
 > (SECURITY.md §22). **Shipped since (G2-15)**: the console, `/admin/site` (SECURITY.md §23): the clients, one client with its
-> ceilings and the reason for changing them, the accounts and the log, behind the same gate and one confirmation prompt.
+> ceilings and the reason for changing them, the end of its engagement, the accounts (a reset, switching one off, on or away) and the log, behind the same gate and one confirmation prompt.
 > **Not built**: an event's expiry date, which would have the overview read
 > `events.settings`, the host's whole configuration blob, to get at the retention it holds.
 

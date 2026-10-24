@@ -137,9 +137,9 @@ describe('a client’s page: reading it', () => {
     )
     await heading()
 
-    expect(screen.getByText(fr.site.statusOffboarding)).toBeVisible()
+    expect(screen.getByText(fr.site.statusOffboarding, { selector: 'span' })).toBeVisible()
     expect(screen.getByText(/Suspendu depuis le/)).toBeVisible()
-    expect(screen.getByText(/Les albums seront purgés le/)).toBeVisible()
+    expect(screen.getByText(/Les albums seront purgés au plus tard le/)).toBeVisible()
   })
 
   it('points at this client’s slice of the log', async () => {
@@ -707,5 +707,177 @@ describe('a client’s page: inviting into its account', () => {
 
     expect(await screen.findByText(fr.site.invitationMailed('sacha@example.com'))).toBeVisible()
     expect(siteInviteToClient).toHaveBeenCalledTimes(2)
+  })
+})
+
+/**
+ * Ending an engagement, the one act of the console that cannot be taken back once its window has
+ * run out. It is asked twice (the days, then a confirmation that says how many and what happens),
+ * a third time if the server wants the person confirmed, and the console states no range for the
+ * window: that is the server's, in its own sentence.
+ */
+
+describe('a client’s page: ending its engagement', () => {
+  const openOffboard = async (api: Api) => {
+    open(api)
+    await heading()
+    return screen.findByLabelText(fr.site.graceDays)
+  }
+
+  const press = () => userEvent.click(screen.getByRole('button', { name: fr.site.offboardAction }))
+
+  const confirm = async () => {
+    const confirmation = await dialog(fr.site.offboardConfirmTitle)
+    await userEvent.click(
+      within(confirmation).getByRole('button', { name: fr.site.offboardAction }),
+    )
+  }
+
+  it('proposes thirty days, which is the operator’s to change, and says what the engagement’s end does', async () => {
+    const days = await openOffboard(withClient())
+
+    expect(days).toHaveValue('30')
+    expect(screen.getByText(fr.site.offboardIntro)).toBeVisible()
+  })
+
+  it('says how many days and what happens before anything is sent, and sends nothing when declined', async () => {
+    const api = withClient()
+    await openOffboard(api)
+
+    await press()
+    const confirmation = await dialog(fr.site.offboardConfirmTitle)
+    expect(confirmation).toHaveAccessibleDescription(/^Dans 30 jours au plus tard, les albums/)
+    expect(confirmation).toHaveAccessibleDescription(/sans possibilité de retour/i)
+    expect(confirmation).toHaveAccessibleDescription(/ni la date ni la suspension/)
+    await userEvent.click(within(confirmation).getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.siteOffboardClient).not.toHaveBeenCalled()
+  })
+
+  it('says "1 day" in the singular and sends the days typed', async () => {
+    const api = withClient()
+    const days = await openOffboard(api)
+
+    await userEvent.clear(days)
+    await userEvent.type(days, '1')
+    await press()
+    expect(await dialog(fr.site.offboardConfirmTitle)).toHaveAccessibleDescription(
+      /^Dans 1 jour au plus tard, les albums/,
+    )
+    await confirm()
+
+    await waitFor(() => expect(api.siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 1))
+  })
+
+  it('ends the engagement on a confirmation, says so, and reads the client again as being wound down', async () => {
+    const siteClients = vi
+      .fn<Api['siteClients']>()
+      .mockResolvedValueOnce({ items: [aSiteClient()], next: null })
+      .mockResolvedValue({
+        items: [
+          aSiteClient({
+            suspendedAt: SUSPENDED_AT,
+            purgeAfter: '2026-07-21T10:00:00.000Z',
+          }),
+        ],
+        next: null,
+      })
+    const api = withClient(aSiteClient(), { siteClients })
+    await openOffboard(api)
+
+    await press()
+    await confirm()
+
+    await waitFor(() => expect(api.siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 30))
+    expect(await screen.findByText(fr.site.offboardedDone)).toBeVisible()
+    expect(await screen.findByText(fr.site.offboardingRunning)).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.site.offboardAction })).toBeNull()
+  })
+
+  it.each(['soon', '1.5', '1e2', '-3'])(
+    'refuses "%s" as a number of days, names the box, and sends nothing',
+    async (text) => {
+      const api = withClient()
+      const days = await openOffboard(api)
+
+      await userEvent.clear(days)
+      await userEvent.type(days, text)
+      await press()
+
+      expect(await screen.findByText(fr.site.daysNotWhole)).toBeVisible()
+      expect(screen.queryByRole('dialog', { name: fr.site.offboardConfirmTitle })).toBeNull()
+      expect(api.siteOffboardClient).not.toHaveBeenCalled()
+    },
+  )
+
+  it('leaves the window’s bounds to the server and shows its sentence, keeping the days typed', async () => {
+    const siteOffboardClient = vi
+      .fn<Api['siteOffboardClient']>()
+      .mockRejectedValue(new ApiError(400, 'client.graceInvalid'))
+    const api = withClient(aSiteClient(), { siteOffboardClient })
+    const days = await openOffboard(api)
+
+    await userEvent.clear(days)
+    await userEvent.type(days, '0')
+    await press()
+    await confirm()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['client.graceInvalid'])
+    expect(days).toHaveValue('0')
+    expect(siteOffboardClient).toHaveBeenCalledWith(CLIENT_ID, 0)
+    // A refusal changed nothing, so the client is not read again.
+    expect(api.siteClients).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks the operator to confirm themselves when the server says so, and ends the engagement on that confirmation', async () => {
+    const siteOffboardClient = vi
+      .fn<Api['siteOffboardClient']>()
+      .mockRejectedValueOnce(stepUpRequired())
+      .mockResolvedValue(undefined)
+    await openOffboard(withClient(aSiteClient(), { siteOffboardClient }))
+
+    await press()
+    await confirm()
+    await confirmYourself()
+
+    expect(await screen.findByText(fr.site.offboardedDone)).toBeVisible()
+    expect(siteOffboardClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('lets the form be sent only once while the engagement is being ended', async () => {
+    let answer: () => void = () => undefined
+    const siteOffboardClient = vi.fn<Api['siteOffboardClient']>(
+      () => new Promise<void>((resolve) => (answer = resolve)),
+    )
+    await openOffboard(withClient(aSiteClient(), { siteOffboardClient }))
+
+    await press()
+    await confirm()
+
+    await waitFor(() => expect(siteOffboardClient).toHaveBeenCalledTimes(1))
+    // The form's button and the open question's carry the same name.
+    for (const button of screen.getAllByRole('button', { name: fr.site.offboardAction })) {
+      expect(button).toBeDisabled()
+    }
+
+    answer()
+    await waitFor(() => {
+      const buttons = screen.getAllByRole('button', { name: fr.site.offboardAction })
+      expect(buttons).toHaveLength(1)
+      expect(buttons[0]).toBeEnabled()
+    })
+  })
+
+  it('offers no form to a client whose engagement is already ending, and says so', async () => {
+    open(
+      withClient(
+        aSiteClient({ suspendedAt: SUSPENDED_AT, purgeAfter: '2026-07-21T10:00:00.000Z' }),
+      ),
+    )
+    await heading()
+
+    expect(screen.getByText(fr.site.offboardingRunning)).toBeVisible()
+    expect(screen.queryByLabelText(fr.site.graceDays)).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.site.offboardAction })).toBeNull()
   })
 })
