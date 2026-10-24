@@ -30,6 +30,14 @@ describe('deriveKey', () => {
       false,
     )
   })
+
+  it('takes a secret as text or as the bytes of that text, and derives the same key from both', () => {
+    const text = 'a secret of more than thirty-two characters'
+
+    expect(
+      deriveKey(new TextEncoder().encode(text), 'label').equals(deriveKey(text, 'label')),
+    ).toBe(true)
+  })
 })
 
 describe('constantTimeEqual', () => {
