@@ -148,8 +148,9 @@ describe('isTerminal', () => {
 
   it('does not give up because the device token now belongs to another event', () => {
     // A guest who scans the after-party's QR code overwrites their one token. The
-    // wedding's queue has to survive that, not be deleted by it.
-    expect(isTerminal('guest.wrongEvent')).toBe(false)
+    // wedding's queue has to survive that, not be deleted by it: the server answers
+    // `404 event.notFound` for a token that names another event (HTTP-M-03).
+    expect(isTerminal('event.notFound')).toBe(false)
   })
 
   it('does not give up because the gallery is momentarily full', () => {

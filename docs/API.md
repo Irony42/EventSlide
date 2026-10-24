@@ -108,8 +108,9 @@ answer the host's list of moderators, with their e-mail addresses, with no heade
 
 **404 and 403 are used deliberately.** A photo, guest or reaction belonging to another
 event returns **404**, not 403 — a 403 would confirm the resource exists and turn the
-endpoint into an enumeration oracle. 403 is only for a principal who is genuinely in
-scope but lacks the role.
+endpoint into an enumeration oracle. **So does a guest token that names another event**: it is
+`404 event.notFound` too, whatever the status of the event asked about. 403 is only for a principal
+who is genuinely in scope but lacks the role.
 
 Concretely, in `middleware/authz.ts`: no session on an event-scoped route is
 `401 auth.required` **before** the slug is looked up, so an anonymous request cannot be
@@ -1279,7 +1280,10 @@ otherwise.
 
 ## 3. Guest
 
-All of these require the `es_guest` cookie, scoped to the event in the path.
+All of these require the `es_guest` cookie, scoped to the event in the path. **A token that names another
+event is answered `404 event.notFound`**, exactly as an event that is not there is: a `403` would have told a
+guest of any event which slugs exist, drafts and archived events included, where the public wall answers
+`404` for all three. The reason (`guest.wrongEvent`) is written to the log and is on no response.
 
 ### `POST /api/events/:slug/photos`
 
@@ -1340,8 +1344,8 @@ entry in `rejected` with the code alone; a clip, which is one file, answers a wh
 always was.
 
 **Whole-request errors** — `401 auth.required` / `401 guestToken.*` for a missing or
-invalid token; `403 guest.wrongEvent` when the token names another event;
-`403 guest.revoked`; `409 event.notAcceptingUploads`; `413 upload.tooLarge` (one file
+invalid token; `404 event.notFound` when the token names another event (see the
+introduction of this section); `403 guest.revoked`; `409 event.notAcceptingUploads`; `413 upload.tooLarge` (one file
 over `maxUploadBytes`, refused by multer before any of our code runs);
 `400 upload.tooManyFiles`; `400 caption.tooLong`; `403 event.captionsNotAllowed` when a
 caption is sent to an event with captions off; `413 event.photoLimitReached` when the
@@ -1446,8 +1450,8 @@ carries `completedByGuests` because the room draws a number there; a phone does 
 
 Empty for the overwhelming majority of events, which set no prompts.
 
-**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.wrongEvent`;
-`403 guest.revoked`; `404 event.notFound`.
+**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`;
+`404 event.notFound` (which includes a token for another event).
 
 ### `GET /api/events/:slug/privacy-notice`
 
@@ -1516,8 +1520,8 @@ wall language — leave every acknowledgement valid.
 Nothing here gates the upload routes: the notice is shown by the upload screen, which does
 not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.ts`.
 
-**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.wrongEvent`;
-`403 guest.revoked`; `404 event.notFound`.
+**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`;
+`404 event.notFound` (which includes a token for another event).
 
 ### `POST /api/events/:slug/privacy-notice/acknowledgement`
 
@@ -1537,7 +1541,8 @@ the first instant.
 (the host changed a setting while the guest was reading): nothing is recorded, and the
 client shows the new notice. `400 request.invalid` for a missing, empty or non-string
 `revision`, or any other key. `401 auth.required` / `401 guestToken.*`;
-`403 guest.wrongEvent`; `403 guest.revoked`; `404 event.notFound`; `429 rate.limited` with a
+`403 guest.revoked`; `404 event.notFound` (which includes a token for another event);
+`429 rate.limited` with a
 `Retry-After` (§1 "Rate limits", the guest-write bucket).
 
 ### `POST /api/events/:slug/clips`
@@ -1791,15 +1796,16 @@ removed, at most 40 characters once folded. The boundary's own bound is 120, so 
 
 `displayName` is the name **as stored**, trimmed and folded: what the wall will print, `null` for
 no name. `Cache-Control: no-store`. A rename announces nothing, so a wall or a console that is
-already open shows the new name when it next reloads what it shows, not at once. The event's lifecycle is deliberately not consulted: a guest at
-a closed party may still correct the spelling of their own name on an album that is still being
-viewed.
+already open shows the new name when it next reloads what it shows, not at once. **Only while the event is `live`**, the rule an upload is held to: once the host
+closes the event the name printed under approved photographs is fixed, where an unmoderated guest could
+otherwise change it for the room after the host had finished moderating.
 
 **Errors** — `403 auth.forbidden` when `:guestId` is not the guest the token names, **and equally
 for an id that names nobody**: the comparison is made before any row is read, so the route cannot
-be used to learn which guest ids exist. `403 guest.wrongEvent`, `403 guest.revoked`,
+be used to learn which guest ids exist. `403 guest.revoked`,
 `401 auth.required` / `401 guestToken.*` (a host's or moderator's session is not a guest token, and
-there is no host route that renames a guest), `404 event.notFound`, `400 request.invalid`,
+there is no host route that renames a guest), `404 event.notFound`, **`409 event.notAcceptingUploads`**
+once the event is closed or archived (the answer an upload gets), `400 request.invalid`,
 `400 displayName.tooLong`, `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ## 4. Media
@@ -3047,7 +3053,7 @@ way to it. **No `409` is reachable on this route.**
 console still holding an SSE connection is not told. Its next request against the event
 answers `404 event.notFound`. A guest whose device token names the purged event gets
 `404 event.notFound` too; if the host later creates a new event on the same slug, that
-old token names a different event id and gets `403 guest.wrongEvent`.
+old token names a different event id and still gets `404 event.notFound`.
 
 **Errors** — `401 auth.required` with no session, answered before the slug is looked up
 so the route cannot be used to discover which events exist; `404 event.notFound` for an
