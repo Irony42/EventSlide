@@ -941,11 +941,10 @@ describe('GET /api/events/:eventSlug/top-photos', () => {
     ])
   })
 
-  it('returns a shorter podium when the room favourite is no longer on the wall', async () => {
-    // `getTopPhotos` applies the limit to the ranking and *then* drops what is no
-    // longer on the wall, so a podium of one whose winner has since been rejected
-    // comes back empty rather than promoting the runner-up. Asserted here because the
-    // panel has to render a short list, not because this route decides it.
+  it('promotes the runner-up when the room favourite is no longer on the wall', async () => {
+    // `getTopPhotos` used to apply the limit to the ranking and *then* drop what is no
+    // longer on the wall, so a podium of one whose winner had since been rejected came back
+    // empty with a published photo holding reactions. The limit counts what is shown now.
     seedWallReactions(subject)
     seedRejectedFavourite(subject)
     const agent = await signedIn(subject, 'moderator')
@@ -953,7 +952,9 @@ describe('GET /api/events/:eventSlug/top-photos', () => {
     const response = await agent.get('/api/events/mariage/top-photos?limit=1')
 
     expect(response.status).toBe(200)
-    expect(response.body.items).toEqual([])
+    expect(response.body.items.map((item: { photoId: string }) => item.photoId)).toEqual([
+      P.published,
+    ])
   })
 
   it('is never stored', async () => {

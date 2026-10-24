@@ -100,7 +100,7 @@ export class FakeReactionRepository implements ReactionRepository {
 
   /**
    * Only photos that carry at least one reaction appear, because a `GROUP BY` produces
-   * no row for a photo nobody reacted to — and `topPhotos` must not rank a silent
+   * no row for a photo nobody reacted to — and `rankedPhotos` must not rank a silent
    * photo above nothing.
    */
   async countsForEvent(eventId: EventId): Promise<ReadonlyMap<PhotoId, ReactionCounts>> {
