@@ -2,7 +2,7 @@ import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import type { Event } from '../../domain/events/event'
 import type { EventStatus } from '../../domain/events/eventStatus'
 import type { DomainError } from '../../domain/shared/errors'
-import type { EventId, UserId } from '../../domain/shared/ids'
+import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type { JoinCode } from '../../domain/shared/joinCode'
 import type { Result } from '../../domain/shared/result'
 import type { Slug } from '../../domain/shared/slug'
@@ -58,6 +58,14 @@ export interface EventRepository {
 
   /** Events the user owns or moderates, newest first. */
   listForUser(userId: UserId): Promise<readonly EventSummary[]>
+
+  /**
+   * Every event of a client, in any status, oldest first and then by id. **For ending an
+   * engagement only** (`offboardClient`, G2-14 part 3): it has to move each event, so it reads
+   * the entities, and no route returns it (the operator's own listing is the content-free
+   * overview). A client with no event, and one that does not exist, give `[]`.
+   */
+  listByClient(clientId: ClientId): Promise<readonly Event[]>
 
   /**
    * Insert or update. The unique indexes on slug and join code are the real guard.

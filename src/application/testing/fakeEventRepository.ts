@@ -138,6 +138,19 @@ export class FakeEventRepository implements EventRepository {
     return Event.restore({ ...event.toProps(), clientSuspendedAt: suspendedAt })
   }
 
+  async listByClient(clientId: ClientId): Promise<readonly Event[]> {
+    return [...this.rows.values()]
+      .filter((event) => event.clientId === clientId)
+      .sort(
+        (a, b) =>
+          a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
+      .flatMap((event) => {
+        const standing = this.withClientStanding(event)
+        return standing === null ? [] : [standing]
+      })
+  }
+
   async findById(id: EventId): Promise<Event | null> {
     return this.withClientStanding(this.rows.get(id))
   }

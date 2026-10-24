@@ -28,7 +28,14 @@ import {
 } from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
 import { DomainError } from '../../domain/shared/errors'
-import { asClientId, asEventId, asUserId, type EventId, type UserId } from '../../domain/shared/ids'
+import {
+  asClientId,
+  asEventId,
+  asUserId,
+  type ClientId,
+  type EventId,
+  type UserId,
+} from '../../domain/shared/ids'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
@@ -489,6 +496,7 @@ const toParams = (event: Event): EventParams => {
 
 export class SqliteEventRepository implements EventRepository {
   private readonly selectById: Database.Statement<[string], EventRow>
+  private readonly selectByClient: Database.Statement<[string], EventRow>
   private readonly selectBySlug: Database.Statement<[string], EventRow>
   private readonly selectByJoinCode: Database.Statement<[string], EventRow>
   private readonly selectSummaries: Database.Statement<[string, string], SummaryRow>
@@ -511,6 +519,10 @@ export class SqliteEventRepository implements EventRepository {
    * slide: re-preparing there is a parse per frame for no reason.
    */
   constructor(private readonly db: Db) {
+    this.selectByClient = db.prepare<[string], EventRow>(
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE client_id = ? ORDER BY created_at, id`,
+    )
+
     this.selectById = db.prepare<[string], EventRow>(
       `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE id = ?`,
     )
@@ -649,6 +661,10 @@ export class SqliteEventRepository implements EventRepository {
     )
 
     this.deleteById = db.prepare<[string]>(`DELETE FROM events WHERE id = ?`)
+  }
+
+  async listByClient(clientId: ClientId): Promise<readonly Event[]> {
+    return this.selectByClient.all(clientId).map(toEvent)
   }
 
   async findById(id: EventId): Promise<Event | null> {
