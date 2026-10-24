@@ -382,12 +382,6 @@ export const requirePasswordCurrent =
     })().catch(next)
   }
 
-/** The code a suspended client's member is refused a write with. Exported for the tests. */
-export const CLIENT_SUSPENDED_CODE = 'client.suspended'
-
-/** What a suspended client's members may still do: read. Everything else is a write. */
-const READ_ONLY_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS'])
-
 /**
  * Resolves `:eventSlug` and the caller's role in it, then checks the requirement.
  *
@@ -444,15 +438,13 @@ export const requireRole =
         return
       }
 
-      // A suspended client's members read and may not write (roadmap §10.7; G2-14). Asked after
-      // the role, so a stranger is still told what a stranger is told and only somebody in scope
-      // learns that the client is frozen, and for **every** route that resolves an event through
-      // here, so a write route added tomorrow is covered the day it is mounted.
-      if (event.isClientSuspended() && !READ_ONLY_METHODS.has(req.method)) {
-        sendError(res, DomainError.forbidden(CLIENT_SUSPENDED_CODE))
-        return
-      }
-
+      // A suspended client's members read and may not write (roadmap §10.7; G2-14), and that
+      // is **not asked here**: it used to be a test on the verb, which made it a rule no use case
+      // knew. `requireWritable` (usecases/shared/eventRole.ts) is asked by every host-side
+      // write use case, after the role, and `suspension.container.test.ts` sweeps every
+      // non-GET route of a frozen event. What stays here is the order that makes it safe to
+      // say: the stranger has already been answered `404` above, and the member lacking the
+      // role `403 auth.forbidden`, before any use case is reached.
       req.context.event = event
       req.context.role = role
       next()
