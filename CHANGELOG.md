@@ -268,7 +268,7 @@ Read these before you upgrade, and back up with the version you run now.
   did not: a browser or a proxy can no longer store them, or revalidate them with `If-None-Match`.
   Media, `/api/about` and the event streams keep their own headers.
 - **The access log writes each key once per line** (#192). A routed request's line carried
-  `service`, `version`, `instance`, `requestId` and `route` twice, the first `route` being
+  its `service`, `version`, `requestId` and `route` keys twice, the first `route` being
   `(unmatched)`: a collector that kept the first duplicate read the wrong route for every request.
   `route` now sits after `duration`.
 - **Three boot warnings, never refusals** (#109, #120): production with no `PUBLIC_URL`,
