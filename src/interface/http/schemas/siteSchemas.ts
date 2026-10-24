@@ -23,17 +23,21 @@ export const clientIdParams = z.object({ clientId: z.guid() })
 
 export const accountIdParams = z.object({ userId: z.guid() })
 
-/** `GET /api/site/clients` and `/accounts`: a keyset page. `after` is the `next` of the last one. */
-const pageQuery = {
-  after: z.guid().optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_SITE_PAGE_SIZE).optional(),
-}
+/** How many rows one page of the operator's lists, or of its audit log, may ask for. */
+const pageLimit = z.coerce.number().int().min(1).max(MAX_SITE_PAGE_SIZE).optional()
 
-export const siteClientsQuery = z.strictObject(pageQuery)
+/**
+ * `GET /api/site/clients`, `/accounts` and a client's events: a keyset page. `after` is the `next`
+ * of the last one. One schema, under the three names the routes import, because the three
+ * pages are one shape.
+ */
+const pageQuery = z.strictObject({ after: z.guid().optional(), limit: pageLimit })
 
-export const siteAccountsQuery = z.strictObject(pageQuery)
+export const siteClientsQuery = pageQuery
 
-export const siteClientEventsQuery = z.strictObject(pageQuery)
+export const siteAccountsQuery = pageQuery
+
+export const siteClientEventsQuery = pageQuery
 
 /**
  * `GET /api/site/audit`. `clientId` narrows the log to one client; absent, it is the whole box,
@@ -42,7 +46,7 @@ export const siteClientEventsQuery = z.strictObject(pageQuery)
 export const siteAuditQuery = z.strictObject({
   clientId: z.guid().optional(),
   before: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_SITE_PAGE_SIZE).optional(),
+  limit: pageLimit,
 })
 
 /** An instant, as `toISOString` writes it and as the log and the responses carry it. */
