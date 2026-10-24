@@ -219,11 +219,13 @@ applied to the namespace as a whole, so every route that lands under it inherits
 without restating it. The operator is the account whose site role is `operator`, read from
 storage on every request, and the role grants nothing inside any event — docs/SECURITY.md §2.
 
-The web client does not probe this namespace to learn the mode. It will read
+The web client does not probe this namespace to learn the mode. It reads
 `features.siteAdmin` from the public instance-information endpoint, `GET /api/about` (§2),
 which is derived from the very setting that decides whether the namespace is mounted, so
-the two cannot disagree. (Nothing in the SPA reads it yet: the `/admin/site` screens it
-gates do not exist.)
+the two cannot disagree. The operator's console, `/admin/site` (G2-15, docs/SECURITY.md §23),
+is registered only where that flag is true, and offered only to an account whose
+`GET /api/auth/me` says `canOperateSite`: two flags, two questions, and neither is an
+authorisation, since every request below is judged by the gate described here.
 
 **What the namespace is.** Every route below is behind `requireOperator` and, where the box asks for
 one, the second factor (the table above). **Every route that changes something is also behind

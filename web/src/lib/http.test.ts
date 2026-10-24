@@ -337,6 +337,10 @@ describe('failures that are not the server’s answer', () => {
       (signal: AbortSignal) => http.post('/api/events/gala/status', { status: 'live' }, signal),
     ],
     ['patch', (signal: AbortSignal) => http.patch('/api/events/gala', { name: 'Gala' }, signal)],
+    [
+      'put',
+      (signal: AbortSignal) => http.put('/api/site/clients/c1/ceilings', { reason: 'x' }, signal),
+    ],
     ['del', (signal: AbortSignal) => http.del('/api/events/gala/photos/p1', signal)],
   ] as const)('carries the caller’s cancellation on a %s too', async (_verb, invoke) => {
     // An admin screen that unmounts mid-save must not leave the write in flight; every
@@ -464,7 +468,7 @@ describe('CSRF double submit', () => {
     expect(headersOf(lastRequest())['x-csrf-token']).toBe('tok-abc')
   })
 
-  it.each(['patch', 'del'] as const)('echoes the token on a %s as well', async (verb) => {
+  it.each(['patch', 'put', 'del'] as const)('echoes the token on a %s as well', async (verb) => {
     document.cookie = 'es_csrf=tok-abc'
     answerWith(unreadableNoContent)
 

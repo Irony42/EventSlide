@@ -99,6 +99,17 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
     page: 'features/admin/EventSettingsPage.tsx',
   },
   { path: '/admin/client', backdrop: 'ground', page: 'features/admin/ClientSpacePage.tsx' },
+  // The operator's console: tables and sentences of shapes and sizes. Nothing a person uploaded can
+  // be on it, which is the whole point of the screen, and the guard below walks its imports to
+  // see that this stays true.
+  { path: '/admin/site', backdrop: 'ground', page: 'features/site/ClientsPage.tsx' },
+  {
+    path: '/admin/site/clients/:clientId',
+    backdrop: 'ground',
+    page: 'features/site/ClientPage.tsx',
+  },
+  { path: '/admin/site/accounts', backdrop: 'ground', page: 'features/site/AccountsPage.tsx' },
+  { path: '/admin/site/audit', backdrop: 'ground', page: 'features/site/AuditPage.tsx' },
   { path: '/admin/password', backdrop: 'ground', page: 'features/auth/ChangePasswordPage.tsx' },
   { path: '/admin/security', backdrop: 'photo', page: 'features/auth/SecurityPage.tsx' },
   { path: '*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
