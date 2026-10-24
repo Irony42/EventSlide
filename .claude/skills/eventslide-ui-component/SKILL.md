@@ -95,7 +95,7 @@ Rules:
 ## Primitives before features
 
 `web/src/design-system/components/` holds `Button`, `IconButton`, `Field`, `TextInput`,
-`Textarea`, `Card`, `Dialog`, `Toast`, `Spinner`, `EmptyState`, `Badge`, `Progress`,
+`Textarea`, `Card`, `Dialog`, `Toast`, `Spinner`, `EmptyState`, `Badge`, `Notice`, `Progress`,
 `VisuallyHidden`, `Stack`, `Grid`.
 
 Check for a primitive first. A fourth bespoke button is how a design system dies.
@@ -178,6 +178,13 @@ export const listPhotos = (slug: string, query: ListPhotosQuery) =>
   `web/src/lib/i18n/`), credentials, and the CSRF header.
 - Components receive data through a hook, never call `http` directly — that is what
   makes them testable with a fake transport.
+- A read on mount is `useLoader` (`web/src/lib/useLoader.ts`), never an `AbortController`
+  in an effect, and the screen's waiting / failed / empty / answer switch is `Async`
+  (`design-system/components/Async.tsx`, with `Pending` and `LoadFailure` for a screen that
+  keeps its own switch). `readEffect.guard.test.ts` fails on an effect that creates an
+  `AbortController`, hands its signal to a call and sets state (its header says what it does
+  not see), and its allowlist names the few readers whose semantics really differ, each with
+  its reason.
 - SSE lives in `web/src/lib/realtime/useEventStream.ts`: one connection per page,
   auto-reconnect with backoff, and it emits **invalidation signals** rather than data.
   Push payloads are a trust and consistency problem; a signal that triggers a refetch

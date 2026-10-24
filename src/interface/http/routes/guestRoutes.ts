@@ -4,23 +4,31 @@ import type { Event } from '../../../domain/events/event'
 import type { Guest } from '../../../domain/guests/guest'
 import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import { asMissionId, asPhotoId } from '../../../domain/shared/ids'
+import { asGuestId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
-import { GUEST_COOKIE, requireGuest } from '../middleware/authz'
+import { deferToHostSurface, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
-import { reactionLimiter, uploadConcurrencyLimiter, uploadLimiter } from '../middleware/rateLimit'
+import {
+  guestWriteLimiter,
+  reactionLimiter,
+  uploadConcurrencyLimiter,
+  uploadLimiter,
+} from '../middleware/rateLimit'
 import {
   toGuestMissionDto,
   toGuestPhotoDto,
   toReactionsDto,
+  toRenamedGuestDto,
   toUploadResponseDto,
 } from '../presenters/presenters'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   captionBody,
+  guestParams,
   photoParams,
   reactionBody,
   reactionParams,
+  renameGuestBody,
   uploadFields,
 } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
@@ -46,7 +54,7 @@ import type { HttpUseCases } from '../useCases'
  * One path is shared with the host surface: `DELETE /events/:eventSlug/photos/:photoId`
  * is a guest taking back their own photo *and* a moderator removing any photo, in both
  * sections of docs/API.md. `server.ts` mounts this router first, so that route defers —
- * see {@link declineWithoutGuestToken}.
+ * see `deferToHostSurface` in `middleware/authz.ts`, which asks membership before the cookie.
  */
 
 /**
@@ -68,6 +76,7 @@ export interface GuestRouteDeps {
     | 'setPhotoCaption'
     | 'reactToPhoto'
     | 'withdrawReaction'
+    | 'renameGuest'
     | 'getPhotoReactions'
     | 'getGuestChecklist'
   >
@@ -89,6 +98,17 @@ export interface GuestRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadRateLimiter?: RequestHandler
+  /**
+   * The bucket for the guest's other writes (HTTP-H-01): a caption, taking a photo back,
+   * withdrawing a reaction, renaming oneself - and, from `privacyNoticeRoutes`, acknowledging
+   * the notice.
+   * **Built by the caller so that router can share this one**, for the reason
+   * `uploadRateLimiter` gives: a guest doing two of them is one guest.
+   *
+   * Optional only so a test can mount this router alone; production passes it. Absent, one
+   * is built here, so a route mounted without it is limited rather than open.
+   */
+  readonly guestWriteRateLimiter?: RequestHandler
   /**
    * The upload concurrency semaphore (G3-06 / P4-10), **shared with the clip route**
    * for the same reason `uploadRateLimiter` is: a guest sending a photo and a clip at
@@ -239,60 +259,25 @@ export const withGuest = (handler: GuestHandler): RequestHandler =>
     await handler({ event, guest: guest.guest }, req, res)
   })
 
-/**
- * Hands the request to the next router when no guest device token was presented.
- *
- * `DELETE /events/:eventSlug/photos/:photoId` is two endpoints on one path: section 3 of
- * docs/API.md gives it to a guest for their own photo, section 6 gives it to a moderator
- * for any photo. `server.ts` mounts this router before `moderationRoutes`, and
- * `requireGuest` answers 401 rather than calling `next()` — so without this the
- * moderator's handler was unreachable on the assembled server and "delete any photo"
- * was a dead endpoint.
- *
- * `next('router')` leaves this router rather than skipping one handler, which is the
- * only way the next `/api` router gets a chance to match. The test for it lives in
- * `guestRoutes.test.ts`, behind the real `requireRole`.
- *
- * It keys on the **cookie**, not on a session, and that direction matters: a host who
- * also joined their own event as a guest must keep the guest path, since deferring on
- * the presence of a session would send a legitimate guest at somebody else's event into
- * `requireRole` and answer 404. A caller with neither credential is refused by
- * `requireRole` with the same `401 auth.required` this router used to send.
- */
-const declineWithoutGuestToken: RequestHandler = (req, _res, next) => {
-  const raw = req.cookies?.[GUEST_COOKIE]
-  if (typeof raw !== 'string' || raw.length === 0) {
-    next('router')
-    return
-  }
-  next()
-}
-
 const actorFor = (guest: Guest): PhotoActor => ({ kind: 'guest', guestId: guest.id })
 
 /**
- * Whether this guest may still take their own photo back.
+ * Whether this guest may still take their own photo back: the button the phone shows.
  *
- * `Photo.canBeDeletedBy` is the rule — their own photo, not yet on the wall, inside the
- * grace window — and the event's switch is the host's veto over the whole feature.
- * Neither condition is restated: each is read from the entity that owns it.
- *
- * The **conjunction**, though, is a second copy of the one `deletePhoto` makes, and the
- * two must agree or the DTO promises a button the server then refuses. Only a test holds
- * them together today ("reports canDelete false for every photo when the host turned
- * self-deletion off", which asserts the flag and the subsequent 403 in one case).
- * Single-sourcing it means one predicate in `src/domain/photos` that `deletePhoto` also
- * calls, which is an application-layer change and not this module's to make.
+ * Not a rule of this module. `Photo.deletionVerdict` is the one predicate - the host's switch over
+ * the whole feature, then their own photo, not yet on the wall, inside the grace window - and
+ * `deletePhoto` acts on the same verdict, so the DTO cannot promise a button the server then
+ * refuses (HTTP-M-10; a test used to be all that held the two copies together).
  */
 const canGuestDelete = (event: Event, photo: Photo, guest: Guest, now: Date): boolean =>
-  event.settings.allowGuestSelfDelete &&
-  photo.canBeDeletedBy(actorFor(guest), now, event.settings.guestSelfDeleteGraceMs)
+  photo.deletionVerdict(actorFor(guest), now, event.settings) === 'allowed'
 
 export const guestRoutes = ({
   deps,
   usecases,
   maxUploadBytesPerRequest = MAX_UPLOAD_BYTES_PER_REQUEST,
   uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
+  guestWriteRateLimiter = guestWriteLimiter(deps.config.rateLimits.guestWritePerMinute),
   uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter(
     deps.config.uploads.maxConcurrentRequests,
   ),
@@ -475,12 +460,16 @@ export const guestRoutes = ({
    * case. Pulling a photo off the wall mid-slideshow is the host's call, so a published
    * photo is refused here and moderated there.
    *
-   * The shared path: without a guest cookie this defers to `moderationRoutes`, which
-   * owns the same `DELETE` for a moderator.
+   * The shared path: a moderator of the event, or a caller with no guest cookie, defers to
+   * `moderationRoutes`, which owns the same `DELETE` for a moderator (`deferToHostSurface`).
+   *
+   * The limiter is after that deferral, so a moderator's delete never spends a guest's
+   * allowance, and ahead of `requireGuest` (HTTP-H-01).
    */
   router.delete(
     '/events/:eventSlug/photos/:photoId',
-    declineWithoutGuestToken,
+    deferToHostSurface(deps),
+    guestWriteRateLimiter,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const params = photoParams.parse(req.params)
@@ -495,9 +484,15 @@ export const guestRoutes = ({
     }),
   )
 
-  /** The line projected under the photo. `null` clears it. */
+  /**
+   * The line projected under the photo. `null` clears it.
+   *
+   * Limited because each call is announced to every screen (`photo.captionChanged`) and
+   * the token that makes it is free (HTTP-H-01).
+   */
   router.patch(
     '/events/:eventSlug/photos/:photoId/caption',
+    guestWriteRateLimiter,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const params = photoParams.parse(req.params)
@@ -511,6 +506,42 @@ export const guestRoutes = ({
       })
 
       sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * A guest correcting the name their photos are signed with - their own, and nobody else's.
+   *
+   * The name is projected in front of a room, so `requireGuest` is the whole authorization
+   * decision and it is a narrow one: the token must name **this** event (`403 guest.wrongEvent`
+   * otherwise) and a guest the host revoked is refused (`403 guest.revoked`). Who is being
+   * renamed is then compared **by the use case** with who the token names: the acting guest
+   * comes from the verified token and the target from the path, and a different target is
+   * `403 auth.forbidden` before any row is read, so the route cannot be used to learn which
+   * guest ids exist. A host or moderator has no guest cookie here and is a `401`: this is not
+   * the host surface, and a host editing a guest's name is not a feature.
+   *
+   * Limited with the guest's other writes (HTTP-H-01): the token is free.
+   */
+  router.patch(
+    '/events/:eventSlug/guests/:guestId',
+    guestWriteRateLimiter,
+    requireGuest(deps),
+    withGuest(async ({ event, guest }, req, res) => {
+      const params = guestParams.parse(req.params)
+      const body = renameGuestBody.parse(req.body)
+
+      const result = await usecases.renameGuest({
+        eventId: event.id,
+        actingGuestId: guest.id,
+        guestId: asGuestId(params.guestId),
+        displayName: body.displayName,
+      })
+
+      sendResult(res, result, (response, renamed) => {
+        response.setHeader('Cache-Control', 'no-store')
+        sendJson(response, toRenamedGuestDto(renamed))
+      })
     }),
   )
 
@@ -549,6 +580,7 @@ export const guestRoutes = ({
    */
   router.delete(
     '/events/:eventSlug/photos/:photoId/reactions/:kind',
+    guestWriteRateLimiter,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const params = reactionParams.parse(req.params)

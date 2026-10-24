@@ -7,13 +7,11 @@ import type { Clock } from '../../application/ports/clock'
 import type { Logger } from '../../application/ports/logger'
 import type { EventBus } from '../../application/ports/eventBus'
 import type { EventRepository } from '../../application/ports/eventRepository'
-import type { GuestRepository } from '../../application/ports/guestRepository'
 import type {
   AuthState,
   MembershipRepository,
   UserRepository,
 } from '../../application/ports/userRepository'
-import type { GuestTokenService } from '../../application/ports/guestTokenService'
 import type { AuthenticateGuest } from '../../application/usecases/guests/authenticateGuest'
 import type { Mailer } from '../../application/ports/mailer'
 import type { SecondFactorRepository } from '../../application/ports/secondFactorRepository'
@@ -73,7 +71,6 @@ export interface HttpDeps {
   readonly logger: Logger
   readonly bus: EventBus
   readonly events: EventRepository
-  readonly guests: GuestRepository
   readonly memberships: MembershipRepository
   /**
    * Two methods, deliberately: what the caller may do on the box, and everything else
@@ -92,7 +89,6 @@ export interface HttpDeps {
    * reader, it reads `confirmedAt` and nothing else, and a second reader is a review blocker.
    */
   readonly secondFactors: Pick<SecondFactorRepository, 'find'>
-  readonly guestTokens: GuestTokenService
   /**
    * What `requireGuest` asks about a device token: the one implementation of "which guest of
    * which event is this, and may they be here", which also stamps the guest as seen.
@@ -206,6 +202,8 @@ export interface HttpConfig {
     readonly joinPerMinute: number
     readonly loginPerMinute: number
     readonly reactionPerMinute: number
+    /** Every other guest-token write, per client **and** event, one bucket (HTTP-H-01). */
+    readonly guestWritePerMinute: number
     /** The shared gallery's pages, per client (roadmap §4.1). */
     readonly galleryPerMinute: number
     /** Its bytes: thumbnails, downloads, the archive. Per client. */

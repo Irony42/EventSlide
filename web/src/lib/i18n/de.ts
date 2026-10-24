@@ -25,6 +25,7 @@ export const de: UiText = {
   app: {
     name: 'EventSlide',
     loading: 'Wird geladen…',
+    loadFailed: 'Laden nicht möglich',
     retry: 'Erneut versuchen',
     cancel: 'Abbrechen',
     close: 'Schließen',
@@ -751,7 +752,6 @@ export const de: UiText = {
     inviteModerator: 'Moderator einladen',
 
     loading: 'Ihre Veranstaltungen werden geladen…',
-    loadFailed: 'Laden nicht möglich',
     eventLoading: 'Die Veranstaltung wird geladen…',
     eventsEmpty: 'Noch keine Veranstaltungen.',
     eventsEmptyHint: 'Drei Schritte, damit am Tag selbst alles bereit ist.',

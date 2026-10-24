@@ -55,6 +55,7 @@ export const fr = {
   app: {
     name: 'EventSlide',
     loading: 'Chargement…',
+    loadFailed: 'Chargement impossible',
     retry: 'Réessayer',
     cancel: 'Annuler',
     close: 'Fermer',
@@ -881,7 +882,6 @@ export const fr = {
 
     /* ---- Added by features/admin (auth, event management). ---- */
     loading: 'Chargement de vos évènements…',
-    loadFailed: 'Chargement impossible',
     eventLoading: 'Chargement de l’évènement…',
     eventsEmpty: 'Aucun évènement pour le moment.',
     eventsEmptyHint: 'Trois étapes pour être prêt le jour J.',

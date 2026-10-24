@@ -360,10 +360,11 @@ describe('POST /api/site/accounts/:userId/password-reset (R2)', () => {
   it('answers 429 reset.tooManyForAddress once an inbox has had its three an hour', async () => {
     const { post } = await operator()
 
-    const statuses: number[] = []
-    for (let i = 0; i < 4; i += 1) statuses.push((await reset(post)).status)
+    const responses = []
+    for (let i = 0; i < 4; i += 1) responses.push(await reset(post))
 
-    expect(statuses).toEqual([200, 200, 200, 429])
+    expect(responses.map((response) => response.status)).toEqual([200, 200, 200, 429])
+    expect(responses[3]?.headers['retry-after']).toBe('3600')
   })
 
   it('answers 404 user.notFound for an account that does not exist, and 409 account.disabled for one that is switched off', async () => {

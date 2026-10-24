@@ -36,10 +36,11 @@ import {
   type ReactionBudgetPolicy,
 } from '../../../application/usecases/reactions/reactToPhoto'
 import { makeWithdrawReaction } from '../../../application/usecases/reactions/withdrawReaction'
+import { makeRenameGuest } from '../../../application/usecases/guests/renameGuest'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 
 /**
@@ -54,11 +55,14 @@ import { ok, type Result } from '../../../domain/shared/result'
 
 const WEDDING = 'wedding-id'
 const GALA = 'gala-id'
-const GUEST = 'guest-1'
-const OTHER_GUEST = 'guest-2'
+/** UUIDs because `guestParams` says so, and `PATCH /guests/:guestId` carries one in the path. */
+const GUEST = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const OTHER_GUEST = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 /** A moderator of the wedding, for the one path the host surface also owns. */
 const MODERATOR = '99999999-9999-4999-8999-999999999999'
 const MODERATOR_EMAIL = 'moderateur@example.test'
+/** A signed-in account with no role at the wedding. */
+const OUTSIDER = '88888888-8888-4888-8888-888888888888'
 
 /**
  * Photo ids are UUIDs because `photoParams` says so — the ids in a URL are opaque and
@@ -245,7 +249,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
 
   const harness = buildHarness({
     ...(options.config === undefined ? {} : { config: options.config }),
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.use(
         '/api',
         guestRoutes({
@@ -280,6 +284,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               budget,
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
+            renameGuest: makeRenameGuest({ guests: base.guests }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
             getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
@@ -299,6 +304,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
         },
       )
       app.post('/sign-in/moderator', signInAs({ userId: MODERATOR, email: MODERATOR_EMAIL }))
+      app.post('/sign-in/outsider', signInAs({ userId: OUTSIDER, email: 'autre@example.test' }))
     },
   })
 
@@ -705,6 +711,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
           joinPerMinute: 20,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
@@ -907,6 +914,40 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
 
 // ------------------------------------- caption: PATCH /photos/:id/caption --
 
+/**
+ * The button and the refusal are one rule (HTTP-M-10): the `canDelete` flag the phone is shown
+ * must be exactly whether the same guest's `DELETE` is then accepted. Both read
+ * `Photo.deletionVerdict`; walked here over the switch, the three photographs and the window.
+ */
+describe('the canDelete flag agrees with what DELETE then does', () => {
+  const GRACE_MS = 15 * 60 * 1000
+  const cases = [true, false].flatMap((allowGuestSelfDelete) =>
+    [PENDING, PUBLISHED, REJECTED].flatMap((photoId) =>
+      [0, GRACE_MS + 1].map((elapsedMs) => ({ allowGuestSelfDelete, photoId, elapsedMs })),
+    ),
+  )
+
+  it.each(cases)(
+    'self-deletion $allowGuestSelfDelete, photo $photoId, $elapsedMs ms after the upload',
+    async ({ allowGuestSelfDelete, photoId, elapsedMs }) => {
+      const subject = buildSubject({ settings: { allowGuestSelfDelete } })
+      subject.harness.clock.advance(elapsedMs)
+
+      const mine = await request(subject.app)
+        .get(`${BASE}/photos/mine`)
+        .set('Cookie', cookie(subject.token))
+      const flagged = mine.body.items.find((item: { id: string }) => item.id === photoId) as {
+        canDelete: boolean
+      }
+      const deleted = await request(subject.app)
+        .delete(`${BASE}/photos/${photoId}`)
+        .set('Cookie', cookie(subject.token))
+
+      expect(flagged.canDelete).toBe(deleted.status === 204)
+    },
+  )
+})
+
 describe('PATCH /api/events/:eventSlug/photos/:photoId/caption', () => {
   it('writes the caption on the author own pending photo', async () => {
     const subject = buildSubject()
@@ -1035,6 +1076,8 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
 
     expect(response.status).toBe(429)
     expect(response.body.error.code).toBe('reaction.rateLimited')
+    // The budget's own window (60 s here): without it a phone retries at once.
+    expect(response.headers['retry-after']).toBe('60')
   })
 
   it('answers 429 once the per-minute limit for this address and event is spent', async () => {
@@ -1180,6 +1223,152 @@ describe('GET /api/events/:eventSlug/photos/:photoId/reactions', () => {
   })
 })
 
+// ------------------------------------- rename: PATCH /guests/:guestId --
+
+describe('PATCH /api/events/:eventSlug/guests/:guestId', () => {
+  const rename = (subject: Subject, displayName: string | null, target = GUEST) =>
+    request(subject.app)
+      .patch(`${BASE}/guests/${target}`)
+      .set('Cookie', cookie(subject.token))
+      .send({ displayName })
+
+  const nameOf = async (
+    subject: Subject,
+    eventId: string,
+    guestId: string,
+  ): Promise<string | null | undefined> =>
+    (await subject.harness.guests.findById(asEventId(eventId), asGuestId(guestId)))?.label()
+
+  it('lets a guest change the name their photos are signed with, and says what is stored', async () => {
+    const subject = buildSubject()
+
+    const response = await rename(subject, 'Léa D.')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ guestId: GUEST, displayName: 'Léa D.' })
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa D.')
+    // A name is the one thing on this answer a phone is about to print on a projector.
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('answers the name as the domain stored it, not as it was typed', async () => {
+    // Folded and trimmed by `DisplayName`: the phone shows what the wall will print.
+    const subject = buildSubject()
+
+    const response = await rename(subject, '  Léa \n  D.  ')
+
+    expect(response.status).toBe(200)
+    expect(response.body.displayName).toBe('Léa D.')
+  })
+
+  it.each([
+    { what: 'null', displayName: null },
+    { what: 'a blank string', displayName: '   ' },
+  ])('takes the name off the wall when sent $what', async ({ displayName }) => {
+    const subject = buildSubject()
+
+    const response = await rename(subject, displayName)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ guestId: GUEST, displayName: null })
+    expect(await nameOf(subject, WEDDING, GUEST)).toBeNull()
+  })
+
+  it('refuses to rename another guest of the same event, and leaves their name alone', async () => {
+    // The name is projected in front of a room: editing somebody else's is a way to put
+    // words under their photograph.
+    const subject = buildSubject()
+
+    const response = await rename(subject, 'Piraté', OTHER_GUEST)
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('auth.forbidden')
+    expect(await nameOf(subject, WEDDING, OTHER_GUEST)).toBe('Sacha')
+  })
+
+  it('answers a guest id that does not exist exactly as one that does, so ids cannot be probed', async () => {
+    const subject = buildSubject()
+    const nobody = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+
+    const unknown = await rename(subject, 'Piraté', nobody)
+    const known = await rename(subject, 'Piraté', OTHER_GUEST)
+
+    expect(unknown.status).toBe(403)
+    expect(unknown.body).toEqual(known.body)
+  })
+
+  it('renames the guest of the event in the path, never the same id at another event', async () => {
+    // Guest ids are only unique within an event, so the use case reads `(eventId, guestId)`.
+    // The gala's guest happens to carry the wedding guest's id.
+    const subject = buildSubject()
+    subject.harness.guests.seed(aGuest({ id: GUEST, eventId: GALA, displayName: 'Léa du gala' }))
+
+    const response = await request(subject.app)
+      .patch(`/api/events/gala/guests/${GUEST}`)
+      .set('Cookie', cookie(subject.galaToken))
+      .send({ displayName: 'Renommée' })
+
+    expect(response.status).toBe(200)
+    expect(await nameOf(subject, GALA, GUEST)).toBe('Renommée')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+
+  it('refuses the wedding path to a token that names the gala, and renames nothing', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .patch(`${BASE}/guests/${GUEST}`)
+      .set('Cookie', cookie(subject.galaToken))
+      .send({ displayName: 'Piraté' })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+
+  it('refuses a name past the domain limit with the domain code, which the boundary bound lets through', async () => {
+    // 41 characters is inside the boundary's 120 and outside `DisplayName`'s 40: the rule
+    // is the domain's, the boundary only bounds the size of what is parsed.
+    const subject = buildSubject()
+
+    const response = await rename(subject, 'x'.repeat(41))
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('displayName.tooLong')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+
+  it('still lets a guest correct their own name once the event has closed, as the use case says', async () => {
+    // `renameGuest` deliberately does not consult the lifecycle: a guest at a closed party may
+    // correct the spelling of their own name on an album that is still being viewed. Pinned
+    // here because the sentence is documented (docs/API.md) and a gate on `acceptsUploads()`
+    // added to the handler would pass every other case.
+    const subject = buildSubject()
+    subject.harness.events.seed(
+      anEvent({ id: 'closed-id', slug: 'termine', joinCode: 'C10SED', status: 'closed' }),
+    )
+    subject.harness.guests.seed(aGuest({ id: GUEST, eventId: 'closed-id', displayName: 'Léa' }))
+
+    const response = await request(subject.app)
+      .patch(`/api/events/termine/guests/${GUEST}`)
+      .set('Cookie', cookie(subject.harness.issueGuestToken('closed-id', GUEST)))
+      .send({ displayName: 'Léa D.' })
+
+    expect(response.status).toBe(200)
+    expect(response.body.displayName).toBe('Léa D.')
+  })
+
+  it('refuses a guest the host has revoked, who may no longer sign anything', async () => {
+    const subject = buildSubject({ revoked: true })
+
+    const response = await rename(subject, 'Encore moi')
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('guest.revoked')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+})
+
 // ------------------------------------------------- authorization, per route --
 
 /**
@@ -1241,6 +1430,15 @@ const ROUTES = [
     sharedWithHost: false,
     send: (client: Client, token: string) =>
       client.get(`${BASE}/photos/${PUBLISHED}/reactions`).set('Cookie', cookie(token)),
+  },
+  {
+    name: 'PATCH /guests/:guestId',
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'Léa' }),
   },
 ]
 
@@ -1315,7 +1513,7 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
   })
 
   it('keeps the guest handler when a guest token is presented', async () => {
-    // The deferral keys on the cookie, so a guest at an event they do not moderate is
+    // The deferral keys on membership and then the cookie, so a guest at an event they do not moderate is
     // still answered here — and by their own rules, not a moderator's.
     const subject = buildSubject()
 
@@ -1325,6 +1523,65 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
 
     expect(response.status).toBe(403)
     expect(response.body.error.code).toBe('photo.deleteForbidden')
+    expect(subject.hostHandlerReached).toEqual([])
+  })
+
+  it('answers a moderator as a moderator even when the browser holds a guest cookie of this event (HTTP-M-02)', async () => {
+    // A host who scanned their own QR code in the browser they moderate from is a guest of the
+    // event for thirty-six hours. Dispatched on the cookie alone, their delete of somebody
+    // else's photograph was refused as a guest's would be: `403 photo.deleteForbidden`.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(204)
+    expect(subject.hostHandlerReached).toEqual([`/api/events/mariage/photos/${ANOTHER_GUESTS}`])
+  })
+
+  it('answers a moderator as a moderator even with the guest cookie of another event', async () => {
+    // `403 guest.wrongEvent` before: the cookie was weighed against an event the caller was
+    // not asking about, and the role they hold in this one was never read.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.galaToken))
+
+    expect(response.status).toBe(204)
+    expect(subject.hostHandlerReached).toHaveLength(1)
+  })
+
+  it('keeps a signed-in account with no role here on the guest handler when it holds a guest cookie', async () => {
+    // The direction the dispatch was written for, and still true: a guest at somebody else's
+    // event, who happens to have an account, must not be sent into `requireRole` and told 404.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/outsider').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('photo.deleteForbidden')
+    expect(subject.hostHandlerReached).toEqual([])
+  })
+
+  it('hands a signed-in account with no role and no guest cookie to the host handler, which refuses it', async () => {
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/outsider').expect(204)
+
+    const response = await agent.delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
     expect(subject.hostHandlerReached).toEqual([])
   })
 
@@ -1432,6 +1689,43 @@ const INVALID_REQUESTS = [
         .post(`${BASE}/photos/${PUBLISHED}/reactions`)
         .set('Cookie', cookie(token))
         .send({ kind: 'shrug' }),
+  },
+  {
+    name: 'a guest id that is not a uuid',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/not-a-uuid`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'Léa' }),
+  },
+  {
+    name: 'a rename body with no displayName key',
+    send: (client: Client, token: string) =>
+      client.patch(`${BASE}/guests/${GUEST}`).set('Cookie', cookie(token)).send({}),
+  },
+  {
+    name: 'a display name that is not a string',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 42 }),
+  },
+  {
+    name: 'a display name past the boundary bound of 120 characters',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'x'.repeat(121) }),
+  },
+  {
+    name: 'a rename body carrying a key that is not the name',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'Léa', revokedAt: null }),
   },
   {
     name: 'a reaction kind outside the closed set in the path',

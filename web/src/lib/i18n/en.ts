@@ -24,6 +24,7 @@ export const en: UiText = {
   app: {
     name: 'EventSlide',
     loading: 'Loading…',
+    loadFailed: 'Loading failed',
     retry: 'Try again',
     cancel: 'Cancel',
     close: 'Close',
@@ -706,7 +707,6 @@ export const en: UiText = {
     inviteModerator: 'Invite a moderator',
 
     loading: 'Loading your events…',
-    loadFailed: 'Loading failed',
     eventLoading: 'Loading the event…',
     eventsEmpty: 'No events yet.',
     eventsEmptyHint: 'Three steps to be ready on the day.',

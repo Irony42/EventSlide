@@ -533,6 +533,37 @@ describe('sending a video', () => {
     expect(screen.queryByRole('button', { name: fr.app.retry })).toBeNull()
   })
 
+  it('announces a refused recording as an alert, which is the only thing that interrupts', async () => {
+    havingJoined({ allowClips: true })
+    renderUpload(fakeApi())
+
+    await userEvent.upload(
+      screen.getByLabelText(fr.upload.addClip),
+      aClipFile('longue.mp4', 90_000_000),
+    )
+
+    const refusal = await screen.findByText(fr.upload.clipTooLarge(80))
+    expect(refusal.closest('[role="alert"]')).not.toBeNull()
+  })
+
+  it('announces a wait in turn, as a status, and not as an alert over what the guest is doing', async () => {
+    havingJoined({ allowClips: true })
+    renderUpload(
+      fakeApi({
+        uploadClip: vi.fn(() =>
+          Promise.reject(new ApiError(429, 'clip.queueFull', { retryAfterSeconds: 30 })),
+        ),
+      }),
+    )
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    const wait = await screen.findByText(fr.upload.clipQueueFullRetry(30))
+    expect(wait.closest('[role="status"]')).not.toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('shows the transcode as its own state rather than stopping at 100%', async () => {
     havingJoined({ allowClips: true })
     const api = fakeApi({

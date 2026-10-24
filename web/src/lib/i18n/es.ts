@@ -24,6 +24,7 @@ const t = formattersFor('es')
 export const es: UiText = {
   app: {
     name: 'EventSlide',
+    loadFailed: 'No se ha podido cargar',
     loading: 'Cargando…',
     retry: 'Reintentar',
     cancel: 'Cancelar',
@@ -742,7 +743,6 @@ export const es: UiText = {
     inviteModerator: 'Invitar a un moderador',
 
     loading: 'Cargando sus eventos…',
-    loadFailed: 'No se ha podido cargar',
     eventLoading: 'Cargando el evento…',
     eventsEmpty: 'Todavía no hay ningún evento.',
     eventsEmptyHint: 'Tres pasos para estar listo el día del evento.',

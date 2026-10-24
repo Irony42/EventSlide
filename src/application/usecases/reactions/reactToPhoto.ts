@@ -92,7 +92,14 @@ export const makeReactToPhoto =
       maxPerWindow: budget.maxPerWindow,
     })
     if (!allowed.ok) return allowed
-    if (!allowed.value) return err(DomainError.rateLimited('reaction.rateLimited'))
+    // The budget's window is the longest a guest waits (HTTP-M-04), which is what `Retry-After` is.
+    if (!allowed.value) {
+      return err(
+        DomainError.rateLimited('reaction.rateLimited', {
+          retryAfterSeconds: Math.ceil(budget.windowMs / 1_000),
+        }),
+      )
+    }
 
     await reactions.save(reaction.value)
     bus.publish({ type: 'reaction.added', eventId, photoId, kind: reaction.value.kind })

@@ -1,7 +1,7 @@
 import { useId, type ChangeEvent } from 'react'
 import { Button } from '../../../design-system/components/Button'
+import { Notice } from '../../../design-system/components/Notice'
 import { Progress } from '../../../design-system/components/Progress'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
 import { megabytes, type ClipLimits } from '../clipFile'
@@ -180,15 +180,15 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
           ) : null}
 
           {clip.message === null || tone === null ? null : (
-            <p
-              className={styles[tone]}
+            <Notice
+              tone={tone}
+              variant="inline"
               // `alert` interrupts, and only a refusal earns that. A wait and a success
               // are announced in turn with everything else the region is saying.
               role={tone === 'danger' ? 'alert' : 'status'}
             >
-              <StatusIcon tone={tone} />
               {clip.message}
-            </p>
+            </Notice>
           )}
 
           {/*

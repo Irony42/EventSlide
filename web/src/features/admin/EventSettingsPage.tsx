@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
-import { StatusIcon } from '../../design-system/components/StatusIcon'
+import { Notice } from '../../design-system/components/Notice'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from './components/AsyncState'
+import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
@@ -283,12 +283,9 @@ export function EventSettingsPage() {
         current — `useLoader` holds the previous data for exactly this.
       */}
       {error === null ? null : (
-        <p className={styles['warning']} role="status">
-          <span className={styles['warningGlyph']}>
-            <StatusIcon tone="warning" />
-          </span>
+        <Notice tone="warning" role="status" variant="boxed">
           {error}
-        </p>
+        </Notice>
       )}
 
       <form className={styles['form']} onSubmit={handleSubmit} noValidate>
@@ -318,12 +315,9 @@ export function EventSettingsPage() {
         */}
         <div aria-live="polite">
           {settings.moderation === 'auto' ? (
-            <p className={styles['warning']}>
-              <span className={styles['warningGlyph']}>
-                <StatusIcon tone="warning" />
-              </span>
+            <Notice tone="warning" variant="boxed">
               {t.admin.moderationAutoWarning}
-            </p>
+            </Notice>
           ) : null}
         </div>
 
@@ -428,12 +422,9 @@ export function EventSettingsPage() {
         />
 
         {failure === null ? null : (
-          <p className={styles['failure']} role="alert">
-            <span className={styles['failureGlyph']}>
-              <StatusIcon tone="danger" />
-            </span>
+          <Notice tone="danger" role="alert" variant="boxed">
             {failure}
-          </p>
+          </Notice>
         )}
 
         <div className={styles['actions']}>
@@ -458,12 +449,9 @@ export function EventSettingsPage() {
           anything, the empty schedule included, clears it.
         */}
         {discardedAt === null ? null : (
-          <p className={styles['warning']} role="status">
-            <span className={styles['warningGlyph']}>
-              <StatusIcon tone="warning" />
-            </span>
+          <Notice tone="warning" role="status" variant="boxed">
             {t.admin.scheduleDiscarded(discardedAt)}
-          </p>
+          </Notice>
         )}
 
         <DateTimeField
@@ -487,12 +475,9 @@ export function EventSettingsPage() {
         <p className={styles['notice']}>{scheduleSummary(event, t, locale)}</p>
 
         {scheduleFailure === null ? null : (
-          <p className={styles['failure']} role="alert">
-            <span className={styles['failureGlyph']}>
-              <StatusIcon tone="danger" />
-            </span>
+          <Notice tone="danger" role="alert" variant="boxed">
             {scheduleFailure}
-          </p>
+          </Notice>
         )}
 
         <div className={styles['actions']}>

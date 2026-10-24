@@ -5,7 +5,7 @@ import type { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { requireRole, resolvePublicEvent } from '../middleware/authz'
-import { streamConnectionLimiter } from '../middleware/rateLimit'
+import { STREAM_RETRY_AFTER_SECONDS, streamConnectionLimiter } from '../middleware/rateLimit'
 import { errorBody } from '../presenters/send'
 import type { HttpDeps } from '../types'
 
@@ -174,10 +174,13 @@ export interface StreamOptions {
   readonly lastEventId: string | undefined
   readonly res: Response
   /**
-   * What the beat does when the event's client turns out to be suspended (G2-14). `'ends'` is the
-   * public wall's: the same answer an unknown event gets, so the feed is closed. `'serves'` is the
-   * moderation console's: its members keep their reads while the client is frozen, so only an event
-   * that is gone ends it. Absent means `'ends'`, the refusal.
+   * What the beat does when the event is no longer served to whoever opened the stream. `'ends'` is
+   * the public wall's: the question that opened it is asked again (`Event.servesPublicWall`: the
+   * lifecycle serves the wall and the client is not suspended, G2-14), so an archived event or a
+   * suspended client closes the feed, the answer an unknown event gets. `'serves'` is the
+   * moderation console's: its members keep their reads while the client is frozen or the event is
+   * archived, so only an event that is gone ends it. Absent means `'ends'`, the refusal. (Named for
+   * the suspension it was written for; it now covers the lifecycle as well.)
    */
   readonly suspension?: 'ends' | 'serves'
   /**
@@ -253,7 +256,11 @@ export const openStream = ({
   const stillServed = async (): Promise<boolean> => {
     const current = await deps.events.findById(eventId)
     if (current === null) return false
-    if (suspension === 'ends' && current.isClientSuspended()) return false
+    // The public wall asks what opened it, so an event the host has since archived, or whose
+    // client has been suspended, ends the stream: a stream opened while the event was live used to
+    // stay open after it was archived and keep its slot of the per-client cap. A moderation feed
+    // (`'serves'`) reads through a suspension and an archive alike: its members still moderate.
+    if (suspension === 'ends' && !current.servesPublicWall()) return false
     // `roleFor` is null for a disabled account and for one that is gone: the same read every request makes.
     return member === undefined || (await deps.memberships.roleFor(eventId, member)) !== null
   }
@@ -348,7 +355,7 @@ export const drainStreams = (): void => {
  * connections a second, short enough that a projector rejoins within a song once the
  * screens that were hogging the channel have gone.
  */
-const RETRY_AFTER_SECONDS = '30'
+const RETRY_AFTER_SECONDS = String(STREAM_RETRY_AFTER_SECONDS)
 
 /**
  * Opens the channel for the event the middleware in front resolved.

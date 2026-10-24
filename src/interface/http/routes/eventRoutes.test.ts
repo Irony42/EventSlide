@@ -232,7 +232,7 @@ const buildWorld = ({
       // bus, the same config. `users` is among them because `requireUser` reads it on
       // every request to the two routes here that are not event-scoped: the world the
       // accounts live in has to be the world the gate asks.
-      const deps: HttpDeps = { ...harnessDeps, events, guests, memberships, users }
+      const deps: HttpDeps = { ...harnessDeps, events, memberships, users }
 
       const usecases: HttpUseCases = {
         authenticateUser: absent('authenticateUser'),
@@ -298,6 +298,7 @@ const buildWorld = ({
         getEventLimits: makeGetEventLimits({ clients }),
         listEventsForHost: makeListEventsForHost({ events }),
         resolveJoinCode: absent('resolveJoinCode'),
+        identifyMediaViewer: absent('identifyMediaViewer'),
         updateEventSettings: makeUpdateEventSettings({
           events,
           clients,
@@ -2125,6 +2126,8 @@ describe('the host event routes', () => {
 
       expect(response.status).toBe(429)
       expect(response.body.error.code).toBe('invitation.tooManyForAddress')
+      // Section 1: every `rateLimited` carries `Retry-After`; the window is the longest anyone waits.
+      expect(response.headers['retry-after']).toBe('3600')
     })
   })
 

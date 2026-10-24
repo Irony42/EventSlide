@@ -577,6 +577,7 @@ Everything in `src/interface/http/middleware/authz.ts`:
 | `requireStepUp(deps)`            | nothing. Declared per route, behind `requireUser`: refuses with `403 auth.stepUpRequired` unless the session confirmed a password and a code within five minutes (§19)                                                                                                                                                |
 | `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below                                                                                                                                                                    |
 | `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked; it also stamps the guest as seen                                                                                                                                                                                       |
+| `deferToHostSurface(deps)`       | nothing. Not a gate: on the one path a guest and a moderator share (`DELETE .../photos/:photoId`) it hands the request to the host router when the session holds a moderator-level role in that event, whatever cookie it carries, and otherwise dispatches on the cookie (HTTP-M-02)                                 |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                                                                                     |
 | _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/login/2fa` (the half-finished sign-in is the credential), `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (the link is the credential) |
 | `GET /api/about`, no middleware  | genuinely public, mounted ahead of the cookie parser, the session and CSRF: the AGPL §13 source offer sets no cookie                                                                                                                                                                                                  |
@@ -641,7 +642,7 @@ different middleware, from the question of what anybody may do inside an event.
 | A site role grants **nothing** inside an event                          | an operator who could accidentally moderate a client's photographs is worse than one who cannot help at all. Support access is §10.6: time-boxed, announced and logged                                                                                                                                                                |
 | `requireRole` never reads it                                            | `authz.test.ts` asserts the refusals **and**, through `CallLog`, that the question is never even asked — including on the path where the membership is missing                                                                                                                                                                        |
 | Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list                                                                                                                                                       |
-| Media is reached as a member of the public                              | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                                                                   |
+| Media is reached as a member of the public                              | `identifyMediaViewer` is the viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                                                                     |
 | It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                                                                  |
 | An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. Accepting an invitation creates `none` explicitly (`acceptInvitation`), and there is no route that changes a site role at all today                                         |
 | The operator's namespace exists only on a box that asked for it         | `/api/site` — itself and `/api/site/*`, never `/api/sites` — is mounted only with `SITE_ADMIN=on` (roadmap §10.9) and gated by `requireOperator` at **router level**, so a route there inherits the check. Off, every path under it answers as an unknown route does, headers included (`siteAdminMode.test.ts`): no operator surface |
@@ -1053,11 +1054,12 @@ on a restart loop)**.
 | --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
 | `POST /api/auth/login` †                      | 10           | —                      | —               | 1 min  |
 | `POST /api/events` (create)\*                 | —            | —                      | —               | 1 hour |
-| `GET /api/join/:code` (code lookup)           | 20           | 60                     | —               | 1 min  |
+| `GET /api/join/:code` (code lookup)           | 20 (as join) | —                      | —               | 1 min  |
 | `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/photos/:id/reactions` | 120          | 600                    | 60              | 1 min  |
+| the five other guest writes (below)           | 300 per pair | (keyed together)       | —               | 1 min  |
 | `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent         | —               | —      |
 | `GET /api/gallery/:token`, `…/photos`, unlock | 120          | —                      | —               | 1 min  |
 | `GET /api/gallery-media/…`                    | 3000         | —                      | —               | 1 min  |
@@ -1080,11 +1082,25 @@ limiter at all. The numbers above were never implemented; the intent — a limit
 whole table of guests behind one venue access point does not trip on somebody else's
 behalf — is served by the composite key rather than by three tiers.
 
-- Limits return **429** with `Retry-After` and the code `request.rateLimited`. A named
+**The five other guest writes** — a caption, taking a photo back, withdrawing a reaction,
+renaming oneself and acknowledging the privacy notice — spend **one** bucket keyed by `clientKey:eventSlug`,
+`GUEST_WRITE_RATE_LIMIT_PER_MINUTE` (default **300**), built once in `server.ts` and mounted ahead
+of `requireGuest` (HTTP-H-01). Before it a guest token, which costs nothing because
+`POST /api/join` is public, could repeat a caption edit without limit, and each edit is announced
+to every screen watching the event. 300 is a backstop sized for a room and not a tuned figure: a
+venue shares one address, and what it legitimately sends is bounded by the upload and join budgets.
+It counts per client address **and** event together (a pair has 300, not an address).
+`guestWriteRateLimit.test.ts` pins each mount and its place ahead of `requireGuest`, the shared
+bucket and the key, and sweeps the route table so that a sixth guest write with no limiter fails.
+
+- Limits return **429** with `Retry-After` and the code `rate.limited` (or the route's own, such as `reaction.rateLimited`). A named
   ring-4 test asserts the status; a limiter that silently allows everything is the
   classic dead control.
-- The join-code lookup is limited _per code as well as per IP_: an 8-character code is
-  guessable and a botnet defeats a per-IP limit alone.
+- The join-code lookup (`GET /api/join/:code`) and the join itself spend **one** budget per
+  address, `JOIN_RATE_LIMIT_PER_MINUTE`, because they answer one question (is this a real, open
+  event) and a second bucket would have doubled the rate at which codes can be tried. A
+  budget _per code_ as well, which a botnet spreading over addresses would meet, was planned and
+  is not built.
 - **The quota is the disk control, not the rate limit.** `events.quota_bytes` is compared
   against `SUM(byte_size)` for the event **inside the insert transaction**, because two
   concurrent uploads can both pass a check made outside it. When it is reached the event
@@ -2534,7 +2550,7 @@ cannot be traced to a file must be marked, never left standing.
 | §8                       | helmet lives in `server.ts`                                                       | `middleware/securityHeaders.ts:15-74`, mounted at `server.ts:65`                                                                                                                                                                                                                                                                                                                   |
 | §8                       | HSTS 180 days                                                                     | 365 days — `securityHeaders.ts:66`. Here the code is stricter than the doc                                                                                                                                                                                                                                                                                                         |
 | §7, §10                  | an `Origin` / `Referer` check against `PUBLIC_URL`                                | Does not exist — `middleware/csrf.ts:147-165`. §7 and §10 no longer claim it                                                                                                                                                                                                                                                                                                       |
-| §5                       | `GET /api/join/:code` limited per code as well as per IP                          | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                                                                                                                                                                     |
+| §5                       | `GET /api/join/:code` limited per code as well as per IP                          | **Per IP only.** The route now exists and shares the join's one per-IP budget; none is per code — `routes/publicRoutes.ts`                                                                                                                                                                                                                                                         |
 | §5                       | the SSE hub "drops the oldest idle connection rather than refusing"               | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process                                                                                                                                             |
 | §8                       | "fonts are bundled, self-hosted"                                                  | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                                                                                                                                                                   |
 | §14, "Fill the disk?"    | "no `statfs` or `checkDiskSpace` in `src/`"                                       | No longer: G3-06 / P4-10 added a process-wide upload concurrency cap and a `statfs`-based free-disk-space guard (`429 upload.busy`, `413 storage.boxFull`), reported without gating at `GET /api/ready`. See §5                                                                                                                                                                    |
@@ -3330,7 +3346,7 @@ and a mutation.
   anything else goes. `offboarding.container.test.ts` runs the whole of it over the real stack.
 - **A feed does not outlive its account.** The moderation stream re-reads the account's place in the event at every
   heartbeat (plan item A-22), so an account switched off or deleted, or removed from the event, is told to wait and is ended
-  within one beat; the wall's public feed has no account and keeps its suspension rule.
+  within one beat; the wall's public feed has no account and is re-checked with the question that opened it (`Event.servesPublicWall`: the lifecycle serves the wall and the client is not suspended), so an archived event ends it as a suspension does (HTTP-M-08).
 - **Not here:** erasing media a moderator wrote, or a moderator who has reviewed photographs (the account is refused
   instead; the second needs a schema change to the review constraint), erasing the sessions and tokens that hold the
   address, a self-service erasure (roadmap §5.2), and a retry order that keeps a client that fails to finalise from

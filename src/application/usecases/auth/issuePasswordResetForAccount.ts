@@ -245,7 +245,13 @@ export const makeIssuePasswordResetForAccount = ({
         new Date(now.getTime() - PASSWORD_RESET_REQUEST_WINDOW_MS),
       )
       if (recent >= PASSWORD_RESET_MAX_REQUESTS_PER_HOUR) {
-        return err(DomainError.rateLimited('reset.tooManyForAddress'))
+        // The window is the longest anybody waits (HTTP-M-04): the count says not when the oldest
+        // request ages out, and an upper bound is true.
+        return err(
+          DomainError.rateLimited('reset.tooManyForAddress', {
+            retryAfterSeconds: Math.ceil(PASSWORD_RESET_REQUEST_WINDOW_MS / 1_000),
+          }),
+        )
       }
     }
 

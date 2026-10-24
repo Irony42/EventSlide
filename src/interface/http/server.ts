@@ -8,6 +8,7 @@ import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
 import { attachUser, enforceSessionAge, requirePasswordCurrent } from './middleware/authz'
 import {
   eventCreationLimiter,
+  guestWriteLimiter,
   uploadConcurrencyLimiter,
   uploadLimiter,
 } from './middleware/rateLimit'
@@ -93,6 +94,16 @@ export const buildServer = ({
   // (docs/ARCHITECTURE.md §4.2), so it logs every request this process answers, probes
   // included, and so `req.context.requestId` already exists when it reads it.
   app.use(accessLog(config.accessLog))
+
+  // **Nothing under `/api` is stored by a browser or a proxy unless its route says so** (HTTP-M-15).
+  // The sentence "every principal-scoped read in this API says so explicitly" was false for five host
+  // reads (the event list, the event, its guests' names, its moderators' **e-mail addresses**, its
+  // missions): each route had to remember to say it, and the next would forget. A default is the
+  // fix, and a route that wants caching says so over it - the media route (`immutable`), the gallery's
+  // media, `/api/about` and the event streams do. Mounted here, ahead of the probes, the body parser
+  // and the session, so that an answer given before any router runs (a body the parser refuses, a
+  // probe, a session the store cannot read) has it too, and for every method.
+  app.use('/api', noStoreByDefault)
 
   // Liveness and readiness, before the body parser, the cookie parser and the session:
   // a probe is a machine with no cookie jar, and one that does happen to carry a stale
@@ -249,6 +260,15 @@ export const buildServer = ({
   const uploadRateLimiter = uploadLimiter(config.rateLimits.uploadPerMinute)
 
   /**
+   * **One bucket for the guest's other writes (HTTP-H-01), same reason, same arrangement.**
+   *
+   * A caption, taking a photo back, withdrawing a reaction, renaming oneself and
+   * acknowledging the privacy notice are five routes in two routers and one guest; built inside each router they would
+   * be two allowances under `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`.
+   */
+  const guestWriteRateLimiter = guestWriteLimiter(config.rateLimits.guestWritePerMinute)
+
+  /**
    * **The upload concurrency semaphore (G3-06 / P4-10), same reason, same arrangement.**
    *
    * A counter closed over by the middleware function itself, so calling
@@ -265,6 +285,7 @@ export const buildServer = ({
     guestRoutes({
       ...routeDeps,
       uploadRateLimiter,
+      guestWriteRateLimiter,
       uploadConcurrencyLimiter: sharedUploadConcurrencyLimiter,
     }),
   )
@@ -284,7 +305,7 @@ export const buildServer = ({
   )
   // The privacy notice a guest reads before their first upload (roadmap §5.1). Its own
   // path under the event, so where it sits among the routers is for reading order only.
-  app.use('/api', privacyNoticeRoutes(routeDeps))
+  app.use('/api', privacyNoticeRoutes({ ...routeDeps, guestWriteRateLimiter }))
   app.use('/api', mediaRoutes(routeDeps))
   // The shared gallery (roadmap §4.1): public, token-gated, with its own limits and its
   // own headers. Its own router so that nothing mounted for the host's surface — a role
@@ -321,6 +342,12 @@ export const buildServer = ({
   app.use(errorHandler())
 
   return app
+}
+
+/** `Cache-Control: no-store`, for a route to override with its own. */
+const noStoreByDefault: RequestHandler = (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store')
+  next()
 }
 
 const apiNotFound: RequestHandler = (_req, res) => {

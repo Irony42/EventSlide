@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AT, aGuest, anEvent, aUser } from '../../application/testing/builders'
 import { DomainError } from '../../domain/shared/errors'
 import { asEventId, asUserId } from '../../domain/shared/ids'
-import { err } from '../../domain/shared/result'
+import { err, ok } from '../../domain/shared/result'
 import { GUEST_COOKIE } from './middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER } from './middleware/csrf'
 import {
@@ -412,6 +412,7 @@ describe('buildServer: which client a rate limit is counting', () => {
           uploadPerMinute: 12,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
@@ -463,6 +464,7 @@ describe('buildServer: which client a rate limit is counting', () => {
           uploadPerMinute: 1,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
@@ -1000,5 +1002,81 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     const response = await request(withClient().app).get(`/${HASHED_ASSET}`)
 
     expect(response.get('cache-control')).not.toContain('immutable')
+  })
+})
+
+describe('buildServer: Cache-Control defaults to no-store under /api (HTTP-M-15)', () => {
+  /**
+   * "Every principal-scoped read in this API says so explicitly" was false for five host reads, among them the
+   * moderators' **e-mail addresses**: each route had to remember the header, and the next would forget. The
+   * default is `server.ts`'s; a route that wants caching says so over it (the media route, the streams).
+   */
+  const OWNER = '11111111-1111-4111-8111-111111111111'
+
+  it('marks an answer nobody wrote a route for', async () => {
+    const response = await request(buildServerHarness().app).get('/api/nope')
+
+    expect(response.status).toBe(404)
+    expect(response.get('cache-control')).toBe('no-store')
+  })
+
+  it('marks the answers given before any router runs, whatever the method: a probe, a refused body, a refused write', async () => {
+    // The default sits ahead of the probes, the body parser, the session and the CSRF gate. Mounted
+    // after any of them, the answer that gate gives (a 400 for a body the parser refuses, a 403 for a
+    // write without its token) went out with no header, and so did the probes.
+    const subject = buildServerHarness()
+    const agent = request.agent(subject.app)
+    const token = csrfTokenFrom((await agent.get(ANY_GET)).headers)
+
+    const answers = {
+      health: await agent.get('/api/health'),
+      malformedBody: await agent
+        .post('/api/auth/login')
+        .set(CSRF_HEADER, token)
+        .set('Content-Type', 'application/json')
+        .send('{not json'),
+      writeWithoutToken: await agent.post('/api/join').send({}),
+      patchWithoutToken: await agent.patch('/api/events/mariage/caption').send({}),
+    }
+
+    expect(answers.malformedBody.status).toBe(400)
+    expect(answers.writeWithoutToken.status).toBe(403)
+    expect(
+      Object.fromEntries(
+        Object.entries(answers).map(([name, response]) => [name, response.get('cache-control')]),
+      ),
+    ).toEqual({
+      health: 'no-store',
+      malformedBody: 'no-store',
+      writeWithoutToken: 'no-store',
+      patchWithoutToken: 'no-store',
+    })
+  })
+
+  it('marks the host reads that set no header of their own: the event list and the moderators with their addresses', async () => {
+    const subject = buildServerHarness({
+      usecases: {
+        authenticateUser: signInByAddress({ 'host@example.test': OWNER }),
+        listEventsForHost: async () => ok([]),
+      },
+    })
+    subject.users.seed(aUser({ id: OWNER, email: 'host@example.test' }))
+    subject.events.seed(anEvent({ id: 'evt-1', slug: 'mariage', ownerId: OWNER, status: 'live' }))
+    subject.memberships.seed({
+      eventId: asEventId('evt-1'),
+      userId: asUserId(OWNER),
+      role: 'owner',
+      grantedAt: AT,
+    })
+    const { agent } = await signedInAs(subject.app, 'host@example.test')
+
+    const events = await agent.get('/api/events')
+    const moderators = await agent.get('/api/events/mariage/moderators')
+
+    expect(events.status).toBe(200)
+    expect(events.get('cache-control')).toBe('no-store')
+    expect(moderators.status).toBe(200)
+    expect(JSON.stringify(moderators.body)).toContain('host@example.test')
+    expect(moderators.get('cache-control')).toBe('no-store')
   })
 })

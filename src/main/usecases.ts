@@ -85,6 +85,7 @@ import { makeModeratePhotosBulk } from '../application/usecases/moderation/moder
 import { makeDeletePhoto } from '../application/usecases/photos/deletePhoto'
 import { makeExportAlbum } from '../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../application/usecases/photos/getPhotoMedia'
+import { makeIdentifyMediaViewer } from '../application/usecases/photos/identifyMediaViewer'
 import { makeListEventPhotos } from '../application/usecases/photos/listEventPhotos'
 import { makeListGuestPhotos } from '../application/usecases/photos/listGuestPhotos'
 import { makeSetPhotoCaption } from '../application/usecases/photos/setPhotoCaption'
@@ -619,6 +620,12 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clock: adapters.clock,
     }),
     getPhotoMedia: makeGetPhotoMedia({ photos: adapters.photos, media: adapters.media }),
+    identifyMediaViewer: makeIdentifyMediaViewer({
+      guests: adapters.guests,
+      tokens: adapters.guestTokens,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
     exportAlbum: makeExportAlbum({
       events: adapters.events,
       photos: adapters.photos,

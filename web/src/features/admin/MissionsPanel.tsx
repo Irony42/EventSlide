@@ -8,7 +8,7 @@ import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from './components/AsyncState'
+import { Async } from '../../design-system/components/Async'
 import { SelectField } from './components/SelectField'
 import { useMissions } from './hooks/useEventData'
 import { useCreateMission, useDeleteMission, useUpdateMission } from './hooks/useEventActions'
@@ -49,7 +49,8 @@ const isScope = (value: string): value is MissionScope => value === 'guest' || v
 
 export function MissionsPanel({ slug }: MissionsPanelProps) {
   const t = useTranslations()
-  const { data: missions, loading, error, reload } = useMissions(slug)
+  const missions = useMissions(slug)
+  const { reload } = missions
   const create = useCreateMission()
   const update = useUpdateMission()
   const remove = useDeleteMission()
@@ -67,7 +68,7 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
     { value: 'event', label: t.admin.missionScopeEvent },
   ] as const
 
-  const list = missions ?? []
+  const list = missions.data ?? []
   const full = list.length >= MAX_MISSIONS && editing === null
 
   const resetForm = () => {
@@ -138,50 +139,46 @@ export function MissionsPanel({ slug }: MissionsPanelProps) {
     <Card as="h2" title={t.admin.missionsTitle}>
       <p className={styles['hint']}>{t.admin.missionsHint}</p>
 
-      {loading ? <Pending label={t.app.loading} /> : null}
-
-      {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
-
-      {!loading && error === null && list.length === 0 ? (
-        <EmptyState as="h3" title={t.admin.missionsEmpty} />
-      ) : null}
-
-      {!loading && error === null && list.length > 0 ? (
-        <ul className={styles['list']}>
-          {list.map((mission) => (
-            <li key={mission.id} className={styles['row']}>
-              <div className={styles['identity']}>
-                <span className={styles['prompt']}>{mission.prompt}</span>
-                <span className={styles['meta']}>
-                  {mission.achieved
-                    ? t.admin.missionAnswered(mission.publishedPhotos, mission.completedByGuests)
-                    : t.admin.missionUnanswered}
-                </span>
-              </div>
-              <Badge tone={mission.scope === 'event' ? 'accent' : 'neutral'}>
-                {mission.scope === 'event' ? t.admin.missionScopeEvent : t.admin.missionScopeGuest}
-              </Badge>
-              <Button
-                size="sm"
-                aria-label={t.admin.missionEdit(mission.prompt)}
-                onClick={() => startEditing(mission)}
-              >
-                {t.admin.missionEditShort}
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                loading={remove.pending === mission.id}
-                disabled={remove.busy}
-                aria-label={t.admin.missionDelete(mission.prompt)}
-                onClick={() => setSelected(mission)}
-              >
-                {t.admin.missionDeleteShort}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <Async state={missions} as="h3" empty={<EmptyState as="h3" title={t.admin.missionsEmpty} />}>
+        {(rows) => (
+          <ul className={styles['list']}>
+            {rows.map((mission) => (
+              <li key={mission.id} className={styles['row']}>
+                <div className={styles['identity']}>
+                  <span className={styles['prompt']}>{mission.prompt}</span>
+                  <span className={styles['meta']}>
+                    {mission.achieved
+                      ? t.admin.missionAnswered(mission.publishedPhotos, mission.completedByGuests)
+                      : t.admin.missionUnanswered}
+                  </span>
+                </div>
+                <Badge tone={mission.scope === 'event' ? 'accent' : 'neutral'}>
+                  {mission.scope === 'event'
+                    ? t.admin.missionScopeEvent
+                    : t.admin.missionScopeGuest}
+                </Badge>
+                <Button
+                  size="sm"
+                  aria-label={t.admin.missionEdit(mission.prompt)}
+                  onClick={() => startEditing(mission)}
+                >
+                  {t.admin.missionEditShort}
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={remove.pending === mission.id}
+                  disabled={remove.busy}
+                  aria-label={t.admin.missionDelete(mission.prompt)}
+                  onClick={() => setSelected(mission)}
+                >
+                  {t.admin.missionDeleteShort}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Async>
 
       <form className={styles['form']} onSubmit={submit} noValidate>
         <Field

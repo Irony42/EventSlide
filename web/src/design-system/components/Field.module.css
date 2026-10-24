@@ -24,13 +24,3 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
 }
-
-/* The glyph is half the message: colour alone would leave a red-green colourblind
-   guest with a field that looks ordinary. */
-.error {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-1);
-  font-size: var(--text-sm);
-  color: var(--danger);
-}
