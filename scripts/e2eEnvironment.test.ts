@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it, vi } from 'vitest'
+import { minimalChildEnv } from '../src/infrastructure/media/runProcess'
 import { loadConfig } from '../src/infrastructure/config/env'
 import {
   HOST_VARIABLES,
@@ -71,8 +75,7 @@ describe('the environment of the end-to-end server', () => {
     const env = serverEnvironment({ ...OPTIONS, host: { ...POLLUTED_SHELL, ...MACHINE } })
 
     for (const name of Object.keys(POLLUTED_SHELL)) {
-      if (['NODE_ENV', 'PUBLIC_URL', 'SESSION_SECRET', 'EVENT_CREATION', 'SMTP_URL'].includes(name))
-        continue
+      if (['NODE_ENV', 'PUBLIC_URL', 'SESSION_SECRET', 'EVENT_CREATION'].includes(name)) continue
       expect(env, name).not.toHaveProperty(name)
     }
     expect(env['GITHUB_TOKEN']).toBeUndefined()
@@ -145,8 +148,70 @@ describe('the environment of the end-to-end server', () => {
 
 describe('hostEnvironment', () => {
   it('reads the names it is told to, and skips one the machine does not have', () => {
-    expect(hostEnvironment({ PATH: '/bin', HOME: undefined, SITE_ADMIN: 'on' })).toEqual({
+    expect(hostEnvironment({ PATH: '/bin', HOME: undefined, SITE_ADMIN: 'on' })).toStrictEqual({
       PATH: '/bin',
     })
+  })
+})
+
+describe('what the builder is given, and what it ignores', () => {
+  it('reads the environment it is handed and never the real one', () => {
+    // A builder that spread `process.env` would pass every case above, because the names of the
+    // polluted shell are not in the real environment of this process. Here they are.
+    vi.stubEnv('SITE_ADMIN', 'on')
+    vi.stubEnv('NEW_CLIENT_MAX_EVENTS', '3')
+    try {
+      const env = serverEnvironment({ ...OPTIONS, host: MACHINE })
+
+      expect(env).not.toHaveProperty('SITE_ADMIN')
+      expect(env).not.toHaveProperty('NEW_CLIENT_MAX_EVENTS')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('keeps every variable the server forwards to its encoder among the host variables', () => {
+    // The server hands ffmpeg PATH and, on Windows, a few system variables it reads from its
+    // own environment (`minimalChildEnv`). If one is added there and not here, the e2e server
+    // is the one place it silently does not reach.
+    const forwarded = Object.keys(
+      minimalChildEnv(
+        { path: 'p', pathExt: 'e', systemRoot: 's', winDir: 'w', temp: 't', tmp: 'm' },
+        'win32',
+      ),
+    ).filter((name) => name !== 'LANG')
+
+    expect(
+      forwarded.filter((name) => !(HOST_VARIABLES as readonly string[]).includes(name)),
+    ).toEqual([])
+  })
+})
+
+describe('the end-to-end suite', () => {
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+  const sources = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) return entry.name === '__screenshots__' ? [] : sources(path)
+      return /.ts$/.test(entry.name) ? [path] : []
+    })
+
+  it('boots the server through serverEnvironment', () => {
+    const startTestApp = readFileSync(
+      join(ROOT, 'tests', 'e2e', 'fixtures', 'startTestApp.ts'),
+      'utf8',
+    )
+
+    expect(startTestApp).toContain('serverEnvironment({')
+  })
+
+  it('spreads the real environment into no child process', () => {
+    // `...process.env` in a spawn is how one exported variable reached the server under test.
+    // The few specs that start their own processes take `hostEnvironment(process.env)`.
+    const offenders = sources(join(ROOT, 'tests', 'e2e'))
+      .filter((path) => readFileSync(path, 'utf8').includes('...process.env'))
+      .map((path) => path.slice(ROOT.length + 1))
+
+    expect(offenders).toEqual([])
   })
 })
