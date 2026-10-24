@@ -187,6 +187,9 @@ export class FakeEventRepository implements EventRepository {
 
   /** One event's counts, from the photo and guest fakes it was given; zeros for what it was not. */
   async countsOf(id: EventId): Promise<EventCounts> {
+    // Like the table: an event the repository does not hold has no rows to count, whatever the
+    // photo and guest fakes were seeded with.
+    if (!this.rows.has(id)) return { photoCount: 0, pendingCount: 0, guestCount: 0, usedBytes: 0 }
     const counts = await this.links.photos?.countsByStatus(id)
     const guests = await this.links.guests?.list(id)
     return {

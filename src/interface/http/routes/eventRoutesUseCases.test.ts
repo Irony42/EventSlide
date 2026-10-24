@@ -155,7 +155,12 @@ describe('the answers that carry an event', () => {
     '$name an event answers with the counts and the quota of getEventView',
     async ({ method, path, body, own, status }) => {
       const { agent, csrf } = await ownerOfMariage({
-        getEventView: async () => VIEW,
+        // The view is asked about the event the route's own use case handed back, not about
+        // another one the handler had in scope.
+        getEventView: async ({ event }) => {
+          expect(event).toBe(MARIAGE)
+          return VIEW
+        },
         [own]: OWN_RESULT,
       })
 

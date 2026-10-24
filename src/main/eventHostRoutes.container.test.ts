@@ -126,7 +126,7 @@ describe('the answer about one event, through the real container (HTTP-M-06)', (
     const event = c.db
       .prepare<[string], { readonly id: string }>('SELECT id FROM events WHERE slug = ?')
       .get(eventSlug)
-    const at = new Date().toISOString()
+    const at = '2026-10-01T09:00:00.000Z'
     for (let guest = 0; guest < howMany; guest += 1) {
       c.db
         .prepare(
@@ -157,6 +157,15 @@ describe('the answer about one event, through the real container (HTTP-M-06)', (
 
     expect(one.status, JSON.stringify(one.body)).toBe(200)
     expect(one.body.guestCount).toBe(2)
+    // The limits are read through the same view: the quota the box holds the event to, which is
+    // the one it was created with while it has no client.
+    expect(one.body.quotaBytes).toBe(
+      container?.db
+        .prepare<[string], { readonly quota_bytes: number }>(
+          'SELECT quota_bytes FROM events WHERE slug = ?',
+        )
+        .get(SLUG)?.quota_bytes,
+    )
     expect(row?.guestCount).toBe(2)
   })
 })

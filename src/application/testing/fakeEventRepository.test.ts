@@ -161,6 +161,20 @@ describe('FakeEventRepository dashboard summary', () => {
     })
   })
 
+  it('counts zero for an event it does not hold, even when photos name it', async () => {
+    const photos = new FakePhotoRepository().seed(
+      aPhoto({ id: 'orphan', eventId: asEventId('evt-nowhere'), byteSize: 5_000 }),
+    )
+    const events = new FakeEventRepository({ photos })
+
+    expect(await events.countsOf(asEventId('evt-nowhere'))).toEqual({
+      photoCount: 0,
+      pendingCount: 0,
+      guestCount: 0,
+      usedBytes: 0,
+    })
+  })
+
   it('reports zeros when nothing is linked, rather than inventing a count', async () => {
     const events = new FakeEventRepository().seed(anEvent({ id: WEDDING, ownerId: HOST }))
 

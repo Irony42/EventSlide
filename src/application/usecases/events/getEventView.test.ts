@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { asClientId, asEventId } from '../../../domain/shared/ids'
-import { aClient, aGuest, aPhoto, anEvent } from '../../testing/builders'
+import { AT, aClient, aGuest, aPhoto, anEvent, atPlus } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -82,6 +82,17 @@ describe('getEventView', () => {
     const view = await getEventView({ event: wedding })
 
     expect(view.limits).toEqual({ quotaBytes: 5_000, liveWindowEnd: null })
+  })
+
+  it('says when the live window closes, which the client’s ceiling on live days decides', async () => {
+    const { getEventView, clients } = aWorld()
+    clients.seed(aClient({ id: 'client-w', ceilings: { maxLiveDays: 3 } }))
+    const event = anEvent({ id: WEDDING, clientId: 'client-w', status: 'live', openedAt: AT })
+    clients.linkEvent(event.id, asClientId('client-w'))
+
+    const view = await getEventView({ event })
+
+    expect(view.limits.liveWindowEnd).toEqual(atPlus(3 * 24 * 60 * 60 * 1000))
   })
 
   it('lowers the quota to the client’s ceiling, as the upload path will', async () => {
