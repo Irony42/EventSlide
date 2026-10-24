@@ -18,7 +18,7 @@ import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 import styles from './AcceptInvitationPage.module.css'
 import type { AcceptOutcome } from './hooks/useInvitation'
 import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../lib/api/client'
-import { messageForError, type UiText } from '../../lib/i18n/translations'
+import type { UiText } from '../../lib/i18n/translations'
 
 /** What the link is for, in a sentence. The name is content: printed as written. */
 const describe = (preview: InvitationPreviewDto, text: UiText): string => {
@@ -100,7 +100,7 @@ export function AcceptInvitationPage() {
   if (view.kind === 'failed') {
     return (
       <AuthPage title={t.auth.invitationTitle} focusTitle>
-        <AuthAlert>{messageForError(view.cause, t)}</AuthAlert>
+        <AuthAlert>{view.message}</AuthAlert>
         <AuthActions>
           <Button type="button" variant="primary" onClick={reload}>
             {t.app.retry}

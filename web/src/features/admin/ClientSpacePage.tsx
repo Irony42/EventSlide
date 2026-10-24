@@ -10,12 +10,12 @@ import { formatBytes, formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { auditActor, auditSentence } from './auditLabels'
 import { messageForError } from '../../lib/i18n/translations'
-import { LoadFailure, Pending } from './components/AsyncState'
+import { Async, LoadFailure, Pending } from '../../design-system/components/Async'
 import { SuspensionScreen } from './components/SuspensionScreen'
 import { useAction } from './hooks/useAction'
 import { useAbout } from '../../app/useAbout'
 import { contactActionOf } from './ceilingLevels'
-import { useLoader } from './hooks/useLoader'
+import { useLoader } from '../../lib/useLoader'
 import styles from './ClientSpacePage.module.css'
 import type {
   CeilingMeterDto,
@@ -54,33 +54,28 @@ export function ClientSpacePage() {
     async (signal: AbortSignal) => (await api.myLimits(signal)).clients,
     [api],
   )
-  const { data, loading, error, reload } = useLoader(load)
-  const clients = data ?? []
+  const limits = useLoader(load)
 
   return (
     <div className={styles['page']}>
       <h1 className={styles['title']}>{t.clientSpace.spaceTitle}</h1>
 
-      {loading ? <Pending label={t.app.loading} /> : null}
-
-      {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} /> : null}
-
-      {!loading && error === null && data !== null && clients.length === 0 ? (
-        <EmptyState title={t.clientSpace.noLimits} />
-      ) : null}
-
-      {clients.map((client) => (
-        <section key={client.id} className={styles['client']}>
-          <LimitsCard limits={client} />
-          {client.suspended ? <SuspensionScreen contact={contact} /> : null}
-          {client.role === 'owner' ? (
-            <>
-              <PendingInvitations client={client} />
-              <AuditLog client={client} />
-            </>
-          ) : null}
-        </section>
-      ))}
+      <Async state={limits} empty={<EmptyState title={t.clientSpace.noLimits} />}>
+        {(clients) =>
+          clients.map((client) => (
+            <section key={client.id} className={styles['client']}>
+              <LimitsCard limits={client} />
+              {client.suspended ? <SuspensionScreen contact={contact} /> : null}
+              {client.role === 'owner' ? (
+                <>
+                  <PendingInvitations client={client} />
+                  <AuditLog client={client} />
+                </>
+              ) : null}
+            </section>
+          ))
+        }
+      </Async>
     </div>
   )
 }
@@ -212,7 +207,8 @@ function AuditLog({ client }: { readonly client: ClientLimitsDto }) {
     (signal: AbortSignal) => api.clientAudit({ clientId }, signal),
     [api, clientId],
   )
-  const { data, loading, error, reload } = useLoader(load)
+  const audit = useLoader(load)
+  const { data } = audit
   const [older, setOlder] = useState<{
     readonly items: readonly ClientAuditEntryDto[]
     readonly next: number | null
@@ -221,6 +217,8 @@ function AuditLog({ client }: { readonly client: ClientLimitsDto }) {
 
   const items = [...(data?.items ?? []), ...(older?.items ?? [])]
   const next = older === null ? (data?.next ?? null) : older.next
+  // Every entry read so far, so that `Async` can tell an empty log from none yet.
+  const entries = { ...audit, data: data === null ? null : items }
 
   const more = () => {
     if (next === null) return
@@ -236,28 +234,25 @@ function AuditLog({ client }: { readonly client: ClientLimitsDto }) {
 
   return (
     <Card as="h2" title={t.clientSpace.auditTitle} subtitle={t.clientSpace.auditHint}>
-      {loading ? <Pending label={t.app.loading} /> : null}
-      {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
-      {!loading && error === null && data !== null && items.length === 0 ? (
-        <p>{t.clientSpace.auditEmpty}</p>
-      ) : null}
-      {items.length > 0 ? (
-        <ol className={styles['rows']}>
-          {items.map((entry) => (
-            <li key={entry.seq} className={styles['row']}>
-              <time className={styles['muted']} dateTime={entry.at}>
-                {formatDateTime(entry.at, locale) ?? entry.at}
-              </time>
-              <span>{auditSentence(entry, t)}</span>
-              <Badge tone="neutral">
-                {entry.actor.label === null
-                  ? auditActor(entry, t)
-                  : `${auditActor(entry, t)} · ${entry.actor.label}`}
-              </Badge>
-            </li>
-          ))}
-        </ol>
-      ) : null}
+      <Async state={entries} as="h3" empty={<p>{t.clientSpace.auditEmpty}</p>}>
+        {(rows) => (
+          <ol className={styles['rows']}>
+            {rows.map((entry) => (
+              <li key={entry.seq} className={styles['row']}>
+                <time className={styles['muted']} dateTime={entry.at}>
+                  {formatDateTime(entry.at, locale) ?? entry.at}
+                </time>
+                <span>{auditSentence(entry, t)}</span>
+                <Badge tone="neutral">
+                  {entry.actor.label === null
+                    ? auditActor(entry, t)
+                    : `${auditActor(entry, t)} · ${entry.actor.label}`}
+                </Badge>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Async>
       {next === null ? null : (
         <Button variant="secondary" size="sm" loading={loadingMore} onClick={more}>
           {t.clientSpace.auditMore}

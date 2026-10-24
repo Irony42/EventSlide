@@ -62,6 +62,8 @@ describe('GuestListPanel', () => {
     renderPanel(api)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    // Inside a card whose title is a level 2, so the failure is a level 3 and not a second 2.
+    expect(screen.getByRole('heading', { level: 3, name: fr.app.loadFailed })).toBeVisible()
 
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
 
