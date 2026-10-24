@@ -10,8 +10,8 @@ import {
 /**
  * The page size of the operator's lists is one bound (HTTP-L-09): the three keyset pages are one
  * shape under three names, and the audit log's limit is the same number, not a second spelling of
- * it. `MAX_SITE_PAGE_SIZE` is the use case's own clamp, so what the boundary accepts is what the
- * use case would not have to cut down.
+ * it. `MAX_SITE_PAGE_SIZE` is the use case's own bound (`parseSitePageLimit` refuses beyond it),
+ * so what the boundary accepts is what the use case would not have to refuse.
  */
 describe('the operator’s page queries', () => {
   const pages = [

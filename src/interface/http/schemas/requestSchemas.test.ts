@@ -35,6 +35,7 @@ import {
   wallQuery,
 } from './requestSchemas'
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
+import { EmailAddress } from '../../../domain/users/emailAddress'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { THEME_FONTS, THEME_FRAMES, THEME_MATERIALS } from '../../../domain/events/eventTheme'
 import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
@@ -820,7 +821,19 @@ describe('the vocabularies a request names come from the domain (HTTP-M-11)', ()
 
   it('refuses a word that no vocabulary holds, in each of them', () => {
     expect(reactionBody.safeParse({ kind: NO_SUCH_WORD }).success).toBe(false)
+    expect(
+      reactionParams.safeParse({ eventSlug: 'mariage', photoId: PHOTO, kind: NO_SUCH_WORD })
+        .success,
+    ).toBe(false)
     expect(moderationDecisionBody.safeParse({ decision: NO_SUCH_WORD }).success).toBe(false)
+    expect(
+      bulkModerationBody.safeParse({ photoIds: [PHOTO], decision: NO_SUCH_WORD }).success,
+    ).toBe(false)
+    expect(moderationQueueQuery.safeParse({ status: NO_SUCH_WORD }).success).toBe(false)
+    expect(
+      galleryMediaParams.safeParse({ linkId: PHOTO, photoId: PHOTO, variant: NO_SUCH_WORD })
+        .success,
+    ).toBe(false)
     expect(
       photoVariantParams.safeParse({
         eventSlug: 'mariage',
@@ -840,12 +853,23 @@ describe('the vocabularies a request names come from the domain (HTTP-M-11)', ()
       photoVariantParams.safeParse({ eventSlug: 'mariage', photoId: PHOTO, variant: 'source' })
         .success,
     ).toBe(false)
+    // And the public gallery, which hands originals to strangers, is the surface where it matters most.
+    expect(
+      galleryMediaParams.safeParse({ linkId: PHOTO, photoId: PHOTO, variant: 'source' }).success,
+    ).toBe(false)
+  })
+
+  it('bounds a host’s page at 200 rows in both listings', () => {
+    for (const schema of [photoListQuery, moderationQueueQuery]) {
+      expect(schema.safeParse({ limit: '200' }).success).toBe(true)
+      expect(schema.safeParse({ limit: '201' }).success).toBe(false)
+    }
   })
 })
 
 /** One bound for an e-mail address wherever a person types one (HTTP-L-09). */
 describe('an e-mail address has one bound where a person types one (HTTP-L-09)', () => {
-  const longest = `${'a'.repeat(242)}@example.org`
+  const longest = `${'a'.repeat(EmailAddress.maxLength - '@example.org'.length)}@example.org`
   const oneTooLong = `a${longest}`
   const places: readonly (readonly [string, (email: string) => boolean])[] = [
     ['the sign-in', (email) => loginBody.safeParse({ email, password: 'x' }).success],
@@ -856,7 +880,8 @@ describe('an e-mail address has one bound where a person types one (HTTP-L-09)',
     ['the moderator invitation', (email) => moderatorInvitationBody.safeParse({ email }).success],
   ]
 
-  it('is 254 characters, the longest RFC 5321 allows', () => {
+  it('is the length the domain lets an address be, 254', () => {
+    expect(EmailAddress.maxLength).toBe(254)
     expect(longest).toHaveLength(254)
     expect(oneTooLong).toHaveLength(255)
   })

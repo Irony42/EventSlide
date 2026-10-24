@@ -73,7 +73,14 @@ export const ceilingsBody = z.strictObject({
 
 export type CeilingsBody = z.infer<typeof ceilingsBody>
 
-/** What a bound on a free-text field is for here: keeping an unbounded string out of the parser. */
+/**
+ * What a bound on a free-text field is for here: keeping an unbounded string out of the parser.
+ *
+ * It is deliberately **not** 254 on the two e-mail fields below, unlike the sign-in's: the domain
+ * (`EmailAddress`) judges an address on the operator's routes and answers a long one with its own
+ * `400 email.tooLong`, which `siteRoutes.clients.test.ts` pins and `docs/API.md` documents. A
+ * tighter bound here would turn that answer into `request.invalid`.
+ */
 const NAME_MAX = 1_000
 
 /**

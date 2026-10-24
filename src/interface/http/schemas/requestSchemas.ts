@@ -9,6 +9,7 @@ import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecis
 import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
 import { REACTION_KINDS } from '../../../domain/reactions/reactionKind'
+import { EmailAddress } from '../../../domain/users/emailAddress'
 import {
   accentHueRange,
   THEME_FONTS,
@@ -38,7 +39,7 @@ import {
 //
 // Every closed vocabulary a request can name is built **from the domain constant that owns it**,
 // once, here. They used to be retyped as literal arrays next to comments saying the vocabulary
-// came from the domain (HTTP-M-11): a seventh reaction kind added to the domain would have been
+// came from the domain (HTTP-M-11): a sixth reaction kind added to the domain would have been
 // a `400` for the new kind, with nothing red. `requestSchemas.test.ts` walks each constant, so
 // a value the domain gains is accepted at the boundary or a test says so.
 
@@ -55,10 +56,11 @@ const moderationMode = z.enum(MODERATION_MODES)
 // A bound that two schemas share is one value, so they cannot drift (HTTP-L-09).
 
 /**
- * An e-mail address as the sign-in, the reset request and the moderator invitation take it: the
- * longest address RFC 5321 allows. Whether it is one is the domain's (`EmailAddress`).
+ * An e-mail address as the sign-in, the reset request and the moderator invitation take it: as
+ * long as `EmailAddress` lets one be (254, the longest RFC 5321 allows), so the boundary and the
+ * domain cannot disagree. Whether it is an address is the domain's.
  */
-const emailText = z.string().min(1).max(254)
+const emailText = z.string().min(1).max(EmailAddress.maxLength)
 
 /** How many rows a host's list may ask for in one page. */
 const pageLimit = z.coerce.number().int().min(1).max(200).default(60)

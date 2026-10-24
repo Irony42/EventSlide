@@ -390,7 +390,7 @@ owner. Where a mailer delivers, **the answer holds no token and no link**: it is
 nowhere else. `pendingApproval` is `false` by construction.
 
 **400** `request.invalid` (a missing or unknown key, a locale outside the catalogue); `email.malformed`;
-`clientName.empty` and the other name refusals; `clientCeilings.*Invalid`. Nothing is created and no line is
+`email.tooLong` (an address over 254 characters); `clientName.empty` and the other name refusals; `clientCeilings.*Invalid`. Nothing is created and no line is
 written for any of them.
 
 #### `PATCH /api/site/clients/:clientId`
@@ -472,7 +472,7 @@ It is `false` for a client that holds nothing, which is the one case the operato
 client admits exactly one live operator invitation** (the first owner's, which `POST /api/site/clients`
 writes), a second to another address waits, and a person re-sent their own link is not a second one. The operator
 is read **from storage on this call**, not on the route's word. `link` is in the answer **only where no mail went out**:
-a box with no relay, **or a relay that refused this mail**. **404** `client.notFound`; **400** `email.malformed` or `request.invalid`; **429**
+a box with no relay, **or a relay that refused this mail**. **404** `client.notFound`; **400** `email.malformed`, `email.tooLong` or `request.invalid`; **429**
 `invitation.tooManyForAddress` once an address has had its five an hour.
 
 #### `POST /api/site/clients/:clientId/offboard`
