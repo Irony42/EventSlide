@@ -107,8 +107,14 @@ guestRepositoryContract('sqlite', async () => {
   const db = migratedDatabase()
   seedEvents(db, GUEST_CONTRACT_FIXTURES.eventIds)
 
+  let taken = 0
+
   return {
     repo: new SqliteGuestRepository(db),
+    authorPhoto: async (eventId, guestId) => {
+      taken += 1
+      seedPhoto(db, taken, eventId, guestId)
+    },
     dispose: async () => {
       closeDatabase(db)
     },
@@ -127,44 +133,6 @@ describe('SqliteGuestRepository', () => {
 
   afterEach(() => {
     closeDatabase(db)
-  })
-
-  // ------------------------------------------------------- derived photo count --
-
-  it('derives the photo count from the photos table, which holds the only copy', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
-    seedPhoto(db, 1, WEDDING, LEA)
-    seedPhoto(db, 2, WEDDING, LEA)
-
-    const stored = await repo.findById(WEDDING, LEA)
-
-    expect(stored?.photoCount).toBe(2)
-  })
-
-  it('never counts a photo filed under another event towards a guest photo count', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
-    seedPhoto(db, 1, GALA, LEA)
-
-    const stored = await repo.findById(WEDDING, LEA)
-
-    expect(stored?.photoCount).toBe(0)
-  })
-
-  it('discards the photo count carried by a saved guest, because no column stores it', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, photoCount: 7 }))
-
-    const stored = await repo.findById(WEDDING, LEA)
-
-    expect(stored?.photoCount).toBe(0)
-  })
-
-  it('derives the photo count when listing the guests of an event too', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
-    seedPhoto(db, 1, WEDDING, LEA)
-
-    const [stored] = await repo.list(WEDDING)
-
-    expect(stored?.photoCount).toBe(1)
   })
 
   // ------------------------------------------------------------------- upsert --

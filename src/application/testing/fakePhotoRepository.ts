@@ -12,6 +12,7 @@ import type {
 } from '../../domain/shared/ids'
 import type { StagedByteSource } from '../ports/clipJobRepository'
 import type { ClientEventSource } from './fakeClientRepository'
+import type { GuestPhotoSource } from './fakeGuestRepository'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
@@ -111,7 +112,7 @@ const insertInto = (rows: Map<string, Photo>, photo: Photo): void => {
   rows.set(key(photo.eventId, photo.id), photo)
 }
 
-export class FakePhotoRepository implements PhotoRepository {
+export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
   private readonly rows = new Map<string, Photo>()
 
   /**
@@ -322,6 +323,11 @@ export class FakePhotoRepository implements PhotoRepository {
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
+    return this.authoredBy(eventId, guestId)
+  }
+
+  /** The same count, synchronously: what `FakeGuestRepository` derives `photoCount` from. */
+  authoredBy(eventId: EventId, guestId: GuestId): number {
     return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
   }
 

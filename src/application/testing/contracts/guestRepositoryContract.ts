@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { asEventId, asGuestId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
 import type { GuestRepository } from '../../ports/guestRepository'
 import { AT, aGuest, atPlus } from '../builders'
 
@@ -10,11 +10,12 @@ import { AT, aGuest, atPlus } from '../builders'
  * the misses: a device token issued at one wedding names a guest row that must not
  * resolve at the next, and `findById` therefore takes the event id first.
  *
- * `photoCount` is deliberately not asserted through `save`. The `guests` table has no
- * such column — the adapter derives the count from `photos.author_guest_id` — so a
- * round-trip expectation would be a promise the schema cannot keep. The per-guest
- * upload limit is tested against `PhotoRepository.countByAuthor`, which is the number
- * the rule actually consults.
+ * `photoCount` is asserted as what it is: a projection. The `guests` table has no such
+ * column — the adapter derives the count from `photos.author_guest_id` — so a count a
+ * saved guest carries is discarded, and the number a read returns is the number of photos
+ * the guest took in their own event. A subject says how a photo gets authored
+ * (`authorPhoto`), because the repository cannot write one. The per-guest upload limit is
+ * tested against `PhotoRepository.countByAuthor`, which is the number the rule consults.
  */
 
 /** `guests.event_id` references `events`, so a subject must hold both events. */
@@ -24,23 +25,81 @@ export const GUEST_CONTRACT_FIXTURES = {
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
+const LEA = asGuestId('guest-lea')
 
 export const guestRepositoryContract = (
   name: string,
-  makeSubject: () => Promise<{ repo: GuestRepository; dispose?: () => Promise<void> }>,
+  makeSubject: () => Promise<{
+    repo: GuestRepository
+    /** Files one photograph taken by a guest, under the event the caller names. */
+    authorPhoto: (eventId: EventId, guestId: GuestId) => Promise<void>
+    dispose?: () => Promise<void>
+  }>,
 ): void => {
   describe(`GuestRepository contract: ${name}`, () => {
     let repo: GuestRepository
+    let authorPhoto: (eventId: EventId, guestId: GuestId) => Promise<void>
     let dispose: (() => Promise<void>) | undefined
 
     beforeEach(async () => {
       const subject = await makeSubject()
       repo = subject.repo
+      authorPhoto = subject.authorPhoto
       dispose = subject.dispose
     })
 
     afterEach(async () => {
       await dispose?.()
+    })
+
+    // ------------------------------------------------------- derived photo count --
+
+    it('counts the photos the guest took, which is the only copy of the number', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+      await authorPhoto(WEDDING, LEA)
+      await authorPhoto(WEDDING, LEA)
+
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(2)
+    })
+
+    it('counts nobody else’s photos towards a guest', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+      await repo.save(aGuest({ id: 'guest-tom', eventId: WEDDING, displayName: 'Tom' }))
+      await authorPhoto(WEDDING, asGuestId('guest-tom'))
+
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(0)
+    })
+
+    it('never counts a photo filed under another event towards a guest', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+      await authorPhoto(GALA, LEA)
+
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(0)
+    })
+
+    it('discards the count a saved guest carries, because no column stores it', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, photoCount: 7 }))
+
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(0)
+    })
+
+    it('derives the count when listing the guests of an event too', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+      await authorPhoto(WEDDING, LEA)
+
+      const [listed] = await repo.list(WEDDING)
+
+      expect(listed?.photoCount).toBe(1)
+    })
+
+    it('goes on counting after the guest is saved again, as when a heartbeat touches them', async () => {
+      const guest = aGuest({ id: 'guest-lea', eventId: WEDDING })
+      await repo.save(guest)
+      await authorPhoto(WEDDING, LEA)
+
+      await repo.save(guest.touch(atPlus(60_000)))
+
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(1)
     })
 
     // ------------------------------------------------------------ round trip --

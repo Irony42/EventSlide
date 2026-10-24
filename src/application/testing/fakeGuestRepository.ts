@@ -1,4 +1,4 @@
-import type { Guest } from '../../domain/guests/guest'
+import { Guest } from '../../domain/guests/guest'
 import type { EventId, GuestId } from '../../domain/shared/ids'
 import type { GuestRepository } from '../ports/guestRepository'
 import { compareIds } from './ordering'
@@ -11,12 +11,22 @@ import { compareIds } from './ordering'
  * resolve at the next. `findById(guestId)` does not exist in the port, and this key is
  * what makes the equivalent mistake fail a test rather than pass one.
  *
- * `photoCount` is stored here as given, which is the one place this double is
- * knowingly more generous than the schema: `guests` has no such column, so the adapter
- * derives the number from `photos.author_guest_id`. A fixture may therefore set a
- * count the adapter would recompute — the shared contract asserts nothing about it,
- * and a rule about the per-guest limit belongs against `countByAuthor`.
+ * `photoCount` is derived, never stored, exactly as in the adapter: `guests` has no such
+ * column, and the number is a count of `photos.author_guest_id` within the guest's own
+ * event. The fake is handed the photo fake (`new FakeGuestRepository(photos)`) to count in,
+ * as `FakeEventRepository` is handed its neighbours; with none, no photo is known and every
+ * count is 0. A count a fixture carries is discarded on the way in, as `save` discards it
+ * on the way to the table. Before this, the value was kept as given, so a test of the
+ * guest list's count proved nothing about what a host would see.
  */
+
+/**
+ * The photographs a guest took, which is the one thing `photoCount` is derived from.
+ * `FakePhotoRepository` is the one that holds them.
+ */
+export interface GuestPhotoSource {
+  authoredBy(eventId: EventId, guestId: GuestId): number
+}
 
 /**
  * Most recently seen first, ties broken by id — `idx_guests_event_seen`. The host's
@@ -30,13 +40,22 @@ const key = (eventId: EventId, guestId: GuestId): string => `${eventId}:${guestI
 export class FakeGuestRepository implements GuestRepository {
   private readonly rows = new Map<string, Guest>()
 
+  constructor(private readonly photos?: GuestPhotoSource) {}
+
+  /** The guest as the adapter reads it: with the count derived from the photos, not carried. */
+  private read(guest: Guest): Guest {
+    const photoCount = this.photos?.authoredBy(guest.eventId, guest.id) ?? 0
+    return Guest.restore({ ...guest.toProps(), photoCount })
+  }
+
   seed(...guests: readonly Guest[]): this {
     for (const guest of guests) this.rows.set(key(guest.eventId, guest.id), guest)
     return this
   }
 
   async findById(eventId: EventId, guestId: GuestId): Promise<Guest | null> {
-    return this.rows.get(key(eventId, guestId)) ?? null
+    const stored = this.rows.get(key(eventId, guestId))
+    return stored === undefined ? null : this.read(stored)
   }
 
   /**
@@ -65,6 +84,7 @@ export class FakeGuestRepository implements GuestRepository {
     return [...this.rows.values()]
       .filter((guest) => guest.eventId === eventId)
       .sort(mostRecentlySeenFirst)
+      .map((guest) => this.read(guest))
   }
 
   /**
