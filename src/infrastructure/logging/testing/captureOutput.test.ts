@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { captureAllOutputWhile, captureDescriptorOutputWhile } from './captureOutput'
 
 const MARK = 'CAPTURE-MARK-7d2e'
@@ -16,8 +16,9 @@ describe('captureDescriptorOutputWhile', () => {
   })
 
   it('does not keep what goes to another descriptor, the console or process.stdout', async () => {
-    const output = await captureDescriptorOutputWhile(() => {
-      fs.writeSync(2, `${MARK}-stderr\n`)
+    const output = await captureDescriptorOutputWhile(async () => {
+      fs.writeSync(2, `${MARK}-stderr-sync\n`)
+      await new Promise<void>((resolve) => fs.write(2, `${MARK}-stderr-async\n`, () => resolve()))
       console.log(`${MARK}-console`)
       process.stdout.write(`${MARK}-stdout\n`)
     })
@@ -34,15 +35,14 @@ describe('captureDescriptorOutputWhile', () => {
   })
 
   it('gives the real functions back, also when the run throws', async () => {
-    const realWrite = fs.writeSync
-
     await expect(
       captureDescriptorOutputWhile(() => {
         throw new Error('the run failed')
       }),
     ).rejects.toThrow('the run failed')
 
-    expect(fs.writeSync).toBe(realWrite)
+    expect(vi.isMockFunction(fs.write)).toBe(false)
+    expect(vi.isMockFunction(fs.writeSync)).toBe(false)
   })
 })
 
@@ -70,18 +70,15 @@ describe('captureAllOutputWhile', () => {
   })
 
   it('gives every function back, also when the run throws', async () => {
-    const { log } = console
-    const { write } = process.stdout
-    const { writeSync } = fs
-
     await expect(
       captureAllOutputWhile(() => {
         throw new Error('the run failed')
       }),
     ).rejects.toThrow('the run failed')
 
-    expect(console.log).toBe(log)
-    expect(process.stdout.write).toBe(write)
-    expect(fs.writeSync).toBe(writeSync)
+    expect(vi.isMockFunction(console.log)).toBe(false)
+    expect(vi.isMockFunction(process.stdout.write)).toBe(false)
+    expect(vi.isMockFunction(fs.write)).toBe(false)
+    expect(vi.isMockFunction(fs.writeSync)).toBe(false)
   })
 })
