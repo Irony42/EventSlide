@@ -65,7 +65,7 @@ export interface GetModerationQueueDeps {
 export interface ModerationQueueRow extends QueueItem {
   readonly width: number
   readonly height: number
-  /** The text itself. `hasCaption` above stays what the domain's rules read. */
+  /** The text itself, which the console shows beside the photograph. */
   readonly caption: string | null
   /**
    * `null` whenever there is nobody to name — an anonymous guest, a host's own upload,
@@ -92,8 +92,8 @@ export interface ModerationQueueView {
   readonly items: readonly ModerationQueueRow[]
   /**
    * Photos still waiting on the host, across the whole event rather than the page in
-   * hand. The domain's `pendingCount` counts the rows it is given, which would make the
-   * badge shrink to the page size the moment the host applied a limit.
+   * hand: counting the rows of the page would make the badge shrink to the page size the
+   * moment the host applied a limit.
    */
   readonly pendingCount: number
 }
@@ -106,7 +106,6 @@ const toRow = (photo: Photo, names: ReadonlyMap<GuestId, string>): ModerationQue
   id: photo.id,
   status: photo.status,
   createdAt: photo.createdAt,
-  hasCaption: photo.caption !== null,
   width: photo.dimensions.width,
   height: photo.dimensions.height,
   caption: photo.caption?.value ?? null,

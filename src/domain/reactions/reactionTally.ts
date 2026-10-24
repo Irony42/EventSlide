@@ -48,17 +48,6 @@ export const tally = (entries: readonly TallyEntry[]): ReactionCounts => {
 export const totalReactions = (counts: ReactionCounts): number =>
   REACTION_KINDS.reduce((total, kind) => total + counts[kind], 0)
 
-/**
- * The pure half of "you already reacted". The use case checks this before writing, so
- * a double tap on a slow connection is a no-op rather than a conflict the guest sees;
- * the unique index catches the race the check cannot.
- */
-export const hasReacted = (
-  entries: readonly TallyEntry[],
-  guestId: GuestId,
-  kind: ReactionKind,
-): boolean => entries.some((entry) => entry.guestId === guestId && entry.kind === kind)
-
 interface RankedPhoto {
   readonly photoId: PhotoId
   readonly total: number

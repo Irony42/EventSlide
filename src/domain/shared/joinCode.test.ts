@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { DomainError } from './errors'
 import { JoinCode, normaliseJoinCode } from './joinCode'
-import { map, type Result, unwrapOr } from './result'
+import type { Result } from './result'
 
 /**
  * `JoinCode.create` is typed to take a string, but its `typeof` guard is there for the
@@ -251,12 +251,10 @@ describe('JoinCode.fromBytes', () => {
    * would make part of the code space measurably easier to guess.
    */
   it('selects each alphabet character from exactly one eighth-share of the byte range', () => {
-    const selected = Array.from({ length: 256 }, (_unused, byte) =>
-      unwrapOr(
-        map(JoinCode.fromBytes(bytesOf(byte)), (code) => code.value.charAt(0)),
-        'no code at all',
-      ),
-    )
+    const selected = Array.from({ length: 256 }, (_unused, byte) => {
+      const code = JoinCode.fromBytes(bytesOf(byte))
+      return code.ok ? code.value.value.charAt(0) : 'no code at all'
+    })
 
     const occurrences = [...JoinCode.alphabet].map(
       (character) => selected.filter((seen) => seen === character).length,

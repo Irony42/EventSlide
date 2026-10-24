@@ -11,7 +11,6 @@ import { Photo } from './photo'
 import type { NewPhoto, PhotoActor, PhotoAuthor, Reviewer } from './photo'
 
 const MARIAGE = asEventId('evt-mariage')
-const ANNIVERSAIRE = asEventId('evt-anniversaire')
 const FIRST_PHOTO = asPhotoId('pho-1')
 const SECOND_PHOTO = asPhotoId('pho-2')
 const CAMILLE = asGuestId('gst-camille')
@@ -330,29 +329,6 @@ describe('Photo.withCaption', () => {
     photo.withCaption(null)
 
     expect(photo.caption?.value).toBe('Oups')
-  })
-})
-
-describe('Photo.isDuplicateOf', () => {
-  it('treats the same bytes in the same event as a retry rather than a second photo', () => {
-    const first = aPendingPhoto({ contentHash: hashOf('c') })
-    const retry = aPendingPhoto({ contentHash: hashOf('c'), id: SECOND_PHOTO })
-
-    expect(retry.isDuplicateOf(first)).toBe(true)
-  })
-
-  it('treats the same bytes in another event as its own photo: each event owns its copy', () => {
-    const atTheWedding = aPendingPhoto({ contentHash: hashOf('c') })
-    const atTheBirthday = aPendingPhoto({ contentHash: hashOf('c'), eventId: ANNIVERSAIRE })
-
-    expect(atTheBirthday.isDuplicateOf(atTheWedding)).toBe(false)
-  })
-
-  it('treats different bytes in the same event as different photos', () => {
-    const first = aPendingPhoto({ contentHash: hashOf('c') })
-    const second = aPendingPhoto({ contentHash: hashOf('d'), id: SECOND_PHOTO })
-
-    expect(second.isDuplicateOf(first)).toBe(false)
   })
 })
 

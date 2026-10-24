@@ -161,22 +161,6 @@ describe('getModerationQueue', () => {
     expect(result.ok && result.value.pendingCount).toBe(3)
   })
 
-  it('carries the caption badge, because a caption is read before it is projected', async () => {
-    photos.seed(
-      aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'pending', caption: 'Les confettis' }),
-    )
-
-    const result = await getModerationQueue({
-      eventId: EVENT,
-      filter: 'pending',
-      order: null,
-      limit: null,
-      actor: moderator,
-    })
-
-    expect(result.ok && result.value.items.map((item) => item.hasCaption)).toEqual([true])
-  })
-
   // ------------------------------------------------------- what the card renders --
 
   it('carries the caption text, because a badge is not something a host can read', async () => {

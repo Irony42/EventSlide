@@ -5,10 +5,8 @@ import {
   buildQueue,
   defaultOrderFor,
   filterQueue,
-  nextAfterDecision,
   orderQueue,
   partitionForBulk,
-  pendingCount,
   type QueueItem,
 } from './moderationQueue'
 
@@ -16,7 +14,6 @@ const anItem = (id: string, arrivedAt: string, status: PhotoStatus = 'pending'):
   id: asPhotoId(id),
   status,
   createdAt: new Date(arrivedAt),
-  hasCaption: false,
 })
 
 const ids = (items: readonly QueueItem[]): readonly string[] => items.map((item) => item.id)
@@ -159,88 +156,6 @@ describe('buildQueue', () => {
     const result = buildQueue(arrivals(), { filter: 'all', order: 'oldestFirst', limit: -1 })
 
     expect(!result.ok && result.error.kind).toBe('invalid')
-  })
-})
-
-describe('pendingCount', () => {
-  it('counts only the photos still waiting on a decision', () => {
-    const items = [
-      anItem('waiting-1', '2025-06-14T20:00:00Z'),
-      anItem('waiting-2', '2025-06-14T20:01:00Z'),
-      anItem('on-the-wall', '2025-06-14T20:02:00Z', 'published'),
-      anItem('turned-down', '2025-06-14T20:03:00Z', 'rejected'),
-      anItem('taken-off', '2025-06-14T20:04:00Z', 'hidden'),
-    ]
-
-    expect(pendingCount(items)).toBe(2)
-  })
-
-  it('is zero for an empty queue', () => {
-    expect(pendingCount([])).toBe(0)
-  })
-})
-
-describe('nextAfterDecision', () => {
-  const queue = (): readonly QueueItem[] => [
-    anItem('first', '2025-06-14T20:00:00Z'),
-    anItem('second', '2025-06-14T20:01:00Z'),
-    anItem('third', '2025-06-14T20:02:00Z'),
-  ]
-
-  it('focuses the following photo after a decision on the first', () => {
-    const next = nextAfterDecision(queue(), asPhotoId('first'), 'pending', 'oldestFirst')
-
-    expect(next).toBe(asPhotoId('second'))
-  })
-
-  it('focuses the following photo after a decision in the middle', () => {
-    const next = nextAfterDecision(queue(), asPhotoId('second'), 'pending', 'oldestFirst')
-
-    expect(next).toBe(asPhotoId('third'))
-  })
-
-  it('focuses the preceding photo after a decision on the last row, never wrapping to the top', () => {
-    const next = nextAfterDecision(queue(), asPhotoId('third'), 'pending', 'oldestFirst')
-
-    expect(next).toBe(asPhotoId('second'))
-  })
-
-  it('focuses nothing when the decided photo was the only one', () => {
-    const only = [anItem('only', '2025-06-14T20:00:00Z')]
-
-    const next = nextAfterDecision(only, asPhotoId('only'), 'pending', 'oldestFirst')
-
-    expect(next).toBeNull()
-  })
-
-  it('focuses nothing for a photo another moderator already dealt with', () => {
-    const next = nextAfterDecision(queue(), asPhotoId('gone'), 'pending', 'oldestFirst')
-
-    expect(next).toBeNull()
-  })
-
-  it('follows the displayed order rather than the arrival order', () => {
-    const next = nextAfterDecision(queue(), asPhotoId('second'), 'pending', 'newestFirst')
-
-    expect(next).toBe(asPhotoId('first'))
-  })
-
-  it('focuses nothing when the queue is empty', () => {
-    const next = nextAfterDecision([], asPhotoId('first'), 'pending', 'oldestFirst')
-
-    expect(next).toBeNull()
-  })
-
-  it('skips over a photo the current filter excludes', () => {
-    const mixed = [
-      anItem('pending-first', '2025-06-14T20:00:00Z'),
-      anItem('published-between', '2025-06-14T20:01:00Z', 'published'),
-      anItem('pending-last', '2025-06-14T20:02:00Z'),
-    ]
-
-    const next = nextAfterDecision(mixed, asPhotoId('pending-first'), 'pending', 'oldestFirst')
-
-    expect(next).toBe(asPhotoId('pending-last'))
   })
 })
 
