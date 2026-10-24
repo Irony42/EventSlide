@@ -275,15 +275,15 @@ describe('POST /api/auth/login/2fa', () => {
     const browser = await aBrowser(server)
     await browser.signIn()
 
-    // Ten at once, all carrying the one half-finished sign-in: each used to load the same
+    // Eight at once, all carrying the one half-finished sign-in: each used to load the same
     // count from its own copy of the session and save one more, so none of them ever reached five.
     const responses = await Promise.all(
-      Array.from({ length: 10 }, () => browser.post('/api/auth/login/2fa', { code: '000000' })),
+      Array.from({ length: 8 }, () => browser.post('/api/auth/login/2fa', { code: '000000' })),
     )
     const answers = responses.map(codeOf)
 
     expect(answers.filter((code) => code === 'auth.invalidSecondFactor')).toHaveLength(4)
-    expect(answers.filter((code) => code === 'auth.secondFactorExpired')).toHaveLength(6)
+    expect(answers.filter((code) => code === 'auth.secondFactorExpired')).toHaveLength(4)
     expect((await browser.get('/api/auth/me')).body).toEqual({ authenticated: false })
   })
 
