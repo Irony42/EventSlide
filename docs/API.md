@@ -603,9 +603,10 @@ their photo back), `DELETE …/photos/:id/reactions/:kind` and
 The device token costs nothing to get (`POST /api/join` is public), and a caption edit is announced
 to every screen that has the wall or a console open, so a guest token is not by itself a reason to
 answer. The limiter runs before the token is verified, as the upload and reaction ones do. The
-number is sized for a room: every guest acknowledges the notice once, in the same minute, when the
-QR code goes round the table, and a venue shares one address. A moderator's `DELETE` of the same
-path carries no guest cookie, is dispatched to §6 first, and spends nothing here.
+number is a backstop sized for a room, not a tuned figure: a venue shares one address, and what it
+legitimately sends is bounded by the upload (12) and join (20) budgets, a few dozen a minute. A
+moderator's `DELETE` of the same path, sent without an `es_guest` cookie, is dispatched to §6 first
+and spends nothing here.
 
 † **Also throttled per account, with no lockout** (G3-04 / P4-07). The first five wrong
 passwords for an address from one network are free; from the sixth the answer is
@@ -633,7 +634,7 @@ knows the password can ask for; a request that budget refuses is not counted as 
 concurrency instead, two per client and four for the box, because one request is minutes
 of disk reads.
 
-The two guest write endpoints key on IP **and** event on purpose: a whole table of
+The guest write endpoints (uploads, reactions and the four of the ‡ row) key on IP **and** event on purpose: a whole table of
 guests shares one access point and therefore one public IP, so a per-IP-only limit would
 throttle the venue rather than an abuser, and a burst on one event must not close
 another event running on the same box. IPv6 addresses are collapsed to their /56 subnet,
@@ -1595,7 +1596,8 @@ call.
 
 **204**. **Errors** — `403 photo.deleteForbidden`,
 `403 event.guestSelfDeleteDisabled`, `404 photo.notFound`, `429 rate.limited` with a
-`Retry-After` (the guest-write bucket of §1; a moderator's request is not counted in it).
+`Retry-After` (the guest-write bucket of §1; a moderator's request without an `es_guest` cookie is not
+counted in it).
 
 This path is **shared with the moderator endpoint of the same name** in §6. The request
 is dispatched on the credential presented: with an `es_guest` cookie the guest rules

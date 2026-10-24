@@ -329,11 +329,11 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * reaction, acknowledging the privacy notice (HTTP-H-01). Per client address **and** event, one
        * bucket for all four, built once in `server.ts`.
        *
-       * Sized for a venue and not for a person: a whole room shares one access point, and the
-       * acknowledgement is the burst - every guest sends it once, in the same minute, when the
-       * QR code goes round the dinner table. A caption is bounded by the upload budget above, since
-       * there is one photograph to caption per upload, so the room-sized acknowledgement is what
-       * sets the number. Lower it on a box whose events are small and whose guests are strangers.
+       * A backstop sized for a room, not a tuned figure. A whole venue shares one access point,
+       * and what it legitimately sends is bounded by the budgets above: twelve uploads and twenty
+       * joins a minute at one address, so a few dozen captions, take-backs and acknowledgements.
+       * 300 is five a second, well clear of that and low enough to stop a loop. Lower it on a box
+       * whose events are small.
        */
       GUEST_WRITE_RATE_LIMIT_PER_MINUTE: positiveInt(300, 6000),
       /**

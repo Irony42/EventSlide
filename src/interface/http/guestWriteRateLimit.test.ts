@@ -1,17 +1,26 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { aGuest, anEvent, anEventSettings } from '../../application/testing/builders'
+import { AT, aGuest, anEvent, anEventSettings, aUser } from '../../application/testing/builders'
 import {
   makeAcknowledgePrivacyNotice,
   type AcknowledgePrivacyNotice,
 } from '../../application/usecases/guests/acknowledgePrivacyNotice'
 import { privacyNoticeFor } from '../../domain/privacy/privacyNotice'
+import { asEventId, asUserId } from '../../domain/shared/ids'
 import { ok } from '../../domain/shared/result'
 import { GUEST_COOKIE } from './middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER } from './middleware/csrf'
-import { buildServerHarness, type ServerHarness } from './testing/serverHarness'
 import { testHttpConfig } from './testing/middlewareHarness'
-import { A_PATH_NOBODY_WROTE, csrfTokenFrom, setCookies } from './testing/signIn'
+import { mountedRoutes } from './testing/routeTable'
+import { buildServerHarness, type ServerHarness } from './testing/serverHarness'
+import {
+  A_PATH_NOBODY_WROTE,
+  csrfTokenFrom,
+  setCookies,
+  signedInAs,
+  signInByAddress,
+} from './testing/signIn'
+import type { HttpConfig } from './types'
 
 /**
  * Every write a guest's device token can make is rate-limited per client address **and**
@@ -29,10 +38,12 @@ import { A_PATH_NOBODY_WROTE, csrfTokenFrom, setCookies } from './testing/signIn
 
 const SLUG = 'mariage'
 const PHOTO = '11111111-1111-4111-8111-111111111111'
+const MODERATOR = '22222222-2222-4222-8222-222222222222'
+const MODERATOR_EMAIL = 'moderateur@example.test'
 
 interface Write {
   readonly name: string
-  readonly method: 'patch' | 'delete' | 'post'
+  readonly method: 'patch' | 'delete' | 'post' | 'put'
   readonly path: string
   readonly body?: Record<string, unknown>
   /** What the route answers while the bucket has room. */
@@ -71,6 +82,9 @@ const writesAt = (slug: string): readonly Write[] => [
 ]
 
 const [CAPTION, TAKE_BACK, WITHDRAW, ACKNOWLEDGE] = writesAt(SLUG) as [Write, Write, Write, Write]
+const FOUR_WRITES = [CAPTION, TAKE_BACK, WITHDRAW, ACKNOWLEDGE].map(
+  (write) => [write.name, write] as const,
+)
 
 interface Subject {
   readonly harness: ServerHarness
@@ -79,12 +93,16 @@ interface Subject {
   readonly gala: string
 }
 
-const buildSubject = (guestWritePerMinute: number, trustProxyHops = 0): Subject => {
-  let acknowledge: AcknowledgePrivacyNotice | undefined
+const buildSubject = (
+  guestWritePerMinute: number,
+  trustProxyHops = 0,
+  otherLimits: Partial<HttpConfig['rateLimits']> = {},
+): Subject => {
+  const acknowledge: { current?: AcknowledgePrivacyNotice } = {}
   const harness = buildServerHarness({
     config: {
       trustProxyHops,
-      rateLimits: { ...testHttpConfig().rateLimits, guestWritePerMinute },
+      rateLimits: { ...testHttpConfig().rateLimits, ...otherLimits, guestWritePerMinute },
     },
     // The use cases answer success: the subject is the limiter in front of them, and a 429
     // that is really a refusal from below would prove nothing.
@@ -93,12 +111,14 @@ const buildSubject = (guestWritePerMinute: number, trustProxyHops = 0): Subject 
       deletePhoto: async () => ok(undefined),
       withdrawReaction: async () => ok(undefined),
       acknowledgePrivacyNotice: async (input) => {
-        if (acknowledge === undefined) throw new Error('acknowledge was used before it was built')
-        return acknowledge(input)
+        if (acknowledge.current === undefined) throw new Error('acknowledge was not built yet')
+        return acknowledge.current(input)
       },
+      // Who the moderator is, for the one test that signs a host in.
+      authenticateUser: signInByAddress({ [MODERATOR_EMAIL]: MODERATOR }),
     },
   })
-  acknowledge = makeAcknowledgePrivacyNotice({
+  acknowledge.current = makeAcknowledgePrivacyNotice({
     events: harness.events,
     clients: harness.clients,
     guests: harness.guests,
@@ -119,6 +139,13 @@ const buildSubject = (guestWritePerMinute: number, trustProxyHops = 0): Subject 
       settings: { retentionDays: 30 },
     }),
   )
+  harness.users.seed(aUser({ id: MODERATOR, email: MODERATOR_EMAIL }))
+  harness.memberships.seed({
+    eventId: asEventId('event-wedding'),
+    userId: asUserId(MODERATOR),
+    role: 'moderator',
+    grantedAt: AT,
+  })
   harness.guests.seed(
     aGuest({ id: 'guest-lea', eventId: 'event-wedding' }),
     aGuest({ id: 'guest-lea', eventId: 'event-gala' }),
@@ -134,6 +161,20 @@ interface Sender {
   (write: Write, as?: { readonly token?: string; readonly from?: string }): request.Test
 }
 
+/** A `switch` rather than an index into the agent: an unfamiliar method fails loudly. */
+const issue = (agent: ReturnType<typeof request>, write: Write): request.Test => {
+  switch (write.method) {
+    case 'patch':
+      return agent.patch(write.path)
+    case 'delete':
+      return agent.delete(write.path)
+    case 'post':
+      return agent.post(write.path)
+    case 'put':
+      return agent.put(write.path)
+  }
+}
+
 /** A browser that holds the CSRF cookie, so a refusal a test reads is never the gate's. */
 const browserOn = async (subject: Subject, defaultToken: string): Promise<Sender> => {
   const probe = await request(subject.harness.app).get(A_PATH_NOBODY_WROTE)
@@ -145,8 +186,8 @@ const browserOn = async (subject: Subject, defaultToken: string): Promise<Sender
 
   return (write, as = {}) => {
     const token = as.token ?? defaultToken
-    const sent = request(subject.harness.app)
-      [write.method](write.path)
+    const agent = request(subject.harness.app)
+    const sent = issue(agent, write)
       .set('Cookie', `${csrfCookie}; ${GUEST_COOKIE}=${token}`)
       .set(CSRF_HEADER, csrf)
     return (as.from === undefined ? sent : sent.set('X-Forwarded-For', as.from)).send(write.body)
@@ -154,7 +195,7 @@ const browserOn = async (subject: Subject, defaultToken: string): Promise<Sender
 }
 
 describe('the guest-token writes are rate-limited per client address and event (HTTP-H-01)', () => {
-  it.each([CAPTION, TAKE_BACK, WITHDRAW, ACKNOWLEDGE].map((write) => [write.name, write] as const))(
+  it.each(FOUR_WRITES)(
     'refuses %s once the budget is spent, with the shared 429 and a Retry-After',
     async (_name, write) => {
       const subject = buildSubject(2)
@@ -226,37 +267,110 @@ describe('the guest-token writes are rate-limited per client address and event (
     // `DELETE /photos/:id` is two endpoints on one path: the guest's own photo and the
     // moderator's any photo. The moderator's request has no guest cookie, so the guest router
     // hands it on *before* the limiter - mounted above that hand-off, a host moderating a
-    // busy album would be refused as if they were the guest flooding it.
+    // busy album from the venue's address would be refused as if they were the guest flooding it.
     const subject = buildSubject(1)
     const send = await browserOn(subject, subject.wedding)
     expect((await send(TAKE_BACK)).status).toBe(204)
     expect((await send(TAKE_BACK)).status).toBe(429)
-    const probe = await request(subject.harness.app).get(A_PATH_NOBODY_WROTE)
-    const csrf = csrfTokenFrom(probe.headers)
-    const csrfCookie = setCookies(probe.headers)
-      .find((value) => value.startsWith(`${CSRF_COOKIE}=`))
-      ?.split(';')[0]
-    if (csrfCookie === undefined) throw new Error('the server issued no CSRF cookie')
+    const { agent, csrf } = await signedInAs(subject.harness.app, MODERATOR_EMAIL)
 
-    const moderator = await request(subject.harness.app)
-      .delete(TAKE_BACK.path)
-      .set('Cookie', csrfCookie)
-      .set(CSRF_HEADER, csrf)
+    const moderated = await agent.delete(TAKE_BACK.path).set(CSRF_HEADER, csrf)
 
-    // `requireRole` answers a caller with no session: the request reached the host's route.
-    expect(moderator.status).toBe(401)
-    expect(moderator.body.error.code).toBe('auth.required')
+    expect(moderated.status).toBe(204)
   })
 
-  it('drops a flood before it costs a token verification, so a bad token spends the budget too', async () => {
-    // The limiter runs ahead of `requireGuest` on purpose (the same arrangement as the
-    // upload and reaction limiters): a flood carrying garbage in the cookie must be refused
-    // by count, not answered 401 every time at the price of an HMAC check.
-    const subject = buildSubject(1)
-    const send = await browserOn(subject, 'not-a-token')
+  it.each(FOUR_WRITES)(
+    'drops a flood of %s before it costs a token verification',
+    async (_name, write) => {
+      // The limiter runs ahead of `requireGuest` on purpose (the same arrangement as the
+      // upload and reaction limiters): a flood carrying garbage in the cookie must be refused
+      // by count, not answered 401 every time at the price of an HMAC check.
+      const subject = buildSubject(1)
+      const send = await browserOn(subject, 'not-a-token')
 
-    expect((await send(CAPTION)).status).toBe(401)
+      expect((await send(write)).status).toBe(401)
 
-    expect((await send(CAPTION)).status).toBe(429)
+      expect((await send(write)).status).toBe(429)
+    },
+  )
+})
+
+/**
+ * The sweep that stands in for a list nobody keeps: **every** write route under an event
+ * that a guest token opens is limited, including one that does not exist yet.
+ *
+ * HTTP-H-01 was a gap because nobody had enumerated the guest's writes; the tests above name
+ * four routes and would pass beside a fifth that is open. This one reads the route table of
+ * the assembled server and asks each non-`GET` route under `:eventSlug` what a request with a
+ * garbage `es_guest` cookie is told. A route that answers `401 guestToken.*` is guarded by
+ * `requireGuest`, and what it must then do on the second request is answer 429: every limiter
+ * on these routes runs ahead of the token check, which is what lets a sweep see it with no
+ * guest to sign in.
+ */
+describe('every guest-token write under an event is rate-limited (HTTP-H-01)', () => {
+  /** Every id in these paths is a GUID, so any `...Id` parameter gets one. */
+  const PARAMETERS: Readonly<Record<string, string>> = { eventSlug: SLUG, kind: 'love' }
+
+  const withParameters = (path: string): string =>
+    path.replace(/:([A-Za-z]+)/g, (_match, name: string) => {
+      const value = PARAMETERS[name] ?? (name.endsWith('Id') ? PHOTO : undefined)
+      if (value === undefined) {
+        throw new Error(
+          `this sweep has no placeholder for ":${name}" (in ${path}). Add one to PARAMETERS: a path with the parameter left in it would 404 for the wrong reason and pass while asserting nothing.`,
+        )
+      }
+      return value
+    })
+
+  const asWrite = (route: { readonly method: string; readonly path: string }): Write => {
+    const { method } = route
+    if (method !== 'post' && method !== 'patch' && method !== 'delete' && method !== 'put') {
+      throw new Error(`this sweep does not know how to issue a ${method} request`)
+    }
+    return {
+      name: `${method} ${route.path}`,
+      method,
+      path: withParameters(route.path),
+      accepted: 0,
+    }
+  }
+
+  it('answers 429 on the second request to every route that a guest token gates', async () => {
+    // Every limiter on these routes at one, so that the second request is over whichever one
+    // the route carries. A **fresh server per route**: the four writes share one bucket, so on
+    // one server the first of them would spend what the next is judged by.
+    const limits = { uploadPerMinute: 1, reactionPerMinute: 1 }
+    const routes = mountedRoutes(buildSubject(1, 0, limits).harness.app).filter(
+      (route) => route.method !== 'get' && route.path.includes('/:eventSlug/'),
+    )
+
+    const gated: string[] = []
+    const open: string[] = []
+    for (const route of routes) {
+      const write = asWrite(route)
+      const send = await browserOn(buildSubject(1, 0, limits), 'not-a-token')
+      const first = await send(write)
+      const code: unknown = first.body?.error?.code
+      if (first.status !== 401 || typeof code !== 'string' || !code.startsWith('guestToken.')) {
+        continue
+      }
+      gated.push(write.name)
+      if ((await send(write)).status !== 429) open.push(write.name)
+    }
+
+    // Not vacuous: the seven routes this repository has today are all found, and a new one is
+    // found as well, and fails below if it is open.
+    expect(gated).toEqual(
+      expect.arrayContaining([
+        'post /api/events/:eventSlug/photos',
+        'post /api/events/:eventSlug/clips',
+        'post /api/events/:eventSlug/photos/:photoId/reactions',
+        'patch /api/events/:eventSlug/photos/:photoId/caption',
+        'delete /api/events/:eventSlug/photos/:photoId',
+        'delete /api/events/:eventSlug/photos/:photoId/reactions/:kind',
+        'post /api/events/:eventSlug/privacy-notice/acknowledgement',
+      ]),
+    )
+    expect(open).toEqual([])
   })
 })

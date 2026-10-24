@@ -1058,7 +1058,7 @@ on a restart loop)**.
 | `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/photos/:id/reactions` | 120          | 600                    | 60              | 1 min  |
-| the four other guest writes (below)           | 300          | (same bucket)          | —               | 1 min  |
+| the four other guest writes (below)           | 300 per pair | (keyed together)       | —               | 1 min  |
 | `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent         | —               | —      |
 | `GET /api/gallery/:token`, `…/photos`, unlock | 120          | —                      | —               | 1 min  |
 | `GET /api/gallery-media/…`                    | 3000         | —                      | —               | 1 min  |
@@ -1086,9 +1086,11 @@ acknowledging the privacy notice — spend **one** bucket keyed by `clientKey:ev
 `GUEST_WRITE_RATE_LIMIT_PER_MINUTE` (default **300**), built once in `server.ts` and mounted ahead
 of `requireGuest` (HTTP-H-01). Before it a guest token, which costs nothing because
 `POST /api/join` is public, could repeat a caption edit without limit, and each edit is announced
-to every screen watching the event. The number is sized for a room and not for a person: every
-guest acknowledges the notice once, in the same minute, and a venue shares one address.
-`guestWriteRateLimit.test.ts` pins each mount, the shared bucket and the key.
+to every screen watching the event. 300 is a backstop sized for a room and not a tuned figure: a
+venue shares one address, and what it legitimately sends is bounded by the upload and join budgets.
+It counts per client address **and** event together (a pair has 300, not an address).
+`guestWriteRateLimit.test.ts` pins each mount and its place ahead of `requireGuest`, the shared
+bucket and the key, and sweeps the route table so that a fifth guest write with no limiter fails.
 
 - Limits return **429** with `Retry-After` and the code `request.rateLimited`. A named
   ring-4 test asserts the status; a limiter that silently allows everything is the
