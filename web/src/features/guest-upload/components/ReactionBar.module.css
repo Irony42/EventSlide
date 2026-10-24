@@ -1,0 +1,95 @@
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/**
+ * Never smaller than --touch-min, in either direction: a reaction is the one control on this
+ * screen a guest taps at speed, one-handed, in the dark (DESIGN-SYSTEM.md section 8).
+ *
+ * An outline at rest and a filled button once pressed. The accent alone would be a signal
+ * only a guest who can tell hues apart gets; filled against hollow is a difference in
+ * lightness and in shape, and `aria-pressed` says it to a screen reader.
+ */
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.reaction:hover:not(:disabled) {
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+/* Acknowledged on the thumb before the server has answered: a tap with no movement on slow
+   Wi-Fi gets tapped again, which takes the reaction straight back. */
+.reaction:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.reaction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pressed,
+.pressed:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.glyph {
+  display: inline-flex;
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.count {
+  min-inline-size: 1ch;
+}
+
+.failed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  inline-size: 100%;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}

@@ -281,6 +281,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         error={mine.error}
         onRetry={mine.refresh}
         onDelete={mine.remove}
+        slug={slug}
+        reactionsEnabled={event.allowReactions}
       />
 
       {/* Below the proof that it worked, above the controls: a reward for having sent

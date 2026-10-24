@@ -215,6 +215,20 @@ export const es: UiText = {
     noticeRemovalOtherwise: 'Si no, pídaselo al organizador: puede eliminar cualquier foto.',
     noticeRemovalAskHost: 'Pídaselo al organizador: puede eliminar cualquier foto.',
     clipDoneImmediate: 'Vídeo enviado. Ya pasa a la pantalla.',
+
+    /* ---- Added by guest reactions. ---- */
+
+    reactionKinds: {
+      love: 'Me encanta',
+      laugh: 'Jaja',
+      wow: 'Guau',
+      cheers: 'Salud',
+      clap: 'Aplausos',
+    },
+    reactionButton: (name: string, count: number) =>
+      count === 0 ? name : `${name}, ${t.number(count)}`,
+    reactionsGroup: (position: number) => `Reaccionar a la foto ${t.number(position)}`,
+    reactionsFailed: 'No se han podido cargar las reacciones.',
   },
 
   ui: {

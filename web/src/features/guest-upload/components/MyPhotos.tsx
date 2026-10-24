@@ -10,6 +10,7 @@ import { Spinner } from '../../../design-system/components/Spinner'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
 import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { ReactionBar } from './ReactionBar'
 import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
 import type { GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
@@ -25,6 +26,12 @@ import styles from './MyPhotos.module.css'
  * The delete control appears only when the DTO says `canDelete`. That flag is computed
  * server-side from the grace window, the status and the event's setting; recomputing
  * any part of it here is what made 1.0 offer a button that answered 403.
+ *
+ * **Reactions** sit under a photo that is on the wall, and only when the host has them on.
+ * Both are decided from what the server already said — the row's status and the event the
+ * join returned — so a bar that is not wanted never asks anything. This list is the guest's
+ * own photographs, so it is where a guest sees what the room felt about theirs; a photo that
+ * is not on the wall has no reactions to show and none to give.
  */
 
 const labelsFor = (t: UiText): Readonly<Record<PhotoStatus, string>> => ({
@@ -50,9 +57,21 @@ export interface MyPhotosProps {
   readonly error: string | null
   readonly onRetry: () => void
   readonly onDelete: (photoId: string) => Promise<void>
+  /** The event, for the reactions each row reads and sends. */
+  readonly slug: string
+  /** The host's switch, as the join left it. Off, no row carries a reaction bar. */
+  readonly reactionsEnabled: boolean
 }
 
-export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotosProps) {
+export function MyPhotos({
+  photos,
+  loading,
+  error,
+  onRetry,
+  onDelete,
+  slug,
+  reactionsEnabled,
+}: MyPhotosProps) {
   const t = useTranslations()
   const labels = labelsFor(t)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
@@ -152,6 +171,11 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
                   variant="danger"
                   onClick={() => setPendingDelete(photo.id)}
                 />
+              ) : null}
+              {reactionsEnabled && photo.status === 'published' ? (
+                <div className={styles['reactions']}>
+                  <ReactionBar slug={slug} photoId={photo.id} position={index + 1} />
+                </div>
               ) : null}
             </li>
           ))}
