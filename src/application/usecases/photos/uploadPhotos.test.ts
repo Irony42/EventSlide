@@ -16,7 +16,6 @@ import {
 import { ok, type Result } from '../../../domain/shared/result'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
-import type { LogContext, Logger } from '../../ports/logger'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import type {
   PhotoAdmission,
@@ -48,6 +47,7 @@ import {
   type UploadPhotosDeps,
   type UploadPhotosResult,
 } from './uploadPhotos'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 /**
  * Ingest is the highest-risk operation in the product: the only public write, it
@@ -410,30 +410,6 @@ class LockedForGoodPhotoRepository extends FakePhotoRepository {
 
   private refuseWhenLocked(): void {
     if (this.locked) throw new Error('SQLITE_BUSY: database is locked')
-  }
-}
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
   }
 }
 
@@ -1526,10 +1502,9 @@ describe('uploadPhotos and the mission tag', () => {
   it('tells the operator about a tag it could not resolve, since that is a client bug', async () => {
     await send(asMissionId('mission-ghost'))
 
-    expect(logger.lines).toContainEqual({
-      level: 'warn',
-      message: 'an upload named a mission this event does not have; storing it untagged',
-    })
+    expect(logger.messages('warn')).toContain(
+      'an upload named a mission this event does not have; storing it untagged',
+    )
   })
 })
 

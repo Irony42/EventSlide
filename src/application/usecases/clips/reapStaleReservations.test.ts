@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asClipJobId, asEventId } from '../../../domain/shared/ids'
-import type { LogContext, Logger } from '../../ports/logger'
 import { AT, aClipJob, atPlus } from '../../testing/builders'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { makeReapStaleReservations, type ReapStaleReservations } from './reapStaleReservations'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 /**
  * The wreckage of a request that died between "this upload is admitted" and "its bytes
@@ -23,30 +23,6 @@ const EVENT = asEventId('event-1')
 
 /** What the container gives it: generous against the single `writeFile` it protects. */
 const TIMEOUT_MS = 5 * 60 * 1000
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
-}
 
 describe('reapStaleReservations', () => {
   let clips: FakeClipJobRepository

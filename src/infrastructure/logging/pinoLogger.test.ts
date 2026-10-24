@@ -1,7 +1,6 @@
-import fs from 'node:fs'
-import { inspect } from 'node:util'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createPinoLogger, silentLogger } from './pinoLogger'
+import { captureAllOutputWhile, captureDescriptorOutputWhile } from './testing/captureOutput'
 import type { Logger } from '../../application/ports/logger'
 
 /**
@@ -19,81 +18,9 @@ import type { Logger } from '../../application/ports/logger'
 /** A value distinctive enough that finding it anywhere in the output is conclusive. */
 const SENTINEL = 'SENTINEL-4f9a1c-must-never-be-logged'
 
-const captureStdout = async (emit: () => void): Promise<string[]> => {
-  const written: string[] = []
-  const record = (...args: unknown[]): number => {
-    const text = Buffer.isBuffer(args[1]) ? args[1].toString('utf8') : String(args[1])
-    if (args[0] === 1) written.push(text)
-    return Buffer.byteLength(text)
-  }
-  const asyncWrite = vi.spyOn(fs, 'write').mockImplementation(((...args: unknown[]) => {
-    const size = record(...args)
-    const callback = args[args.length - 1]
-    if (typeof callback === 'function') {
-      ;(callback as (error: Error | null, written: number) => void)(null, size)
-    }
-  }) as unknown as typeof fs.write)
-  const syncWrite = vi
-    .spyOn(fs, 'writeSync')
-    .mockImplementation(((...args: unknown[]) => record(...args)) as unknown as typeof fs.writeSync)
-  try {
-    emit()
-    // sonic-boom batches the current tick and flushes on the next one.
-    await new Promise((resolve) => setImmediate(resolve))
-  } finally {
-    asyncWrite.mockRestore()
-    syncWrite.mockRestore()
-  }
-  return written.join('').split('\n').filter(Boolean)
-}
-
-/**
- * Everything printed by any route a logger could take: pino's own `sonic-boom` path
- * (`fs.write`/`fs.writeSync` on fd 1), `process.stdout`, and the `console` methods —
- * which under vitest are routed to the reporter over RPC rather than through
- * `process.stdout`, so they have to be captured in their own right.
- *
- * `silentLogger` needs the wider net. Its promise is that nothing is printed at all,
- * and a version of it left calling `console.log` touches neither `fs.write` nor
- * `process.stdout` in a worker, so the narrower capture above would report it silent.
- * Returned as one string and asserted against a sentinel rather than against
- * emptiness, because the runner writes on these channels too.
- */
-const anyOutputWhile = async (emit: () => void): Promise<string> => {
-  const written: string[] = []
-  const asyncWrite = vi.spyOn(fs, 'write').mockImplementation(((...args: unknown[]) => {
-    const text = Buffer.isBuffer(args[1]) ? args[1].toString('utf8') : String(args[1])
-    if (args[0] === 1) written.push(text)
-    const callback = args[args.length - 1]
-    if (typeof callback === 'function') {
-      ;(callback as (error: Error | null, written: number) => void)(null, Buffer.byteLength(text))
-    }
-  }) as unknown as typeof fs.write)
-  const syncWrite = vi.spyOn(fs, 'writeSync').mockImplementation(((...args: unknown[]) => {
-    const text = Buffer.isBuffer(args[1]) ? args[1].toString('utf8') : String(args[1])
-    if (args[0] === 1) written.push(text)
-    return Buffer.byteLength(text)
-  }) as unknown as typeof fs.writeSync)
-  const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
-    written.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk))
-    return true
-  }) as unknown as typeof process.stdout.write)
-  const consoleSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) =>
-    vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
-      written.push(args.map((argument) => inspect(argument)).join(' '))
-    }),
-  )
-  try {
-    emit()
-    await new Promise((resolve) => setImmediate(resolve))
-  } finally {
-    asyncWrite.mockRestore()
-    syncWrite.mockRestore()
-    stdoutWrite.mockRestore()
-    for (const spy of consoleSpies) spy.mockRestore()
-  }
-  return written.join('')
-}
+/** The lines pino wrote to file descriptor 1, one per entry: the shape a log shipper reads. */
+const captureStdout = async (emit: () => void): Promise<string[]> =>
+  (await captureDescriptorOutputWhile(emit)).split('\n').filter(Boolean)
 
 const oneLineFrom = async (logger: Logger, emit: (subject: Logger) => void): Promise<string> => {
   const lines = await captureStdout(() => emit(logger))
@@ -316,14 +243,16 @@ describe('silentLogger', () => {
   it.each(['debug', 'info', 'warn', 'error'] as const)(
     'prints no trace of a %s line through any stdout channel, so a test harness produces no output',
     async (method) => {
-      const output = await anyOutputWhile(() => silentLogger()[method](SENTINEL, { a: SENTINEL }))
+      const output = await captureAllOutputWhile(() =>
+        silentLogger()[method](SENTINEL, { a: SENTINEL }),
+      )
 
       expect(output).not.toContain(SENTINEL)
     },
   )
 
   it('returns a child that is silent too, so a request-scoped logger in a test cannot start printing', async () => {
-    const output = await anyOutputWhile(() =>
+    const output = await captureAllOutputWhile(() =>
       silentLogger().child({ requestId: SENTINEL }).error(SENTINEL),
     )
 

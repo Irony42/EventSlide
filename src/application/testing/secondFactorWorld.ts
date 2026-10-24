@@ -22,7 +22,7 @@ import { FakeSecondFactorRepository } from './fakeSecondFactorRepository'
 import { FakeSecretTokens } from './fakeSecretTokens'
 import { FakeTotpEngine } from './fakeTotpEngine'
 import { FakeUserRepository } from './fakeUserRepository'
-import { CapturingLogger } from './galleryWorld'
+import { CapturingLogger } from './capturingLogger'
 import { SequentialIdGenerator } from './sequentialIdGenerator'
 
 /**

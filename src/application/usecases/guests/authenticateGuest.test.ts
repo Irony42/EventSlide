@@ -10,7 +10,7 @@ import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import type { Guest } from '../../../domain/guests/guest'
-import type { Logger } from '../../ports/logger'
+import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeAuthenticateGuest, PRESENCE_WRITE_INTERVAL_MS } from './authenticateGuest'
 import { PRESENCE_WINDOW_MS } from './listGuests'
 
@@ -89,16 +89,7 @@ class FailingStampGuestRepository extends FakeGuestRepository {
   }
 }
 
-const warnings: string[] = []
-const logger: Logger = {
-  debug() {},
-  info() {},
-  warn: (message) => {
-    warnings.push(message)
-  },
-  error() {},
-  child: () => logger,
-}
+const logger = new CapturingLogger()
 
 describe('authenticateGuest', () => {
   let events: FakeEventRepository
@@ -114,7 +105,7 @@ describe('authenticateGuest', () => {
 
   beforeEach(() => {
     events = new FakeEventRepository().seed(aWedding(), aGala())
-    warnings.length = 0
+    logger.lines.length = 0
     guests = new CountingGuestRepository()
     guests.seed(aGuest({ id: LEA, eventId: WEDDING }))
     clock = new FakeClock()
@@ -220,7 +211,9 @@ describe('authenticateGuest', () => {
     })({ token: tokenFor(WEDDING, LEA), eventSlug: WEDDING_SLUG })
 
     expect(result.ok && result.value.guest.id).toBe(LEA)
-    expect(warnings).toEqual(['could not record that a guest was seen; letting them through'])
+    expect(logger.messages('warn')).toEqual([
+      'could not record that a guest was seen; letting them through',
+    ])
   })
 
   it('keeps the host count honest for a guest who joined long ago and is still uploading', async () => {

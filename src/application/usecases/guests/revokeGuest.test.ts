@@ -9,7 +9,7 @@ import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
-import type { Logger } from '../../ports/logger'
+import { silentLogger } from '../../testing/capturingLogger'
 import { makeAuthenticateGuest } from './authenticateGuest'
 import { makeRevokeGuest, type RevokeGuestInput } from './revokeGuest'
 
@@ -176,8 +176,13 @@ describe('revokeGuest', () => {
       anEvent({ id: WEDDING, slug: WEDDING_SLUG, joinCode: 'H0K2QM' }),
     )
     const tokens = new FakeGuestTokenService()
-    const logger: Logger = { debug() {}, info() {}, warn() {}, error() {}, child: () => logger }
-    const authenticate = makeAuthenticateGuest({ events, guests, tokens, clock, logger })
+    const authenticate = makeAuthenticateGuest({
+      events,
+      guests,
+      tokens,
+      clock,
+      logger: silentLogger(),
+    })
     const token = tokens.issue({ eventId: WEDDING, guestId: LEA, issuedAt: AT })
     expect((await authenticate({ token, eventSlug: WEDDING_SLUG })).ok).toBe(true)
 
