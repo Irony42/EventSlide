@@ -613,6 +613,40 @@ describe('openStream', () => {
       expect(sink.text.match(/: keep-alive/g)).toHaveLength(4)
     })
 
+    const moveTheEventTo = async (status: 'closed' | 'archived'): Promise<void> => {
+      const event = await world.events.findById(asEventId(WEDDING))
+      const moved = status === 'closed' ? event?.close(AT) : event?.archive(AT)
+      if (moved === undefined || !moved.ok) throw new Error('fixture rejected')
+      await world.events.save(moved.value)
+    }
+
+    it('closes at the first beat after the host archives the event, which a new stream would be refused (HTTP-M-08)', async () => {
+      // `resolvePublicEvent` refuses an event that no longer serves its wall, and the beat asks the
+      // same question: a wall opened while the event was live stayed open after the archive, and kept
+      // its slot of the per-client cap, with four more keep-alive frames to show for it.
+      const sink = open()
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(sink.writableEnded).toBe(false)
+
+      await moveTheEventTo('archived')
+      const before = sink.frames.length
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(true)
+      expect(sink.frames.slice(before).join('')).toBe('retry: 60000\n\n')
+      expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
+    })
+
+    it('keeps the wall open when the host only closes the event, which still serves its wall', async () => {
+      const sink = open()
+
+      await moveTheEventTo('closed')
+      await vi.advanceTimersByTimeAsync(15_000 * 3)
+
+      expect(sink.writableEnded).toBe(false)
+      expect(sink.text.match(/: keep-alive/g)).toHaveLength(3)
+    })
+
     it('closes at the first beat after the event is gone, as a purge would leave it', async () => {
       const sink = open()
       await world.events.delete(asEventId(WEDDING))

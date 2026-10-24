@@ -2,6 +2,7 @@ import type { Event } from '../../../domain/events/event'
 import type { Guest } from '../../../domain/guests/guest'
 import { DomainError } from '../../../domain/shared/errors'
 import { Slug } from '../../../domain/shared/slug'
+import { guestOfEvent } from './guestOfEvent'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
@@ -18,7 +19,8 @@ import type { Logger } from '../../ports/logger'
  * called.
  *
  * A valid signature is never sufficient on its own. Four further checks stand between a
- * token and any right, in this order, and each closes a real hole:
+ * token and any right, in this order, and each closes a real hole (the last three are
+ * {@link guestOfEvent}, which `identifyMediaViewer` asks as well, so the two cannot drift):
  *
  * 1. **The event's client must not be suspended** (roadmap §10.7): a suspended client's
  *    guests are answered exactly as if the event were not there. It comes before the others
@@ -102,18 +104,11 @@ export const makeAuthenticateGuest =
       return err(DomainError.notFound('event.notFound'))
     }
 
-    // The whole reason the token carries an event id. Compared against the event
-    // resolved from the URL, never against an id the client sent.
-    if (claims.value.eventId !== event.id) {
-      return err(DomainError.forbidden('guest.wrongEvent'))
-    }
-
-    const guest = await guests.findById(event.id, claims.value.guestId)
-    // The row is gone: the guest was erased, or the event was purged and recreated. A
-    // credential error rather than `guest.notFound`, because the answer the phone needs
-    // is 401 — drop the cookie and scan the code again — not a 404 it cannot act on.
-    if (guest === null) return err(DomainError.unauthenticated('guestToken.malformed'))
-    if (guest.isRevoked()) return err(DomainError.forbidden('guest.revoked'))
+    // The token's event against the URL's, the row, the revocation: one function, shared with
+    // the media route's identity.
+    const found = await guestOfEvent(guests, claims.value, event)
+    if (!found.ok) return found
+    const guest = found.value
 
     const seen = guest.touch(now)
     if (seen.lastSeenAt.getTime() - guest.lastSeenAt.getTime() >= PRESENCE_WRITE_INTERVAL_MS) {

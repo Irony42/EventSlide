@@ -80,7 +80,7 @@ const world = (
 
   const subject = buildHarness({
     config,
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.use(
         '/api',
         publicRoutes({
@@ -90,8 +90,8 @@ const world = (
             joinEvent: makeJoinEvent({
               events: deps.events,
               clients: new FakeClientRepository(),
-              guests: deps.guests,
-              tokens: deps.guestTokens,
+              guests: base.guests,
+              tokens: base.guestTokens,
               ids,
               clock: deps.clock,
               bus: deps.bus,
@@ -101,7 +101,7 @@ const world = (
             getWallPlaylist: makeGetWallPlaylist({
               events: deps.events,
               photos,
-              guests: deps.guests,
+              guests: base.guests,
               missions,
             }),
           },
@@ -408,7 +408,7 @@ describe('POST /api/join', () => {
     expect(cookie).toContain('Path=/')
     // The credential itself, not just a cookie name: verified with the harness's real
     // HMAC service, because forging one is exactly what the token exists to prevent.
-    const claims = subject.deps.guestTokens.verify(cookieValue(cookie), subject.clock.now())
+    const claims = subject.guestTokens.verify(cookieValue(cookie), subject.clock.now())
     expect(claims.ok && claims.value.eventId).toBe(WEDDING)
     expect(claims.ok && claims.value.guestId).toBe('guest-1')
   })
@@ -425,8 +425,8 @@ describe('POST /api/join', () => {
     expect(cookie).toContain('Max-Age=129600')
     const token = cookieValue(cookie)
     const issuedAt = subject.clock.now().getTime()
-    expect(subject.deps.guestTokens.verify(token, new Date(issuedAt + 129_600_000)).ok).toBe(true)
-    expect(subject.deps.guestTokens.verify(token, new Date(issuedAt + 129_600_001)).ok).toBe(false)
+    expect(subject.guestTokens.verify(token, new Date(issuedAt + 129_600_000)).ok).toBe(true)
+    expect(subject.guestTokens.verify(token, new Date(issuedAt + 129_600_001)).ok).toBe(false)
   })
 
   it.each([
@@ -545,7 +545,7 @@ describe('POST /api/join', () => {
 
     expect(response.status).toBe(200)
     const reissued = cookieValue(guestCookie(response.headers['set-cookie']))
-    const claims = subject.deps.guestTokens.verify(reissued, subject.clock.now())
+    const claims = subject.guestTokens.verify(reissued, subject.clock.now())
     expect(claims.ok && claims.value.eventId).toBe(WEDDING)
   })
 

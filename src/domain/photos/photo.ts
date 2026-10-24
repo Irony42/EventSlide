@@ -25,6 +25,9 @@ export type Reviewer =
 
 export type PhotoReview = Reviewer & { readonly at: Date }
 
+/** What {@link Photo.deletionVerdict} answers. */
+export type DeletionVerdict = 'allowed' | 'selfDeleteDisabled' | 'forbidden'
+
 /** Anyone who might act on a photo. Used by the permission predicates below. */
 export type PhotoActor =
   | { readonly kind: 'guest'; readonly guestId: GuestId }
@@ -321,6 +324,24 @@ export class Photo {
     if (!this.isAuthoredBy(actor)) return false
     if (!this.isWithinAuthorGrace(now, graceMs)) return false
     return this.props.status === 'pending' || this.props.status === 'rejected'
+  }
+
+  /**
+   * The whole answer to "may this actor delete this photo in an event with these settings".
+   *
+   * The conjunction of the event's switch (the host's veto over the whole feature: a wedding where
+   * the album is the point) and {@link canBeDeletedBy}, **in one place**: `deletePhoto` acts on the
+   * verdict and the guest's `canDelete` flag is `verdict === 'allowed'`, so the phone can never be
+   * shown a button the server then refuses. The two refusals stay distinct because a guest can act
+   * on one of them (ask the host) and not on the other.
+   */
+  deletionVerdict(
+    actor: PhotoActor,
+    now: Date,
+    settings: { readonly allowGuestSelfDelete: boolean; readonly guestSelfDeleteGraceMs: number },
+  ): DeletionVerdict {
+    if (actor.kind === 'guest' && !settings.allowGuestSelfDelete) return 'selfDeleteDisabled'
+    return this.canBeDeletedBy(actor, now, settings.guestSelfDeleteGraceMs) ? 'allowed' : 'forbidden'
   }
 
   /** Same shape as deletion, plus: a published caption is the host's to change. */

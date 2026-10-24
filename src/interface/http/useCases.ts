@@ -65,6 +65,7 @@ import type { UploadClip } from '../../application/usecases/clips/uploadClip'
 import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
 import type { ExportAlbum } from '../../application/usecases/photos/exportAlbum'
 import type { GetPhotoMedia } from '../../application/usecases/photos/getPhotoMedia'
+import type { IdentifyMediaViewer } from '../../application/usecases/photos/identifyMediaViewer'
 import type { ListEventPhotos } from '../../application/usecases/photos/listEventPhotos'
 import type { ListGuestPhotos } from '../../application/usecases/photos/listGuestPhotos'
 import type { SetPhotoCaption } from '../../application/usecases/photos/setPhotoCaption'
@@ -188,6 +189,8 @@ export interface HttpUseCases {
   readonly deletePhoto: DeletePhoto
   readonly setPhotoCaption: SetPhotoCaption
   readonly getPhotoMedia: GetPhotoMedia
+  /** Who is asking for the bytes: the media route's one answer to "who is this" (HTTP-H-02). */
+  readonly identifyMediaViewer: IdentifyMediaViewer
   readonly exportAlbum: ExportAlbum
 
   // clips

@@ -618,6 +618,19 @@ export class Event {
     return servesWall(this.props.status)
   }
 
+  /**
+   * Whether an anonymous caller may be served this event's wall: the lifecycle serves it **and** its
+   * client is not suspended (roadmap §10.7), the refusal everyone but a member gets as an event that
+   * is not there.
+   *
+   * One definition, asked when a public request opens (`resolvePublicEvent`) and again at every
+   * heartbeat of a stream that is already open, so the second cannot be weaker than the first: a
+   * wall stream opened while the event was live used to stay open after the host archived it.
+   */
+  servesPublicWall(): boolean {
+    return !this.isClientSuspended() && this.servesWall()
+  }
+
   allowsModeration(): boolean {
     return allowsModeration(this.props.status)
   }

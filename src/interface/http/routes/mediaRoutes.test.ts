@@ -14,6 +14,7 @@ import {
 } from '../../../application/ports/mediaStore'
 import { makeExportAlbum, type ExportAlbum } from '../../../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
+import { makeIdentifyMediaViewer } from '../../../application/usecases/photos/identifyMediaViewer'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import {
   AT,
@@ -232,7 +233,7 @@ const buildWorld = async ({
   const media = new InMemoryMediaStore()
 
   const harness = buildHarness({
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.post('/sign-in/host', signInAs({ userId: HOST, email: 'hote@example.test' }))
       app.post('/sign-in/outsider', signInAs({ userId: OUTSIDER, email: 'autre@example.test' }))
       app.use(
@@ -240,6 +241,12 @@ const buildWorld = async ({
           deps,
           usecases: {
             getPhotoMedia: makeGetPhotoMedia({ photos, media }),
+            identifyMediaViewer: makeIdentifyMediaViewer({
+              guests: base.guests,
+              tokens: base.guestTokens,
+              memberships: deps.memberships,
+              clock: deps.clock,
+            }),
             exportAlbum:
               exportAlbum ??
               makeExportAlbum({

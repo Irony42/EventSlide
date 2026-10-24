@@ -44,7 +44,6 @@ import { SqliteAccountTokenRepository } from '../../../infrastructure/db/sqliteA
 import { SqliteAuditLog } from '../../../infrastructure/db/sqliteAuditLog'
 import { SqliteClientRepository } from '../../../infrastructure/db/sqliteClientRepository'
 import { SqliteEventRepository } from '../../../infrastructure/db/sqliteEventRepository'
-import { SqliteGuestRepository } from '../../../infrastructure/db/sqliteGuestRepository'
 import { SqliteInvitationAcceptance } from '../../../infrastructure/db/sqliteInvitationAcceptance'
 import { SqliteMembershipRepository } from '../../../infrastructure/db/sqliteMembershipRepository'
 import { SqlitePhotoRepository } from '../../../infrastructure/db/sqlitePhotoRepository'
@@ -173,7 +172,6 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const users = new SqliteUserRepository(db)
   const clients = new SqliteClientRepository(db)
   const events = new SqliteEventRepository(db)
-  const guests = new SqliteGuestRepository(db)
   const memberships = new SqliteMembershipRepository(db)
   const photos = new SqlitePhotoRepository(db)
   const tokens = new SqliteAccountTokenRepository(db)
@@ -213,7 +211,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       secondFactor: { available: secondFactorRequired, requiredForOperators: secondFactorRequired },
       ...options.config,
     },
-    deps: { events, guests, memberships, users, secondFactors, mailer },
+    deps: { events, memberships, users, secondFactors, mailer },
     usecases: {
       authenticateUser: signInByAddress(accounts),
 

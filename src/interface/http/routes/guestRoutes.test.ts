@@ -61,6 +61,8 @@ const OTHER_GUEST = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 /** A moderator of the wedding, for the one path the host surface also owns. */
 const MODERATOR = '99999999-9999-4999-8999-999999999999'
 const MODERATOR_EMAIL = 'moderateur@example.test'
+/** A signed-in account with no role at the wedding. */
+const OUTSIDER = '88888888-8888-4888-8888-888888888888'
 
 /**
  * Photo ids are UUIDs because `photoParams` says so — the ids in a URL are opaque and
@@ -247,7 +249,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
 
   const harness = buildHarness({
     ...(options.config === undefined ? {} : { config: options.config }),
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.use(
         '/api',
         guestRoutes({
@@ -282,7 +284,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               budget,
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
-            renameGuest: makeRenameGuest({ guests: deps.guests }),
+            renameGuest: makeRenameGuest({ guests: base.guests }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
             getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
@@ -302,6 +304,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
         },
       )
       app.post('/sign-in/moderator', signInAs({ userId: MODERATOR, email: MODERATOR_EMAIL }))
+      app.post('/sign-in/outsider', signInAs({ userId: OUTSIDER, email: 'autre@example.test' }))
     },
   })
 
@@ -911,6 +914,40 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
 
 // ------------------------------------- caption: PATCH /photos/:id/caption --
 
+/**
+ * The button and the refusal are one rule (HTTP-M-10): the `canDelete` flag the phone is shown
+ * must be exactly whether the same guest's `DELETE` is then accepted. Both read
+ * `Photo.deletionVerdict`; walked here over the switch, the three photographs and the window.
+ */
+describe('the canDelete flag agrees with what DELETE then does', () => {
+  const GRACE_MS = 15 * 60 * 1000
+  const cases = [true, false].flatMap((allowGuestSelfDelete) =>
+    [PENDING, PUBLISHED, REJECTED].flatMap((photoId) =>
+      [0, GRACE_MS + 1].map((elapsedMs) => ({ allowGuestSelfDelete, photoId, elapsedMs })),
+    ),
+  )
+
+  it.each(cases)(
+    'self-deletion $allowGuestSelfDelete, photo $photoId, $elapsedMs ms after the upload',
+    async ({ allowGuestSelfDelete, photoId, elapsedMs }) => {
+      const subject = buildSubject({ settings: { allowGuestSelfDelete } })
+      subject.harness.clock.advance(elapsedMs)
+
+      const mine = await request(subject.app)
+        .get(`${BASE}/photos/mine`)
+        .set('Cookie', cookie(subject.token))
+      const flagged = mine.body.items.find((item: { id: string }) => item.id === photoId) as {
+        canDelete: boolean
+      }
+      const deleted = await request(subject.app)
+        .delete(`${BASE}/photos/${photoId}`)
+        .set('Cookie', cookie(subject.token))
+
+      expect(flagged.canDelete).toBe(deleted.status === 204)
+    },
+  )
+})
+
 describe('PATCH /api/events/:eventSlug/photos/:photoId/caption', () => {
   it('writes the caption on the author own pending photo', async () => {
     const subject = buildSubject()
@@ -1439,7 +1476,7 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
   })
 
   it('keeps the guest handler when a guest token is presented', async () => {
-    // The deferral keys on the cookie, so a guest at an event they do not moderate is
+    // The deferral keys on membership and then the cookie, so a guest at an event they do not moderate is
     // still answered here — and by their own rules, not a moderator's.
     const subject = buildSubject()
 
@@ -1449,6 +1486,65 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
 
     expect(response.status).toBe(403)
     expect(response.body.error.code).toBe('photo.deleteForbidden')
+    expect(subject.hostHandlerReached).toEqual([])
+  })
+
+  it('answers a moderator as a moderator even when the browser holds a guest cookie of this event (HTTP-M-02)', async () => {
+    // A host who scanned their own QR code in the browser they moderate from is a guest of the
+    // event for thirty-six hours. Dispatched on the cookie alone, their delete of somebody
+    // else's photograph was refused as a guest's would be: `403 photo.deleteForbidden`.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(204)
+    expect(subject.hostHandlerReached).toEqual([`/api/events/mariage/photos/${ANOTHER_GUESTS}`])
+  })
+
+  it('answers a moderator as a moderator even with the guest cookie of another event', async () => {
+    // `403 guest.wrongEvent` before: the cookie was weighed against an event the caller was
+    // not asking about, and the role they hold in this one was never read.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.galaToken))
+
+    expect(response.status).toBe(204)
+    expect(subject.hostHandlerReached).toHaveLength(1)
+  })
+
+  it('keeps a signed-in account with no role here on the guest handler when it holds a guest cookie', async () => {
+    // The direction the dispatch was written for, and still true: a guest at somebody else's
+    // event, who happens to have an account, must not be sent into `requireRole` and told 404.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/outsider').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('photo.deleteForbidden')
+    expect(subject.hostHandlerReached).toEqual([])
+  })
+
+  it('hands a signed-in account with no role and no guest cookie to the host handler, which refuses it', async () => {
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/outsider').expect(204)
+
+    const response = await agent.delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
     expect(subject.hostHandlerReached).toEqual([])
   })
 
