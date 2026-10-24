@@ -1,13 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asUserId } from '../../../domain/shared/ids'
-import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
-import type { PasswordHasher } from '../../ports/passwordHasher'
 import { AT, aUser } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeSecondFactorRepository } from '../../testing/fakeSecondFactorRepository'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeAuthenticateUser } from './authenticateUser'
+import { FakePasswordHasher } from '../../testing/fakePasswordHasher'
 
 /** The plaintext behind `aUser()`'s default hash, so a fixture and a login agree. */
 const PASSWORD = 'un-mot-de-passe-solide'
@@ -19,60 +18,38 @@ const LEGACY = 'legacy:'
 const current = (plaintext: string): PasswordHash => `${CURRENT}${plaintext}`
 const legacy = (plaintext: string): PasswordHash => `${LEGACY}${plaintext}`
 
-interface Verification {
-  readonly attempt: string
-  readonly hash: PasswordHash
-}
-
 const isLegacy = (hash: PasswordHash): boolean => hash.startsWith(LEGACY)
 
 /**
- * A hasher that records every verification it was asked for.
+ * A hasher that verifies both hash shapes and calls the stale ones stale.
  *
- * The equal-cost verify on an unknown address is invisible in the result — the use case
- * answers `auth.invalidCredentials` either way — so observing the call is the only way
- * to hold that rule in place. `src/application/testing/` has no recording hasher, and
- * it is written by work in flight, so this one is local to the file that needs it.
- *
- * Two hash shapes rather than one, because a rehash is only observable when the new
- * hash differs from the stored one that verified: `legacy:` is a hash at the old cost.
+ * Two shapes rather than one, because a rehash is only observable when the new hash differs
+ * from the stored one that verified: `legacy:` is a hash at the old cost. The equal-cost
+ * verify on an unknown address is invisible in the result — the use case answers
+ * `auth.invalidCredentials` either way — so the fake's record of each comparison is the only
+ * way to hold that rule in place. `stale` is injected so a test can call any stored hash
+ * stale, whatever its shape; `gate` holds every comparison open.
  */
-class RecordingPasswordHasher implements PasswordHasher {
-  readonly verifications: Verification[] = []
-  readonly dummyHash: PasswordHash = current('mot-de-passe-factice')
-
-  /** Injected so a test can call any stored hash stale, whatever its shape. */
-  constructor(private readonly stale: (hash: PasswordHash) => boolean = isLegacy) {}
-
-  async hash(password: Password): Promise<PasswordHash> {
-    return current(password.value)
-  }
-
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    this.verifications.push({ attempt, hash })
-    return hash === current(attempt) || hash === legacy(attempt)
-  }
-
-  needsRehash(hash: PasswordHash): boolean {
-    return this.stale(hash)
-  }
-}
+const hasherWithLegacyRows = (
+  stale: (hash: PasswordHash) => boolean = isLegacy,
+  gate?: Promise<void>,
+): FakePasswordHasher => new FakePasswordHasher({ stale, alsoVerifies: legacy, gate })
 
 describe('authenticateUser', () => {
   let users: FakeUserRepository
   let factors: FakeSecondFactorRepository
-  let hasher: RecordingPasswordHasher
+  let hasher: FakePasswordHasher
   let clock: FakeClock
 
   const authenticate = (
     input: { email: string; password: string },
-    withHasher: RecordingPasswordHasher = hasher,
+    withHasher: FakePasswordHasher = hasher,
   ) => makeAuthenticateUser({ users, factors, hasher: withHasher, clock })(input)
 
   beforeEach(() => {
     users = new FakeUserRepository()
     factors = new FakeSecondFactorRepository().withAccounts(asUserId('user-1'))
-    hasher = new RecordingPasswordHasher()
+    hasher = hasherWithLegacyRows()
     clock = new FakeClock()
   })
 
@@ -177,30 +154,18 @@ describe('authenticateUser', () => {
      * comparison open, change the account underneath it, and let it finish — the one ordering
      * the other tests cannot reach, because a fake hasher answers instantly.
      */
-    class GatedHasher extends RecordingPasswordHasher {
-      private release: () => void = () => undefined
-      private entered: () => void = () => undefined
-      readonly insideVerify = new Promise<void>((resolve) => (this.entered = resolve))
-      private readonly gate = new Promise<void>((resolve) => (this.release = resolve))
-
-      override async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-        const answer = await super.verify(attempt, hash)
-        this.entered()
-        await this.gate
-        return answer
-      }
-
-      open(): void {
-        this.release()
-      }
-    }
-
     const signInDuring = async (change: () => Promise<void>) => {
-      const gated = new GatedHasher()
+      let open: () => void = () => undefined
+      const gated = hasherWithLegacyRows(
+        isLegacy,
+        new Promise<void>((resolve) => {
+          open = resolve
+        }),
+      )
       const pending = authenticate({ email: 'hote@example.test', password: PASSWORD }, gated)
-      await gated.insideVerify
+      await gated.whenVerifying()
       await change()
-      gated.open()
+      open()
       return pending
     }
 
@@ -281,7 +246,7 @@ describe('authenticateUser', () => {
 
     const result = await authenticate(
       { email: 'hote@example.test', password: PASSWORD },
-      new RecordingPasswordHasher(() => true),
+      hasherWithLegacyRows(() => true),
     )
 
     expect(result.ok).toBe(true)

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventId } from '../../../domain/shared/ids'
 import { asEventId } from '../../../domain/shared/ids'
-import type { MediaMetadata, MediaStore, StoredObject } from '../../ports/mediaStore'
-import { AT, aClient, anEvent, atPlus } from '../../testing/builders'
+import { AT, aClient, aPhoto, anEvent, atPlus } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
+import { CallLog } from '../../testing/callLog'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { makePurgeExpiredEvents, type PurgeExpiredEvents } from './purgeExpiredEvents'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -14,48 +15,45 @@ const GALA = asEventId('evt-gala')
 const DAY = 86_400_000
 /** A month and a day after both events closed: the 30-day deadline has gone by. */
 const SWEEP_AT = atPlus(31 * DAY)
+const HASH = aPhoto().contentHash
 
-const notPartOfASweep = (method: string): never => {
-  throw new Error(`MediaStore.${method} is not part of a retention sweep`)
-}
-
-/**
- * A media store that records the event purges asked of it and can be told which ones
- * fail. Everything else on the port throws, so a sweep that started reading bytes would
- * fail loudly rather than pass against a permissive stub.
- */
-class RecordingMediaStore implements MediaStore {
-  readonly purged: EventId[] = []
-
-  constructor(private readonly failing: readonly EventId[] = []) {}
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    if (this.failing.includes(eventId)) throw new Error('media root is read-only')
-    this.purged.push(eventId)
-  }
-
-  put = async (): Promise<void> => notPartOfASweep('put')
-  exists = async (): Promise<boolean> => notPartOfASweep('exists')
-  stat = async (): Promise<MediaMetadata | null> => notPartOfASweep('stat')
-  openRead = async (): Promise<AsyncIterable<Uint8Array> | null> => notPartOfASweep('openRead')
-  read = async (): Promise<Uint8Array | null> => notPartOfASweep('read')
-  delete = async (): Promise<void> => notPartOfASweep('delete')
-  usedBytes = async (): Promise<number> => notPartOfASweep('usedBytes')
-  listEvents = async (): Promise<readonly EventId[]> => notPartOfASweep('listEvents')
-  list = async (): Promise<readonly StoredObject[]> => notPartOfASweep('list')
+/** A store holding bytes for both events, so what a sweep purged is what is no longer there. */
+const storeHoldingBoth = async (failing: readonly EventId[] = []): Promise<InMemoryMediaStore> => {
+  const media = new InMemoryMediaStore().failEventPurges(...failing)
+  await media.put(WEDDING, HASH, 'original', Uint8Array.of(1))
+  await media.put(GALA, HASH, 'original', Uint8Array.of(1))
+  return media
 }
 
 describe('purgeExpiredEvents', () => {
   let events: FakeEventRepository
-  let media: RecordingMediaStore
+  let media: InMemoryMediaStore
   let clock: FakeClock
+  let calls: CallLog
   let purgeExpiredEvents: PurgeExpiredEvents
 
-  beforeEach(() => {
+  /** The store as the sweep sees it: every call it makes is written down. */
+  const watched = (store: InMemoryMediaStore): InMemoryMediaStore => {
+    calls = new CallLog()
+    return calls.watch('media', store)
+  }
+
+  /** What is left on the disk for the wedding and for the gala, in bytes. */
+  const bytesLeft = async (): Promise<number[]> => [
+    await media.usedBytes(WEDDING),
+    await media.usedBytes(GALA),
+  ]
+
+  beforeEach(async () => {
     events = new FakeEventRepository()
-    media = new RecordingMediaStore()
+    media = await storeHoldingBoth()
     clock = new FakeClock(SWEEP_AT)
-    purgeExpiredEvents = makePurgeExpiredEvents({ events, media, clock, capNoticeDays: 30 })
+    purgeExpiredEvents = makePurgeExpiredEvents({
+      events,
+      media: watched(media),
+      clock,
+      capNoticeDays: 30,
+    })
   })
 
   const seedExpiredWedding = (): void => {
@@ -75,7 +73,8 @@ describe('purgeExpiredEvents', () => {
 
     await purgeExpiredEvents()
 
-    expect(media.purged).toEqual([WEDDING])
+    expect(await bytesLeft()).toEqual([0, 1])
+    expect(calls.names).toEqual(['media.deleteEvent'])
   })
 
   it('purges the row of an event past its retention deadline', async () => {
@@ -130,13 +129,14 @@ describe('purgeExpiredEvents', () => {
   it('asks the media store for nothing when nothing is due', async () => {
     await purgeExpiredEvents()
 
-    expect(media.purged).toEqual([])
+    expect(await bytesLeft()).toEqual([1, 1])
+    expect(calls.names).toEqual([])
   })
 
   // ------------------------------------------------------- one bad disk, forty events --
 
   describe('when one event cannot be purged', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       seedExpiredWedding()
       events.seed(
         anEvent({
@@ -147,8 +147,13 @@ describe('purgeExpiredEvents', () => {
           settings: { retentionDays: 30 },
         }),
       )
-      media = new RecordingMediaStore([GALA])
-      purgeExpiredEvents = makePurgeExpiredEvents({ events, media, clock, capNoticeDays: 30 })
+      media = await storeHoldingBoth([GALA])
+      purgeExpiredEvents = makePurgeExpiredEvents({
+        events,
+        media: watched(media),
+        clock,
+        capNoticeDays: 30,
+      })
     })
 
     it('carries on to the events behind it', async () => {
@@ -181,7 +186,7 @@ describe('purgeExpiredEvents', () => {
     })
 
     const purgeWith = (capNoticeDays: number): PurgeExpiredEvents =>
-      makePurgeExpiredEvents({ events, media, clock, capNoticeDays })
+      makePurgeExpiredEvents({ events, media: watched(media), clock, capNoticeDays })
 
     const seedKeptForEver = (closedAt: Date): void => {
       events.seed(
@@ -202,7 +207,7 @@ describe('purgeExpiredEvents', () => {
       const report = await purgeWith(30)()
 
       expect(report).toEqual({ purged: [WEDDING], failed: [] })
-      expect(media.purged).toEqual([WEDDING])
+      expect(await bytesLeft()).toEqual([0, 1])
     })
 
     it('leaves it until then', async () => {

@@ -3,9 +3,9 @@ import type { ContentHash } from '../../domain/photos/contentHash'
 import { VARIANTS_BY_KIND } from '../../domain/photos/mediaVariant'
 import type { Photo } from '../../domain/photos/photo'
 import { asEventId, asUserId, type EventId } from '../../domain/shared/ids'
-import type { ArchiveEntry, ArchiveWriter } from '../ports/archiveWriter'
 import { CapturingLogger } from './capturingLogger'
 import { AT, anEvent, aShareLink, aUser, type ShareLinkInput } from './builders'
+import { FakeArchiveWriter } from './fakeArchiveWriter'
 import { FakeClock } from './fakeClock'
 import { FakeEventRepository } from './fakeEventRepository'
 import { FakeGallerySigner } from './fakeGallerySigner'
@@ -34,22 +34,6 @@ export const CO_OWNER = asUserId('user-co-owner')
 export const MODERATOR = asUserId('user-moderator')
 export const STRANGER = asUserId('user-stranger')
 
-/** Records what it was asked to archive and emits one chunk per entry. */
-export class RecordingArchiveWriter implements ArchiveWriter {
-  readonly names: string[] = []
-
-  stream(entries: AsyncIterable<ArchiveEntry>): AsyncIterable<Uint8Array> {
-    const names = this.names
-    return (async function* () {
-      for await (const entry of entries) {
-        for await (const chunk of entry.bytes) void chunk
-        names.push(entry.name)
-        yield Uint8Array.of(names.length)
-      }
-    })()
-  }
-}
-
 /** The shared double, re-exported: the HTTP harnesses still import it from this file. */
 export { CapturingLogger }
 
@@ -64,7 +48,7 @@ export interface GalleryWorld {
   readonly hasher: FakePasswordHasher
   readonly ids: SequentialIdGenerator
   readonly media: InMemoryMediaStore
-  readonly archive: RecordingArchiveWriter
+  readonly archive: FakeArchiveWriter
   readonly logger: CapturingLogger
   /**
    * Stores a link for the wedding, created by the owner, and answers its token. The
@@ -110,7 +94,7 @@ export const buildGalleryWorld = (): GalleryWorld => {
     hasher: new FakePasswordHasher(),
     ids: new SequentialIdGenerator(),
     media,
-    archive: new RecordingArchiveWriter(),
+    archive: new FakeArchiveWriter(),
     logger: new CapturingLogger(),
     seedLink: (input = {}) => {
       const { token, digest } = signer.mintToken()

@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Event } from '../../../domain/events/event'
-import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, asUserId, type EventId, type GuestId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
-import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
+import { ok } from '../../../domain/shared/result'
 import { AT, aGuest, anEvent, aUser } from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeClock } from '../../testing/fakeClock'
@@ -13,6 +11,10 @@ import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeAuthenticateGuest } from '../guests/authenticateGuest'
 import { makeIdentifyMediaViewer } from './identifyMediaViewer'
+import {
+  FAKE_GUEST_TOKEN_MAX_AGE_MS as MAX_AGE_MS,
+  FakeGuestTokenService,
+} from '../../testing/fakeGuestTokenService'
 
 /**
  * Who is asking for a photograph's bytes.
@@ -25,31 +27,6 @@ import { makeIdentifyMediaViewer } from './identifyMediaViewer'
  * fails there.
  */
 
-const MAX_AGE_MS = 12 * 60 * 60 * 1_000
-
-/** A token a test can both mint and read: `token|<eventId>|<guestId>|<issuedAt ms>`. */
-class FakeGuestTokenService implements GuestTokenService {
-  issue({ eventId, guestId, issuedAt }: GuestTokenClaims): string {
-    return `token|${eventId}|${guestId}|${issuedAt.getTime()}`
-  }
-
-  verify(token: string, now: Date): Result<GuestTokenClaims, DomainError> {
-    const [prefix, eventId, guestId, issuedAt] = token.split('|')
-    if (prefix !== 'token' || eventId === undefined || guestId === undefined) {
-      return err(DomainError.unauthenticated('guestToken.malformed'))
-    }
-    const issuedAtMs = Number(issuedAt)
-    if (!Number.isFinite(issuedAtMs)) return err(DomainError.unauthenticated('guestToken.malformed'))
-    if (now.getTime() - issuedAtMs > MAX_AGE_MS) {
-      return err(DomainError.unauthenticated('guestToken.expired'))
-    }
-    return ok({
-      eventId: asEventId(eventId),
-      guestId: asGuestId(guestId),
-      issuedAt: new Date(issuedAtMs),
-    })
-  }
-}
 
 const WEDDING = asEventId('event-1')
 const GALA = asEventId('event-2')
