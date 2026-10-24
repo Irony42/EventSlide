@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Button } from '../../../design-system/components/Button'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { Notice } from '../../../design-system/components/Notice'
 import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { usePhotoReactions } from '../hooks/usePhotoReactions'
@@ -80,10 +80,9 @@ export function ReactionBar({ slug, photoId, position }: ReactionBarProps) {
     <div ref={root} tabIndex={-1} className={styles['bar']}>
       {reactions.phase === 'failed' ? (
         <div className={styles['failed']}>
-          <p className={styles['error']}>
-            <StatusIcon tone="danger" />
+          <Notice tone="danger" variant="inline">
             {reactions.error}
-          </p>
+          </Notice>
           <Button
             variant="secondary"
             size="sm"
@@ -125,10 +124,9 @@ export function ReactionBar({ slug, photoId, position }: ReactionBarProps) {
           </div>
 
           {reactions.error === null ? null : (
-            <p className={styles['error']} role="alert">
-              <StatusIcon tone="danger" />
+            <Notice tone="danger" variant="inline" role="alert">
               {reactions.error}
-            </p>
+            </Notice>
           )}
         </>
       )}

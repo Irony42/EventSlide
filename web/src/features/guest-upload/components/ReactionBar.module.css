@@ -82,12 +82,3 @@
   align-items: flex-start;
   inline-size: 100%;
 }
-
-.error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  color: var(--danger);
-  font-size: var(--text-sm);
-}
