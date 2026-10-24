@@ -39,7 +39,7 @@ the leak. Regression tests go in the cheapest ring that would have caught it.
 | ----------------------- | ---------------------------------------------------------------------- |
 | `FakeEventRepository`   | slug and join-code uniqueness enforced, as in SQLite                   |
 | `FakePhotoRepository`   | keyed by `${eventId}:${photoId}` — a cross-event read genuinely misses |
-| `FakeGuestRepository`   | tokens scoped to one event                                             |
+| `FakeGuestRepository`   | tokens scoped to one event; `photoCount` derived from the photo fake   |
 | `FakeUserRepository`    | per-event role membership                                              |
 | `InMemoryMediaStore`    | byte buffers, `put`/`get`/`delete`, reports sizes                      |
 | `FakeImageProcessor`    | deterministic metadata, simulates rotation and failure                 |
