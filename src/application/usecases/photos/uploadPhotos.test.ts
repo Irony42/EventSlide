@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
-import { Dimensions } from '../../../domain/photos/dimensions'
 import type { Photo, PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import {
@@ -13,9 +12,7 @@ import {
   type MissionId,
   type PhotoId,
 } from '../../../domain/shared/ids'
-import { ok, type Result } from '../../../domain/shared/result'
-import type { ContentHasher } from '../../ports/contentHasher'
-import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
+import { type Result } from '../../../domain/shared/result'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import type {
   PhotoAdmission,
@@ -24,7 +21,6 @@ import type {
 } from '../../ports/photoRepository'
 import {
   MEDIA_VARIANTS,
-  type PhotoVariant,
 } from '../../ports/mediaStore'
 import { aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
@@ -36,7 +32,6 @@ import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
 import {
   makeUploadPhotos,
-  VARIANT_SPECS,
   type UploadFile,
   type UploadOutcome,
   type UploadPhotos,
@@ -46,6 +41,8 @@ import {
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { CountingClientRepository } from '../../testing/countingClientRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { FakeContentHasher } from '../../testing/fakeContentHasher'
+import { FakeImageProcessor, tagBytes } from '../../testing/fakeImageProcessor'
 
 /**
  * Ingest is the highest-risk operation in the product: the only public write, it
@@ -54,126 +51,6 @@ import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
  */
 
 // ---------------------------------------------------------------- test doubles --
-
-/** A file's bytes are its tag, so every double can answer deterministically for it. */
-const tagBytes = (tag: string): Uint8Array =>
-  Uint8Array.from([...tag].map((character) => character.charCodeAt(0)))
-
-const readTag = (bytes: Uint8Array): string => String.fromCharCode(...bytes)
-
-const must = <T>(result: Result<T, DomainError>): T => {
-  if (!result.ok) throw new Error(`fixture rejected by the domain: ${result.error.code}`)
-  return result.value
-}
-
-/** Sums to exactly 1 MB per photo, so a quota expectation is arithmetic a reader can do. */
-const DEFAULT_BYTE_SIZES: Readonly<Record<PhotoVariant, number>> = {
-  original: 900_000,
-  display: 90_000,
-  thumb: 10_000,
-}
-
-interface ImageScript {
-  readonly width?: number
-  readonly height?: number
-  readonly probeError?: DomainError
-  readonly renderErrorAt?: PhotoVariant
-  readonly byteSizes?: Readonly<Record<PhotoVariant, number>>
-}
-
-/** Matched on the longest edge, so the double does not depend on object identity. */
-const variantFor = (spec: RenderSpec): PhotoVariant => {
-  const match = MEDIA_VARIANTS.find((variant) => VARIANT_SPECS[variant].maxWidth === spec.maxWidth)
-  if (match === undefined) throw new Error(`no variant renders at ${spec.maxWidth}px`)
-  return match
-}
-
-/**
- * A deterministic `ImageProcessor`.
- *
- * `calls` is the point of it: the port's contract is an *order* — read the header, then
- * decode — and the only way to prove ingest honours it is to show that a refused file
- * produced no render call at all.
- */
-class FakeImageProcessor implements ImageProcessor {
-  readonly calls: string[] = []
-
-  private readonly scripts = new Map<string, ImageScript>()
-
-  script(tag: string, script: ImageScript): this {
-    this.scripts.set(tag, script)
-    return this
-  }
-
-  /** The exact bytes `render` will produce, so a test can pre-compute a content hash. */
-  renderedBytes(tag: string, variant: PhotoVariant): Uint8Array {
-    return tagBytes(`${tag}/${variant}`)
-  }
-
-  async probe(bytes: Uint8Array): Promise<Result<ImageProbe, DomainError>> {
-    const tag = readTag(bytes)
-    this.calls.push(`probe:${tag}`)
-
-    const script = this.scripts.get(tag) ?? {}
-    if (script.probeError !== undefined) return { ok: false, error: script.probeError }
-
-    return ok({
-      format: 'jpeg',
-      dimensions: this.dimensionsOf(script),
-      hasAlpha: false,
-      exifOrientation: 6,
-      hasMetadata: true,
-      frames: 1,
-    })
-  }
-
-  async render(bytes: Uint8Array, spec: RenderSpec): Promise<Result<RenderedImage, DomainError>> {
-    const tag = readTag(bytes)
-    const variant = variantFor(spec)
-    this.calls.push(`render:${tag}:${variant}`)
-
-    const script = this.scripts.get(tag) ?? {}
-    if (script.renderErrorAt === variant) {
-      return { ok: false, error: DomainError.unexpected('image.renderFailed') }
-    }
-
-    const box = must(Dimensions.create(spec.maxWidth, spec.maxHeight))
-    return ok({
-      bytes: this.renderedBytes(tag, variant),
-      dimensions: this.dimensionsOf(script).scaleToFit(box),
-      byteSize: (script.byteSizes ?? DEFAULT_BYTE_SIZES)[variant],
-      format: spec.format,
-    })
-  }
-
-  private dimensionsOf(script: ImageScript): Dimensions {
-    return must(Dimensions.create(script.width ?? 4032, script.height ?? 3024))
-  }
-}
-
-/** FNV-1a widened to 64 hex characters: deterministic, and a real `ContentHash`. */
-class FakeContentHasher implements ContentHasher {
-  private malformed = false
-
-  /** A broken adapter — the one hash failure that is not the guest's photo's fault. */
-  returnGarbage(): this {
-    this.malformed = true
-    return this
-  }
-
-  sha256Hex(bytes: Uint8Array): string {
-    if (this.malformed) return 'not-a-digest'
-
-    let state = 2166136261
-    let digest = ''
-    while (digest.length < 64) {
-      for (const byte of bytes) state = Math.imul(state ^ byte, 16777619) >>> 0
-      state = Math.imul(state ^ digest.length, 16777619) >>> 0
-      digest += state.toString(16).padStart(8, '0')
-    }
-    return digest.slice(0, 64)
-  }
-}
 
 /** A locked database: `SQLITE_BUSY` on the insert, after the media has been written. */
 class LockedPhotoRepository extends FakePhotoRepository {
