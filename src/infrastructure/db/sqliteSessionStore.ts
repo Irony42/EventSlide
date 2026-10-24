@@ -1,6 +1,7 @@
 import { Store, type SessionData } from 'express-session'
 import type { Db } from './connection'
 import type { Logger } from '../../application/ports/logger'
+import { setBackgroundInterval } from '../time/backgroundTimers'
 
 /**
  * Host and moderator sessions in SQLite.
@@ -48,10 +49,9 @@ export class SqliteSessionStore extends Store {
     // Sweep once at construction, so a restart after a long shutdown does not carry
     // a backlog of dead rows into the first request.
     this.sweep()
-    this.sweepTimer = setInterval(() => this.sweep(), sweepIntervalMs)
-    // Without this the interval keeps the process alive and `npm start` never exits
+    // A background interval: a ref'd one keeps the process alive and `npm start` never exits
     // on Ctrl-C.
-    this.sweepTimer.unref()
+    this.sweepTimer = setBackgroundInterval(() => this.sweep(), sweepIntervalMs)
   }
 
   override get(
