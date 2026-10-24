@@ -1,8 +1,5 @@
 import { Router, type RequestHandler, type Response } from 'express'
 import type { EventSummary } from '../../../application/ports/eventRepository'
-import { makeListModerators } from '../../../application/usecases/events/listModerators'
-import { makeRenameEvent } from '../../../application/usecases/events/renameEvent'
-import { makeRevokeModerator } from '../../../application/usecases/events/revokeModerator'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { DomainError } from '../../../domain/shared/errors'
@@ -80,26 +77,6 @@ export const eventRoutes = ({
   creationLimiter,
 }: EventRouteDeps): Router => {
   const router = Router()
-
-  /**
-   * Three of these routes have no entry in `HttpUseCases` yet: renaming an event,
-   * listing its memberships, and revoking one. Their rules — an archived event is
-   * immutable, an event is never left without an owner — belong in the application
-   * layer like every other event rule, so they live in
-   * `src/application/usecases/events/` with their own unit tests and are composed here
-   * from the ports `RouteDeps` already carries. When `useCases.ts` adopts them, this
-   * block disappears and the handlers below do not change.
-   */
-  const renameEvent = makeRenameEvent({
-    events: deps.events,
-    memberships: deps.memberships,
-    bus: deps.bus,
-  })
-  const listModerators = makeListModerators({ memberships: deps.memberships })
-  const revokeModerator = makeRevokeModerator({
-    events: deps.events,
-    memberships: deps.memberships,
-  })
 
   /**
    * The counts an `EventDto` carries, read out of the caller's own dashboard listing.
@@ -228,7 +205,7 @@ export const eventRoutes = ({
       const scope = hostScope(req.context)
       const body = renameEventBody.parse(req.body)
 
-      const result = await renameEvent({
+      const result = await usecases.renameEvent({
         eventId: scope.event.id,
         actorId: scope.user.userId,
         name: body.name,
@@ -416,7 +393,7 @@ export const eventRoutes = ({
     asyncHandler(async (req, res) => {
       const scope = hostScope(req.context)
 
-      const result = await listModerators({
+      const result = await usecases.listModerators({
         eventId: scope.event.id,
         actorId: scope.user.userId,
       })
@@ -471,7 +448,7 @@ export const eventRoutes = ({
 
       // The last owner is refused by the use case, not here: an event left unowned has
       // no route back, since inviting is itself an owner's action.
-      const result = await revokeModerator({
+      const result = await usecases.revokeModerator({
         eventId: scope.event.id,
         actorId: scope.user.userId,
         userId: asUserId(params.userId),

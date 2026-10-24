@@ -62,7 +62,10 @@ import {
 } from '../application/usecases/events/createEvent'
 import { makeGetEventBySlug } from '../application/usecases/events/getEventBySlug'
 import { makeListEventsForHost } from '../application/usecases/events/listEventsForHost'
+import { makeListModerators } from '../application/usecases/events/listModerators'
 import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
+import { makeRenameEvent } from '../application/usecases/events/renameEvent'
+import { makeRevokeModerator } from '../application/usecases/events/revokeModerator'
 import { makePurgeExpiredEvents } from '../application/usecases/events/purgeExpiredEvents'
 import { makeSweepOrphanedMedia } from '../application/usecases/media/sweepOrphanedMedia'
 import { makeResolveJoinCode } from '../application/usecases/events/resolveJoinCode'
@@ -508,6 +511,19 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       events: adapters.events,
       memberships: adapters.memberships,
       media: adapters.media,
+    }),
+    // Built here, with the others, since the route module composed them from `deps` until now
+    // (HTTP-M-05): a logger, an audit line or a clock added to the rest reaches these three too, and a
+    // test can hand the router a stub.
+    renameEvent: makeRenameEvent({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+    }),
+    listModerators: makeListModerators({ memberships: adapters.memberships }),
+    revokeModerator: makeRevokeModerator({
+      events: adapters.events,
+      memberships: adapters.memberships,
     }),
     purgeExpiredEvents: makePurgeExpiredEvents({
       events: adapters.events,
