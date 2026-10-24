@@ -223,7 +223,7 @@ regret not having afterwards. Reuses the entire moderation path.
 
 At the end of the night, a two-minute sequence of the most-reacted photos, slower and
 tighter than the ambient loop. Also the natural artefact to hand the host afterwards.
-Reaction tallies and `topPhotos` already exist.
+Reaction tallies and `rankedPhotos` already exist.
 
 ### 2.8 Schedule overlays (P3, effort S, risk: low)
 

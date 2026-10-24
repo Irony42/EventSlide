@@ -77,20 +77,31 @@ const compareIds = (left: PhotoId, right: PhotoId): number =>
 const byTotalThenId = (left: RankedPhoto, right: RankedPhoto): number =>
   right.total - left.total || compareIds(left.photoId, right.photoId)
 
-export const topPhotos = (
-  byPhoto: ReadonlyMap<PhotoId, ReactionCounts>,
-  limit: number,
-): Result<readonly PhotoId[], DomainError> => {
+/**
+ * How many photographs the panel may be asked for: a whole number, at least one.
+ *
+ * Checked on its own, and not folded into the ranking, because the limit is applied
+ * **after** the caller has dropped what the ranking cannot know about — a photo taken off
+ * the wall keeps its reactions, and a limit applied first let it use up a slot and then be
+ * removed, so a panel asked for one photo could answer none while a published photo had
+ * reactions.
+ */
+export const checkTopLimit = (limit: number): Result<number, DomainError> => {
   if (!Number.isInteger(limit)) {
     return err(DomainError.invalid('reaction.limitNotInteger'))
   }
   if (limit < 1) {
     return err(DomainError.invalid('reaction.limitOutOfRange', { min: 1 }))
   }
-  const ranked = [...byPhoto]
+  return ok(limit)
+}
+
+/**
+ * Every photo anybody reacted to, best first: the order the "photo of the night" panel
+ * walks, taking from the top until it has as many as it was asked for.
+ */
+export const rankedPhotos = (byPhoto: ReadonlyMap<PhotoId, ReactionCounts>): readonly PhotoId[] =>
+  [...byPhoto]
     .map(([photoId, counts]) => ({ photoId, total: totalReactions(counts) }))
     .sort(byTotalThenId)
-    .slice(0, limit)
     .map((entry) => entry.photoId)
-  return ok(ranked)
-}
