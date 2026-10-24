@@ -47,6 +47,7 @@ const recording = (inner: FakeGuestRepository): RecordedGuests => {
       list: (eventId) => inner.list(eventId),
       countActive: (eventId, since) => inner.countActive(eventId, since),
       save: (guest) => inner.save(guest),
+      touch: (eventId, guestId, at) => inner.touch(eventId, guestId, at),
       delete: (eventId, guestId) => inner.delete(eventId, guestId),
     },
   }

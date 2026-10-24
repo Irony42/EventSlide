@@ -20,7 +20,7 @@ import { anEvent, aGuest, aUser, AT } from '../../../application/testing/builder
 import { CallLog } from '../../../application/testing/callLog'
 import { ok } from '../../../domain/shared/result'
 import { Event } from '../../../domain/events/event'
-import { asEventId, asUserId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { HttpDeps, SessionPayload } from '../types'
 
 const WEDDING = 'wedding-id'
@@ -833,6 +833,78 @@ describe('requireGuest', () => {
 
     expect(response.status).toBe(200)
     expect(response.body.guestId).toBe('guest-1')
+  })
+
+  /**
+   * The count the host reads ("N guests here") is `lastSeenAt` inside a five-minute window.
+   * It was written by the join and by nothing after: the middleware kept its own copy of
+   * `authenticateGuest`, dropped the stamp, and the console counted guests who had *joined*
+   * recently, not guests who were still uploading.
+   */
+  it('records the guest as seen, so the host count says who is still here', async () => {
+    const subject = harness()
+    seedGuest(subject)
+    const token = subject.issueGuestToken(WEDDING, 'guest-1')
+    subject.clock.advance(60 * 60 * 1000)
+
+    await request(subject.app)
+      .get('/events/mariage/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+    const stored = await subject.guests.findById(asEventId(WEDDING), asGuestId('guest-1'))
+    expect(stored?.lastSeenAt).toEqual(subject.clock.now())
+  })
+
+  it('does not record the guest as seen when the request is refused', async () => {
+    const subject = harness()
+    seedGuest(subject)
+    const token = subject.issueGuestToken(GALA, 'guest-1')
+    subject.clock.advance(60 * 60 * 1000)
+
+    await request(subject.app)
+      .get('/events/mariage/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+    const stored = await subject.guests.findById(asEventId(WEDDING), asGuestId('guest-1'))
+    expect(stored?.lastSeenAt).toEqual(AT)
+  })
+
+  it.each(['closed', 'archived'] as const)(
+    'still identifies a guest of a %s event: who they are does not depend on the party',
+    async (status) => {
+      const subject = harness()
+      seedGuest(subject)
+      subject.events.seed(anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status }))
+      const token = subject.issueGuestToken(WEDDING, 'guest-1')
+
+      const response = await request(subject.app)
+        .get('/events/mariage/upload')
+        .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+      expect(response.status).toBe(200)
+    },
+  )
+
+  it('answers a guest of a suspended client exactly as it answers an event that does not exist', async () => {
+    const subject = harness()
+    seedGuest(subject)
+    subject.events.seed(
+      Event.restore({
+        ...anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM' }).toProps(),
+        clientSuspendedAt: AT,
+      }),
+    )
+    const token = subject.issueGuestToken(WEDDING, 'guest-1')
+
+    const suspended = await request(subject.app)
+      .get('/events/mariage/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+    const unknown = await request(subject.app)
+      .get('/events/no-such-event/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+    expect([suspended.status, suspended.body]).toEqual([404, unknown.body])
+    expect(suspended.body.error.code).toBe('event.notFound')
   })
 
   it('refuses a token issued for another event', async () => {
