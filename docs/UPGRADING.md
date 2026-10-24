@@ -255,14 +255,17 @@ in which order, and how to tell it worked.
 
 3.0.0 is the AGPL release and the first major held to this policy. If you run EventSlide
 unmodified the licence asks nothing more of you ([licensing FAQ](LICENSING-FAQ.md)); what can
-stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CHANGELOG.md).
+stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CHANGELOG.md), and
+the steps below are that list in the order you meet it. Read it once before you start: it says
+why each change was made and what there was no warning for.
 
 **Who is affected.** Everyone who upgrades from 2.x. Go in this order.
 
 1. **Be on 2.1.0, and back up with it.** The newest release of the 2.x line carries the Docker
    backup commands the steps [above](#upgrading-with-docker) use, and it is the version that
    can restore the archive if you go back: 3.0.0 applies migrations 008, 009, 010, 011, 012, 013 and 014, and
-   2.1.0 refuses a database that holds them ("downgrading is not supported"). A build of
+   2.1.0 refuses a database that holds them ("downgrading is not supported"). Migrations 013 and 014
+   build indexes, which takes a moment on a large database: the first boot is not instant. A build of
    2.1.0 reports `2.0.0` in `GET /api/health`, in its image tag and in its backup manifest,
    because the tag was cut before `package.json` was bumped: `git describe --tags --match 'v*'`
    in your checkout says which release you are on.
@@ -276,24 +279,68 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
    where it used to pass only the few the file names. Remove each line you did not mean to
    apply. Look first at `DATABASE_PATH` and `MEDIA_ROOT`: the values in `.env.example`
    (`./data/eventslide.sqlite`, `./media`) override the `/data` paths the image sets, and
-   point the server away from your volume. If you copied the file before 3.0.0, it also sets
+   point the server away from your volume. `PORT` too: `compose.yaml` publishes `${PORT:-4300}:4300`
+   and the server now listens on the `PORT` of `.env` inside the container, so a `PORT=8080` that only
+   meant "publish on 8080" leaves the mapping pointing at a port nothing listens on. Leave it out of
+   `.env`, or change the mapping. If you copied the file before 3.0.0, it also sets
    `GUEST_SELF_DELETE_GRACE_SECONDS`, which nothing ever read (the grace is a setting of each
    event): it is deprecated, 3.0.0 warns at boot that it does nothing, and you can remove it.
-3. **Look for the names of the new settings.** The server now checks them at boot and exits
-   with code 78 on a value that does not fit, naming the variable. If your environment already
-   sets one of them for another purpose, change or remove it: `SUPPORT_URL`, `REPORT_URL`,
-   `LEGAL_TERMS_URL`, `LEGAL_TERMS_VERSION`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SOURCE_CODE_URL`,
-   `DONATION_URL`, `BUDGET_URL`, `SOURCE_REF`, `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`,
-   `SMTP_URL`, `MAIL_FROM`, `EVENT_CREATION`, `AUDIT_RETENTION_DAYS`, `MIN_FREE_DISK_BYTES`,
-   `MAX_CONCURRENT_UPLOAD_REQUESTS`, `MAX_QUEUED_CLIPS_PER_EVENT`, `MAX_STREAMS_PER_CLIENT`,
-   `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`, `RETENTION_CAP_NOTICE_DAYS`,
-   `SQLITE_SHUTDOWN_CHECKPOINT`, `MFA_ENCRYPTION_KEY`, `REQUIRE_OPERATOR_2FA`,
-   `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`, `NEW_CLIENT_MAX_TOTAL_BYTES`,
-   `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`, `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`
-   and `NEW_CLIENT_CLIPS_ALLOWED`. The CHANGELOG says what each accepts. A `NEW_CLIENT_*` setting
-   also stops a box that runs with `SITE_ADMIN=off`, which is the default, and so does any other name
-   that starts with `NEW_CLIENT_`.
-4. **Check the scripts and clients that call the API.**
+3. **Check `PUBLIC_URL`.** It is the address in every join link, QR code and mail, and four
+   checks of it are new. In production, a plain `http` address is refused whatever the case of
+   its scheme (`HTTP://photos.example.com`); the one exemption is the host `localhost`, and
+   nothing that starts with it (`http://localhost.example.com` is refused). Whatever the
+   environment, a value is refused if it ends in a space or a tab, has a tab or a line break
+   inside it, carries a user name or a password, or has a `?` or a `#` anywhere, even a bare
+   one: write a `?` or a `#` that belongs in a path prefix as `%3F` or `%23`. The boot exits
+   with code 78, names `PUBLIC_URL` and never repeats the value. What boots is handed on
+   in its canonical form: `HTTPS://Photos.Example.com:443/` becomes `https://photos.example.com`,
+   and a path prefix is kept. With no `PUBLIC_URL` in production the box still boots, with a
+   warning.
+4. **Look at the settings.** The server checks the new ones at boot and exits with code 78 on a
+   value that does not fit, naming the variable, so if your environment already sets one of these
+   names for another purpose, change or remove it first. An empty value counts as not set, except
+   for `REQUIRE_OPERATOR_2FA` and the eight numeric limits (the rows of the table below from
+   `MIN_FREE_DISK_BYTES` to `RETENTION_CAP_NOTICE_DAYS`), which it stops. [`.env.example`](../.env.example) says
+   what each is for.
+
+   | Setting                                                                                 | Default      | Accepts                                                                                                 |
+   | --------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+   | `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL` | none         | an `https` URL without credentials, or a path that starts with one `/`                                  |
+   | `LEGAL_TERMS_VERSION`                                                                   | none         | at most 32 letters, digits, `.`, `_` or `-`, starting with a letter or a digit; needs `LEGAL_TERMS_URL` |
+   | `SOURCE_CODE_URL`, `DONATION_URL`, `BUDGET_URL`                                         | none         | an `https` URL without credentials                                                                      |
+   | `SOURCE_REF`                                                                            | none         | a git tag, branch or commit (the image's build argument, for an unmodified upstream tag)                |
+   | `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`                                               | none         | a name of at most 100 characters; one address, which needs the name                                     |
+   | `SMTP_URL`, `MAIL_FROM`                                                                 | none         | the forms `.env.example` shows; `SMTP_URL` needs `MAIL_FROM`                                            |
+   | `EVENT_CREATION`                                                                        | `anyAccount` | `anyAccount` or `clientMembers` (which needs `SITE_ADMIN=on`)                                           |
+   | `OPERATOR_RESET_LINKS`                                                                  | `mailOnly`   | `mailOnly` or `copyLinkWithOwnerApproval` (which needs `SITE_ADMIN=on`); case matters                   |
+   | `AUDIT_RETENTION_DAYS`                                                                  | `1095`       | a whole number of days, 365 to 3650                                                                     |
+   | `MFA_ENCRYPTION_KEY`                                                                    | none         | the form `.env.example` shows; never equal to `SESSION_SECRET` or `GUEST_TOKEN_SECRET`                  |
+   | `REQUIRE_OPERATOR_2FA`                                                                  | `false`      | `true`, `false`, `1` or `0`; `true` needs a valid `MFA_ENCRYPTION_KEY` and `SITE_ADMIN=on`              |
+   | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000` | a positive whole number                                                                                 |
+   | `MAX_CONCURRENT_UPLOAD_REQUESTS`                                                        | `4`          | a whole number, 1 to 1000                                                                               |
+   | `MAX_QUEUED_CLIPS_PER_EVENT`                                                            | `20`         | a whole number, 1 to 500                                                                                |
+   | `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`                                                     | `300`        | a whole number, 1 to 6000                                                                               |
+   | `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`              | 12, 500, 200 | whole numbers, up to 10000, 100000 and 10000                                                            |
+   | `RETENTION_CAP_NOTICE_DAYS`                                                             | `30`         | a whole number, 1 to 365                                                                                |
+   | `SQLITE_SHUTDOWN_CHECKPOINT`                                                            | `truncate`   | `truncate`, `passive` or `none`                                                                         |
+   | `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`                             | none         | a positive whole number; needs `SITE_ADMIN=on`                                                          |
+   | `NEW_CLIENT_MAX_TOTAL_BYTES`, `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`                        | none         | a positive whole number; needs `SITE_ADMIN=on`; the second is at most `MAX_EVENT_QUOTA_BYTES`           |
+   | `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`                             | none         | a whole number, 1 to 3650 and 1 to 365; needs `SITE_ADMIN=on`                                           |
+   | `NEW_CLIENT_CLIPS_ALLOWED`                                                              | none         | `true`, `false`, `1` or `0`; needs `SITE_ADMIN=on`                                                      |
+
+   Three more things stop the boot. A whole number above 9007199254740991 (2^53 - 1) is refused
+   for every setting that takes one, where it used to be rounded: `MAX_EVENT_QUOTA_BYTES=99999999999999999999`,
+   written to mean "no limit", booted before. Leave it empty instead. Any other name that starts with
+   `NEW_CLIENT_` is refused, because a misspelt ceiling would leave every new client with none. And
+   the pairs in the table (a version without its address, a contact address without its name, `SMTP_URL`
+   without `MAIL_FROM`, a client ceiling or `clientMembers` or a second factor required without
+   `SITE_ADMIN=on`) are named together in one list.
+
+   Four things only warn: a production box with no `PUBLIC_URL`, one with a secure cookie and
+   `TRUST_PROXY_HOPS=0`, one with `MAIL_FROM` and no `SMTP_URL`, and any box that still sets the
+   deprecated `GUEST_SELF_DELETE_GRACE_SECONDS`.
+
+5. **Check the scripts and clients that call the API.**
    - An account that must change its password gets `403 auth.passwordChangeRequired` on every
      route but the three that let it see who it is, change the password and sign out.
    - After `POST /api/auth/password`, the other sessions of the account are signed out and
@@ -306,17 +353,42 @@ stop an existing installation is the `BREAKING` section of the [CHANGELOG](../CH
      `MAX_QUEUED_CLIPS` says.
    - Signing in is throttled per account: after five failures from one network the next
      attempt gets `429 rate.limited` with a `Retry-After`, up to 15 minutes. Back off on a
-     wrong password instead of retrying at once.
+     wrong password instead of retrying at once. A browser that has signed in before presents the
+     `es_device` cookie the sign-in sets and is counted on its own.
    - **A moderator is invited by link.** `POST /api/events/:slug/moderators` takes `{ "email" }`
-     and answers `201` with `status`, `expiresAt` and, when the box has no mail relay, a `link`; it
-     creates no account. A script that sent `temporaryPassword` or `displayName` now gets
+     and answers `201` with `status`, `expiresAt` and, when no mail went out (the box has no relay, or
+     the relay refused it), a `link`; it creates no account. An account may write 30 invitations an hour
+     (`429 rate.limited`). A script that sent `temporaryPassword` or `displayName` now gets
      `400 request.invalid`, and one that read `created` or `userId` finds neither. Stop typing a
      password, give the person the `link` (or let the mail carry it) and they make their own account
      when they open it. Sending a name and a password for an address that already has an account is
      `409 invitation.signInRequired`: that account signs in and accepts with an empty body; a dead one is `404 invitation.notFound`. An address is written
      to at most five times an hour: the sixth gets `429 invitation.tooManyForAddress`. Your own
-     reverse proxy must not log `/invite/*` or `/api/invitations/*`, which carry the token.
-5. **Decide about the licence.** If you modify EventSlide and other people use your version
+     reverse proxy must not log `/invite/*`, `/api/invitations/*` or `/password/reset/*`, which carry a
+     token.
+   - **The server runs on Express 5.** A path with a doubled slash no longer reaches a route:
+     a request for `/api//health` answers 404, so a base URL that ends in `/api/` joined to a path that starts with
+     `/` breaks, in a script or in a probe. A body with a number above 9007199254740991 (a quota,
+     a link lifetime) is `400 request.invalid`. The other differences a client or a proxy can see are
+     listed in the CHANGELOG, under "Behaviour changes to check before upgrading".
+6. **If the box runs for other people (`SITE_ADMIN=on`), decide three things.** `/api/site/*`, which
+   answered nothing past its gate in 2.1.0, now carries the operator's API, and `/api/client/*` and
+   `GET /api/me/limits` are mounted beside it: the CHANGELOG lists what they do, and every change an
+   operator makes asks for a fresh confirmation of the person (`403 auth.stepUpRequired`). The operator
+   is the first account the box ever had: 2.1.0 gave it the role, and it grants nothing inside an event.
+   It works from the console, `/admin/site`.
+   - **Password resets.** An operator's reset is mailed to the account and never shown to the
+     operator, so a box with no `SMTP_URL` cannot reset one (`409 reset.mailerRequired`). Set the relay
+     (`SMTP_URL` and `MAIL_FROM`), or choose `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`, which
+     hands the operator a link only after another owner of the account's client approved that request.
+   - **A second factor for the operator.** Set `MFA_ENCRYPTION_KEY` (`openssl rand -base64 32`; a value of
+     its own, kept in `.env` or a secrets manager, with a copy beside your backups: the archive does not hold it), restart, enrol the
+     operator on `/admin/security`, and only then set `REQUIRE_OPERATOR_2FA=true`, so that the operator
+     has a factor before the gate asks for one. Lose the key and an enrolled operator can sign in only
+     with a recovery code.
+   - **What a new client starts with.** `EVENT_CREATION` and the `NEW_CLIENT_*` ceilings are optional and
+     off until you set them; a client that exists is never changed by them.
+7. **Decide about the licence.** If you modify EventSlide and other people use your version
    over a network, publish your source and set `SOURCE_CODE_URL` to it. Unmodified, there is
    nothing to do.
 
