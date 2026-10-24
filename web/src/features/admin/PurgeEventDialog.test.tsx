@@ -37,6 +37,15 @@ describe('PurgeEventDialog', () => {
     expect(screen.getByText(fr.admin.purgeConfirmHint('camille-et-sacha'))).toBeVisible()
   })
 
+  it('says what will be destroyed as text, not as an announcement over the dialog opening', () => {
+    renderDialog()
+
+    // The dialog names itself on opening. A role on the warning would interrupt that.
+    expect(
+      screen.getByText(fr.admin.purgeWarning).closest('[role="alert"], [role="status"]'),
+    ).toBeNull()
+  })
+
   it('refuses to delete until the address has been typed', async () => {
     const { onConfirm } = renderDialog()
 

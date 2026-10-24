@@ -95,7 +95,7 @@ Rules:
 ## Primitives before features
 
 `web/src/design-system/components/` holds `Button`, `IconButton`, `Field`, `TextInput`,
-`Textarea`, `Card`, `Dialog`, `Toast`, `Spinner`, `EmptyState`, `Badge`, `Progress`,
+`Textarea`, `Card`, `Dialog`, `Toast`, `Spinner`, `EmptyState`, `Badge`, `Notice`, `Progress`,
 `VisuallyHidden`, `Stack`, `Grid`.
 
 Check for a primitive first. A fourth bespoke button is how a design system dies.

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
-import { StatusIcon } from '../../design-system/components/StatusIcon'
+import { Notice } from '../../design-system/components/Notice'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
@@ -138,12 +138,9 @@ export function NewEventPage() {
           <EventTemplatePicker value={template} disabled={create.busy} onChange={setTemplate} />
 
           {failure === null ? null : (
-            <p className={styles['alert']} role="alert">
-              <span className={styles['alertGlyph']}>
-                <StatusIcon tone="danger" />
-              </span>
+            <Notice tone="danger" role="alert" variant="boxed">
               {failure}
-            </p>
+            </Notice>
           )}
 
           <div className={styles['actions']}>
