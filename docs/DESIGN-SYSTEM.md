@@ -30,7 +30,7 @@ edge to edge, no input device assumed.
 **The one pictograph in the guest flow is the face of a reaction.** Principle 4 forbids
 emoji in system copy — a sentence that says "Merci" with a party popper on the end — and a
 reaction button is not a sentence: its face _is_ the content, the five glyphs of a closed
-set (`ReactionBar.tsx`), recognised across a dark room in a way a word is not. The face is
+set (`features/guest-feed/components/ReactionBar.tsx`), recognised across a dark room in a way a word is not. The face is
 `aria-hidden` and built from code points; the accessible name is a word from the copy
 tables (`upload.reactionKinds`), and the pressed state is filled against hollow, so colour
 is never the only signal. No other control gets one.
