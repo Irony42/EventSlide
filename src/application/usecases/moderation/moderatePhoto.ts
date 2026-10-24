@@ -1,4 +1,3 @@
-import { canModerate } from '../../../domain/events/eventRole'
 import {
   targetStatusFor,
   type ModerationDecision,
@@ -13,6 +12,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * One decision on one photo — the operation the whole product is built around.
@@ -65,12 +65,8 @@ export const makeModeratePhoto =
       return err(DomainError.forbidden('auth.forbidden', { required: 'moderator' }))
     }
 
-    const role = await memberships.roleFor(eventId, actor.userId)
-    // A signed-in user with no part in this event is answered exactly as one asking
-    // about an event that does not exist, so this cannot be used to discover other
-    // people's weddings. `canModerate` is asked rather than the qualifying roles being
-    // listed, so a role added later is refused by default.
-    if (role === null || !canModerate(role)) return err(DomainError.notFound('event.notFound'))
+    const allowed = await requireEventRole(memberships, eventId, actor.userId, 'moderate')
+    if (!allowed.ok) return allowed
 
     // An archived event is a record: its media may already have been tiered off, and a
     // decision recorded now would apply to an album nobody can act on.

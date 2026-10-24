@@ -1,11 +1,11 @@
-import { canModerate } from '../../../domain/events/eventRole'
 import type { Guest } from '../../../domain/guests/guest'
-import { DomainError } from '../../../domain/shared/errors'
+import type { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
+import { ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * The host's guest list, plus how many of those guests are in the room right now.
@@ -59,10 +59,8 @@ export type ListGuests = (input: ListGuestsInput) => Promise<Result<ListGuestsOu
 export const makeListGuests =
   ({ guests, memberships, clock }: ListGuestsDeps): ListGuests =>
   async ({ eventId, actorId }) => {
-    const role = await memberships.roleFor(eventId, actorId)
-    // Same answer as an event that does not exist: a moderator of one wedding must not
-    // be able to tell, from this endpoint, that another event exists at all.
-    if (role === null || !canModerate(role)) return err(DomainError.notFound('event.notFound'))
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'moderate')
+    if (!allowed.ok) return allowed
 
     const since = new Date(clock.now().getTime() - PRESENCE_WINDOW_MS)
 

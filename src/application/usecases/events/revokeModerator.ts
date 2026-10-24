@@ -1,8 +1,8 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * The host takes the console back.
@@ -34,13 +34,8 @@ export type RevokeModerator = (input: RevokeModeratorInput) => Promise<Result<vo
 export const makeRevokeModerator =
   ({ memberships }: RevokeModeratorDeps): RevokeModerator =>
   async ({ eventId, actorId, userId }) => {
-    const actorRole = await memberships.roleFor(eventId, actorId)
-    // No membership answers exactly as an event that does not exist, so this cannot be
-    // used to discover other people's events.
-    if (actorRole === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(actorRole)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
 
     // The **row**, not the authority, because this is the row about to be deleted.
     // `roleFor` refuses a disabled account, which would leave an owner unable to tidy a

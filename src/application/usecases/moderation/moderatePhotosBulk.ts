@@ -1,4 +1,3 @@
-import { canModerate } from '../../../domain/events/eventRole'
 import {
   targetStatusFor,
   type ModerationDecision,
@@ -13,6 +12,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * One decision over a shift-clicked screenful.
@@ -73,8 +73,8 @@ export const makeModeratePhotosBulk =
       return err(DomainError.forbidden('auth.forbidden', { required: 'moderator' }))
     }
 
-    const role = await memberships.roleFor(eventId, actor.userId)
-    if (role === null || !canModerate(role)) return err(DomainError.notFound('event.notFound'))
+    const allowed = await requireEventRole(memberships, eventId, actor.userId, 'moderate')
+    if (!allowed.ok) return allowed
 
     if (!event.allowsModeration()) {
       return err(DomainError.conflict('event.notModeratable', { status: event.status }))
