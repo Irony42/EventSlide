@@ -11,7 +11,8 @@ import {
 import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeShareLinkRepository } from '../../../application/testing/fakeShareLinkRepository'
-import { CapturingLogger, RecordingArchiveWriter } from '../../../application/testing/galleryWorld'
+import { FakeArchiveWriter } from '../../../application/testing/fakeArchiveWriter'
+import { CapturingLogger } from '../../../application/testing/galleryWorld'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 import { makeDownloadGalleryArchive } from '../../../application/usecases/gallery/downloadGalleryArchive'
 import { makeGetGalleryMedia } from '../../../application/usecases/gallery/getGalleryMedia'
@@ -62,7 +63,7 @@ export interface GalleryHarness extends ServerHarness {
   readonly media: InMemoryMediaStore
   readonly signer: GallerySigner
   readonly hasher: FakePasswordHasher
-  readonly archive: RecordingArchiveWriter
+  readonly archive: FakeArchiveWriter
   /** Stores a link for the wedding by its owner, and answers the token that opens it. */
   seedLink(input?: ShareLinkInput): { readonly link: ShareLink; readonly token: string }
   seedPhoto(photo: Photo): Promise<void>
@@ -81,7 +82,7 @@ export const buildGalleryHarness = (
   const shareLinks = new FakeShareLinkRepository()
   const signer = createHmacGallerySigner({ rootSecret: TEST_SESSION_SECRET })
   const hasher = new FakePasswordHasher()
-  const archive = new RecordingArchiveWriter()
+  const archive = new FakeArchiveWriter()
   const logger = new CapturingLogger()
   const media = new InMemoryMediaStore()
   const archiveWriter = overrides.archive ?? archive

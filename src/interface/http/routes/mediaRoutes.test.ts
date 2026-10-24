@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { mediaRoutes } from './mediaRoutes'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import { GUEST_COOKIE } from '../middleware/authz'
-import type { ArchiveEntry, ArchiveWriter } from '../../../application/ports/archiveWriter'
+import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
 import { MEDIA_VARIANTS } from '../../../application/ports/mediaStore'
 import { makeExportAlbum, type ExportAlbum } from '../../../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
@@ -21,6 +21,10 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
+import {
+  FakeArchiveWriter,
+  ZIP_LOCAL_FILE_HEADER,
+} from '../../../application/testing/fakeArchiveWriter'
 
 /**
  * Ring 4: the wire contract of the two routes that serve bytes.
@@ -50,36 +54,10 @@ const IN_THE_GALA = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
 const JPEG = Uint8Array.of(0xff, 0xd8, 0xff)
 
 /** The ZIP local file header signature, asserted rather than trusted. */
-const LOCAL_FILE_HEADER = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+const LOCAL_FILE_HEADER = Buffer.from(ZIP_LOCAL_FILE_HEADER)
 
 /** The policy the route promises for a content-addressed variant, 200 and 304 alike. */
 const IMMUTABLE_CACHE = 'private, max-age=31536000, immutable'
-
-/**
- * An archive writer that emits a real ZIP local file header and then the entries.
- *
- * Not the `archiver` adapter: `src/interface` may not import `src/infrastructure`, and
- * what this route is responsible for is that the chunks reach the socket in order and
- * that a failure does not become a truncated 200. `failsWith` reproduces the rejection
- * `archiverWriter.test.ts` already proves the real writer performs when an entry's bytes
- * disappear part-way through a multi-gigabyte download.
- */
-class StubArchiveWriter implements ArchiveWriter {
-  /** `undefined` means "never fail" — a rejection value of any shape is a failure. */
-  constructor(private readonly failsWith?: unknown) {}
-
-  stream(entries: AsyncIterable<ArchiveEntry>): AsyncIterable<Uint8Array> {
-    const failsWith = this.failsWith
-    return (async function* () {
-      yield new Uint8Array(LOCAL_FILE_HEADER)
-      for await (const entry of entries) {
-        if (failsWith !== undefined) throw failsWith
-        yield new TextEncoder().encode(entry.name)
-        for await (const chunk of entry.bytes) yield chunk
-      }
-    })()
-  }
-}
 
 interface World extends Harness {
   readonly photos: FakePhotoRepository
@@ -97,7 +75,7 @@ interface WorldOptions {
 }
 
 const buildWorld = async ({
-  archive = new StubArchiveWriter(),
+  archive = new FakeArchiveWriter({ emits: 'content' }),
   exportAlbum,
 }: WorldOptions = {}): Promise<World> => {
   const photos = new FakePhotoRepository()
@@ -438,7 +416,9 @@ describe('GET /events/:eventSlug/album.zip', () => {
   ])('abandons the connection when the archive fails mid-stream with %s', async (_label, cause) => {
     // Headers are long gone by then, so a truncated ZIP under a 200 would look like a
     // complete album — and a host who deletes their photos afterwards has lost them.
-    const world = await buildWorld({ archive: new StubArchiveWriter(cause) })
+    const world = await buildWorld({
+      archive: new FakeArchiveWriter({ emits: 'content', failsWith: cause }),
+    })
     const agent = await signedIn(world, 'host')
 
     await expect(agent.get('/events/mariage/album.zip').responseType('blob')).rejects.toThrow()

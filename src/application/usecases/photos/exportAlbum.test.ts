@@ -3,7 +3,6 @@ import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { DomainError } from '../../../domain/shared/errors'
 import { asEventId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
-import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
 import {
   MEDIA_VARIANTS,
   type PhotoVariant,
@@ -14,6 +13,7 @@ import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { FakeArchiveWriter } from '../../testing/fakeArchiveWriter'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */
 const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
@@ -24,38 +24,6 @@ const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
 
 /** A clip's two files. Distinct sizes, so a test can tell the transcode from the poster by length. */
 const BYTES_PER_CLIP_FILE = { video: 20, poster: 2 } as const
-
-interface RecordedEntry {
-  readonly name: string
-  readonly modifiedAt: Date
-  /** Bytes actually pulled from the store, so a test can prove which variant it got. */
-  readonly bytesRead: number
-}
-
-/**
- * Records what it was asked to archive and emits one chunk per entry, so a test can
- * assert on the album's contents without a real ZIP.
- */
-class FakeArchiveWriter implements ArchiveWriter {
-  readonly entries: RecordedEntry[] = []
-
-  stream(entries: AsyncIterable<ArchiveEntry>): AsyncIterable<Uint8Array> {
-    const recorded = this.entries
-    return (async function* () {
-      for await (const entry of entries) {
-        let bytesRead = 0
-        for await (const chunk of entry.bytes) bytesRead += chunk.length
-
-        recorded.push({
-          name: entry.name,
-          modifiedAt: entry.modifiedAt,
-          bytesRead,
-        })
-        yield Uint8Array.of(recorded.length)
-      }
-    })()
-  }
-}
 
 const EVENT = asEventId('event-1')
 
