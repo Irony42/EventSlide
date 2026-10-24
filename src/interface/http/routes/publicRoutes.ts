@@ -5,12 +5,13 @@ import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, resolvePublicEvent } from '../middleware/authz'
 import { joinLimiter } from '../middleware/rateLimit'
 import {
+  toJoinTargetDto,
   toPrivacyNoticeStateDto,
   toPublicEventDto,
   toWallResponseDto,
 } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
-import { joinBody, wallQuery } from '../schemas/requestSchemas'
+import { joinBody, joinCodeParams, wallQuery } from '../schemas/requestSchemas'
 import type { JoinResponseDto } from '../presenters/dto'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
@@ -40,7 +41,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * `RouteDeps` satisfies this structurally, so `server.ts` is unchanged.
  */
 export interface PublicRouteDeps extends Omit<RouteDeps, 'usecases'> {
-  readonly usecases: Pick<HttpUseCases, 'joinEvent' | 'getWallPlaylist'>
+  readonly usecases: Pick<HttpUseCases, 'joinEvent' | 'resolveJoinCode' | 'getWallPlaylist'>
 }
 
 /**
@@ -80,6 +81,17 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
   const router = Router()
 
   /**
+   * **One bucket for both doors a join code opens**: the lookup below and the join itself.
+   *
+   * They answer the same question to a stranger - is this code a real, open event - so what
+   * bounds how fast a code can be tested is one budget per address, as it was when only the
+   * join existed. Two limiters would be two budgets, and exposing the lookup would have
+   * doubled the rate at which codes can be guessed. Built once here, since `express-rate-limit`
+   * gives every call its own store.
+   */
+  const joinCodeLimiter = joinLimiter(deps.config.rateLimits.joinPerMinute)
+
+  /**
    * `POST /join` — resolve a join code, identify the device, set the device cookie.
    *
    * Deliberately public: this has to work for a stranger holding nothing but a printed
@@ -97,7 +109,7 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
    */
   router.post(
     '/join',
-    joinLimiter(deps.config.rateLimits.joinPerMinute),
+    joinCodeLimiter,
     asyncHandler(async (req, res) => {
       const body = joinBody.parse(req.body)
       const presented: unknown = req.cookies?.[GUEST_COOKIE]
@@ -136,6 +148,41 @@ export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Ro
           privacyNotice: toPrivacyNoticeStateDto(joined.privacyNotice),
         }
         sendJson(response, dto)
+      })
+    }),
+  )
+
+  /**
+   * `GET /join/:code` — which event a join code names, **before** the phone commits to it.
+   *
+   * `POST /join` creates a guest and sets a cookie, so without this a guest can only find
+   * out which wedding a code belongs to by joining it. Public for the same reason the join
+   * is: the holder of a printed card has no credential but the card.
+   *
+   * It is the same oracle as the join and is guarded like it. **Unknown, draft, closed and
+   * archived are one `404 event.notFound`** - the answer is `resolveJoinCode`'s, which
+   * asks the one `acceptsGuests` expression `joinEvent` asks - and a malformed code is the
+   * same `400` the join gives, which reveals the format and nothing about any event. The
+   * limiter is the join's own instance ({@link joinCodeLimiter}), so the lookup cannot be
+   * used to test codes faster than the join already allowed.
+   *
+   * Never cached, on every answer: what a code names is exactly what a host changes with
+   * "rotate the join code" or by opening the event, and a proxy answering from a store would
+   * name the old event or still refuse the new one.
+   */
+  router.get(
+    '/join/:code',
+    joinCodeLimiter,
+    asyncHandler(async (req, res) => {
+      // Before anything can refuse: the 404 and the 400 are as stale as the 200 the moment a
+      // host rotates the code or opens the event.
+      res.setHeader('Cache-Control', 'no-store')
+      const params = joinCodeParams.parse(req.params)
+
+      const result = await usecases.resolveJoinCode({ code: params.code })
+
+      sendResult(res, result, (response, target) => {
+        sendJson(response, toJoinTargetDto(target))
       })
     }),
   )

@@ -148,7 +148,7 @@ export interface AppConfig {
     readonly joinPerMinute: number
     readonly loginPerMinute: number
     readonly reactionPerMinute: number
-    /** `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`: caption, delete, withdraw a reaction, acknowledge the notice. Per client and event. */
+    /** `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`: caption, delete, withdraw a reaction, rename, acknowledge the notice. Per client and event. */
     readonly guestWritePerMinute: number
     readonly galleryPerMinute: number
     readonly galleryMediaPerMinute: number
