@@ -179,6 +179,19 @@ describe('migrator', () => {
     closeDatabase(db)
   })
 
+  it('stamps with the real clock when it is given none', () => {
+    const db = freshDb()
+    const list: Migration[] = [{ id: 1, name: 'one', sql: `SELECT 1` }]
+    const before = Date.now()
+
+    migrate(db, list)
+
+    const stamped = Date.parse(status(db, list).applied[0]?.appliedAt ?? '')
+    expect(stamped).toBeGreaterThanOrEqual(before)
+    expect(stamped).toBeLessThanOrEqual(Date.now())
+    closeDatabase(db)
+  })
+
   it('reports applied and pending separately', () => {
     const db = freshDb()
     const list: Migration[] = [

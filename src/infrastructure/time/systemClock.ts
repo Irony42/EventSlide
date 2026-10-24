@@ -1,9 +1,10 @@
 import type { Clock } from '../../application/ports/clock'
 
 /**
- * The real clock: what every adapter that decides by time (a session's expiry, a migration's
- * stamp) is handed. The only place in `src` that calls `new Date()` with no argument; the one
- * `Date.now()` left is `fsMediaStore`'s comparison of a file's age, which says why where it is.
+ * The real clock: what the composition root hands to every use case and adapter that decides by
+ * time (a session's expiry, a migration's stamp, a sweep's deadline), so a test can hand them
+ * a `FakeClock` instead. `fsMediaStore` compares a file's age with `Date.now()` and says why
+ * where it does.
  */
 export const systemClock: Clock = {
   now: () => new Date(),

@@ -210,7 +210,23 @@ describe('SqliteSessionStore', () => {
   })
 
   describe('time', () => {
-    // Every instant here is the injected clock's, which stands years away from the wall
+    it('sweeps once when it is built, by the clock it was given', () => {
+      // A restart after a long shutdown must not carry a backlog of dead rows into the first
+      // request. The row is dead by the injected clock and alive by the wall clock's reckoning.
+      db.prepare(`INSERT INTO sessions (sid, expires_at, data) VALUES (?, ?, ?)`).run(
+        'dead',
+        clock.now().getTime() - 1,
+        '{}',
+      )
+      expect(rowCount(db)).toBe(1)
+
+      const reopened = new SqliteSessionStore({ db, logger: silentLogger(), clock })
+      reopened.close()
+
+      expect(rowCount(db)).toBe(0)
+    })
+
+    // Every instant here is the injected clock's, and the clock starts months before the wall
     // clock: a store that read `Date.now()` anywhere would find every row long dead.
     it('ends a session when the clock reaches its expiry', async () => {
       await set(store, 'sid-1', sessionWith(60_000, { userId: 'user-1' }))

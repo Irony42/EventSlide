@@ -21,8 +21,10 @@ export interface SqliteSessionStoreOptions {
   readonly db: Db
   readonly logger: Logger
   /**
-   * Where "now" comes from. The absolute seven-day cap in `authz` is judged by the injected
-   * clock too, so one clock decides when a session ends.
+   * Where "now" comes from: a session expires when this clock says so. The absolute
+   * seven-day cap in `authz` is judged by an injected clock too. (`express-session` works out
+   * a cookie's relative `maxAge` from the wall clock before it reaches `set`; that is a
+   * duration, so any clock is consistent with it.)
    */
   readonly clock: Clock
   /** How often expired rows are swept. */
