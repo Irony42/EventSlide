@@ -5,6 +5,7 @@ import { migrate } from './migrator'
 import { migrations } from './migrations'
 import { SqliteSessionStore } from './sqliteSessionStore'
 import { silentLogger } from '../../application/testing/capturingLogger'
+import { FakeClock } from '../../application/testing/fakeClock'
 
 const sessionWith = (maxAge: number, extra: Record<string, unknown> = {}): SessionData =>
   ({
@@ -43,12 +44,14 @@ const rowCount = (db: Db): number =>
 
 describe('SqliteSessionStore', () => {
   let db: Db
+  let clock: FakeClock
   let store: SqliteSessionStore
 
   beforeEach(() => {
     db = openDatabase({ path: ':memory:' })
     migrate(db, migrations)
-    store = new SqliteSessionStore({ db, logger: silentLogger() })
+    clock = new FakeClock()
+    store = new SqliteSessionStore({ db, logger: silentLogger(), clock })
   })
 
   afterEach(() => {
@@ -76,7 +79,7 @@ describe('SqliteSessionStore', () => {
     store.close()
 
     // A second store over the same database stands in for a fresh process.
-    const reopened = new SqliteSessionStore({ db, logger: silentLogger() })
+    const reopened = new SqliteSessionStore({ db, logger: silentLogger(), clock })
     const loaded = await get(reopened, 'sid-1')
     reopened.close()
 
@@ -150,7 +153,7 @@ describe('SqliteSessionStore', () => {
   })
 
   it('falls back to an absolute expiry when the cookie carries one instead of a maxAge', async () => {
-    const future = new Date(Date.now() + 60_000)
+    const future = new Date(clock.now().getTime() + 60_000)
     const session = { cookie: { expires: future, httpOnly: true } } as unknown as SessionData
 
     await set(store, 'sid-1', session)
@@ -169,7 +172,7 @@ describe('SqliteSessionStore', () => {
   it('reads a corrupt row as no session rather than failing every request', async () => {
     db.prepare(`INSERT INTO sessions (sid, expires_at, data) VALUES (?, ?, ?)`).run(
       'broken',
-      Date.now() + 60_000,
+      clock.now().getTime() + 60_000,
       'not json at all',
     )
 
@@ -194,6 +197,7 @@ describe('SqliteSessionStore', () => {
     const sweeper = new SqliteSessionStore({
       db,
       logger: silentLogger(),
+      clock,
       sweepIntervalMs: 60_000,
     })
     await set(sweeper, 'dead', sessionWith(-1_000))
@@ -203,6 +207,66 @@ describe('SqliteSessionStore', () => {
 
     expect(rowCount(db)).toBe(0)
     sweeper.close()
+  })
+
+  describe('time', () => {
+    // Every instant here is the injected clock's, which stands years away from the wall
+    // clock: a store that read `Date.now()` anywhere would find every row long dead.
+    it('ends a session when the clock reaches its expiry', async () => {
+      await set(store, 'sid-1', sessionWith(60_000, { userId: 'user-1' }))
+      expect(await get(store, 'sid-1')).not.toBeNull()
+
+      clock.advance(59_999)
+      expect(await get(store, 'sid-1')).not.toBeNull()
+
+      clock.advance(1)
+      expect(await get(store, 'sid-1')).toBeNull()
+    })
+
+    it('counts and sweeps by the clock', async () => {
+      await set(store, 'short', sessionWith(60_000))
+      await set(store, 'long', sessionWith(120_000))
+
+      clock.advance(60_000)
+
+      expect(await length(store)).toBe(1)
+      expect(store.sweep()).toBe(1)
+      expect(rowCount(db)).toBe(1)
+    })
+
+    it('extends the expiry on touch from the clock, not from when the session was written', async () => {
+      await set(store, 'sid-1', sessionWith(60_000, { userId: 'user-1' }))
+      clock.advance(50_000)
+
+      store.touch('sid-1', sessionWith(60_000))
+
+      clock.advance(50_000)
+      expect(await get(store, 'sid-1')).not.toBeNull()
+      clock.advance(10_000)
+      expect(await get(store, 'sid-1')).toBeNull()
+    })
+
+    it('judges an absolute cookie expiry against the clock', async () => {
+      const expires = new Date(clock.now().getTime() + 60_000)
+      await set(store, 'sid-1', { cookie: { expires } } as unknown as SessionData)
+
+      clock.advance(59_999)
+      expect(await get(store, 'sid-1')).not.toBeNull()
+
+      clock.advance(1)
+      expect(await get(store, 'sid-1')).toBeNull()
+    })
+
+    it('gives a cookie with no expiry twelve hours, counted from the clock', async () => {
+      await set(store, 'sid-1', { cookie: {} } as unknown as SessionData)
+      const twelveHours = 12 * 60 * 60 * 1000
+
+      clock.advance(twelveHours - 1)
+      expect(await get(store, 'sid-1')).not.toBeNull()
+
+      clock.advance(1)
+      expect(await get(store, 'sid-1')).toBeNull()
+    })
   })
 
   it('reports a failed write to express-session rather than throwing at it', async () => {

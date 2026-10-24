@@ -295,7 +295,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger.info('applied migrations', { ids: applied.join(', ') })
   }
 
-  const sessionStore = new SqliteSessionStore({ db, logger })
+  const sessionStore = new SqliteSessionStore({ db, logger, clock: systemClock })
 
   // ----------------------------------------------------------------- ports --
 
