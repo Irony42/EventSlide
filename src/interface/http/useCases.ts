@@ -42,6 +42,9 @@ import type { ChangeEventStatus } from '../../application/usecases/events/change
 import type { CreateEvent } from '../../application/usecases/events/createEvent'
 import type { GetEventBySlug } from '../../application/usecases/events/getEventBySlug'
 import type { ListEventsForHost } from '../../application/usecases/events/listEventsForHost'
+import type { ListModerators } from '../../application/usecases/events/listModerators'
+import type { RenameEvent } from '../../application/usecases/events/renameEvent'
+import type { RevokeModerator } from '../../application/usecases/events/revokeModerator'
 import type { PurgeEvent } from '../../application/usecases/events/purgeEvent'
 import type { ResolveJoinCode } from '../../application/usecases/events/resolveJoinCode'
 import type { RotateJoinCode } from '../../application/usecases/events/rotateJoinCode'
@@ -173,6 +176,9 @@ export interface HttpUseCases {
   readonly changeEventStatus: ChangeEventStatus
   readonly scheduleEvent: ScheduleEvent
   readonly purgeEvent: PurgeEvent
+  readonly renameEvent: RenameEvent
+  readonly listModerators: ListModerators
+  readonly revokeModerator: RevokeModerator
 
   // guests
   readonly joinEvent: JoinEvent
