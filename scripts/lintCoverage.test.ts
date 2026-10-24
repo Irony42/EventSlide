@@ -73,3 +73,38 @@ describe('eslint.config.mjs over scripts/', () => {
     }
   })
 })
+
+describe('eslint.config.mjs over src/', () => {
+  // A flat config that matches no block for a file ignores it and says nothing, and the
+  // server blocks name `src/**/*.ts`: a `.tsx`, `.mts` or `.js` file added under `src/` is
+  // linted by none of the architecture rules while `npm run lint` stays green. None exists
+  // today, so this asks for every file of an extension the `.ts` globs do not cover.
+  const eslint = new ESLint({ cwd: ROOT })
+
+  const sourcesUnderSrc = (): string[] => {
+    const found: string[] = []
+    const walk = (directory: string): void => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const full = join(directory, entry.name)
+        if (entry.isDirectory()) walk(full)
+        else if (LINTABLE.has(extname(entry.name))) found.push(relative(ROOT, full))
+      }
+    }
+    walk(join(ROOT, 'src'))
+    return found.sort()
+  }
+
+  it('lints every file under src/, whatever its extension, with the server rules', async () => {
+    const sources = sourcesUnderSrc()
+    const sample = sources.filter((source) => extname(source) === '.ts').slice(0, 1)
+    const others = sources.filter((source) => extname(source) !== '.ts')
+
+    expect(sample.length).toBeGreaterThan(0)
+    for (const source of [...sample, ...others]) {
+      expect(
+        await severityOf(eslint, source, '@typescript-eslint/no-explicit-any'),
+        `${source} is not linted`,
+      ).toBe(2)
+    }
+  })
+})
