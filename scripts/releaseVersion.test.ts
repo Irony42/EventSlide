@@ -204,7 +204,7 @@ describe('the pull requests each CHANGELOG entry cites', () => {
 // rather than to HEAD, so a pull request that lands later, and writes its own line afterwards,
 // does not turn every other branch red; whoever adds those lines moves the commit forward.
 describe('the pull requests merged after gpl-final, up to the commit the entry was last written at', () => {
-  const ENTRY_WRITTEN_AT = 'c7f993b23e1900f91dbbe7c86370b32381264748'
+  const ENTRY_WRITTEN_AT = '88be37f3a65f7f424623487b125d2165881f3e26'
   const git = (...args: string[]): string =>
     execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
 

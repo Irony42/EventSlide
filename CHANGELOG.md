@@ -346,19 +346,18 @@ Read these before you upgrade, and back up with the version you run now.
   or pruned. Deleting an account is refused (`409`) while it owns an event, wrote photographs or
   clips, reviewed photographs, or is the only owner of a client that still has other members or an
   event; an operator's account can be neither switched off nor deleted (`403 account.operatorProtected`).
-- **The operator's console** (#181). `/admin/site` presents that API to the person it is for: the
+- **The operator's console** (#181, #185). `/admin/site` presents that API to the person it is for: the
   clients (their standing, events, members and storage against their ceiling, and opening a client
   with the box's defaults pre-filled), one client (its usage, renaming, suspending and lifting, its
   nine ceilings with the required reason, an invitation into its account, its events as ids,
-  statuses and sizes), the accounts (a password reset, by mail, or as a link where none could go)
-  and the audit log. A change that meets `403 auth.stepUpRequired` opens one prompt for the
+  statuses and sizes, and ending its engagement), the accounts (a password reset, by mail, or as a
+  link where none could go; switching an account off, back on, or away for an erasure request) and
+  the audit log. A change that meets `403 auth.stepUpRequired` opens one prompt for the
   password, and for the code or a recovery code where the account has an authenticator, then sends
   the same change again once. The routes exist only when `features.siteAdmin` is true and only for the
   account that `canOperateSite`: anybody else gets the not-found page and the server is not asked,
   and a session that has not passed a required second factor is sent to enrol or to sign in again.
-  It draws shapes and sizes, never what a client or a guest made. Switching an account off or on,
-  deleting one and offboarding a client are in the API and not on a screen yet. In the five
-  languages.
+  It draws shapes and sizes, never what a client or a guest made. In the five languages.
 - **An operator cannot hand itself access to a client** (#148,
   [ADR 0009](docs/adr/0009-operator-cannot-grant-itself-access.md)). An operator's invitation into
   a client that already has an event, a member or another invitation waiting is written as waiting and opens nothing, by link or
