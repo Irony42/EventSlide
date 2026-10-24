@@ -393,6 +393,7 @@ export const en: UiText = {
     'reaction.alreadyExists': 'You have already reacted this way to this photo.',
     'reaction.notPublished': 'This photo is not on the screen yet.',
     'reaction.notFound': 'This reaction no longer exists.',
+    'reaction.ownPhoto': 'You cannot react to your own photo.',
     'upload.noFiles': 'No photo was received. Select one, then try again.',
     'upload.unexpectedField': 'This upload could not be read. Try again.',
     'request.csrfMissing': 'This page has expired. Reload it, then try again.',
@@ -555,6 +556,19 @@ export const en: UiText = {
       `${caption} — video sent by ${author}`,
     videoMuted: 'The sound could not be turned on: this video is playing without sound.',
     videoUnplayable: 'This video cannot be played here. Only the preview frame is shown.',
+  },
+
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Photos from the evening',
+    link: 'See the photos from the evening',
+    back: 'Send your photos',
+    refresh: 'Refresh',
+    more: 'Show more photos',
+    empty: 'No photo is on the screen yet.',
+    emptyHint: 'Photos the organisers approve will appear here.',
+    failed: 'The photos could not be loaded. Try again.',
+    own: 'Your photo',
   },
 
   wall: {
@@ -1331,6 +1345,7 @@ export const en: UiText = {
   titles: {
     join: 'Join the gallery',
     upload: 'Send photos',
+    feed: 'Photos from the evening',
     wall: 'Event screen',
     gallery: 'Shared album',
     about: 'About',

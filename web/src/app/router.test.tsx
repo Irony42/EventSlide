@@ -95,6 +95,14 @@ describe('AppRoutes', () => {
     expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
   })
 
+  it('serves the photographs of the evening to a joined guest', async () => {
+    rememberGuestSession({ event: aPublicEvent(), displayName: null, privacyNotice: null })
+
+    at('/e/camille-et-sacha/photos')
+
+    expect(await screen.findByRole('heading', { name: fr.feed.title })).toBeVisible()
+  })
+
   it('serves the wall without a session, because a projector has nobody to log it in', async () => {
     at('/e/camille-et-sacha/display')
 
@@ -157,7 +165,7 @@ describe('AppRoutes', () => {
   })
 
   it('answers an unknown guest-looking address with a 404 too', async () => {
-    at('/e/camille-et-sacha/photos')
+    at('/e/camille-et-sacha/album')
 
     expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
   })
@@ -433,7 +441,7 @@ describe('an address that no longer exists', () => {
   })
 
   it('answers a guest under an event address in their own language too', async () => {
-    renderWithProviders(<AppRoutes />, { route: '/e/camille-et-sacha/photos', locale: 'de' })
+    renderWithProviders(<AppRoutes />, { route: '/e/camille-et-sacha/album', locale: 'de' })
 
     expect(await screen.findByRole('heading', { name: de.shell.notFoundTitle })).toBeVisible()
   })

@@ -86,6 +86,18 @@ describe('GuestUploadPage', () => {
     expect(screen.getByText(fr.upload.signedAs('Léa'))).toBeVisible()
   })
 
+  it('leads to the photographs of the evening, which have a page of their own', () => {
+    // Not a section of this screen: a list that grows all evening would push the controls
+    // that live under the thumb off the bottom of the phone.
+    havingJoined()
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('link', { name: fr.feed.link })).toHaveAttribute(
+      'href',
+      `/e/${SLUG}/photos`,
+    )
+  })
+
   it('says it is fetching the guest’s own photos', () => {
     havingJoined()
     const api = fakeApi({
@@ -1124,44 +1136,5 @@ describe('the privacy notice, as the page changes around it', () => {
 
     expect(await screen.findByText(fr.upload.clipDoneImmediate)).toBeVisible()
     expect(screen.queryByText(fr.upload.clipDone)).toBeNull()
-  })
-})
-
-describe('reacting to a photo of one’s own', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-  })
-
-  it('offers the reactions under a photo on the wall when the host has them on', async () => {
-    havingJoined({ allowReactions: true })
-    renderUpload(fakeApi(withPhotos(aGuestPhoto({ id: 'photo-1', status: 'published' }))))
-
-    expect(await screen.findByRole('group', { name: fr.upload.reactionsGroup(1) })).toBeVisible()
-  })
-
-  it('offers none, and asks the server nothing, when the host has reactions off', async () => {
-    // The switch the join returned: the same place `allowCaptions` and `allowClips` are
-    // read from, because there is deliberately no readable "event by slug".
-    havingJoined({ allowReactions: false })
-    const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-1', status: 'published' })))
-    renderUpload(api)
-
-    expect(await screen.findByText(fr.upload.statusPublished)).toBeVisible()
-    expect(screen.queryByRole('group')).toBeNull()
-    expect(api.reactions).not.toHaveBeenCalled()
-  })
-
-  it('sends a reaction to this event, for the photo that was tapped', async () => {
-    havingJoined({ allowReactions: true })
-    const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-9', status: 'published' })))
-    renderUpload(api)
-    const love = fr.upload.reactionKinds.love
-    await waitFor(() => expect(screen.getByRole('button', { name: love })).toBeEnabled())
-
-    await userEvent.click(screen.getByRole('button', { name: love }))
-
-    expect(api.react).toHaveBeenCalledWith(SLUG, 'photo-9', 'love')
   })
 })

@@ -26,21 +26,8 @@
 
 .photo {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  min-width: 0;
-}
-
-/**
- * The reactions, on a line of their own under the thumbnail and its status.
- *
- * Five targets of --touch-min do not fit in the column left beside a thumbnail on a 360 px
- * phone, and wrapping them there would leave a row of three over a row of two. A full-width
- * line is also where a thumb rests: below the photograph, never above it.
- */
-.reactions {
-  flex: 1 1 100%;
   min-width: 0;
 }
 

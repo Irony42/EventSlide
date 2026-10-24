@@ -72,6 +72,8 @@ const PENDING = '11111111-1111-4111-8111-111111111111'
 const PUBLISHED = '22222222-2222-4222-8222-222222222222'
 const REJECTED = '33333333-3333-4333-8333-333333333333'
 const ANOTHER_GUESTS = '44444444-4444-4444-8444-444444444444'
+/** On the wall, and not the token's guest's own: the one a reaction can be given to. */
+const OTHERS_PUBLISHED = '66666666-6666-4666-8666-666666666666'
 /** Lives in the gala. Reachable only if tenant scoping is broken. */
 const GALA_PHOTO = '55555555-5555-4555-8555-555555555555'
 
@@ -352,6 +354,12 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     aPhoto({
       id: ANOTHER_GUESTS,
       eventId: WEDDING,
+      author: { kind: 'guest', id: OTHER_GUEST },
+    }),
+    aPhoto({
+      id: OTHERS_PUBLISHED,
+      eventId: WEDDING,
+      status: 'published',
       author: { kind: 'guest', id: OTHER_GUEST },
     }),
     aPhoto({
@@ -1024,7 +1032,7 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     const subject = buildSubject()
 
     const response = await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'love' })
 
@@ -1037,13 +1045,13 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
   it('answers 409 for the same kind twice, so a double tap is not a second count', async () => {
     const subject = buildSubject()
     await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'love' })
       .expect(204)
 
     const response = await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'love' })
 
@@ -1070,7 +1078,7 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     )
 
     const response = await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'clap' })
 
@@ -1101,13 +1109,13 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
       },
     })
     await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'love' })
       .expect(204)
 
     const response = await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'clap' })
 
@@ -1116,6 +1124,21 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     expect(
       subject.harness.bus.published.filter((frame) => frame.type === 'reaction.added'),
     ).toHaveLength(1)
+  })
+
+  it('refuses a reaction to the guest’s own photograph, and announces nothing', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .set('Cookie', cookie(subject.token))
+      .send({ kind: 'love' })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('reaction.ownPhoto')
+    expect(
+      subject.harness.bus.published.filter((frame) => frame.type === 'reaction.added'),
+    ).toEqual([])
   })
 
   it('refuses every reaction when the host turned them off', async () => {
@@ -1145,6 +1168,29 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId/reactions/:kind', () => 
       .set('Cookie', cookie(subject.token))
 
     expect(response.status).toBe(204)
+  })
+
+  it('withdraws a reaction given to the guest’s own photograph, from before the rule existed', async () => {
+    // Taking a reaction back is not what the own-photo rule refuses, so a guest who gave one
+    // before it keeps their way out of it.
+    const subject = buildSubject()
+    subject.reactions.seed(
+      aReaction({ eventId: WEDDING, photoId: PUBLISHED, guestId: GUEST, kind: 'clap' }),
+    )
+
+    await request(subject.app)
+      .delete(`${BASE}/photos/${PUBLISHED}/reactions/clap`)
+      .set('Cookie', cookie(subject.token))
+      .expect(204)
+
+    expect(
+      await subject.reactions.findOne(
+        asEventId(WEDDING),
+        asPhotoId(PUBLISHED),
+        asGuestId(GUEST),
+        'clap',
+      ),
+    ).toBeNull()
   })
 
   it('answers 404 when there is nothing of that kind to withdraw', async () => {

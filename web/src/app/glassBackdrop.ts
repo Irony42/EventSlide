@@ -65,6 +65,8 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
   { path: '/join/:code', backdrop: 'ground', page: 'features/join/JoinPage.tsx' },
   { path: '/join/*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
   { path: '/e/:slug/upload', backdrop: 'photo', page: 'features/guest-upload/GuestUploadPage.tsx' },
+  // Every photograph the room can see, in one column: the strict floor.
+  { path: '/e/:slug/photos', backdrop: 'photo', page: 'features/guest-feed/GuestFeedPage.tsx' },
   { path: '/e/:slug/display', backdrop: 'photo', page: 'features/wall/WallPage.tsx' },
   { path: '/e/*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
   // A grid of guest photographs scrolls under the download bar: the strict floor.

@@ -1,0 +1,101 @@
+/* One column, like the upload screen. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.event {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* A link, not a button: it navigates. Sized to the touch floor all the same. */
+.link,
+.rejoin {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-2);
+  font-weight: 600;
+}
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--space-4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  /* Focused only by "Voir plus", on the first photograph it added. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/**
+ * The photograph, whole: `contain` on the overlay surface, never cropped. The wall's
+ * primary layout makes the same promise. It is the thumbnail, though, not the display
+ * rendition: twelve of them at a time over venue Wi-Fi is what the guest is owed, and the
+ * room's screen is where a photograph is shown at its size.
+ */
+.photo {
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 80dvh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.meta:empty {
+  display: none;
+}
+
+.author {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

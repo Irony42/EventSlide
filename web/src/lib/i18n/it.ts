@@ -417,6 +417,7 @@ export const it: UiText = {
     'reaction.alreadyExists': 'Ha già reagito così a questa foto.',
     'reaction.notPublished': 'Questa foto non è ancora sullo schermo.',
     'reaction.notFound': 'Questa reazione non esiste più.',
+    'reaction.ownPhoto': 'Non può reagire alla sua foto.',
     'upload.noFiles': 'Non è stata ricevuta nessuna foto. Ne selezioni una, poi riprovi.',
     'upload.unexpectedField': 'Non è stato possibile leggere questo invio. Riprovi.',
     'request.csrfMissing': 'Questa pagina è scaduta. La ricarichi, poi riprovi.',
@@ -580,6 +581,19 @@ export const it: UiText = {
       'Non è stato possibile attivare l’audio: questo video viene riprodotto senza audio.',
     videoUnplayable:
       'Questo video non può essere riprodotto qui. Si vede solo l’immagine di anteprima.',
+  },
+
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Le foto della serata',
+    link: 'Guarda le foto della serata',
+    back: 'Invia le foto',
+    refresh: 'Aggiorna',
+    more: 'Mostra altre foto',
+    empty: 'Nessuna foto è ancora sullo schermo.',
+    emptyHint: 'Le foto approvate dagli organizzatori compariranno qui.',
+    failed: 'Non è stato possibile caricare le foto. Riprovi.',
+    own: 'La sua foto',
   },
 
   wall: {
@@ -1347,6 +1361,7 @@ export const it: UiText = {
   titles: {
     join: 'Entri nella galleria',
     upload: 'Invio di foto',
+    feed: 'Foto della serata',
     wall: 'Schermo dell’evento',
     gallery: 'Album condiviso',
     about: 'Informazioni',

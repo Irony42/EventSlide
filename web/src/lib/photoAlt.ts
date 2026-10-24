@@ -1,5 +1,5 @@
-import type { WallItemDto } from '../../lib/api/dto'
-import type { UiText } from '../../lib/i18n/translations'
+import type { WallItemDto } from './api/dto'
+import type { UiText } from './i18n/translations'
 
 /**
  * A wall item's alternative text: its caption and who sent it.

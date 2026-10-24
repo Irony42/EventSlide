@@ -430,6 +430,7 @@ export const de: UiText = {
     'reaction.alreadyExists': 'So haben Sie auf dieses Foto bereits reagiert.',
     'reaction.notPublished': 'Dieses Foto ist noch nicht auf dem Bildschirm.',
     'reaction.notFound': 'Diese Reaktion gibt es nicht mehr.',
+    'reaction.ownPhoto': 'Sie können nicht auf Ihr eigenes Foto reagieren.',
     'upload.noFiles':
       'Es ist kein Foto angekommen. Wählen Sie eines aus und versuchen Sie es erneut.',
     'upload.unexpectedField': 'Diese Datei konnte nicht gelesen werden. Versuchen Sie es erneut.',
@@ -603,6 +604,19 @@ export const de: UiText = {
     videoMuted: 'Der Ton ließ sich nicht einschalten: Dieses Video läuft ohne Ton.',
     videoUnplayable:
       'Dieses Video kann hier nicht abgespielt werden. Zu sehen ist nur das Vorschaubild.',
+  },
+
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Die Fotos des Abends',
+    link: 'Fotos des Abends ansehen',
+    back: 'Eigene Fotos senden',
+    refresh: 'Aktualisieren',
+    more: 'Weitere Fotos anzeigen',
+    empty: 'Noch ist kein Foto auf dem Bildschirm.',
+    emptyHint: 'Fotos, die die Veranstalter freigegeben haben, erscheinen hier.',
+    failed: 'Die Fotos konnten nicht geladen werden. Versuchen Sie es erneut.',
+    own: 'Ihr Foto',
   },
 
   wall: {
@@ -1390,6 +1404,7 @@ export const de: UiText = {
   titles: {
     join: 'Der Galerie beitreten',
     upload: 'Fotos senden',
+    feed: 'Fotos des Abends',
     wall: 'Bildschirm der Veranstaltung',
     gallery: 'Geteiltes Album',
     about: 'Info',

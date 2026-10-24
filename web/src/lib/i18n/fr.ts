@@ -600,6 +600,19 @@ export const fr = {
     videoUnplayable: 'Cette vidéo ne peut pas être lue ici. Seule l’image d’aperçu s’affiche.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Les photos de la soirée',
+    link: 'Voir les photos de la soirée',
+    back: 'Envoyer vos photos',
+    refresh: 'Actualiser',
+    more: 'Voir plus de photos',
+    empty: 'Aucune photo n’est encore à l’écran.',
+    emptyHint: 'Les photos validées par les organisateurs apparaîtront ici.',
+    failed: 'Les photos n’ont pas pu être chargées. Réessayez.',
+    own: 'Votre photo',
+  },
+
   wall: {
     empty: 'Les premières photos vont bientôt arriver',
     emptyHint: 'Scannez le QR code pour envoyer les vôtres.',
@@ -1367,6 +1380,7 @@ export const fr = {
     'reaction.alreadyExists': 'Vous avez déjà réagi ainsi à cette photo.',
     'reaction.notPublished': 'Cette photo n’est pas encore à l’écran.',
     'reaction.notFound': 'Cette réaction n’existe plus.',
+    'reaction.ownPhoto': 'Vous ne pouvez pas réagir à votre propre photo.',
     'upload.noFiles': 'Aucune photo n’a été reçue. Sélectionnez-en une puis réessayez.',
     'upload.unexpectedField': 'Cet envoi n’a pas pu être lu. Réessayez.',
     // The page's CSRF cookie is gone or stale — a tab left open all evening, or a
@@ -1984,6 +1998,7 @@ export const fr = {
   titles: {
     join: 'Rejoindre la galerie',
     upload: 'Envoi de photos',
+    feed: 'Les photos de la soirée',
     wall: 'Écran de la soirée',
     gallery: 'Album partagé',
     about: 'À propos',

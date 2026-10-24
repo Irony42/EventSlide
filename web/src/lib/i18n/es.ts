@@ -406,6 +406,7 @@ export const es: UiText = {
     'reaction.alreadyExists': 'Ya ha reaccionado así a esta foto.',
     'reaction.notPublished': 'Esta foto todavía no está en la pantalla.',
     'reaction.notFound': 'Esta reacción ya no existe.',
+    'reaction.ownPhoto': 'No puede reaccionar a su propia foto.',
     'upload.noFiles': 'No se ha recibido ninguna foto. Seleccione una e inténtelo de nuevo.',
     'upload.unexpectedField': 'Este envío no se ha podido leer. Inténtelo de nuevo.',
     'request.csrfMissing': 'Esta página ha caducado. Vuelva a cargarla e inténtelo de nuevo.',
@@ -577,6 +578,19 @@ export const es: UiText = {
     videoMuted: 'No se ha podido activar el sonido: este vídeo se reproduce sin sonido.',
     videoUnplayable:
       'Este vídeo no se puede reproducir aquí. Solo se muestra la imagen de vista previa.',
+  },
+
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Las fotos de la velada',
+    link: 'Ver las fotos de la velada',
+    back: 'Enviar fotos',
+    refresh: 'Actualizar',
+    more: 'Ver más fotos',
+    empty: 'Todavía no hay ninguna foto en la pantalla.',
+    emptyHint: 'Las fotos que aprueben los organizadores aparecerán aquí.',
+    failed: 'No se han podido cargar las fotos. Inténtelo de nuevo.',
+    own: 'Su foto',
   },
 
   wall: {
@@ -1377,6 +1391,7 @@ export const es: UiText = {
   titles: {
     join: 'Únase a la galería',
     upload: 'Envío de fotos',
+    feed: 'Fotos de la velada',
     wall: 'Pantalla del evento',
     gallery: 'Álbum compartido',
     about: 'Acerca de',

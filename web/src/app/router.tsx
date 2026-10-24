@@ -7,6 +7,7 @@ import { DeferredLocale } from '../lib/i18n/LocaleProvider'
 import { useAbout, useAboutAnswered } from './useAbout'
 import type { UiText } from '../lib/i18n/translations'
 import { useTranslations } from '../lib/i18n/useTranslations'
+import { GuestFeedPage } from '../features/guest-feed/GuestFeedPage'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
@@ -393,6 +394,7 @@ export function AppRoutes() {
               so every guest silently uploaded to the default event. */}
           <Route path="/join/:code" element={titled('join', <JoinPage />)} />
           <Route path="/e/:slug/upload" element={titled('upload', <GuestUploadPage />)} />
+          <Route path="/e/:slug/photos" element={titled('feed', <GuestFeedPage />)} />
           {/* The guest's own dead ends, answered on the guest's own surface.
               A card printed against an older URL shape, a link forwarded through a
               group chat, a path that gained a segment: the reader is holding a phone

@@ -1024,6 +1024,9 @@ for it before a client does.
 The projected wall. Public read of **published** photos only — the read path is
 structurally incapable of returning a pending photo.
 
+The guest's phone reads it too, for "Les photos de la soirée" (§3, reactions): the same
+photographs the room sees, and `reactionsEnabled` as the host's switch stands now.
+
 **No query parameter this endpoint acts on.** In particular there is no `layout`: the
 layout a room sees is a presentation choice belonging to the screen showing it, not a
 property of the event, so it is chosen in the browser and this endpoint neither accepts
@@ -1699,8 +1702,14 @@ carries it), `429 rate.limited` with a `Retry-After` (the guest-write bucket of 
 projected in front of a family is not acceptable. One of each kind per guest per photo.
 Only on a **published** photo: you react to what is on the wall.
 
+Not on one's **own** photograph: the photo of the night is the one the room liked most, and
+a guest voting for their own is not the room. ("Own" is the guest the token names: a guest
+who cleared their cookies is a new guest, and nothing here can tell.) A photograph the host took has no guest author
+and can be reacted to by anyone. Withdrawing is not refused for the same reason, so a
+reaction given before the rule keeps its way out.
+
 **204**. **Errors** — `409 reaction.alreadyExists`, `409 reaction.notPublished`,
-`403 event.reactionsDisabled`, `429 reaction.rateLimited`.
+`403 event.reactionsDisabled`, `403 reaction.ownPhoto`, `429 reaction.rateLimited`.
 
 ### `DELETE /api/events/:slug/photos/:photoId/reactions/:kind`
 
@@ -1727,17 +1736,22 @@ Note the consequence of this living in §3 rather than §2: it needs a guest tok
 **projector cannot read reaction counts**. The wall response carries `reactionsEnabled`
 and nothing else about reactions. `404 photo.notFound` for a photo outside this event.
 
-**Who calls these three.** The guest's phone, from "Vos envois" on `/e/:slug/upload`
-(`web/src/features/guest-upload/components/ReactionBar.tsx`), under every photo of the
-guest's own whose `status` is `published`, and only when the `allowReactions` the join
-returned (§2) is `true`. It reads the row once with the `GET` — for `mine`, which buttons
-to show pressed; the screen shows no counts — and then:
+**Who calls these three.** The guest's phone, from "Les photos de la soirée"
+(`/e/:slug/photos`, `web/src/features/guest-feed/`): the photographs `GET /api/events/:slug/wall`
+returns (§2) — public, published only, newest first, at most the wall's window of the newest
+200, twelve shown at a time — with the five
+reaction buttons under every one that is **not the guest's own**. Whether the buttons are drawn
+is the `reactionsEnabled` the wall says _now_, not what the join said; which photographs are
+the guest's own comes from `GET …/photos/mine` (§3), and only decides what is drawn, because
+this route refuses it anyway (`403 reaction.ownPhoto`). Per photograph the phone reads the
+row once with the `GET` — for `mine`, which buttons to show pressed; the screen shows no
+counts — and then:
 
 - **sends or withdraws before the server has answered**, so the button moves under the
-  thumb; a refusal (`403 event.reactionsDisabled`, `409 reaction.notPublished`,
-  `429 reaction.rateLimited` — the limiter and the per-guest budget answer with the same
-  code) or a dropped connection takes that one tap back and says why, in the guest's
-  language, from the code alone;
+  thumb; a refusal (`403 event.reactionsDisabled`, `403 reaction.ownPhoto`,
+  `409 reaction.notPublished`, `429 reaction.rateLimited` — the limiter and the per-guest
+  budget answer with the same code) or a dropped connection takes that one tap back and says
+  why, in the guest's language, from the code alone;
 - **reads the row again after `409 reaction.alreadyExists`, `404 reaction.notFound` and a
   dropped connection**, because each leaves the phone not knowing what the server holds — a
   reply lost on venue Wi-Fi leaves the server with a reaction the phone thinks it never
@@ -1746,16 +1760,17 @@ to show pressed; the screen shows no counts — and then:
 - **never sends before the `GET` has answered**, so a tap cannot be refused for a reaction
   the guest was never shown.
 
-Both inputs are snapshots. `allowReactions` is the one the join returned and the list is
-the one read when the page opened, so a host who switches reactions off mid-evening is
-noticed by the phone at its next refusal (`403 event.reactionsDisabled`, said in words), not
-before — and a withdrawal is still accepted, because the setting governs sending, not
-undoing. A photo approved after the page opened carries its buttons from the next read.
+The list is a snapshot, read when the page opens and again on "Actualiser": a photograph
+approved or taken down afterwards is noticed at the next read, or at the next refusal
+(`409 reaction.notPublished`, said in words). A withdrawal is accepted whatever the host's
+switch says, because the setting governs sending, not undoing.
 
-The list is the guest's own photographs and nothing else: no guest-facing view of other
-people's photographs exists, so today the reactions a phone can give are to its own
-photographs, and the `counts` the `GET` returns can only ever be that guest's own. A view
-of the room's photographs on the phone would be a new surface, and its own decision.
+**This is a new place for a published photograph to appear**, on the phone of every guest of
+the event. It is the same public read the projector makes, so nothing new leaves the box, and
+the notice's `wall` audience already reads "anyone who watches the evening's screen, in the room
+or through its link, once the photo is shown" (§3). It does not say "on every guest's phone" in
+so many words; whether it should is a decision about the notice's revision, which every guest
+would then be asked to read again.
 
 ---
 

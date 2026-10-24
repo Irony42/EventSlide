@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { WallItemDto } from '../../lib/api/dto'
-import { fr } from '../../lib/i18n/fr'
+import type { WallItemDto } from './api/dto'
+import { fr } from './i18n/fr'
 import { photoAlt } from './photoAlt'
 
 const anItem = (overrides: Partial<WallItemDto> = {}): WallItemDto => ({

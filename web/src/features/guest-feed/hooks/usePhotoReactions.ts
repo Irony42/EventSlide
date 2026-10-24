@@ -25,9 +25,8 @@ import type { ReactionKind } from '../../../lib/api/dto'
  * so a rollback is the absence of an overlay, and a re-read, which replaces `sent` only,
  * cannot be doubled or undone by a tap that happened to be in the air.
  *
- * Counts are not held. This list is the guest's own photographs, so the only person who can
- * have reacted to one is its owner: a count would be `0` or `1`, and always the same fact as
- * "pressed".
+ * Counts are not held: the screen shows which reactions are this phone's and none of the
+ * room's, so the `counts` the server sends with the row are not read.
  */
 
 export type ReactionsPhase = 'loading' | 'ready' | 'failed'
