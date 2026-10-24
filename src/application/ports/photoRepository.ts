@@ -202,7 +202,11 @@ export interface PhotoRepository {
    * everywhere else in ingest — five photos and one refusal, not one opaque failure.
    *
    * Insert only. A photo id that already exists raises, because ingest mints a fresh id
-   * per file and a collision there is a bug, not an update. 1.0 fired one insert per
+   * per file and a collision there is a bug, not an update. So does a content hash the
+   * event already holds, **for the whole batch**: the use case treats that raise as the
+   * lost half of a race between two identical uploads, asks `findByContentHash` again and
+   * answers the photos that now have a twin as duplicates. An adapter that swallowed it
+   * (`ON CONFLICT DO NOTHING`) would report a photo stored that no row names. 1.0 fired one insert per
    * file through `Promise.all` with no transaction, so a failure part-way left some rows
    * committed and some not; anything that raises here leaves the batch entirely unwritten.
    */
