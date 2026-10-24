@@ -494,7 +494,68 @@ describe('AcceptInvitationPage: a link that opens nothing', () => {
   })
 })
 
+/**
+ * What holds the keyboard at the moment `text` first reaches the DOM.
+ *
+ * Not "once `findByText` resolves", which is a later moment by an amount nobody controls: a
+ * passive effect has run by then or has not, depending on two timers Node does not order, and
+ * this file went red on exactly that, green on a re-run, on four assertions of the same shape.
+ * A MutationObserver callback is a microtask queued by the commit itself, so it reads the
+ * focus before anything scheduled after that commit has had a turn: a screen reader arriving
+ * on the first frame, or a person pressing a key on it, meets what this sees. That holds for a
+ * screen that arrives from a promise, as these do; a commit caused by a click flushes its
+ * passive effects first, so this helper would see nothing wrong there. (`router.test.tsx`
+ * does the same for `<html lang>`.)
+ *
+ * It gives up after `timeoutMs` and disconnects either way, so an abandoned observer cannot
+ * resolve on a later test's DOM.
+ */
+const focusWhenShown = (text: string, timeoutMs = 3_000): Promise<Element | null> =>
+  new Promise((resolve, reject) => {
+    const observer = new MutationObserver(() => {
+      if (!document.body.textContent?.includes(text)) return
+      stop()
+      resolve(document.activeElement)
+    })
+    const timer = setTimeout(() => {
+      stop()
+      reject(new Error(`"${text}" never reached the DOM within ${timeoutMs} ms`))
+    }, timeoutMs)
+    const stop = (): void => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+  })
+
 describe('AcceptInvitationPage: accessibility', () => {
+  it('has the keyboard on the heading in the very commit that shows the form', async () => {
+    // The form is usable the moment it is on screen. A heading that took the keyboard a tick
+    // later would take it from whatever the person had already focused, and every assertion
+    // about it would be a race.
+    const focused = focusWhenShown(fr.auth.invitationName)
+    focused.catch(() => undefined) // a throw below must not leave this to reject unseen
+    renderInvitation(fakeApi())
+
+    const holder = await focused
+
+    expect(holder).toBe(screen.getByRole('heading', { name: fr.auth.invitationTitle }))
+  })
+
+  it('has the keyboard on the heading in the very commit that shows a dead link', async () => {
+    const focused = focusWhenShown(fr.errors['invitation.notFound'])
+    focused.catch(() => undefined) // a throw below must not leave this to reject unseen
+    renderInvitation(
+      fakeApi({
+        invitation: vi.fn(() => Promise.reject(new ApiError(404, 'invitation.notFound'))),
+      }),
+    )
+
+    const holder = await focused
+
+    expect(holder).toBe(screen.getByRole('heading', { name: fr.auth.deadLinkTitle }))
+  })
+
   it('moves the keyboard to the heading once the link has been read', async () => {
     renderInvitation(fakeApi())
 
