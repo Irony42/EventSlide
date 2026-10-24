@@ -229,6 +229,7 @@ export class FakeClientRepository implements ClientRepository, ClientEventSource
     return [...this.memberships.values()]
       .filter((membership) => membership.clientId === clientId)
       .map((membership) => membership.userId)
+      .sort()
   }
 
   async listDueForFinalization(now: Date, limit: number): Promise<readonly ClientId[]> {
