@@ -95,7 +95,7 @@ export const en: UiText = {
     signedAs: (name: string) => `Your photos will appear under the name ${name}.`,
     signedAnonymous: 'Your photos will appear without a name.',
     mineEmpty: 'You have not sent any photos yet.',
-    mineFailed: 'Your uploads could not be shown. Try again.',
+    mineFailed: 'The list of your uploads could not be updated. Try again.',
     mineAlt: 'Your photo',
     deleteOwnNumbered: (position: number) => `Delete photo ${t.number(position)}`,
     notJoinedTitle: 'Join the gallery to send your photos',

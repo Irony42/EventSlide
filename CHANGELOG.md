@@ -440,6 +440,11 @@ Read these before you upgrade, and back up with the version you run now.
   insert won, and the other's cleanup deleted the files the winner's row names: the album kept a
   photograph with no file, a tile that is a 404 on the wall. The second upload is answered
   `duplicate`, with the first one's photograph, as is a guest at their photo limit who double-tapped.
+- **A guest keeps the thumbnails of their own photos when a refresh fails, and a failure on a guest's screen is boxed** (#193).
+  One moment of bad venue Wi-Fi replaced the list of "your uploads" with an empty one, taking away the proof that the
+  photos had arrived; the list now stays, with the failure above it and a retry, and a photograph the guest has just
+  deleted leaves it at once. The failures on the join page's welcome step, on the shared gallery and on that list are
+  framed like the host's forms instead of a bare red line.
 - **"N guests here" counts the guests who are still uploading** (#170). Presence was written when a
   guest joined and never again, so the host's console counted who had joined in the last five minutes.
   A guest's requests refresh it, at most every 30 seconds, and a write that fails is logged and never
