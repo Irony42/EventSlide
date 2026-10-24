@@ -5,7 +5,6 @@ import {
   PASSWORD_RESET_MAX_REQUESTS_PER_HOUR,
   PASSWORD_RESET_REQUEST_WINDOW_MS,
 } from '../../../domain/users/accountToken'
-import type { LogContext, Logger } from '../../ports/logger'
 import { AT, aUser, anAccountToken } from '../../testing/builders'
 import { FakeAccountTokenRepository } from '../../testing/fakeAccountTokenRepository'
 import { FakeClock } from '../../testing/fakeClock'
@@ -16,6 +15,7 @@ import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
 import { mailFailure, type Mailer } from '../../ports/mailer'
 import { err } from '../../../domain/shared/result'
 import { makeRequestPasswordReset, type RequestPasswordResetInput } from './requestPasswordReset'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 /** A box with no SMTP relay: the production `NullMailer`'s answer, written out. */
 const nullMailer: Mailer = {
@@ -27,42 +27,13 @@ const PUBLIC_URL = 'https://photos.example.test'
 const HOST_EMAIL = 'hote@example.test'
 const HOUR = 60 * 60 * 1000
 
-/** Records everything the use case logs, context included, so a test can read all of it. */
-class RecordingLogger implements Logger {
-  readonly lines: { level: string; message: string; context: LogContext }[] = []
-
-  private record(level: string, message: string, context: LogContext = {}): void {
-    this.lines.push({ level, message, context })
-  }
-
-  debug(message: string, context?: LogContext): void {
-    this.record('debug', message, context)
-  }
-  info(message: string, context?: LogContext): void {
-    this.record('info', message, context)
-  }
-  warn(message: string, context?: LogContext): void {
-    this.record('warn', message, context)
-  }
-  error(message: string, context?: LogContext): void {
-    this.record('error', message, context)
-  }
-  child(): Logger {
-    return this
-  }
-
-  get everything(): string {
-    return JSON.stringify(this.lines)
-  }
-}
-
 describe('requestPasswordReset', () => {
   let users: FakeUserRepository
   let tokens: FakeAccountTokenRepository
   let secrets: FakeSecretTokens
   let mailer: FakeMailer
   let clock: FakeClock
-  let logger: RecordingLogger
+  let logger: CapturingLogger
   let ids: SequentialIdGenerator
 
   const build = (withMailer: Mailer = mailer) =>
@@ -100,7 +71,7 @@ describe('requestPasswordReset', () => {
     secrets = new FakeSecretTokens()
     mailer = new FakeMailer()
     clock = new FakeClock(AT)
-    logger = new RecordingLogger()
+    logger = new CapturingLogger()
     ids = new SequentialIdGenerator()
   })
 

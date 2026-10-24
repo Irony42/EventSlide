@@ -1,48 +1,20 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asUserId } from '../../../domain/shared/ids'
-import type { Password } from '../../../domain/users/password'
 import type { PasswordHash } from '../../../domain/users/user'
-import type { PasswordHasher } from '../../ports/passwordHasher'
 import { AT, aUser } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
 import { makeBootstrapOwner, type BootstrapOwnerInput } from './bootstrapOwner'
+import { FakePasswordHasher } from '../../testing/fakePasswordHasher'
 
 const CONFIGURED_PASSWORD = 'une-phrase-de-passe-op'
 
 const hashOf = (plaintext: string): PasswordHash => `hash:${plaintext}`
 
-const defaultProduces = (password: Password): PasswordHash => hashOf(password.value)
-
-/**
- * A hasher whose output a test can dictate.
- *
- * `src/application/testing/` has no password hasher fake yet — it is written by work in
- * flight — and the empty-hash guard on `User.create` is only reachable by choosing what
- * `hash` returns, so this double is local to the file that needs it.
- */
-class ScriptedPasswordHasher implements PasswordHasher {
-  readonly dummyHash: PasswordHash = hashOf('mot-de-passe-factice')
-
-  constructor(private readonly produces: (password: Password) => PasswordHash = defaultProduces) {}
-
-  async hash(password: Password): Promise<PasswordHash> {
-    return this.produces(password)
-  }
-
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    return hash === hashOf(attempt)
-  }
-
-  needsRehash(): boolean {
-    return false
-  }
-}
-
 describe('bootstrapOwner', () => {
   let users: FakeUserRepository
-  let hasher: ScriptedPasswordHasher
+  let hasher: FakePasswordHasher
   let ids: SequentialIdGenerator
   let clock: FakeClock
 
@@ -56,7 +28,7 @@ describe('bootstrapOwner', () => {
 
   beforeEach(() => {
     users = new FakeUserRepository()
-    hasher = new ScriptedPasswordHasher()
+    hasher = new FakePasswordHasher()
     ids = new SequentialIdGenerator()
     clock = new FakeClock()
   })
@@ -144,7 +116,7 @@ describe('bootstrapOwner', () => {
   })
 
   it('creates nobody when the hasher hands back an empty hash', async () => {
-    hasher = new ScriptedPasswordHasher(() => '')
+    hasher = new FakePasswordHasher({ produces: () => '' })
 
     const result = await bootstrap()
 

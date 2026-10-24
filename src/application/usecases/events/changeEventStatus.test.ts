@@ -3,12 +3,12 @@ import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { AT, aClient, anEvent, atPlus } from '../../testing/builders'
-import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeChangeEventStatus, type ChangeEventStatus } from './changeEventStatus'
+import { CountingClientRepository } from '../../testing/countingClientRepository'
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -18,18 +18,6 @@ const STRANGER = asUserId('user-stranger')
 
 /** The speeches ran late: the host closes the party two hours after it was created. */
 const CLOSED_AT = atPlus(2 * 60 * 60 * 1_000)
-
-/** Counts the reads, so "an event with no client never asks" is a number. */
-class CountingClientRepository extends FakeClientRepository {
-  contextReads = 0
-
-  override async contextForEvent(
-    ...args: Parameters<FakeClientRepository['contextForEvent']>
-  ): ReturnType<FakeClientRepository['contextForEvent']> {
-    this.contextReads += 1
-    return super.contextForEvent(...args)
-  }
-}
 
 describe('changeEventStatus', () => {
   let events: FakeEventRepository
