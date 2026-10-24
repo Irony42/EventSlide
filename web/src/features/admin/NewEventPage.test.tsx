@@ -61,6 +61,24 @@ describe('NewEventPage', () => {
     expect(screen.getByText('/e/fete-des-voisins')).toBeVisible()
   })
 
+  it('treats a space in the address box as no address: the preview and the submit follow the name', async () => {
+    // A lone space is not an address, so the form sends none and the server derives one from
+    // the name. The preview names that same address; it does not fold the space to nothing and
+    // announce that there is none over a name that has one.
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Camille & Sacha')
+    await userEvent.type(screen.getByLabelText(fr.admin.slug), ' ')
+
+    expect(screen.getByText('/e/camille-sacha')).toBeVisible()
+    expect(screen.queryByText(fr.admin.slugPreviewEmpty)).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
+
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', wallLanguage: 'fr' })
+  })
+
   it('creates the event from the name alone and opens it', async () => {
     const api = fakeApi()
 
