@@ -43,7 +43,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * A narrow view for the same reason `publicRoutes` takes one: naming the four use cases
  * it calls means the contract test builds exactly those out of fakes rather than a
  * thirty-key bag of stubs that proves nothing. The container's full `RouteDeps`
- * satisfies it structurally, so `server.ts` is unchanged.
+ * satisfies it structurally.
  */
 export interface MissionRouteDeps extends Omit<RouteDeps, 'usecases'> {
   readonly usecases: Pick<

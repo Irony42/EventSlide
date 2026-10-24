@@ -432,6 +432,53 @@ export interface ModeratorDto {
   readonly grantedAt: string
 }
 
+/**
+ * The answer to an invitation (docs/API.md, `POST /api/events/:slug/moderators`): that it was
+ * written, and until when it works — and, **only when no mail went out**, the link for the
+ * inviter to pass on.
+ *
+ * What is deliberately absent, and was the whole of the 2.x answer: whether an account was
+ * created, and its id. They said whether the address was already on the box, to whoever typed
+ * it. The answer is now the same for an address that has an account and one that has not, and
+ * `link` is a fact about the box and its relay, never about the address.
+ */
+export interface InvitationIssuedDto {
+  readonly status: 'invited'
+  readonly expiresAt: string
+  readonly link?: string
+}
+
+/**
+ * What a link would do, for the page that asks its holder to accept: the purpose, the target's
+ * name and when it ends. Nothing about the inviter, the address, or whether the address has an
+ * account (`previewInvitation` says why).
+ */
+export interface InvitationPreviewDto {
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly expiresAt: string
+  /**
+   * The terms accepting agrees to (G2-20), **present only on a box that asks for them**: a
+   * self-hosted box answers the four keys it always did, byte for byte. `url` is an https
+   * address or a path on this site, and `version` is what the audit entry will say.
+   */
+  readonly terms?: { readonly url: string; readonly version: string }
+}
+
+/**
+ * What was accepted and where the person lands: for an event its slug, which the page opens.
+ * **No address and no account id**: the person who accepted has them, and a response that
+ * carried the address would tell whoever holds a link whose mailbox it was.
+ */
+export interface InvitationAcceptedDto {
+  readonly status: 'accepted'
+  readonly kind: 'event' | 'client'
+  readonly role: 'moderator' | 'owner' | 'member'
+  readonly targetName: string
+  readonly eventSlug: string | null
+}
+
 export interface SessionUserDto {
   readonly userId: string
   readonly email: string
@@ -512,7 +559,7 @@ export interface TopPhotoDto {
   readonly total: number
 }
 
-// ------------------------------------------- moderation routes (additive) --
+// ------------------------------------------- moderation routes --
 
 /**
  * One row of the moderation queue, as `web/src/lib/api/dto.ts` declares it and

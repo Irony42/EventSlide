@@ -38,7 +38,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * to start quietly depending on moderation or on a photo repository, and naming the two
  * use cases it does call means the contract test builds exactly those two out of fakes
  * rather than a thirty-key bag of stubs that proves nothing. The container's full
- * `RouteDeps` satisfies this structurally, so `server.ts` is unchanged.
+ * `RouteDeps` satisfies this structurally.
  */
 export interface PublicRouteDeps extends Omit<RouteDeps, 'usecases'> {
   readonly usecases: Pick<HttpUseCases, 'joinEvent' | 'resolveJoinCode' | 'getWallPlaylist'>

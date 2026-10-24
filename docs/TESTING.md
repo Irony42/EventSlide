@@ -185,6 +185,12 @@ trusted too much:
   versus epoch milliseconds.
 - **Route-level drift.** Nothing here checks that an endpoint returns the DTO the
   client's method expects; that pairing lives in `client.ts` and `routes/*.ts`.
+- **A shape declared outside the two `dto.ts` files.** It is invisible to the rules
+  above, which is how the three invitation shapes went uncompared until they moved in.
+  Declare every response shape in `dto.ts`, on both sides. Two kinds are still outside:
+  the error envelope, and the anonymous `{ items: ... }` envelopes written inline.
+- **A type alias's body, and a member-level `readonly`.** Only interfaces are compared,
+  and a `readonly` on a field itself is not part of the text compared.
 
 A related habit worth keeping: prefer `sendJson<SomeResponseDto>(...)` over bare
 `sendJson(...)` when the handler builds an object literal. Without the type parameter
