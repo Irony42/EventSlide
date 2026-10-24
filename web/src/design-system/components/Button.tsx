@@ -1,5 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Spinner } from './Spinner'
+import { cx } from '../classNames'
 import styles from './Button.module.css'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -35,15 +36,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   },
   ref,
 ) {
-  const classes = [
+  const classes = cx(
     styles['button'],
     styles[variant],
     styles[size],
-    block ? styles['block'] : '',
+    block && styles['block'],
     className,
-  ]
-    .filter(Boolean)
-    .join(' ')
+  )
 
   return (
     <button

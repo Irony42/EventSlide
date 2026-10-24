@@ -10,6 +10,7 @@ import { makeApproveInvitation } from '../usecases/clients/approveInvitation'
 import { makeApprovePasswordReset } from '../usecases/clients/approvePasswordReset'
 import { makeInviteToClientAsOperator } from '../usecases/clients/inviteToClientAsOperator'
 import type { Logger } from '../ports/logger'
+import { silentLogger as createSilentLogger } from './capturingLogger'
 import type { Mailer } from '../ports/mailer'
 import { AT, aClient, aUser, anEvent } from './builders'
 import { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
@@ -67,13 +68,7 @@ export interface OperatorGuardWorldOptions {
 }
 
 /** A logger that says nothing, for a test that asserts on state and not on what was logged. */
-export const silentLogger: Logger = {
-  debug: () => undefined,
-  info: () => undefined,
-  warn: () => undefined,
-  error: () => undefined,
-  child: () => silentLogger,
-}
+export const silentLogger: Logger = createSilentLogger()
 
 export const makeOperatorGuardWorld = (options: OperatorGuardWorldOptions = {}) => {
   const clock = new FakeClock(AT)

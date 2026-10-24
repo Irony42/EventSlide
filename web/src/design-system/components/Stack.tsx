@@ -1,4 +1,5 @@
 import type { ElementType, HTMLAttributes, ReactNode } from 'react'
+import { cx } from '../classNames'
 import styles from './Stack.module.css'
 
 /** A step on the space scale, never a length: `gap="3"` is `var(--space-3)`. */
@@ -40,17 +41,15 @@ export function Stack({
   ...rest
 }: StackProps) {
   const Element: ElementType = as
-  const classes = [
+  const classes = cx(
     styles['stack'],
     styles[direction],
     styles[`gap${gap}`],
     styles[`align-${align}`],
     styles[`justify-${justify}`],
-    wrap ? styles['wrap'] : '',
+    wrap && styles['wrap'],
     className,
-  ]
-    .filter(Boolean)
-    .join(' ')
+  )
 
   return (
     <Element {...rest} className={classes}>

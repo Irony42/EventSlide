@@ -1,3 +1,4 @@
+import { ApiError } from '../http'
 import { de } from './de'
 import { en } from './en'
 import { es } from './es'
@@ -121,3 +122,18 @@ export const messageForCode = (code: string | undefined, text: UiText): string =
   const message = code !== undefined && Object.hasOwn(text.errors, code) ? table[code] : undefined
   return message ?? text.errors.unknown
 }
+
+/**
+ * A thrown value turned into a sentence a person can read, in the language they are reading.
+ *
+ * An `ApiError` carries the server's stable code and nothing else, so its sentence is
+ * `messageForCode`. Anything that is not an `ApiError` is a bug in this build, which nobody
+ * at the event can do anything about beyond retrying: it gets the generic sentence, never
+ * the English internal message.
+ *
+ * The table is a parameter because this is a plain function, not a component: whichever hook
+ * or screen caught the failure is the one holding the context, and hands over the active
+ * table. A screen that needs a different line for "not an `ApiError`" does not use this.
+ */
+export const messageForError = (cause: unknown, text: UiText): string =>
+  cause instanceof ApiError ? messageForCode(cause.code, text) : text.errors.unknown

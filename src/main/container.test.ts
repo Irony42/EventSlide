@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -21,6 +20,7 @@ import { totpStepAt } from '../domain/users/totp'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
+import { captureDescriptorOutputWhile } from '../infrastructure/logging/testing/captureOutput'
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -924,27 +924,9 @@ describe('createContainer: outgoing mail', () => {
    */
   it('logs the relay by host and port at boot, and never its URL or its password', async () => {
     const PASSWORD = 'PASSWORD-CANARY-9e41'
-    const written: string[] = []
-    const record = (...args: unknown[]): number => {
-      const text = Buffer.isBuffer(args[1]) ? args[1].toString('utf8') : String(args[1])
-      if (args[0] === 1) written.push(text)
-      return Buffer.byteLength(text)
-    }
-    const asyncWrite = vi.spyOn(fs, 'write').mockImplementation(((...args: unknown[]) => {
-      const size = record(...args)
-      const callback = args[args.length - 1]
-      if (typeof callback === 'function') {
-        ;(callback as (error: Error | null, written: number) => void)(null, size)
-      }
-    }) as unknown as typeof fs.write)
-    const syncWrite = vi
-      .spyOn(fs, 'writeSync')
-      .mockImplementation(((...args: unknown[]) =>
-        record(...args)) as unknown as typeof fs.writeSync)
-
-    try {
-      // Production, because that is the posture that writes JSON to fd 1; development
-      // would hand the line to `pino-pretty` in a worker thread, below this capture.
+    // Production, because that is the posture that writes JSON to fd 1; development would hand
+    // the line to `pino-pretty` in a worker thread, below this capture.
+    const output = await captureDescriptorOutputWhile(async () => {
       await boot({
         NODE_ENV: 'production',
         LOG_LEVEL: 'info',
@@ -955,14 +937,8 @@ describe('createContainer: outgoing mail', () => {
         SMTP_URL: `smtps://camille:${PASSWORD}@mail.example.com:2465`,
         MAIL_FROM: 'no-reply@photos.example.org',
       })
-      // sonic-boom batches the current tick and flushes on the next one.
-      await new Promise((resolve) => setImmediate(resolve))
-    } finally {
-      asyncWrite.mockRestore()
-      syncWrite.mockRestore()
-    }
+    })
 
-    const output = written.join('')
     expect(output).toContain('outgoing mail goes through an SMTP relay')
     expect(output).toContain('mail.example.com')
     expect(output).toContain('2465')

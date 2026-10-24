@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { StatusIcon, type StatusTone } from './StatusIcon'
+import { cx } from '../classNames'
 import styles from './Badge.module.css'
 
 export type BadgeTone = StatusTone
@@ -13,11 +14,11 @@ export interface BadgeProps {
   readonly children: string
   /** Replaces the tone's default glyph. `null` drops it, for a badge that is a count. */
   readonly icon?: ReactNode
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 export function Badge({ tone = 'neutral', children, icon, className }: BadgeProps) {
-  const classes = [styles['badge'], styles[tone], className].filter(Boolean).join(' ')
+  const classes = cx(styles['badge'], styles[tone], className)
 
   return (
     <span className={classes}>

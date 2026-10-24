@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../errorMessage'
+import { messageForError } from '../../../lib/i18n/translations'
 
 /**
  * What a write attempt produced.
@@ -40,7 +40,7 @@ export const useAction = <A extends readonly unknown[], R>(
       try {
         return { ok: true, value: await action(...args) }
       } catch (cause) {
-        return { ok: false, message: errorMessage(cause, t) }
+        return { ok: false, message: messageForError(cause, t) }
       } finally {
         setPending(null)
       }

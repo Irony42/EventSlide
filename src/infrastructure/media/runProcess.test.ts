@@ -310,9 +310,10 @@ describe('minimalChildEnv', () => {
   })
 
   it('treats an empty string the same as a field that was never there at all', () => {
-    // The path above (an absent field) is not the one production ever takes: env.ts's
-    // zod schema defaults every one of these to `''`, never to `undefined` — see
-    // `SYSTEMROOT: z.string().default('')` and `childEnvSource` in env.ts. So the branch
+    // The path above (an absent field) is not the one production ever takes: the
+    // config's zod schema defaults every one of these to `''`, never to `undefined` — see
+    // `SYSTEMROOT: z.string().default('')` in config/schema.ts and `childEnvSource` in
+    // config/load.ts. So the branch
     // that actually runs on a box missing e.g. WINDIR is the `value !== ''` half of the
     // guard, not the `value !== undefined` half the test above exercises. Without this
     // case, deleting `&& value !== ''` from `minimalChildEnv` leaves every test green.

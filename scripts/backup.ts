@@ -142,7 +142,7 @@ const runBackup = async (argv: readonly string[], invocation: Invocation): Promi
 
   const now = new Date()
   // BACKUP_DIR, not a literal `./backups`: that resolves against the working directory,
-  // which in the image is a read-only `/app`. See the variable in env.ts.
+  // which in the image is a read-only `/app`. See `BACKUP_DIR` in config/schema.ts.
   const destination =
     option(argv, 'to') ?? join(config.storage.backupDir, `eventslide-${stampOf(now)}`)
   await mkdir(resolve(destination, '..'), { recursive: true })

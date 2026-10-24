@@ -3,12 +3,13 @@ import { useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Spinner } from '../../design-system/components/Spinner'
+import { messageForError } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { ModerationGrid } from './components/ModerationGrid'
 import { ModerationToolbar } from './components/ModerationToolbar'
 import { PhotoLightbox } from './components/PhotoLightbox'
 import { useArrivals } from './hooks/useArrivals'
-import { queueErrorMessage, useModerationQueue } from './hooks/useModerationQueue'
+import { useModerationQueue } from './hooks/useModerationQueue'
 import { useModerationShortcuts } from './hooks/useModerationShortcuts'
 import { useQueueSelection } from './hooks/useQueueSelection'
 import type { ModerationDecision } from '../../lib/api/dto'
@@ -132,7 +133,7 @@ export function ModerationPage() {
       */}
       {queue.error !== null && queue.items.length > 0 ? (
         <p role="alert" className={styles['staleError']}>
-          {queueErrorMessage(queue.error, t)}
+          {messageForError(queue.error, t)}
         </p>
       ) : null}
 
@@ -144,7 +145,7 @@ export function ModerationPage() {
         <EmptyState
           as="h2"
           title={t.moderation.loadFailed}
-          description={queueErrorMessage(queue.error, t)}
+          description={messageForError(queue.error, t)}
           action={
             <Button variant="primary" onClick={queue.refresh}>
               {t.app.retry}

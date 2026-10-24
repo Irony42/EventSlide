@@ -29,9 +29,8 @@ export function OfflineNotice({ waiting, draining, onSendNow }: OfflineNoticePro
 
   return (
     <section className={styles['notice']} role="status" data-testid="offline-notice">
-      {/* Wrapped rather than given a className: `styles[...]` is `string | undefined`
-          under noUncheckedIndexedAccess, and StatusIcon's optional prop does not accept
-          an explicit undefined under exactOptionalPropertyTypes. */}
+      {/* A span of its own rather than a class on the glyph: it carries the tone's colour and
+          keeps the glyph from shrinking in the row. */}
       <span className={styles['icon']}>
         <StatusIcon tone="warning" />
       </span>

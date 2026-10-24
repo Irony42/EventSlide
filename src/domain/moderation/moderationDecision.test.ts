@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { canTransition, isPhotoStatus } from '../photos/photoStatus'
-import {
-  inverseOf,
-  isModerationDecision,
-  MODERATION_DECISIONS,
-  targetStatusFor,
-} from './moderationDecision'
+import { inverseOf, MODERATION_DECISIONS, targetStatusFor } from './moderationDecision'
 
 describe('targetStatusFor', () => {
   it.each([
@@ -22,20 +17,6 @@ describe('targetStatusFor', () => {
       expect(isPhotoStatus(targetStatusFor(decision))).toBe(true)
     },
   )
-})
-
-describe('isModerationDecision', () => {
-  it.each(MODERATION_DECISIONS)('accepts %s', (decision) => {
-    expect(isModerationDecision(decision)).toBe(true)
-  })
-
-  it('refuses a photo status, which is not something a client may decide', () => {
-    expect(isModerationDecision('published')).toBe(false)
-  })
-
-  it('refuses a payload that is not a string', () => {
-    expect(isModerationDecision(null)).toBe(false)
-  })
 })
 
 describe('inverseOf', () => {

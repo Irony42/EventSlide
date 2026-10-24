@@ -3,7 +3,6 @@ import { asGuestId, asPhotoId, type GuestId, type PhotoId } from '../shared/ids'
 import type { ReactionKind } from './reactionKind'
 import {
   emptyCounts,
-  hasReacted,
   checkTopLimit,
   rankedPhotos,
   tally,
@@ -79,26 +78,6 @@ describe('totalReactions', () => {
     // three here, or the photo of the night is won by whichever button is prettiest.
     expect(totalReactions(countsWith({ love: 3 }))).toBe(3)
     expect(totalReactions(countsWith({ clap: 3 }))).toBe(3)
-  })
-})
-
-describe('hasReacted', () => {
-  const entries = [entry('love', alice), entry('clap', bob)]
-
-  it('is true when that guest already sent that kind', () => {
-    expect(hasReacted(entries, alice, 'love')).toBe(true)
-  })
-
-  it('is false for the same guest with a different kind', () => {
-    expect(hasReacted(entries, alice, 'clap')).toBe(false)
-  })
-
-  it('is false for a different guest with the same kind', () => {
-    expect(hasReacted(entries, bob, 'love')).toBe(false)
-  })
-
-  it('is false when nobody has reacted yet', () => {
-    expect(hasReacted([], alice, 'love')).toBe(false)
   })
 })
 

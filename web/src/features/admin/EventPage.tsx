@@ -5,6 +5,7 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { useToast } from '../../design-system/components/useToast'
+import { cx } from '../../design-system/classNames'
 import { useAbout } from '../../app/useAbout'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
@@ -108,7 +109,7 @@ export function EventPage() {
       </header>
 
       <div className={styles['columns']}>
-        <div className={`${styles['column']} ${styles['screenOnly']}`}>
+        <div className={cx(styles['column'], styles['screenOnly'])}>
           <Card as="h2" title={t.admin.joinCode} subtitle={t.admin.joinCodeHint}>
             <p className={styles['joinCode']}>{event.joinCode}</p>
             <p className={styles['joinUrl']}>
@@ -209,7 +210,7 @@ export function EventPage() {
         </div>
       </div>
 
-      <div className={`${styles['column']} ${styles['screenOnly']}`}>
+      <div className={cx(styles['column'], styles['screenOnly'])}>
         <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
         {/* Owner-only for the reason below, and mounted above the moderators because a
             host sets the prompts up before the evening rather than during it (roadmap

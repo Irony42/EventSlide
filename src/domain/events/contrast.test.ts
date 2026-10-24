@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contrastRatio, hueDistance } from './contrast'
+import { contrastRatio } from './contrast'
 
 /**
  * The arithmetic behind the theming rule, checked against values that can be verified by
@@ -45,29 +45,5 @@ describe('contrastRatio', () => {
     const measured = contrastRatio({ l: 0.18, c: 0.02, h: 305 }, { l: 0.72, c: 0.17, h: 305 })
 
     expect(measured).toBeCloseTo(7.12, 1)
-  })
-})
-
-describe('hueDistance', () => {
-  it('measures the short way round, not the arithmetic difference', () => {
-    // The whole reason this function exists: 350 and 10 are twenty degrees apart to an
-    // eye and three hundred and forty apart to a subtraction.
-    expect(hueDistance(350, 10)).toBe(20)
-  })
-
-  it('is the plain difference when the two are on the same side of the wheel', () => {
-    expect(hueDistance(305, 155)).toBe(150)
-  })
-
-  it('does not care which hue is named first', () => {
-    expect(hueDistance(10, 350)).toBe(hueDistance(350, 10))
-  })
-
-  it('is zero for a hue against itself', () => {
-    expect(hueDistance(85, 85)).toBe(0)
-  })
-
-  it('caps at 180, the far side of the wheel', () => {
-    expect(hueDistance(0, 180)).toBe(180)
   })
 })

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import { asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 
@@ -210,11 +211,11 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
         if (!live) return
         // The abort came from this effect's own cleanup — StrictMode mounts twice — and
         // is not a failure the room needs to hear about.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
+        if (isAbortError(cause)) return
         setState((previous) => ({
           wall: previous.wall,
           loading: false,
-          error: cause instanceof Error ? cause : new Error(String(cause)),
+          error: asError(cause),
         }))
       },
     )

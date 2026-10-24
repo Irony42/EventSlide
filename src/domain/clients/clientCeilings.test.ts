@@ -293,24 +293,6 @@ describe('ClientCeilings.creationRefusal', () => {
   })
 })
 
-describe('ClientCeilings.admitsQuota', () => {
-  it('admits any quota with no ceiling at all', () => {
-    expect(ClientCeilings.unlimited().admitsQuota(Number.MAX_SAFE_INTEGER)).toBe(true)
-  })
-
-  it('admits a quota at or under the ceiling', () => {
-    const ceilings = must(ClientCeilings.create({ maxEventQuotaBytes: 1_000 }))
-
-    expect(ceilings.admitsQuota(1_000)).toBe(true)
-  })
-
-  it('refuses a quota over the ceiling', () => {
-    const ceilings = must(ClientCeilings.create({ maxEventQuotaBytes: 1_000 }))
-
-    expect(ceilings.admitsQuota(1_001)).toBe(false)
-  })
-})
-
 describe('ClientCeilings.clampRetention', () => {
   it('passes a finite request through unchanged with no ceiling at all', () => {
     expect(ClientCeilings.unlimited().clampRetention(30)).toBe(30)

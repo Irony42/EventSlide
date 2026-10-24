@@ -20,10 +20,9 @@ export interface ReactionBudget {
   /** How many reactions this guest has already sent inside the window ending now. */
   readonly recentCount: number
   /**
-   * The window `recentCount` was counted over. It takes no part in the comparison —
-   * the count already answers that — but it travels with the count because
-   * `nextAllowedAt` takes the whole budget: the window a guest is told to wait for
-   * therefore cannot drift from the window that refused them.
+   * The window `recentCount` was counted over. It takes no part in the comparison — the
+   * count already answers that — but a budget counted over a nonsense window is refused
+   * (`reaction.windowInvalid`) rather than believed.
    */
   readonly windowMs: number
   readonly maxPerWindow: number
@@ -53,19 +52,4 @@ export const canReact = (budget: ReactionBudget): Result<boolean, DomainError> =
     return err(DomainError.invalid('reaction.recentCountInvalid'))
   }
   return ok(budget.recentCount < budget.maxPerWindow)
-}
-
-/**
- * When the oldest reaction in the window falls out of it — the earliest moment the
- * guest can send another. The HTTP layer turns this into `Retry-After` so the phone
- * can grey the buttons for exactly that long instead of guessing, and so a guest is
- * never told "too fast" twice in a row for the same burst.
- */
-export const nextAllowedAt = (
-  budget: ReactionBudget,
-  oldestRecentAt: Date,
-): Result<Date, DomainError> => {
-  const badWindow = invalidWindow(budget.windowMs)
-  if (badWindow !== null) return err(badWindow)
-  return ok(new Date(oldestRecentAt.getTime() + budget.windowMs))
 }

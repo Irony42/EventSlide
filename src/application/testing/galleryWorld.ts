@@ -4,7 +4,7 @@ import { VARIANTS_BY_KIND } from '../../domain/photos/mediaVariant'
 import type { Photo } from '../../domain/photos/photo'
 import { asEventId, asUserId, type EventId } from '../../domain/shared/ids'
 import type { ArchiveEntry, ArchiveWriter } from '../ports/archiveWriter'
-import type { LogContext, Logger } from '../ports/logger'
+import { CapturingLogger } from './capturingLogger'
 import { AT, anEvent, aShareLink, aUser, type ShareLinkInput } from './builders'
 import { FakeClock } from './fakeClock'
 import { FakeEventRepository } from './fakeEventRepository'
@@ -50,33 +50,8 @@ export class RecordingArchiveWriter implements ArchiveWriter {
   }
 }
 
-export class CapturingLogger implements Logger {
-  readonly lines: {
-    readonly level: string
-    readonly message: string
-    readonly context: LogContext | undefined
-  }[] = []
-
-  debug(message: string, context?: LogContext): void {
-    this.lines.push({ level: 'debug', message, context })
-  }
-
-  info(message: string, context?: LogContext): void {
-    this.lines.push({ level: 'info', message, context })
-  }
-
-  warn(message: string, context?: LogContext): void {
-    this.lines.push({ level: 'warn', message, context })
-  }
-
-  error(message: string, context?: LogContext): void {
-    this.lines.push({ level: 'error', message, context })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
-}
+/** The shared double, re-exported: the HTTP harnesses still import it from this file. */
+export { CapturingLogger }
 
 export interface GalleryWorld {
   readonly clock: FakeClock

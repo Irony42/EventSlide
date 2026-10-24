@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import ROUTER from './router.tsx?raw'
+import { withoutComments } from '../testing/withoutComments'
 import TOKENS from '../design-system/tokens.css?raw'
 import { glassBackdropFor, ROUTE_BACKDROPS } from './glassBackdrop'
 import {
@@ -50,32 +51,13 @@ const named = (path: string): string => path.replace(/^\.\//, 'app/').replace(/^
 
 const sources = new Map(Object.entries(MODULES).map(([path, source]) => [named(path), source]))
 
-/**
- * Comments stripped before anything is looked for.
- *
- * Not fussiness: `WallLayouts.tsx` discusses how many `<img>` elements a layout may hold and
- * `SlideLayer.tsx` explains what happens to a `<video>` on the outgoing layer. A sweep that
- * counted prose would put half the wall's modules in the wrong category, and — worse — it
- * would be the kind of failure somebody fixes by deleting the comment.
- *
- * `//` needs a boundary in front of it so that `https://` survives, and the block form
- * needs one for exactly the same reason — which the first version of this did not give
- * it. An `accept` attribute whose value ends in a slash-star reads as an opening comment
- * to an unanchored sweep, which then deletes everything up to the next closing pair
- * anywhere in the file. Measured on this tree rather than assumed: 646 bytes of
- * `ClipComposer.tsx` (the attribute is `video/` + star) and 1 225 bytes of
- * `glassBackdrop.ts` itself, where the opener is the route string for the join
- * catch-all. `PhotoPicker.tsx` happens to lose nothing, because no closing pair follows
- * its attribute — which is the point: whether the fault bites depends on what comes
- * later in the file, so it is invisible until the day somebody adds an element below it.
- *
- * Nothing on a `ground` route is hidden by it today, and that is luck rather than design.
- * The failure is silent and points at the loose floor, so it is the direction that costs
- * a guest's photograph its legibility. Requiring a boundary costs nothing: a real comment
- * is preceded by a line start, whitespace, or one of `{ ; ( ,`.
+/*
+ * Comments are stripped before anything is looked for, by the shared `withoutComments`: its
+ * doc carries the argument and the measurements, and the `accept="video/*"` test below pins
+ * the case that taught it. Nothing on a `ground` route is hidden by it today, and that is
+ * luck rather than design: the failure is silent and points at the loose floor, so it is the
+ * direction that costs a guest's photograph its legibility.
  */
-const withoutComments = (source: string): string =>
-  source.replace(/(^|[\s{;(,])\/\*[\s\S]*?\*\//g, '$1').replace(/(^|[\s(])\/\/[^\n]*/g, '$1')
 
 const EXTENSIONS = ['', '.ts', '.tsx', '/index.ts', '/index.tsx']
 

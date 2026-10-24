@@ -4,11 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTransport, type SMTPTransportOptions } from 'nodemailer'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import type { LogContext, Logger } from '../../application/ports/logger'
 import type { OutgoingMail } from '../../application/ports/mailer'
 import { mailerContract } from '../../application/testing/contracts/mailerContract'
 import { EmailAddress } from '../../domain/users/emailAddress'
-import { silentLogger } from '../logging/pinoLogger'
+import { CapturingLogger, silentLogger } from '../../application/testing/capturingLogger'
 import { parseSmtpUrl, type Mailbox, type SmtpEndpoint, type SmtpSettings } from './smtpEndpoint'
 import {
   DEFAULT_MAIL_TIMEOUTS,
@@ -76,37 +75,6 @@ const aMail = (overrides: Partial<OutgoingMail> = {}): OutgoingMail => ({
   text: 'Open the link to choose a password.',
   ...overrides,
 })
-
-interface RecordedLine {
-  readonly level: string
-  readonly message: string
-  readonly context: LogContext
-}
-
-/** Keeps the context, which the repository's own `CapturingLogger` drops — and the context is the point. */
-class RecordingLogger implements Logger {
-  readonly lines: RecordedLine[] = []
-
-  debug(message: string, context: LogContext = {}): void {
-    this.lines.push({ level: 'debug', message, context })
-  }
-
-  info(message: string, context: LogContext = {}): void {
-    this.lines.push({ level: 'info', message, context })
-  }
-
-  warn(message: string, context: LogContext = {}): void {
-    this.lines.push({ level: 'warn', message, context })
-  }
-
-  error(message: string, context: LogContext = {}): void {
-    this.lines.push({ level: 'error', message, context })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
-}
 
 /** Sinks opened by a case, closed after it, so a failing assertion never leaks a listener. */
 const open: SmtpSink[] = []
@@ -335,14 +303,14 @@ describe('createSmtpMailer: a relay that is not there, or does not answer', () =
   })
 
   it('answers mail.transient, and does not throw, when given something that is not a message', async () => {
-    const logger = new RecordingLogger()
+    const logger = new CapturingLogger()
     const mailer = createSmtpMailer({ settings: settingsFor(1), logger, timeouts: ORDINARY })
 
     const result = await mailer.send({} as unknown as OutgoingMail)
 
     expect(!result.ok && result.error.code).toBe('mail.transient')
     expect(logger.lines).toEqual([
-      { level: 'error', message: 'mail failed unexpectedly', context: {} },
+      { level: 'error', message: 'mail failed unexpectedly', context: undefined },
     ])
   })
 })
@@ -568,7 +536,7 @@ describe.skipIf(!hasOpenssl)('a relay whose certificate this box does not trust'
 
   it('refuses a self-signed certificate: permanent, no login sent, no message sent, and the log says why', async () => {
     const relay = await sink({ tls: { key, cert }, auth: { user: 'camille', pass: 'right' } })
-    const logger = new RecordingLogger()
+    const logger = new CapturingLogger()
     const mailer = createSmtpMailer({
       settings: settingsFor(relay.port, { implicitTls: true, credentials: login }),
       logger,
@@ -815,7 +783,7 @@ describe('createSmtpMailer: nothing but the recipient’s domain reaches a log',
 
   /** Runs every way a send can end, against real relays, through one logger. */
   const runEveryOutcome = async () => {
-    const logger = new RecordingLogger()
+    const logger = new CapturingLogger()
     const results: Awaited<ReturnType<ReturnType<typeof createSmtpMailer>['send']>>[] = []
     const mailerFor = (port: number, timeouts: MailTimeouts, withLogin = true) =>
       createSmtpMailer({
@@ -916,7 +884,7 @@ describe('createSmtpMailer: nothing but the recipient’s domain reaches a log',
   it('logs a failure as its reason, the recipient’s domain and the relay’s numeric reply, and nothing more', async () => {
     const relay = await sink()
     relay.refuseNextRecipient(550)
-    const logger = new RecordingLogger()
+    const logger = new CapturingLogger()
     const mailer = createSmtpMailer({
       settings: settingsFor(relay.port),
       logger,
@@ -944,7 +912,7 @@ describe('createSmtpMailer: nothing but the recipient’s domain reaches a log',
 
   it('logs a success as the recipient’s domain alone', async () => {
     const relay = await sink()
-    const logger = new RecordingLogger()
+    const logger = new CapturingLogger()
     const mailer = createSmtpMailer({
       settings: settingsFor(relay.port),
       logger,
@@ -964,7 +932,7 @@ describe('createSmtpMailer: nothing but the recipient’s domain reaches a log',
 
   it('logs a message refused before sending as the rule it broke, with not even a domain', async () => {
     const relay = await sink()
-    const logger = new RecordingLogger()
+    const logger = new CapturingLogger()
     const mailer = createSmtpMailer({
       settings: settingsFor(relay.port),
       logger,

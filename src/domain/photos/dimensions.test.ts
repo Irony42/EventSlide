@@ -87,10 +87,6 @@ describe('Dimensions arithmetic', () => {
     expect(dimensions(4000, 3000).pixels).toBe(12_000_000)
   })
 
-  it('reports the aspect ratio the wall letterboxes against', () => {
-    expect(dimensions(1920, 1080).aspectRatio).toBeCloseTo(16 / 9)
-  })
-
   it('calls a wider-than-tall photo landscape', () => {
     expect(dimensions(4000, 3000).orientation).toBe('landscape')
   })

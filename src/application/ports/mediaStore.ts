@@ -15,8 +15,6 @@ export {
   SERVED_VARIANTS,
   STAGED_SOURCE,
   VARIANTS_BY_KIND,
-  hasVariant,
-  isServedVariant,
 } from '../../domain/photos/mediaVariant'
 export type {
   ClipVariant,

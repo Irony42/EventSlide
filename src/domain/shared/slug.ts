@@ -164,10 +164,6 @@ export class Slug {
     return Slug.create(`${base}-${suffix}`)
   }
 
-  static isReserved(candidate: string): boolean {
-    return RESERVED.has(candidate)
-  }
-
   static readonly minLength = MIN_LENGTH
   static readonly maxLength = MAX_LENGTH
   /** Bytes the `IdGenerator` port must supply to {@link Slug.fromNameWithRandomSuffix}. */

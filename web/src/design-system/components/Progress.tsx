@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { cx } from '../classNames'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Progress.module.css'
 
@@ -17,7 +18,7 @@ export interface ProgressProps {
    * live region for the whole queue, and one region per photo would talk over itself.
    */
   readonly announce?: boolean
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /**
@@ -46,7 +47,7 @@ export function Progress({
 
   const trackStyle: TrackStyle = { '--progress-value': `${percent}%` }
   const liveProps: { readonly 'aria-live'?: 'polite' } = announce ? { 'aria-live': 'polite' } : {}
-  const classes = [styles['progress'], styles[tone], className].filter(Boolean).join(' ')
+  const classes = cx(styles['progress'], styles[tone], className)
 
   return (
     <div className={classes}>

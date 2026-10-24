@@ -47,10 +47,6 @@ export class Dimensions {
     return this.width * this.height
   }
 
-  get aspectRatio(): number {
-    return this.width / this.height
-  }
-
   get orientation(): Orientation {
     if (this.width > this.height) return 'landscape'
     if (this.width < this.height) return 'portrait'

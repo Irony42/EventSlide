@@ -138,11 +138,6 @@ export class Guest {
     return this.with({ lastSeenAt: now })
   }
 
-  /** Not seen for a while, which is "went home", not "was removed". */
-  isStale(now: Date, idleMs: number): boolean {
-    return now.getTime() - this.props.lastSeenAt.getTime() > idleMs
-  }
-
   // --------------------------------------------------------------- revocation --
 
   /**
@@ -155,7 +150,7 @@ export class Guest {
     return this.with({ revokedAt: at })
   }
 
-  /** Whether the device token still grants anything. Being in the room is `isStale`. */
+  /** Whether the device token still grants anything. Being in the room is `lastSeenAt`, which the host's count reads. */
   isActive(): boolean {
     return this.props.revokedAt === null
   }
@@ -202,26 +197,6 @@ export class Guest {
     const acknowledged = this.props.noticeAcknowledgement
     if (acknowledged === null) return 'none'
     return acknowledged.revision === notice.revision ? 'current' : 'outdated'
-  }
-
-  // ------------------------------------------------------------------- quotas --
-
-  recordPhoto(): Guest {
-    return this.with({ photoCount: this.props.photoCount + 1 })
-  }
-
-  /**
-   * A photo of theirs left the event. Clamped at zero because this counter feeds
-   * `canUploadMore`: a delete replayed once too often must not hand a guest who had
-   * reached their limit a free extra slot.
-   */
-  forgetPhoto(): Guest {
-    return this.with({ photoCount: Math.max(0, this.props.photoCount - 1) })
-  }
-
-  /** The per-guest limit from `EventSettings`; `null` means the host set none. */
-  canUploadMore(maxPhotosPerGuest: number | null): boolean {
-    return maxPhotosPerGuest === null || this.props.photoCount < maxPhotosPerGuest
   }
 
   // ------------------------------------------------------------------ helpers --

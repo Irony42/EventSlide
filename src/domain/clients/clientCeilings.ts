@@ -8,7 +8,7 @@ import { err, ok, type Result } from '../shared/result'
  * **Every bound here is `NULL`-means-"no ceiling", per the paid plan's "Schéma des
  * clients" (P3-04).** That is the free tier's own answer too: a solo installation has
  * exactly one client-shaped thing — nobody — so every ceiling on it is absent, and
- * `allowsAnotherEvent`, `admitsQuota` and the rest all answer "yes" unconditionally. The
+ * `allowsAnotherEvent`, `admitsRetention` and the rest all answer "yes" unconditionally. The
  * bounds below are not product limits; they are the shape a number must have to mean
  * anything at all (a byte quota of zero, a retention of thirty centuries), and they are
  * copied from the table's own `CHECK` constraints, so the two layers use the same numbers.
@@ -77,8 +77,8 @@ export interface EventCreationRefusal {
 export type OpeningRefusal = 'liveNotAllowed' | 'liveWindowOver'
 
 /**
- * The bounds of the two ceilings that are a number of days. Exported so that `env.ts`
- * validates the defaults of a new client (`NEW_CLIENT_*`, G2-18) against **these** numbers
+ * The bounds of the two ceilings that are a number of days. Exported so that the config
+ * (`config/schema.ts`) validates the defaults of a new client (`NEW_CLIENT_*`, G2-18) against **these** numbers
  * instead of restating them: a default the domain would refuse must be a boot refusal, not
  * a first provisioning that fails.
  */
@@ -241,11 +241,6 @@ export class ClientCeilings {
       return { ceiling: 'eventsPerPeriod', used: eventsCreatedInPeriod, max: maxEventsPerPeriod }
     }
     return null
-  }
-
-  /** Whether a single event may be given this many bytes of quota. */
-  admitsQuota(requestedBytes: number): boolean {
-    return this.props.maxEventQuotaBytes === null || requestedBytes <= this.props.maxEventQuotaBytes
   }
 
   /**

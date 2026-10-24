@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApi } from '../../../app/useApi'
 import { rememberGuestSession } from '../../../lib/guestSession'
-import { ApiError } from '../../../lib/http'
-import { messageForCode, type UiText } from '../../../lib/i18n/translations'
+import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { PublicEventDto } from '../../../lib/api/dto'
 
@@ -32,17 +31,6 @@ export interface JoinState {
   readonly join: (input: JoinInput) => void
   readonly continueToUpload: (slug: string) => void
 }
-
-/**
- * The sentence for a failure, in the language the guest is reading.
- *
- * The table is a parameter rather than something this reads for itself, because it is
- * resolved at the moment the failure is caught: `ApiError` carries only the server's
- * stable code, which is what lets the same refusal render in whichever language is
- * active. Anything that is not an `ApiError` is a bug in this build.
- */
-const messageFor = (cause: unknown, text: UiText): string =>
-  cause instanceof ApiError ? messageForCode(cause.code, text) : text.errors.unknown
 
 export const useJoin = (): JoinState => {
   const text = useTranslations()
@@ -106,7 +94,7 @@ export const useJoin = (): JoinState => {
           setState((previous) => ({
             phase: previous.event === null ? 'idle' : 'resolved',
             event: previous.event,
-            error: messageFor(cause, text),
+            error: messageForError(cause, text),
           }))
         },
       )

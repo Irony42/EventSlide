@@ -19,6 +19,3 @@
 export const MEDIA_KINDS = ['photo', 'clip'] as const
 
 export type MediaKind = (typeof MEDIA_KINDS)[number]
-
-export const isMediaKind = (value: unknown): value is MediaKind =>
-  typeof value === 'string' && (MEDIA_KINDS as readonly string[]).includes(value)

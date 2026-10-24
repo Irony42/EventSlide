@@ -11,7 +11,7 @@ import type { SecondFactorProof, TotpEnrolmentDto } from '../../lib/api/dto'
 import { ApiError } from '../../lib/http'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
-import { errorMessage } from './errorMessage'
+import { messageForError } from '../../lib/i18n/translations'
 import styles from './SecurityPage.module.css'
 
 /**
@@ -34,7 +34,7 @@ const useAction = () => {
       try {
         return { value: await action() }
       } catch (cause) {
-        setError(errorMessage(cause, t))
+        setError(messageForError(cause, t))
         onRefused?.(cause instanceof ApiError ? cause.code : undefined)
         return null
       } finally {

@@ -375,8 +375,8 @@ export interface ModerationQueueItemDtoInput {
  * the console rendered as "par undefined".
  *
  * The image URLs are still derived from the id and the slug, by the same builder the
- * wall and the printed card use, so the grid renders without a second read. `hasCaption`
- * does not cross: the row carries the caption itself, and a client can see for itself
+ * wall and the printed card use, so the grid renders without a second read. There is no
+ * "has a caption" flag: the row carries the caption itself, and a client can see for itself
  * whether there is one.
  */
 export const toModerationQueueItemDto = ({

@@ -63,7 +63,7 @@ export function WallMissions({ missions }: WallMissionsProps) {
           >
             <StatusIcon
               tone={mission.achieved ? 'success' : 'neutral'}
-              className={styles['icon'] ?? ''}
+              className={styles['icon']}
             />
             <span className={styles['prompt']}>{mission.prompt}</span>
             {mission.achieved ? (

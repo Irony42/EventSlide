@@ -335,14 +335,6 @@ export class Photo {
 
   // -------------------------------------------------------------------- helpers --
 
-  /** Same bytes in the same event: the upload is a retry, not a new photo. */
-  isDuplicateOf(other: Photo): boolean {
-    return (
-      this.props.eventId === other.props.eventId &&
-      this.props.contentHash.equals(other.props.contentHash)
-    )
-  }
-
   equals(other: Photo): boolean {
     return this.props.id === other.props.id
   }

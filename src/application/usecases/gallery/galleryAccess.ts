@@ -119,7 +119,7 @@ export const issueUnlock = (signer: GallerySigner, link: ShareLink, now: Date): 
  * The MAC is checked **before** the expiry is parsed, for the reason the guest token gives:
  * nothing a caller forged should reach a parser.
  */
-export const holdsUnlock = (
+const holdsUnlock = (
   signer: GallerySigner,
   link: ShareLink,
   proof: string | null,
