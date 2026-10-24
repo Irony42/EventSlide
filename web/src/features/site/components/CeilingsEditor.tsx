@@ -28,9 +28,10 @@ export interface CeilingsEditorProps {
  *
  * Surface: the operator's laptop. The reason is the one free text the operator writes into the
  * log, and the form says what it is for: one line, no address, read by the operator and not by the
- * client, a non-financial motive. It is mandatory on the wire, and **the form never sends a change
- * without it**: an empty reason is sent as it is, so that the server's own refusal (and its
- * sentence) is what the operator reads, not a second rule written here.
+ * client, a non-financial motive. It is mandatory on the wire, so the box is `required` (the
+ * browser refuses an empty one before anything is sent), and whatever is typed is judged by the
+ * server, whose sentence is what the operator reads when it refuses: the form restates no rule
+ * about what a reason may say.
  *
  * Only the boxes that changed are sent (a patch: a key left out keeps the client's value, an empty
  * box removes the ceiling), so saving a reason beside an untouched figure cannot rewrite it.
