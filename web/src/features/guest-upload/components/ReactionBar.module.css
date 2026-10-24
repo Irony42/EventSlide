@@ -1,0 +1,84 @@
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-width: 0;
+}
+
+/**
+ * Five equal columns, never a wrapped row.
+ *
+ * Five targets of --touch-min and four gaps are 236 px, which fits the narrowest phone this
+ * runs on; a flexing row left one button alone on a second line the moment the card was a
+ * few pixels short, under a thumb that had just found the others.
+ */
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(var(--touch-min), 1fr));
+  gap: var(--space-1);
+}
+
+/**
+ * Never smaller than --touch-min, in either direction: a reaction is the one control on this
+ * screen a guest taps at speed, one-handed, in the dark (DESIGN-SYSTEM.md section 8).
+ *
+ * An outline at rest and a filled button once pressed. The accent alone would be a signal
+ * only a guest who can tell hues apart gets; filled against hollow is a difference in
+ * lightness and in shape, and `aria-pressed` says it to a screen reader.
+ */
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background-color: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.reaction:hover:not(:disabled) {
+  background-color: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+/* Acknowledged on the thumb before the server has answered: a tap with no movement on slow
+   Wi-Fi gets tapped again, which takes the reaction straight back. */
+.reaction:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.reaction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pressed,
+.pressed:hover:not(:disabled) {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.glyph {
+  display: inline-flex;
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.failed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  inline-size: 100%;
+}
