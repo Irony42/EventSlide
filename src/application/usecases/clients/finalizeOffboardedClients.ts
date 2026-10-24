@@ -1,3 +1,4 @@
+import type { AuditActorInput } from '../../../domain/audit/auditActor'
 import { AuditEntry } from '../../../domain/audit/auditEntry'
 import type { ClientId, UserId } from '../../../domain/shared/ids'
 import type { AccountHoldings } from '../../ports/accountHoldings'
@@ -26,6 +27,8 @@ export interface FinalizeOffboardedClientsDeps {
   readonly holdings: AccountHoldings
   readonly audit: AuditRecorder
   readonly clock: Clock
+  /** Who the lines say did it. The sweeper, unless a test says otherwise. */
+  readonly actor?: AuditActorInput
 }
 
 export type FinalizeOffboardedClients = () => Promise<FinalizeOffboardedClientsReport>
@@ -56,6 +59,7 @@ export const makeFinalizeOffboardedClients =
     holdings,
     audit,
     clock,
+    actor = SWEEPER,
   }: FinalizeOffboardedClientsDeps): FinalizeOffboardedClients =>
   async () => {
     const due = await clients.listDueForFinalization(clock.now(), FINALIZE_BATCH)
@@ -81,7 +85,7 @@ export const makeFinalizeOffboardedClients =
           if (!(await goesWithTheClient(clientId, userId))) continue
           const line = AuditEntry.create({
             at: clock.now(),
-            actor: SWEEPER,
+            actor,
             action: 'account.deleted',
             subject: { type: 'account', id: userId },
             clientId,
@@ -98,7 +102,7 @@ export const makeFinalizeOffboardedClients =
 
         const done = AuditEntry.create({
           at: clock.now(),
-          actor: SWEEPER,
+          actor,
           action: 'client.finalized',
           subject: { type: 'client', id: clientId },
           clientId,

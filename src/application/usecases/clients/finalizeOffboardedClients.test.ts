@@ -146,6 +146,57 @@ describe('finalizeOffboardedClients', () => {
     expect(await clients.findById(OTHER)).not.toBeNull()
   })
 
+  it('refuses to delete anything when the log would refuse the line: no deletion without a record', async () => {
+    const silent = makeFinalizeOffboardedClients({
+      clients,
+      users,
+      holdings,
+      audit,
+      clock: new FakeClock(DUE),
+      actor: { kind: 'operator' },
+    })
+
+    const report = await silent()
+
+    expect(report).toEqual({ finalized: [], accountsDeleted: 0, failed: [CLIENT] })
+    expect(await exists('user-owner')).toBe(true)
+    expect(audit.all()).toEqual([])
+  })
+
+  it('does not finalise a client it could not write the closing line for, however empty it is', async () => {
+    for (const userId of await clients.memberIds(CLIENT)) await clients.revokeMember(CLIENT, userId)
+    const silent = makeFinalizeOffboardedClients({
+      clients,
+      users,
+      holdings,
+      audit,
+      clock: new FakeClock(DUE),
+      actor: { kind: 'operator' },
+    })
+
+    const report = await silent()
+
+    expect(report.failed).toEqual([CLIENT])
+    expect(await clients.findById(CLIENT)).not.toBeNull()
+  })
+
+  it('reports a client that was not empty after all, rather than counting it finished', async () => {
+    const racing = makeFinalizeOffboardedClients({
+      clients: Object.assign(Object.create(clients) as typeof clients, {
+        deleteIfEmpty: async () => false,
+      }),
+      users,
+      holdings,
+      audit,
+      clock: new FakeClock(DUE),
+    })
+
+    const report = await racing()
+
+    expect(report.finalized).toEqual([])
+    expect(report.failed).toEqual([CLIENT])
+  })
+
   it('does at most one batch of clients a sweep', async () => {
     for (let i = 0; i < FINALIZE_BATCH + 3; i += 1) {
       clients.seed(

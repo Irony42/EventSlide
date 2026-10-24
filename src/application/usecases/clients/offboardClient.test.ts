@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { DomainError } from '../../../domain/shared/errors'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
+import { err } from '../../../domain/shared/result'
 import type { AuditRecorder } from '../../ports/auditLog'
 import { AT, aClient, anEvent, atPlus } from '../../testing/builders'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
@@ -190,6 +192,33 @@ describe('offboardClient', () => {
     expect(await statusOf('live')).toBe('live')
     expect((await clients.findById(CLIENT))?.isOffboarding()).toBe(false)
   })
+
+  it.each(['live', 'draft'] as const)(
+    'returns an event’s refusal to move and writes nothing: a %s event that cannot be moved stops the offboarding',
+    async (status) => {
+      const stored = await events.findById(asEventId(status))
+      if (stored === null) throw new Error('fixture')
+      const refusing = Object.assign(Object.create(stored) as typeof stored, {
+        close: () => err(DomainError.conflict('event.transitionRefused')),
+        archive: () => err(DomainError.conflict('event.transitionRefused')),
+      })
+      const doctored = makeOffboardClient({
+        clients,
+        events: {
+          listByClient: async () => [refusing],
+          save: events.save.bind(events),
+        },
+        audit,
+        clock: new FakeClock(NOW),
+      })
+
+      const result = await doctored({ clientId: CLIENT, actor: OPERATOR, graceDays: 30 })
+
+      expect(!result.ok && result.error.code).toBe('event.transitionRefused')
+      expect(audit.all()).toEqual([])
+      expect((await clients.findById(CLIENT))?.isOffboarding()).toBe(false)
+    },
+  )
 
   it('has nothing to move for a client with no event, and still dates it', async () => {
     const empty = makeOffboardClient({ clients, events, audit, clock: new FakeClock(NOW) })
