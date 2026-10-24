@@ -16,6 +16,7 @@ import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { z } from 'zod'
 import { MEDIA_VARIANTS, STAGED_SOURCE } from '../../application/ports/mediaStore'
+import { mediaObjectPath } from '../media/mediaLayout'
 import { HOLDING_BYTES_SQL } from './clipJobStatusSql'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { checksumOf, migrate, MigrationError, type Migration } from './migrator'
@@ -445,13 +446,6 @@ interface LedgerRow {
   readonly checksum: string
 }
 
-/** Every rendition is a JPEG except the one that is an mp4, as `fsMediaStore` names it. */
-const MEDIA_EXTENSION: Readonly<Record<string, string>> = { video: 'mp4', source: 'bin' }
-
-/** The path `fsMediaStore` lays an object down at, relative to the media root. */
-const mediaPathOf = (eventId: string, contentHash: string, variant: string): string =>
-  `${eventId}/${variant}/${contentHash.slice(0, 2)}/${contentHash}.${MEDIA_EXTENSION[variant] ?? 'jpg'}`
-
 /**
  * Every file one row owns, as the media store laid it down.
  *
@@ -468,7 +462,7 @@ const expectedPathsOf = (
   if (photo.mediaKind !== 'clip') {
     return MEDIA_VARIANTS.map((variant) => ({
       variant,
-      path: mediaPathOf(photo.eventId, photo.contentHash, variant),
+      path: mediaObjectPath(photo.eventId, photo.contentHash, variant),
     }))
   }
   // A clip row with no poster digest is a corrupt row; the repository refuses it on
@@ -476,8 +470,8 @@ const expectedPathsOf = (
   // video's digest and lets the missing-media list report what is not there.
   const poster = photo.posterHash ?? photo.contentHash
   return [
-    { variant: 'video', path: mediaPathOf(photo.eventId, photo.contentHash, 'video') },
-    { variant: 'poster', path: mediaPathOf(photo.eventId, poster, 'poster') },
+    { variant: 'video', path: mediaObjectPath(photo.eventId, photo.contentHash, 'video') },
+    { variant: 'poster', path: mediaObjectPath(photo.eventId, poster, 'poster') },
   ]
 }
 
@@ -782,7 +776,7 @@ const writeArchive = async ({
   // happens to open inside it would otherwise report a fault in an archive that has
   // everything anybody will ever need.
   for (const clip of snapshot.stagedClips) {
-    expected.add(mediaPathOf(clip.eventId, clip.sourceHash, STAGED_SOURCE))
+    expected.add(mediaObjectPath(clip.eventId, clip.sourceHash, STAGED_SOURCE))
   }
 
   const unreferencedMediaFiles = entries.filter((entry) => !expected.has(entry.path)).length
