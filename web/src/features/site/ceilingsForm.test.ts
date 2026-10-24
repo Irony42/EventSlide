@@ -104,6 +104,18 @@ describe('the ceilings form', () => {
     expect(outcome).toEqual({ ok: true, patch: { maxEvents: 0, maxRetentionDays: 99999 } })
   })
 
+  it('refuses a spelling a number parser would read as another number: an exponent, hexadecimal, a sign', () => {
+    for (const text of ['1e3', '0x10', '+5', '-3', 'Infinity', 'NaN', '1_000']) {
+      const outcome = ceilingsPatch(
+        { ...base, maxEvents: text, maxTotalGigabytes: text },
+        base,
+        now,
+      )
+
+      expect(outcome, text).toEqual({ ok: false, invalid: ['maxEvents', 'maxTotalGigabytes'] })
+    }
+  })
+
   it('refuses a figure that is not a safe integer rather than sending a rounded one', () => {
     const outcome = ceilingsPatch({ ...base, maxEvents: '9'.repeat(20) }, base, now)
 
