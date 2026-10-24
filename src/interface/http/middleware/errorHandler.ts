@@ -11,7 +11,9 @@ import { errorBody, sendError, statusForKind } from '../presenters/send'
  * P3-09 — the page the mailed link opens, served by the SPA fallback, so the path is
  * exactly what `requestContext` stamps on every line written while it is served), and an
  * invitation's `/invite/<token>` and `/api/invitations/<token>/…` (G2-09 / P3-10, the same
- * page and the routes it calls).
+ * page and the routes it calls), and the join lookup's `/api/join/<code>`: a printed join code
+ * is a credential of a lesser grade, but it is one, and it is the first the API takes from a
+ * path (`POST /api/join` carries it in the body, and has no further segment for this to match).
  * Case-insensitive, as Express's routing is — `/API/Gallery/<token>` reaches the same
  * route. `/api/gallery-media/…` does not match: it carries a link's id and a signature,
  * neither of which opens anything alone.
@@ -19,7 +21,8 @@ import { errorBody, sendError, statusForKind } from '../presenters/send'
  * It is anchored, so it is only ever tried on a path that `normalisedForMatch` has put in
  * one spelling.
  */
-const TOKEN_IN_PATH = /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/invitations)\/[^/]+/i
+const TOKEN_IN_PATH =
+  /^(\/api\/gallery|\/g|\/password\/reset|\/invite|\/api\/invitations|\/api\/join)\/[^/]+/i
 
 /** A letter, a digit or one of `-._~`: the characters RFC 3986 section 2.3 calls unreserved. */
 const UNRESERVED = /^[A-Za-z0-9\-._~]$/

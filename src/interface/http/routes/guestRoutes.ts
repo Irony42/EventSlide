@@ -4,7 +4,7 @@ import type { Event } from '../../../domain/events/event'
 import type { Guest } from '../../../domain/guests/guest'
 import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import { asMissionId, asPhotoId } from '../../../domain/shared/ids'
+import { asGuestId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { GUEST_COOKIE, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
@@ -18,14 +18,17 @@ import {
   toGuestMissionDto,
   toGuestPhotoDto,
   toReactionsDto,
+  toRenamedGuestDto,
   toUploadResponseDto,
 } from '../presenters/presenters'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   captionBody,
+  guestParams,
   photoParams,
   reactionBody,
   reactionParams,
+  renameGuestBody,
   uploadFields,
 } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
@@ -73,6 +76,7 @@ export interface GuestRouteDeps {
     | 'setPhotoCaption'
     | 'reactToPhoto'
     | 'withdrawReaction'
+    | 'renameGuest'
     | 'getPhotoReactions'
     | 'getGuestChecklist'
   >
@@ -96,7 +100,8 @@ export interface GuestRouteDeps {
   readonly uploadRateLimiter?: RequestHandler
   /**
    * The bucket for the guest's other writes (HTTP-H-01): a caption, taking a photo back,
-   * withdrawing a reaction - and, from `privacyNoticeRoutes`, acknowledging the notice.
+   * withdrawing a reaction, renaming oneself - and, from `privacyNoticeRoutes`, acknowledging
+   * the notice.
    * **Built by the caller so that router can share this one**, for the reason
    * `uploadRateLimiter` gives: a guest doing two of them is one guest.
    *
@@ -537,6 +542,42 @@ export const guestRoutes = ({
       })
 
       sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * A guest correcting the name their photos are signed with - their own, and nobody else's.
+   *
+   * The name is projected in front of a room, so `requireGuest` is the whole authorization
+   * decision and it is a narrow one: the token must name **this** event (`403 guest.wrongEvent`
+   * otherwise) and a guest the host revoked is refused (`403 guest.revoked`). Who is being
+   * renamed is then compared **by the use case** with who the token names: the acting guest
+   * comes from the verified token and the target from the path, and a different target is
+   * `403 auth.forbidden` before any row is read, so the route cannot be used to learn which
+   * guest ids exist. A host or moderator has no guest cookie here and is a `401`: this is not
+   * the host surface, and a host editing a guest's name is not a feature.
+   *
+   * Limited with the guest's other writes (HTTP-H-01): the token is free.
+   */
+  router.patch(
+    '/events/:eventSlug/guests/:guestId',
+    guestWriteRateLimiter,
+    requireGuest(deps),
+    withGuest(async ({ event, guest }, req, res) => {
+      const params = guestParams.parse(req.params)
+      const body = renameGuestBody.parse(req.body)
+
+      const result = await usecases.renameGuest({
+        eventId: event.id,
+        actingGuestId: guest.id,
+        guestId: asGuestId(params.guestId),
+        displayName: body.displayName,
+      })
+
+      sendResult(res, result, (response, renamed) => {
+        response.setHeader('Cache-Control', 'no-store')
+        sendJson(response, toRenamedGuestDto(renamed))
+      })
     }),
   )
 

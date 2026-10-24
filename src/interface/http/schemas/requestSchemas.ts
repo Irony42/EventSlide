@@ -113,6 +113,9 @@ export const moderatorParams = z.object({ eventSlug: slug, userId: uuid })
 
 export const guestParams = z.object({ eventSlug: slug, guestId: uuid })
 
+/** `GET /join/:code`. Shape only: the use case normalises the code and decides what it means. */
+export const joinCodeParams = z.object({ code: joinCode })
+
 export const missionParams = z.object({ eventSlug: slug, missionId: uuid })
 
 // ------------------------------------------------------------------- public --
@@ -159,6 +162,15 @@ export const clipUploadFields = z.strictObject({
 
 export const captionBody = z.strictObject({
   caption: z.string().max(1_000).nullable(),
+})
+
+/**
+ * `PATCH /guests/:guestId`: **required and nullable**, like the caption. `null` or blank takes
+ * the name off the wall, and `{}` is a `400`: "leave it as it was" is not an intent this
+ * endpoint has. The bound is the join body's; `DisplayName` says what a name may be.
+ */
+export const renameGuestBody = z.strictObject({
+  displayName: z.string().max(120).nullable(),
 })
 
 export const reactionBody = z.strictObject({
