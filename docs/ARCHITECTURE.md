@@ -235,7 +235,7 @@ the slideshow for the rest of the evening.
 | 18 magic bytes / pixel bomb | temp file on disk        | `finally` unlinks it; nothing else touched                                                       |
 | 19 `sharp` throws           | temp file on disk        | unlinked; no media written, no row                                                               |
 | 21 second `put` fails       | `full` variant stored    | both variant keys deleted from the store; no row                                                 |
-| 23 insert fails             | both variants stored     | `media.delete` per key, then the error is returned                                               |
+| 23 insert fails             | both variants stored     | `media.delete` per key unless a twin row names it (a lost race answers `duplicate`)              |
 | 24 bus throws               | row committed            | logged and swallowed — a lost notification is a 15 s stale UI; a rolled-back row is a lost photo |
 
 `src/main/container.ts` sweeps the temp directory at boot, so a `SIGKILL` mid-upload

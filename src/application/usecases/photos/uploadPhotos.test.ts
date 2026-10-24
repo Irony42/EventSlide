@@ -7,16 +7,22 @@ import {
   asEventId,
   asGuestId,
   asMissionId,
+  asPhotoId,
   asUserId,
   type EventId,
   type MissionId,
+  type PhotoId,
 } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { LogContext, Logger } from '../../ports/logger'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
-import type { PhotoAdmission, PhotoRefusal } from '../../ports/photoRepository'
+import type {
+  PhotoAdmission,
+  PhotoAdmissionLimits,
+  PhotoRefusal,
+} from '../../ports/photoRepository'
 import {
   MEDIA_VARIANTS,
   type MediaMetadata,
@@ -315,6 +321,80 @@ class LostRacePhotoRepository extends FakePhotoRepository {
       photoId: photo.id,
       refusal: { reason: 'quotaExceeded', remaining: 0 },
     }))
+  }
+}
+
+/**
+ * A byte-identical photo of another guest, committed **after** this request's duplicate
+ * check and **before** its insert: the race `(event_id, content_hash)` being unique turns
+ * into a raise for the whole batch, exactly as it does in SQLite.
+ */
+class RivalCommitsBeforeInsertPhotoRepository extends FakePhotoRepository {
+  private committed = false
+
+  constructor(private readonly rivalHash: string) {
+    super()
+  }
+
+  override async saveManyWithinLimits(
+    eventId: EventId,
+    photos: readonly Photo[],
+    limits: PhotoAdmissionLimits,
+  ): Promise<readonly PhotoAdmission[]> {
+    if (!this.committed) {
+      this.committed = true
+      await this.save(aPhoto({ id: 'rival', eventId, contentHash: this.rivalHash }))
+    }
+    return super.saveManyWithinLimits(eventId, photos, limits)
+  }
+}
+
+/**
+ * The same twin, committed while this request is still rendering its **second** file: the
+ * first file's media is on the disk, nothing of this request is committed, and the row that
+ * now names that media is somebody else's.
+ */
+class RivalCommitsMidRequestPhotoRepository extends FakePhotoRepository {
+  private lookups = 0
+
+  constructor(private readonly rivalHash: string) {
+    super()
+  }
+
+  override async findByContentHash(eventId: EventId, hash: ContentHash): Promise<Photo | null> {
+    const found = await super.findByContentHash(eventId, hash)
+    this.lookups += 1
+    if (this.lookups === 2) {
+      await this.save(aPhoto({ id: 'rival', eventId, contentHash: this.rivalHash }))
+    }
+    return found
+  }
+}
+
+/** A database that stays locked: the insert raises, and so does every read after it. */
+class LockedForGoodPhotoRepository extends FakePhotoRepository {
+  private locked = false
+
+  override async saveManyWithinLimits(): Promise<readonly PhotoAdmission[]> {
+    this.locked = true
+    throw new Error('SQLITE_BUSY: database is locked')
+  }
+
+  override async findByContentHash(eventId: EventId, hash: ContentHash): Promise<Photo | null> {
+    this.refuseWhenLocked()
+    return super.findByContentHash(eventId, hash)
+  }
+
+  override async findIdsReferencing(
+    eventId: EventId,
+    hash: ContentHash,
+  ): Promise<readonly PhotoId[]> {
+    this.refuseWhenLocked()
+    return super.findIdsReferencing(eventId, hash)
+  }
+
+  private refuseWhenLocked(): void {
+    if (this.locked) throw new Error('SQLITE_BUSY: database is locked')
   }
 }
 
@@ -813,6 +893,114 @@ describe('uploadPhotos', () => {
     expect(media.objectCount).toBe(3)
   })
 
+  // ------------------------------------- the same photograph, from two phones at once --
+
+  /**
+   * Two guests send the same photograph from the same group chat. Media is addressed by
+   * content and `photos (event_id, content_hash)` is unique, so both write the same three
+   * files, one insert wins and the other raises. These are the tests that fail if the loser
+   * takes "its" files with it, because they are the winner's.
+   */
+  const identicalAtOnce = async (): Promise<
+    readonly [Result<UploadPhotosResult, DomainError>, Result<UploadPhotosResult, DomainError>]
+  > =>
+    Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: OTHER_GUEST, files: [aFile('sunset')] }),
+    ])
+
+  it('keeps the media of the row a concurrent identical upload committed', async () => {
+    seedEvent()
+
+    await identicalAtOnce()
+
+    const [row] = await storedPhotos()
+    expect(row === undefined ? [] : media.variantsOf(EVENT, row.contentHash)).toEqual(
+      MEDIA_VARIANTS,
+    )
+  })
+
+  it('answers the identical upload that lost the race with the photo that won, not an error', async () => {
+    seedEvent()
+
+    const results = await identicalAtOnce()
+
+    const [row] = await storedPhotos()
+    const loser = outcomesOf(results[1])[0]
+    expect(results.every((result) => result.ok)).toBe(true)
+    expect(loser).toMatchObject({ kind: 'duplicate', photoId: row?.id })
+  })
+
+  it('announces one upload, not two, when the same photograph arrives twice at once', async () => {
+    seedEvent()
+
+    await identicalAtOnce()
+
+    expect(bus.published.filter((event) => event.type === 'photo.uploaded')).toHaveLength(1)
+  })
+
+  it('stores the rest of the batch when one of its files lost the race to a twin', async () => {
+    seedEvent()
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    expect(kinds(result)).toEqual(['duplicate', 'stored'])
+    expect((await rival.list(EVENT)).items.map((photo) => photo.id).sort()).toEqual([
+      'photo-2',
+      'rival',
+    ])
+  })
+
+  it('names the twin, not a row that was never written, for a later file that repeated the loser', async () => {
+    seedEvent()
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('sunset'), aFile('cake')],
+    })
+
+    expect(outcomesOf(result)).toMatchObject([
+      { kind: 'duplicate', photoId: 'rival' },
+      { kind: 'duplicate', photoId: 'rival' },
+      { kind: 'stored' },
+    ])
+  })
+
+  it('keeps the twin media while storing the rest of the batch that lost a file to it', async () => {
+    seedEvent()
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    const twin = await rival.findById(EVENT, asPhotoId('rival'))
+    expect(twin === null ? [] : media.variantsOf(EVENT, twin.contentHash)).toEqual(MEDIA_VARIANTS)
+  })
+
+  it('announces and publishes only what was stored when a file of the batch lost to a twin', async () => {
+    seedEvent({ settings: { moderation: 'auto' } })
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    expect(result.ok && result.value.published).toEqual(['photo-2'])
+    expect(bus.published.map((event) => event.type)).toEqual(['photo.uploaded', 'photo.moderated'])
+  })
+
   it('holds the per-guest photo limit when one guest uploads twice at the same moment', async () => {
     seedEvent({ settings: { maxPhotosPerGuest: 1 } })
 
@@ -1015,6 +1203,63 @@ describe('uploadPhotos', () => {
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
     expect(media.variantsOf(EVENT, earlier.contentHash)).toEqual(['display'])
+  })
+
+  it('never removes media a committed row names, however the request fails', async () => {
+    // The twin commits while this request renders its second file; that file's first
+    // write then fails, and the unwind runs with the first file's media on the disk.
+    seedEvent()
+    const rival = new RivalCommitsMidRequestPhotoRepository(hashOf('sunset'))
+    media.failAfter(3)
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    const twin = await rival.findById(EVENT, asPhotoId('rival'))
+    expect(!result.ok && result.error.code).toBe('photo.mediaWriteFailed')
+    expect(twin === null ? [] : media.variantsOf(EVENT, twin.contentHash)).toEqual(MEDIA_VARIANTS)
+  })
+
+  it('still removes the media nothing names when it unwinds beside media something does', async () => {
+    seedEvent()
+    const rival = new RivalCommitsMidRequestPhotoRepository(hashOf('sunset'))
+    media.failAfter(5)
+
+    await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    // The twin's three variants stay; the two written of the second file go.
+    expect(media.objectCount).toBe(3)
+  })
+
+  it('answers photo.saveFailed rather than throwing when the database stays locked for the lookups too', async () => {
+    seedEvent()
+    const locked = new LockedForGoodPhotoRepository()
+
+    const result = await uploadInto(locked)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset')],
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.saveFailed')
+  })
+
+  it('leaves the media for the sweep when it cannot ask whether a row names it', async () => {
+    // A file a row names cannot be rebuilt; a file nothing names is swept. When the
+    // question cannot be asked, the cheap mistake is the one to make.
+    seedEvent()
+    const locked = new LockedForGoodPhotoRepository()
+
+    await uploadInto(locked)({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
+
+    expect(media.objectCount).toBe(3)
   })
 
   it('removes the media it wrote when the rows cannot be inserted', async () => {
