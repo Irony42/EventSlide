@@ -1080,6 +1080,44 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     expect(response.headers['retry-after']).toBe('60')
   })
 
+  it('answers 429 once the per-minute limit for this address and event is spent', async () => {
+    // The coarse control, in front of the use case and apart from the guest's own budget:
+    // the budget here is generous, so only the limiter can refuse the second tap. A phone
+    // that taps at the speed of a thumb is what the limiter exists to slow down.
+    const subject = buildSubject({
+      config: {
+        rateLimits: {
+          uploadPerMinute: 12,
+          joinPerMinute: 20,
+          loginPerMinute: 10,
+          reactionPerMinute: 1,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
+          guestWritePerMinute: 300,
+        },
+      },
+    })
+    await request(subject.app)
+      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .set('Cookie', cookie(subject.token))
+      .send({ kind: 'love' })
+      .expect(204)
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .set('Cookie', cookie(subject.token))
+      .send({ kind: 'clap' })
+
+    expect(response.status).toBe(429)
+    expect(response.body.error.code).toBe('reaction.rateLimited')
+    expect(
+      subject.harness.bus.published.filter((frame) => frame.type === 'reaction.added'),
+    ).toHaveLength(1)
+  })
+
   it('refuses every reaction when the host turned them off', async () => {
     const subject = buildSubject({ settings: { allowReactions: false } })
 

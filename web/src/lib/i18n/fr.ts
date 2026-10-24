@@ -436,6 +436,27 @@ export const fr = {
     /** `clipDone` for an event that publishes on arrival, for `introImmediate`'s reason. */
     clipDoneImmediate: 'Vidéo envoyée. Elle passe à l’écran.',
 
+    /* ---- Added by guest reactions (a guest reacts to a photo of theirs on the wall). ---- */
+
+    /**
+     * The five reactions, as the words a screen reader says. The glyph on a button is
+     * decoration and colour is never the signal, so this is what tells a guest which
+     * button is which.
+     *
+     * One short word each, in the first person where a feeling is named: it is read
+     * between a photo and the next control, and a sentence there is a sentence too many.
+     */
+    reactionKinds: {
+      love: 'J’adore',
+      laugh: 'Haha',
+      wow: 'Waouh',
+      cheers: 'Santé',
+      clap: 'Bravo',
+    },
+    /** The row's name. Numbered like `deleteOwnNumbered`, so two rows are never one label. */
+    reactionsGroup: (position: number) => `Réagir à la photo ${t.number(position)}`,
+    reactionsFailed: 'Les réactions n’ont pas pu être chargées.',
+
     /* -------------------------- end guest surface --------------------------- */
   },
 

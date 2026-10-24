@@ -136,6 +136,18 @@ const BESPOKE: ReadonlyMap<string, { readonly count: number; readonly reason: st
     },
   ],
   [
+    'features/guest-upload/hooks/usePhotoReactions.ts',
+    {
+      count: 1,
+      reason:
+        'The answer is the base of an overlay the guest’s own taps change, and a re-read may only ' +
+        'start once no tap is in the air — a snapshot older than a request still on its way would ' +
+        'take that tap off the screen — so it is started by the settling of a request, and the ' +
+        'buttons must rest from the failure until it answers: while the taps drain, the read has ' +
+        'not been asked yet, which `useLoader`’s derived `loading` does not say.',
+    },
+  ],
+  [
     'features/gallery/hooks/useGallery.ts',
     {
       count: 1,

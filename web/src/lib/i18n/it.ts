@@ -221,6 +221,18 @@ export const it: UiText = {
       'Altrimenti, lo chieda all’organizzatore: può eliminare qualsiasi foto.',
     noticeRemovalAskHost: 'Lo chieda all’organizzatore: può eliminare qualsiasi foto.',
     clipDoneImmediate: 'Video inviato. Sta per apparire sullo schermo.',
+
+    /* ---- Added by guest reactions. ---- */
+
+    reactionKinds: {
+      love: 'Adoro',
+      laugh: 'Ahah',
+      wow: 'Wow',
+      cheers: 'Cin cin',
+      clap: 'Applausi',
+    },
+    reactionsGroup: (position: number) => `Reagisci alla foto ${t.number(position)}`,
+    reactionsFailed: 'Non è stato possibile caricare le reazioni.',
   },
 
   ui: {
