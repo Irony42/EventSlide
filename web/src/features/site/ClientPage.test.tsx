@@ -8,6 +8,7 @@ import type { SiteClientDto } from '../../lib/api/dto'
 import {
   aSiteClient,
   aSiteEvent,
+  aLinkInvitation,
   aSiteInvitation,
   CLIENT_ID,
   EVENT_ID,
@@ -635,10 +636,7 @@ describe('a client’s page: inviting into its account', () => {
   it('hands the operator the link where no mail went out', async () => {
     const api = withClient(aSiteClient(), {
       siteInviteToClient: vi.fn(async () => ({
-        invitation: aSiteInvitation({
-          delivery: 'link',
-          link: 'https://photos.example.test/invite/UN-JETON',
-        }),
+        invitation: aLinkInvitation('https://photos.example.test/invite/UN-JETON'),
       })),
     })
     await openInvite(api)

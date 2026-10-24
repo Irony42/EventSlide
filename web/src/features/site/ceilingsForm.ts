@@ -1,4 +1,4 @@
-import type { CeilingsDto, SiteCeilingsPatch, SiteClientDefaultsDto } from '../../lib/api/dto'
+import type { CeilingsDto, ClientDefaultsDto, SiteCeilingsPatch } from '../../lib/api/dto'
 
 /**
  * A client's ceilings as the console's form holds them: text boxes for the numbers, because a
@@ -48,7 +48,7 @@ type CeilingSource = Pick<
 > & { readonly liveAllowed?: boolean }
 
 export const fieldsFromCeilings = (
-  ceilings: CeilingSource | SiteClientDefaultsDto['ceilings'],
+  ceilings: CeilingSource | ClientDefaultsDto['ceilings'],
 ): CeilingFields => ({
   maxEvents: countText(ceilings.maxEvents),
   maxEventsPerPeriod: countText(ceilings.maxEventsPerPeriod),

@@ -4,9 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { fr } from '../../lib/i18n/fr'
 import { ApiError } from '../../lib/http'
 import type { Api } from '../../lib/api/client'
+import type { OperatorInvitationDto } from '../../lib/api/dto'
 import {
   aSiteClient,
   aSiteClientDefaults,
+  aLinkInvitation,
   aSiteInvitation,
   CLIENT_ID,
   OTHER_CLIENT_ID,
@@ -300,10 +302,7 @@ describe('opening a client', () => {
       siteClientDefaults: vi.fn(async () => defaults),
       siteProvisionClient: vi.fn(async () => ({
         clientId: CLIENT_ID,
-        invitation: aSiteInvitation({
-          delivery: 'link',
-          link: 'https://photos.example.test/invite/UN-JETON',
-        }),
+        invitation: aLinkInvitation('https://photos.example.test/invite/UN-JETON'),
       })),
     })
     await openForm(api)
@@ -333,10 +332,11 @@ describe('opening a client', () => {
       siteClientDefaults: vi.fn(async () => defaults),
       siteProvisionClient: vi.fn(async () => ({
         clientId: CLIENT_ID,
-        invitation: aSiteInvitation({
-          delivery: 'mail',
+        // The type cannot hold a mail delivery with a link: this is the answer of a server that regressed.
+        invitation: {
+          ...aSiteInvitation({ delivery: 'mail' }),
           link: 'https://photos.example.test/invite/PLANTED-TOKEN',
-        }),
+        } as unknown as OperatorInvitationDto,
       })),
     })
     await openForm(api)

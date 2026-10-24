@@ -5,7 +5,7 @@ import { Card } from '../../../design-system/components/Card'
 import { Field } from '../../../design-system/components/Field'
 import { TextInput } from '../../../design-system/components/TextInput'
 import type { Api } from '../../../lib/api/client'
-import type { SiteClientDefaultsDto, SiteInvitationDto } from '../../../lib/api/dto'
+import type { ClientDefaultsDto, OperatorInvitationDto } from '../../../lib/api/dto'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import { SelectField } from '../../admin/components/SelectField'
@@ -25,7 +25,7 @@ export interface ClientOpened {
   readonly clientId: string
   readonly name: string
   readonly email: string
-  readonly invitation: SiteInvitationDto
+  readonly invitation: OperatorInvitationDto
 }
 
 export interface NewClientFormProps {
@@ -65,7 +65,7 @@ function Form({
   onOpened,
   onCancel,
 }: {
-  readonly defaults: SiteClientDefaultsDto
+  readonly defaults: ClientDefaultsDto
   readonly onOpened: (opened: ClientOpened) => void
   readonly onCancel: () => void
 }) {

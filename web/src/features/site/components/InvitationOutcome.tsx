@@ -1,11 +1,11 @@
 import { Card } from '../../../design-system/components/Card'
-import type { SiteInvitationDto } from '../../../lib/api/dto'
+import type { OperatorInvitationDto } from '../../../lib/api/dto'
 import { formatDateTime } from '../../../lib/format'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import { LinkNotice } from './LinkNotice'
 
 export interface InvitationOutcomeProps {
-  readonly invitation: SiteInvitationDto
+  readonly invitation: OperatorInvitationDto
   /** The address the operator typed: printed back, never read from the answer, which holds none. */
   readonly email: string
   readonly onDismiss: () => void
@@ -29,7 +29,7 @@ export function InvitationOutcome({ invitation, email, onDismiss }: InvitationOu
 
   return (
     <>
-      {invitation.delivery === 'link' && invitation.link !== undefined ? (
+      {invitation.delivery === 'link' ? (
         <LinkNotice
           title={t.site.invitationLinkTitle}
           body={t.site.invitationLinkBody}

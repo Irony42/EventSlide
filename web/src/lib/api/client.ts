@@ -4,6 +4,8 @@ import type {
   About,
   BulkModerationResponse,
   ClientAuditPageDto,
+  ClientCeilingsChangedDto,
+  ClientDefaultsDto,
   ClipJobDto,
   EventDto,
   EventLanguage,
@@ -23,10 +25,13 @@ import type {
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
+  OperatorInvitationDto,
+  OperatorPasswordResetDto,
   MyLimitsDto,
   PendingInvitationsDto,
   PhotoStatus,
   PrivacyNoticeState,
+  ProvisionedClientDto,
   ReactionKind,
   ReactionsResponse,
   RecoveryCodesDto,
@@ -38,14 +43,9 @@ import type {
   ShareLinkResponse,
   SiteAccountPageDto,
   SiteAuditPageDto,
-  SiteCeilingsChangedDto,
   SiteCeilingsPatch,
-  SiteClientDefaultsDto,
   SiteClientPageDto,
   SiteEventPageDto,
-  SiteInvitationDto,
-  SiteProvisionedClientDto,
-  SiteResetDto,
   TopPhotoDto,
   TotpEnrolmentDto,
   UploadResponse,
@@ -67,6 +67,31 @@ const codeOf = (proof: SecondFactorProof | undefined): string | undefined =>
   proof !== undefined && 'code' in proof ? proof.code : undefined
 const recoveryCodeOf = (proof: SecondFactorProof | undefined): string | undefined =>
   proof !== undefined && 'recoveryCode' in proof ? proof.recoveryCode : undefined
+
+/**
+ * `POST /api/site/clients`. `ceilings` is the operator's own: a ceiling it names is kept, `null`
+ * included (it lifts the box's `NEW_CLIENT_*` default for this client), and one it leaves out takes
+ * the default. `locale` is the language the owner's invitation is written in.
+ */
+export interface SiteProvisionInput {
+  readonly clientName: string
+  readonly ownerEmail: string
+  readonly locale: Locale
+  readonly ceilings?: SiteCeilingsPatch
+}
+
+/** `POST /api/site/clients/:clientId/invitations`: into the client's account, never an event. */
+export interface SiteInvitationInput {
+  readonly email: string
+  readonly role: 'owner' | 'member'
+  readonly locale: Locale
+}
+
+/** `POST /api/site/accounts/:userId/password-reset`. `approvalId` is an id, never a secret. */
+export interface SiteResetInput {
+  readonly locale: Locale
+  readonly approvalId?: string
+}
 
 export interface CreateEventInput {
   readonly name: string
@@ -554,7 +579,7 @@ export const createApi = (transport: Transport) => ({
     ),
 
   /** What a client is given when the form leaves a ceiling alone: the box's `NEW_CLIENT_*`. */
-  siteClientDefaults: (signal?: AbortSignal): Promise<SiteClientDefaultsDto> =>
+  siteClientDefaults: (signal?: AbortSignal): Promise<ClientDefaultsDto> =>
     transport.get('/api/site/client-defaults', undefined, signal),
 
   /**
@@ -562,12 +587,8 @@ export const createApi = (transport: Transport) => ({
    * operator's own: a key it names is kept (`null` lifts the box's default), one it leaves
    * out takes the default. `locale` is the language the owner's invitation is written in.
    */
-  siteProvisionClient: (input: {
-    readonly clientName: string
-    readonly ownerEmail: string
-    readonly locale: Locale
-    readonly ceilings?: SiteCeilingsPatch
-  }): Promise<SiteProvisionedClientDto> => transport.post('/api/site/clients', input),
+  siteProvisionClient: (input: SiteProvisionInput): Promise<ProvisionedClientDto> =>
+    transport.post('/api/site/clients', input),
 
   siteRenameClient: (clientId: string, name: string): Promise<void> =>
     transport.patch(`/api/site/clients/${encode(clientId)}`, { name }),
@@ -577,7 +598,7 @@ export const createApi = (transport: Transport) => ({
     clientId: string,
     ceilings: SiteCeilingsPatch,
     reason: string,
-  ): Promise<SiteCeilingsChangedDto> =>
+  ): Promise<ClientCeilingsChangedDto> =>
     transport.put(`/api/site/clients/${encode(clientId)}/ceilings`, { ceilings, reason }),
 
   siteSuspendClient: (clientId: string): Promise<void> =>
@@ -589,18 +610,15 @@ export const createApi = (transport: Transport) => ({
   /** Into the client's account, never into an event. `pendingApproval` says an owner must agree. */
   siteInviteToClient: (
     clientId: string,
-    input: { readonly email: string; readonly role: 'owner' | 'member'; readonly locale: Locale },
-  ): Promise<{ readonly invitation: SiteInvitationDto }> =>
+    input: SiteInvitationInput,
+  ): Promise<{ readonly invitation: OperatorInvitationDto }> =>
     transport.post(`/api/site/clients/${encode(clientId)}/invitations`, input),
 
   /**
    * Resets an account's password. Where a mailer delivers the answer holds no link and no token:
    * it went to the account's own address and nowhere else.
    */
-  siteResetPassword: (
-    userId: string,
-    input: { readonly locale: Locale; readonly approvalId?: string },
-  ): Promise<SiteResetDto> =>
+  siteResetPassword: (userId: string, input: SiteResetInput): Promise<OperatorPasswordResetDto> =>
     transport.post(`/api/site/accounts/${encode(userId)}/password-reset`, input),
 
   // ------------------------------------------------------------------ events --

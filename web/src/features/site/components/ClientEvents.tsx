@@ -63,12 +63,10 @@ export function ClientEvents({ clientId }: { readonly clientId: string }) {
                   </td>
                   <td>{t.site.photoCount(event.photoCount)}</td>
                   <td>
-                    {event.quotaBytes === null
-                      ? formatBytes(event.usedBytes, locale)
-                      : t.site.storageOf(
-                          formatBytes(event.usedBytes, locale),
-                          formatBytes(event.quotaBytes, locale),
-                        )}
+                    {t.site.storageOf(
+                      formatBytes(event.usedBytes, locale),
+                      formatBytes(event.quotaBytes, locale),
+                    )}
                   </td>
                   <td className={tables['muted']}>
                     {event.startsAt === null

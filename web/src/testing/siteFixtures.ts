@@ -2,10 +2,11 @@ import type {
   CeilingsDto,
   SiteAccountDto,
   SiteAuditEntryDto,
-  SiteClientDefaultsDto,
+  ClientDefaultsDto,
   SiteClientDto,
   SiteEventDto,
-  SiteInvitationDto,
+  OperatorInvitationByLinkDto,
+  OperatorInvitationByMailDto,
 } from '../lib/api/dto'
 
 /**
@@ -87,7 +88,9 @@ export const aSiteAuditEntry = (overrides: Partial<SiteAuditEntryDto> = {}): Sit
   ...overrides,
 })
 
-export const aSiteInvitation = (overrides: Partial<SiteInvitationDto> = {}): SiteInvitationDto => ({
+export const aSiteInvitation = (
+  overrides: Partial<OperatorInvitationByMailDto> = {},
+): OperatorInvitationByMailDto => ({
   id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
   delivery: 'mail',
   expiresAt: '2026-06-27T21:00:00.000Z',
@@ -95,10 +98,23 @@ export const aSiteInvitation = (overrides: Partial<SiteInvitationDto> = {}): Sit
   ...overrides,
 })
 
+/** An invitation no mail carried: the one case in which the server answers a link. */
+export const aLinkInvitation = (
+  link: string,
+  overrides: Partial<OperatorInvitationByLinkDto> = {},
+): OperatorInvitationByLinkDto => ({
+  id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+  delivery: 'link',
+  expiresAt: '2026-06-27T21:00:00.000Z',
+  pendingApproval: false,
+  link,
+  ...overrides,
+})
+
 /** A box that set no `NEW_CLIENT_*`: six null ceilings and clips allowed. */
 export const aSiteClientDefaults = (
-  overrides: Partial<SiteClientDefaultsDto['ceilings']> = {},
-): SiteClientDefaultsDto => ({
+  overrides: Partial<ClientDefaultsDto['ceilings']> = {},
+): ClientDefaultsDto => ({
   ceilings: {
     maxEvents: null,
     maxEventsPerPeriod: null,

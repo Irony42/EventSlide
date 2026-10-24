@@ -4,7 +4,7 @@ import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
 import { Field } from '../../../design-system/components/Field'
 import { TextInput } from '../../../design-system/components/TextInput'
-import type { SiteInvitationDto } from '../../../lib/api/dto'
+import type { OperatorInvitationDto } from '../../../lib/api/dto'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import { SelectField } from '../../admin/components/SelectField'
@@ -35,7 +35,7 @@ export function InviteForm({ clientId }: { readonly clientId: string }) {
   const [failure, setFailure] = useState<string | null>(null)
   const [sent, setSent] = useState<{
     readonly email: string
-    readonly invitation: SiteInvitationDto
+    readonly invitation: OperatorInvitationDto
   } | null>(null)
   const invite = useOperatorAction(
     useCallback(

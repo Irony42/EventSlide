@@ -813,12 +813,13 @@ export interface SiteClientPageDto {
 /** One event of a client, as a shape: an id, a status, instants, a quota and what it holds. */
 export interface SiteEventDto {
   readonly id: string
-  readonly status: EventStatus
+  /** Not narrowed: the server declares it as text, and an unknown one is shown as it came. */
+  readonly status: string
   readonly createdAt: string
   readonly startsAt: string | null
   readonly openedAt: string | null
   readonly closedAt: string | null
-  readonly quotaBytes: number | null
+  readonly quotaBytes: number
   readonly usedBytes: number
   readonly photoCount: number
 }
@@ -860,7 +861,7 @@ export interface SiteAuditEntryDto {
     readonly userId: string | null
     readonly label: string | null
   }
-  readonly subject: { readonly type: string; readonly id?: string }
+  readonly subject: { readonly type: string; readonly id: string }
   readonly clientId: string | null
   readonly details: Readonly<Record<string, unknown>>
 }
@@ -872,7 +873,7 @@ export interface SiteAuditPageDto {
 }
 
 /** The seven ceilings a new client starts with. A number is a ceiling and `null` is none. */
-export interface SiteClientDefaultsDto {
+export interface ClientDefaultsDto {
   readonly ceilings: {
     readonly maxEvents: number | null
     readonly maxEventsPerPeriod: number | null
@@ -884,34 +885,65 @@ export interface SiteClientDefaultsDto {
   }
 }
 
-/** What an invitation answers: `link` only where no mail went out, and never a token otherwise. */
-export interface SiteInvitationDto {
+/**
+ * An invitation an operator wrote. **`link` is present only when no mail went out**, which is a
+ * fact about the box's relay and never about the address: where a mailer delivers, this answer
+ * holds no token and no link. A union, so that `{ delivery: 'mail', link }` is not a value the type
+ * can hold. `pendingApproval` says the link opens nothing until an owner of the client has
+ * approved it.
+ */
+export interface OperatorInvitationByMailDto {
   readonly id: string
-  readonly delivery: 'mail' | 'link'
+  readonly delivery: 'mail'
   readonly expiresAt: string
   readonly pendingApproval: boolean
-  readonly link?: string
 }
 
-export interface SiteProvisionedClientDto {
+export interface OperatorInvitationByLinkDto {
+  readonly id: string
+  readonly delivery: 'link'
+  readonly expiresAt: string
+  readonly pendingApproval: boolean
+  readonly link: string
+}
+
+export type OperatorInvitationDto = OperatorInvitationByMailDto | OperatorInvitationByLinkDto
+
+export interface ProvisionedClientDto {
   readonly clientId: string
-  readonly invitation: SiteInvitationDto
+  readonly invitation: OperatorInvitationDto
 }
 
-/** What `POST …/password-reset` answers, by how the link reached (or will reach) its owner. */
-export type SiteResetDto =
-  | { readonly delivery: 'mail'; readonly expiresAt: string }
-  | {
-      readonly delivery: 'pendingApproval'
-      readonly approvalId: string
-      readonly expiresAt: string
-    }
-  | { readonly delivery: 'link'; readonly link: string; readonly expiresAt: string }
+/**
+ * What the operator is told of a password reset it asked for, by how the link reached (or will
+ * reach) its owner. `mail` went to the account's own mailbox and nothing else; `pendingApproval`
+ * carries the id another owner of the client is asked to approve; `link` exists only on a box with
+ * no relay and `copyLinkWithOwnerApproval`, after that approval.
+ */
+export interface OperatorPasswordResetByMailDto {
+  readonly delivery: 'mail'
+  readonly expiresAt: string
+}
+
+export interface OperatorPasswordResetPendingDto {
+  readonly delivery: 'pendingApproval'
+  readonly expiresAt: string
+  readonly approvalId: string
+}
+
+export interface OperatorPasswordResetByLinkDto {
+  readonly delivery: 'link'
+  readonly expiresAt: string
+  readonly link: string
+}
+
+export type OperatorPasswordResetDto =
+  OperatorPasswordResetByMailDto | OperatorPasswordResetPendingDto | OperatorPasswordResetByLinkDto
 
 /** A patch of ceilings, as `PUT …/ceilings` takes it: a key left out is kept, `null` removes. */
 export type SiteCeilingsPatch = Partial<CeilingsDto>
 
-export interface SiteCeilingsChangedDto {
+export interface ClientCeilingsChangedDto {
   readonly ceilings: CeilingsDto
   readonly eventsCreatedInPeriod: number
 }

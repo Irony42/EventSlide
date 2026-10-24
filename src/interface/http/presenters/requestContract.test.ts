@@ -130,6 +130,7 @@ type Verb = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 const VERBS: Readonly<Record<string, Verb>> = {
   get: 'GET',
   post: 'POST',
+  put: 'PUT',
   patch: 'PATCH',
   del: 'DELETE',
   upload: 'POST',
@@ -393,8 +394,8 @@ interface ServerRoute {
 const ROUTER_VERBS: Readonly<Record<string, Verb>> = {
   get: 'GET',
   post: 'POST',
-  // `PUT /api/site/clients/:clientId/ceilings` (G2-14): the one `put` in the product. The client
-  // side has no `put`, so what this adds is the route being *seen* and its schema named below.
+  // `PUT /api/site/clients/:clientId/ceilings` (G2-14): the one `put` in the product, which the
+  // console's client calls since G2-15.
   put: 'PUT',
   patch: 'PATCH',
   delete: 'DELETE',

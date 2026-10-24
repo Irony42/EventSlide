@@ -5,7 +5,7 @@ import { Button } from '../../design-system/components/Button'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useToast } from '../../design-system/components/useToast'
-import type { SiteAccountDto, SiteResetDto } from '../../lib/api/dto'
+import type { OperatorPasswordResetDto, SiteAccountDto } from '../../lib/api/dto'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../admin/components/AsyncState'
@@ -16,7 +16,7 @@ import tables from './components/Table.module.css'
 import styles from './AccountsPage.module.css'
 import type { Locale } from '../../lib/i18n/locale'
 
-type NotMailed = Exclude<SiteResetDto, { readonly delivery: 'mail' }>
+type NotMailed = Exclude<OperatorPasswordResetDto, { readonly delivery: 'mail' }>
 
 /**
  * Every account of the box, by address (`GET /api/site/accounts`), and the one act the console

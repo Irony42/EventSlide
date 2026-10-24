@@ -3,7 +3,7 @@ import { useApi } from '../../../app/useApi'
 import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
 import { useToast } from '../../../design-system/components/useToast'
-import type { SiteResetDto } from '../../../lib/api/dto'
+import type { OperatorPasswordResetDto } from '../../../lib/api/dto'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
 import { useOperatorAction } from '../hooks/useOperatorAction'
 import { LinkNotice } from './LinkNotice'
@@ -11,7 +11,7 @@ import { LinkNotice } from './LinkNotice'
 export interface ResetOutcomeProps {
   readonly userId: string
   /** What the operator asked for first: a reset that is waiting on an owner, or a link. */
-  readonly reset: Exclude<SiteResetDto, { readonly delivery: 'mail' }>
+  readonly reset: Exclude<OperatorPasswordResetDto, { readonly delivery: 'mail' }>
   readonly onDismiss: () => void
 }
 

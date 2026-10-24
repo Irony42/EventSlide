@@ -44,7 +44,12 @@ export const standingTone = (standing: ClientStanding): StatusTone => {
   }
 }
 
-export const eventStatusTone = (status: EventStatus): StatusTone => {
+const isEventStatus = (status: string): status is EventStatus =>
+  status === 'draft' || status === 'live' || status === 'closed' || status === 'archived'
+
+/** An event's status as the server declares it, text, so a value this build does not know is neutral. */
+export const eventStatusTone = (status: string): StatusTone => {
+  if (!isEventStatus(status)) return 'neutral'
   switch (status) {
     case 'live':
       return 'success'
@@ -56,8 +61,9 @@ export const eventStatusTone = (status: EventStatus): StatusTone => {
   }
 }
 
-export const eventStatusLabel = (status: EventStatus, t: UiText): string =>
-  t.site.eventStatuses[status]
+/** The word for a status; one this build does not know is printed as it came rather than hidden. */
+export const eventStatusLabel = (status: string, t: UiText): string =>
+  isEventStatus(status) ? t.site.eventStatuses[status] : status
 
 /** The first eight characters of an id: enough to tell two rows apart, never a name. */
 export const shortId = (id: string): string => id.slice(0, 8)
