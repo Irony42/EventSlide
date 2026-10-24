@@ -102,7 +102,11 @@ test.describe('the operator’s console', () => {
     const body = page.locator('body')
     await expect(body).not.toContainText(EVENT_SLUG)
     await expect(body).not.toContainText(EVENT_NAME)
-    await expect(body).not.toContainText(joinCode)
+    // As a word of its own. The test server mints ids and join codes from one counter
+    // (`sequentialIdGenerator`), so the second code is `000002` and the second id starts with
+    // `00000002`: a bare substring finds the code inside the id's first eight characters, which the
+    // console prints on purpose (`shortId`). A code on screen would be a token of its own.
+    await expect(body).not.toContainText(new RegExp(`(?<![0-9A-Za-z])${joinCode}(?![0-9A-Za-z])`))
   }
 
   test('an operator signs in with their authenticator, reads the clients, suspends one and lifts it, and the console never touches what the client made', async ({
