@@ -49,14 +49,6 @@
   font-size: var(--text-sm);
 }
 
-.error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--danger);
-  font-size: var(--text-sm);
-}
-
 /**
  * Tiles that fill the width: three across on a phone, as many as fit on a laptop. Square
  * crops, because a grid of mixed orientations reads as noise at thumbnail size; the viewer

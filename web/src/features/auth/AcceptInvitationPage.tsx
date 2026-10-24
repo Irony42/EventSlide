@@ -4,13 +4,14 @@ import { siteLinkOnly } from '../../app/aboutAnswer'
 import { useSession } from '../../app/useSession'
 import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
+import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { useLocale } from '../../lib/i18n/useTranslations'
 import { AuthActions, AuthPage } from './components/AuthPage'
-import { AuthAlert, AuthForm } from './components/AuthForm'
+import { AuthForm } from './components/AuthForm'
 import { TermsAgreement } from './components/TermsAgreement'
 import { useSignOut } from './hooks/useAuthActions'
 import { useAcceptInvitation, useInvitationPreview } from './hooks/useInvitation'
@@ -100,7 +101,9 @@ export function AcceptInvitationPage() {
   if (view.kind === 'failed') {
     return (
       <AuthPage title={t.auth.invitationTitle} focusTitle>
-        <AuthAlert>{view.message}</AuthAlert>
+        <Notice tone="danger" role="alert" variant="boxed">
+          {view.message}
+        </Notice>
         <AuthActions>
           <Button type="button" variant="primary" onClick={reload}>
             {t.app.retry}

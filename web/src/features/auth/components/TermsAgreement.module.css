@@ -35,13 +35,8 @@
   font-size: var(--text-sm);
 }
 
-/* The glyph is half the message: colour alone would leave a red-green colourblind
-   reader with a box that looks ordinary. */
+/* The failure sits in the same column as the sentence it is about, under the box, so it
+   reads as part of it. The glyph and the colour are the `Notice`'s. */
 .error {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-1);
   padding-inline-start: calc(var(--space-5) + var(--space-3));
-  font-size: var(--text-sm);
-  color: var(--danger);
 }

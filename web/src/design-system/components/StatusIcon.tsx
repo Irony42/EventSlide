@@ -15,7 +15,8 @@ export interface StatusIconProps {
  * colourblind host under stage lighting must still be able to tell a published photo
  * from a refused one. Every component that carries a tone pairs it with this shape and
  * with a word, and the paths live here once rather than being pasted into Badge, Toast
- * and Field separately.
+ * and Notice separately. A glyph beside a sentence is a `Notice`: a feature does not draw
+ * this itself (`statusIcon.guard.test.ts`).
  *
  * Always `aria-hidden`: the word next to it is the accessible content.
  */

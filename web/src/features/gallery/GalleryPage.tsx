@@ -5,8 +5,8 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Field } from '../../design-system/components/Field'
+import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
-import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { TextInput } from '../../design-system/components/TextInput'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { formatDateTime } from '../../lib/format'
@@ -107,10 +107,9 @@ export function GalleryPage() {
     return (
       <Card as="h1" title={t.gallery.title} className={styles['card']}>
         <Robots />
-        <p className={styles['error']} role="alert">
-          <StatusIcon tone="danger" />
+        <Notice tone="danger" role="alert" variant="inline">
           {messageForError(state.failure, t)}
-        </p>
+        </Notice>
         <Button variant="secondary" onClick={state.retry}>
           {t.app.retry}
         </Button>
@@ -169,10 +168,9 @@ export function GalleryPage() {
       )}
 
       {state.failure === null ? null : (
-        <p className={styles['error']} role="alert">
-          <StatusIcon tone="danger" />
+        <Notice tone="danger" role="alert" variant="inline">
           {messageForError(state.failure, t)}
-        </p>
+        </Notice>
       )}
 
       {state.hasMore ? (
