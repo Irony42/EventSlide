@@ -106,13 +106,14 @@ export const ceilingsPatch = (
     if (next[field] === base[field]) return
     const value = parseCount(next[field])
     if (value === undefined) invalid.push(field)
-    else patch[field] = value
+    // "3 " and "03" are the number the client already has: nothing changed, nothing is sent.
+    else if (value !== parseCount(base[field])) patch[field] = value
   }
   const gigabytes = (
     field: 'maxTotalGigabytes' | 'maxEventQuotaGigabytes',
     key: 'maxTotalBytes' | 'maxEventQuotaBytes',
   ): void => {
-    if (next[field] === base[field]) return
+    if (next[field].trim() === base[field]) return
     const value = parseGigabytes(next[field])
     if (value === undefined) invalid.push(field)
     else patch[key] = value

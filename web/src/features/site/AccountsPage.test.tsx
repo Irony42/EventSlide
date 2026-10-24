@@ -8,7 +8,7 @@ import type { SiteAccountDto } from '../../lib/api/dto'
 import { ACCOUNT_ID, aSiteAccount, OPERATOR_ID } from '../../testing/siteFixtures'
 import {
   consoleApi,
-  NEVER_FROM_THE_CONSOLE,
+  callsOutsideTheConsole,
   notTheOperator,
   openConsole,
   stepUpRequired,
@@ -133,9 +133,7 @@ describe('the console’s accounts: reading them', () => {
     await screen.findByRole('table')
 
     expect(container.querySelectorAll('img, video, picture, canvas, audio')).toHaveLength(0)
-    for (const method of NEVER_FROM_THE_CONSOLE) {
-      expect(api[method], `${method} was asked for`).not.toHaveBeenCalled()
-    }
+    expect(callsOutsideTheConsole(api)).toEqual([])
   })
 
   it('reads the next page with the cursor the server gave', async () => {
@@ -229,6 +227,39 @@ describe('the console’s accounts: resetting a password', () => {
     expect(siteResetPassword).toHaveBeenLastCalledWith(ACCOUNT_ID, {
       locale: 'fr',
       approvalId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    })
+  })
+
+  it('asks again with the id of the request it is showing, not of an earlier one for the same account', async () => {
+    const siteResetPassword = vi
+      .fn<Api['siteResetPassword']>()
+      .mockResolvedValueOnce({
+        delivery: 'pendingApproval',
+        approvalId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1',
+        expiresAt: '2026-06-20T22:00:00.000Z',
+      })
+      .mockResolvedValueOnce({
+        delivery: 'pendingApproval',
+        approvalId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
+        expiresAt: '2026-06-20T22:00:00.000Z',
+      })
+      .mockResolvedValue({
+        delivery: 'link',
+        link: 'https://photos.example.test/password/reset/UN-JETON',
+        expiresAt: '2026-06-20T22:00:00.000Z',
+      })
+    open(withAccounts([aSiteAccount()], { siteResetPassword }))
+
+    await pressReset()
+    await screen.findByText(fr.site.resetPending)
+    await pressReset()
+    await waitFor(() => expect(siteResetPassword).toHaveBeenCalledTimes(2))
+    await userEvent.click(await screen.findByRole('button', { name: fr.site.resetFetch }))
+
+    await waitFor(() => expect(siteResetPassword).toHaveBeenCalledTimes(3))
+    expect(siteResetPassword).toHaveBeenLastCalledWith(ACCOUNT_ID, {
+      locale: 'fr',
+      approvalId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2',
     })
   })
 

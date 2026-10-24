@@ -66,6 +66,19 @@ describe('the ceilings form', () => {
     expect(outcome).toEqual({ ok: true, patch: { maxEvents: 4 } })
   })
 
+  it('sends nothing for a spelling of the number the client already has', () => {
+    for (const text of ['3 ', ' 3', '03', '003']) {
+      expect(ceilingsPatch({ ...base, maxEvents: text }, base, now), text).toEqual({
+        ok: true,
+        patch: {},
+      })
+    }
+    expect(ceilingsPatch({ ...base, maxTotalGigabytes: ' 5 ' }, base, now)).toEqual({
+      ok: true,
+      patch: {},
+    })
+  })
+
   it('sends an emptied box as null, which is how a ceiling is removed', () => {
     const outcome = ceilingsPatch({ ...base, maxEvents: '  ' }, base, now)
 

@@ -14,7 +14,7 @@ describe('a client’s standing', () => {
 
   it('is being wound down when there is a purge date, which outranks the suspension that came with it', () => {
     // An offboarded client is suspended as well, and reading "Suspended" would tell the operator
-    // there is a freeze to lift. The server refuses it (`client.offboarding`).
+    // there is a freeze to lift, when what is happening is the end of an engagement.
     const client = aSiteClient({
       suspendedAt: '2026-06-21T10:00:00.000Z',
       purgeAfter: '2026-07-21T10:00:00.000Z',

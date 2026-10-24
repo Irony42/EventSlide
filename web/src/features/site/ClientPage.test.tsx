@@ -17,7 +17,7 @@ import {
 } from '../../testing/siteFixtures'
 import {
   consoleApi,
-  NEVER_FROM_THE_CONSOLE,
+  callsOutsideTheConsole,
   openConsole,
   stepUpRequired,
 } from '../../testing/siteConsole'
@@ -158,9 +158,7 @@ describe('a client’s page: reading it', () => {
     await screen.findByRole('table', { name: fr.site.eventsTableLabel })
 
     expect(container.querySelectorAll('img, video, picture, canvas, audio')).toHaveLength(0)
-    for (const method of NEVER_FROM_THE_CONSOLE) {
-      expect(api[method], `${method} was asked for`).not.toHaveBeenCalled()
-    }
+    expect(callsOutsideTheConsole(api)).toEqual([])
   })
 })
 
@@ -343,7 +341,7 @@ describe('a client’s page: freezing it', () => {
     expect(await screen.findByRole('button', { name: fr.site.suspend })).toBeVisible()
   })
 
-  it('offers neither to a client whose engagement is ending, because the server would refuse to lift it', async () => {
+  it('offers neither to a client whose engagement is ending, which is not a freeze to lift or to apply', async () => {
     open(
       withClient(
         aSiteClient({ suspendedAt: SUSPENDED_AT, purgeAfter: '2026-07-21T10:00:00.000Z' }),
@@ -475,6 +473,18 @@ describe('a client’s page: changing its ceilings', () => {
       { periodStartedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/) as string },
       'Nouvelle période',
     )
+  })
+
+  it('does not send a change that has no reason: the box is required, and the server judges what is typed', async () => {
+    const api = withClient(client)
+    const maxEvents = await openCeilings(api)
+
+    await userEvent.clear(maxEvents)
+    await userEvent.type(maxEvents, '5')
+    await save()
+
+    expect(api.siteSetCeilings).not.toHaveBeenCalled()
+    expect(screen.getByLabelText(fr.site.ceilingsReason)).toBeRequired()
   })
 
   it('sends nothing, and says so, when no ceiling changed: a reason for no change is a line about nothing', async () => {
@@ -645,6 +655,29 @@ describe('a client’s page: inviting into its account', () => {
 
     expect(await screen.findByText('https://photos.example.test/invite/UN-JETON')).toBeVisible()
     expect(screen.getByText(fr.site.invitationLinkBody)).toBeVisible()
+  })
+
+  it('drops the link when the operator closes the box, and when another invitation is sent', async () => {
+    const siteInviteToClient = vi
+      .fn<Api['siteInviteToClient']>()
+      .mockResolvedValueOnce({
+        invitation: aLinkInvitation('https://photos.example.test/invite/PREMIER-JETON'),
+      })
+      .mockResolvedValueOnce({
+        invitation: aLinkInvitation('https://photos.example.test/invite/SECOND-JETON'),
+      })
+      .mockRejectedValue(new ApiError(429, 'invitation.tooManyForAddress'))
+    await openInvite(withClient(aSiteClient(), { siteInviteToClient }))
+
+    await invite()
+    expect(await screen.findByText(/PREMIER-JETON/)).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+    expect(screen.queryByText(/PREMIER-JETON/)).toBeNull()
+
+    await invite('autre@example.com')
+    expect(await screen.findByText(/SECOND-JETON/)).toBeVisible()
+    await invite('encore@example.com')
+    await waitFor(() => expect(screen.queryByText(/SECOND-JETON/)).toBeNull())
   })
 
   it('says what the server said when the address has had its five an hour', async () => {

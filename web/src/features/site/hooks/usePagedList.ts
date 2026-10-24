@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../../admin/errorMessage'
-import { useLoader } from '../../admin/hooks/useLoader'
+import { errorMessage } from '../adminShared'
+import { useLoader } from '../adminShared'
 
 /** One page of a listing: the rows, and the cursor of the next page or `null` at the end. */
 export interface Page<Item, Cursor> {
@@ -48,7 +48,11 @@ export const usePagedList = <Item, Cursor>(
     readonly next: Cursor | null
   } | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [failure, setFailure] = useState<{ readonly cause: unknown } | null>(null)
+  /** A refusal belongs to the first page it was read after, like the rows do. */
+  const [failure, setFailure] = useState<{
+    readonly after: Page<Item, Cursor>
+    readonly cause: unknown
+  } | null>(null)
 
   const current = later !== null && later.after === first.data ? later : null
   const items = [...(first.data?.items ?? []), ...(current?.items ?? [])]
@@ -67,14 +71,15 @@ export const usePagedList = <Item, Cursor>(
             items: [...(current?.items ?? []), ...page.items],
             next: page.next,
           }),
-        (cause: unknown) => setFailure({ cause }),
+        (cause: unknown) => setFailure({ after: base, cause }),
       )
       .finally(() => setLoadingMore(false))
   }, [fetchPage, first.data, next, current])
 
   const moreError = useMemo(
-    () => (failure === null ? null : errorMessage(failure.cause, t)),
-    [failure, t],
+    () =>
+      failure === null || failure.after !== first.data ? null : errorMessage(failure.cause, t),
+    [failure, first.data, t],
   )
 
   return {

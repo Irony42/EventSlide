@@ -57,25 +57,25 @@ export const notTheOperator = (): ApiError =>
   new ApiError(403, 'auth.forbidden', { required: 'operator' })
 
 /**
- * Every method of the fake `Api` that is not the operator's own namespace, the session or the
- * second factor: **what the console must never ask for**. The ones that read a client's events by
- * slug, its photographs, its gallery or its wall are all here, and a test of the whole console
- * asserts none of them was called.
+ * What a console screen may ask the server for: the operator's own namespace (`site*`), and the
+ * four things every host screen asks, the session, the box's answer, the confirmation prompt and
+ * signing out, plus the account menu's read of the caller's own limits.
+ *
+ * **An allowlist, and that is the point.** A list of forbidden methods says what somebody thought
+ * of: a console that began to purge an event, moderate a photograph or revoke a guest would pass it
+ * until the day the list was extended. Anything the console calls that is not named here is a
+ * request outside `/api/site`, whatever it is called.
  */
-export const NEVER_FROM_THE_CONSOLE: readonly (keyof Api)[] = [
-  'wall',
-  'uploadPhotos',
-  'myPhotos',
-  'listEvents',
-  'getEvent',
-  'listGuests',
-  'listModerators',
-  'listMissions',
-  'moderationQueue',
-  'topPhotos',
-  'shareLink',
-  'gallery',
-  'galleryPhotos',
-  'clientAudit',
-  'pendingInvitations',
-]
+const MAY_BE_ASKED = new Set<string>(['session', 'about', 'stepUp', 'logout', 'myLimits'])
+
+/** The methods of the fake `Api` that were called and that a console screen has no business calling. */
+export const callsOutsideTheConsole = (api: Api): readonly string[] =>
+  Object.entries(api)
+    .filter(
+      ([name, method]) =>
+        vi.isMockFunction(method) &&
+        method.mock.calls.length > 0 &&
+        !name.startsWith('site') &&
+        !MAY_BE_ASKED.has(name),
+    )
+    .map(([name]) => name)

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fr } from '../../lib/i18n/fr'
 import { ApiError } from '../../lib/http'
@@ -8,7 +8,7 @@ import type { SiteAuditEntryDto } from '../../lib/api/dto'
 import { aSiteAuditEntry, aSiteClient, CLIENT_ID, OPERATOR_ID } from '../../testing/siteFixtures'
 import {
   consoleApi,
-  NEVER_FROM_THE_CONSOLE,
+  callsOutsideTheConsole,
   notTheOperator,
   openConsole,
 } from '../../testing/siteConsole'
@@ -153,6 +153,21 @@ describe('the console’s log', () => {
     )
   })
 
+  it('does not leave one client’s lines on screen while the whole log is on its way', async () => {
+    const siteAudit = vi
+      .fn<Api['siteAudit']>()
+      .mockResolvedValueOnce({ items: [aSiteAuditEntry()], next: null })
+      .mockImplementation(() => new Promise<never>(() => {}))
+    openConsole(`/admin/site/audit?clientId=${CLIENT_ID}`, withLog([], { siteAudit }))
+    await screen.findByText(fr.site.actions['client.suspended'])
+
+    await userEvent.click(screen.getByRole('link', { name: fr.site.auditShowAll }))
+
+    await waitFor(() => expect(siteAudit).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText(fr.site.actions['client.suspended'])).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent(fr.app.loading)
+  })
+
   it('asks for the whole log when no client is named', async () => {
     const api = withLog([aSiteAuditEntry()])
     openConsole('/admin/site/audit', api)
@@ -202,8 +217,6 @@ describe('the console’s log', () => {
     await screen.findByRole('listitem')
 
     expect(container.querySelectorAll('img, video, picture, canvas, audio')).toHaveLength(0)
-    for (const method of NEVER_FROM_THE_CONSOLE) {
-      expect(api[method], `${method} was asked for`).not.toHaveBeenCalled()
-    }
+    expect(callsOutsideTheConsole(api)).toEqual([])
   })
 })

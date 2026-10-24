@@ -15,7 +15,7 @@ import {
 } from '../../testing/siteFixtures'
 import {
   consoleApi,
-  NEVER_FROM_THE_CONSOLE,
+  callsOutsideTheConsole,
   notTheOperator,
   openConsole,
   stepUpRequired,
@@ -185,9 +185,7 @@ describe('what the console prints', () => {
     await screen.findByRole('table')
 
     expect(container.querySelectorAll('img, video, picture, canvas, audio')).toHaveLength(0)
-    for (const method of NEVER_FROM_THE_CONSOLE) {
-      expect(api[method], `${method} was asked for`).not.toHaveBeenCalled()
-    }
+    expect(callsOutsideTheConsole(api)).toEqual([])
   })
 })
 
@@ -313,6 +311,13 @@ describe('opening a client', () => {
     expect(await screen.findByText(fr.site.invitationLinkTitle)).toBeVisible()
     expect(screen.getByText('https://photos.example.test/invite/UN-JETON')).toBeVisible()
 
+    // Shown, never opened and never kept: not a link to press, not in storage, not in the address.
+    expect(document.querySelector('a[href*="UN-JETON"]')).toBeNull()
+    expect(screen.queryByRole('link', { name: /UN-JETON/ })).toBeNull()
+    expect(JSON.stringify({ ...localStorage })).not.toContain('UN-JETON')
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain('UN-JETON')
+    expect(window.location.href).not.toContain('UN-JETON')
+
     await userEvent.click(screen.getByRole('button', { name: fr.site.copyLink }))
     await waitFor(() =>
       expect(clipboard.writeText).toHaveBeenCalledWith(
@@ -434,6 +439,26 @@ describe('opening a client', () => {
 
     expect(await screen.findByRole('link', { name: 'Atelier Alpha 2' })).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Bureau Beta' })).toBeNull()
+  })
+
+  it('forgets a refusal of the next page once the listing is read again from its first page', async () => {
+    const siteClients = vi
+      .fn<Api['siteClients']>()
+      .mockResolvedValueOnce({ items: [aSiteClient()], next: CLIENT_ID })
+      .mockRejectedValueOnce(new ApiError(0, 'network'))
+      .mockResolvedValue({ items: [aSiteClient({ name: 'Atelier Alpha 2' })], next: null })
+    const api = consoleApi({ siteClients, siteClientDefaults: vi.fn(async () => defaults) })
+    openConsole('/admin/site', api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.site.more }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.newClient }))
+    await screen.findByLabelText(fr.site.maxEvents)
+    await fill('Atelier Omega', 'omega@example.com')
+    await submit()
+
+    expect(await screen.findByRole('link', { name: 'Atelier Alpha 2' })).toBeVisible()
+    expect(screen.queryByText(fr.errors.network)).toBeNull()
   })
 
   it('closes the form without opening anything when the operator cancels', async () => {

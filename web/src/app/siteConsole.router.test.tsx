@@ -136,6 +136,13 @@ describe('the console’s address', () => {
     expect(api.siteClients).not.toHaveBeenCalled()
   })
 
+  it('does not hold an address that only starts like the console’s back for the box’s answer', async () => {
+    const api = consoleApi({ about: vi.fn(() => new Promise<never>(() => {})) })
+    openConsole('/admin/sitemap', api)
+
+    expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
+  })
+
   it('does not hold any other address back for the box’s answer', async () => {
     const api = consoleApi({ about: vi.fn(() => new Promise<never>(() => {})) })
     openConsole('/admin/nothing-here', api)

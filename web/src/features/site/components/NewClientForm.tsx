@@ -8,9 +8,9 @@ import type { Api } from '../../../lib/api/client'
 import type { ClientDefaultsDto, OperatorInvitationDto } from '../../../lib/api/dto'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
-import { SelectField } from '../../admin/components/SelectField'
-import { LoadFailure, Pending } from '../../admin/components/AsyncState'
-import { useLoader } from '../../admin/hooks/useLoader'
+import { SelectField } from '../adminShared'
+import { LoadFailure, Pending } from '../adminShared'
+import { useLoader } from '../adminShared'
 import {
   ceilingsPatch,
   fieldsFromCeilings,
@@ -125,6 +125,8 @@ function Form({
             {...control}
             name="clientName"
             autoComplete="off"
+            // The button that opened the form has gone: the keyboard goes where the work is.
+            autoFocus
             required
             value={name}
             onChange={(event) => setName(event.target.value)}

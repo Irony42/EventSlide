@@ -15,7 +15,7 @@ export type ClientStanding = 'active' | 'suspended' | 'offboarding'
 /**
  * A client's standing, from the two instants the server keeps. Winding down is the stronger of
  * the two: an offboarded client is suspended as well, and a person reading "Suspended" would
- * think they can lift it (the server refuses, `client.offboarding`).
+ * think there is a freeze to lift, when what is happening is the end of an engagement.
  */
 export const standingOf = (
   client: Pick<SiteClientDto, 'suspendedAt' | 'purgeAfter'>,

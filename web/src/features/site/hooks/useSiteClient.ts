@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useApi } from '../../../app/useApi'
 import type { SiteClientDto } from '../../../lib/api/dto'
-import { useLoader } from '../../admin/hooks/useLoader'
+import { useLoader } from '../adminShared'
 
 const PAGE = 200
 
@@ -47,9 +47,13 @@ export const useSiteClient = (clientId: string): SiteClientState => {
   )
   const { data, loading, error, reload } = useLoader(load)
 
+  // `useLoader` keeps the last answer while a new request is in flight, and a client of another
+  // address is not this one.
+  const client = data !== null && data.id === clientId ? data : null
+
   return {
-    client: data,
-    missing: !loading && error === null && data === null,
+    client,
+    missing: !loading && error === null && client === null,
     loading,
     error,
     reload,

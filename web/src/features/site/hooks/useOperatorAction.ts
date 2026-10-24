@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../../admin/errorMessage'
+import { errorMessage } from '../adminShared'
 import { useStepUp } from '../useStepUp'
 
 /**

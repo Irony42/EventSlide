@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from '../admin/components/AsyncState'
+import { LoadFailure, Pending } from './adminShared'
 import { CeilingsEditor } from './components/CeilingsEditor'
 import { ClientEvents } from './components/ClientEvents'
 import { ClientSummary } from './components/ClientSummary'

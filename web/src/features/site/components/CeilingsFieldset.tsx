@@ -1,7 +1,7 @@
 import { Field } from '../../../design-system/components/Field'
 import { TextInput } from '../../../design-system/components/TextInput'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { CheckboxField } from '../../admin/components/CheckboxField'
+import { CheckboxField } from '../adminShared'
 import type { CeilingField, CeilingFields } from '../ceilingsForm'
 import styles from './CeilingsFieldset.module.css'
 

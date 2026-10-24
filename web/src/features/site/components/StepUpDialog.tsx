@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { useApi } from '../../../app/useApi'
 import { useSession } from '../../../app/useSession'
 import { Button } from '../../../design-system/components/Button'
@@ -8,7 +8,7 @@ import { TextInput } from '../../../design-system/components/TextInput'
 import { useToast } from '../../../design-system/components/useToast'
 import type { SecondFactorProof } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../../admin/errorMessage'
+import { errorMessage } from '../adminShared'
 import styles from './StepUpDialog.module.css'
 
 export interface StepUpDialogProps {
@@ -83,6 +83,13 @@ function StepUpForm({ id, passwordRef, onBusy, onConfirmed }: StepUpFormProps) {
   const [mode, setMode] = useState<'code' | 'recovery'>('code')
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const live = useRef(true)
+  useEffect(() => {
+    live.current = true
+    return () => {
+      live.current = false
+    }
+  }, [])
 
   const proof = (): SecondFactorProof | undefined => {
     if (!enrolled) return undefined
@@ -96,12 +103,15 @@ function StepUpForm({ id, passwordRef, onBusy, onConfirmed }: StepUpFormProps) {
     api.stepUp(password, proof()).then(
       () => {
         onBusy(false)
+        // The person gave up while the server was still answering: the prompt is gone, the write
+        // that asked for it has been told so, and this answer is nobody's any more.
+        if (!live.current) return
         toast.show(t.auth.stepUpDone, { tone: 'success' })
         onConfirmed()
       },
       (cause: unknown) => {
         onBusy(false)
-        setError(errorMessage(cause, t))
+        if (live.current) setError(errorMessage(cause, t))
       },
     )
   }

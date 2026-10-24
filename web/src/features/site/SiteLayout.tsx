@@ -5,7 +5,7 @@ import { useSession } from '../../app/useSession'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { errorMessage } from '../admin/errorMessage'
+import { errorMessage } from './adminShared'
 import { StepUpProvider } from './StepUpProvider'
 import styles from './SiteLayout.module.css'
 

@@ -170,6 +170,25 @@ describe('a write of the operator’s console that needs a confirmation', () => 
     expect(api.stepUp).not.toHaveBeenCalled()
   })
 
+  it('sends nothing, and thanks nobody, when the person gives up while the server is still answering', async () => {
+    const save = aWrite(stepUpRequired(), 'saved')
+    let answer: () => void = () => undefined
+    const stepUp = vi.fn<Api['stepUp']>(() => new Promise<void>((resolve) => (answer = resolve)))
+    mount([{ label: 'save', action: save }], { stepUp })
+
+    await userEvent.click(screen.getByRole('button', { name: 'save' }))
+    await confirmWith('123456')
+    const dialog = await prompt()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
+    expect(await screen.findByText('refused:cancelled')).toBeVisible()
+
+    answer()
+
+    await waitFor(() => expect(stepUp).toHaveBeenCalledTimes(1))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(fr.auth.stepUpDone)).toBeNull()
+  })
+
   it('keeps the prompt open on a wrong code, with the server’s sentence, and sends nothing', async () => {
     const save = aWrite(stepUpRequired(), 'saved')
     const stepUp = vi

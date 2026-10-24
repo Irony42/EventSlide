@@ -6,8 +6,8 @@ import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from '../admin/components/AsyncState'
-import { useLoader } from '../admin/hooks/useLoader'
+import { LoadFailure, Pending } from './adminShared'
+import { useLoader } from './adminShared'
 import { usePagedList } from './hooks/usePagedList'
 import { auditSentence, reasonOf, shortId } from './siteLabels'
 import styles from './AuditPage.module.css'
@@ -25,11 +25,17 @@ import styles from './AuditPage.module.css'
  * listing that cannot be read leaves the id in its place and does not stop the log.
  */
 export function AuditPage() {
+  const [params] = useSearchParams()
+  const clientId = params.get('clientId') ?? undefined
+  // Keyed by the filter: the listing it loads is another listing, and the rows of the old one must
+  // not stay on screen under the new heading while it is on its way.
+  return <AuditLog key={clientId ?? 'all'} clientId={clientId} />
+}
+
+function AuditLog({ clientId }: { readonly clientId: string | undefined }) {
   const t = useTranslations()
   const { locale } = useLocale()
   const api = useApi()
-  const [params] = useSearchParams()
-  const clientId = params.get('clientId') ?? undefined
 
   const fetchPage = useCallback(
     (before: number | undefined, signal?: AbortSignal) =>
@@ -93,11 +99,7 @@ export function AuditPage() {
                     : `${t.site.actors[entry.actor.kind]} · ${t.site.auditAccount(shortId(entry.actor.userId))}`}
                 </Badge>
                 {entry.clientId === null ? null : (
-                  <Link
-                    className={styles['link']}
-                    to={`/admin/site/clients/${entry.clientId}`}
-                    aria-label={`${t.site.auditClientLink}: ${nameOf.get(entry.clientId) ?? shortId(entry.clientId)}`}
-                  >
+                  <Link className={styles['link']} to={`/admin/site/clients/${entry.clientId}`}>
                     {nameOf.get(entry.clientId) ?? shortId(entry.clientId)}
                   </Link>
                 )}

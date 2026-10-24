@@ -35,10 +35,17 @@ export function LinkNotice({ title, body, label, link, onDismiss }: LinkNoticePr
     void navigator.clipboard
       .writeText(link)
       .then(() => toast.show(t.site.linkCopied, { tone: 'success' }))
+      // Refused (a permission, a document that is not focused): the link is on screen to be selected.
+      .catch(() => undefined)
   }
 
   return (
-    <Card as="h3" title={title} footer={<LinkActions onCopy={copy} onDismiss={onDismiss} />}>
+    <Card
+      as="h3"
+      role="status"
+      title={title}
+      footer={<LinkActions onCopy={copy} onDismiss={onDismiss} />}
+    >
       <p>{body}</p>
       <p className={styles['label']}>{label}</p>
       <code className={styles['link']}>{link}</code>

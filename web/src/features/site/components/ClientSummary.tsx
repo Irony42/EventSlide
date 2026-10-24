@@ -29,9 +29,11 @@ export interface ClientSummaryProps {
  * (`usedBytes` is the figure a guest is refused against), drawn against the ceiling when there is
  * one. **A suspension is one confirmation and one step-up**, because it takes a client's walls and
  * galleries off the public the moment it lands; the dialog says exactly what it does and what it
- * does not (nothing deleted, no account switched off). A client that is being wound down offers
- * neither: the server refuses to lift the suspension of an offboarding client, and a button that
- * can only fail is not offered.
+ * does not (nothing deleted, no account switched off). A client that is being wound down (the
+ * server set a purge date) offers neither, and that is the console's decision and not a rule it is
+ * told: ending an engagement is its own act (offboarding, G2-14 part 3), a suspension that came
+ * with it is part of it, and a button that lifts the freeze of a client whose albums are about to be
+ * purged would offer to undo half of something the operator chose to do whole.
  */
 export function ClientSummary({ client, onChanged }: ClientSummaryProps) {
   const t = useTranslations()
@@ -181,6 +183,7 @@ function RenameForm({
             {...control}
             name="name"
             autoComplete="off"
+            autoFocus
             required
             value={name}
             onChange={(event) => setName(event.target.value)}

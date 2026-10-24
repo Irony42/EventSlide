@@ -8,7 +8,7 @@ import { useToast } from '../../design-system/components/useToast'
 import type { OperatorPasswordResetDto, SiteAccountDto } from '../../lib/api/dto'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from '../admin/components/AsyncState'
+import { LoadFailure, Pending } from './adminShared'
 import { ResetOutcome } from './components/ResetOutcome'
 import { useOperatorAction } from './hooks/useOperatorAction'
 import { usePagedList } from './hooks/usePagedList'
@@ -41,9 +41,12 @@ export function AccountsPage() {
   const list = usePagedList(fetchPage)
   const [confirming, setConfirming] = useState<SiteAccountDto | null>(null)
   const [outcome, setOutcome] = useState<{
+    /** One per request, so a second reset replaces the first instead of inheriting its approval. */
+    readonly request: number
     readonly userId: string
     readonly reset: NotMailed
   } | null>(null)
+  const [requests, setRequests] = useState(0)
   const reset = useOperatorAction(
     useCallback(
       (id: string, language: Locale) => api.siteResetPassword(id, { locale: language }),
@@ -65,7 +68,8 @@ export function AccountsPage() {
         toast.show(t.site.resetSent, { tone: 'success' })
         return
       }
-      setOutcome({ userId: account.id, reset: result.value })
+      setRequests((count) => count + 1)
+      setOutcome({ request: requests + 1, userId: account.id, reset: result.value })
     })
   }
 
@@ -76,8 +80,7 @@ export function AccountsPage() {
 
       {outcome === null ? null : (
         <ResetOutcome
-          // One box per request: a second reset replaces the first instead of mixing with it.
-          key={outcome.userId}
+          key={outcome.request}
           userId={outcome.userId}
           reset={outcome.reset}
           onDismiss={() => setOutcome(null)}

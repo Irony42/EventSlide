@@ -1,4 +1,3 @@
-import { Card } from '../../../design-system/components/Card'
 import type { OperatorInvitationDto } from '../../../lib/api/dto'
 import { formatDateTime } from '../../../lib/format'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
@@ -38,9 +37,10 @@ export function InvitationOutcome({ invitation, email, onDismiss }: InvitationOu
           onDismiss={onDismiss}
         />
       ) : (
-        <Card as="h3" title={t.site.invitationMailed(email)} role="status">
-          <p>{t.site.invitationValidUntil(until)}</p>
-        </Card>
+        <p role="status">
+          <span>{t.site.invitationMailed(email)}</span>{' '}
+          <span>{t.site.invitationValidUntil(until)}</span>
+        </p>
       )}
       {invitation.pendingApproval ? <p role="status">{t.site.invitationPending}</p> : null}
     </>
