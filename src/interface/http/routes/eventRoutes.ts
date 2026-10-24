@@ -96,7 +96,10 @@ export const eventRoutes = ({
     bus: deps.bus,
   })
   const listModerators = makeListModerators({ memberships: deps.memberships })
-  const revokeModerator = makeRevokeModerator({ memberships: deps.memberships })
+  const revokeModerator = makeRevokeModerator({
+    events: deps.events,
+    memberships: deps.memberships,
+  })
 
   /**
    * The counts an `EventDto` carries, read out of the caller's own dashboard listing.

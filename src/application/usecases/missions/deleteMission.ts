@@ -5,7 +5,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEditable, requireEventRole } from '../shared/eventRole'
+import { requireEditable, requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host removes a prompt from the list.
@@ -44,6 +44,9 @@ export const makeDeleteMission =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     const editable = requireEditable(event)
     if (!editable.ok) return editable

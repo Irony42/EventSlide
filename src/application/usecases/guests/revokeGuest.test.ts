@@ -46,16 +46,22 @@ const GALA_HOST = asUserId('user-2')
 const WEDDING_SLUG = 'camille-et-sacha'
 
 describe('revokeGuest', () => {
+  let eventRepo: FakeEventRepository
   let guests: FakeGuestRepository
   let memberships: FakeMembershipRepository
   let clock: FakeClock
 
-  const revoke = (input: RevokeGuestInput) => makeRevokeGuest({ guests, memberships, clock })(input)
+  const revoke = (input: RevokeGuestInput) =>
+    makeRevokeGuest({ events: eventRepo, guests, memberships, clock })(input)
 
   const revokeLea = (actorId = HOST, eventId = WEDDING) =>
     revoke({ eventId, actorId, guestId: LEA })
 
   beforeEach(() => {
+    eventRepo = new FakeEventRepository().seed(
+      anEvent({ id: WEDDING, slug: WEDDING_SLUG, joinCode: 'H0K2QM' }),
+      anEvent({ id: GALA, slug: 'gala-nova', joinCode: 'R40T9W' }),
+    )
     guests = new FakeGuestRepository().seed(aGuest({ id: LEA, eventId: WEDDING }))
     memberships = new FakeMembershipRepository().seed(
       { eventId: WEDDING, userId: HOST, role: 'owner', grantedAt: AT },
