@@ -252,6 +252,10 @@ Read these before you upgrade, and back up with the version you run now.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because
   up to four uploads are now decoded at once. `GET /api/ready` reports the disk margin under
   `checks.disk` and never fails on it.
+- **A guest can no longer rename themself once the event is closed** (#196). `PATCH /api/events/:slug/guests/:guestId`
+  (#190) answers `409 event.notAcceptingUploads` for a closed or archived event, the answer an upload gets: the
+  name is printed on the wall of a closed event, unmoderated, so it could otherwise change under photographs the
+  host had approved after the host had closed it. Reopening the event allows it again.
 - **The host dashboard's `usedBytes` now counts the clip sources still waiting in the queue**
   as well as the photographs (#117), so it can read higher than before while clips are queued.
   It is the figure an upload is checked against.
