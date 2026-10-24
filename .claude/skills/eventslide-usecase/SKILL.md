@@ -84,7 +84,7 @@ export interface PhotoRepository {
   list(eventId: EventId, query?: PhotoQuery): Promise<readonly Photo[]>
   save(photo: Photo): Promise<void>
   delete(eventId: EventId, photoId: PhotoId): Promise<void>
-  countBytes(eventId: EventId): Promise<number>
+  totalBytes(eventId: EventId): Promise<number>
 }
 ```
 
@@ -141,7 +141,7 @@ export class FakePhotoRepository implements PhotoRepository {
     this.rows.delete(this.key(eventId, photoId))
   }
 
-  async countBytes(eventId: EventId): Promise<number> {
+  async totalBytes(eventId: EventId): Promise<number> {
     return [...this.rows.values()]
       .filter((p) => p.eventId === eventId)
       .reduce((total, p) => total + p.byteSize, 0)

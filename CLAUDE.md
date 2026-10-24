@@ -127,7 +127,7 @@ src/
     media/         Filesystem store, sharp pipeline, magic bytes
     crypto/        Hashing, HMAC tokens, id generation
     mail/          NullMailer (the default) and the optional SMTP adapter on nodemailer
-    realtime/      Event bus + SSE hub
+    realtime/      The in-memory event bus (the SSE channels live with their route, interface/http/routes/streamRoutes.ts)
     logging/       pino
     time/          System clock
   interface/http/  server.ts (pure builder), middleware/, routes/, schemas/

@@ -3204,6 +3204,10 @@ on the wall exactly as it was.
 "Photo de la soirée". Query: `limit` 1..50, default 10 — bounded low on purpose, because
 the panel is projected and a podium of forty photos is not a podium.
 
+Only photos that are on the wall are ranked, and `limit` counts those: a photo the host has since
+hidden or rejected keeps its reactions but neither takes a place nor uses one up, so the panel
+asked for three answers the three best photos on the wall (fewer when fewer have reactions).
+
 **200**
 
 ```json
