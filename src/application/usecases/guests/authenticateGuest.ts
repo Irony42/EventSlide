@@ -37,7 +37,7 @@ import type { Logger } from '../../ports/logger'
  * are not the same question as "may this action happen now": a guest at a closed event can
  * still look at their own photographs, and a guest who uploads to one is told
  * `event.notAcceptingUploads`, which they can act on, rather than `event.notFound`, which
- * they cannot. Only the upload use case knows it needs `acceptsUploads()`, and a join code
+ * they cannot. Only the use cases that write (an upload, a rename) know they need `acceptsUploads()`, and a join code
  * is a different door (`joinEvent`, `resolveJoinCode`) that does ask `acceptsGuests()`.
  *
  * On success the guest is `touch`ed: the host's "who is here right now" count is read
@@ -106,7 +106,7 @@ export const makeAuthenticateGuest =
 
     // The token's event against the URL's, the row, the revocation: one function, shared with
     // the media route's identity.
-    const found = await guestOfEvent(guests, claims.value, event)
+    const found = await guestOfEvent(guests, claims.value, event, logger)
     if (!found.ok) return found
     const guest = found.value
 

@@ -342,7 +342,6 @@ export const it: UiText = {
     'event.immutable': 'Questo evento è archiviato e non può più essere modificato.',
     'event.illegalTransition': 'Questo cambio di stato non è possibile.',
 
-    'guest.wrongEvent': 'Il suo accesso non corrisponde a questa galleria.',
     'guest.revoked': 'Il suo accesso è stato revocato dall’organizzatore.',
     'guestToken.expired': 'Il suo accesso è scaduto. Scansioni di nuovo il codice QR.',
     'guestToken.malformed': 'Il suo accesso non è più valido. Scansioni di nuovo il codice QR.',

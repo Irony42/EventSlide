@@ -89,9 +89,9 @@ export const outboxSenderContract = (name: string, harness: SenderHarness): void
 
     it('keeps a photo when the device token now belongs to another event', async () => {
       // A guest who scans the after-party's QR code overwrites their one device token,
-      // and the wedding's queue answers 403 `guest.wrongEvent` until they scan back.
+      // and the wedding's queue answers 404 `event.notFound` until they scan back.
       // Deleting on that refusal loses the evening's photos to a second QR code.
-      expect(await harness.failure(403, 'guest.wrongEvent')(anEntry())).toEqual({
+      expect(await harness.failure(404, 'event.notFound')(anEntry())).toEqual({
         kind: 'deferred',
       })
     })
