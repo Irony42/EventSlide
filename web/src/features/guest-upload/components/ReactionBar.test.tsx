@@ -235,6 +235,29 @@ describe('ReactionBar', () => {
     expect(api.reactions).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps the buttons it has when reading the row again fails', async () => {
+    // The refusal already told the guest what happened; a second failure on top of it must
+    // not take the row away from under their thumb.
+    let reads = 0
+    renderBar({
+      reactions: vi.fn(async () => {
+        reads += 1
+        if (reads > 1) throw ApiError.network()
+        return answer()
+      }),
+      react: vi.fn(async () => {
+        throw new ApiError(409, 'reaction.alreadyExists')
+      }),
+    })
+    await ready()
+
+    await userEvent.click(buttonFor('love'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['reaction.alreadyExists'])
+    await waitFor(() => expect(buttonFor('love', 0)).toBeEnabled())
+    expect(screen.getByRole('group', { name: fr.upload.reactionsGroup(1) })).toBeVisible()
+  })
+
   it('says the reactions could not be read, offers no button, and reads again on retry', async () => {
     let reads = 0
     renderBar({
