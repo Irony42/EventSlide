@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import type { About } from '../lib/api/dto'
+import { useCallback, type ReactNode } from 'react'
+import { useLoader } from '../lib/useLoader'
 import { AboutAnsweredContext, AboutContext } from './aboutContext'
 import { BUILD_ABOUT, laidOver } from './aboutAnswer'
 import { useApi } from './useApi'
@@ -20,31 +20,14 @@ import { useApi } from './useApi'
  */
 export function AboutProvider({ children }: { readonly children: ReactNode }) {
   const api = useApi()
-  const [about, setAbout] = useState<About>(BUILD_ABOUT)
-  const [answered, setAnswered] = useState(false)
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    api.about(controller.signal).then(
-      (answer: unknown) => {
-        if (controller.signal.aborted) return
-        setAbout(laidOver(answer))
-        setAnswered(true)
-      },
-      () => {
-        // A failure is an answer too, for the one reader that waits: the build's own is the
-        // strict one, and a console that cannot be confirmed is not offered.
-        if (!controller.signal.aborted) setAnswered(true)
-      },
-    )
-
-    return () => controller.abort()
-  }, [api])
+  const load = useCallback(async (signal: AbortSignal) => laidOver(await api.about(signal)), [api])
+  // A failure leaves the build's own answer and nobody is told; it is still an answer for the one
+  // reader that waits (below), and `loading` is false once the request has settled either way.
+  const { data, loading } = useLoader(load)
 
   return (
-    <AboutContext.Provider value={about}>
-      <AboutAnsweredContext.Provider value={answered}>{children}</AboutAnsweredContext.Provider>
+    <AboutContext.Provider value={data ?? BUILD_ABOUT}>
+      <AboutAnsweredContext.Provider value={!loading}>{children}</AboutAnsweredContext.Provider>
     </AboutContext.Provider>
   )
 }

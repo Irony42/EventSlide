@@ -129,6 +129,28 @@ describe('ShareLinkPanel', () => {
     expect(await screen.findByText(fr.admin.shareLinkRevoked)).toBeVisible()
   })
 
+  it('says it is waiting, and does not claim there is no link, until the status is known', async () => {
+    render(fakeApi({ shareLink: vi.fn(() => new Promise<never>(() => undefined)) }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(fr.app.loading)
+    expect(screen.queryByText(fr.admin.shareLinkNone)).toBeNull()
+  })
+
+  it('does not claim there is no link when the status could not be read', async () => {
+    render(
+      fakeApi({
+        shareLink: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    // Inside a card whose title is a level 2, so the failure is a level 3 and not a second 2.
+    expect(screen.getByRole('heading', { level: 3, name: fr.app.loadFailed })).toBeVisible()
+    expect(screen.queryByText(fr.admin.shareLinkNone)).toBeNull()
+  })
+
   it('offers a retry when the status cannot be read', async () => {
     render(
       fakeApi({

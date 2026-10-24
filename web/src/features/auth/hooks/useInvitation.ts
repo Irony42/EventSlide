@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import type { InvitationAcceptance } from '../../../lib/api/client'
 import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../../lib/api/client'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { messageForError } from '../../../lib/i18n/translations'
+import { useLoader } from '../../../lib/useLoader'
 
 /**
  * What an invitation link is, as the reader's page needs it (G2-09 / P3-10, G2-10 / P3-11).
@@ -33,11 +34,14 @@ export type InvitationView =
   /** Dead, whatever killed it. */
   | { readonly kind: 'dead' }
   /**
-   * Could not be asked, which is not the same as dead: the link may be perfectly good. Carries
-   * the cause and not a sentence: the page words it when it renders, so a person who changes
-   * the page's language is answered in it without the link being asked about again.
+   * Could not be asked, which is not the same as dead: the link may be perfectly good. The
+   * sentence is `useLoader`'s, composed at render from the page's current language, so a person
+   * who changes it is answered in it without the link being asked about again.
    */
-  | { readonly kind: 'failed'; readonly cause: unknown }
+  | { readonly kind: 'failed'; readonly message: string }
+
+/** What asking about a link came to, short of a failure to ask. */
+type Verdict = Extract<InvitationView, { readonly kind: 'ready' | 'dead' }>
 
 export interface InvitationPreviewState {
   readonly view: InvitationView
@@ -55,41 +59,26 @@ export interface InvitationPreviewState {
  */
 export const useInvitationPreview = (token: string): InvitationPreviewState => {
   const api = useApi()
-  // The token the answer is for travels with it, so a navigation from one link to another
-  // shows the wait again instead of the previous link's invitation for a moment.
-  const [answer, setAnswer] = useState<{
-    readonly token: string
-    readonly view: InvitationView
-  } | null>(null)
-  const [attempt, setAttempt] = useState(0)
+  // The link is the request, so a navigation from one link to another shows the wait again
+  // instead of the previous link's invitation for a moment, and a retry shows it at once.
+  const load = useCallback(
+    (signal: AbortSignal): Promise<Verdict> =>
+      api.invitation(token, signal).then(
+        (preview): Verdict => ({ kind: 'ready', preview }),
+        (cause: unknown): Verdict => {
+          if (isDeadLink(cause)) return { kind: 'dead' }
+          throw cause
+        },
+      ),
+    [api, token],
+  )
+  const { data, loading, error, reload } = useLoader(load)
 
-  useEffect(() => {
-    const controller = new AbortController()
-
-    api.invitation(token, controller.signal).then(
-      (preview) => {
-        if (!controller.signal.aborted) setAnswer({ token, view: { kind: 'ready', preview } })
-      },
-      (cause: unknown) => {
-        // The abort is this effect's own cleanup (StrictMode mounts twice), not a failure.
-        if (controller.signal.aborted) return
-        setAnswer({
-          token,
-          view: isDeadLink(cause) ? { kind: 'dead' } : { kind: 'failed', cause },
-        })
-      },
-    )
-
-    return () => controller.abort()
-  }, [api, token, attempt])
-
-  const reload = useCallback(() => {
-    setAnswer(null)
-    setAttempt((current) => current + 1)
-  }, [])
-
-  const view: InvitationView =
-    answer !== null && answer.token === token ? answer.view : { kind: 'loading' }
+  const view = useMemo<InvitationView>(() => {
+    if (loading) return { kind: 'loading' }
+    if (error !== null) return { kind: 'failed', message: error }
+    return data ?? { kind: 'loading' }
+  }, [data, loading, error])
 
   return { view, reload }
 }
