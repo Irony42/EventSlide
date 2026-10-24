@@ -394,9 +394,6 @@ export const createApi = (transport: Transport) => ({
   deleteMyPhoto: (slug: string, photoId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
 
-  setCaption: (slug: string, photoId: string, caption: string | null): Promise<void> =>
-    transport.patch(`/api/events/${encode(slug)}/photos/${encode(photoId)}/caption`, { caption }),
-
   react: (slug: string, photoId: string, kind: ReactionKind): Promise<void> =>
     transport.post(`/api/events/${encode(slug)}/photos/${encode(photoId)}/reactions`, { kind }),
 
@@ -650,9 +647,6 @@ export const createApi = (transport: Transport) => ({
   getEvent: (slug: string, signal?: AbortSignal): Promise<EventDto> =>
     transport.get(`/api/events/${encode(slug)}`, undefined, signal),
 
-  renameEvent: (slug: string, name: string): Promise<EventDto> =>
-    transport.patch(`/api/events/${encode(slug)}`, { name }),
-
   updateSettings: (slug: string, settings: Partial<EventSettingsDto>): Promise<EventDto> =>
     transport.patch(`/api/events/${encode(slug)}/settings`, settings),
 
@@ -698,9 +692,6 @@ export const createApi = (transport: Transport) => ({
     decision: ModerationDecision,
   ): Promise<BulkModerationResponse> =>
     transport.post(`/api/events/${encode(slug)}/moderation/bulk`, { photoIds, decision }),
-
-  deletePhoto: (slug: string, photoId: string): Promise<void> =>
-    transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
 
   topPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly TopPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/top-photos`, undefined, signal),
