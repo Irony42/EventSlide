@@ -119,6 +119,15 @@ describe('authenticateGuest', () => {
     expect(result.ok && result.value.guest.id).toBe(LEA)
   })
 
+  it('writes no wrong-event line for a token that names the event asked about', async () => {
+    // The audit line is for a mismatch only: written on every request it would be a line per tap.
+    await authenticate(tokenFor(WEDDING, LEA))
+
+    expect(
+      logger.lines.find((entry) => entry.context?.['code'] === 'guest.wrongEvent'),
+    ).toBeUndefined()
+  })
+
   it('returns the event it resolved, so the caller never reads the slug twice', async () => {
     const result = await authenticate(tokenFor(WEDDING, LEA))
 
@@ -256,13 +265,29 @@ describe('authenticateGuest', () => {
   it('refuses a valid token issued for another event', async () => {
     const result = await authenticate(tokenFor(GALA, LEA), WEDDING_SLUG)
 
-    expect(!result.ok && result.error.code).toBe('guest.wrongEvent')
+    expect(!result.ok && result.error.code).toBe('event.notFound')
   })
 
-  it('calls a token from another event forbidden, not merely unauthenticated', async () => {
-    const result = await authenticate(tokenFor(GALA, LEA), WEDDING_SLUG)
+  it('answers it as an event that is not there, so a token tells nothing about which slugs exist (HTTP-M-03)', async () => {
+    // `403 guest.wrongEvent` confirmed the event existed, whatever its status, to a guest of any
+    // other event; the public wall answers 404 for a draft, an archived and an absent slug alike.
+    const foreign = await authenticate(tokenFor(GALA, LEA), WEDDING_SLUG)
+    const absent = await authenticate(tokenFor(GALA, LEA), 'un-mariage-inconnu')
 
-    expect(!result.ok && result.error.kind).toBe('forbidden')
+    expect(!foreign.ok && foreign.error.kind).toBe('notFound')
+    expect(foreign).toEqual(absent)
+  })
+
+  it('keeps the reason in the log, where an operator wants it and a prober does not read', async () => {
+    await authenticate(tokenFor(GALA, LEA), WEDDING_SLUG)
+
+    const line = logger.lines.find((entry) => entry.context?.['code'] === 'guest.wrongEvent')
+    expect(line?.level).toBe('warn')
+    expect(line?.context).toEqual({
+      code: 'guest.wrongEvent',
+      requestedEventId: WEDDING,
+      tokenEventId: GALA,
+    })
   })
 
   it('does not record presence at an event the token does not name', async () => {

@@ -252,9 +252,18 @@ Read these before you upgrade, and back up with the version you run now.
 - **The container's memory limit in `compose.yaml` goes from 1 GB to 2 GB** (#105), because
   up to four uploads are now decoded at once. `GET /api/ready` reports whether the disk margin is
   sufficient under `checks.disk` and never fails on it (the exact free bytes are in the log, #197).
+- **A guest can no longer rename themself once the event is closed** (#196). `PATCH /api/events/:slug/guests/:guestId`
+  (#190) answers `409 event.notAcceptingUploads` for a closed or archived event, the answer an upload gets: the
+  name is printed on the wall of a closed event, unmoderated, so it could otherwise change under photographs the
+  host had approved after the host had closed it. Reopening the event allows it again.
 - **The host dashboard's `usedBytes` now counts the clip sources still waiting in the queue**
   as well as the photographs (#117), so it can read higher than before while clips are queued.
   It is the figure an upload is checked against.
+- **A guest token for another event is answered `404 event.notFound`, no longer a `403` with the code `guest.wrongEvent`** (#194).
+  The 403 told a guest of any event which slugs exist, drafts and archived events included, where the public
+  wall answers `404` for all three. A client that branched on `guest.wrongEvent` now sees `event.notFound`;
+  the reason is in the log, as a warning with the two event ids. The web app's outbox keeps a queued photo
+  on that answer, as it did on the 403.
 - **Three small answers changed** (#191). A moderator whose browser also holds a guest cookie (a host
   who scanned their own QR code) is now answered as a moderator by
   `DELETE /api/events/:slug/photos/:photoId`, where it was refused as a guest. A wall stream that is

@@ -163,7 +163,7 @@ export const makeJoinEvent = ({
    * is reported: a stranger posting a guessed token learns nothing beyond what an empty
    * cookie jar would have told them. The event scope is the load-bearing check. A token
    * issued for the gala must not reach a wedding guest row, which is the same rule the
-   * guest middleware enforces as `guest.wrongEvent`; here there is no principal to
+   * guest middleware enforces as `event.notFound` (HTTP-M-03); here there is no principal to
    * refuse, so the token is simply not this device's identity at this event — and that
    * scoping is what keeps a guest revoked at one party welcome at the next.
    *

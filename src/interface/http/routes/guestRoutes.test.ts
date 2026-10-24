@@ -284,7 +284,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               budget,
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
-            renameGuest: makeRenameGuest({ guests: base.guests }),
+            renameGuest: makeRenameGuest({ guests: base.guests, events: deps.events }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
             getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
@@ -652,7 +652,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
     expect(response.body.error.code).toBe('upload.tooManyFiles')
   })
 
-  it('answers 403 guest.wrongEvent for a token issued for another event', async () => {
+  it('answers 404 event.notFound for a token issued for another event', async () => {
     // The cross-event attack: a guest at the gala pointing their own cookie at the
     // wedding's upload endpoint.
     const subject = buildSubject()
@@ -662,8 +662,8 @@ describe('POST /api/events/:eventSlug/photos', () => {
       .set('Cookie', cookie(subject.galaToken))
       .attach('photos', Buffer.from('one'), 'one.jpg')
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
     expect(subject.upload.calls).toHaveLength(0)
   })
 
@@ -1322,8 +1322,8 @@ describe('PATCH /api/events/:eventSlug/guests/:guestId', () => {
       .set('Cookie', cookie(subject.galaToken))
       .send({ displayName: 'Piraté' })
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
     expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
   })
 
@@ -1339,25 +1339,29 @@ describe('PATCH /api/events/:eventSlug/guests/:guestId', () => {
     expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
   })
 
-  it('still lets a guest correct their own name once the event has closed, as the use case says', async () => {
-    // `renameGuest` deliberately does not consult the lifecycle: a guest at a closed party may
-    // correct the spelling of their own name on an album that is still being viewed. Pinned
-    // here because the sentence is documented (docs/API.md) and a gate on `acceptsUploads()`
-    // added to the handler would pass every other case.
-    const subject = buildSubject()
-    subject.harness.events.seed(
-      anEvent({ id: 'closed-id', slug: 'termine', joinCode: 'C10SED', status: 'closed' }),
-    )
-    subject.harness.guests.seed(aGuest({ id: GUEST, eventId: 'closed-id', displayName: 'Léa' }))
+  it.each(['closed', 'archived'] as const)(
+    'refuses a rename once the event is %s, with the 409 an upload gets, and keeps the name',
+    async (status) => {
+      // The name is printed on the wall of a closed event, unmoderated: the credit under photographs the
+      // host approved must not move after the host closed it. The rule is the upload's own
+      // (`acceptsUploads()`), so a guest is told what an upload would be told.
+      const subject = buildSubject()
+      subject.harness.events.seed(
+        anEvent({ id: 'ended-id', slug: 'termine', joinCode: 'C10SED', status }),
+      )
+      subject.harness.guests.seed(aGuest({ id: GUEST, eventId: 'ended-id', displayName: 'Léa' }))
 
-    const response = await request(subject.app)
-      .patch(`/api/events/termine/guests/${GUEST}`)
-      .set('Cookie', cookie(subject.harness.issueGuestToken('closed-id', GUEST)))
-      .send({ displayName: 'Léa D.' })
+      const response = await request(subject.app)
+        .patch(`/api/events/termine/guests/${GUEST}`)
+        .set('Cookie', cookie(subject.harness.issueGuestToken('ended-id', GUEST)))
+        .send({ displayName: 'Léa D.' })
 
-    expect(response.status).toBe(200)
-    expect(response.body.displayName).toBe('Léa D.')
-  })
+      expect(response.status).toBe(409)
+      expect(response.body.error.code).toBe('event.notAcceptingUploads')
+      expect(response.body.error.details).toEqual({ status })
+      expect(await nameOf(subject, 'ended-id', GUEST)).toBe('Léa')
+    },
+  )
 
   it('refuses a guest the host has revoked, who may no longer sign anything', async () => {
     const subject = buildSubject({ revoked: true })
@@ -1456,13 +1460,13 @@ describe('the guest surface requires a guest token on every route', () => {
     expect(response.body.error.code).toBe('auth.required')
   })
 
-  it.each(ROUTES)('$name answers 403 for a token naming another event', async ({ send }) => {
+  it.each(ROUTES)('$name answers 404 for a token naming another event', async ({ send }) => {
     const subject = buildSubject()
 
     const response = await send(request(subject.app), subject.galaToken)
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it.each(ROUTES)('$name answers 403 once the host has revoked the guest', async ({ send }) => {
@@ -1544,7 +1548,7 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
   })
 
   it('answers a moderator as a moderator even with the guest cookie of another event', async () => {
-    // `403 guest.wrongEvent` before: the cookie was weighed against an event the caller was
+    // `403 guest.wrongEvent` before (and `404` since HTTP-M-03): the cookie was weighed against an event the caller was
     // not asking about, and the role they hold in this one was never read.
     const subject = buildSubject()
     const agent = request.agent(subject.app)
@@ -1643,6 +1647,42 @@ const CROSS_EVENT_ROUTES = [
       client.delete(`${BASE}/photos/${GALA_PHOTO}/reactions/love`).set('Cookie', cookie(token)),
   },
 ]
+
+/**
+ * A guest token that does not name the event of the path is answered as that event **not being there**
+ * (HTTP-M-03). `403 guest.wrongEvent` told a guest of any event which slugs exist, drafts and archived
+ * events included, where the public wall answers 404 for all three: an enumeration oracle over other
+ * people's evenings, on a guessable slug (`camille-et-sacha`). The reason is in the log.
+ */
+describe('a token for another event cannot tell which events exist (HTTP-M-03)', () => {
+  const answerFor = async (subject: Subject, slug: string) => {
+    const response = await request(subject.app)
+      .get(`/api/events/${slug}/photos/mine`)
+      .set('Cookie', cookie(subject.token))
+    return { status: response.status, body: response.body as unknown }
+  }
+
+  it('answers a live event, a draft, an archived one and an absent slug identically', async () => {
+    const subject = buildSubject()
+    subject.harness.events.seed(
+      anEvent({ id: 'draft-id', slug: 'brouillon', joinCode: 'D3M41N', status: 'draft' }),
+      anEvent({ id: 'archive-id', slug: 'archive', joinCode: 'ARCH1V', status: 'archived' }),
+    )
+
+    const answers = {
+      live: await answerFor(subject, 'gala'),
+      draft: await answerFor(subject, 'brouillon'),
+      archived: await answerFor(subject, 'archive'),
+      absent: await answerFor(subject, 'inconnu'),
+    }
+
+    expect(answers.absent.status).toBe(404)
+    expect(answers.live).toEqual(answers.absent)
+    expect(answers.draft).toEqual(answers.absent)
+    expect(answers.archived).toEqual(answers.absent)
+    expect(answers.absent.body).toMatchObject({ error: { code: 'event.notFound' } })
+  })
+})
 
 describe('a resource from another event does not exist', () => {
   it.each(CROSS_EVENT_ROUTES)('$name answers 404 $code', async ({ send, code }) => {
@@ -1907,7 +1947,7 @@ describe('GET /api/events/:eventSlug/missions/mine', () => {
       .get(`${BASE}/missions/mine`)
       .set('Cookie', cookie(subject.galaToken))
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 })
