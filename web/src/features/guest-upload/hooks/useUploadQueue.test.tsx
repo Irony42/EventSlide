@@ -581,6 +581,37 @@ describe('useUploadQueue', () => {
       expect(outbox.enqueue).toHaveBeenCalledWith(expect.any(File), 'Les confettis', null)
     })
 
+    it('does not store a photo the guest took back mid-flight, though its request ended in an abort', async () => {
+      // To the outbox an abort looks like a dropped connection — the request ended without
+      // an answer — so the filter on `AbortError` is all that stands between "the guest took
+      // this photo back" and the photo going up ten minutes later, from a row nobody can see.
+      const outbox = anOutbox()
+      const api = fakeApi({
+        uploadPhotos: vi.fn(
+          async (_slug: string, input: UploadInput) =>
+            new Promise<UploadResponse>((resolve, reject) => {
+              if (input.files[0]?.name !== 'un.jpg') {
+                resolve(accepted('photo-2'))
+                return
+              }
+              input.signal?.addEventListener('abort', () => {
+                reject(new DOMException('The user aborted a request.', 'AbortError'))
+              })
+            }),
+        ),
+      })
+      const { result } = mount(api, { outbox })
+      act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+      act(() => result.current.send(null, null))
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('uploading'))
+
+      act(() => result.current.remove(result.current.items[0]?.id ?? ''))
+
+      // The queue is sequential: the second photo settling means the first one's catch has run.
+      await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
+      expect(outbox.enqueue).not.toHaveBeenCalled()
+    })
+
     it('keeps a photo a server that could not answer would have taken', async () => {
       const outbox = anOutbox()
       const api = fakeApi({

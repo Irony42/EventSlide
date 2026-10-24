@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { asError, isAbortError } from '../lib/http'
 import { SessionContext, type SessionData } from './sessionContext'
 import { useApi } from './useApi'
 
@@ -89,11 +90,11 @@ export function SessionProvider({ scope, children }: SessionProviderProps) {
         if (!current) return
         // The abort came from this effect's own cleanup (StrictMode mounts twice, a `forget`
         // lands mid-flight) and is not a failure to report to the host.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
+        if (isAbortError(cause)) return
         setData({
           session: null,
           loading: false,
-          error: cause instanceof Error ? cause : new Error(String(cause)),
+          error: asError(cause),
         })
       },
     )

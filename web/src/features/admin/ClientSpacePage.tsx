@@ -9,7 +9,7 @@ import { useToast } from '../../design-system/components/useToast'
 import { formatBytes, formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { auditActor, auditSentence } from './auditLabels'
-import { errorMessage } from './errorMessage'
+import { messageForError } from '../../lib/i18n/translations'
 import { LoadFailure, Pending } from './components/AsyncState'
 import { SuspensionScreen } from './components/SuspensionScreen'
 import { useAction } from './hooks/useAction'
@@ -230,7 +230,7 @@ function AuditLog({ client }: { readonly client: ClientLimitsDto }) {
       .then((page) =>
         setOlder({ items: [...(older?.items ?? []), ...page.items], next: page.next }),
       )
-      .catch((cause: unknown) => toast.show(errorMessage(cause, t), { tone: 'danger' }))
+      .catch((cause: unknown) => toast.show(messageForError(cause, t), { tone: 'danger' }))
       .finally(() => setLoadingMore(false))
   }
 

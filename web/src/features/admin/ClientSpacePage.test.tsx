@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ClientSpacePage } from './ClientSpacePage'
+import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
   aClientLimits,
@@ -162,6 +163,21 @@ describe('ClientSpacePage', () => {
     expect(await screen.findByText(fr.clientSpace.actionPeriodReset)).toBeVisible()
     expect(clientAudit).toHaveBeenLastCalledWith({ clientId: 'client-1', before: 2 })
     expect(screen.queryByRole('button', { name: fr.clientSpace.auditMore })).toBeNull()
+  })
+
+  it('says why older lines could not be loaded, and keeps the ones on screen', async () => {
+    const clientAudit = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [anEntry({ seq: 2 })], next: 2 })
+      .mockRejectedValueOnce(ApiError.network())
+    open(onBox([aClientLimits()], { clientAudit }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.clientSpace.auditMore }))
+
+    // A toast in the owner's words, not the code the box sent, and the button is still there
+    // for another try.
+    expect(await screen.findByText(fr.errors.network)).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.clientSpace.auditMore })).toBeEnabled()
   })
 
   it('says the log is empty rather than showing nothing', async () => {

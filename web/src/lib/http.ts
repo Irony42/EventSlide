@@ -67,6 +67,33 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Whether a thrown value is the browser reporting an abort: `fetch` and a `play()` that
+ * `pause()` cut short both reject with a `DOMException` named `AbortError`.
+ *
+ * An abort is the caller's own doing — an effect's cleanup (StrictMode mounts twice), an
+ * unmounted screen, a row the guest removed — so a catch that would report a failure of a
+ * request or a `play()` asks this first and returns when it is true. It is the one spelling of
+ * the question "is this error an abort?" (`errorHelpers.guard.test.ts`); a hook that already
+ * holds its own `AbortController` may also look at `signal.aborted`, which asks a different
+ * one. A `DOMException` with another name (a `NotAllowedError` from `play()`) is a refusal,
+ * and a plain `Error` that merely carries the name is not the browser's.
+ */
+export const isAbortError = (cause: unknown): boolean =>
+  cause instanceof DOMException && cause.name === 'AbortError'
+
+/**
+ * A thrown value as an `Error`, for state that holds one.
+ *
+ * Anything can be thrown, and a hook that keeps the failure in state types it as `Error`
+ * so a screen can branch on its presence. A string or an object is wrapped rather than
+ * cast, so what reaches the state is always a real `Error` (a string becomes its message;
+ * an object becomes `[object Object]`, which is why a caller that needs the detail keeps
+ * the cause as well).
+ */
+export const asError = (cause: unknown): Error =>
+  cause instanceof Error ? cause : new Error(String(cause))
+
 const isApiErrorBody = (value: unknown): value is ApiErrorBody => {
   if (typeof value !== 'object' || value === null) return false
   const candidate = (value as { error?: unknown }).error
@@ -191,7 +218,7 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
     response = await fetch(buildUrl(path, options.query), init)
   } catch (cause) {
     // An aborted request is the caller's own doing, not a network failure to report.
-    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause
+    if (isAbortError(cause)) throw cause
     throw ApiError.network()
   }
 

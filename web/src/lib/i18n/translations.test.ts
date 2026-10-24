@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { formattersFor } from './formatters'
 import { fr } from './fr'
 import { SUPPORTED_LOCALES, type Locale } from './locale'
-import { TRANSLATIONS, messageForCode, withFrenchFallback, type UiText } from './translations'
+import { ApiError } from '../http'
+import {
+  TRANSLATIONS,
+  messageForCode,
+  messageForError,
+  withFrenchFallback,
+  type UiText,
+} from './translations'
 import { walkTable } from './testing/walkTable'
 
 /** Every section of the table, read off the source of truth rather than listed here. */
@@ -162,6 +169,50 @@ describe('messageForCode', () => {
     expect(messageForCode('event.somethingNew', text)).toBe(text.errors.unknown)
     expect(messageForCode(undefined, text)).toBe(text.errors.unknown)
     expect(messageForCode('constructor', text)).toBe(text.errors.unknown)
+  })
+})
+
+describe('messageForError', () => {
+  it.each(SUPPORTED_LOCALES)('answers an ApiError with its code’s sentence, in %s', (locale) => {
+    const text = TRANSLATIONS[locale]
+    const known = new ApiError(404, 'event.notFound')
+
+    expect(messageForError(known, text)).toBe(messageForCode('event.notFound', text))
+    expect(messageForError(known, text)).not.toBe(text.errors.unknown)
+  })
+
+  it.each(SUPPORTED_LOCALES)(
+    'answers an ApiError with an unknown code generically, in %s',
+    (locale) => {
+      // A newer server's code: the guest gets the generic sentence, never `event.somethingNew`.
+      const text = TRANSLATIONS[locale]
+
+      expect(messageForError(new ApiError(500, 'event.somethingNew'), text)).toBe(
+        text.errors.unknown,
+      )
+      expect(messageForError(new ApiError(500, 'constructor'), text)).toBe(text.errors.unknown)
+    },
+  )
+
+  it.each([
+    ['an Error', new Error('database is locked')],
+    ['a string', 'event.notFound'],
+    ['an object that merely carries a code', { code: 'event.notFound' }],
+    ['null', null],
+    ['undefined', undefined],
+  ])('answers %s that is not an ApiError with the generic sentence', (_name, cause) => {
+    // Not an ApiError is a bug in this build, and its English message must not reach a host
+    // mid-event; nor may a look-alike with a `code` be read as if the server had said it.
+    const text = TRANSLATIONS.fr
+
+    expect(messageForError(cause, text)).toBe(text.errors.unknown)
+  })
+
+  it('names the table it was handed, not a default one', () => {
+    expect(messageForError(new Error('x'), TRANSLATIONS.de)).toBe(TRANSLATIONS.de.errors.unknown)
+    expect(messageForError(new Error('x'), TRANSLATIONS.de)).not.toBe(
+      TRANSLATIONS.fr.errors.unknown,
+    )
   })
 })
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { useToast } from '../../../design-system/components/useToast'
-import { ApiError } from '../../../lib/http'
+import { ApiError, asError, isAbortError } from '../../../lib/http'
 import { messageForCode, type UiText } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
@@ -145,6 +145,11 @@ interface QueueState {
   readonly items: readonly ModerationPhotoDto[]
   readonly pendingCount: number
   readonly loading: boolean
+  /**
+   * The failed load, as an `Error` the consoles branch on — one of them keeps the stale
+   * queue on screen beside it. An `Error` carries no copy (`error.message` is the server's
+   * code, `photo.notFound`), so the sentence is `messageForError(error, t)` at render.
+   */
   readonly error: Error | null
 }
 
@@ -171,9 +176,6 @@ export interface ModerationQueue extends QueueState {
   undo: () => Promise<void>
 }
 
-const asError = (cause: unknown): Error =>
-  cause instanceof Error ? cause : new Error(String(cause))
-
 /**
  * The sentence to show for a failure.
  *
@@ -187,19 +189,6 @@ const asError = (cause: unknown): Error =>
  */
 const failureMessage = (cause: unknown, fallback: string, text: UiText): string =>
   cause instanceof ApiError ? messageForCode(cause.code, text) : fallback
-
-/**
- * The sentence for a failed load, for the two consoles that render one.
- *
- * Exported because `ModerationQueue.error` is an `Error` — the consoles branch on its
- * presence and one of them keeps the stale queue on screen beside it — and an `Error`
- * no longer carries copy. Rendering `error.message` printed the French sentence until
- * roadmap 1.5 moved the sentence to the render, and now prints `photo.notFound`. This is
- * the one lookup those two components need, kept beside the hook that produced the
- * failure rather than repeated in each of them.
- */
-export const queueErrorMessage = (error: Error, text: UiText): string =>
-  failureMessage(error, text.errors.unknown, text)
 
 export const useModerationQueue = (
   slug: string | undefined,
@@ -250,7 +239,7 @@ export const useModerationQueue = (
         if (!live) return
         // The abort is this effect's own cleanup — StrictMode mounts twice — and is
         // not a failure to put in front of the host.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
+        if (isAbortError(cause)) return
         // The items already on screen are kept: a refetch that failed while the host
         // was working through a screenful must not empty the grid under them.
         setState((previous) => ({ ...previous, loading: false, error: asError(cause) }))

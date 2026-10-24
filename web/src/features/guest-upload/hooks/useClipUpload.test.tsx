@@ -445,6 +445,8 @@ describe('when it does not work', () => {
 
     await waitFor(() => expect(result.current.stage).toBe('failed'))
     expect(result.current.retryable).toBe(false)
+    // Said in the guest's words, from the server's code.
+    expect(result.current.message).toBe(fr.errors['clip.transcoderUnavailable'])
   })
 
   it('offers no retry for a job the box gave up on for want of an encoder', async () => {
@@ -476,6 +478,8 @@ describe('when it does not work', () => {
 
     await waitFor(() => expect(result.current.stage).toBe('failed'))
     expect(result.current.retryable).toBe(false)
+    // The refusal's own sentence, not the code and not the generic line.
+    expect(result.current.message).toBe(fr.errors['event.clipsNotAllowed'])
   })
 
   it('keeps polling through a poll that could not be answered', async () => {

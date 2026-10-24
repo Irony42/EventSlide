@@ -3,7 +3,7 @@ import { useApi } from '../../../app/useApi'
 import type { Locale } from '../../../lib/i18n/locale'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../errorMessage'
+import { messageForError } from '../../../lib/i18n/translations'
 
 /**
  * The two halves of a forgotten password (G2-08 / P3-09, G2-10 / P3-11): asking for the
@@ -44,7 +44,7 @@ export const useRequestPasswordReset = (): RequestPasswordResetState => {
         setError(
           cause instanceof ApiError && cause.code === 'feature.unavailable'
             ? t.auth.forgotUnavailable
-            : errorMessage(cause, t),
+            : messageForError(cause, t),
         )
         return false
       } finally {
@@ -91,7 +91,7 @@ export const useConfirmPasswordReset = (token: string): ConfirmPasswordResetStat
         // Length, "too common", "same as your name": the server judges, and its code picks the
         // sentence. Nothing is cleared — the link still works, and a person fixing one rule
         // should not retype the rest.
-        setError(errorMessage(cause, t))
+        setError(messageForError(cause, t))
         return { kind: 'refused' }
       } finally {
         setSubmitting(false)

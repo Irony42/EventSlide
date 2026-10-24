@@ -1,4 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
+import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './JoinQr.module.css'
 
@@ -21,7 +22,7 @@ export function JoinQr({ url, size = 'md' }: JoinQrProps) {
   const text = useTranslations()
 
   return (
-    <div className={`${styles['plate']} ${styles[size]}`}>
+    <div className={cx(styles['plate'], styles[size])}>
       <QRCodeSVG
         className={styles['code']}
         value={url}

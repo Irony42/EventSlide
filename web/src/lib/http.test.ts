@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, http } from './http'
+import { ApiError, asError, http, isAbortError } from './http'
 import { fr } from './i18n/fr'
 import { TRANSLATIONS, messageForCode } from './i18n/translations'
 
@@ -382,6 +382,75 @@ describe('what an ApiError tells the UI', () => {
     expect(new ApiError(401, 'auth.required').isUnauthenticated).toBe(true)
     expect(new ApiError(403, 'auth.forbidden').isForbidden).toBe(true)
     expect(new ApiError(403, 'auth.forbidden').isUnauthenticated).toBe(false)
+  })
+})
+
+describe('isAbortError', () => {
+  it('is true for the DOMException the browser rejects an aborted request with', () => {
+    expect(isAbortError(new DOMException('The operation was aborted.', 'AbortError'))).toBe(true)
+  })
+
+  it('is false for another DOMException, which is a refusal rather than an abort', () => {
+    // `play()` rejects with `NotAllowedError` when the autoplay policy says no, and that
+    // one is the host's to hear about.
+    expect(isAbortError(new DOMException('play() was refused', 'NotAllowedError'))).toBe(false)
+    expect(isAbortError(new DOMException('gone', 'NotFoundError'))).toBe(false)
+  })
+
+  it('is false for a generic Error that merely carries the name', () => {
+    // Only the browser's own abort is the caller's doing; a thrown `Error` named
+    // `AbortError` is some other code's failure and is reported like any other.
+    expect(isAbortError(Object.assign(new Error('aborted'), { name: 'AbortError' }))).toBe(false)
+  })
+
+  it('is false for what is not an exception at all', () => {
+    expect(isAbortError('AbortError')).toBe(false)
+    expect(isAbortError({ name: 'AbortError' })).toBe(false)
+    expect(isAbortError(null)).toBe(false)
+    expect(isAbortError(undefined)).toBe(false)
+  })
+
+  it('recognises what the transport rethrows for an aborted request', async () => {
+    // `send` rethrows an abort as it is rather than filing it under `ApiError.network()`,
+    // which is what lets every caller's catch ask this one question and return.
+    const controller = new AbortController()
+    stubFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          )
+        }),
+    )
+
+    const pending = http.get('/api/events/gala/wall', undefined, controller.signal)
+    controller.abort()
+
+    await expect(pending.catch(isAbortError)).resolves.toBe(true)
+  })
+})
+
+describe('asError', () => {
+  it('hands an Error back untouched, subclasses included', () => {
+    const plain = new Error('plain')
+    const refused = new ApiError(404, 'event.notFound')
+
+    expect(asError(plain)).toBe(plain)
+    expect(asError(refused)).toBe(refused)
+  })
+
+  it('wraps a string so the message survives', () => {
+    const wrapped = asError('the socket closed')
+
+    expect(wrapped).toBeInstanceOf(Error)
+    expect(wrapped.message).toBe('the socket closed')
+  })
+
+  it('wraps an object and a null rather than throwing on them', () => {
+    expect(asError({ reason: 'x' })).toBeInstanceOf(Error)
+    expect(asError({ reason: 'x' }).message).toBe('[object Object]')
+    expect(asError(null).message).toBe('null')
+    expect(asError(undefined).message).toBe('undefined')
   })
 })
 

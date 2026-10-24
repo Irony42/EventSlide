@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import { StatusIcon } from './StatusIcon'
+import { cx } from '../classNames'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Field.module.css'
 
@@ -24,7 +25,7 @@ export interface FieldProps {
   readonly error?: string
   /** Marks the field as skippable. A guest's display name genuinely is. */
   readonly optional?: boolean
-  readonly className?: string
+  readonly className?: string | undefined
   readonly children: (control: FieldControlProps) => ReactNode
 }
 
@@ -51,7 +52,7 @@ export function Field({ label, hint, error, optional = false, className, childre
     ...(error === undefined ? {} : { 'aria-invalid': true }),
   }
 
-  const classes = [styles['field'], className].filter(Boolean).join(' ')
+  const classes = cx(styles['field'], className)
 
   return (
     <div className={classes}>

@@ -4,7 +4,9 @@ import type { WallItemDto, WallLayout } from '../../../lib/api/dto'
 import { aWallClip, aWallItem } from '../../../testing/renderWithProviders'
 import { fr } from '../../../lib/i18n/fr'
 import type { Slideshow } from '../hooks/useSlideshow'
+import { classesOf, cls } from '../../../testing/classesOf'
 import { WallLayouts } from './WallLayouts'
+import styles from './WallLayouts.module.css'
 
 const KEN_BURNS_MS = 8_800
 const INTERVAL_MS = 8_000
@@ -156,6 +158,25 @@ describe('WallLayouts', () => {
       expect.stringContaining('Photo 4'),
       expect.stringContaining('Photo 5'),
     ])
+  })
+
+  it('places each mosaic tile by the class of its own slot, after the shared tile class', () => {
+    const items = somePhotos(8)
+
+    render(
+      <WallLayouts
+        layout="mosaic"
+        items={items}
+        slideshow={aSlideshow({ current: items[0] ?? null, index: 0 })}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+      />,
+    )
+
+    // The slot class is what puts a tile at its place in the grid on the projector.
+    expect(screen.getAllByTestId('wall-slide').map((tile) => classesOf(tile))).toEqual(
+      [0, 1, 2, 3, 4, 5].map((slot) => [cls(styles, 'tile'), cls(styles, `slot${slot}`)]),
+    )
   })
 
   it('changes one mosaic tile per interval, in turn', () => {

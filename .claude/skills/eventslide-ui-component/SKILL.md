@@ -103,6 +103,7 @@ Check for a primitive first. A fourth bespoke button is how a design system dies
 ```tsx
 // web/src/design-system/components/Button.tsx
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
+import { cx } from '../classNames'
 import styles from './Button.module.css'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -122,7 +123,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       {...rest}
       ref={ref}
-      className={`${styles.button} ${styles[variant]} ${styles[size]}`}
+      className={cx(styles['button'], styles[variant], styles[size])}
       // aria-busy keeps the accessible name; a spinner-only button announces nothing.
       aria-busy={loading || undefined}
       disabled={disabled ?? loading}
@@ -135,6 +136,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ```
 
 - CSS Modules, colocated. No global class names except the token and reset layers.
+- Class names are joined with `cx` and nothing else: a CSS Module class is
+  `string | undefined`, a template literal prints "undefined", and `className` props
+  accept `undefined` (`classNames.guard.test.ts`).
 - `forwardRef` on anything focusable — dialogs and toasts need to move focus to it.
 - Never remove the focus ring. `:focus-visible` is styled, never `outline: none`.
 
