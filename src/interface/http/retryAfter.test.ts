@@ -74,6 +74,14 @@ describe('every 429 is built with a Retry-After', () => {
     )
   })
 
+  it('never writes a 429 by hand, which is how a header goes missing', () => {
+    const byHand = sourceFiles(SRC)
+      .filter((file) => /status\(\s*429\s*\)/.test(readFileSync(file, 'utf8')))
+      .map((file) => relative(SRC, file).replaceAll('\\', '/'))
+
+    expect(byHand).toEqual([])
+  })
+
   it('writes retryAfterSeconds into every DomainError.rateLimited, but the one that express-rate-limit has already answered for', () => {
     const missing = callsToRateLimited()
       .filter((call) => !call.args.includes('retryAfterSeconds'))

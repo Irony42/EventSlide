@@ -1020,6 +1020,39 @@ describe('buildServer: Cache-Control defaults to no-store under /api (HTTP-M-15)
     expect(response.get('cache-control')).toBe('no-store')
   })
 
+  it('marks the answers given before any router runs, whatever the method: a probe, a refused body, a refused write', async () => {
+    // The default sits ahead of the probes, the body parser, the session and the CSRF gate. Mounted
+    // after any of them, the answer that gate gives (a 400 for a body the parser refuses, a 403 for a
+    // write without its token) went out with no header, and so did the probes.
+    const subject = buildServerHarness()
+    const agent = request.agent(subject.app)
+    const token = csrfTokenFrom((await agent.get(ANY_GET)).headers)
+
+    const answers = {
+      health: await agent.get('/api/health'),
+      malformedBody: await agent
+        .post('/api/auth/login')
+        .set(CSRF_HEADER, token)
+        .set('Content-Type', 'application/json')
+        .send('{not json'),
+      writeWithoutToken: await agent.post('/api/join').send({}),
+      patchWithoutToken: await agent.patch('/api/events/mariage/caption').send({}),
+    }
+
+    expect(answers.malformedBody.status).toBe(400)
+    expect(answers.writeWithoutToken.status).toBe(403)
+    expect(
+      Object.fromEntries(
+        Object.entries(answers).map(([name, response]) => [name, response.get('cache-control')]),
+      ),
+    ).toEqual({
+      health: 'no-store',
+      malformedBody: 'no-store',
+      writeWithoutToken: 'no-store',
+      patchWithoutToken: 'no-store',
+    })
+  })
+
   it('marks the host reads that set no header of their own: the event list and the moderators with their addresses', async () => {
     const subject = buildServerHarness({
       usecases: {

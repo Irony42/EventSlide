@@ -104,6 +104,10 @@ describe('accessLog', () => {
     expect(lines[1]).toContain('"route":"(unmatched)"')
     // The error object is built apart from the success one, and carries the route as well.
     expect(lines[2]).toContain('"route":"/api/boom"')
+    // And is the whole of it: a spread that dropped the status, the duration or the error would leave
+    // the route and the key counts as they are.
+    expect(lines[2]).toContain('"statusCode":500')
+    expect(lines[2]).toContain('"duration":')
   })
 
   it('logs the route pattern, never the real path', async () => {

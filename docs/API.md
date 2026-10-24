@@ -588,7 +588,11 @@ paragraph beneath the table).
 requests says how long until its window turns over. A use case that counts what was done (a guest's
 reaction budget, invitations to one address, resets for one inbox) says **the length of its
 window**, the longest anyone is asked to wait: the count does not say when the oldest item ages
-out, and an upper bound is true. The stream cap below answers `30`.
+out, and an upper bound is true. The stream cap below answers `30`. The wait is **also** repeated
+as `error.details.retryAfterSeconds` in the body for the stream cap, `429 upload.busy` and the three
+use-case refusals (`invitation.tooManyForAddress`, `reset.tooManyForAddress`,
+`reaction.rateLimited`), because a client that cannot read response headers can read the body; the
+other limiters' bodies carry the header only.
 
 | Endpoint                                                           | Default       | Bucket                     | Code                               |
 | ------------------------------------------------------------------ | ------------- | -------------------------- | ---------------------------------- |
@@ -2041,7 +2045,7 @@ address. There is no self-service reset on such a box and `features.forgotPasswo
 `GET /api/about` is `false`. The link is never returned in a response. **Errors** — `400
 request.invalid`, `429 rate.limited` (the sign-in budget, its own bucket, and the per-address
 throttle of §1 "Rate limits", whose `Retry-After` is the wait; both answer every address alike),
-and the CSRF codes like every write. Responses are `Cache-Control: no-store`, the rate-limit refusals aside.
+and the CSRF codes like every write. Responses are `Cache-Control: no-store`.
 
 ### `POST /api/auth/password-reset/confirm`
 

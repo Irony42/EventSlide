@@ -39,7 +39,7 @@ import type { SessionPayload } from '../types'
 export const clientKey = (req: Request): string => ipKeyGenerator(req.ip ?? 'unknown')
 
 /** What a stream refused for want of a slot is told to wait, 429 or 503 alike. */
-const STREAM_RETRY_AFTER_SECONDS = 30
+export const STREAM_RETRY_AFTER_SECONDS = 30
 
 /** The bucket for a request with no event in its path — and for one whose event is not a slug. */
 const NO_EVENT = 'none'

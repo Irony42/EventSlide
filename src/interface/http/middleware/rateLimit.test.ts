@@ -99,37 +99,41 @@ describe('every limiter answers 429 with the error shape and a Retry-After', () 
     res.status(401).end()
   }
 
-  const LIMITERS: readonly (readonly [string, RequestHandler, string])[] = [
-    ['joinLimiter', joinLimiter(1), 'rate.limited'],
-    ['loginLimiter', loginLimiter(1), 'rate.limited'],
-    ['passwordResetLimiter', passwordResetLimiter(1), 'rate.limited'],
-    ['invitationLimiter', invitationLimiter(1), 'rate.limited'],
-    ['uploadLimiter', uploadLimiter(1), 'rate.limited'],
-    ['reactionLimiter', reactionLimiter(1), 'reaction.rateLimited'],
-    ['guestWriteLimiter', guestWriteLimiter(1), 'rate.limited'],
-    ['eventCreationLimiter', eventCreationLimiter(1), 'event.creationRateLimited'],
-    ['invitationIssueLimiter', invitationIssueLimiter(1), 'rate.limited'],
-    ['secondFactorLimiter', secondFactorLimiter(1), 'rate.limited'],
+  /** Name, limiter, the code it answers, and the length of its window in seconds. */
+  const LIMITERS: readonly (readonly [string, RequestHandler, string, number])[] = [
+    ['joinLimiter', joinLimiter(1), 'rate.limited', 60],
+    ['loginLimiter', loginLimiter(1), 'rate.limited', 60],
+    ['passwordResetLimiter', passwordResetLimiter(1), 'rate.limited', 60],
+    ['invitationLimiter', invitationLimiter(1), 'rate.limited', 60],
+    ['uploadLimiter', uploadLimiter(1), 'rate.limited', 60],
+    ['reactionLimiter', reactionLimiter(1), 'reaction.rateLimited', 60],
+    ['guestWriteLimiter', guestWriteLimiter(1), 'rate.limited', 60],
+    ['eventCreationLimiter', eventCreationLimiter(1), 'event.creationRateLimited', 3_600],
+    ['invitationIssueLimiter', invitationIssueLimiter(1), 'rate.limited', 3_600],
+    ['secondFactorLimiter', secondFactorLimiter(1), 'rate.limited', 60],
     [
       'secondFactorAccountLimiter',
       secondFactorAccountLimiter(),
       'auth.tooManySecondFactorAttempts',
+      15 * 60,
     ],
-    ['galleryLimiter', galleryLimiter(1), 'rate.limited'],
-    ['galleryMediaLimiter', galleryMediaLimiter(1), 'rate.limited'],
+    ['galleryLimiter', galleryLimiter(1), 'rate.limited', 60],
+    ['galleryMediaLimiter', galleryMediaLimiter(1), 'rate.limited', 60],
     [
       'galleryUnlockLimiters (per client)',
       galleryUnlockLimiters({ perClient: 1, perLink: 1_000 })[0] as RequestHandler,
       'gallery.tooManyAttempts',
+      15 * 60,
     ],
     [
       'galleryUnlockLimiters (per link)',
       galleryUnlockLimiters({ perClient: 1_000, perLink: 1 })[1] as RequestHandler,
       'gallery.tooManyAttempts',
+      15 * 60,
     ],
   ]
 
-  it.each(LIMITERS)('%s', async (_name, limiter, code) => {
+  it.each(LIMITERS)('%s', async (_name, limiter, code, windowSeconds) => {
     const app = express()
     app.post('/x', withContext, limiter, failed)
 
@@ -145,7 +149,14 @@ describe('every limiter answers 429 with the error shape and a Retry-After', () 
 
     expect(refused, 'the limiter never refused').toBeDefined()
     expect(refused?.body.error.code).toBe(code)
-    expect(Number(refused?.headers['retry-after'])).toBeGreaterThan(0)
+    // The wait is the rest of this limiter's own window, which is just begun: pinned from both sides so
+    // that an hour shrunk to a minute, or the reverse, is not a limiter that still says "some seconds".
+    const wait = Number(refused?.headers['retry-after'])
+    expect(wait).toBeLessThanOrEqual(windowSeconds)
+    expect(wait).toBeGreaterThanOrEqual(windowSeconds - 10)
+    // And the standard `RateLimit` pair (draft 7) that goes with it, which clients that read headers use.
+    expect(refused?.headers['ratelimit-policy']).toBeDefined()
+    expect(refused?.headers['ratelimit']).toBeDefined()
   })
 })
 
