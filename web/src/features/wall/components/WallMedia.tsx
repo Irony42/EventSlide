@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { cx } from '../../../design-system/classNames'
 import type { WallItemDto } from '../../../lib/api/dto'
 import styles from './WallMedia.module.css'
 
@@ -50,7 +51,7 @@ export interface WallMediaProps {
   readonly paused?: boolean
   /** The accessible name. `photoAlt` words it for a photograph and for a clip alike. */
   readonly alt: string
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 export function WallMedia({ item, plays, paused = false, alt, className }: WallMediaProps) {
@@ -148,7 +149,7 @@ export function WallMedia({ item, plays, paused = false, alt, className }: WallM
   return (
     <video
       ref={attach}
-      className={[className, styles['video']].filter(Boolean).join(' ')}
+      className={cx(className, styles['video'])}
       src={item.videoUrl}
       // The first frame, on screen before a byte of video has been decoded. Without it
       // the slot is black for as long as the network takes, which on a venue's Wi-Fi is

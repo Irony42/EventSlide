@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react'
+import { cx } from '../classNames'
 import styles from './EmptyState.module.css'
 
 export type EmptyStateHeadingLevel = 'h1' | 'h2' | 'h3'
@@ -31,7 +32,7 @@ export function EmptyState({
   children,
   ...rest
 }: EmptyStateProps) {
-  const classes = [styles['empty'], className].filter(Boolean).join(' ')
+  const classes = cx(styles['empty'], className)
 
   return (
     <div {...rest} className={classes}>

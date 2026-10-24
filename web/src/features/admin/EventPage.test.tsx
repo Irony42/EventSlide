@@ -3,9 +3,11 @@ import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, Route, Routes } from 'react-router-dom'
 import { EventPage } from './EventPage'
+import styles from './EventPage.module.css'
 import { ApiError } from '../../lib/http'
 import { formatBytes, formatDateTime } from '../../lib/format'
 import { fr } from '../../lib/i18n/fr'
+import { classesOf, cls } from '../../testing/classesOf'
 import {
   anAbout,
   anEventDto,
@@ -74,6 +76,22 @@ describe('EventPage', () => {
     ).toHaveAttribute('href', 'https://photos.example/join/H7K2QM')
     expect(screen.getByRole('img', { name: fr.admin.qrAlt('Camille & Sacha') })).toBeVisible()
     expect(screen.getByText(fr.admin.qrScanPrompt)).toBeVisible()
+  })
+
+  it('keeps the printed page to the QR card: the other two columns are for the screen only', async () => {
+    const { container } = renderPage(fakeApi())
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+
+    // The card for the tables is what the host prints; the join code's controls and the guest
+    // list have nothing to say on paper, and `screenOnly` is what hides them there.
+    const columns = [...container.querySelectorAll('div')].filter((element) =>
+      classesOf(element).includes(cls(styles, 'column')),
+    )
+    expect(columns.map((column) => classesOf(column).includes(cls(styles, 'screenOnly')))).toEqual([
+      true,
+      false,
+      true,
+    ])
   })
 
   it('links to the wall, the moderation console, the settings and the album', async () => {

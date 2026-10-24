@@ -69,10 +69,7 @@ export function MissionChecklist({ missions, selected, onToggle }: MissionCheckl
               data-mission-done={mission.done ? 'true' : 'false'}
               onClick={() => onToggle(mission.id)}
             >
-              <StatusIcon
-                tone={mission.done ? 'success' : 'neutral'}
-                className={styles['icon'] ?? ''}
-              />
+              <StatusIcon tone={mission.done ? 'success' : 'neutral'} className={styles['icon']} />
               <span className={styles['prompt']}>{mission.prompt}</span>
               {mission.done ? (
                 <span className={styles['done']}>

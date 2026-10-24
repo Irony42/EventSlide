@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from 'react'
 import { CloseIcon } from './CloseIcon'
 import { IconButton } from './IconButton'
+import { cx } from '../classNames'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './Dialog.module.css'
 
@@ -40,7 +41,7 @@ export interface DialogProps {
   readonly initialFocusRef?: ReadableRef
   readonly footer?: ReactNode
   readonly children?: ReactNode
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /**
@@ -162,7 +163,7 @@ export function Dialog({
     if (event.target === dialogRef.current) onClose()
   }
 
-  const classes = [styles['dialog'], className].filter(Boolean).join(' ')
+  const classes = cx(styles['dialog'], className)
 
   return (
     <dialog

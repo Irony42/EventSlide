@@ -1,7 +1,9 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { aWallClip, aWallItem } from '../../../testing/renderWithProviders'
+import { classesOf, cls } from '../../../testing/classesOf'
 import { WallMedia } from './WallMedia'
+import styles from './WallMedia.module.css'
 
 /**
  * The element itself, rather than the layouts around it.
@@ -40,6 +42,30 @@ const deferredPlay = (): DeferredPlay => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+})
+
+describe('the classes the element wears', () => {
+  it('keeps the layout’s class on the clip and adds its own after it', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+    const { container } = render(<WallMedia item={clip} plays alt="une vidéo" className="slot" />)
+
+    expect(classesOf(container.querySelector('video'))).toEqual(['slot', cls(styles, 'video')])
+  })
+
+  it('wears only the layout’s class when it shows the still', () => {
+    const { container } = render(
+      <WallMedia item={aWallItem()} plays={false} alt="une photo" className="slot" />,
+    )
+
+    expect(classesOf(container.querySelector('img'))).toEqual(['slot'])
+  })
+
+  it('wears only its own class on a clip when the layout gives none', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+    const { container } = render(<WallMedia item={clip} plays alt="une vidéo" />)
+
+    expect(classesOf(container.querySelector('video'))).toEqual([cls(styles, 'video')])
+  })
 })
 
 describe('a clip interrupted before it finished starting', () => {

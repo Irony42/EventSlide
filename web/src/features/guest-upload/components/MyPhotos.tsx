@@ -8,6 +8,7 @@ import { EmptyState } from '../../../design-system/components/EmptyState'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { Spinner } from '../../../design-system/components/Spinner'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
@@ -97,9 +98,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
           {photos.map((photo, index) => (
             <li
               key={photo.id}
-              className={[styles['photo'], photo.kind === 'clip' ? styles['clipRow'] : '']
-                .filter(Boolean)
-                .join(' ')}
+              className={cx(styles['photo'], photo.kind === 'clip' && styles['clipRow'])}
             >
               {photo.kind === 'clip' && photo.videoUrl !== null ? (
                 /*

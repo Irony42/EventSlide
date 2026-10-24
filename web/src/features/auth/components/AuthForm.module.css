@@ -21,9 +21,8 @@
   font-size: var(--text-sm);
 }
 
-/* A span around the glyph, not a class on it: a CSS module is typed as an index
-   signature, so `styles['x']` is `string | undefined` and the primitive's `className`
-   does not take undefined. The design system's own Toast wraps it the same way. */
+/* A span around the glyph, not a class on it: it carries the danger colour and keeps the
+   glyph from shrinking in the row. The design system's own Toast wraps it the same way. */
 .alertGlyph {
   display: inline-flex;
   align-items: center;

@@ -1,3 +1,4 @@
+import { cx } from '../classNames'
 import styles from './Spinner.module.css'
 import { VisuallyHidden } from './VisuallyHidden'
 
@@ -14,7 +15,7 @@ export interface SpinnerProps {
 export function Spinner({ size = 'md', label }: SpinnerProps) {
   return (
     <span
-      className={`${styles['spinner']} ${styles[size]}`}
+      className={cx(styles['spinner'], styles[size])}
       role={label ? 'status' : undefined}
       aria-hidden={label ? undefined : true}
     >

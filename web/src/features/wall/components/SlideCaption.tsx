@@ -1,3 +1,4 @@
+import { cx } from '../../../design-system/classNames'
 import styles from './SlideCaption.module.css'
 
 export type SlideCaptionVariant = 'spotlight' | 'tile' | 'pane' | 'print'
@@ -33,7 +34,7 @@ export function SlideCaption({ caption, authorName, variant = 'spotlight' }: Sli
   if (!hasCaption && !hasAuthor) return null
 
   return (
-    <figcaption className={`${styles['caption']} ${styles[variant]}`}>
+    <figcaption className={cx(styles['caption'], styles[variant])}>
       {hasCaption ? <p className={styles['text']}>{caption}</p> : null}
       {hasAuthor ? <p className={styles['author']}>{authorName}</p> : null}
     </figcaption>

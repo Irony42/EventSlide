@@ -11,7 +11,9 @@ import {
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
+import { classesOf, cls } from '../../testing/classesOf'
 import { WallPage } from './WallPage'
+import styles from './WallPage.module.css'
 
 /**
  * The projected surface: a screen nobody touches for eight hours.
@@ -355,6 +357,20 @@ describe('WallPage', () => {
     // in a corner and the slideshow carries on with what it already has.
     expect(screen.getByText(fr.wall.offline)).toBeVisible()
     expect(screen.getByTestId('wall-slide')).toBeVisible()
+  })
+
+  it('holds the connection notice back with its own class, after the pill and its tone', async () => {
+    // `delayed` is what keeps a two-second network blip from ever reaching the room.
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    await screen.findByTestId('wall-slide')
+
+    expect(classesOf(screen.getByText(fr.wall.offline))).toEqual([
+      cls(styles, 'notice'),
+      cls(styles, 'warning'),
+      cls(styles, 'delayed'),
+    ])
   })
 
   it('says nothing about the connection once the stream is open', async () => {
