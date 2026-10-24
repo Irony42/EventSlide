@@ -187,7 +187,13 @@ export const makeIssueInvitation = ({
           new Date(now.getTime() - INVITATION_WINDOW_MS),
         )
         if (recent >= INVITATION_MAX_PER_ADDRESS_PER_HOUR) {
-          return err(DomainError.rateLimited('invitation.tooManyForAddress'))
+          // The window itself is the longest anybody can be asked to wait (HTTP-M-04): the count
+          // does not say when the oldest of the mails ages out, and an upper bound is true.
+          return err(
+            DomainError.rateLimited('invitation.tooManyForAddress', {
+              retryAfterSeconds: Math.ceil(INVITATION_WINDOW_MS / 1_000),
+            }),
+          )
         }
 
         const minted = secrets.mint()

@@ -2125,6 +2125,8 @@ describe('the host event routes', () => {
 
       expect(response.status).toBe(429)
       expect(response.body.error.code).toBe('invitation.tooManyForAddress')
+      // Section 1: every `rateLimited` carries `Retry-After`; the window is the longest anyone waits.
+      expect(response.headers['retry-after']).toBe('3600')
     })
   })
 

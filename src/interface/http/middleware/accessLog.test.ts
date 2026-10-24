@@ -68,6 +68,9 @@ const anApp = (options: AccessLogOptions = ENABLED): express.Express => {
     res.setHeader('set-cookie', 'es_session=the-fresh-session-id; HttpOnly')
     res.status(200).json({ ok: true })
   })
+  app.get('/api/boom', (_req, res) => {
+    res.status(500).json({ error: { code: 'server.unexpected' } })
+  })
   app.use((_req, res) => {
     res.status(404).json({ error: { code: 'route.notFound' } })
   })
@@ -78,6 +81,31 @@ const parsedLines = (lines: string[]): Record<string, unknown>[] =>
   lines.map((line) => JSON.parse(line) as Record<string, unknown>)
 
 describe('accessLog', () => {
+  it('writes every key of a line once, and the route pattern and not the unmatched of the start (HTTP-M-01)', async () => {
+    // `JSON.parse` keeps the last of a duplicated key, which is why parsing the line and comparing
+    // `route` was green while the raw line carried `service`, `version`, `instance`, `requestId` and
+    // `route` twice, the first `route` `(unmatched)`: a collector that keeps the first duplicate, or
+    // refuses the document, read the wrong route for every request. Counted on the raw text.
+    const app = anApp()
+
+    const lines = await linesWhile(async () => {
+      await request(app).get('/api/events/mariage/photos').expect(200)
+      await request(app).get('/api/nope').expect(404)
+      await request(app).get('/api/boom').expect(500)
+    })
+
+    expect(lines).toHaveLength(3)
+    for (const line of lines) {
+      for (const key of ['service', 'version', 'instance', 'requestId', 'route', 'level']) {
+        expect(line.match(new RegExp(`"${key}":`, 'g')), `${key} in ${line}`).toHaveLength(1)
+      }
+    }
+    expect(lines[0]).toContain('"route":"/api/events/:eventSlug/photos"')
+    expect(lines[1]).toContain('"route":"(unmatched)"')
+    // The error object is built apart from the success one, and carries the route as well.
+    expect(lines[2]).toContain('"route":"/api/boom"')
+  })
+
   it('logs the route pattern, never the real path', async () => {
     const app = anApp()
 

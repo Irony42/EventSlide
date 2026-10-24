@@ -174,6 +174,14 @@ export const buildServer = ({
   app.use(enforceSessionAge(deps))
   app.use(attachUser())
 
+  // **Nothing under `/api` is stored by a browser or a proxy unless its route says so** (HTTP-M-15).
+  // The sentence "every principal-scoped read in this API says so explicitly" was false for five host
+  // reads (the event list, the event, its guests' names, its moderators' **e-mail addresses**, its
+  // missions): each route had to remember to say it, and the next would forget. A default is the
+  // fix, and a route that wants caching says so over it - the media route (`immutable`) and the
+  // gallery's media do, and the event streams write their own headers. The probes above set theirs.
+  app.use('/api', noStoreByDefault)
+
   // The server-side half of `mustChangePassword` (P3-03): a signed-in account that must
   // choose a password meets `403 auth.passwordChangeRequired` on every `/api` route but
   // three (`authz.ts`'s own doc comment names them and why). After identity is resolved,
@@ -332,6 +340,12 @@ export const buildServer = ({
   app.use(errorHandler())
 
   return app
+}
+
+/** `Cache-Control: no-store`, for a route to override with its own. */
+const noStoreByDefault: RequestHandler = (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store')
+  next()
 }
 
 const apiNotFound: RequestHandler = (_req, res) => {
