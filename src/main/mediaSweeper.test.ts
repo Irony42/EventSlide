@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMediaSweeper, isTooDangerousToSweep, type MediaSweeperDeps } from './mediaSweeper'
 import { FakeClock } from '../application/testing/fakeClock'
 import { asEventId } from '../domain/shared/ids'
-import type { LogContext, Logger } from '../application/ports/logger'
+import { CapturingLogger, type LoggedLine } from '../application/testing/capturingLogger'
 import type {
   SweepOrphanedMedia,
   SweepOrphanedMediaReport,
@@ -34,29 +34,6 @@ const nothingCollected: SweepOrphanedMediaReport = {
   bytes: 0,
   failed: [],
   skippedEvents: 0,
-}
-
-interface LoggedLine {
-  readonly level: 'debug' | 'info' | 'warn' | 'error'
-  readonly message: string
-  readonly context: LogContext | undefined
-}
-
-const recordingLogger = (): { logger: Logger; lines: LoggedLine[] } => {
-  const lines: LoggedLine[] = []
-  const record =
-    (level: LoggedLine['level']) =>
-    (message: string, context?: LogContext): void =>
-      void lines.push({ level, message, context })
-
-  const logger: Logger = {
-    debug: record('debug'),
-    info: record('info'),
-    warn: record('warn'),
-    error: record('error'),
-    child: () => logger,
-  }
-  return { logger, lines }
 }
 
 describe('isTooDangerousToSweep', () => {
@@ -124,7 +101,8 @@ describe('createMediaSweeper', () => {
     sweep: SweepOrphanedMedia,
     overrides: Partial<MediaSweeperDeps> = {},
   ): { sweeper: ReturnType<typeof createMediaSweeper>; lines: LoggedLine[] } => {
-    const { logger, lines } = recordingLogger()
+    const logger = new CapturingLogger()
+    const { lines } = logger
     const sweeper = createMediaSweeper({
       sweep,
       logger,
