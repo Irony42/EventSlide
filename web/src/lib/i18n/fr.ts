@@ -145,7 +145,7 @@ export const fr = {
     signedAs: (name: string) => `Vos photos apparaîtront sous le nom ${name}.`,
     signedAnonymous: 'Vos photos apparaîtront sans nom.',
     mineEmpty: 'Vous n’avez encore envoyé aucune photo.',
-    mineFailed: 'Vos envois n’ont pas pu être affichés. Réessayez.',
+    mineFailed: 'La liste de vos envois n’a pas pu être mise à jour. Réessayez.',
     mineAlt: 'Votre photo',
     deleteOwnNumbered: (position: number) => `Supprimer la photo ${position}`,
     notJoinedTitle: 'Rejoignez la galerie pour envoyer vos photos',

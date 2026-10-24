@@ -73,7 +73,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
     <Card as="h2" title={t.upload.mine} className={styles['mine']}>
       {error === null ? null : (
         <div className={styles['failure']}>
-          <Notice tone="danger" role="alert" variant="inline">
+          <Notice tone="danger" role="alert" variant="boxed">
             {error}
           </Notice>
           <Button variant="secondary" onClick={onRetry}>

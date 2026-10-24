@@ -104,6 +104,71 @@ describe('useMyPhotos', () => {
     expect(result.current.loading).toBe(true)
   })
 
+  it('keeps the thumbnails when a refresh fails, and says so', async () => {
+    // The list is the proof the photos arrived. A failed refresh (a moment of bad Wi-Fi) is
+    // news about the refresh, not about the photos.
+    const myPhotos = vi
+      .fn<Api['myPhotos']>()
+      .mockResolvedValueOnce({ items: [aGuestPhoto({ id: 'photo-1' })] })
+      .mockRejectedValueOnce(new Error('offline'))
+    const { result } = mount(fakeApi({ myPhotos }))
+    await waitFor(() => expect(result.current.photos).toHaveLength(1))
+
+    act(() => result.current.refresh())
+
+    await waitFor(() => expect(result.current.error).toBe(fr.upload.mineFailed))
+    expect(result.current.loading).toBe(false)
+    expect(result.current.photos.map((photo) => photo.id)).toEqual(['photo-1'])
+  })
+
+  it('shows an empty list and the failure when the very first read fails', async () => {
+    const myPhotos = vi.fn<Api['myPhotos']>().mockRejectedValue(new Error('offline'))
+    const { result } = mount(fakeApi({ myPhotos }))
+
+    await waitFor(() => expect(result.current.error).toBe(fr.upload.mineFailed))
+
+    expect(result.current.photos).toEqual([])
+  })
+
+  it('answers a retry after a failed refresh with the fresh list and no failure', async () => {
+    const myPhotos = vi
+      .fn<Api['myPhotos']>()
+      .mockResolvedValueOnce({ items: [aGuestPhoto({ id: 'photo-1' })] })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({
+        items: [aGuestPhoto({ id: 'photo-1' }), aGuestPhoto({ id: 'photo-2' })],
+      })
+    const { result } = mount(fakeApi({ myPhotos }))
+    await waitFor(() => expect(result.current.photos).toHaveLength(1))
+    act(() => result.current.refresh())
+    await waitFor(() => expect(result.current.error).not.toBeNull())
+
+    act(() => result.current.refresh())
+
+    await waitFor(() => expect(result.current.photos).toHaveLength(2))
+    expect(result.current.error).toBeNull()
+  })
+
+  it('takes a deleted photo off the list at once, so a failed re-read cannot show it back', async () => {
+    // The list is kept when a read fails. A deleted photograph still on it, under a
+    // failure, would read as a deletion that did not happen.
+    const myPhotos = vi
+      .fn<Api['myPhotos']>()
+      .mockResolvedValueOnce({
+        items: [aGuestPhoto({ id: 'photo-1' }), aGuestPhoto({ id: 'photo-2' })],
+      })
+      .mockRejectedValueOnce(new Error('offline'))
+    const { result } = mount(fakeApi({ myPhotos }))
+    await waitFor(() => expect(result.current.photos).toHaveLength(2))
+
+    await act(async () => {
+      await result.current.remove('photo-1')
+    })
+
+    await waitFor(() => expect(result.current.error).toBe(fr.upload.mineFailed))
+    expect(result.current.photos.map((photo) => photo.id)).toEqual(['photo-2'])
+  })
+
   it('says something in French when a deletion fails for a reason with no error code', async () => {
     // Anything that is not an `ApiError` is a bug in this build, and its message is an
     // internal English string. A guest must never be shown one.
@@ -132,10 +197,9 @@ describe('useMyPhotos', () => {
  *
  * "Vos envois" is the one screen that tells a guest their photos arrived, and the guest
  * is on venue Wi-Fi. Re-reading it because they tapped the language picker costs a round
- * trip for nothing — and when that round trip fails, the error branch replaces the list
- * with an empty one, so the thumbnails that were the whole point of the screen disappear
- * and the guest is told their uploads could not be shown. They uploaded nothing and lost
- * nothing; only the language changed.
+ * trip for nothing — and when that round trip fails the guest is told their list could not
+ * be updated, for a language they changed. They uploaded nothing and lost nothing; only
+ * the language changed.
  */
 describe('useMyPhotos when the guest changes language', () => {
   const mountWithLocale = (api: Api) => {

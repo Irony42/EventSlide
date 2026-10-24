@@ -129,7 +129,7 @@ export function JoinPage() {
             where the correction has to happen.
           */}
           {error === null ? null : (
-            <Notice tone="danger" role="alert" variant="inline">
+            <Notice tone="danger" role="alert" variant="boxed">
               {error}
             </Notice>
           )}
