@@ -79,3 +79,19 @@ export const requireEditable = (event: Event): Result<Event, DomainError> =>
   event.allowsEditing()
     ? ok(event)
     : err(DomainError.conflict('event.immutable', { status: event.status }))
+
+/**
+ * A suspended client's members read and may not write (roadmap §10.7; G2-14): every use case that
+ * changes an event on a host's behalf asks this, **after** the role (so a stranger is still told
+ * what a stranger is told, and only somebody in scope learns that the client is frozen) and
+ * **before** anything else about the request. `deletePhoto` has no role of its own: its host's
+ * role is the route's `requireRole`, which has already answered a stranger.
+ *
+ * It used to be a test on the HTTP verb in `requireRole` (a `GET` passed, anything else was
+ * refused), which made it a rule no use case knew: a future read that has to be a `POST` would be
+ * frozen, a write sent as `GET` would not be, and it could not be exercised below ring 4. The
+ * entity answers (`isClientSuspended`); this says how the refusal is shaped, once, with the code
+ * the wire has always carried: `403 client.suspended`.
+ */
+export const requireWritable = (event: Event): Result<Event, DomainError> =>
+  event.isClientSuspended() ? err(DomainError.forbidden('client.suspended')) : ok(event)

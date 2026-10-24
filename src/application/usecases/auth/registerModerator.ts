@@ -6,7 +6,7 @@ import { EmailAddress } from '../../../domain/users/emailAddress'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository, UserRepository } from '../../ports/userRepository'
 import type { IssueInvitation, IssuedInvitation } from './issueInvitation'
-import { requireEditable, requireEventRole } from '../shared/eventRole'
+import { requireEditable, requireEventRole, requireWritable } from '../shared/eventRole'
 
 export interface RegisterModeratorInput {
   readonly eventId: EventId
@@ -60,6 +60,9 @@ export const makeRegisterModerator =
     // Scoped read: an owner of the corporate gala is nobody on this wedding.
     const allowed = await requireEventRole(memberships, eventId, actorId, 'inviteModerators')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // An archived event is a record, not a live object: it allows no moderation, so a
     // link handed out for it would have nothing to act on.

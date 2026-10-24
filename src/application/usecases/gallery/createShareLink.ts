@@ -12,7 +12,7 @@ import type { IdGenerator } from '../../ports/idGenerator'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import type { ShareLinkRepository } from '../../ports/shareLinkRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host makes the link they will send after the event (docs/ROADMAP.md §4.1).
@@ -79,6 +79,9 @@ export const makeCreateShareLink =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     const lifetime = ShareLinkLifetime.create(lifetimeDays ?? undefined)
     if (!lifetime.ok) return lifetime
