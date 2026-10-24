@@ -67,7 +67,6 @@ phone. Design for the surface, not for the average.
   --radius-lg: 1.25rem;
   --radius-full: 999px;
 
-  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
 

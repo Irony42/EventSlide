@@ -75,8 +75,6 @@ token exactly.
   --success: oklch(76% 0.16 155);
   --danger: oklch(68% 0.19 22);
   --warning: oklch(82% 0.15 85);
-  /* ---- Focus. The ring is derived from the accent, so it is declared with it. ---- */
-  --focus-offset: 2px;
 
   /* ---- Space. 4 px base. No in-between values. ---- */
   --space-1: 0.25rem;
@@ -113,7 +111,6 @@ token exactly.
   --wall-frame-radius: var(--radius-md); /* a framed photo's corner; §12 moves it */
 
   /* ---- Shadows. Elevation is the only thing shadows encode. ---- */
-  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
 
@@ -518,7 +515,7 @@ gone and every slide change still moves. What keeps the attribute honest now is 
 | Requirement                     | Concretely                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Touch targets                   | ≥ `var(--touch-min)` (44 px) for every interactive element on a guest surface, including the delete `IconButton` on a thumbnail. 1.0's `.delete-icon` was 28 px.                                                                                                                                                                                 |
-| Focus                           | `:focus-visible` ring from `--focus-ring` with `--focus-offset`, on every focusable element. `outline: none` without a replacement ring fails review.                                                                                                                                                                                            |
+| Focus                           | `:focus-visible` ring from `--focus-ring`, drawn once for every focusable element by `base.css` (`focusRing.guard.test.ts` fails on a module that draws it again). `outline: none` without a replacement ring fails review.                                                                                                                      |
 | Semantics                       | Semantic element first. 1.0's moderation tile was a `<div role="button" tabIndex={0}>` with hand-rolled `Enter`/`Space` handling and a nested delete `<button>` — nested interactives, a fake button, and `stopPropagation` holding it together. 2.0: a `<button>` for the status toggle, a sibling `IconButton` for delete, no nesting.         |
 | Page title                      | Every address names itself in `<title>` (`PageTitle`, fed from `text.titles`), so three tabs of one event can be told apart. Static and translated: never an event's name, a caption or a link's token.                                                                                                                                          |
 | Images                          | Every `<img>` has meaningful `alt` or `alt=""` when decorative; so is one whose `<figcaption>` beside it already says the same words (the gallery viewer), because a screen reader would read both. A guest photo's alt is its caption and author; fallback `Photo envoyée par Léa`. 1.0 used the filename, which reads aloud as `IMG_4821.jpg`. |
