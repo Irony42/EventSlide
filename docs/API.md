@@ -592,9 +592,21 @@ paragraph beneath the table).
 | `POST /api/events/:slug/photos`                                    | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/clips`                                     | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/photos/:id/reactions`                      | 30            | client IP **and** event    | `reaction.rateLimited`             |
+| the four other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                     |
 | `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
 | `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
 | `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
+
+‡ **One bucket, four routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
+their photo back), `DELETE …/photos/:id/reactions/:kind` and
+`POST …/privacy-notice/acknowledgement` all spend the same allowance, `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`.
+The device token costs nothing to get (`POST /api/join` is public), and a caption edit is announced
+to every screen that has the wall or a console open, so a guest token is not by itself a reason to
+answer. The limiter runs before the token is verified, as the upload and reaction ones do. The
+number is a backstop sized for a room, not a tuned figure: a venue shares one address, and what it
+legitimately sends is bounded by the upload (12) and join (20) budgets, a few dozen a minute. A
+moderator's `DELETE` of the same path, sent without an `es_guest` cookie, is dispatched to §6 first
+and spends nothing here.
 
 † **Also throttled per account, with no lockout** (G3-04 / P4-07). The first five wrong
 passwords for an address from one network are free; from the sixth the answer is
@@ -622,7 +634,7 @@ knows the password can ask for; a request that budget refuses is not counted as 
 concurrency instead, two per client and four for the box, because one request is minutes
 of disk reads.
 
-The two guest write endpoints key on IP **and** event on purpose: a whole table of
+The guest write endpoints (uploads, reactions and the four of the ‡ row) key on IP **and** event on purpose: a whole table of
 guests shares one access point and therefore one public IP, so a per-IP-only limit would
 throttle the venue rather than an abuser, and a burst on one event must not close
 another event running on the same box. IPv6 addresses are collapsed to their /56 subnet,
@@ -1466,7 +1478,8 @@ the first instant.
 (the host changed a setting while the guest was reading): nothing is recorded, and the
 client shows the new notice. `400 request.invalid` for a missing, empty or non-string
 `revision`, or any other key. `401 auth.required` / `401 guestToken.*`;
-`403 guest.wrongEvent`; `403 guest.revoked`; `404 event.notFound`.
+`403 guest.wrongEvent`; `403 guest.revoked`; `404 event.notFound`; `429 rate.limited` with a
+`Retry-After` (§1 "Rate limits", the guest-write bucket).
 
 ### `POST /api/events/:slug/clips`
 
@@ -1582,7 +1595,9 @@ event allows self-deletion. Pulling a photo off the wall mid-slideshow is the ho
 call.
 
 **204**. **Errors** — `403 photo.deleteForbidden`,
-`403 event.guestSelfDeleteDisabled`, `404 photo.notFound`.
+`403 event.guestSelfDeleteDisabled`, `404 photo.notFound`, `429 rate.limited` with a
+`Retry-After` (the guest-write bucket of §1; a moderator's request without an `es_guest` cookie is not
+counted in it).
 
 This path is **shared with the moderator endpoint of the same name** in §6. The request
 is dispatched on **membership first, then the credential presented**: a session that holds a
@@ -1608,7 +1623,7 @@ Author-only, while pending, inside the grace window. **204**.
 
 **Errors** — `403 photo.captionEditForbidden`, `403 event.captionsNotAllowed`,
 `404 photo.notFound`, `400 caption.tooLong` (the limit is 140 characters; `details.max`
-carries it).
+carries it), `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ### `POST /api/events/:slug/photos/:photoId/reactions`
 
@@ -1627,7 +1642,8 @@ Only on a **published** photo: you react to what is on the wall.
 
 Withdraw one's own reaction. **204**. **Errors** — `404 reaction.notFound`, which is also
 the answer for another guest's reaction: the row is addressed by
-`(event, photo, guest, kind)`, so it is not forbidden, it is simply not there.
+`(event, photo, guest, kind)`, so it is not forbidden, it is simply not there;
+`429 rate.limited` with a `Retry-After` (the guest-write bucket of §1, not the reaction one).
 
 ### `GET /api/events/:slug/photos/:photoId/reactions`
 

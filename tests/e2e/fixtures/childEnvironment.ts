@@ -94,6 +94,7 @@ export const serverEnvironment = ({
   JOIN_RATE_LIMIT_PER_MINUTE: '600',
   LOGIN_RATE_LIMIT_PER_MINUTE: '600',
   REACTION_RATE_LIMIT_PER_MINUTE: '600',
+  GUEST_WRITE_RATE_LIMIT_PER_MINUTE: '6000',
   GALLERY_RATE_LIMIT_PER_MINUTE: '600',
   GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '6000',
   // Cost 10 rather than 12: this is the floor the hasher accepts, and it takes

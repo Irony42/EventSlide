@@ -202,6 +202,8 @@ export interface HttpConfig {
     readonly joinPerMinute: number
     readonly loginPerMinute: number
     readonly reactionPerMinute: number
+    /** Every other guest-token write, per client **and** event, one bucket (HTTP-H-01). */
+    readonly guestWritePerMinute: number
     /** The shared gallery's pages, per client (roadmap §4.1). */
     readonly galleryPerMinute: number
     /** Its bytes: thumbnails, downloads, the archive. Per client. */

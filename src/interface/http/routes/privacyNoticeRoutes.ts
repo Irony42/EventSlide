@@ -1,5 +1,7 @@
 import { Router } from 'express'
+import type { RequestHandler } from 'express'
 import { requireGuest } from '../middleware/authz'
+import { guestWriteLimiter } from '../middleware/rateLimit'
 import { toPrivacyNoticeStateDto } from '../presenters/presenters'
 import { sendJson, sendResult } from '../presenters/send'
 import { noticeAcknowledgementBody } from '../schemas/requestSchemas'
@@ -33,9 +35,19 @@ import type { HttpUseCases } from '../useCases'
 export interface PrivacyNoticeRouteDeps {
   readonly deps: HttpDeps
   readonly usecases: Pick<HttpUseCases, 'getPrivacyNotice' | 'acknowledgePrivacyNotice'>
+  /**
+   * The guest-write bucket, **shared with `guestRoutes`** and built once by `server.ts`
+   * (HTTP-H-01). Optional only so a test can mount this router alone; absent, one is built
+   * here, so the acknowledgement is limited rather than open.
+   */
+  readonly guestWriteRateLimiter?: RequestHandler
 }
 
-export const privacyNoticeRoutes = ({ deps, usecases }: PrivacyNoticeRouteDeps): Router => {
+export const privacyNoticeRoutes = ({
+  deps,
+  usecases,
+  guestWriteRateLimiter = guestWriteLimiter(deps.config.rateLimits.guestWritePerMinute),
+}: PrivacyNoticeRouteDeps): Router => {
   const router = Router()
 
   /**
@@ -67,9 +79,14 @@ export const privacyNoticeRoutes = ({ deps, usecases }: PrivacyNoticeRouteDeps):
    * no `PUT`. Answers the same body as the read, so the phone learns its new standing
    * without asking twice; `409 privacyNotice.outdated` when the revision it sends is no
    * longer the one in force.
+   *
+   * Limited with the guest's other writes (HTTP-H-01): the token is free, and it is the
+   * one write here that a whole room sends in the same minute, which is what sizes the
+   * budget.
    */
   router.post(
     '/events/:eventSlug/privacy-notice/acknowledgement',
+    guestWriteRateLimiter,
     requireGuest(deps),
     withGuest(async ({ event, guest }, req, res) => {
       const body = noticeAcknowledgementBody.parse(req.body)
