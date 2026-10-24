@@ -225,6 +225,27 @@ export class FakeClientRepository implements ClientRepository, ClientEventSource
       .length
   }
 
+  async memberIds(clientId: ClientId): Promise<readonly UserId[]> {
+    return [...this.memberships.values()]
+      .filter((membership) => membership.clientId === clientId)
+      .map((membership) => membership.userId)
+  }
+
+  async listDueForFinalization(now: Date, limit: number): Promise<readonly ClientId[]> {
+    return [...this.clients.values()]
+      .filter(
+        (client) => client.purgeAfter !== null && client.purgeAfter.getTime() <= now.getTime(),
+      )
+      .filter((client) => this.eventsOf(client.id).length === 0)
+      .sort(
+        (a, b) =>
+          (a.purgeAfter?.getTime() ?? 0) - (b.purgeAfter?.getTime() ?? 0) ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      )
+      .slice(0, limit)
+      .map((client) => client.id)
+  }
+
   /**
    * Empty means no membership row and no linked event, mirroring the adapter's atomic
    * `DELETE … WHERE NOT EXISTS (…)`. `Map.delete` already reports "did a row exist and
