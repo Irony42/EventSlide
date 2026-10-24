@@ -208,6 +208,25 @@ describe('finalizeOffboardedClients', () => {
 
     expect(report.finalized).toEqual([])
     expect(report.failed).toEqual([CLIENT])
+    expect(report.reasons).toEqual([
+      { clientId: CLIENT, reason: 'the client was not empty when it was deleted' },
+    ])
+  })
+
+  it('keeps the reason of a failure that is not an Error, which a driver may reject with', async () => {
+    const odd = makeFinalizeOffboardedClients({
+      clients: Object.assign(Object.create(clients) as typeof clients, {
+        memberIds: () => Promise.reject('locked'),
+      }),
+      users,
+      holdings,
+      audit,
+      clock: new FakeClock(DUE),
+    })
+
+    const report = await odd()
+
+    expect(report.reasons).toEqual([{ clientId: CLIENT, reason: 'locked' }])
   })
 
   it('records before it deletes: a failure to write the line leaves the account in place, and says why', async () => {

@@ -126,8 +126,12 @@ export const makeFinalizeOffboardedClients =
         if (!done.ok) throw new Error(done.error.code)
         await audit.record(done.value)
 
-        if (await clients.deleteIfEmpty(clientId)) finalized.push(clientId)
-        else failed.push(clientId)
+        if (await clients.deleteIfEmpty(clientId)) {
+          finalized.push(clientId)
+        } else {
+          failed.push(clientId)
+          reasons.push({ clientId, reason: 'the client was not empty when it was deleted' })
+        }
       } catch (error) {
         failed.push(clientId)
         reasons.push({ clientId, reason: error instanceof Error ? error.message : String(error) })
