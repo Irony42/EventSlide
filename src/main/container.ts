@@ -52,7 +52,6 @@ import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
 import { systemClock } from '../infrastructure/time/systemClock'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
 import { evaluateDiskSpace } from '../domain/shared/diskSpaceGuard'
-import { PENDING_SECOND_FACTOR_LIFETIME_MS } from '../domain/users/secondFactor'
 import type { Logger } from '../application/ports/logger'
 import type { Mailer } from '../application/ports/mailer'
 import { buildServer } from '../interface/http/server'
@@ -427,10 +426,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
         ? null
         : createAesGcmMfaVault({ keyMaterial: config.mfa.encryptionKey }),
     // One counter for the box, so every request of a sign-in meets the same number.
-    signInAttempts: createInMemorySignInAttempts({
-      clock: systemClock,
-      ttlMs: PENDING_SECOND_FACTOR_LIFETIME_MS,
-    }),
+    signInAttempts: createInMemorySignInAttempts({ clock: systemClock }),
     invitationAcceptance: new SqliteInvitationAcceptance(db),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.

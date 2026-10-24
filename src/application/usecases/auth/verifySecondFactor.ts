@@ -106,9 +106,11 @@ const expired = (): DomainError => DomainError.unauthenticated('auth.secondFacto
  * is itself answered `auth.secondFactorExpired`, which is what tells the caller the sign-in is
  * over and the password is asked again.
  *
- * Only a guess that was **found wrong** keeps its place. A sign-in that had already ended, a
- * box that could not check a code and a log that refused a line after the code was spent give
- * the attempt back, because none of them is the person's mistake.
+ * An attempt keeps its place when a code was read (wrong, or right) and when anything throws:
+ * a throw can come after a reading (the log down after a recovery code was spent), so giving the
+ * attempt back would hand a guesser a free one. It is given back only for an answer that is not
+ * a wrong code, because none of them is the person's mistake: the sign-in had already ended, the
+ * box could not check a code, or the line for a spent recovery code was refused.
  *
  * This used to be a number in the session, incremented by the route. A session is copied into
  * each request, and a copy cannot count what the others are doing, so ten parallel wrong codes

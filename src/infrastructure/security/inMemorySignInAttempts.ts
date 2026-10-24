@@ -1,15 +1,18 @@
 import type { Clock } from '../../application/ports/clock'
 import type { SignInAttempts } from '../../application/ports/signInAttempts'
+import { PENDING_SECOND_FACTOR_LIFETIME_MS } from '../../domain/users/secondFactor'
 
 export interface InMemorySignInAttemptsOptions {
   readonly clock: Clock
   /**
-   * How long a sign-in stays counted after its first attempt. The lifetime of a half-finished
-   * sign-in is the right value: its entry is never older than the sign-in it belongs to, so it
-   * outlives the sign-in, and a straggler already in flight when the cap is reached still finds
-   * the count it has to be refused by.
+   * How long a sign-in stays counted after its **first** attempt. Defaults to the lifetime of a
+   * half-finished sign-in, which is the right value and the reason it is the default: the first
+   * attempt comes after the password, so the entry is never older than the sign-in it belongs
+   * to, and it outlives the sign-in, so a straggler already in flight when the cap is reached
+   * still finds the count it has to be refused by. A shorter value would let someone who holds
+   * the password wait the count out and take five fresh readings of the same sign-in.
    */
-  readonly ttlMs: number
+  readonly ttlMs?: number
 }
 
 interface Entry {
@@ -24,9 +27,9 @@ interface Entry {
  * **Why memory is enough.** The box is one process, and what is counted is a handful of
  * numbers for as long as a sign-in lives, five minutes at most. A restart forgets them, which
  * gives a person who typed the password five more guesses; nobody outside the box can cause a
- * restart, and the per-account budget (`secondFactorAccountLimiter`) is what bounds guessing
- * from everywhere together. Keeping it in the database would make every guess a write for a
- * count that is worthless a few minutes later.
+ * restart. The per-address and per-account limiters that bound guessing from everywhere are
+ * in-process too and forget at the same moment, so this adds no new kind of loss. Keeping it in
+ * the database would make every guess a write for a count that is worthless a few minutes later.
  *
  * **Why it can be exact.** `begin` reads and moves the number in one synchronous step, and
  * JavaScript runs one of these at a time, so ten requests sent at once are given one to ten
@@ -39,7 +42,7 @@ interface Entry {
  */
 export const createInMemorySignInAttempts = ({
   clock,
-  ttlMs,
+  ttlMs = PENDING_SECOND_FACTOR_LIFETIME_MS,
 }: InMemorySignInAttemptsOptions): SignInAttempts => {
   const entries = new Map<string, Entry>()
 

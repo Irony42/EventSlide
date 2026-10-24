@@ -485,7 +485,8 @@ Read these before you upgrade, and back up with the version you run now.
   the session, so ten codes sent together each counted as the first and none ended the sign-in. They
   are now counted as they are tried, in one place: the sixth to start, and every one after it, is
   refused unread as `401 auth.secondFactorExpired`, and the password is asked again. Typing one code
-  at a time changes nothing.
+  at a time changes nothing. The count is kept in memory, like the sign-in limits: a restart of the
+  box starts it again.
 - **A stolen session no longer survives a password change** (#125): the credentials epoch ends
   every session minted before it.
 - **Guessing a password is slowed per account, without locking anyone out** (#128), and the

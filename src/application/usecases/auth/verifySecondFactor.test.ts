@@ -4,7 +4,12 @@ import { canonicalRecoveryCode } from '../../../domain/users/recoveryCode'
 import { totpStepAt } from '../../../domain/users/totp'
 import { aUser } from '../../testing/builders'
 import { FakeMfaVault } from '../../testing/fakeMfaVault'
-import { AN_ID_THE_LOG_REFUSES, USER, aSecondFactorWorld } from '../../testing/secondFactorWorld'
+import {
+  AN_ID_THE_LOG_REFUSES,
+  PASSWORD,
+  USER,
+  aSecondFactorWorld,
+} from '../../testing/secondFactorWorld'
 import { makeVerifySecondFactor } from './verifySecondFactor'
 
 const signedIn = async () => {
@@ -605,6 +610,47 @@ describe('verifySecondFactor: how many guesses a sign-in gets', () => {
     }
 
     expect(new Set(answers)).toEqual(new Set(['auth.invalidSecondFactor']))
+  })
+
+  it('puts no cap on a step-up through its own use case either', async () => {
+    const { world } = await signedIn()
+
+    const answers: string[] = []
+    for (let guess = 0; guess < 8; guess += 1) {
+      const result = await world.stepUp({
+        userId: USER,
+        password: PASSWORD,
+        proof: { code: WRONG },
+      })
+      answers.push(result.ok ? 'ok' : result.error.code)
+    }
+
+    expect(new Set(answers)).toEqual(new Set(['auth.invalidSecondFactor']))
+  })
+
+  it('keeps the attempt when something throws, because a throw can come after a reading', async () => {
+    const { world, recoveryCodes } = await signedIn()
+    const withTheLogDown = makeVerifySecondFactor({
+      users: world.users,
+      factors: world.factors,
+      vault: world.vault,
+      engine: world.engine,
+      secrets: world.secrets,
+      attempts: world.attempts,
+      audit: { record: async () => Promise.reject(new Error('the log is down')) },
+      clock: world.clock,
+      logger: world.logger,
+    })
+
+    await expect(
+      withTheLogDown({
+        userId: USER,
+        proof: { recoveryCode: recoveryCodes[0] ?? '' },
+        attemptId: 'a-sign-in',
+      }),
+    ).rejects.toThrow('the log is down')
+
+    expect(world.attempts.held('a-sign-in')).toBe(1)
   })
 
   it('does not charge an attempt when the box could not check the code', async () => {
