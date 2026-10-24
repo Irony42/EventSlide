@@ -20,6 +20,7 @@ import type {
   PhotoRepository,
   PhotoStatusCounts,
 } from '../ports/photoRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `PhotoRepository`, behaving the way the SQLite adapter must.
@@ -40,10 +41,6 @@ import type {
  *    event can disagree about what comes next, which is 1.0's per-browser slideshow index
  *    in a new costume.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 const newestFirst = (left: Photo, right: Photo): number =>
   right.createdAt.getTime() - left.createdAt.getTime() || compareIds(right.id, left.id)

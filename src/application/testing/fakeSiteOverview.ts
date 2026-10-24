@@ -21,6 +21,7 @@ import type {
   SitePage,
   SitePageRequest,
 } from '../ports/siteOverview'
+import { compareIds } from './ordering'
 
 /**
  * Everything a world is built from, written the way the real tables are written.
@@ -42,10 +43,6 @@ export interface SiteWorld {
   addPhoto(photo: Photo): Promise<void>
   addClipJob(job: ClipJob): Promise<void>
 }
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 /** `ORDER BY created_at DESC, id DESC`, which is the adapter's order for all three listings. */
 const newestFirst = (

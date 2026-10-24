@@ -159,6 +159,10 @@ export interface MediaStore {
    * rather than of the events table: the question is "what is on the disk", and an
    * answer derived from the database could never name an object the database has
    * forgotten — which is the entire class of thing the sweep exists to find.
+   *
+   * An event stays in the answer after its last object is deleted one by one, and leaves it
+   * only when `deleteEvent` purges it: it names what the store has been written to, and
+   * `list` says whether anything is left. `mediaStoreContract` pins this for both stores.
    */
   listEvents(): Promise<readonly EventId[]>
 
@@ -170,6 +174,10 @@ export interface MediaStore {
    * cannot name — a leaked `.tmp` from an interrupted `put`, a file an operator dropped
    * in by hand — are **not** listed: this is the inventory of things the store owns, and
    * a sweep must not be handed a filename it could not have written.
+   *
+   * The filesystem adapter also removes, as it walks, a temporary file an interrupted `put`
+   * abandoned more than an hour ago, since nothing else would: a write inside a read, kept
+   * out of the contract because no other store has such a file.
    */
   list(eventId: EventId): Promise<readonly StoredObject[]>
 }

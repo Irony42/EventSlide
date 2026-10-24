@@ -7,6 +7,7 @@ import type {
   ClientPage,
   ClientRepository,
 } from '../ports/clientRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `ClientRepository`.
@@ -19,10 +20,6 @@ import type {
  * way one database does; a test that wants a link without an event repository makes it by
  * hand, the way the adapter's own contract test writes a real `events` row.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 /** Newest first, and a tie breaks on id **descending**, as the adapter's `ORDER BY … id DESC`. */
 const newestFirst = (left: Client, right: Client): number =>

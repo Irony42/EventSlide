@@ -6,6 +6,7 @@ import type {
   MembershipWithUser,
   UserRepository,
 } from '../ports/userRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `MembershipRepository`.
@@ -15,10 +16,6 @@ import type {
  * photos: 1.0 kept a single `partyId` on the user row, and a moderator of one event was
  * therefore a moderator of the box. A membership read for the wrong event must miss.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 const key = (eventId: EventId, userId: UserId): string => `${eventId}:${userId}`
 

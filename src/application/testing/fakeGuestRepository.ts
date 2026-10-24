@@ -1,6 +1,7 @@
 import type { Guest } from '../../domain/guests/guest'
 import type { EventId, GuestId } from '../../domain/shared/ids'
 import type { GuestRepository } from '../ports/guestRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `GuestRepository`.
@@ -16,10 +17,6 @@ import type { GuestRepository } from '../ports/guestRepository'
  * count the adapter would recompute — the shared contract asserts nothing about it,
  * and a rule about the per-guest limit belongs against `countByAuthor`.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 /**
  * Most recently seen first, ties broken by id — `idx_guests_event_seen`. The host's

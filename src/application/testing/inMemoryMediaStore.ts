@@ -8,7 +8,7 @@ import type {
 } from '../ports/mediaStore'
 import type { Clock } from '../ports/clock'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import { asEventId, type EventId } from '../../domain/shared/ids'
+import type { EventId } from '../../domain/shared/ids'
 
 /**
  * The media store as byte buffers.
@@ -19,12 +19,24 @@ import { asEventId, type EventId } from '../../domain/shared/ids'
  * occupy" is a number the quota rules are decided from — a double that answered a
  * constant would make every quota test a statement about nothing.
  *
+ * It answers as the filesystem adapter does, and `contracts/mediaStoreContract.ts` is what holds
+ * it to that: bytes are copied in and out, so a caller reusing its buffer cannot reach what
+ * is stored; every rendition has the content type the adapter gives it; and an event stays
+ * listed after its last object is deleted, until the event itself is purged.
+ *
  * `failWritesAfter` is the only scripted behaviour: a disk filling up part-way through
  * a request is the one condition a test cannot otherwise reach, and unwinding on it is
  * the behaviour 1.0 got wrong.
  */
 export class InMemoryMediaStore implements MediaStore {
   private readonly objects = new Map<string, Uint8Array>()
+
+  /**
+   * Every event something was written for and which has not been purged. The adapter's
+   * event directory outlives its last object, so this does too: `listEvents` names what the
+   * store has been written to, not only what it holds right now.
+   */
+  private readonly events = new Set<EventId>()
 
   /**
    * The address and the write time of each object, which the byte map cannot carry.
@@ -78,7 +90,10 @@ export class InMemoryMediaStore implements MediaStore {
     if (this.budget <= 0) throw new Error('no space left on device')
     this.budget -= 1
     const key = this.key(eventId, hash, variant)
-    this.objects.set(key, bytes)
+    // A copy, as the adapter's write to disk is one: a buffer the caller goes on to reuse
+    // must not change what was stored.
+    this.objects.set(key, new Uint8Array(bytes))
+    this.events.add(eventId)
     this.held.set(key, {
       eventId,
       hash,
@@ -103,7 +118,7 @@ export class InMemoryMediaStore implements MediaStore {
       ? null
       : {
           byteSize: bytes.length,
-          contentType: variant === 'video' ? 'video/mp4' : 'image/jpeg',
+          contentType: CONTENT_TYPE[variant],
           modifiedAt: held.modifiedAt,
         }
   }
@@ -116,7 +131,7 @@ export class InMemoryMediaStore implements MediaStore {
   ): Promise<AsyncIterable<Uint8Array> | null> {
     const bytes = this.objects.get(this.key(eventId, hash, variant))
     if (bytes === undefined) return null
-    if (range === undefined) return once(bytes)
+    if (range === undefined) return once(new Uint8Array(bytes))
     if (range.start >= bytes.length || range.end < range.start) return null
     return once(bytes.slice(range.start, Math.min(range.end, bytes.length - 1) + 1))
   }
@@ -126,7 +141,8 @@ export class InMemoryMediaStore implements MediaStore {
     hash: ContentHash,
     variant: MediaVariant,
   ): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
+    const bytes = this.objects.get(this.key(eventId, hash, variant))
+    return bytes === undefined ? null : new Uint8Array(bytes)
   }
 
   async delete(eventId: EventId, hash: ContentHash): Promise<void> {
@@ -138,6 +154,7 @@ export class InMemoryMediaStore implements MediaStore {
   }
 
   async deleteEvent(eventId: EventId): Promise<void> {
+    this.events.delete(eventId)
     for (const key of [...this.objects.keys()]) {
       if (key.startsWith(`${eventId}|`)) {
         this.objects.delete(key)
@@ -155,12 +172,7 @@ export class InMemoryMediaStore implements MediaStore {
   }
 
   async listEvents(): Promise<readonly EventId[]> {
-    const seen = new Set<string>()
-    for (const key of this.objects.keys()) {
-      const eventId = key.slice(0, key.indexOf('|'))
-      seen.add(eventId)
-    }
-    return [...seen].map((id) => asEventId(id))
+    return [...this.events]
   }
 
   async list(eventId: EventId): Promise<readonly StoredObject[]> {
@@ -177,6 +189,19 @@ export class InMemoryMediaStore implements MediaStore {
     }
     return found
   }
+}
+
+/**
+ * The declared type of each rendition, as `fsMediaStore` declares it: a still is a JPEG, a clip
+ * an mp4, and a staged source, which nothing serves, is just bytes.
+ */
+const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
+  original: 'image/jpeg',
+  display: 'image/jpeg',
+  thumb: 'image/jpeg',
+  video: 'video/mp4',
+  poster: 'image/jpeg',
+  source: 'application/octet-stream',
 }
 
 const once = (bytes: Uint8Array): AsyncIterable<Uint8Array> =>
