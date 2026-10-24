@@ -339,6 +339,7 @@ export interface Transport {
     signal?: AbortSignal,
   ): Promise<T>
   post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
+  put<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
   patch<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
   del<T>(path: string, signal?: AbortSignal): Promise<T>
   upload<T>(
@@ -353,6 +354,11 @@ export const http: Transport = {
     request('GET', path, { ...(query ? { query } : {}), ...(signal ? { signal } : {}) }),
   post: (path, body, signal) =>
     request('POST', path, {
+      ...(body !== undefined ? { body } : {}),
+      ...(signal ? { signal } : {}),
+    }),
+  put: (path, body, signal) =>
+    request('PUT', path, {
       ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
     }),

@@ -777,3 +777,141 @@ export interface PendingInvitationDto {
 export interface PendingInvitationsDto {
   readonly items: readonly PendingInvitationDto[]
 }
+
+// -------------------------------------------------------- the operator's console --
+//
+// What `/api/site/*` answers (docs/API.md §1, G2-14 / P3-13; the console is G2-15 / P3-16). Every
+// shape here is a shape, a size or a count, and **none carries what a client or a guest made**: no
+// event name, slug or join code, no photograph, caption or guest, no display name, no contact
+// address, no hash or token. A field added here that could carry one is a defect the server's
+// contract sweep (`siteRoutes.contentFree.test.ts`) would already have refused on the wire.
+
+/** One client as the operator reads it: its name, its ceilings and what it uses. */
+export interface SiteClientDto {
+  readonly id: string
+  /** One of the two free texts the console prints: the name the operator gave the client. */
+  readonly name: string
+  readonly createdAt: string
+  readonly suspendedAt: string | null
+  /** Set by offboarding: the day the retention sweep purges this client's albums. */
+  readonly purgeAfter: string | null
+  readonly ceilings: CeilingsDto
+  readonly eventsCreatedInPeriod: number
+  readonly usage: {
+    readonly eventCount: number
+    readonly liveEventCount: number
+    readonly memberCount: number
+    readonly usedBytes: number
+  }
+}
+
+export interface SiteClientPageDto {
+  readonly items: readonly SiteClientDto[]
+  readonly next: string | null
+}
+
+/** One event of a client, as a shape: an id, a status, instants, a quota and what it holds. */
+export interface SiteEventDto {
+  readonly id: string
+  readonly status: EventStatus
+  readonly createdAt: string
+  readonly startsAt: string | null
+  readonly openedAt: string | null
+  readonly closedAt: string | null
+  readonly quotaBytes: number | null
+  readonly usedBytes: number
+  readonly photoCount: number
+}
+
+export interface SiteEventPageDto {
+  readonly items: readonly SiteEventDto[]
+  readonly next: string | null
+}
+
+/** One account as the operator reads it: its address, what it may do on the box, what it owns. */
+export interface SiteAccountDto {
+  readonly id: string
+  /** The other free text the console prints: how an operator recognises a person. */
+  readonly email: string
+  readonly siteRole: 'none' | 'operator'
+  readonly createdAt: string
+  readonly lastLoginAt: string | null
+  readonly disabledAt: string | null
+  readonly mustChangePassword: boolean
+  readonly ownedEventCount: number
+  readonly clients: readonly { readonly clientId: string; readonly role: 'owner' | 'member' }[]
+}
+
+export interface SiteAccountPageDto {
+  readonly items: readonly SiteAccountDto[]
+  readonly next: string | null
+}
+
+/**
+ * One line of the box's whole log. Unlike the client's own view this names the account behind an
+ * `operator` or a `member` actor, and carries the operator's own sentence under `reason`.
+ */
+export interface SiteAuditEntryDto {
+  readonly seq: number
+  readonly at: string
+  readonly action: string
+  readonly actor: {
+    readonly kind: 'operator' | 'member' | 'system' | 'integration'
+    readonly userId: string | null
+    readonly label: string | null
+  }
+  readonly subject: { readonly type: string; readonly id?: string }
+  readonly clientId: string | null
+  readonly details: Readonly<Record<string, unknown>>
+}
+
+export interface SiteAuditPageDto {
+  readonly items: readonly SiteAuditEntryDto[]
+  /** A number, and **a bound** (every line older than it), not a pointer; `null` ends the log. */
+  readonly next: number | null
+}
+
+/** The seven ceilings a new client starts with. A number is a ceiling and `null` is none. */
+export interface SiteClientDefaultsDto {
+  readonly ceilings: {
+    readonly maxEvents: number | null
+    readonly maxEventsPerPeriod: number | null
+    readonly maxTotalBytes: number | null
+    readonly maxEventQuotaBytes: number | null
+    readonly maxRetentionDays: number | null
+    readonly maxLiveDays: number | null
+    readonly clipsAllowed: boolean
+  }
+}
+
+/** What an invitation answers: `link` only where no mail went out, and never a token otherwise. */
+export interface SiteInvitationDto {
+  readonly id: string
+  readonly delivery: 'mail' | 'link'
+  readonly expiresAt: string
+  readonly pendingApproval: boolean
+  readonly link?: string
+}
+
+export interface SiteProvisionedClientDto {
+  readonly clientId: string
+  readonly invitation: SiteInvitationDto
+}
+
+/** What `POST …/password-reset` answers, by how the link reached (or will reach) its owner. */
+export type SiteResetDto =
+  | { readonly delivery: 'mail'; readonly expiresAt: string }
+  | {
+      readonly delivery: 'pendingApproval'
+      readonly approvalId: string
+      readonly expiresAt: string
+    }
+  | { readonly delivery: 'link'; readonly link: string; readonly expiresAt: string }
+
+/** A patch of ceilings, as `PUT …/ceilings` takes it: a key left out is kept, `null` removes. */
+export type SiteCeilingsPatch = Partial<CeilingsDto>
+
+export interface SiteCeilingsChangedDto {
+  readonly ceilings: CeilingsDto
+  readonly eventsCreatedInPeriod: number
+}

@@ -36,6 +36,16 @@ import type {
   SessionUserDto,
   ShareLinkCreated,
   ShareLinkResponse,
+  SiteAccountPageDto,
+  SiteAuditPageDto,
+  SiteCeilingsChangedDto,
+  SiteCeilingsPatch,
+  SiteClientDefaultsDto,
+  SiteClientPageDto,
+  SiteEventPageDto,
+  SiteInvitationDto,
+  SiteProvisionedClientDto,
+  SiteResetDto,
   TopPhotoDto,
   TotpEnrolmentDto,
   UploadResponse,
@@ -496,6 +506,102 @@ export const createApi = (transport: Transport) => ({
 
   approveInvitation: (invitationId: string): Promise<void> =>
     transport.post(`/api/client/invitations/${encode(invitationId)}/approve`),
+
+  // --------------------------------------------------------- the operator's console --
+  //
+  // `/api/site/*` (docs/API.md §1; G2-14), on a box with `SITE_ADMIN=on` and for the operator's
+  // own session. **Every write is behind a fresh step-up** (`stepUp` above): a write that meets
+  // `403 auth.stepUpRequired` is the console's cue to ask for it and send the same request again.
+  // Nothing here reaches `/api/events/*` or `/api/gallery*`: what an operator reads of a client
+  // is a shape and a size, and no function below could be handed anything else.
+
+  siteClients: (
+    query: { readonly after?: string; readonly limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteClientPageDto> =>
+    transport.get('/api/site/clients', { after: query.after, limit: query.limit }, signal),
+
+  siteClientEvents: (
+    clientId: string,
+    query: { readonly after?: string; readonly limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteEventPageDto> =>
+    transport.get(
+      `/api/site/clients/${encode(clientId)}/events`,
+      { after: query.after, limit: query.limit },
+      signal,
+    ),
+
+  siteAccounts: (
+    query: { readonly after?: string; readonly limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteAccountPageDto> =>
+    transport.get('/api/site/accounts', { after: query.after, limit: query.limit }, signal),
+
+  /** The whole log; `before` is a bound (every line older than it), not a pointer. */
+  siteAudit: (
+    query: {
+      readonly clientId?: string
+      readonly before?: number
+      readonly limit?: number
+    } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteAuditPageDto> =>
+    transport.get(
+      '/api/site/audit',
+      { clientId: query.clientId, before: query.before, limit: query.limit },
+      signal,
+    ),
+
+  /** What a client is given when the form leaves a ceiling alone: the box's `NEW_CLIENT_*`. */
+  siteClientDefaults: (signal?: AbortSignal): Promise<SiteClientDefaultsDto> =>
+    transport.get('/api/site/client-defaults', undefined, signal),
+
+  /**
+   * Opens a client with no member and no event, and invites its owner. `ceilings` is the
+   * operator's own: a key it names is kept (`null` lifts the box's default), one it leaves
+   * out takes the default. `locale` is the language the owner's invitation is written in.
+   */
+  siteProvisionClient: (input: {
+    readonly clientName: string
+    readonly ownerEmail: string
+    readonly locale: Locale
+    readonly ceilings?: SiteCeilingsPatch
+  }): Promise<SiteProvisionedClientDto> => transport.post('/api/site/clients', input),
+
+  siteRenameClient: (clientId: string, name: string): Promise<void> =>
+    transport.patch(`/api/site/clients/${encode(clientId)}`, { name }),
+
+  /** A patch, with a reason that is **mandatory** and one line of at most 200 characters. */
+  siteSetCeilings: (
+    clientId: string,
+    ceilings: SiteCeilingsPatch,
+    reason: string,
+  ): Promise<SiteCeilingsChangedDto> =>
+    transport.put(`/api/site/clients/${encode(clientId)}/ceilings`, { ceilings, reason }),
+
+  siteSuspendClient: (clientId: string): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/suspend`),
+
+  siteResumeClient: (clientId: string): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/resume`),
+
+  /** Into the client's account, never into an event. `pendingApproval` says an owner must agree. */
+  siteInviteToClient: (
+    clientId: string,
+    input: { readonly email: string; readonly role: 'owner' | 'member'; readonly locale: Locale },
+  ): Promise<{ readonly invitation: SiteInvitationDto }> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/invitations`, input),
+
+  /**
+   * Resets an account's password. Where a mailer delivers the answer holds no link and no token:
+   * it went to the account's own address and nowhere else.
+   */
+  siteResetPassword: (
+    userId: string,
+    input: { readonly locale: Locale; readonly approvalId?: string },
+  ): Promise<SiteResetDto> =>
+    transport.post(`/api/site/accounts/${encode(userId)}/password-reset`, input),
 
   // ------------------------------------------------------------------ events --
 
