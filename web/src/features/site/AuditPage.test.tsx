@@ -124,6 +124,15 @@ describe('the console’s log', () => {
     expect(await screen.findByText(fr.site.actionInvitationIssuedPending)).toBeVisible()
   })
 
+  it.each(['client.offboarded', 'client.finalized', 'account.enabled', 'account.deleted'] as const)(
+    'reads %s in words',
+    async (action) => {
+      openConsole('/admin/site/audit', withLog([aSiteAuditEntry({ action })]))
+
+      expect(await screen.findByText(fr.site.actions[action])).toBeVisible()
+    },
+  )
+
   it('still shows a line written under a name this build does not know', async () => {
     openConsole('/admin/site/audit', withLog([aSiteAuditEntry({ action: 'something.new' })]))
 

@@ -1286,6 +1286,7 @@ export const en: UiText = {
     },
     actionInvitationIssuedPending: 'Invitation issued; it is waiting for an owner’s approval.',
     actionOther: 'An action was recorded.',
+    accountActionsColumn: 'Actions on the account',
     disableAccount: 'Switch off',
     enableAccount: 'Switch on',
     deleteAccount: 'Delete',

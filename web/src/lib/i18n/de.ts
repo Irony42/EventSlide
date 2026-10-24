@@ -1343,6 +1343,7 @@ export const de: UiText = {
     actionInvitationIssuedPending:
       'Einladung ausgestellt; sie wartet auf die Zustimmung eines Inhabers.',
     actionOther: 'Eine Aktion wurde aufgezeichnet.',
+    accountActionsColumn: 'Aktionen für das Konto',
     disableAccount: 'Deaktivieren',
     enableAccount: 'Reaktivieren',
     deleteAccount: 'Löschen',

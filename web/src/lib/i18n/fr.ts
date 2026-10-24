@@ -1921,6 +1921,7 @@ export const fr = {
     },
     actionInvitationIssuedPending: 'Invitation émise ; elle attend l’accord d’un propriétaire.',
     actionOther: 'Une action a été enregistrée.',
+    accountActionsColumn: 'Actions sur le compte',
     disableAccount: 'Désactiver',
     enableAccount: 'Réactiver',
     deleteAccount: 'Supprimer',

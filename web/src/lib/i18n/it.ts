@@ -1302,6 +1302,7 @@ export const it: UiText = {
     },
     actionInvitationIssuedPending: 'Invito emesso; attende il consenso di un proprietario.',
     actionOther: 'È stata registrata un’azione.',
+    accountActionsColumn: 'Azioni sull’account',
     disableAccount: 'Disattiva',
     enableAccount: 'Riattiva',
     deleteAccount: 'Elimina',

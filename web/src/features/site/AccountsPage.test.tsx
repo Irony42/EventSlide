@@ -328,3 +328,262 @@ describe('the console’s accounts: resetting a password', () => {
     expect(siteResetPassword).toHaveBeenCalledTimes(2)
   })
 })
+
+/**
+ * Switching an account off, on, and away. Each is a write, so each can ask for a confirmation;
+ * the two that end or suspend are asked for in words first. What the server refuses (an operator's
+ * account, an account that still owns an event, wrote media, reviewed a photograph, or is the last
+ * owner of a client) is its own to say, and the console shows its sentence and changes nothing.
+ */
+
+const SWITCHED_OFF_AT = '2026-06-22T08:00:00.000Z'
+
+const press = (name: string) => userEvent.click(screen.getByRole('button', { name }))
+
+const confirmDialog = async (title: string, label: string) => {
+  const dialog = await screen.findByRole('dialog', { name: title })
+  await userEvent.click(within(dialog).getByRole('button', { name: label }))
+}
+
+describe('the console’s accounts: what is offered on one', () => {
+  it('offers to reset, to switch off and to delete an account that is on, and nothing to switch it on', async () => {
+    open(withAccounts([aSiteAccount()]))
+
+    await screen.findByRole('table')
+
+    expect(screen.getByRole('button', { name: fr.site.resetPassword })).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.site.disableAccount })).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.site.deleteAccount })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.site.enableAccount })).toBeNull()
+  })
+
+  it('offers to switch an account that is off back on, and to delete it, but not to reset it or switch it off again', async () => {
+    open(withAccounts([aSiteAccount({ disabledAt: SWITCHED_OFF_AT })]))
+
+    await screen.findByRole('table')
+
+    expect(screen.getByRole('button', { name: fr.site.enableAccount })).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.site.deleteAccount })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.site.disableAccount })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.site.resetPassword })).toBeNull()
+  })
+
+  it('offers neither to switch off nor to delete an operator’s account, which the server refuses', async () => {
+    open(withAccounts([aSiteAccount({ id: OPERATOR_ID, siteRole: 'operator' })]))
+
+    await screen.findByRole('table')
+
+    expect(screen.queryByRole('button', { name: fr.site.disableAccount })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.site.enableAccount })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.site.deleteAccount })).toBeNull()
+    expect(screen.getByRole('button', { name: fr.site.resetPassword })).toBeVisible()
+  })
+})
+
+describe('the console’s accounts: switching one off', () => {
+  it('says what it does before it is sent, and sends nothing when it is declined', async () => {
+    const api = withAccounts([aSiteAccount()])
+    open(api)
+    await screen.findByRole('table')
+
+    await press(fr.site.disableAccount)
+    const dialog = await screen.findByRole('dialog', { name: fr.site.disableTitle })
+    expect(dialog).toHaveAccessibleDescription(fr.site.disableBody)
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.siteDisableAccount).not.toHaveBeenCalled()
+  })
+
+  it('switches the account off on a confirmation, says so, and reads the accounts again', async () => {
+    const siteAccounts = vi
+      .fn<Api['siteAccounts']>()
+      .mockResolvedValueOnce({ items: [aSiteAccount()], next: null })
+      .mockResolvedValue({ items: [aSiteAccount({ disabledAt: SWITCHED_OFF_AT })], next: null })
+    const api = withAccounts([], { siteAccounts })
+    open(api)
+    await screen.findByRole('table')
+
+    await press(fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle, fr.site.disableAccount)
+
+    await waitFor(() => expect(api.siteDisableAccount).toHaveBeenCalledWith(ACCOUNT_ID))
+    expect(await screen.findByText(fr.site.accountDisabledDone)).toBeVisible()
+    expect(await screen.findByRole('button', { name: fr.site.enableAccount })).toBeVisible()
+  })
+
+  it('asks the operator to confirm themselves when the server says so, and switches off on that confirmation', async () => {
+    const siteDisableAccount = vi
+      .fn<Api['siteDisableAccount']>()
+      .mockRejectedValueOnce(stepUpRequired())
+      .mockResolvedValue(undefined)
+    const api = withAccounts([aSiteAccount()], { siteDisableAccount })
+    open(api)
+    await screen.findByRole('table')
+
+    await press(fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle, fr.site.disableAccount)
+    const prompt = await screen.findByRole('dialog', { name: fr.site.stepUpTitle })
+    await userEvent.type(within(prompt).getByLabelText(fr.auth.password), 'le mot de passe')
+    await userEvent.type(within(prompt).getByLabelText(fr.auth.secondFactorCode), '123456')
+    await userEvent.click(within(prompt).getByRole('button', { name: fr.auth.stepUpSubmit }))
+
+    expect(await screen.findByText(fr.site.accountDisabledDone)).toBeVisible()
+    expect(siteDisableAccount).toHaveBeenCalledTimes(2)
+  })
+
+  it('says what the server said when it refuses an operator’s account, and leaves the account as it was', async () => {
+    const siteDisableAccount = vi
+      .fn<Api['siteDisableAccount']>()
+      .mockRejectedValue(new ApiError(403, 'account.operatorProtected'))
+    open(withAccounts([aSiteAccount()], { siteDisableAccount }))
+    await screen.findByRole('table')
+
+    await press(fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle, fr.site.disableAccount)
+
+    expect(await screen.findByText(fr.errors['account.operatorProtected'])).toBeVisible()
+    expect(screen.getByText(fr.site.accountActive)).toBeVisible()
+  })
+})
+
+describe('the console’s accounts: switching one back on', () => {
+  it('switches it on without a question, says so, and reads the accounts again', async () => {
+    const siteAccounts = vi
+      .fn<Api['siteAccounts']>()
+      .mockResolvedValueOnce({
+        items: [aSiteAccount({ disabledAt: SWITCHED_OFF_AT })],
+        next: null,
+      })
+      .mockResolvedValue({ items: [aSiteAccount()], next: null })
+    const api = withAccounts([], { siteAccounts })
+    open(api)
+    await screen.findByRole('table')
+
+    await press(fr.site.enableAccount)
+
+    await waitFor(() => expect(api.siteEnableAccount).toHaveBeenCalledWith(ACCOUNT_ID))
+    expect(await screen.findByText(fr.site.accountEnabledDone)).toBeVisible()
+    expect(await screen.findByRole('button', { name: fr.site.disableAccount })).toBeVisible()
+  })
+
+  it('asks the operator to confirm themselves when the server says so, and switches on on that confirmation', async () => {
+    const siteEnableAccount = vi
+      .fn<Api['siteEnableAccount']>()
+      .mockRejectedValueOnce(stepUpRequired())
+      .mockResolvedValue(undefined)
+    open(withAccounts([aSiteAccount({ disabledAt: SWITCHED_OFF_AT })], { siteEnableAccount }))
+    await screen.findByRole('table')
+
+    await press(fr.site.enableAccount)
+    const prompt = await screen.findByRole('dialog', { name: fr.site.stepUpTitle })
+    await userEvent.type(within(prompt).getByLabelText(fr.auth.password), 'le mot de passe')
+    await userEvent.type(within(prompt).getByLabelText(fr.auth.secondFactorCode), '123456')
+    await userEvent.click(within(prompt).getByRole('button', { name: fr.auth.stepUpSubmit }))
+
+    expect(await screen.findByText(fr.site.accountEnabledDone)).toBeVisible()
+    expect(siteEnableAccount).toHaveBeenCalledTimes(2)
+  })
+
+  it('says what the server said when it refuses, and leaves the account off', async () => {
+    const siteEnableAccount = vi
+      .fn<Api['siteEnableAccount']>()
+      .mockRejectedValue(new ApiError(404, 'user.notFound'))
+    open(withAccounts([aSiteAccount({ disabledAt: SWITCHED_OFF_AT })], { siteEnableAccount }))
+    await screen.findByRole('table')
+
+    await press(fr.site.enableAccount)
+
+    expect(await screen.findByText(fr.errors['user.notFound'])).toBeVisible()
+    expect(screen.getByText(fr.site.accountDisabled)).toBeVisible()
+  })
+})
+
+describe('the console’s accounts: deleting one', () => {
+  it('says that it answers an erasure request, and that it cannot be undone, and sends nothing when declined', async () => {
+    const api = withAccounts([aSiteAccount()])
+    open(api)
+    await screen.findByRole('table')
+
+    await press(fr.site.deleteAccount)
+    const dialog = await screen.findByRole('dialog', { name: fr.site.deleteTitle })
+    expect(dialog).toHaveAccessibleDescription(fr.site.deleteBody)
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.siteDeleteAccount).not.toHaveBeenCalled()
+  })
+
+  it('deletes the account on a confirmation, says so, and reads the accounts again without it', async () => {
+    const siteAccounts = vi
+      .fn<Api['siteAccounts']>()
+      .mockResolvedValueOnce({ items: [aSiteAccount()], next: null })
+      .mockResolvedValue({ items: [], next: null })
+    const api = withAccounts([], { siteAccounts })
+    open(api)
+    await screen.findByRole('table')
+
+    await press(fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+
+    await waitFor(() => expect(api.siteDeleteAccount).toHaveBeenCalledWith(ACCOUNT_ID))
+    expect(await screen.findByText(fr.site.accountDeletedDone)).toBeVisible()
+    expect(await screen.findByRole('heading', { name: fr.site.accountsEmpty })).toBeVisible()
+  })
+
+  it.each([
+    'account.holdsEvents',
+    'account.holdsMedia',
+    'account.holdsReviews',
+    'account.lastClientOwner',
+    'account.operatorProtected',
+  ] as const)(
+    'says what the server said when it refuses with %s, and keeps the account',
+    async (code) => {
+      const siteDeleteAccount = vi
+        .fn<Api['siteDeleteAccount']>()
+        .mockRejectedValue(new ApiError(code === 'account.operatorProtected' ? 403 : 409, code))
+      open(withAccounts([aSiteAccount()], { siteDeleteAccount }))
+      await screen.findByRole('table')
+
+      await press(fr.site.deleteAccount)
+      await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+
+      expect(await screen.findByText(fr.errors[code])).toBeVisible()
+      expect(screen.getByRole('rowheader', { name: 'camille@example.com' })).toBeVisible()
+    },
+  )
+
+  it('asks the operator to confirm themselves when the server says so, and deletes on that confirmation', async () => {
+    const siteDeleteAccount = vi
+      .fn<Api['siteDeleteAccount']>()
+      .mockRejectedValueOnce(stepUpRequired())
+      .mockResolvedValue(undefined)
+    open(withAccounts([aSiteAccount()], { siteDeleteAccount }))
+    await screen.findByRole('table')
+
+    await press(fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+    const prompt = await screen.findByRole('dialog', { name: fr.site.stepUpTitle })
+    await userEvent.type(within(prompt).getByLabelText(fr.auth.password), 'le mot de passe')
+    await userEvent.type(within(prompt).getByLabelText(fr.auth.secondFactorCode), '123456')
+    await userEvent.click(within(prompt).getByRole('button', { name: fr.auth.stepUpSubmit }))
+
+    expect(await screen.findByText(fr.site.accountDeletedDone)).toBeVisible()
+    expect(siteDeleteAccount).toHaveBeenCalledTimes(2)
+  })
+
+  it('sends nothing when the operator walks away from the prompt, and does not scold', async () => {
+    const siteDeleteAccount = vi.fn<Api['siteDeleteAccount']>().mockRejectedValue(stepUpRequired())
+    open(withAccounts([aSiteAccount()], { siteDeleteAccount }))
+    await screen.findByRole('table')
+
+    await press(fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle, fr.site.deleteAccount)
+    const prompt = await screen.findByRole('dialog', { name: fr.site.stepUpTitle })
+    await userEvent.click(within(prompt).getByRole('button', { name: fr.app.cancel }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(siteDeleteAccount).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(fr.errors['auth.stepUpRequired'])).toBeNull()
+    expect(screen.queryByText(fr.site.accountDeletedDone)).toBeNull()
+  })
+})

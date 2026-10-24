@@ -19,15 +19,23 @@ import type { Locale } from '../../lib/i18n/locale'
 type NotMailed = Exclude<OperatorPasswordResetDto, { readonly delivery: 'mail' }>
 
 /**
- * Every account of the box, by address (`GET /api/site/accounts`), and the one act the console
- * offers on it today: send its holder a password reset.
+ * Every account of the box, by address (`GET /api/site/accounts`), and the acts the console offers on
+ * one: send its holder a password reset, switch it off or back on, delete it (an erasure request).
  *
  * Surface: the operator's laptop. **An address and what the account holds, and nothing else**: no
  * display name, no hash, no token, and no count of anything the person made, because the server
  * sends none. The reset goes to the account's own address and nowhere else (the operator guard's
  * R2); the console never sees the link where a mailer delivers, and is handed it only where none
  * could.
+ *
+ * **An operator's account is offered none of the three that end or suspend an account**: the server
+ * refuses both (`account.operatorProtected`) and a button that can only fail is not offered. Every
+ * refusal that remains (an account that still owns an event, wrote media, reviewed a photograph, or
+ * is the last owner of a client) is the server's, in its own sentence: the console knows none of
+ * those rules and restates none.
  */
+type Act = 'reset' | 'disable' | 'delete'
+
 export function AccountsPage() {
   const t = useTranslations()
   const { locale } = useLocale()
@@ -39,7 +47,10 @@ export function AccountsPage() {
     [api],
   )
   const list = usePagedList(fetchPage)
-  const [confirming, setConfirming] = useState<SiteAccountDto | null>(null)
+  const [acting, setActing] = useState<{
+    readonly act: Act
+    readonly account: SiteAccountDto
+  } | null>(null)
   const [outcome, setOutcome] = useState<{
     /** One per request, so a second reset replaces the first instead of inheriting its approval. */
     readonly request: number
@@ -54,11 +65,48 @@ export function AccountsPage() {
     ),
   )
 
+  const disable = useOperatorAction(useCallback((id: string) => api.siteDisableAccount(id), [api]))
+  const enable = useOperatorAction(useCallback((id: string) => api.siteEnableAccount(id), [api]))
+  const erase = useOperatorAction(useCallback((id: string) => api.siteDeleteAccount(id), [api]))
+  const busy = reset.busy || disable.busy || enable.busy || erase.busy
+
+  /** What an act on the account came to: said, and the listing read again where it changed. */
+  const settle = (
+    result: { readonly ok: true } | { readonly ok: false; readonly message: string | null },
+    done: string,
+  ): void => {
+    setActing(null)
+    if (!result.ok) {
+      if (result.message !== null) toast.show(result.message, { tone: 'danger' })
+      return
+    }
+    toast.show(done, { tone: 'success' })
+    list.reload()
+  }
+
+  const switchOn = (account: SiteAccountDto) => {
+    void enable
+      .run(account.id, account.id)
+      .then((result) => settle(result, t.site.accountEnabledDone))
+  }
+
   const confirm = () => {
-    const account = confirming
-    if (account === null) return
+    if (acting === null) return
+    const { act, account } = acting
+    if (act === 'disable') {
+      void disable
+        .run(account.id, account.id)
+        .then((result) => settle(result, t.site.accountDisabledDone))
+      return
+    }
+    if (act === 'delete') {
+      void erase
+        .run(account.id, account.id)
+        .then((result) => settle(result, t.site.accountDeletedDone))
+      return
+    }
     void reset.run(account.id, account.id, locale).then((result) => {
-      setConfirming(null)
+      setActing(null)
       if (!result.ok) {
         if (result.message !== null) toast.show(result.message, { tone: 'danger' })
         return
@@ -72,6 +120,12 @@ export function AccountsPage() {
       setOutcome({ request: requests + 1, userId: account.id, reset: result.value })
     })
   }
+
+  const wording = {
+    reset: { title: t.site.resetTitle, body: t.site.resetBody, label: t.site.resetPassword },
+    disable: { title: t.site.disableTitle, body: t.site.disableBody, label: t.site.disableAccount },
+    delete: { title: t.site.deleteTitle, body: t.site.deleteBody, label: t.site.deleteAccount },
+  } as const satisfies Record<Act, { title: string; body: string; label: string }>
 
   return (
     <div className={styles['page']}>
@@ -110,7 +164,7 @@ export function AccountsPage() {
                 <th scope="col">{t.site.ownedColumn}</th>
                 <th scope="col">{t.site.clientsColumn}</th>
                 <th scope="col">
-                  <span className="visually-hidden">{t.site.resetPassword}</span>
+                  <span className="visually-hidden">{t.site.accountActionsColumn}</span>
                 </th>
               </tr>
             </thead>
@@ -147,12 +201,45 @@ export function AccountsPage() {
                           variant="secondary"
                           size="sm"
                           aria-describedby={`account-${account.id}`}
-                          disabled={reset.busy}
-                          onClick={() => setConfirming(account)}
+                          disabled={busy}
+                          onClick={() => setActing({ act: 'reset', account })}
                         >
                           {t.site.resetPassword}
                         </Button>
                       ) : null}
+                      {account.siteRole === 'operator' ? null : account.disabledAt === null ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-describedby={`account-${account.id}`}
+                          disabled={busy}
+                          onClick={() => setActing({ act: 'disable', account })}
+                        >
+                          {t.site.disableAccount}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-describedby={`account-${account.id}`}
+                          loading={enable.pending === account.id}
+                          disabled={busy}
+                          onClick={() => switchOn(account)}
+                        >
+                          {t.site.enableAccount}
+                        </Button>
+                      )}
+                      {account.siteRole === 'operator' ? null : (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          aria-describedby={`account-${account.id}`}
+                          disabled={busy}
+                          onClick={() => setActing({ act: 'delete', account })}
+                        >
+                          {t.site.deleteAccount}
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -170,13 +257,13 @@ export function AccountsPage() {
       ) : null}
 
       <ConfirmDialog
-        open={confirming !== null}
-        title={t.site.resetTitle}
-        description={t.site.resetBody}
-        confirmLabel={t.site.resetPassword}
-        busy={reset.busy}
+        open={acting !== null}
+        title={wording[acting?.act ?? 'reset'].title}
+        description={wording[acting?.act ?? 'reset'].body}
+        confirmLabel={wording[acting?.act ?? 'reset'].label}
+        busy={busy}
         onConfirm={confirm}
-        onCancel={() => setConfirming(null)}
+        onCancel={() => setActing(null)}
       />
     </div>
   )
