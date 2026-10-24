@@ -4,14 +4,7 @@ import { mediaRoutes } from './mediaRoutes'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import { GUEST_COOKIE } from '../middleware/authz'
 import type { ArchiveEntry, ArchiveWriter } from '../../../application/ports/archiveWriter'
-import {
-  MEDIA_VARIANTS,
-  type ByteRange,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-  type StoredObject,
-} from '../../../application/ports/mediaStore'
+import { MEDIA_VARIANTS } from '../../../application/ports/mediaStore'
 import { makeExportAlbum, type ExportAlbum } from '../../../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../../../application/usecases/photos/identifyMediaViewer'
@@ -24,10 +17,10 @@ import {
   aPhoto,
   type PhotoInput,
 } from '../../../application/testing/builders'
-import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
 /**
  * Ring 4: the wire contract of the two routes that serve bytes.
@@ -61,128 +54,6 @@ const LOCAL_FILE_HEADER = Buffer.from([0x50, 0x4b, 0x03, 0x04])
 
 /** The policy the route promises for a content-addressed variant, 200 and 304 alike. */
 const IMMUTABLE_CACHE = 'private, max-age=31536000, immutable'
-
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  /**
-   * Every byte stream this store has been asked for.
-   *
-   * **A count, because a leak is a count.** The filesystem store opens the file when the
-   * stream is *constructed* — `createReadStream` takes the descriptor before anything
-   * reads it — so a route that opens a stream it does not write costs one descriptor per
-   * request, and the process dies of `EMFILE` rather than of anything a response body
-   * would show. Nothing about the bytes on the wire can see that; only this can.
-   */
-  opened = 0
-
-  /**
-   * Every open from here on answers `null`, while `stat` goes on reporting the size.
-   *
-   * The retention purge unlinking a file between the two is the one window in which a
-   * media read fails after it has already succeeded, and it is the only way to reach the
-   * route's `mediaMissing` answer now that the size is a metadata read.
-   */
-  private vanished = false
-
-  vanishAfterStat(): void {
-    this.vanished = true
-  }
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined
-      ? null
-      : {
-          byteSize: bytes.length,
-          // Variant-aware, as the filesystem store is: serving a clip labelled
-          // `image/jpeg` under `nosniff` is a projector that renders nothing.
-          contentType: variant === 'video' ? 'video/mp4' : 'image/jpeg',
-          // Not a fact any route reads; the reconciliation sweep is the only reader.
-          modifiedAt: new Date(0),
-        }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    range?: ByteRange,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    this.opened += 1
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined || this.vanished) return null
-
-    // A range the object cannot satisfy answers `null`, exactly as the filesystem store
-    // does — a `206` over an empty stream is a player waiting forever.
-    if (range !== undefined && (range.start >= bytes.length || range.end < range.start)) return null
-
-    const served =
-      range === undefined
-        ? bytes
-        : bytes.slice(range.start, Math.min(range.end, bytes.length - 1) + 1)
-    return (async function* () {
-      yield served
-    })()
-  }
-
-  async read(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
-
-  // Reconciliation only, and no route reaches it. Failing loudly beats a stub that
-  // would let a handler quietly start enumerating the store.
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error('listEvents is not part of the media routes')
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error('list is not part of the media routes')
-  }
-}
 
 /**
  * An archive writer that emits a real ZIP local file header and then the entries.
@@ -230,7 +101,7 @@ const buildWorld = async ({
   exportAlbum,
 }: WorldOptions = {}): Promise<World> => {
   const photos = new FakePhotoRepository()
-  const media = new InMemoryMediaStore()
+  const media = new InMemoryMediaStore().forbidEnumeration('the media routes')
 
   const harness = buildHarness({
     routes: (app, deps, base) => {
@@ -772,7 +643,8 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant — a clip', () => {
     // because by then only this layer knows whether a null open is a missing file or a
     // range question — and `photo.mediaMissing` is the code that means a row points at
     // bytes that are gone, which is a corruption worth an operator's attention.
-    world.media.vanishAfterStat()
+    const clip = aClip({ id: CLIP, eventId: WEDDING, status: 'published', clip: {} })
+    world.media.vanishAfterStat(clip.eventId, clip.contentHash)
 
     const response = await getJson(world, mediaPath(CLIP, 'video'))
 

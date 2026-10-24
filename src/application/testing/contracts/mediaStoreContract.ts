@@ -22,7 +22,8 @@ import { asEventId } from '../../../domain/shared/ids'
  * on disk, an unsafe event id or digest refused before a path is built, the `.tmp` of an
  * interrupted `put` (left alone while young, reaped by `list` once abandoned, never listed),
  * a file the store could not have written, and what a failing filesystem does. What stays
- * in `inMemoryMediaStore.test.ts`: `failWritesAfter`, the scripted full disk.
+ * in `inMemoryMediaStore.test.ts`: the scripted conditions (`failWritesAfter`, `failDeletes`,
+ * `vanishAfterStat`), the `opened` count and the `forbidEnumeration` tripwire.
  */
 
 export interface MediaStoreSubject {

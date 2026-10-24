@@ -1,15 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asEventId, type EventId } from '../../../domain/shared/ids'
+import { asEventId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
 import {
   MEDIA_VARIANTS,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-  type StoredObject,
   type PhotoVariant,
 } from '../../ports/mediaStore'
 import { aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
@@ -17,95 +13,13 @@ import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */
 const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
   original: 9,
   display: 3,
   thumb: 1,
-}
-
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : {
-            byteSize: bytes.length,
-            contentType: 'image/jpeg',
-            // Not a fact any of these tests depends on; the sweep is the only reader.
-            modifiedAt: new Date(0),
-          }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined) return null
-    return (async function* () {
-      yield bytes
-    })()
-  }
-
-  async read(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  // Reconciliation only. A use case that started enumerating the store would fail
-  // loudly here rather than pass against a permissive stub.
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error(`listEvents is not part of an album export`)
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error(`list is not part of an album export`)
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
 }
 
 /** A clip's two files. Distinct sizes, so a test can tell the transcode from the poster by length. */
@@ -156,7 +70,7 @@ describe('exportAlbum', () => {
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('an album export')
     archive = new FakeArchiveWriter()
     logger = new CapturingLogger()
     events.seed(

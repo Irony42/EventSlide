@@ -24,10 +24,6 @@ import type {
 } from '../../ports/photoRepository'
 import {
   MEDIA_VARIANTS,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-  type StoredObject,
   type PhotoVariant,
 } from '../../ports/mediaStore'
 import { aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
@@ -49,6 +45,7 @@ import {
 } from './uploadPhotos'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { CountingClientRepository } from '../../testing/countingClientRepository'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 
 /**
  * Ingest is the highest-risk operation in the product: the only public write, it
@@ -151,114 +148,6 @@ class FakeImageProcessor implements ImageProcessor {
 
   private dimensionsOf(script: ImageScript): Dimensions {
     return must(Dimensions.create(script.width ?? 4032, script.height ?? 3024))
-  }
-}
-
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  /** Successful writes remaining before the store starts refusing them. */
-  private budget = Number.POSITIVE_INFINITY
-
-  /** Simulates a disk filling up part-way through a request. */
-  failAfter(writes: number): this {
-    this.budget = writes
-    return this
-  }
-
-  private deletesFail = false
-
-  /** Simulates an unlink the operating system refuses (a permission, a busy handle). */
-  failDeletes(): this {
-    this.deletesFail = true
-    return this
-  }
-
-  /** Every variant currently held for one photo, in a stable order. */
-  variantsOf(eventId: EventId, hash: ContentHash): readonly MediaVariant[] {
-    return MEDIA_VARIANTS.filter((variant) => this.objects.has(this.key(eventId, hash, variant)))
-  }
-
-  get objectCount(): number {
-    return this.objects.size
-  }
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    if (this.budget <= 0) throw new Error('no space left on device')
-    this.budget -= 1
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : {
-            byteSize: bytes.length,
-            contentType: 'image/jpeg',
-            // Not a fact any of these tests depends on; the sweep is the only reader.
-            modifiedAt: new Date(0),
-          }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined) return null
-    return (async function* () {
-      yield bytes
-    })()
-  }
-
-  async read(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    if (this.deletesFail) throw new Error('EPERM: operation not permitted, unlink')
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  // Reconciliation only. A use case that started enumerating the store would fail
-  // loudly here rather than pass against a permissive stub.
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error(`listEvents is not part of photo ingest`)
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error(`list is not part of photo ingest`)
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
   }
 }
 
@@ -489,7 +378,7 @@ describe('uploadPhotos', () => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     missions = new FakeMissionRepository(photos)
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('photo ingest')
     images = new FakeImageProcessor()
     hasher = new FakeContentHasher()
     bus = new RecordingEventBus()
@@ -1247,7 +1136,7 @@ describe('uploadPhotos', () => {
   it('removes the media this request wrote when a variant cannot be stored', async () => {
     seedEvent()
     // Four writes land: the first file entire, then one variant of the second.
-    media.failAfter(4)
+    media.failWritesAfter(4)
 
     const result = await uploadPhotos({
       eventId: EVENT,
@@ -1261,7 +1150,7 @@ describe('uploadPhotos', () => {
 
   it('inserts no row when a media write fails, so no row can point at a missing file', async () => {
     seedEvent()
-    media.failAfter(0)
+    media.failWritesAfter(0)
 
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
@@ -1273,7 +1162,7 @@ describe('uploadPhotos', () => {
     const earlier = aPhoto({ id: 'earlier', eventId: 'event-1' })
     photos.seed(earlier)
     await media.put(EVENT, earlier.contentHash, 'display', tagBytes('earlier'))
-    media.failAfter(1)
+    media.failWritesAfter(1)
 
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
@@ -1285,7 +1174,7 @@ describe('uploadPhotos', () => {
     // write then fails, and the unwind runs with the first file's media on the disk.
     seedEvent()
     const rival = new RivalCommitsMidRequestPhotoRepository(hashOf('sunset'))
-    media.failAfter(3)
+    media.failWritesAfter(3)
 
     const result = await uploadInto(rival)({
       eventId: EVENT,
@@ -1301,7 +1190,7 @@ describe('uploadPhotos', () => {
   it('still removes the media nothing names when it unwinds beside media something does', async () => {
     seedEvent()
     const rival = new RivalCommitsMidRequestPhotoRepository(hashOf('sunset'))
-    media.failAfter(5)
+    media.failWritesAfter(5)
 
     await uploadInto(rival)({
       eventId: EVENT,
@@ -1376,7 +1265,7 @@ describe('uploadPhotos', () => {
 
   it('logs the cause when it unwinds, so an operator can tell a full disk from a bug', async () => {
     seedEvent()
-    media.failAfter(0)
+    media.failWritesAfter(0)
 
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
@@ -1399,7 +1288,7 @@ describe('uploadPhotos and the mission tag', () => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     missions = new FakeMissionRepository(photos)
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('photo ingest')
     images = new FakeImageProcessor()
     hasher = new FakeContentHasher()
     bus = new RecordingEventBus()
@@ -1553,7 +1442,7 @@ describe('uploadPhotos under a client’s ceilings', () => {
     clients = new CountingClientRepository()
     events = new FakeEventRepository({ clients })
     photos = new FakePhotoRepository().chargeClientBytesFrom(clients)
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('photo ingest')
     images = new FakeImageProcessor()
     logger = new CapturingLogger()
 
@@ -1624,7 +1513,7 @@ describe('uploadPhotos under a client’s ceilings', () => {
     photos.seed(aPhoto({ id: 'held-1', eventId: 'event-2', byteSize: 2 * MB }))
     // A disk that fails on its first write: a request that tried to store the photograph
     // would answer `photo.mediaWriteFailed`, not a named refusal.
-    media.failAfter(0)
+    media.failWritesAfter(0)
 
     const result = await send(EVENT, 'sunset')
 

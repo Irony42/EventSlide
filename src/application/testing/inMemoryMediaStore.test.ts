@@ -64,4 +64,46 @@ describe('InMemoryMediaStore', () => {
 
     expect(media.variantsOf(WEDDING, hashOf('aa'))).toEqual(['video', 'poster'])
   })
+  it('counts every byte stream asked for, found or not', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+
+    await media.openRead(WEDDING, hashOf('aa'), 'display')
+    await media.openRead(WEDDING, hashOf('bb'), 'display')
+
+    expect(media.opened).toBe(2)
+  })
+
+  it('can lose a file between the size check and the open', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1, 2, 3))
+    await media.put(WEDDING, hashOf('aa'), 'video', Uint8Array.of(1))
+    await media.put(WEDDING, hashOf('bb'), 'display', Uint8Array.of(1))
+
+    media.vanishAfterStat(WEDDING, hashOf('aa'))
+
+    expect((await media.stat(WEDDING, hashOf('aa'), 'display'))?.byteSize).toBe(3)
+    expect(await media.openRead(WEDDING, hashOf('aa'), 'display')).toBeNull()
+    expect(await media.openRead(WEDDING, hashOf('aa'), 'video')).toBeNull()
+    expect(await media.openRead(WEDDING, hashOf('bb'), 'display')).not.toBeNull()
+  })
+
+  it('can refuse an unlink, and keeps the bytes when it does', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+    media.failDeletes()
+
+    await expect(media.delete(WEDDING, hashOf('aa'))).rejects.toThrow(/EPERM/)
+
+    expect(await media.exists(WEDDING, hashOf('aa'), 'display')).toBe(true)
+  })
+
+  it('walks the store unless it was told this surface never does', async () => {
+    await media.put(WEDDING, hashOf('aa'), 'display', Uint8Array.of(1))
+
+    expect(await media.listEvents()).toEqual([WEDDING])
+    expect(await media.list(WEDDING)).toHaveLength(1)
+
+    media.forbidEnumeration('photo ingest')
+
+    await expect(media.listEvents()).rejects.toThrow('listEvents is not part of photo ingest')
+    await expect(media.list(WEDDING)).rejects.toThrow('list is not part of photo ingest')
+  })
 })
