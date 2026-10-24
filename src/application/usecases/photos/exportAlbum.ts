@@ -23,8 +23,9 @@ import { albumEntries } from '../shared/albumEntries'
  * asked, never reimplemented as a status list here.
  *
  * **Clips are in it.** A host who exports and then purges must not lose their videos. A
- * photograph is archived as its stored `original` and a clip as its transcode, the same
- * full-quality file the shared gallery's download serves, from the same table
+ * photograph is archived as its stored `original` and a clip as its transcode (the picture
+ * and the sound; a clip's upload is never kept), the same file the shared gallery's download
+ * serves, from the same table
  * (`albumEntries`). The host's ZIP used to ask every row for an `original`, which a clip
  * does not have, and skipped every one of them with a warning.
  *

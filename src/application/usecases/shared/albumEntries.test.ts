@@ -174,6 +174,32 @@ describe('albumEntries', () => {
     expect(asked).toHaveLength(205)
   })
 
+  it('reads the listing in pages of two hundred, so no statement holds the whole album', async () => {
+    const limits: (number | undefined)[] = []
+    const recording = new (class extends FakePhotoRepository {
+      override async list(
+        ...args: Parameters<FakePhotoRepository['list']>
+      ): ReturnType<FakePhotoRepository['list']> {
+        limits.push(args[1]?.limit)
+        return super.list(...args)
+      }
+    })()
+    for (let index = 0; index < 205; index += 1) {
+      recording.seed(
+        aPhoto({
+          id: `bulk-${String(index).padStart(3, '0')}`,
+          eventId: 'event-1',
+          status: 'published',
+          createdAt: atPlus(index),
+        }),
+      )
+    }
+
+    await collect(albumEntries(source({ photos: recording })))
+
+    expect(limits).toEqual([200, 200])
+  })
+
   it('opens a row only when the consumer pulls its entry, so one file is open at a time', async () => {
     seed(
       aPhoto({ id: 'p1', eventId: 'event-1', status: 'published', createdAt: atPlus(2) }),

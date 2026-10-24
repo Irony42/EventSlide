@@ -4,7 +4,6 @@ import type { DomainError } from '../../../domain/shared/errors'
 import { asEventId, type EventId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
-import type { LogContext, Logger } from '../../ports/logger'
 import {
   MEDIA_VARIANTS,
   type MediaMetadata,
@@ -16,6 +15,7 @@ import {
 import { aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
+import { CapturingLogger } from '../../testing/galleryWorld'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */
@@ -140,30 +140,6 @@ class FakeArchiveWriter implements ArchiveWriter {
         yield Uint8Array.of(recorded.length)
       }
     })()
-  }
-}
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
   }
 }
 
@@ -366,6 +342,16 @@ describe('exportAlbum', () => {
 
     expect(archive.entries).toHaveLength(1)
     expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
+  })
+
+  it('names the row it skipped, because that is the only trace the operator has to it', async () => {
+    photos.seed(aPhoto({ id: 'orphan', eventId: 'event-1', status: 'published' }))
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(logger.lines.map((line) => line.context)).toEqual([
+      { eventId: EVENT, photoId: 'orphan' },
+    ])
   })
 
   it('numbers the entries continuously even when a photo is skipped', async () => {

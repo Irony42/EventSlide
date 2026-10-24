@@ -23,8 +23,9 @@ export interface ArchiveWriter {
    * compression pass — deflating a JPEG spends CPU to gain nothing.
    *
    * If an entry's bytes fail mid-archive the iterable rejects; the HTTP layer can only
-   * abort the response at that point, since headers are long since sent. That is why
-   * the caller checks that every file exists before starting.
+   * abort the response at that point, since headers are long since sent. That is why a
+   * caller decides whether a file is there before it hands over the entry, and either skips
+   * the row or fails the entry's bytes loudly, never hands over an empty one.
    *
    * **The writer takes entries one at a time**, asking for the next only once it has
    * written the previous one, and **closes the bytes of every entry it was handed when the
