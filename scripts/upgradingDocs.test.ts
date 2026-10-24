@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { configSources } from './configSources'
 
 /**
  * `docs/UPGRADING.md` (roadmap G3-09 / P4-11), held to the code it describes.
@@ -174,7 +175,7 @@ describe('the messages docs/UPGRADING.md says to expect', () => {
   })
 
   it('cites the three boot warnings 3.0.0 added, which are warnings and not refusals', () => {
-    const env = source('src', 'infrastructure', 'config', 'env.ts')
+    const env = configSources()
 
     expect(prose).toContain('`PUBLIC_URL`')
     expect(prose).toContain('`TRUST_PROXY_HOPS=0`')
@@ -372,7 +373,7 @@ describe('a setting that was documented and is read by nothing (docs/UPGRADING.m
   })
 
   it('is warned about at boot by the code that still validates it', () => {
-    const env = source('src', 'infrastructure', 'config', 'env.ts')
+    const env = configSources()
 
     expect(env).toContain(`${NAME}: positiveInt(`)
     expect(env).toContain(`${NAME} is deprecated and does nothing`)
@@ -380,7 +381,7 @@ describe('a setting that was documented and is read by nothing (docs/UPGRADING.m
 
   it('names the same release for its removal in the warning and in the entry', () => {
     // Four places carry the version; an operator who reads one must not be told another.
-    const env = source('src', 'infrastructure', 'config', 'env.ts')
+    const env = configSources()
 
     expect(env).toContain('it will be removed in 4.0.0')
     expect(flat(deprecated)).toContain('removed in 4.0.0')

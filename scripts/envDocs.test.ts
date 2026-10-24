@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { configSources } from './configSources'
 
 /**
  * `.env.example`, asserted against the schema it claims to document rather than
@@ -21,7 +22,6 @@ import { describe, expect, it } from 'vitest'
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const ENV_TS_PATH = join(ROOT, 'src', 'infrastructure', 'config', 'env.ts')
 const ENV_EXAMPLE_PATH = join(ROOT, '.env.example')
 
 /**
@@ -34,7 +34,7 @@ const ENV_EXAMPLE_PATH = join(ROOT, '.env.example')
  * same way; see the full list this prints if that ever changes.
  */
 const schemaKeys = (): readonly string[] => {
-  const source = readFileSync(ENV_TS_PATH, 'utf8')
+  const source = configSources()
   const matches = [...source.matchAll(/^ {6}([A-Z][A-Z0-9_]*):/gm)]
   return matches.map((match) => match[1] as string)
 }
