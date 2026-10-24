@@ -607,12 +607,31 @@ export const createApi = (transport: Transport) => ({
   siteResumeClient: (clientId: string): Promise<void> =>
     transport.post(`/api/site/clients/${encode(clientId)}/resume`),
 
+  /**
+   * Ends an engagement: live events are closed, drafts archived, the client suspended, and its
+   * albums purged `graceDays` from now (whole days; the range is the server's). Idempotent.
+   */
+  siteOffboardClient: (clientId: string, graceDays: number): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/offboard`, { graceDays }),
+
   /** Into the client's account, never into an event. `pendingApproval` says an owner must agree. */
   siteInviteToClient: (
     clientId: string,
     input: SiteInvitationInput,
   ): Promise<{ readonly invitation: OperatorInvitationDto }> =>
     transport.post(`/api/site/clients/${encode(clientId)}/invitations`, input),
+
+  /** Switches an account off and ends every session it has. Idempotent; refused for an operator. */
+  siteDisableAccount: (userId: string): Promise<void> =>
+    transport.post(`/api/site/accounts/${encode(userId)}/disable`),
+
+  /** Switches it back on; the sessions it had stay ended. */
+  siteEnableAccount: (userId: string): Promise<void> =>
+    transport.post(`/api/site/accounts/${encode(userId)}/enable`),
+
+  /** An erasure request (GDPR). Refused while the account holds an event, media or a review. */
+  siteDeleteAccount: (userId: string): Promise<void> =>
+    transport.del(`/api/site/accounts/${encode(userId)}`),
 
   /**
    * Resets an account's password. Where a mailer delivers the answer holds no link and no token:
