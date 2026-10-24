@@ -95,13 +95,17 @@ Rules:
 
 `web/src/design-system/components/` holds `Button`, `IconButton`, `Field`, `TextInput`,
 `Textarea`, `Card`, `Dialog`, `Toast`, `Spinner`, `EmptyState`, `Badge`, `Notice`, `Progress`,
-`VisuallyHidden`, `Stack`, `Grid`.
+`VisuallyHidden`, `PageTitle`, `Async` and `Stack`.
+
+`Stack` exists and one screen (`JoinPage`) uses it; every other screen lays itself out in its
+own CSS Module. There is no `Grid`: a tile grid is `display: grid` in the CSS Module that needs it.
 
 Check for a primitive first. A fourth bespoke button is how a design system dies.
 
 ```tsx
-// web/src/design-system/components/Button.tsx
+// web/src/design-system/components/Button.tsx, abridged: `block`, `icon` and `className` are left out
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
+import { Spinner } from './Spinner'
 import { cx } from '../classNames'
 import styles from './Button.module.css'
 
@@ -115,19 +119,29 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'secondary', size = 'md', loading = false, disabled, children, ...rest },
+  {
+    variant = 'secondary',
+    size = 'md',
+    loading = false,
+    disabled,
+    type = 'button',
+    children,
+    ...rest
+  },
   ref,
 ) {
   return (
     <button
       {...rest}
       ref={ref}
+      // `button` by default: an unspecified type inside a form submits it.
+      type={type}
       className={cx(styles['button'], styles[variant], styles[size])}
       // aria-busy keeps the accessible name; a spinner-only button announces nothing.
       aria-busy={loading || undefined}
       disabled={disabled ?? loading}
     >
-      {loading && <Spinner aria-hidden />}
+      {loading ? <Spinner size="sm" /> : null}
       {children}
     </button>
   )
@@ -164,19 +178,28 @@ web/src/features/guest-upload/
 
 ## Data and transport
 
-`web/src/lib/api/` holds typed functions, one per endpoint, and is the **only** place
-`fetch` appears.
+`web/src/lib/api/client.ts` holds typed functions, one per endpoint, as the methods of `Api`: built
+over an injectable `Transport` by `createApi`, with `api` the instance the app uses. A component or a
+hook calls a method and never `fetch`. `apiCallers.guard.test.ts` fails on a method nothing calls.
 
 ```ts
-// web/src/lib/api/photos.ts
-export const listPhotos = (slug: string, query: ListPhotosQuery) =>
-  http.get<PhotoDto[]>(`/api/events/${slug}/photos`, query)
+// web/src/lib/api/client.ts
+export const createApi = (transport: Transport) => ({
+  myPhotos: (
+    slug: string,
+    signal?: AbortSignal,
+  ): Promise<{ items: readonly GuestPhotoDto[] }> =>
+    transport.get(`/api/events/${encode(slug)}/photos/mine`, undefined, signal),
+  // …one per endpoint
+})
 ```
 
-- `web/src/lib/http.ts` handles JSON, errors (mapping `error.code` → French copy via
-  `web/src/lib/i18n/`), credentials, and the CSRF header.
+- `web/src/lib/http.ts` handles JSON, credentials, and the CSRF header, and throws an `ApiError`
+  that carries the server's `code` and no sentence. The sentence is picked by whoever catches the
+  failure: `messageForCode` and `messageForError` (`web/src/lib/i18n/translations.ts`) take the code
+  and the copy table of the language on screen.
 - Components receive data through a hook, never call `http` directly — that is what
-  makes them testable with a fake transport.
+  makes them testable with a fake `Api` (`fakeApi`).
 - A read on mount is `useLoader` (`web/src/lib/useLoader.ts`), never an `AbortController`
   in an effect, and the screen's waiting / failed / empty / answer switch is `Async`
   (`design-system/components/Async.tsx`, with `Pending` and `LoadFailure` for a screen that
@@ -232,23 +255,30 @@ no-preference)` (the right answer for anything that appears); declined in the co
 
 ```tsx
 // web/src/features/guest-upload/GuestUploadPage.test.tsx
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GuestUploadPage } from './GuestUploadPage'
-import { renderWithProviders, fakeTransport } from '../../testing/renderWithProviders'
+import { renderWithProviders, fakeApi } from '../../testing/renderWithProviders'
+
+const aJpegFile = () =>
+  new File([new Uint8Array([0xff, 0xd8, 0xff])], 'confettis.jpg', {
+    type: 'image/jpeg',
+  })
+
+// The page reads its event from the address, so it is mounted under the route that carries it.
+const render = (api = fakeApi()) =>
+  renderWithProviders(<GuestUploadPage />, {
+    api,
+    route: '/e/mariage/upload',
+    path: '/e/:slug/upload',
+  })
 
 describe('GuestUploadPage', () => {
   it('uploads the selected photos and reports each one as sent', async () => {
-    const transport = fakeTransport()
-    renderWithProviders(<GuestUploadPage slug="mariage" />, { transport })
+    render()
 
-    await userEvent.upload(
-      screen.getByLabelText(/Ajouter des photos/),
-      new File([new Uint8Array([0xff, 0xd8, 0xff])], 'confettis.jpg', {
-        type: 'image/jpeg',
-      }),
-    )
+    await userEvent.upload(screen.getByLabelText(/Ajouter des photos/), aJpegFile())
     await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
 
     await waitFor(() =>
@@ -257,16 +287,16 @@ describe('GuestUploadPage', () => {
   })
 
   it('offers a retry when the network drops mid-upload, without losing the file', async () => {
-    const transport = fakeTransport({
-      uploadPhotos: () => Promise.reject(new Error('offline')),
-    })
-    renderWithProviders(<GuestUploadPage slug="mariage" />, { transport })
+    render(
+      fakeApi({
+        uploadPhotos: () => Promise.reject(new Error('offline')),
+      }),
+    )
 
     await userEvent.upload(screen.getByLabelText(/Ajouter des photos/), aJpegFile())
     await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/connexion/i)
-    expect(screen.getByRole('button', { name: /Réessayer/ })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: /Réessayer/ })).toBeEnabled()
   })
 })
 ```
@@ -275,7 +305,7 @@ describe('GuestUploadPage', () => {
   `getByText`. `getByTestId` only for things with no accessible identity.
 - Assert on **rendered output**, never on internal state or a spy on a child.
 - `userEvent`, not `fireEvent` — it models real interaction, including focus.
-- Inject a fake transport; never mock `global.fetch`.
+- Inject a fake `Api` (`fakeApi`); never mock `global.fetch`.
 - Every screen has a test for **loading, empty, error, and populated**. The empty and
   error states are the ones users actually hit at an event, and 1.0 shipped neither.
 
