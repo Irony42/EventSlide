@@ -16,8 +16,8 @@ import type { NewOutboxEntry, OutboxAddition, OutboxEntry, OutboxStore } from '.
  * storage area the browser is entitled to evict under pressure.
  */
 
-export const DB_NAME = 'eventslide-outbox'
-export const DB_VERSION = 1
+const DB_NAME = 'eventslide-outbox'
+const DB_VERSION = 1
 const STORE = 'entries'
 const BY_SLUG = 'bySlug'
 
@@ -28,7 +28,7 @@ const BY_SLUG = 'bySlug'
  * then fail the open, so callers must handle a rejected open too — this only spares
  * them the common case.
  */
-export const hasIndexedDb = (): boolean => typeof indexedDB !== 'undefined' && indexedDB !== null
+const hasIndexedDb = (): boolean => typeof indexedDB !== 'undefined' && indexedDB !== null
 
 const promisify = <T>(request: IDBRequest<T>): Promise<T> =>
   new Promise((resolve, reject) => {
@@ -36,7 +36,7 @@ const promisify = <T>(request: IDBRequest<T>): Promise<T> =>
     request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'))
   })
 
-export const openOutboxDb = (): Promise<IDBDatabase> =>
+const openOutboxDb = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     if (!hasIndexedDb()) {
       reject(new Error('this browser has no IndexedDB'))

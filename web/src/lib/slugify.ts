@@ -11,7 +11,6 @@
 
 /** Published by `Slug` on the server. Here only to bound the preview, never to validate. */
 export const SLUG_MAX_LENGTH = 64
-export const SLUG_MIN_LENGTH = 2
 
 export const slugify = (raw: string): string =>
   raw

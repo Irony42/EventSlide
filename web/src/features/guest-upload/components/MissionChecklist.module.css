@@ -57,10 +57,6 @@
   cursor: pointer;
 }
 
-.row:focus-visible {
-  box-shadow: var(--focus-ring);
-}
-
 /**
  * The chosen prompt, which the next send will be filed under.
  *

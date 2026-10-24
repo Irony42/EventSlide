@@ -50,9 +50,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={classes}
-      // aria-busy keeps the accessible name and the focus. Swapping the label for a
-      // spinner would announce nothing and drop the button out of the tab order at
-      // exactly the moment the user is waiting on it.
+      // aria-busy says the control is working, and the label stays its accessible name: the
+      // spinner sits beside it and never replaces it. `disabled` while loading stops a second
+      // press, and a disabled button is out of the tab order, so focus is not kept either.
       aria-busy={loading || undefined}
       disabled={disabled === true || loading}
     >

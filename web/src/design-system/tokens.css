@@ -50,8 +50,6 @@
   --success: oklch(76% 0.16 155);
   --danger: oklch(68% 0.19 22);
   --warning: oklch(82% 0.15 85);
-  /* ---- Focus. The ring is derived from the accent, so it is declared with it. ---- */
-  --focus-offset: 2px;
 
   /* ---- Space. 4 px base. No in-between values. ---- */
   --space-1: 0.25rem;
@@ -93,7 +91,6 @@
   --wall-frame-radius: var(--radius-md);
 
   /* ---- Shadows. Elevation is the only thing shadows encode. ---- */
-  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
 

@@ -525,6 +525,12 @@ Read these before you upgrade, and back up with the version you run now.
   job and one repeater for the background sweeps (#171), shared helpers in the web app (#179), and
   `env.ts` split into the pieces of its schema (#182): the settings are declared in
   `src/infrastructure/config/` now.
+- Dead code and stale documents in the web app, and the tests that keep them out (#211): three
+  client methods and fourteen sentences of the copy table that nothing used, a test seam in
+  production code, the focus ring drawn four times over and two unused design tokens; the
+  design-system document and the UI recipe stop describing a `Grid` and a helper that do not
+  exist. The address preview of the new-event form agrees with what the form sends when the
+  address box holds only a space.
 - Continuous integration: the end-to-end job is bounded and retries a hung browser download (#140),
   and `apt` waits for the runner's own lock (#142).
 - Dependencies: Express 4.22 to 5.3 (#93, see `### BREAKING`), zod 3.25 to 4.6 (#52, #154), archiver 7
