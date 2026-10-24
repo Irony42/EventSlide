@@ -108,7 +108,7 @@ const plant = async (site: SiteHarness): Promise<void> => {
 
 interface Call {
   readonly name: string
-  readonly method: 'get' | 'post' | 'put' | 'patch'
+  readonly method: 'get' | 'post' | 'put' | 'patch' | 'delete'
   readonly path: string
   readonly body?: object
 }
@@ -175,6 +175,27 @@ const CALLS: readonly Call[] = [
     method: 'post',
     path: `/api/site/clients/${ID.clientL}/resume`,
   },
+  {
+    name: 'post /api/site/clients/:clientId/offboard',
+    method: 'post',
+    path: `/api/site/clients/${ID.clientL}/offboard`,
+    body: { graceDays: 30 },
+  },
+  {
+    name: 'post /api/site/accounts/:userId/disable',
+    method: 'post',
+    path: `/api/site/accounts/${ID.member}/disable`,
+  },
+  {
+    name: 'post /api/site/accounts/:userId/enable',
+    method: 'post',
+    path: `/api/site/accounts/${ID.member}/enable`,
+  },
+  {
+    name: 'delete /api/site/accounts/:userId',
+    method: 'delete',
+    path: `/api/site/accounts/${ID.member}`,
+  },
   // The log last, so it holds what every call above wrote.
   { name: 'get /api/site/audit', method: 'get', path: '/api/site/audit?limit=200' },
   {
@@ -234,6 +255,27 @@ const REFUSED: readonly Call[] = [
     method: 'post',
     path: '/api/site/clients/99999999-9999-4999-8999-999999999999/resume',
   },
+  {
+    name: 'post /api/site/clients/:clientId/offboard',
+    method: 'post',
+    path: '/api/site/clients/99999999-9999-4999-8999-999999999999/offboard',
+    body: { graceDays: 30 },
+  },
+  {
+    name: 'post /api/site/accounts/:userId/disable',
+    method: 'post',
+    path: '/api/site/accounts/99999999-9999-4999-8999-999999999999/disable',
+  },
+  {
+    name: 'post /api/site/accounts/:userId/enable',
+    method: 'post',
+    path: '/api/site/accounts/99999999-9999-4999-8999-999999999999/enable',
+  },
+  {
+    name: 'delete /api/site/accounts/:userId',
+    method: 'delete',
+    path: '/api/site/accounts/99999999-9999-4999-8999-999999999999',
+  },
 ]
 
 const send = (caller: Caller, call: Call): request.Test => {
@@ -253,6 +295,11 @@ const send = (caller: Caller, call: Call): request.Test => {
     case 'patch':
       return caller.agent
         .patch(call.path)
+        .set(CSRF_HEADER, caller.csrf)
+        .send(call.body ?? {})
+    case 'delete':
+      return caller.agent
+        .delete(call.path)
         .set(CSRF_HEADER, caller.csrf)
         .send(call.body ?? {})
   }
@@ -353,6 +400,9 @@ const KEYS = new Set([
   'reason',
   'pendingApproval',
   'linkShown',
+  'graceDays',
+  'closed',
+  'archived',
   'invitation',
   'delivery',
   'expiresAt',

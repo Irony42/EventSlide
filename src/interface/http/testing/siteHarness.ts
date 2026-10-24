@@ -19,6 +19,11 @@ import { makeInviteToClientAsOperator } from '../../../application/usecases/clie
 import { makeProvisionClientOwner } from '../../../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../../../application/usecases/clients/renameClient'
 import { makeResumeClient } from '../../../application/usecases/clients/resumeClient'
+import { makeDisableAccount } from '../../../application/usecases/auth/disableAccount'
+import { makeEnableAccount } from '../../../application/usecases/auth/enableAccount'
+import { makeOffboardClient } from '../../../application/usecases/clients/offboardClient'
+import { makeDeleteAccount } from '../../../application/usecases/site/deleteAccount'
+import { SqliteAccountHoldings } from '../../../infrastructure/db/sqliteAccountHoldings'
 import { makeSetClientCeilings } from '../../../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../../../application/usecases/clients/suspendClient'
 import { makeListSiteAccounts } from '../../../application/usecases/site/listSiteAccounts'
@@ -230,6 +235,16 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       setClientCeilings: makeSetClientCeilings({ clients, audit, clock }),
       suspendClient: makeSuspendClient({ clients, audit, clock }),
       resumeClient: makeResumeClient({ clients, audit, clock }),
+      offboardClient: makeOffboardClient({ clients, events, audit, clock }),
+      disableAccount: makeDisableAccount({ users, clients, audit, clock }),
+      enableAccount: makeEnableAccount({ users, clients, audit, clock }),
+      deleteAccount: makeDeleteAccount({
+        users,
+        clients,
+        holdings: new SqliteAccountHoldings(db),
+        audit,
+        clock,
+      }),
       inviteToClientAsOperator: makeInviteToClientAsOperator({
         users,
         clients,

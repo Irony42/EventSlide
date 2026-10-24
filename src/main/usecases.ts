@@ -36,6 +36,11 @@ import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
 import { makeConfirmTotpEnrollment } from '../application/usecases/auth/confirmTotpEnrollment'
 import { makeDisableAccount } from '../application/usecases/auth/disableAccount'
+import { makeEnableAccount } from '../application/usecases/auth/enableAccount'
+import { makeDeleteAccount } from '../application/usecases/site/deleteAccount'
+import { makeOffboardClient } from '../application/usecases/clients/offboardClient'
+import { makeFinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
+import type { AccountHoldings } from '../application/ports/accountHoldings'
 import { makeDisableSecondFactor } from '../application/usecases/auth/disableSecondFactor'
 import { makeEnrollTotp } from '../application/usecases/auth/enrollTotp'
 import { makeRegenerateRecoveryCodes } from '../application/usecases/auth/regenerateRecoveryCodes'
@@ -173,6 +178,8 @@ export interface Adapters {
   readonly audit: AuditLog
   /** What the operator may see of the box: ids, statuses, instants and sizes, no content (§10.4). */
   readonly siteOverview: SiteOverview
+  /** What an account holds that deleting it would destroy: counts only (G2-14 part 3). */
+  readonly accountHoldings: AccountHoldings
   /** One-use links that prove control of a mailbox (roadmap §10.3). Digests only. */
   readonly accountTokens: AccountTokenRepository
   /** The secrets that go in those links, and the digests they are stored as. */
@@ -407,6 +414,21 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
      */
     disableAccount: makeDisableAccount({
       users: adapters.users,
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /** The operator's account acts (G2-14 part 3): behind `/api/site`, a second factor and a step-up. */
+    enableAccount: makeEnableAccount({
+      users: adapters.users,
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    deleteAccount: makeDeleteAccount({
+      users: adapters.users,
+      clients: adapters.clients,
+      holdings: adapters.accountHoldings,
       audit: adapters.audit,
       clock: adapters.clock,
     }),
@@ -890,6 +912,23 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     resumeClient: makeResumeClient({
       clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    offboardClient: makeOffboardClient({
+      clients: adapters.clients,
+      events: adapters.events,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * The end of an offboarding (G2-14 part 3). Like `pruneAuditLog`, **not reachable from any
+     * route**: `src/main/retentionSweeper.ts` is its one caller, after it purged what was due.
+     */
+    finalizeOffboardedClients: makeFinalizeOffboardedClients({
+      clients: adapters.clients,
+      users: adapters.users,
+      holdings: adapters.accountHoldings,
       audit: adapters.audit,
       clock: adapters.clock,
     }),
