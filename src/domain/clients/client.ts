@@ -190,6 +190,23 @@ export class Client {
     return this.props.suspendedAt !== null
   }
 
+  /**
+   * Ends the engagement (G2-14 part 3, roadmap §10.7): the client is frozen, if it was not, and its
+   * albums are due for purge at `purgeAfter`, which is the date the retention sweep already reads
+   * to purge every event of a client. The first suspension keeps its instant, and a client already
+   * being offboarded keeps its first date: asking again does not push the deadline back.
+   */
+  offboard(at: Date, purgeAfter: Date): Client {
+    const frozen = this.suspend(at)
+    if (frozen.props.purgeAfter !== null) return frozen
+    return frozen.with({ purgeAfter })
+  }
+
+  /** Whether the engagement has been ended: the client is waiting to be purged, then finalised. */
+  isOffboarding(): boolean {
+    return this.props.purgeAfter !== null
+  }
+
   // -------------------------------------------------------------------- helpers --
 
   equals(other: Client): boolean {
