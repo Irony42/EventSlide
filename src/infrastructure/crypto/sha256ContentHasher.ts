@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto'
 import type { ContentHasher } from '../../application/ports/contentHasher'
+import { sha256Hex } from './primitives'
 
 /**
  * SHA-256 of the stored bytes, in lowercase hex.
@@ -14,5 +14,5 @@ import type { ContentHasher } from '../../application/ports/contentHasher'
  * hashing the output is what makes a retry idempotent.
  */
 export const sha256ContentHasher: ContentHasher = {
-  sha256Hex: (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex'),
+  sha256Hex: (bytes: Uint8Array): string => sha256Hex(bytes),
 }

@@ -19,7 +19,7 @@ const KEY_BYTES = 32
  * share nothing, so something signed for one purpose cannot be replayed as another, and the
  * parent cannot be recovered from either.
  */
-export const deriveKey = (rootSecret: string, label: string): Buffer =>
+export const deriveKey = (rootSecret: string | Uint8Array, label: string): Buffer =>
   Buffer.from(hkdfSync('sha256', rootSecret, Buffer.alloc(0), label, KEY_BYTES))
 
 /**
