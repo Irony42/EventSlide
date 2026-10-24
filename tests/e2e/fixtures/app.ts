@@ -337,7 +337,7 @@ export const wallUrl = (
  * identity, which is the right order — an integrity check on the request has to pass
  * before the server decides what the caller may do. The consequence for a test is that
  * a raw `request.post` with no token is refused with `request.csrfMissing` long before
- * it reaches the control the test is about, so a spec asserting `guest.wrongEvent` or a
+ * it reaches the control the test is about, so a spec asserting `event.notFound` for a foreign token or a
  * 401 never gets there and reads as a product failure.
  *
  * A browser sends this pair automatically; `APIRequestContext` does not. `es_csrf` is

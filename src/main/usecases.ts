@@ -563,7 +563,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clock: adapters.clock,
       logger: adapters.logger,
     }),
-    renameGuest: makeRenameGuest({ guests: adapters.guests }),
+    renameGuest: makeRenameGuest({ guests: adapters.guests, events: adapters.events }),
     revokeGuest: makeRevokeGuest({
       events: adapters.events,
       guests: adapters.guests,

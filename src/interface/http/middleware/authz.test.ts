@@ -943,8 +943,8 @@ describe('requireGuest', () => {
       .get('/events/mariage/upload')
       .set('Cookie', `${GUEST_COOKIE}=${token}`)
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it('answers 401 with no cookie at all', async () => {
