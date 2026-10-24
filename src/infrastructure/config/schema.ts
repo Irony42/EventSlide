@@ -325,6 +325,18 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
       REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
       /**
+       * Every other write a guest token can make: a caption, taking a photo back, withdrawing a
+       * reaction, acknowledging the privacy notice (HTTP-H-01). Per client address **and** event, one
+       * bucket for all four, built once in `server.ts`.
+       *
+       * Sized for a venue and not for a person: a whole room shares one access point, and the
+       * acknowledgement is the burst - every guest sends it once, in the same minute, when the
+       * QR code goes round the dinner table. A caption is bounded by the upload budget above, since
+       * there is one photograph to caption per upload, so the room-sized acknowledgement is what
+       * sets the number. Lower it on a box whose events are small and whose guests are strangers.
+       */
+      GUEST_WRITE_RATE_LIMIT_PER_MINUTE: positiveInt(300, 6000),
+      /**
        * Per **account** and per **hour**, not per minute (P4-09 / D-14):
        * `eventCreationLimiter` keys on who is signed in rather than on an address, so an
        * office or a venue's guest Wi-Fi shared by several hosts is not throttled as if
