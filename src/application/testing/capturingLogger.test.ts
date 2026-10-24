@@ -35,6 +35,16 @@ describe('CapturingLogger', () => {
     expect(logger.messages('info')).toEqual(['kept', 'also kept'])
   })
 
+  it('shows everything it was told in one string, context included, for a "nowhere in the log" assertion', () => {
+    const logger = new CapturingLogger()
+    logger.info('sent', { to: 'hote@example.test' })
+    logger.child({ requestId: 'r1' }).warn('slow')
+
+    expect(logger.everything).toContain('hote@example.test')
+    expect(logger.everything).toContain('slow')
+    expect(logger.everything).not.toContain('r1')
+  })
+
   it('finds a line by its message, for a test that reads its context', () => {
     const logger = new CapturingLogger()
     logger.info('a pass finished', { durationMs: 12 })

@@ -71,19 +71,23 @@ caught it** — plus ring 6 only if the leak was in the wiring between rings.
 port. They are production-quality code, and they are verified by the same contract
 suites as the SQLite adapters (§4).
 
-| Fake                       | Behaviour that has to be real                                                                                                     |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `FakeEventRepository`      | slug and join-code uniqueness, exactly as the SQLite unique indexes enforce                                                       |
-| `FakePhotoRepository`      | keyed by `${eventId}:${photoId}`; `list` filters by `eventId` and sorts newest first                                              |
-| `FakeGuestRepository`      | a device token belongs to one event and resolves in no other                                                                      |
-| `FakeUserRepository`       | accounts found by id or by normalised email, with the credentials epoch and the sign-in committed by one conditional write        |
-| `FakeMembershipRepository` | per-event role membership, so "moderator" is never global                                                                         |
-| `InMemoryMediaStore`       | byte buffers copied in and out, reports real sizes; held to `mediaStoreContract`                                                  |
-| `FakeImageProcessor`       | deterministic metadata, simulates rotation and failure on demand; declared inside `uploadPhotos.test.ts`, with no shared file yet |
-| `FakeClock`                | `now()`, `advance(ms)`                                                                                                            |
-| `SequentialIdGenerator`    | one counter per kind: `event-1`, `photo-1`, `photo-2`, `guest-1`, … so assertions are readable                                    |
-| `RecordingEventBus`        | `published: DomainEvent[]`                                                                                                        |
-| `FakePasswordHasher`       | `hash:<password>` — no bcrypt cost in ring 2 or ring 4                                                                            |
+| Fake                       | Behaviour that has to be real                                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `FakeEventRepository`      | slug and join-code uniqueness, exactly as the SQLite unique indexes enforce                                                |
+| `FakePhotoRepository`      | keyed by `${eventId}:${photoId}`; `list` filters by `eventId` and sorts newest first                                       |
+| `FakeGuestRepository`      | a device token belongs to one event and resolves in no other                                                               |
+| `FakeUserRepository`       | accounts found by id or by normalised email, with the credentials epoch and the sign-in committed by one conditional write |
+| `FakeMembershipRepository` | per-event role membership, so "moderator" is never global                                                                  |
+| `InMemoryMediaStore`       | byte buffers copied in and out, reports real sizes; held to `mediaStoreContract`                                           |
+| `FakeImageProcessor`       | deterministic metadata, simulates rotation and failure on demand; `calls` records the order of `probe` and `render`        |
+| `FakeContentHasher`        | a deterministic 64-character digest the domain accepts as a `ContentHash`; `returnGarbage()` is the broken adapter         |
+| `FakeGuestTokenService`    | `token\|<event>\|<guest>\|<ms>`: verifies, is malformed, or is past 36 hours (the real limit) or dated in the future       |
+| `FakeArchiveWriter`        | records each entry and the bytes pulled from it; can emit a zip header and the content, or fail on the first entry         |
+| `CountingClientRepository` | `FakeClientRepository` that counts `contextForEvent`, so "never reads the client" is a number                              |
+| `FakeClock`                | `now()`, `advance(ms)`                                                                                                     |
+| `SequentialIdGenerator`    | one counter per kind: `event-1`, `photo-1`, `photo-2`, `guest-1`, … so assertions are readable                             |
+| `RecordingEventBus`        | `published: DomainEvent[]`                                                                                                 |
+| `FakePasswordHasher`       | `hash:<password>` — no bcrypt cost in ring 2 or ring 4                                                                     |
 
 ### Why the key shape is load-bearing
 
