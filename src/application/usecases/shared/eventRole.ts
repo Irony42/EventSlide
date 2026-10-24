@@ -35,7 +35,9 @@ import type { MembershipRepository } from '../../ports/userRepository'
  * a branch an event can take, and it is written once here instead of six times.
  *
  * What stays in the use case: reading the event (not every one needs it), and any rule about
- * its state (`requireEditable`).
+ * its state (`requireEditable`) — **asked after this one, never before**: a refusal that names the
+ * event's state (`event.immutable`, `status: 'archived'`) to a caller with no part in it would
+ * confirm the event exists, which is the oracle the first choice above closes.
  */
 
 export type RoleRequirement = 'moderate' | 'manage' | 'delete' | 'inviteModerators'
