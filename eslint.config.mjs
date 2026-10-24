@@ -305,6 +305,33 @@ export default tseslint.config(
     },
   },
 
+  /* ---------------------------------------------------------------- timers -- */
+  {
+    // Every timer the server starts is background work, and a timer that is not unref'd
+    // holds the process open: `docker stop` waits out the whole interval. `unref()` was
+    // written beside each of twelve calls and asserted at two, so it is written once, in
+    // `backgroundTimers.ts`, and a raw `setInterval` or `setTimeout` anywhere else in the
+    // server is the defect. A separate rule from `no-restricted-syntax`, which a block that
+    // names it replaces rather than extends.
+    files: ['src/main/**/*.ts', 'src/infrastructure/**/*.ts'],
+    ignores: ['src/infrastructure/time/backgroundTimers.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'setInterval',
+          message:
+            'A raw timer keeps the process open past docker stop. Use setBackgroundInterval from src/infrastructure/time/backgroundTimers.ts, which unrefs it.',
+        },
+        {
+          name: 'setTimeout',
+          message:
+            'A raw timer keeps the process open past docker stop. Use setBackgroundTimeout from src/infrastructure/time/backgroundTimers.ts, which unrefs it.',
+        },
+      ],
+    },
+  },
+
   /* --------------------------------------------------------------- scripts -- */
   {
     // A CLI script's output IS its interface: `db:status` that printed nothing would
@@ -381,6 +408,8 @@ export default tseslint.config(
       // A fake repository legitimately stores mutable state and needs real time in
       // its own unit tests; the ban on ambient time applies to production code.
       'no-restricted-syntax': 'off',
+      // A test starts its own timers, and a fake timer is not a handle to unref.
+      'no-restricted-globals': 'off',
       'no-console': 'off',
     },
   },
