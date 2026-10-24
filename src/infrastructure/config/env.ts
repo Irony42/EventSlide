@@ -18,7 +18,7 @@ export type { RawConfig } from './schema'
 
 /**
  * Parse and validate, for a process that is going to serve requests. Throws
- * {@link ConfigError} listing every problem.
+ * `ConfigError` listing every problem.
  *
  * `source` is a parameter so tests pass a plain object and never touch the real
  * environment.
@@ -29,7 +29,7 @@ export const loadConfig = (source: Source = process.env): AppConfig => load(serv
  * The same, for a command that opens the database and exits — `db:migrate`, `purge`,
  * `backup`, `restore`, `db:seed:demo`.
  *
- * One difference and it is written on {@link buildSchema}: the two secrets are not a
+ * One difference and it is written on `buildSchema` in `schema.ts`: the two secrets are not a
  * precondition, because nothing here signs anything. Every other refusal is identical,
  * `NODE_ENV` still defaults to `production`, and `isProduction` therefore still means what
  * it means everywhere else — which is what `seedDemo` needs it to mean.

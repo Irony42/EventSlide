@@ -9,7 +9,7 @@ import { configSources } from './configSources'
  * described from memory.
  *
  * `LOGIN_RATE_LIMIT_PER_MINUTE` and `REACTION_RATE_LIMIT_PER_MINUTE` are both defined in
- * `src/infrastructure/config/env.ts` and were simply absent from `.env.example` until
+ * `src/infrastructure/config/schema.ts` and were simply absent from `.env.example` until
  * this test existed to say so: an operator reading the file to learn what they could
  * configure had no way to discover either knob, and nothing failed, because nothing
  * checked. That is the same shape of silent drift CLAUDE.md §9 records about a tsconfig

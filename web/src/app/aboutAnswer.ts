@@ -25,7 +25,7 @@ export const BUILD_ABOUT: About = {
  * An https address in its canonical form, or `null`.
  *
  * The server refuses anything else at boot (`SOURCE_CODE_URL`, `DONATION_URL` and
- * `BUDGET_URL` in `env.ts`: https only, **no credentials**), so this is the same rule applied
+ * `BUDGET_URL` in `config/linkFields.ts`: https only, **no credentials**), so this is the same rule applied
  * a second time at the point the string becomes an `href`: a response rewritten by a proxy,
  * or a server older than that check, must not be able to put a `javascript:` URI, or a
  * `user:password@` address, behind a link every visitor is invited to press.
@@ -48,7 +48,7 @@ const SAME_ORIGIN_PROBE = 'https://same-origin.invalid'
 
 /**
  * An https address, or a path on this site, in its canonical form, or `null` (roadmap
- * G2-17): the rule `env.ts` applies to `LEGAL_*_URL`, `SUPPORT_URL` and `REPORT_URL`, applied
+ * G2-17): the rule `config/linkFields.ts` applies to `LEGAL_*_URL`, `SUPPORT_URL` and `REPORT_URL`, applied
  * again where the string becomes an `href`.
  *
  * A path is accepted because the hosted instance serves its legal pages from its own origin.

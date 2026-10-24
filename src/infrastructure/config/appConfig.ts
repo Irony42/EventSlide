@@ -154,7 +154,7 @@ export interface AppConfig {
     readonly galleryUnlockPerClient: number
     /** Failed password attempts per link, from every client together, per fifteen minutes. */
     readonly galleryUnlockPerLink: number
-    /** `EVENT_CREATION_RATE_LIMIT_PER_HOUR` — per account, not per client. See {@link eventSlugSuffix}'s siblings below for the rest of P4-09. */
+    /** `EVENT_CREATION_RATE_LIMIT_PER_HOUR` — per account, not per client. See `eventSlugSuffix` (`featureFields.ts`) and its siblings for the rest of P4-09. */
     readonly eventCreationPerHour: number
   }
 
@@ -188,7 +188,7 @@ export interface AppConfig {
   /**
    * The inputs of the AGPL section 13 source link (roadmap G1-04 / P1-05), both optional.
    * What the link finally is depends on the running version too, which this module does
-   * not read, so {@link resolveSourceUrl} composes the three.
+   * not read, so `resolveSourceUrl` (`load.ts`) composes the three.
    */
   readonly source: {
     /** `SOURCE_CODE_URL`, canonical https, or `null` when the operator set none. */
@@ -215,10 +215,10 @@ export interface AppConfig {
    * Who runs this box and the links they owe a visitor (roadmap G2-17 / P3-18), every field
    * `null` unless the operator set it — so a self-hosted box names nobody, links to nothing,
    * and its guests are shown exactly the notice they always were. Links are canonical https
-   * addresses or paths on this site; see {@link optionalSiteLink}.
+   * addresses or paths on this site; see `optionalSiteLink` (`linkFields.ts`).
    */
   readonly operator: {
-    /** `OPERATOR_NAME`. See {@link operatorName}. */
+    /** `OPERATOR_NAME`. See `operatorName` (`linkFields.ts`). */
     readonly name: string | null
     /** `OPERATOR_CONTACT_EMAIL`. Never set without a `name`. */
     readonly contactEmail: string | null
@@ -249,14 +249,14 @@ export interface AppConfig {
    * first beta boot, and may widen `joinCodeLength` independently of either.
    */
   readonly events: {
-    /** `EVENT_SLUG_SUFFIX`. See {@link eventSlugSuffix}. */
+    /** `EVENT_SLUG_SUFFIX`. See `eventSlugSuffix` (`featureFields.ts`). */
     readonly slugSuffix: 'none' | 'random'
     /** `ALLOW_CUSTOM_SLUGS`. See {@link allowCustomSlugs}. */
     readonly allowCustomSlugs: boolean
     /** `JOIN_CODE_LENGTH`. See {@link joinCodeLength}. */
     readonly joinCodeLength: number
     /**
-     * `EVENT_CREATION`. See {@link eventCreation}. `clientMembers` is possible only when
+     * `EVENT_CREATION`. See `eventCreation` (`featureFields.ts`). `clientMembers` is possible only when
      * {@link AppConfig.siteAdmin} is true: the schema refuses the pair at boot.
      */
     readonly creation: 'anyAccount' | 'clientMembers'
@@ -280,7 +280,7 @@ export interface AppConfig {
 
   /**
    * Problems worth telling an operator about that are not worth refusing the boot
-   * over — see {@link computeWarnings}. The production-only ones are absent outside
+   * over — see `computeWarnings` (`load.ts`). The production-only ones are absent outside
    * production (a deprecated setting is warned about everywhere), and the list is usually
    * empty; `src/main/index.ts` logs each one once, after the container
    * exists. These start as warnings and stay warnings in a minor release: turning one
@@ -306,7 +306,7 @@ export interface AppConfig {
   readonly audit: {
     /**
      * `AUDIT_RETENTION_DAYS`: how long a row of the audit log is kept, 365 at least. Read by
-     * `pruneAuditLog` through the retention sweep; see {@link auditRetentionDays}.
+     * `pruneAuditLog` through the retention sweep; see `auditRetentionDays` (`featureFields.ts`).
      */
     readonly retentionDays: number
   }

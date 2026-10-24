@@ -61,7 +61,7 @@ describe('docs/SECURITY.md', () => {
 
   it("states PUBLIC_URL's real default instead of claiming it has none", () => {
     const defaultValue = /PUBLIC_URL:\s*publicUrl\.default\('([^']+)'\)/.exec(configSources())?.[1]
-    expect(defaultValue, "PUBLIC_URL's default in env.ts").toBeDefined()
+    expect(defaultValue, "PUBLIC_URL's default in the config schema").toBeDefined()
     const row = security.split('\n').find((line) => line.trimStart().startsWith('| `PUBLIC_URL`'))
     expect(row, 'the PUBLIC_URL row in the §10 configuration table').toBeDefined()
     expect(row).toContain(defaultValue as string)
@@ -83,7 +83,7 @@ describe('docs/ARCHITECTURE.md', () => {
     expect(architecture).not.toContain('buildContainer')
   })
 
-  it('defaults NODE_ENV the way env.ts does, in the §9 config example', () => {
+  it('defaults NODE_ENV the way the config schema does, in the §9 config example', () => {
     expect(configSources()).toMatch(/NODE_ENV:[\s\S]{0,200}\.default\('production'\)/)
     expect(architecture).not.toMatch(/NODE_ENV:[^\n]*\.default\('development'\)/)
   })

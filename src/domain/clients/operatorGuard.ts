@@ -150,7 +150,7 @@ export const approvalVerdictFor = (approver: {
  *   as doing so: on a box with no relay the link is handed to the operator, but only after
  *   **another owner of the account's client** has said yes.
  *
- * A word that is neither is a refusal at boot (`env.ts`), never a guess at which was meant.
+ * A word that is neither is a refusal at boot (`config/featureFields.ts`), never a guess at which was meant.
  */
 export const OPERATOR_RESET_LINK_MODES = ['mailOnly', 'copyLinkWithOwnerApproval'] as const
 

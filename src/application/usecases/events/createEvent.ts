@@ -34,7 +34,7 @@ const MAX_SLUG_ATTEMPTS = 5
  *
  * - `anyAccount`: every signed-in account, as it has always been.
  * - `clientMembers`: only an account that belongs to a client, or the box's operator.
- *   `env.ts` refuses this policy unless `SITE_ADMIN=on`, so it only ever runs on a box
+ *   the config refuses this policy unless `SITE_ADMIN=on`, so it only ever runs on a box
  *   that can create clients.
  */
 export type EventCreationPolicy = 'anyAccount' | 'clientMembers'
@@ -377,7 +377,7 @@ export const makeCreateEvent =
     // The ceilings on a quota the host asked for: the box's (G3-02) and the client's
     // `max_event_quota_bytes`, as the **smaller** of the two, so the refusal names the bound
     // that actually applied. Checked only when a specific quota was asked for: an absent
-    // `quotaBytes` falls back to `defaultQuotaBytes`, which `env.ts` already refuses to
+    // `quotaBytes` falls back to `defaultQuotaBytes`, which the config already refuses to
     // configure below the box's ceiling — and which is *reduced* to the client's below, since
     // an event created with no opinion has nothing for a refusal to correct. A requested
     // quota is refused outright rather than clamped: a silent reduction would tell a host
@@ -387,7 +387,7 @@ export const makeCreateEvent =
       return err(DomainError.invalid('event.quotaAboveCeiling', { maxBytes: quotaBound }))
     }
     // The client's ceiling only: the box's number is never applied to the default, which
-    // `env.ts` already keeps at or under it, so a box with no clients is unchanged.
+    // the config already keeps at or under it, so a box with no clients is unchanged.
     const quotaBytes = resolved.value.ceilings.clampQuota(input.quotaBytes ?? defaultQuotaBytes)
 
     const now = clock.now()

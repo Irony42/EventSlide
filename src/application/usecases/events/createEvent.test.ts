@@ -543,10 +543,10 @@ describe('createEvent', () => {
       expect(await events.listForUser(OWNER)).toEqual([])
     })
 
-    it('never compares the configured default against the ceiling, because env.ts already guarantees it fits', async () => {
+    it('never compares the configured default against the ceiling, because the config already guarantees it fits', async () => {
       // No `quotaBytes` in the request at all — the path that falls back to
       // `defaultQuotaBytes` — must never be refused for a ceiling reason, even one set
-      // below the default: that combination cannot be configured (env.ts refuses it),
+      // below the default: that combination cannot be configured (the config refuses it),
       // so this is what proves the comparison is skipped rather than coincidentally
       // passing.
       const create = makeCreateEvent({

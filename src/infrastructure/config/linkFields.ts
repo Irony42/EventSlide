@@ -334,7 +334,7 @@ export const legalNoticeUrl = optionalSiteLink('LEGAL_NOTICE_URL', 'every visito
  * **Absent by default, and a box that sets neither this nor a terms URL asks nobody for
  * anything**: that is every self-hosted box. Set together with `LEGAL_TERMS_URL`, accepting an
  * invitation also means agreeing to the terms (a tick, and an audit entry carrying this
- * string); see the refinement below for what a version alone does. Changing the text means
+ * string); see the refinement in `schema.ts` for what a version alone does. Changing the text means
  * changing this string, which is how "which version did they accept?" has an answer.
  *
  * Narrow, because it is written into an audit row (`isTermsVersion`): at most

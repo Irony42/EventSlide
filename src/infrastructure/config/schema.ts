@@ -98,7 +98,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * from a source checkout, is where it does.
        *
        * The blank is deliberately absent rather than a value, for the reason written on
-       * {@link sweepInterval}: a compose file with a dangling `NODE_ENV=`, or a template
+       * `sweepInterval` (`schemaPrimitives.ts`): a compose file with a dangling `NODE_ENV=`, or a template
        * that rendered empty, must not be the one input that relaxes the posture. It lands
        * on the strict default like any other absence.
        */
@@ -173,7 +173,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * against a number nobody chose. An instance run for other people sets this
        * explicitly; a solo box that never heard of it sees no change.
        *
-       * Blank is absent for the reason written on {@link sweepInterval}: a compose file
+       * Blank is absent for the reason written on `sweepInterval` (`schemaPrimitives.ts`): a compose file
        * with a dangling `MAX_EVENT_QUOTA_BYTES=` must not be read as a ceiling of zero,
        * which would refuse every event a host tries to create.
        */
@@ -272,8 +272,8 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       /**
        * The Windows-only quarter of the whitelist a spawned ffmpeg or ffprobe child is
        * given (menace T9, `docs/SECURITY.md` §4.1) — read here for the same reason as
-       * `PATH` and `PATHEXT` just above: this is the one module allowed to touch
-       * `process.env`, so the policy of which names survive into the child's own
+       * `PATH` and `PATHEXT` just above: the environment is read only in `env.ts`,
+       * so the policy of which names survive into the child's own
        * environment is decided in `minimalChildEnv` (`infrastructure/media/runProcess.ts`)
        * from values carried as plain configuration, never read there directly. Blank by
        * default off Windows, where `minimalChildEnv` ignores all four regardless.

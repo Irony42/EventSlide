@@ -87,7 +87,7 @@ export const eventSlugSuffix = z.preprocess(
  *
  * Same spelling convention as {@link siteAdmin}: exact words, blank or absent lands on the
  * default, and anything else is a refusal that names the variable. `clientMembers`
- * additionally requires `SITE_ADMIN=on`, in the refinement below.
+ * additionally requires `SITE_ADMIN=on`, in the refinement in `schema.ts`.
  */
 export const eventCreation = z.preprocess(
   blankAsAbsent,
@@ -104,7 +104,7 @@ export const eventCreation = z.preprocess(
  * cannot reset a password. `copyLinkWithOwnerApproval` is an opt-in that **weakens that
  * invariant** and says so in docs/SECURITY.md: on a box with no relay, a link is handed to the
  * operator, but only after another owner of the account's client approved the request. It
- * additionally requires `SITE_ADMIN=on`, in the refinement below.
+ * additionally requires `SITE_ADMIN=on`, in the refinement in `schema.ts`.
  *
  * Same spelling convention as {@link siteAdmin}, and the direction matters: a blank or an
  * absence lands on `mailOnly`, which is the less permissive of the two, so a template that
@@ -224,7 +224,7 @@ export const newClientClipsAllowed = z.preprocess(blankAsAbsent, boolish.optiona
  * message fixed and does not echo the input, because the boot's list of problems is printed
  * to a terminal and kept by whatever collects its output — and a URL refused for a stray
  * character still carries the password it was refused with. What is stored is the parsed
- * {@link SmtpEndpoint}, not the string: the adapter is handed parts and no query string
+ * `SmtpEndpoint`, not the string: the adapter is handed parts and no query string
  * (`parseSmtpUrl` refuses one) and the password has one reader.
  */
 export const smtpUrl = z.preprocess(
@@ -319,7 +319,7 @@ export const mfaEncryptionKey = z.preprocess(
 /**
  * The domain's password policy, applied at boot so the failure is a named ConfigError.
  *
- * This is exactly the reasoning written on `BCRYPT_COST` below, for the same shape of
+ * This is exactly the reasoning written on `BCRYPT_COST` in `schema.ts`, for the same shape of
  * defect. `bootstrapOwner` already runs `Password.create`, but it runs it while
  * `src/main/container.ts` is assembling the application, where the only outcome is one
  * log line saying the first owner could not be created — and the operator finds out by

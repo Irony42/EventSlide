@@ -78,7 +78,7 @@ export const applyPragmas = (db: Db, { readonly = false }: { readonly?: boolean 
   db.pragma('cache_size = -64000')
 }
 
-/** What `closeDatabase` runs before it closes. See `SQLITE_SHUTDOWN_CHECKPOINT` in env.ts. */
+/** What `closeDatabase` runs before it closes. See `SQLITE_SHUTDOWN_CHECKPOINT` in config/schema.ts. */
 export type ShutdownCheckpoint = 'truncate' | 'passive' | 'none'
 
 /**

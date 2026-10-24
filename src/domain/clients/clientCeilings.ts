@@ -77,8 +77,8 @@ export interface EventCreationRefusal {
 export type OpeningRefusal = 'liveNotAllowed' | 'liveWindowOver'
 
 /**
- * The bounds of the two ceilings that are a number of days. Exported so that `env.ts`
- * validates the defaults of a new client (`NEW_CLIENT_*`, G2-18) against **these** numbers
+ * The bounds of the two ceilings that are a number of days. Exported so that the config
+ * (`config/schema.ts`) validates the defaults of a new client (`NEW_CLIENT_*`, G2-18) against **these** numbers
  * instead of restating them: a default the domain would refuse must be a boot refusal, not
  * a first provisioning that fails.
  */
