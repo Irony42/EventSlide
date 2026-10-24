@@ -87,6 +87,12 @@ export class FakeGuestRepository implements GuestRepository {
     this.rows.set(key(guest.eventId, guest.id), guest)
   }
 
+  async touch(eventId: EventId, guestId: GuestId, at: Date): Promise<void> {
+    const stored = this.rows.get(key(eventId, guestId))
+    // `Guest.touch` never moves backwards, which is the adapter's `last_seen_at < ?`.
+    if (stored !== undefined) this.rows.set(key(eventId, guestId), stored.touch(at))
+  }
+
   /** Idempotent: deleting an already-deleted guest is not an error. */
   async delete(eventId: EventId, guestId: GuestId): Promise<void> {
     this.rows.delete(key(eventId, guestId))

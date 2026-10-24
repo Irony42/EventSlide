@@ -92,7 +92,9 @@ export const streamOrAbandon = async (
 }
 
 /**
- * The same three checks `requireGuest` makes, but silent on failure.
+ * The identity checks `requireGuest` makes through `authenticateGuest`, but silent on failure
+ * and **deliberately not stamping the guest as seen**: this is the route a wall of thumbnails
+ * reads, and a write per image is the cost the stamp's interval exists to avoid.
  *
  * A cookie that fails any of them leaves the caller **public** rather than rejected: a
  * guest at another wedding, or one whose event was purged and recreated, may still look

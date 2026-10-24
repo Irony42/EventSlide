@@ -10,7 +10,9 @@ import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import type { Guest } from '../../../domain/guests/guest'
+import type { Logger } from '../../ports/logger'
 import { makeAuthenticateGuest, PRESENCE_WRITE_INTERVAL_MS } from './authenticateGuest'
+import { PRESENCE_WINDOW_MS } from './listGuests'
 
 /**
  * A token a test can both mint and read: `token|<eventId>|<guestId>|<issuedAt ms>`.
@@ -63,14 +65,39 @@ const aWedding = (status: EventStatus = 'live'): Event =>
 const aGala = (): Event =>
   anEvent({ id: GALA, slug: GALA_SLUG, name: 'Gala Nova', joinCode: 'R40T9W' })
 
-/** Counts the writes, because "recorded as seen" and "written on every request" are different rules. */
+/** Counts the stamps, because "recorded as seen" and "written on every request" are different rules. */
 class CountingGuestRepository extends FakeGuestRepository {
+  touches = 0
   saves = 0
 
+  override async touch(eventId: EventId, guestId: GuestId, at: Date): Promise<void> {
+    this.touches += 1
+    await super.touch(eventId, guestId, at)
+  }
+
+  /** The stamp must never go through the whole-row write: it could put a revoked guest back. */
   override async save(guest: Guest): Promise<void> {
     this.saves += 1
     await super.save(guest)
   }
+}
+
+/** A disk that is full, or a database that stays locked: the stamp is the one write that fails. */
+class FailingStampGuestRepository extends FakeGuestRepository {
+  override async touch(): Promise<void> {
+    throw new Error('SQLITE_FULL: database or disk is full')
+  }
+}
+
+const warnings: string[] = []
+const logger: Logger = {
+  debug() {},
+  info() {},
+  warn: (message) => {
+    warnings.push(message)
+  },
+  error() {},
+  child: () => logger,
 }
 
 describe('authenticateGuest', () => {
@@ -83,10 +110,11 @@ describe('authenticateGuest', () => {
     tokens.issue({ eventId, guestId, issuedAt })
 
   const authenticate = (token: string, eventSlug: string = WEDDING_SLUG) =>
-    makeAuthenticateGuest({ events, guests, tokens, clock })({ token, eventSlug })
+    makeAuthenticateGuest({ events, guests, tokens, clock, logger })({ token, eventSlug })
 
   beforeEach(() => {
     events = new FakeEventRepository().seed(aWedding(), aGala())
+    warnings.length = 0
     guests = new CountingGuestRepository()
     guests.seed(aGuest({ id: LEA, eventId: WEDDING }))
     clock = new FakeClock()
@@ -122,35 +150,77 @@ describe('authenticateGuest', () => {
    * host's count is read through a five-minute window, so a row written each time is cost with
    * no reader. The interval is what is left of the stamp: coarse, and far below the window.
    */
-  it('does not write the guest row again within the presence interval', async () => {
+  it('does not stamp the guest again within thirty seconds of the last stamp', async () => {
     clock.advance(90_000)
     await authenticate(tokenFor(WEDDING, LEA))
-    clock.advance(PRESENCE_WRITE_INTERVAL_MS - 1)
+    clock.advance(29_999)
 
     await authenticate(tokenFor(WEDDING, LEA))
 
-    expect(guests.saves).toBe(1)
+    expect(guests.touches).toBe(1)
   })
 
-  it('writes the guest row again once the presence interval has passed, boundary included', async () => {
+  it('stamps the guest again once thirty seconds have passed, boundary included', async () => {
     clock.advance(90_000)
     await authenticate(tokenFor(WEDDING, LEA))
-    clock.advance(PRESENCE_WRITE_INTERVAL_MS)
+    clock.advance(30_000)
 
     await authenticate(tokenFor(WEDDING, LEA))
 
-    expect((await guests.findById(WEDDING, LEA))?.lastSeenAt).toEqual(
-      atPlus(90_000 + PRESENCE_WRITE_INTERVAL_MS),
-    )
+    expect((await guests.findById(WEDDING, LEA))?.lastSeenAt).toEqual(atPlus(120_000))
   })
 
-  it('hands back the guest as seen now even when it skipped the write', async () => {
+  it('keeps the interval far below the window the host count is read through', () => {
+    expect(PRESENCE_WRITE_INTERVAL_MS).toBeLessThanOrEqual(PRESENCE_WINDOW_MS / 10)
+  })
+
+  it('hands back the guest as seen now even when it skipped the stamp', async () => {
     clock.advance(1_000)
 
     const result = await authenticate(tokenFor(WEDDING, LEA))
 
     expect(result.ok && result.value.guest.lastSeenAt).toEqual(atPlus(1_000))
+    expect(guests.touches).toBe(0)
+  })
+
+  it('stamps through the presence-only write and never rewrites the whole row', async () => {
+    // A stamp taken from a row read a moment ago, written back whole, could put a revoked
+    // guest back or take their name off. `touch` writes presence and nothing else.
+    clock.advance(90_000)
+
+    await authenticate(tokenFor(WEDDING, LEA))
+
     expect(guests.saves).toBe(0)
+  })
+
+  it('does not write when the guest was last seen in the future, as after a clock set back', async () => {
+    guests.seed(aGuest({ id: LEA, eventId: WEDDING, lastSeenAt: atPlus(10 * 60 * 1_000) }))
+
+    const result = await authenticate(tokenFor(WEDDING, LEA))
+
+    expect(result.ok && result.value.guest.lastSeenAt).toEqual(atPlus(10 * 60 * 1_000))
+    expect(guests.touches).toBe(0)
+  })
+
+  /**
+   * The stamp is read by one number on the host's console. A full disk or a locked database that
+   * made it throw would answer 500 to every request a guest makes, reads included, and keep
+   * doing so, because a stamp that never lands is retried on the next one.
+   */
+  it('lets the guest through, and says so, when the stamp cannot be written', async () => {
+    const failing = new FailingStampGuestRepository().seed(aGuest({ id: LEA, eventId: WEDDING }))
+    clock.advance(90_000)
+
+    const result = await makeAuthenticateGuest({
+      events,
+      guests: failing,
+      tokens,
+      clock,
+      logger,
+    })({ token: tokenFor(WEDDING, LEA), eventSlug: WEDDING_SLUG })
+
+    expect(result.ok && result.value.guest.id).toBe(LEA)
+    expect(warnings).toEqual(['could not record that a guest was seen; letting them through'])
   })
 
   it('keeps the host count honest for a guest who joined long ago and is still uploading', async () => {
@@ -316,7 +386,40 @@ describe('authenticateGuest', () => {
 
       await authenticate(tokenFor(WEDDING, LEA))
 
-      expect(guests.saves).toBe(0)
+      expect(guests.touches).toBe(0)
+    })
+
+    // It is judged before anything about the token is, so that no holder can tell it from an
+    // event that is not there: a wrong event, a revoked guest and an erased one all get the
+    // 404 an unknown slug gets, and not the 403 or the 401 that would say the event exists.
+    it.each([
+      {
+        holder: 'a token issued for another event',
+        arrange: async () => undefined,
+        token: () => tokenFor(GALA, LEA),
+      },
+      {
+        holder: 'a guest the host revoked',
+        arrange: async () => {
+          guests.seed(aGuest({ id: LEA, eventId: WEDDING, revokedAt: atPlus(1_000) }))
+        },
+        token: () => tokenFor(WEDDING, LEA),
+      },
+      {
+        holder: 'a guest whose row was erased',
+        arrange: async () => {
+          await guests.delete(WEDDING, LEA)
+        },
+        token: () => tokenFor(WEDDING, LEA),
+      },
+    ])('answers $holder as it answers an event that does not exist', async ({ arrange, token }) => {
+      await arrange()
+
+      const suspended = await authenticate(token())
+      const unknown = await authenticate(token(), 'un-autre-mariage')
+
+      expect(suspended).toEqual(unknown)
+      expect(!suspended.ok && suspended.error.code).toBe('event.notFound')
     })
   })
 })

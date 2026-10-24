@@ -170,6 +170,60 @@ export const guestRepositoryContract = (
       expect((await repo.findById(WEDDING, asGuestId('guest-lea')))?.isRevoked()).toBe(true)
     })
 
+    // ---------------------------------------------------------------- touch --
+
+    it('records a later sighting of a guest', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, lastSeenAt: atPlus(1_000) }))
+
+      await repo.touch(WEDDING, asGuestId('guest-lea'), atPlus(90_000))
+
+      const stored = await repo.findById(WEDDING, asGuestId('guest-lea'))
+      expect(stored?.lastSeenAt.toISOString()).toBe(atPlus(90_000).toISOString())
+    })
+
+    it('never moves a guest back to an earlier sighting', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, lastSeenAt: atPlus(90_000) }))
+
+      await repo.touch(WEDDING, asGuestId('guest-lea'), atPlus(1_000))
+
+      const stored = await repo.findById(WEDDING, asGuestId('guest-lea'))
+      expect(stored?.lastSeenAt.toISOString()).toBe(atPlus(90_000).toISOString())
+    })
+
+    it('changes nothing of the row but when the guest was seen', async () => {
+      // The reason it is not `save`: a stamp taken from a row read a moment ago must not put
+      // a revoked guest back, take a name off, or forget a notice the guest just read.
+      await repo.save(
+        aGuest({
+          id: 'guest-lea',
+          eventId: WEDDING,
+          displayName: 'Léa',
+          revokedAt: atPlus(2_000),
+          noticeAcknowledgement: { revision: 'r1', at: atPlus(3_000) },
+        }),
+      )
+
+      await repo.touch(WEDDING, asGuestId('guest-lea'), atPlus(90_000))
+
+      const stored = await repo.findById(WEDDING, asGuestId('guest-lea'))
+      expect(stored?.displayName?.value).toBe('Léa')
+      expect(stored?.revokedAt?.toISOString()).toBe(atPlus(2_000).toISOString())
+      expect(stored?.noticeAcknowledgement?.revision).toBe('r1')
+    })
+
+    it('does not touch a guest of another event that has the same id', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: GALA, lastSeenAt: atPlus(1_000) }))
+
+      await repo.touch(WEDDING, asGuestId('guest-lea'), atPlus(90_000))
+
+      const stored = await repo.findById(GALA, asGuestId('guest-lea'))
+      expect(stored?.lastSeenAt.toISOString()).toBe(atPlus(1_000).toISOString())
+    })
+
+    it('is not an error for a guest that does not exist', async () => {
+      await expect(repo.touch(WEDDING, asGuestId('nope'), atPlus(1_000))).resolves.toBeUndefined()
+    })
+
     // ----------------------------------------------------------------- misses --
 
     it('returns null for a guest id that does not exist', async () => {

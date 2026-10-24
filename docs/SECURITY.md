@@ -516,8 +516,8 @@ JSON, so the key names are on the wire every time.
 
 Verification lives in `src/infrastructure/crypto/hmacGuestTokenService.ts` behind the
 `GuestTokenService` port (`src/application/ports/guestTokenService.ts`). `requireGuest()`
-in `src/interface/http/middleware/authz.ts` compares the token's event id with the event
-resolved from `:eventSlug`: a valid token for another event is **403 `guest.wrongEvent`,
+in `src/interface/http/middleware/authz.ts` asks the `authenticateGuest` use case, which
+compares the token's event id with the event resolved from `:eventSlug`: a valid token for another event is **403 `guest.wrongEvent`,
 not 401**. A revoked guest is **403 `guest.revoked`**; a guest row that is gone entirely
 is **401 `guestToken.malformed`**, because the event was purged and recreated and the
 phone should re-join rather than be told it is forbidden forever.
@@ -576,7 +576,7 @@ Everything in `src/interface/http/middleware/authz.ts`:
 | `requireSecondFactor(deps)`      | nothing. Mounted by `siteRoutes` **after** `requireOperator`: with `REQUIRE_OPERATOR_2FA=true`, a session whose `secondFactorAt` is not a stamp the server wrote refuses with `403 auth.secondFactorRequired` (§19); off, it does nothing                                                                             |
 | `requireStepUp(deps)`            | nothing. Declared per route, behind `requireUser`: refuses with `403 auth.stepUpRequired` unless the session confirmed a password and a code within five minutes (§19)                                                                                                                                                |
 | `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below                                                                                                                                                                    |
-| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                                                                                                                                                                                         |
+| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked; it also stamps the guest as seen                                                                                                                                                                                       |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                                                                                     |
 | _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/login/2fa` (the half-finished sign-in is the credential), `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (the link is the credential) |
 | `GET /api/about`, no middleware  | genuinely public, mounted ahead of the cookie parser, the session and CSRF: the AGPL §13 source offer sets no cookie                                                                                                                                                                                                  |

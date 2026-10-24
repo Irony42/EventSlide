@@ -7,6 +7,7 @@ import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { GuestTokenService } from '../../ports/guestTokenService'
+import type { Logger } from '../../ports/logger'
 
 /**
  * Turn a device token plus the slug in the URL into a guest of *that* event.
@@ -17,17 +18,18 @@ import type { GuestTokenService } from '../../ports/guestTokenService'
  * called.
  *
  * A valid signature is never sufficient on its own. Four further checks stand between a
- * token and any right, and each closes a real hole:
+ * token and any right, in this order, and each closes a real hole:
  *
- * 1. **The token's event must match the event in the URL.** Without it, a guest at one
+ * 1. **The event's client must not be suspended** (roadmap §10.7): a suspended client's
+ *    guests are answered exactly as if the event were not there. It comes before the others
+ *    so that a token that verifies cannot tell a suspended event from one that is absent.
+ * 2. **The token's event must match the event in the URL.** Without it, a guest at one
  *    wedding could point their own cookie at another event's endpoints. This is the
  *    cross-event attack; it has a named test here and again at rings 4 and 6.
- * 2. **The guest row must still exist.** That is what makes a signed, stateless token
+ * 3. **The guest row must still exist.** That is what makes a signed, stateless token
  *    revocable at all.
- * 3. **The row must not be revoked**, so the host's "remove this guest" button works
+ * 4. **The row must not be revoked**, so the host's "remove this guest" button works
  *    against a credential the server never stored.
- * 4. **The event's client must not be suspended** (roadmap §10.7): a suspended client's
- *    guests are answered exactly as if the event were not there.
  *
  * What it deliberately does **not** check is the event's lifecycle. Identity and permission
  * are not the same question as "may this action happen now": a guest at a closed event can
@@ -40,7 +42,10 @@ import type { GuestTokenService } from '../../ports/guestTokenService'
  * from `lastSeenAt`, and a guest who joined an hour ago and is still uploading must not
  * be counted as gone. The write is at most one per {@link PRESENCE_WRITE_INTERVAL_MS}: this
  * runs on every guest request, the count is a five-minute window, and a row written on each
- * tap of a reaction button is cost for no reader.
+ * tap of a reaction button is cost for no reader. It is `GuestRepository.touch`, which writes
+ * presence and nothing else, and it is **best effort**: the count is the only thing that reads
+ * it, so a write that fails (a full disk, a locked database) is logged and the guest is let
+ * through, rather than every request they make answering 500.
  */
 
 /**
@@ -70,6 +75,7 @@ export interface AuthenticateGuestDeps {
   readonly guests: GuestRepository
   readonly tokens: GuestTokenService
   readonly clock: Clock
+  readonly logger: Logger
 }
 
 export type AuthenticateGuest = (
@@ -77,7 +83,7 @@ export type AuthenticateGuest = (
 ) => Promise<Result<AuthenticateGuestOutput, DomainError>>
 
 export const makeAuthenticateGuest =
-  ({ events, guests, tokens, clock }: AuthenticateGuestDeps): AuthenticateGuest =>
+  ({ events, guests, tokens, clock, logger }: AuthenticateGuestDeps): AuthenticateGuest =>
   async (input) => {
     const now = clock.now()
 
@@ -111,7 +117,14 @@ export const makeAuthenticateGuest =
 
     const seen = guest.touch(now)
     if (seen.lastSeenAt.getTime() - guest.lastSeenAt.getTime() >= PRESENCE_WRITE_INTERVAL_MS) {
-      await guests.save(seen)
+      try {
+        await guests.touch(event.id, guest.id, seen.lastSeenAt)
+      } catch (cause) {
+        logger.warn('could not record that a guest was seen; letting them through', {
+          eventId: event.id,
+          cause: String(cause),
+        })
+      }
     }
 
     return ok({ guest: seen, event })

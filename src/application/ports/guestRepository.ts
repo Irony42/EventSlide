@@ -36,5 +36,16 @@ export interface GuestRepository {
 
   save(guest: Guest): Promise<void>
 
+  /**
+   * Records that a guest was seen at `at`, and **nothing else**.
+   *
+   * It moves `lastSeenAt` forward and never back, and leaves the name, the revocation and the
+   * acknowledged notice exactly as they are stored. It exists beside `save` because it runs on
+   * every guest request, and `save` writes the whole row from one read a moment earlier: a host
+   * revoking a guest, or a guest renaming themselves, in between would be written over by the
+   * stamp. Scoped by event like every read, and a guest that is not there is not an error.
+   */
+  touch(eventId: EventId, guestId: GuestId, at: Date): Promise<void>
+
   delete(eventId: EventId, guestId: GuestId): Promise<void>
 }
