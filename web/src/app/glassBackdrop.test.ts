@@ -301,9 +301,13 @@ describe('the route table and the router agree about what exists', () => {
     // then certifies a subtree nobody renders. The table would be green about the wrong
     // screen, which is worse than having no table: a pane over a photograph at the floor
     // derived for our own ground is exactly the failure 11.1 measured the floor to prevent.
+    // `titled('page', <Element />)` is how the route table names a page's browser tab; the
+    // element is what it wraps.
     const elementAt = new Map(
       [
-        ...ROUTER.matchAll(/<Route\s+path="([^"]+)"[\s\S]{0,160}?element=\{<([A-Za-z0-9_]+)/g),
+        ...ROUTER.matchAll(
+          /<Route\s+path="([^"]+)"[\s\S]{0,160}?element=\{(?:titled\('[A-Za-z]+',\s*)?<([A-Za-z0-9_]+)/g,
+        ),
       ].flatMap((match) =>
         match[1] === undefined || match[2] === undefined ? [] : [[match[1], match[2]] as const],
       ),

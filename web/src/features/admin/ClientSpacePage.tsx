@@ -61,7 +61,7 @@ export function ClientSpacePage() {
     <div className={styles['page']}>
       <h1 className={styles['title']}>{t.clientSpace.spaceTitle}</h1>
 
-      {loading ? <Pending label={t.admin.loading} /> : null}
+      {loading ? <Pending label={t.app.loading} /> : null}
 
       {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} /> : null}
 
@@ -162,7 +162,7 @@ function PendingInvitations({ client }: { readonly client: ClientLimitsDto }) {
 
   return (
     <Card as="h2" title={t.clientSpace.pendingTitle} subtitle={t.clientSpace.pendingHint}>
-      {loading ? <Pending label={t.admin.loading} /> : null}
+      {loading ? <Pending label={t.app.loading} /> : null}
       {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
       {!loading && error === null && data !== null && data.length === 0 ? (
         <p>{t.clientSpace.pendingEmpty}</p>
@@ -236,7 +236,7 @@ function AuditLog({ client }: { readonly client: ClientLimitsDto }) {
 
   return (
     <Card as="h2" title={t.clientSpace.auditTitle} subtitle={t.clientSpace.auditHint}>
-      {loading ? <Pending label={t.admin.loading} /> : null}
+      {loading ? <Pending label={t.app.loading} /> : null}
       {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
       {!loading && error === null && data !== null && items.length === 0 ? (
         <p>{t.clientSpace.auditEmpty}</p>

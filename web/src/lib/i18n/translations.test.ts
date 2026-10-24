@@ -83,6 +83,7 @@ describe('the scope', () => {
         'mobileModeration',
         'moderation',
         'shell',
+        'titles',
         'ui',
         'upload',
         'wall',

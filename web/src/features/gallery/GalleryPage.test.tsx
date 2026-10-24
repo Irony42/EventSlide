@@ -83,7 +83,11 @@ describe('GalleryPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: fr.gallery.openPhoto(1) }))
 
     const dialog = screen.getByRole('dialog', { name: fr.gallery.viewerTitle(1, 2) })
-    expect(within(dialog).getByRole('img', { name: 'Les confettis !' })).toHaveAttribute(
+    // The caption is read once, as the figcaption. The image beside it is `alt=""`: with the
+    // same words as its alt a screen reader said the caption twice, as image and as caption.
+    expect(within(dialog).getByText('Les confettis !')).toBeVisible()
+    expect(within(dialog).queryByRole('img')).toBeNull()
+    expect(within(dialog).getByRole('presentation')).toHaveAttribute(
       'src',
       '/api/gallery-media/link-1/p1/display?e=1&s=b',
     )
@@ -97,7 +101,9 @@ describe('GalleryPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: fr.gallery.openPhoto(2) }))
 
+    // No caption, so no figcaption to carry the name: the alt is all a screen reader has.
     expect(screen.getByRole('img', { name: fr.gallery.photoAlt(2) })).toBeVisible()
+    expect(document.querySelector('figcaption')).toBeNull()
   })
 
   it('marks a clip as a video and downloads it as one', async () => {

@@ -1675,6 +1675,37 @@ export const fr = {
     actionOther: 'Une action a été enregistrée.',
     liveWindowEnd: (date: string) => `Le direct se termine le ${date}.`,
   },
+
+  /**
+   * The name of each page in the browser tab (`PageTitle`, WCAG 2.4.2).
+   *
+   * One entry per address the router serves, and `pageTitles.test.tsx` mounts them all, so
+   * a page that ships without one fails there instead of in a tab strip. Short nouns
+   * rather than sentences — the tab truncates from the right and `PageTitle` appends the
+   * product name — and **never content**: an event's name, a caption or an invitation's
+   * token does not come through here, so a title can neither leak nor be translated wrongly.
+   */
+  titles: {
+    join: 'Rejoindre la galerie',
+    upload: 'Envoi de photos',
+    wall: 'Écran de la soirée',
+    gallery: 'Album partagé',
+    about: 'À propos',
+    notFound: 'Page introuvable',
+    login: 'Connexion',
+    forgotPassword: 'Mot de passe oublié',
+    resetPassword: 'Nouveau mot de passe',
+    invitation: 'Invitation',
+    changePassword: 'Changer de mot de passe',
+    security: 'Sécurité du compte',
+    dashboard: 'Vos évènements',
+    newEvent: 'Nouvel évènement',
+    event: 'Évènement',
+    moderation: 'Modération',
+    mobileModeration: 'Modération sur téléphone',
+    settings: 'Réglages de l’évènement',
+    clientSpace: 'Espace client',
+  },
 } as const
 
 /**

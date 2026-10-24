@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useCallback, useState } from 'react'
+import { useCallback, useId, useState } from 'react'
 import { useApi } from '../../app/useApi'
 import { useSession } from '../../app/useSession'
 import { Button } from '../../design-system/components/Button'
@@ -60,6 +60,7 @@ function RecoveryCodes({
 }) {
   const t = useTranslations()
   const toast = useToast()
+  const headingId = useId()
 
   const copy = () => {
     // Some browsers ship no clipboard in an insecure context; a guard is cheaper than a click
@@ -71,8 +72,8 @@ function RecoveryCodes({
   }
 
   return (
-    <section className={styles['section']} aria-labelledby="recovery-codes-title">
-      <h2 id="recovery-codes-title" className={styles['heading']}>
+    <section className={styles['section']} aria-labelledby={headingId}>
+      <h2 id={headingId} className={styles['heading']}>
         {t.auth.recoveryCodesTitle}
       </h2>
       <p>{t.auth.recoveryCodesIntro}</p>
@@ -189,6 +190,7 @@ function Manage({
   const t = useTranslations()
   const api = useApi()
   const toast = useToast()
+  const headingId = useId()
   const stepUp = useAction()
   const act = useAction()
   const [password, setPassword] = useState('')
@@ -272,8 +274,8 @@ function Manage({
   }
 
   return (
-    <section className={styles['section']} aria-labelledby="manage-title">
-      <h1 id="manage-title" className={styles['heading']}>
+    <section className={styles['section']} aria-labelledby={headingId}>
+      <h1 id={headingId} className={styles['heading']}>
         {t.auth.securityTitle}
       </h1>
       {act.error === null ? null : <p role="alert">{act.error}</p>}

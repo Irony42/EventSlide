@@ -1,0 +1,27 @@
+/* The download link, drawn like the primary control it is. */
+.download {
+  composes: button primary md from '../../../design-system/components/Button.module.css';
+  text-decoration: none;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* The whole photograph, never cropped: `contain`, inside the dialog's own bounds. */
+.large {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 60dvh;
+  object-fit: contain;
+  background: var(--surface-base);
+  border-radius: var(--radius-sm);
+}
+
+.caption {
+  color: var(--text-secondary);
+}
