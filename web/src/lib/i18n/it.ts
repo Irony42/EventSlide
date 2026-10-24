@@ -1127,7 +1127,7 @@ export const it: UiText = {
 
     newClientTitle: 'Aprire un cliente',
     newClientIntro:
-      'Il cliente viene aperto senza membri né eventi e il suo proprietario viene invitato via e-mail. Lei non sceglie mai la sua password.',
+      'Il cliente viene aperto senza membri né eventi e il suo proprietario viene invitato via e-mail, oppure con un link che lei gli trasmette se l’istanza non può inviare posta. Lei non sceglie mai la sua password.',
     clientName: 'Nome del cliente',
     ownerEmail: 'Indirizzo e-mail del proprietario',
     inviteLanguage: 'Lingua dell’invito',
@@ -1173,11 +1173,12 @@ export const it: UiText = {
     suspend: 'Sospendi',
     suspendTitle: 'Sospendere questo cliente?',
     suspendBody:
-      'Il pubblico non vede più i suoi muri né le sue gallerie e i suoi membri non possono più scrivere nulla. Non viene eliminato nulla e nessun account viene disattivato.',
+      'Gli ospiti non possono più unirsi ai suoi eventi né inviare foto, il pubblico non vede più i suoi schermi né le sue gallerie e i suoi membri non possono più modificare nulla. Non viene eliminato nulla e nessun account viene disattivato.',
     suspended: 'Cliente sospeso.',
     resume: 'Revoca la sospensione',
     resumeTitle: 'Revocare la sospensione?',
-    resumeBody: 'I muri e le gallerie del cliente tornano subito visibili.',
+    resumeBody:
+      'Gli schermi e le gallerie del cliente tornano subito visibili e i suoi ospiti possono di nuovo unirsi e inviare foto.',
     resumed: 'Sospensione revocata.',
     rename: 'Rinomina',
     renameTitle: 'Nome del cliente',
@@ -1239,7 +1240,7 @@ export const it: UiText = {
     resetPassword: 'Reimposta la password',
     resetTitle: 'Reimpostare questa password?',
     resetBody:
-      'Un link valido per un’ora parte verso l’indirizzo dell’account e da nessun’altra parte: lei non lo vede mai.',
+      'Un link valido per un’ora parte verso l’indirizzo dell’account e da nessun’altra parte: lei lo vede solo su un’istanza che non invia posta.',
     resetSent: 'Il link è stato inviato all’indirizzo dell’account.',
     resetPending: 'In attesa di un proprietario',
     resetPendingBody:
@@ -1258,7 +1259,6 @@ export const it: UiText = {
     auditShowAll: 'Mostra tutto il registro',
     auditReason: (reason: string) => `Motivo: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
-    auditClientLink: 'Vedi il cliente',
     actors: {
       operator: 'Operatore',
       member: 'Membro',

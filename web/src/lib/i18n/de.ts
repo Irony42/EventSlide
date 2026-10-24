@@ -1167,7 +1167,7 @@ export const de: UiText = {
 
     newClientTitle: 'Einen Kunden eröffnen',
     newClientIntro:
-      'Der Kunde wird ohne Mitglied und ohne Veranstaltung eröffnet, und sein Inhaber wird per E-Mail eingeladen. Sie wählen nie sein Passwort.',
+      'Der Kunde wird ohne Mitglied und ohne Veranstaltung eröffnet, und sein Inhaber wird per E-Mail eingeladen, oder über einen Link, den Sie weitergeben, wenn die Instanz keine E-Mails senden kann. Sie wählen nie sein Passwort.',
     clientName: 'Name des Kunden',
     ownerEmail: 'E-Mail-Adresse des Inhabers',
     inviteLanguage: 'Sprache der Einladung',
@@ -1213,11 +1213,12 @@ export const de: UiText = {
     suspend: 'Sperren',
     suspendTitle: 'Diesen Kunden sperren?',
     suspendBody:
-      'Die Öffentlichkeit sieht seine Wände und Galerien nicht mehr, und seine Mitglieder können nichts mehr schreiben. Nichts wird gelöscht, und kein Konto wird deaktiviert.',
+      'Gäste können seinen Veranstaltungen nicht mehr beitreten und keine Fotos mehr senden, die Öffentlichkeit sieht seine Bildschirme und Galerien nicht mehr, und seine Mitglieder können nichts mehr ändern. Nichts wird gelöscht, und kein Konto wird deaktiviert.',
     suspended: 'Kunde gesperrt.',
     resume: 'Sperre aufheben',
     resumeTitle: 'Sperre aufheben?',
-    resumeBody: 'Die Wände und Galerien des Kunden sind sofort wieder sichtbar.',
+    resumeBody:
+      'Die Bildschirme und Galerien des Kunden sind sofort wieder sichtbar, und seine Gäste können wieder beitreten und Fotos senden.',
     resumed: 'Sperre aufgehoben.',
     rename: 'Umbenennen',
     renameTitle: 'Name des Kunden',
@@ -1275,11 +1276,11 @@ export const de: UiText = {
     accountActive: 'Aktiv',
     accountDisabled: 'Deaktiviert',
     neverSignedIn: 'Nie',
-    mustChange: 'Muss sein Passwort ändern',
+    mustChange: 'Passwort muss geändert werden',
     resetPassword: 'Passwort zurücksetzen',
     resetTitle: 'Dieses Passwort zurücksetzen?',
     resetBody:
-      'Ein eine Stunde gültiger Link geht an die Adresse des Kontos und nirgendwohin sonst: Sie sehen ihn nie.',
+      'Ein Link, der eine Stunde gültig ist, geht an die Adresse des Kontos und nirgendwohin sonst: Sie sehen ihn nur auf einer Instanz, die keine E-Mails sendet.',
     resetSent: 'Der Link wurde an die Adresse des Kontos gesendet.',
     resetPending: 'Wartet auf einen Inhaber',
     resetPendingBody:
@@ -1298,7 +1299,6 @@ export const de: UiText = {
     auditShowAll: 'Gesamtes Protokoll anzeigen',
     auditReason: (reason: string) => `Grund: ${reason}`,
     auditAccount: (short: string) => `Konto ${short}`,
-    auditClientLink: 'Kunden ansehen',
     actors: {
       operator: 'Betreiber',
       member: 'Mitglied',

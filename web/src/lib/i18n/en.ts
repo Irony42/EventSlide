@@ -1116,7 +1116,7 @@ export const en: UiText = {
 
     newClientTitle: 'Open a client',
     newClientIntro:
-      'The client is opened with no member and no event, and its owner is invited by e-mail. You never choose their password.',
+      'The client is opened with no member and no event, and its owner is invited by e-mail, or by a link for you to pass on if the instance cannot send mail. You never choose their password.',
     clientName: 'Client name',
     ownerEmail: 'Owner’s e-mail address',
     inviteLanguage: 'Language of the invitation',
@@ -1162,11 +1162,12 @@ export const en: UiText = {
     suspend: 'Suspend',
     suspendTitle: 'Suspend this client?',
     suspendBody:
-      'The public no longer sees its walls or its galleries, and its members can no longer write anything. Nothing is deleted and no account is switched off.',
+      'Guests can no longer join its events or send photos, the public no longer sees its screens or its galleries, and its members can no longer change anything. Nothing is deleted and no account is switched off.',
     suspended: 'Client suspended.',
     resume: 'Lift the suspension',
     resumeTitle: 'Lift the suspension?',
-    resumeBody: 'The client’s walls and galleries become visible again at once.',
+    resumeBody:
+      'The client’s screens and galleries become visible again at once, and its guests can join and send photos again.',
     resumed: 'Suspension lifted.',
     rename: 'Rename',
     renameTitle: 'Client name',
@@ -1228,7 +1229,7 @@ export const en: UiText = {
     resetPassword: 'Reset the password',
     resetTitle: 'Reset this password?',
     resetBody:
-      'A link valid for one hour goes to the account’s own address and nowhere else: you never see it.',
+      'A link valid for one hour goes to the account’s own address and nowhere else: you only see it on an instance that cannot send mail.',
     resetSent: 'The link was sent to the account’s address.',
     resetPending: 'Waiting for an owner',
     resetPendingBody:
@@ -1246,7 +1247,6 @@ export const en: UiText = {
     auditShowAll: 'Show the whole log',
     auditReason: (reason: string) => `Reason: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
-    auditClientLink: 'See the client',
     actors: {
       operator: 'Operator',
       member: 'Member',

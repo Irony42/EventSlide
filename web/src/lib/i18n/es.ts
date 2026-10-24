@@ -1152,7 +1152,7 @@ export const es: UiText = {
     createdColumn: 'Abierto el',
     statusActive: 'Activo',
     statusSuspended: 'Suspendido',
-    statusOffboarding: 'En baja',
+    statusOffboarding: 'En proceso de cierre',
     eventsCell: (total: number, live: number) =>
       `${t.number(total)} (${t.number(live)} en directo)`,
     storageOf: (used: string, max: string) => `${used} de ${max}`,
@@ -1160,7 +1160,7 @@ export const es: UiText = {
 
     newClientTitle: 'Abrir un cliente',
     newClientIntro:
-      'El cliente se abre sin miembros ni eventos, y su propietario recibe una invitación por correo. Usted nunca elige su contraseña.',
+      'El cliente se abre sin miembros ni eventos, y su propietario recibe una invitación por correo, o mediante un enlace que usted le transmite si la instancia no puede enviar correo. Usted nunca elige su contraseña.',
     clientName: 'Nombre del cliente',
     ownerEmail: 'Correo electrónico del propietario',
     inviteLanguage: 'Idioma de la invitación',
@@ -1206,11 +1206,12 @@ export const es: UiText = {
     suspend: 'Suspender',
     suspendTitle: '¿Suspender este cliente?',
     suspendBody:
-      'El público deja de ver sus muros y sus galerías, y sus miembros ya no pueden escribir nada. No se elimina nada y no se desactiva ninguna cuenta.',
+      'Los invitados ya no pueden unirse a sus eventos ni enviar fotos, el público deja de ver sus pantallas y sus galerías, y sus miembros ya no pueden modificar nada. No se elimina nada y no se desactiva ninguna cuenta.',
     suspended: 'Cliente suspendido.',
     resume: 'Levantar la suspensión',
     resumeTitle: '¿Levantar la suspensión?',
-    resumeBody: 'Los muros y las galerías del cliente vuelven a ser visibles de inmediato.',
+    resumeBody:
+      'Las pantallas y las galerías del cliente vuelven a ser visibles de inmediato, y sus invitados pueden volver a unirse y enviar fotos.',
     resumed: 'Suspensión levantada.',
     rename: 'Cambiar el nombre',
     renameTitle: 'Nombre del cliente',
@@ -1272,7 +1273,7 @@ export const es: UiText = {
     resetPassword: 'Restablecer la contraseña',
     resetTitle: '¿Restablecer esta contraseña?',
     resetBody:
-      'Un enlace válido durante una hora sale hacia la dirección de la cuenta y a ningún otro sitio: usted nunca lo ve.',
+      'Un enlace válido durante una hora sale hacia la dirección de la cuenta y a ningún otro sitio: usted solo lo ve en una instancia que no envía correo.',
     resetSent: 'El enlace se ha enviado a la dirección de la cuenta.',
     resetPending: 'A la espera de un propietario',
     resetPendingBody:
@@ -1291,7 +1292,6 @@ export const es: UiText = {
     auditShowAll: 'Ver todo el registro',
     auditReason: (reason: string) => `Motivo: ${reason}`,
     auditAccount: (short: string) => `cuenta ${short}`,
-    auditClientLink: 'Ver el cliente',
     actors: {
       operator: 'Operador',
       member: 'Miembro',

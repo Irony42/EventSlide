@@ -1748,7 +1748,7 @@ export const fr = {
 
     newClientTitle: 'Ouvrir un client',
     newClientIntro:
-      'Le client est ouvert sans membre ni évènement, et son propriétaire est invité par e-mail. Vous ne choisissez jamais son mot de passe.',
+      'Le client est ouvert sans membre ni évènement, et son propriétaire est invité par e-mail, ou par un lien à lui transmettre si l’instance n’envoie pas de courrier. Vous ne choisissez jamais son mot de passe.',
     clientName: 'Nom du client',
     ownerEmail: 'Adresse e-mail du propriétaire',
     inviteLanguage: 'Langue de l’invitation',
@@ -1794,11 +1794,12 @@ export const fr = {
     suspend: 'Suspendre',
     suspendTitle: 'Suspendre ce client ?',
     suspendBody:
-      'Le public ne voit plus ses murs ni ses galeries, et ses membres ne peuvent plus rien écrire. Rien n’est supprimé et aucun compte n’est désactivé.',
+      'Les invités ne peuvent plus rejoindre ses évènements ni y envoyer de photos, le public ne voit plus ses écrans ni ses galeries, et ses membres ne peuvent plus rien modifier. Rien n’est supprimé et aucun compte n’est désactivé.',
     suspended: 'Client suspendu.',
     resume: 'Lever la suspension',
     resumeTitle: 'Lever la suspension ?',
-    resumeBody: 'Les murs et les galeries du client redeviennent visibles aussitôt.',
+    resumeBody:
+      'Les écrans et les galeries du client redeviennent visibles aussitôt, et ses invités peuvent de nouveau rejoindre et envoyer des photos.',
     resumed: 'Suspension levée.',
     rename: 'Renommer',
     renameTitle: 'Nom du client',
@@ -1860,7 +1861,7 @@ export const fr = {
     resetPassword: 'Réinitialiser le mot de passe',
     resetTitle: 'Réinitialiser ce mot de passe ?',
     resetBody:
-      'Un lien valable une heure part vers l’adresse du compte, et nulle part ailleurs : vous ne le voyez jamais.',
+      'Un lien valable une heure part vers l’adresse du compte, et nulle part ailleurs : vous ne le voyez que sur une instance qui n’envoie pas de courrier.',
     resetSent: 'Le lien a été envoyé à l’adresse du compte.',
     resetPending: 'En attente d’un propriétaire',
     resetPendingBody:
@@ -1879,7 +1880,6 @@ export const fr = {
     auditShowAll: 'Voir tout le journal',
     auditReason: (reason: string) => `Motif : ${reason}`,
     auditAccount: (short: string) => `compte ${short}`,
-    auditClientLink: 'Voir le client',
     actors: {
       operator: 'Opérateur',
       member: 'Membre',
