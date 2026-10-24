@@ -1,20 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { asClientId } from '../../../domain/shared/ids'
 import { aClient, anEvent } from '../../testing/builders'
-import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { clientBytesOf, clientContextOf } from './clientContextOf'
-
-/** Counts the reads, so "never asks" is a number and not a belief. */
-class CountingClientRepository extends FakeClientRepository {
-  contextReads = 0
-
-  override async contextForEvent(
-    ...args: Parameters<FakeClientRepository['contextForEvent']>
-  ): ReturnType<FakeClientRepository['contextForEvent']> {
-    this.contextReads += 1
-    return super.contextForEvent(...args)
-  }
-}
+import { CountingClientRepository } from '../../testing/countingClientRepository'
 
 describe('clientContextOf', () => {
   it('is null for an event with no client, without reading the clients at all', async () => {

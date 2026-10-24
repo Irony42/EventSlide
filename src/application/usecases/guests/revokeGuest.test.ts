@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventRole } from '../../../domain/events/eventRole'
-import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
-import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
 import { AT, aGuest, anEvent, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -12,30 +9,7 @@ import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository
 import { silentLogger } from '../../testing/capturingLogger'
 import { makeAuthenticateGuest } from './authenticateGuest'
 import { makeRevokeGuest, type RevokeGuestInput } from './revokeGuest'
-
-/**
- * A readable token, as in `authenticateGuest.test.ts`, minus the age check — expiry is
- * that file's subject. It exists here because the two use cases are composed in the
- * last test: a revocation that did not actually stop the next request from the phone is
- * the failure this whole use case exists to prevent.
- */
-class FakeGuestTokenService implements GuestTokenService {
-  issue({ eventId, guestId, issuedAt }: GuestTokenClaims): string {
-    return `token|${eventId}|${guestId}|${issuedAt.getTime()}`
-  }
-
-  verify(token: string): Result<GuestTokenClaims, DomainError> {
-    const [prefix, eventId, guestId, issuedAt] = token.split('|')
-    if (prefix !== 'token' || eventId === undefined || guestId === undefined) {
-      return err(DomainError.unauthenticated('guestToken.malformed'))
-    }
-    return ok({
-      eventId: asEventId(eventId),
-      guestId: asGuestId(guestId),
-      issuedAt: new Date(Number(issuedAt)),
-    })
-  }
-}
+import { FakeGuestTokenService } from '../../testing/fakeGuestTokenService'
 
 const WEDDING = asEventId('event-1')
 const GALA = asEventId('event-2')
