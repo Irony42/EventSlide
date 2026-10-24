@@ -14,3 +14,15 @@ import { BUILD_ABOUT } from './aboutAnswer'
  * nothing else, which keeps Fast Refresh working for that file.
  */
 export const AboutContext = createContext<About>(BUILD_ABOUT)
+
+/**
+ * Whether the server has answered `GET /api/about` yet — successfully or not.
+ *
+ * **Almost nothing should read it**: the contract above is that nothing waits on the box's
+ * answer, and every reader renders the build's own meanwhile. The one exception is a screen
+ * that exists only on a box that says so (the operator's console), whose address would otherwise
+ * be answered "not found" for the moments before the box has said it has one — which is what a
+ * reload of that very page used to look like. The default is `true`: a component rendered with
+ * no provider above it has nothing to wait for.
+ */
+export const AboutAnsweredContext = createContext<boolean>(true)

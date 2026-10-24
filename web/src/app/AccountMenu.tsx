@@ -6,6 +6,7 @@ import { useToast } from '../design-system/components/useToast'
 import { useClientLimits } from '../features/admin/hooks/useClientLimits'
 import { useSignOut } from '../features/auth/hooks/useAuthActions'
 import { useTranslations } from '../lib/i18n/useTranslations'
+import { useAbout } from './useAbout'
 import { useSession } from './useSession'
 import styles from './AccountMenu.module.css'
 
@@ -35,8 +36,10 @@ import styles from './AccountMenu.module.css'
  * serves `/login`: a menu that assumed a session would flash on the way in.
  *
  * **The client space** (G2-16 / P3-17) is offered above them to a member of a client, on a box
- * that has one. Not here yet: the operator's console entry (`canOperateSite`). There is no console to open
- * until G2-15, and an entry pointing at the not-found page would be a defect, not a feature.
+ * that has one. **The operator's console** (G2-15 / P3-16) is offered to the account that operates
+ * the box, on a box that has a console: `canOperateSite` **and** `features.siteAdmin`, which are
+ * different questions (an operator of a box with `SITE_ADMIN=off` still reads `true` and has no
+ * console to open, and an entry pointing at the not-found page would be a defect, not a feature).
  */
 export function AccountMenu() {
   const t = useTranslations()
@@ -49,6 +52,7 @@ export function AccountMenu() {
   // exists only when the box has a client space (`features.siteAdmin`, read by the hook) and
   // the account is in one.
   const { clients } = useClientLimits(session?.authenticated === true)
+  const consoleExists = useAbout().features.siteAdmin
 
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -136,6 +140,11 @@ export function AccountMenu() {
       {open ? (
         <div id={panelId} className={styles['panel']}>
           <p className={styles['who']}>{t.auth.accountSignedInAs(session.user.email)}</p>
+          {consoleExists && session.user.canOperateSite ? (
+            <Link className={styles['item']} to="/admin/site" onClick={() => setOpen(false)}>
+              {t.site.menuLink}
+            </Link>
+          ) : null}
           {clients.length > 0 ? (
             <Link className={styles['item']} to="/admin/client" onClick={() => setOpen(false)}>
               {t.clientSpace.spaceLink}

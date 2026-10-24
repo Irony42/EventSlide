@@ -4,7 +4,7 @@ import { PageTitle } from '../design-system/components/PageTitle'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DeferredLocale } from '../lib/i18n/LocaleProvider'
-import { useAbout } from './useAbout'
+import { useAbout, useAboutAnswered } from './useAbout'
 import type { UiText } from '../lib/i18n/translations'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
@@ -16,6 +16,7 @@ import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
 import { NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
+import { RequireOperator } from './RequireOperator'
 import { SessionProvider } from './SessionProvider'
 import { SiteFooter } from './SiteFooter'
 import styles from './router.module.css'
@@ -102,6 +103,26 @@ const AboutPage = lazy(async () => ({
  */
 const ClientSpacePage = lazy(async () => ({
   default: (await import('../features/admin/ClientSpacePage')).ClientSpacePage,
+}))
+
+/**
+ * The operator's console (G2-15 / P3-16): five lazy chunks, registered only on a box that has one.
+ * A guest, and a host who is not the operator, never download a line of it.
+ */
+const SiteLayout = lazy(async () => ({
+  default: (await import('../features/site/SiteLayout')).SiteLayout,
+}))
+const SiteClientsPage = lazy(async () => ({
+  default: (await import('../features/site/ClientsPage')).ClientsPage,
+}))
+const SiteClientPage = lazy(async () => ({
+  default: (await import('../features/site/ClientPage')).ClientPage,
+}))
+const SiteAccountsPage = lazy(async () => ({
+  default: (await import('../features/site/AccountsPage')).AccountsPage,
+}))
+const SiteAuditPage = lazy(async () => ({
+  default: (await import('../features/site/AuditPage')).AuditPage,
 }))
 
 const ChangePasswordPage = lazy(async () => ({
@@ -351,6 +372,14 @@ export function AppRoutes() {
   // registered and a direct visit to its address is the not-found screen, as for any address
   // nobody wrote (G2-00 / P3-21).
   const siteAdmin = useAbout().features.siteAdmin
+  const aboutAnswered = useAboutAnswered()
+  const { pathname } = useLocation()
+  // The console's addresses exist only on a box that says so, and a box has not said so yet: a
+  // reload of `/admin/site` would be answered "not found" for the moments before it does, and then
+  // be the console. Waited for here, and only here: no other address waits on the box.
+  if (!aboutAnswered && (pathname === '/admin/site' || pathname.startsWith('/admin/site/'))) {
+    return <RouteFallback />
+  }
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
@@ -426,12 +455,36 @@ export function AppRoutes() {
               {siteAdmin ? (
                 <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />
               ) : null}
+              {/* The operator's console. Registered only where the box has one, and then only
+                  for the account that operates it: anybody else is answered the not-found
+                  screen, as for an address nobody wrote, and is told nothing about a console. */}
+              {siteAdmin ? (
+                <Route
+                  element={<RequireOperator fallback={titled('notFound', <NotFoundView />)} />}
+                >
+                  <Route element={<SiteLayout />}>
+                    <Route path="/admin/site" element={titled('site', <SiteClientsPage />)} />
+                    <Route
+                      path="/admin/site/clients/:clientId"
+                      element={titled('siteClient', <SiteClientPage />)}
+                    />
+                    <Route
+                      path="/admin/site/accounts"
+                      element={titled('siteAccounts', <SiteAccountsPage />)}
+                    />
+                    <Route
+                      path="/admin/site/audit"
+                      element={titled('siteAudit', <SiteAuditPage />)}
+                    />
+                  </Route>
+                </Route>
+              ) : null}
               <Route
                 path="/admin/password"
                 element={titled('changePassword', <ChangePasswordPage />)}
               />
-              {/* The operator's second factor (G2-13). Not linked from a menu yet: the console
-                  that will link it (G2-15) does not exist, and the address is the entry. */}
+              {/* The operator's second factor (G2-13). The console's gate links here for an
+                  operator who has not enrolled; the address is otherwise the entry. */}
               <Route path="/admin/security" element={titled('security', <SecurityPage />)} />
             </Route>
           </Route>
