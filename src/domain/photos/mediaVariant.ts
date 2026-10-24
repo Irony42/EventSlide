@@ -69,10 +69,3 @@ export const VARIANTS_BY_KIND: Readonly<Record<MediaKind, readonly ServedVariant
   photo: MEDIA_VARIANTS,
   clip: CLIP_VARIANTS,
 }
-
-export const isServedVariant = (value: unknown): value is ServedVariant =>
-  typeof value === 'string' && (SERVED_VARIANTS as readonly string[]).includes(value)
-
-/** Whether this rendition belongs to a row of this kind. */
-export const hasVariant = (kind: MediaKind, variant: ServedVariant): boolean =>
-  VARIANTS_BY_KIND[kind].includes(variant)

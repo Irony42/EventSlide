@@ -8,7 +8,7 @@ import { err, ok, type Result } from '../shared/result'
  * **Every bound here is `NULL`-means-"no ceiling", per the paid plan's "Schéma des
  * clients" (P3-04).** That is the free tier's own answer too: a solo installation has
  * exactly one client-shaped thing — nobody — so every ceiling on it is absent, and
- * `allowsAnotherEvent`, `admitsQuota` and the rest all answer "yes" unconditionally. The
+ * `allowsAnotherEvent`, `admitsRetention` and the rest all answer "yes" unconditionally. The
  * bounds below are not product limits; they are the shape a number must have to mean
  * anything at all (a byte quota of zero, a retention of thirty centuries), and they are
  * copied from the table's own `CHECK` constraints, so the two layers use the same numbers.
@@ -241,11 +241,6 @@ export class ClientCeilings {
       return { ceiling: 'eventsPerPeriod', used: eventsCreatedInPeriod, max: maxEventsPerPeriod }
     }
     return null
-  }
-
-  /** Whether a single event may be given this many bytes of quota. */
-  admitsQuota(requestedBytes: number): boolean {
-    return this.props.maxEventQuotaBytes === null || requestedBytes <= this.props.maxEventQuotaBytes
   }
 
   /**

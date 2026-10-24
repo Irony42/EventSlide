@@ -7,8 +7,6 @@ import {
   SERVED_VARIANTS,
   STAGED_SOURCE,
   VARIANTS_BY_KIND,
-  hasVariant,
-  isServedVariant,
 } from './mediaVariant'
 
 describe('media variants', () => {
@@ -25,19 +23,10 @@ describe('media variants', () => {
   it('never serves the staged source', () => {
     // The one property that keeps a guest's un-stripped upload private. If this ever
     // passes, a route can parse `source` and hand out location metadata.
-    expect(isServedVariant(STAGED_SOURCE)).toBe(false)
     expect([...SERVED_VARIANTS]).not.toContain(STAGED_SOURCE)
     expect([...ALL_MEDIA_VARIANTS]).toContain(STAGED_SOURCE)
   })
 
-  it.each([...SERVED_VARIANTS])('accepts %s as servable', (variant) => {
-    expect(isServedVariant(variant)).toBe(true)
-  })
-
-  it('refuses something that is not a variant at all', () => {
-    expect(isServedVariant('audio')).toBe(false)
-    expect(isServedVariant(3)).toBe(false)
-  })
 })
 
 describe('VARIANTS_BY_KIND', () => {
@@ -46,14 +35,14 @@ describe('VARIANTS_BY_KIND', () => {
   })
 
   it('does not offer a photo a clip rendition', () => {
-    expect(hasVariant('photo', 'video')).toBe(false)
-    expect(hasVariant('photo', 'thumb')).toBe(true)
+    expect(VARIANTS_BY_KIND.photo).not.toContain('video')
+    expect(VARIANTS_BY_KIND.photo).toContain('thumb')
   })
 
   it('does not offer a clip a photo rendition', () => {
     // A clip asked for `display` is a request for something that was never written; it
     // must miss on the row rather than on the disk.
-    expect(hasVariant('clip', 'display')).toBe(false)
-    expect(hasVariant('clip', 'poster')).toBe(true)
+    expect(VARIANTS_BY_KIND.clip).not.toContain('display')
+    expect(VARIANTS_BY_KIND.clip).toContain('poster')
   })
 })

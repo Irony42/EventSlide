@@ -43,9 +43,6 @@ const INVERSE: Readonly<Record<ModerationDecision, ModerationDecision | null>> =
   hide: 'publish',
 }
 
-export const isModerationDecision = (value: unknown): value is ModerationDecision =>
-  typeof value === 'string' && (MODERATION_DECISIONS as readonly string[]).includes(value)
-
 export const targetStatusFor = (decision: ModerationDecision): PhotoStatus =>
   TARGET_STATUS[decision]
 

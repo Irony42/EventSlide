@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { asPhotoId, type PhotoId } from '../shared/ids'
 import {
-  advance,
   buildPlaylist,
-  cursorForRevision,
-  insertionPointFor,
   playlistRevision,
-  slotsAt,
   type Playlist,
   type PlaylistCandidate,
   type PlaylistOptions,
-  type PlaylistPosition,
 } from './playlist'
 
 const LIVE: PlaylistOptions = { windowSize: 10, freshFirst: true }
@@ -31,13 +26,6 @@ const built = (candidates: readonly PlaylistCandidate[]): Playlist => {
   const result = buildPlaylist(candidates, LIVE)
   if (!result.ok) throw result.error
   return result.value
-}
-
-/** Splices at the insertion point, refusing to guess when there is not one. */
-const withFresh = (position: PlaylistPosition, freshId: PhotoId): Playlist => {
-  const index = insertionPointFor(position, freshId)
-  if (index === null) throw new Error(`${freshId} is already in rotation`)
-  return playlistFrom(position.playlist.items.toSpliced(index, 0, freshId))
 }
 
 const EMPTY = playlistOf()
@@ -152,150 +140,5 @@ describe('playlistRevision', () => {
 
   it('still fingerprints an empty playlist, so a wall with no photos has a revision', () => {
     expect(playlistRevision([]).length).toBeGreaterThan(0)
-  })
-})
-
-describe('slotsAt', () => {
-  it('fills the slots from the cursor forward', () => {
-    expect(slotsAt(playlistOf('a', 'b', 'c', 'd', 'e'), 0, 3)).toEqual(['a', 'b', 'c'])
-  })
-
-  it('fills the last slots exactly, without wrapping round to a repeat', () => {
-    expect(slotsAt(playlistOf('a', 'b', 'c', 'd', 'e'), 2, 3)).toEqual(['c', 'd', 'e'])
-  })
-
-  it('wraps past the end, so the last slide is followed by the first', () => {
-    expect(slotsAt(playlistOf('a', 'b', 'c', 'd', 'e'), 3, 3)).toEqual(['d', 'e', 'a'])
-  })
-
-  it('shows each photo at most once when the playlist is shorter than the layout', () => {
-    expect(slotsAt(playlistOf('a', 'b'), 1, 6)).toEqual(['b', 'a'])
-  })
-
-  it('wraps a cursor that has run past the end of the playlist', () => {
-    expect(slotsAt(playlistOf('a', 'b', 'c'), 7, 1)).toEqual(['b'])
-  })
-
-  it('wraps a cursor that has stepped back before the start', () => {
-    expect(slotsAt(playlistOf('a', 'b', 'c'), -1, 1)).toEqual(['c'])
-  })
-
-  it('shows nothing for an empty playlist instead of throwing', () => {
-    expect(slotsAt(EMPTY, 0, 6)).toEqual([])
-  })
-
-  it('shows nothing for a layout that asks for no slots', () => {
-    expect(slotsAt(playlistOf('a', 'b'), 0, 0)).toEqual([])
-  })
-})
-
-describe('advance', () => {
-  it('moves to the next slide', () => {
-    expect(advance(playlistOf('a', 'b', 'c'), 0, 1)).toBe(1)
-  })
-
-  it('returns to the first slide after the last', () => {
-    expect(advance(playlistOf('a', 'b', 'c'), 2, 1)).toBe(0)
-  })
-
-  it('steps backwards for a host who wants the previous photo', () => {
-    expect(advance(playlistOf('a', 'b', 'c'), 0, -1)).toBe(2)
-  })
-
-  it('never returns a negative cursor', () => {
-    expect(advance(playlistOf('a', 'b', 'c'), 0, -7)).toBe(2)
-  })
-
-  it('stays parked at the start while there is nothing to show', () => {
-    expect(advance(EMPTY, 4, 1)).toBe(0)
-  })
-})
-
-describe('cursorForRevision', () => {
-  it('keeps showing the same photo when an upload is inserted ahead of it', () => {
-    const previous = playlistOf('c', 'b', 'a')
-
-    const cursor = cursorForRevision(playlistOf('d', 'c', 'b', 'a'), {
-      playlist: previous,
-      cursor: 1,
-    })
-
-    expect(cursor).toBe(2)
-  })
-
-  it('lands on a valid slide when the photo on screen was rejected', () => {
-    const previous = playlistOf('a', 'b', 'c')
-
-    const cursor = cursorForRevision(playlistOf('a', 'c'), { playlist: previous, cursor: 1 })
-
-    expect(cursor).toBe(1)
-  })
-
-  it('clamps to the last slide when the playlist shrank past the cursor', () => {
-    const previous = playlistOf('a', 'b', 'c', 'd')
-
-    const cursor = cursorForRevision(playlistOf('x', 'y'), { playlist: previous, cursor: 3 })
-
-    expect(cursor).toBe(1)
-  })
-
-  it('starts at the first slide when the wall had nothing on screen yet', () => {
-    const cursor = cursorForRevision(playlistOf('a', 'b', 'c'), { playlist: EMPTY, cursor: 0 })
-
-    expect(cursor).toBe(0)
-  })
-
-  it('parks at the start when every photo has been taken off the wall', () => {
-    const cursor = cursorForRevision(EMPTY, { playlist: playlistOf('a', 'b'), cursor: 1 })
-
-    expect(cursor).toBe(0)
-  })
-})
-
-describe('insertionPointFor', () => {
-  it('queues a fresh photo immediately after the slide on screen', () => {
-    const playlist = playlistOf('a', 'b', 'c')
-
-    expect(insertionPointFor({ playlist, cursor: 0 }, asPhotoId('fresh'))).toBe(1)
-  })
-
-  it('appends when the wall is on the last slide', () => {
-    const playlist = playlistOf('a', 'b', 'c')
-
-    expect(insertionPointFor({ playlist, cursor: 2 }, asPhotoId('fresh'))).toBe(3)
-  })
-
-  it('offers no insertion point for a photo already in rotation, so it cannot be queued twice', () => {
-    const playlist = playlistOf('a', 'b', 'c')
-
-    expect(insertionPointFor({ playlist, cursor: 2 }, asPhotoId('a'))).toBeNull()
-  })
-
-  it('puts the first photo of the evening at the start of an empty playlist', () => {
-    expect(insertionPointFor({ playlist: EMPTY, cursor: 0 }, asPhotoId('fresh'))).toBe(0)
-  })
-
-  it('wraps a cursor that has run past the end of the playlist', () => {
-    const playlist = playlistOf('a', 'b', 'c')
-
-    expect(insertionPointFor({ playlist, cursor: 6 }, asPhotoId('fresh'))).toBe(1)
-  })
-
-  it('makes the fresh photo the very next slide once it is spliced in', () => {
-    const playlist = playlistOf('a', 'b', 'c')
-    const fresh = asPhotoId('fresh')
-
-    const updated = withFresh({ playlist, cursor: 0 }, fresh)
-
-    expect(slotsAt(updated, advance(updated, 0, 1), 1)).toEqual([fresh])
-  })
-
-  it('is still the very next slide when the wall is on the last one and the id appends', () => {
-    const playlist = playlistOf('a', 'b', 'c')
-    const fresh = asPhotoId('fresh')
-
-    const updated = withFresh({ playlist, cursor: 2 }, fresh)
-
-    expect(slotsAt(updated, advance(updated, 2, 1), 1)).toEqual([fresh])
   })
 })

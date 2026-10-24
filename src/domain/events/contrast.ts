@@ -63,18 +63,6 @@ export const contrastRatio = (a: Oklch, b: Oklch): number => {
 }
 
 /**
- * The shorter way round the hue circle, in degrees, between 0 and 180.
- *
- * A wheel has two arcs between any two points and only the shorter one is what an eye
- * reports, which is why `Math.abs(a - b)` is wrong here: hue 350 and hue 10 differ by
- * 340 arithmetically and by 20 to a viewer.
- */
-export const hueDistance = (a: number, b: number): number => {
-  const raw = Math.abs(a - b) % 360
-  return raw > 180 ? 360 - raw : raw
-}
-
-/**
  * How far apart two colours are in Oklab, as a straight line through the space.
  *
  * Hue distance alone answers a different question from the one this product asks. Two

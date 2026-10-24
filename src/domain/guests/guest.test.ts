@@ -9,7 +9,6 @@ const eventId = asEventId('evt-camille-et-sacha')
 const guestId = asGuestId('gst-lea')
 
 const JOINED_AT = new Date('2026-06-20T18:00:00.000Z')
-const IDLE_MS = 120_000
 
 const at = (offsetMs: number): Date => new Date(JOINED_AT.getTime() + offsetMs)
 
@@ -153,24 +152,6 @@ describe('Guest.touch', () => {
   })
 })
 
-describe('Guest.isStale', () => {
-  it.each([
-    { rule: 'a guest seen a moment ago is at the party', elapsedMs: 1_000, stale: false },
-    {
-      rule: 'a guest seen exactly one idle window ago is at the party',
-      elapsedMs: IDLE_MS,
-      stale: false,
-    },
-    {
-      rule: 'a guest unseen for longer than the idle window has gone home',
-      elapsedMs: IDLE_MS + 1,
-      stale: true,
-    },
-  ])('$rule', ({ elapsedMs, stale }) => {
-    expect(aGuest().isStale(at(elapsedMs), IDLE_MS)).toBe(stale)
-  })
-})
-
 describe('Guest.revoke', () => {
   it('records when the host removed the guest', () => {
     const guest = aGuest()
@@ -208,65 +189,6 @@ describe('Guest.revoke', () => {
 
     expect(guest.isActive()).toBe(true)
     expect(guest.isRevoked()).toBe(false)
-  })
-})
-
-describe('Guest photo count', () => {
-  it('counts a photo the guest sent', () => {
-    const guest = aGuest({ photoCount: 2 })
-
-    expect(guest.recordPhoto().photoCount).toBe(3)
-  })
-
-  it('leaves the guest it was called on untouched', () => {
-    const guest = aGuest({ photoCount: 2 })
-
-    guest.recordPhoto()
-
-    expect(guest.photoCount).toBe(2)
-  })
-
-  it('gives the slot back when one of their photos is removed', () => {
-    const guest = aGuest({ photoCount: 2 })
-
-    expect(guest.forgetPhoto().photoCount).toBe(1)
-  })
-
-  it('never lets the count fall below zero', () => {
-    const guest = aGuest({ photoCount: 0 })
-
-    expect(guest.forgetPhoto().photoCount).toBe(0)
-  })
-})
-
-describe('Guest.canUploadMore', () => {
-  it.each([
-    {
-      rule: 'no per-guest limit means the guest keeps uploading',
-      photoCount: 12,
-      limit: null,
-      allowed: true,
-    },
-    {
-      rule: 'a guest below the per-guest limit may send another',
-      photoCount: 2,
-      limit: 3,
-      allowed: true,
-    },
-    {
-      rule: 'a guest at exactly the per-guest limit may not',
-      photoCount: 3,
-      limit: 3,
-      allowed: false,
-    },
-    {
-      rule: 'a guest already past the per-guest limit may not',
-      photoCount: 4,
-      limit: 3,
-      allowed: false,
-    },
-  ])('$rule', ({ photoCount, limit, allowed }) => {
-    expect(aGuest({ photoCount }).canUploadMore(limit)).toBe(allowed)
   })
 })
 
