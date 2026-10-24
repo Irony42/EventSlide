@@ -408,6 +408,29 @@ describe('opening a client', () => {
     expect(await screen.findByLabelText(fr.site.maxEvents)).toHaveValue('1')
   })
 
+  it('reads the clients again from the first page once one is opened, and drops the rows of the old read', async () => {
+    const siteClients = vi
+      .fn<Api['siteClients']>()
+      .mockResolvedValueOnce({ items: [aSiteClient()], next: CLIENT_ID })
+      .mockResolvedValueOnce({
+        items: [aSiteClient({ id: OTHER_CLIENT_ID, name: 'Bureau Beta' })],
+        next: null,
+      })
+      .mockResolvedValue({ items: [aSiteClient({ name: 'Atelier Alpha 2' })], next: CLIENT_ID })
+    const api = consoleApi({ siteClients, siteClientDefaults: vi.fn(async () => defaults) })
+    openConsole('/admin/site', api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.site.more }))
+    await screen.findByRole('link', { name: 'Bureau Beta' })
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.newClient }))
+    await screen.findByLabelText(fr.site.maxEvents)
+    await fill('Atelier Omega', 'omega@example.com')
+    await submit()
+
+    expect(await screen.findByRole('link', { name: 'Atelier Alpha 2' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Bureau Beta' })).toBeNull()
+  })
+
   it('closes the form without opening anything when the operator cancels', async () => {
     const api = consoleApi({ siteClientDefaults: vi.fn(async () => defaults) })
     await openForm(api)
