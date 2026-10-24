@@ -5,7 +5,7 @@ import type { Guest } from '../../../domain/guests/guest'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
 import type { User } from '../../../domain/users/user'
-import type { EventSummary } from '../../../application/ports/eventRepository'
+import type { EventCounts, EventSummary } from '../../../application/ports/eventRepository'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { EventThemeProps } from '../../../domain/events/eventTheme'
@@ -259,13 +259,8 @@ export const toEventSummaryDto = (summary: EventSummary): EventSummaryDto => ({
 export interface EventDtoInput {
   readonly event: Event
   readonly role: EventRole
-  readonly counts: {
-    readonly photoCount: number
-    readonly pendingCount: number
-    readonly guestCount: number
-    readonly usedBytes: number
-  }
-  /** What the event's client makes of its quota and its live window (`getEventLimits`). */
+  readonly counts: EventCounts
+  /** What the event's client makes of its quota and its live window (`getEventView`). */
   readonly limits: EventLimits
 }
 

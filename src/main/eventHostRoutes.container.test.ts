@@ -120,3 +120,43 @@ describe('the host routes whose use cases the container now builds', () => {
     expect(JSON.stringify(listed.body)).toContain(OWNER)
   })
 })
+
+describe('the answer about one event, through the real container (HTTP-M-06)', () => {
+  const insertGuests = (c: Container, eventSlug: string, howMany: number): void => {
+    const event = c.db
+      .prepare<[string], { readonly id: string }>('SELECT id FROM events WHERE slug = ?')
+      .get(eventSlug)
+    const at = new Date().toISOString()
+    for (let guest = 0; guest < howMany; guest += 1) {
+      c.db
+        .prepare(
+          `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+           VALUES (?, ?, 'Léa', ?, ?)`,
+        )
+        .run(`guest-${eventSlug}-${guest}`, event?.id ?? '', at, at)
+    }
+  }
+
+  it('counts the guests of that event alone, and says what the dashboard says of it', async () => {
+    const { agent, ownerId } = await signedInOwner()
+    const second = await container?.usecases.createEvent({
+      ownerId: asUserId(ownerId),
+      name: 'Gala annuel',
+      slug: 'gala-annuel',
+    })
+    if (second === undefined || !second.ok) throw new Error('fixture rejected')
+    if (container === null) throw new Error('no container')
+    insertGuests(container, SLUG, 2)
+    insertGuests(container, 'gala-annuel', 3)
+
+    const one = await agent.get(`/api/events/${SLUG}`)
+    const dashboard = await agent.get('/api/events')
+    const row = (dashboard.body.items as { slug: string; guestCount: number }[]).find(
+      (item) => item.slug === SLUG,
+    )
+
+    expect(one.status, JSON.stringify(one.body)).toBe(200)
+    expect(one.body.guestCount).toBe(2)
+    expect(row?.guestCount).toBe(2)
+  })
+})
