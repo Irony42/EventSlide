@@ -16,7 +16,7 @@ import {
   renderWithProviders,
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
-import type { GuestPhotoDto, WallItemDto, WallResponse } from '../../lib/api/dto'
+import type { GuestPhotoDto, ReactionsResponse, WallItemDto, WallResponse } from '../../lib/api/dto'
 
 const SLUG = 'camille-et-sacha'
 
@@ -264,10 +264,17 @@ describe('GuestFeedPage', () => {
           items: reads === 1 ? [photo('a'), photo('b')] : [photo('new'), photo('a'), photo('b')],
         })
       }),
-      reactions: vi.fn(async (_slug: string, photoId: string) => ({
-        counts: { love: 0, laugh: 0, wow: 0, cheers: 0, clap: 0 },
-        mine: photoId === 'a' ? (['love'] as const) : [],
-      })),
+      // The new photograph's row never answers, so what its card shows is only what it
+      // starts from: under an index key that would be the hearts of the photograph that used
+      // to be first, still on screen while the new one is being read.
+      reactions: vi.fn((_slug: string, photoId: string) =>
+        photoId === 'new'
+          ? new Promise<ReactionsResponse>(() => {})
+          : Promise.resolve({
+              counts: { love: 0, laugh: 0, wow: 0, cheers: 0, clap: 0 },
+              mine: photoId === 'a' ? (['love'] as const) : [],
+            }),
+      ),
     })
     renderFeed(api)
     const before = await screen.findAllByRole('listitem')
@@ -286,9 +293,9 @@ describe('GuestFeedPage', () => {
         within(after[1]!).getByRole('button', { name: fr.upload.reactionKinds.love }),
       ).toHaveAttribute('aria-pressed', 'true'),
     )
-    expect(
-      within(after[0]!).getByRole('button', { name: fr.upload.reactionKinds.love }),
-    ).toHaveAttribute('aria-pressed', 'false')
+    const fresh = within(after[0]!).getByRole('button', { name: fr.upload.reactionKinds.love })
+    expect(fresh).toHaveAttribute('aria-pressed', 'false')
+    expect(fresh).toBeDisabled()
   })
 
   it('says a refresh is under way, and says when it failed while keeping what was on screen', async () => {
