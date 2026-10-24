@@ -57,8 +57,9 @@ describe('listGuests', () => {
     guests = new FakeGuestRepository(photos).seed(
       aGuest({ id: 'guest-lea', eventId: WEDDING }),
       aGuest({ id: 'guest-tom', eventId: WEDDING }),
-      aGuest({ id: 'guest-new', eventId: WEDDING, photoCount: 9 }),
     )
+    // A count carried by a saved guest is not what the host is shown.
+    await guests.save(aGuest({ id: 'guest-new', eventId: WEDDING, photoCount: 9 }))
 
     const result = await list()
 

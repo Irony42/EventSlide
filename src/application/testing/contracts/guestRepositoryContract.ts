@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
 import type { GuestRepository } from '../../ports/guestRepository'
 import { AT, aGuest, atPlus } from '../builders'
@@ -18,6 +19,12 @@ import { AT, aGuest, atPlus } from '../builders'
  * tested against `PhotoRepository.countByAuthor`, which is the number the rule consults.
  */
 
+/** What a subject files for a guest: a pending still unless told otherwise. */
+export interface AuthoredPhoto {
+  readonly status?: PhotoStatus
+  readonly clip?: boolean
+}
+
 /** `guests.event_id` references `events`, so a subject must hold both events. */
 export const GUEST_CONTRACT_FIXTURES = {
   eventIds: ['evt-wedding', 'evt-gala'],
@@ -32,13 +39,13 @@ export const guestRepositoryContract = (
   makeSubject: () => Promise<{
     repo: GuestRepository
     /** Files one photograph taken by a guest, under the event the caller names. */
-    authorPhoto: (eventId: EventId, guestId: GuestId) => Promise<void>
+    authorPhoto: (eventId: EventId, guestId: GuestId, what?: AuthoredPhoto) => Promise<void>
     dispose?: () => Promise<void>
   }>,
 ): void => {
   describe(`GuestRepository contract: ${name}`, () => {
     let repo: GuestRepository
-    let authorPhoto: (eventId: EventId, guestId: GuestId) => Promise<void>
+    let authorPhoto: (eventId: EventId, guestId: GuestId, what?: AuthoredPhoto) => Promise<void>
     let dispose: (() => Promise<void>) | undefined
 
     beforeEach(async () => {
@@ -68,19 +75,36 @@ export const guestRepositoryContract = (
       await authorPhoto(WEDDING, asGuestId('guest-tom'))
 
       expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(0)
+      expect((await repo.findById(WEDDING, asGuestId('guest-tom')))?.photoCount).toBe(1)
     })
 
     it('never counts a photo filed under another event towards a guest', async () => {
       await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+      await authorPhoto(WEDDING, LEA)
       await authorPhoto(GALA, LEA)
 
-      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(0)
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(1)
+    })
+
+    it('counts every photo the guest took, whatever its status and whether a still or a clip', async () => {
+      // The same rows `PhotoRepository.countByAuthor` counts for the upload limit: the host
+      // sees how many a guest sent, not how many survived moderation.
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+      await authorPhoto(WEDDING, LEA)
+      await authorPhoto(WEDDING, LEA, { status: 'published' })
+      await authorPhoto(WEDDING, LEA, { status: 'rejected' })
+      await authorPhoto(WEDDING, LEA, { status: 'hidden' })
+      await authorPhoto(WEDDING, LEA, { clip: true, status: 'published' })
+
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(5)
     })
 
     it('discards the count a saved guest carries, because no column stores it', async () => {
+      await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
+      await authorPhoto(WEDDING, LEA)
       await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, photoCount: 7 }))
 
-      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(0)
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(1)
     })
 
     it('derives the count when listing the guests of an event too', async () => {
@@ -90,6 +114,18 @@ export const guestRepositoryContract = (
       const [listed] = await repo.list(WEDDING)
 
       expect(listed?.photoCount).toBe(1)
+    })
+
+    it('takes the photos with a guest who is erased, so the same guest saved again starts from none', async () => {
+      // `photos.author_guest_id … ON DELETE CASCADE`: erasing a guest erases what they sent.
+      const guest = aGuest({ id: 'guest-lea', eventId: WEDDING })
+      await repo.save(guest)
+      await authorPhoto(WEDDING, LEA)
+
+      await repo.delete(WEDDING, LEA)
+      await repo.save(guest)
+
+      expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(0)
     })
 
     it('goes on counting after the guest is saved again, as when a heartbeat touches them', async () => {

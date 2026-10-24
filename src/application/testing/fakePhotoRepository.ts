@@ -326,9 +326,23 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     return this.authoredBy(eventId, guestId)
   }
 
-  /** The same count, synchronously: what `FakeGuestRepository` derives `photoCount` from. */
+  /**
+   * How many rows of one event a guest authored, synchronously, whatever their status and
+   * whether a still or a clip — what `countByAuthor` answers and what `FakeGuestRepository`
+   * derives `photoCount` from. **Test infrastructure, not a port method.**
+   */
   authoredBy(eventId: EventId, guestId: GuestId): number {
     return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
+  }
+
+  /**
+   * What `photos.author_guest_id … ON DELETE CASCADE` does when a guest is erased: their
+   * photographs go with them. `FakeGuestRepository.delete` calls it. **Test infrastructure.**
+   */
+  deleteAuthoredBy(eventId: EventId, guestId: GuestId): void {
+    for (const photo of this.forEvent(eventId)) {
+      if (this.matchesAuthor(photo, guestId)) this.rows.delete(key(photo.eventId, photo.id))
+    }
   }
 
   async save(photo: Photo): Promise<void> {

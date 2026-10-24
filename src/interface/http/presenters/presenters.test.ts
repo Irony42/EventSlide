@@ -425,11 +425,12 @@ describe('toModerationPhotoDto', () => {
 
 describe('toGuestDto', () => {
   it('reports the display name, the counts and whether the guest was removed', () => {
-    const guest = aGuest({ id: 'guest-1', displayName: 'Léa' })
+    const guest = aGuest({ id: 'guest-1', displayName: 'Léa', photoCount: 4 })
 
     expect(toGuestDto(guest)).toMatchObject({
       id: 'guest-1',
       displayName: 'Léa',
+      photoCount: 4,
       revoked: false,
       joinedAt: AT.toISOString(),
     })

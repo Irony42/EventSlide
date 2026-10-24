@@ -15,17 +15,18 @@ import { compareIds } from './ordering'
  * column, and the number is a count of `photos.author_guest_id` within the guest's own
  * event. The fake is handed the photo fake (`new FakeGuestRepository(photos)`) to count in,
  * as `FakeEventRepository` is handed its neighbours; with none, no photo is known and every
- * count is 0. A count a fixture carries is discarded on the way in, as `save` discards it
- * on the way to the table. Before this, the value was kept as given, so a test of the
- * guest list's count proved nothing about what a host would see.
+ * count is 0. A count a saved guest carries is discarded, as `save` discards it on the way to
+ * the table; a fixture that `seed`s one is refused, because a number the fake would not return
+ * is a broken fixture.
  */
 
 /**
- * The photographs a guest took, which is the one thing `photoCount` is derived from.
- * `FakePhotoRepository` is the one that holds them.
+ * The photographs a guest took, which is the one thing `photoCount` is derived from, and
+ * which go when the guest does (`ON DELETE CASCADE`). `FakePhotoRepository` holds them.
  */
 export interface GuestPhotoSource {
   authoredBy(eventId: EventId, guestId: GuestId): number
+  deleteAuthoredBy(eventId: EventId, guestId: GuestId): void
 }
 
 /**
@@ -49,7 +50,14 @@ export class FakeGuestRepository implements GuestRepository {
   }
 
   seed(...guests: readonly Guest[]): this {
-    for (const guest of guests) this.rows.set(key(guest.eventId, guest.id), guest)
+    for (const guest of guests) {
+      if (guest.photoCount !== 0) {
+        throw new Error(
+          `seed(${guest.id}): photoCount is derived from the photos, not stored; seed photos into the photo fake handed to this repository instead`,
+        )
+      }
+      this.rows.set(key(guest.eventId, guest.id), guest)
+    }
     return this
   }
 
@@ -113,8 +121,9 @@ export class FakeGuestRepository implements GuestRepository {
     if (stored !== undefined) this.rows.set(key(eventId, guestId), stored.touch(at))
   }
 
-  /** Idempotent: deleting an already-deleted guest is not an error. */
+  /** Idempotent: deleting an already-deleted guest is not an error. Their photos go with them. */
   async delete(eventId: EventId, guestId: GuestId): Promise<void> {
     this.rows.delete(key(eventId, guestId))
+    this.photos?.deleteAuthoredBy(eventId, guestId)
   }
 }

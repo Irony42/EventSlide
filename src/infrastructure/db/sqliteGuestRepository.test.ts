@@ -7,6 +7,7 @@ import { AT, aGuest, atPlus } from '../../application/testing/builders'
 import {
   GUEST_CONTRACT_FIXTURES,
   guestRepositoryContract,
+  type AuthoredPhoto,
 } from '../../application/testing/contracts/guestRepositoryContract'
 import { asEventId, asGuestId } from '../../domain/shared/ids'
 
@@ -48,12 +49,31 @@ const seedEvents = (db: Db, eventIds: readonly string[]): void => {
  * `(event_id, content_hash)` is unique and the column is CHECKed at 64 characters, so
  * the digest comes from the caller's index instead of being shared between fixtures.
  */
-const seedPhoto = (db: Db, index: number, eventId: string, guestId: string): void => {
-  db.prepare<[string, string, string, string, string]>(
+const seedPhoto = (
+  db: Db,
+  index: number,
+  eventId: string,
+  guestId: string,
+  what: AuthoredPhoto = {},
+): void => {
+  const clip = what.clip === true
+  db.prepare<
+    [string, string, string, string, string, string, string, number | null, string | null]
+  >(
     `INSERT INTO photos (id, event_id, author_guest_id, status, content_hash, width, height,
-                         byte_size, created_at)
-          VALUES (?, ?, ?, 'pending', ?, 4032, 3024, 2400000, ?)`,
-  ).run(`photo-${index}`, eventId, guestId, String(index).padStart(64, '0'), AT.toISOString())
+                         byte_size, created_at, media_kind, duration_ms, poster_hash)
+          VALUES (?, ?, ?, ?, ?, 4032, 3024, 2400000, ?, ?, ?, ?)`,
+  ).run(
+    `photo-${index}`,
+    eventId,
+    guestId,
+    what.status ?? 'pending',
+    String(index).padStart(64, '0'),
+    AT.toISOString(),
+    clip ? 'clip' : 'photo',
+    clip ? 5_000 : null,
+    clip ? String(index + 1_000).padStart(64, '0') : null,
+  )
 }
 
 interface QueryLog {
@@ -111,9 +131,9 @@ guestRepositoryContract('sqlite', async () => {
 
   return {
     repo: new SqliteGuestRepository(db),
-    authorPhoto: async (eventId, guestId) => {
+    authorPhoto: async (eventId, guestId, what) => {
       taken += 1
-      seedPhoto(db, taken, eventId, guestId)
+      seedPhoto(db, taken, eventId, guestId, what)
     },
     dispose: async () => {
       closeDatabase(db)
@@ -148,7 +168,12 @@ describe('SqliteGuestRepository', () => {
 
     await repo.save(guest.touch(atPlus(60_000)))
 
-    expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(1)
+    const row = db
+      .prepare<[string], { n: number }>(
+        'SELECT COUNT(*) AS n FROM photos WHERE author_guest_id = ?',
+      )
+      .get(LEA)
+    expect(row?.n).toBe(1)
   })
 
   // -------------------------------------------------------- cross-event writes --
