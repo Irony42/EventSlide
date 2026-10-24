@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { AboutProvider } from './AboutProvider'
 import { ApiProvider } from './ApiProvider'
 import { useAbout } from './useAbout'
 import { anAbout, fakeApi } from '../testing/renderWithProviders'
@@ -9,7 +10,9 @@ import type { About } from '../lib/api/dto'
 const aboutAnswering = (answer: unknown) => {
   const api = fakeApi({ about: async () => answer as About })
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
-    <ApiProvider api={api}>{children}</ApiProvider>
+    <ApiProvider api={api}>
+      <AboutProvider>{children}</AboutProvider>
+    </ApiProvider>
   )
   return renderHook(() => useAbout(), { wrapper })
 }
@@ -57,5 +60,49 @@ describe('useAbout: features.forgotPassword', () => {
 
     await waitFor(() => expect(result.current.features.siteAdmin).toBe(true))
     expect(result.current.features.forgotPassword).toBe(false)
+  })
+})
+
+describe('AboutProvider', () => {
+  const wrapperFor = (api: ReturnType<typeof fakeApi>) =>
+    function Wrapper({ children }: { readonly children: ReactNode }) {
+      return (
+        <ApiProvider api={api}>
+          <AboutProvider>{children}</AboutProvider>
+        </ApiProvider>
+      )
+    }
+
+  it('asks the server once however many readers there are', async () => {
+    // The router, the footer and the page each read it. They used to ask for themselves.
+    const api = fakeApi({ about: vi.fn(async () => anAbout({ version: '7.7.7' })) })
+
+    const { result } = renderHook(() => [useAbout(), useAbout(), useAbout()], {
+      wrapper: wrapperFor(api),
+    })
+
+    await waitFor(() =>
+      expect(result.current.map((about) => about.version)).toEqual(Array(3).fill('7.7.7')),
+    )
+    expect(api.about).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the build’s own answer, without a word, when the server cannot be asked', async () => {
+    const api = fakeApi({ about: vi.fn(() => Promise.reject(new Error('offline'))) })
+
+    const { result } = renderHook(() => useAbout(), { wrapper: wrapperFor(api) })
+
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+    expect(result.current.name).toBe('EventSlide')
+    expect(result.current.sourceUrl).not.toBe('')
+  })
+
+  it('answers with the build’s own answer where no provider is mounted', () => {
+    // A component under test with nothing above it renders what the footer renders before
+    // the server has spoken: complete, never `undefined`.
+    const { result } = renderHook(() => useAbout())
+
+    expect(result.current.features).toEqual({ siteAdmin: false, forgotPassword: false })
+    expect(result.current.links).toEqual({})
   })
 })

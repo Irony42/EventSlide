@@ -16,6 +16,7 @@ import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
 import { NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
+import { SessionProvider } from './SessionProvider'
 import { SiteFooter } from './SiteFooter'
 import styles from './router.module.css'
 
@@ -178,6 +179,11 @@ const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
  * not-found screen under the host's footer, and a guest is not who is being asked. The
  * source offer is not subject to this: it belongs on every screen that has a footer.
  */
+const useSignedInArea = (): boolean => {
+  const { pathname } = useLocation()
+  return pathname === '/admin' || pathname.startsWith('/admin/')
+}
+
 const useHostScreen = (): boolean => {
   const { pathname } = useLocation()
   return pathname === '/login' || pathname === '/admin' || pathname.startsWith('/admin/')
@@ -239,8 +245,7 @@ const LazyGuestPage = () => (
  * with no state to keep in step with a login that happened on a sibling route.
  */
 const HostHeader = () => {
-  const { pathname } = useLocation()
-  const signedInArea = pathname === '/admin' || pathname.startsWith('/admin/')
+  const signedInArea = useSignedInArea()
   return (
     <div className={styles['hostHeader']}>
       <LanguagePicker />
@@ -266,22 +271,27 @@ const HostHeader = () => {
 const HostLayout = () => {
   const backdrop = useGlassBackdrop()
   const hostScreen = useHostScreen()
+  const signedInArea = useSignedInArea()
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <AppShell
-          surface="host"
-          backdrop={backdrop}
-          header={<HostHeader />}
-          // The one footer that may carry "Soutenir le projet" (roadmap G4-02) and the
-          // operator's help page (G2-17), and only on the host's own screens: nobody on them
-          // is mid-upload or in front of the room.
-          footer={<SiteFooter supportLink={hostScreen} helpLink={hostScreen} />}
-        >
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
-        </AppShell>
+        {/* Around the shell and not inside the gate: the account menu in the header and the
+            gates under the outlet read the same answer, and that is the whole point. */}
+        <SessionProvider scope={signedInArea ? 'signed-in' : 'open'}>
+          <AppShell
+            surface="host"
+            backdrop={backdrop}
+            header={<HostHeader />}
+            // The one footer that may carry "Soutenir le projet" (roadmap G4-02) and the
+            // operator's help page (G2-17), and only on the host's own screens: nobody on them
+            // is mid-upload or in front of the room.
+            footer={<SiteFooter supportLink={hostScreen} helpLink={hostScreen} />}
+          >
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </AppShell>
+        </SessionProvider>
       </ToastProvider>
     </ErrorBoundary>
   )
