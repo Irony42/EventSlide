@@ -717,7 +717,7 @@ read-only bind mount and a full disk as writable and then fails on the first upl
     "database": "ok",
     "media": "ok",
     "video": "ok",
-    "disk": { "sufficient": true, "freeBytes": 42949672960 }
+    "disk": { "sufficient": true }
   }
 }
 ```
@@ -734,7 +734,7 @@ naming which:
       "database": "ok",
       "media": "unavailable",
       "video": "ok",
-      "disk": { "sufficient": true, "freeBytes": 42949672960 }
+      "disk": { "sufficient": true }
     }
   }
 }
@@ -752,9 +752,11 @@ instead (§3). It is decided once at boot, so this route starts no subprocess of
 `disk` is the same (G3-06 / P4-10): **reported, never acted on**, for the matching
 reason — the free-disk-space guard already refuses the one request that would have
 minded (§1), so a tight margin here must never flip this route's own status and take a
-whole venue's wall out of service over headroom no request currently needs. `freeBytes`
-is the tighter of the two checked paths, or `null` when either could not be read, in
-which case `sufficient` is `false`.
+whole venue's wall out of service over headroom no request currently needs. `sufficient`
+is the verdict on the tighter of the two checked paths, and is `false` when either could
+not be read. **The route says nothing more about the disk**: it is unauthenticated, and the
+exact free bytes of the volume the albums live on would let anyone watch an event fill the box.
+The margin is a log line instead, a `warn` when it is too thin and a `debug` otherwise.
 
 **Once a shutdown signal has been received, this always answers 503** —
 `{ "database": "unavailable", "media": "unavailable", "video": <as above> }` — whatever

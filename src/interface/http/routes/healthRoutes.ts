@@ -51,6 +51,10 @@ export interface HealthChecks {
    * the matching reason: the guard already refuses the one request that would have
    * minded, so a tight margin must never flip this route's status and take a whole
    * venue's wall out of service over headroom no request currently needs.
+   *
+   * **The route says only `sufficient`.** The exact free bytes of the disk the albums live on were
+   * in the public body (HTTP-L-12), so anyone could watch an event fill the box; they go to the log,
+   * where the operator reads them.
    */
   readonly diskSpace: () => Promise<DiskSpaceStatus>
 }
@@ -68,7 +72,7 @@ export const healthRoutes = (checks: HealthChecks): Router => {
 
   router.get(
     '/ready',
-    asyncHandler(async (_req, res) => {
+    asyncHandler(async (req, res) => {
       // Checked before either dependency, and without awaiting anything: a load
       // balancer draining this instance must be told so in one tick, not after a
       // database round trip that a shutting-down process may be slow to answer at all.
@@ -99,8 +103,19 @@ export const healthRoutes = (checks: HealthChecks): Router => {
         .diskSpace()
         .catch((): DiskSpaceStatus => ({ sufficient: false, freeBytes: null }))
 
+      // What is public is the verdict. The margin is the operator's, and a probe that finds it
+      // too thin is the line an operator wants, so it is a warning; a healthy one is a debug line.
+      req.context.logger[disk.sufficient ? 'debug' : 'warn']('readiness: free disk space', {
+        sufficient: disk.sufficient,
+        freeBytes: disk.freeBytes,
+      })
+      const publicDisk = { sufficient: disk.sufficient }
+
       if (database && media) {
-        res.json({ status: 'ready', checks: { database: 'ok', media: 'ok', video, disk } })
+        res.json({
+          status: 'ready',
+          checks: { database: 'ok', media: 'ok', video, disk: publicDisk },
+        })
         return
       }
 
@@ -114,7 +129,7 @@ export const healthRoutes = (checks: HealthChecks): Router => {
             database: database ? 'ok' : 'unavailable',
             media: media ? 'ok' : 'unavailable',
             video,
-            disk,
+            disk: publicDisk,
           },
         },
       })

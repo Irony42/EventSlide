@@ -6,6 +6,7 @@ import { brotliCompressSync, gzipSync } from 'node:zlib'
 import request from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AT, aGuest, anEvent, aUser } from '../../application/testing/builders'
+import { CapturingLogger } from '../../application/testing/capturingLogger'
 import { DomainError } from '../../domain/shared/errors'
 import { asEventId, asUserId } from '../../domain/shared/ids'
 import { err, ok } from '../../domain/shared/result'
@@ -209,7 +210,7 @@ describe('buildServer: liveness and readiness', () => {
         database: 'ok',
         media: 'ok',
         video: 'ok',
-        disk: { sufficient: true, freeBytes: 10_000_000_000 },
+        disk: { sufficient: true },
       },
     })
   })
@@ -227,7 +228,7 @@ describe('buildServer: liveness and readiness', () => {
       database: 'unavailable',
       media: 'ok',
       video: 'ok',
-      disk: { sufficient: true, freeBytes: 10_000_000_000 },
+      disk: { sufficient: true },
     })
   })
 
@@ -244,7 +245,7 @@ describe('buildServer: liveness and readiness', () => {
       database: 'ok',
       media: 'unavailable',
       video: 'ok',
-      disk: { sufficient: true, freeBytes: 10_000_000_000 },
+      disk: { sufficient: true },
     })
   })
 
@@ -257,7 +258,61 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(200)
-    expect(response.body.checks.disk).toEqual({ sufficient: false, freeBytes: 1_000 })
+    expect(response.body.checks.disk).toEqual({ sufficient: false })
+  })
+
+  describe("the exact free bytes are the operator's, not the public's (HTTP-L-12)", () => {
+    // `GET /api/ready` is unauthenticated: the exact free bytes of the disk the albums live on let an
+    // anonymous caller watch an event fill the box. The route says sufficient or not; the margin is a log line.
+    const FREE = 42_949_672_960
+
+    const probed = async (
+      status: { readonly sufficient: boolean; readonly freeBytes: number | null },
+      break_?: (subject: ReturnType<typeof buildServerHarness>) => void,
+    ) => {
+      const logger = new CapturingLogger()
+      const subject = buildServerHarness({ logger })
+      subject.health.diskSpace = async () => status
+      break_?.(subject)
+      const response = await request(subject.app).get('/api/ready')
+      return { response, logger }
+    }
+
+    it('keeps the number out of a 200, whatever it is', async () => {
+      const { response } = await probed({ sufficient: true, freeBytes: FREE })
+
+      expect(response.status).toBe(200)
+      expect(JSON.stringify(response.body)).not.toContain('freeBytes')
+      expect(JSON.stringify(response.body)).not.toContain(String(FREE))
+    })
+
+    it('keeps the number out of a 503 as well', async () => {
+      const { response } = await probed({ sufficient: true, freeBytes: FREE }, (subject) => {
+        subject.health.databaseReady = async () => false
+      })
+
+      expect(response.status).toBe(503)
+      expect(JSON.stringify(response.body)).not.toContain('freeBytes')
+      expect(JSON.stringify(response.body)).not.toContain(String(FREE))
+    })
+
+    it('writes the number to the log at debug while there is room', async () => {
+      const { logger } = await probed({ sufficient: true, freeBytes: FREE })
+
+      const line = logger.lines.find((entry) => entry.message === 'readiness: free disk space')
+      expect([line?.level, line?.context]).toEqual(['debug', { sufficient: true, freeBytes: FREE }])
+    })
+
+    it('writes it as a warning the moment the margin is too thin, which is the line an operator wants', async () => {
+      const { response, logger } = await probed({ sufficient: false, freeBytes: 1_000 })
+
+      expect(response.body.checks.disk).toEqual({ sufficient: false })
+      const line = logger.lines.find((entry) => entry.message === 'readiness: free disk space')
+      expect([line?.level, line?.context]).toEqual([
+        'warn',
+        { sufficient: false, freeBytes: 1_000 },
+      ])
+    })
   })
 
   it('answers disk unreadable rather than throwing when the probe itself rejects', async () => {
@@ -269,7 +324,7 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(200)
-    expect(response.body.checks.disk).toEqual({ sufficient: false, freeBytes: null })
+    expect(response.body.checks.disk).toEqual({ sufficient: false })
   })
 
   it('answers with service.notReady rather than a 500 when a dependency is down', async () => {
