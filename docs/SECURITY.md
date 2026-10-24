@@ -3298,6 +3298,37 @@ opened before the suspension does not outlive it**: the live feed re-reads the e
 A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once. The moderation feed is the exception that follows from the second half: its members keep their reads, so only an event that is gone ends it.
 Resuming is the same column set back to null; a suspended client's guests reach their event again at once.
 
+**Accounts and the end of an engagement (G2-14 part 3).** Four more writes, each behind the same gate and a fresh step-up
+(§22 above): switch an account off and on, delete one, offboard a client. The rules each carries are held by a use case
+and a mutation.
+
+- **An operator's account is never switched off or deleted from here** (`403 account.operatorProtected`), another's or its
+  own: one that could would lock the box's operators out one after another, and one that could do it to itself would lock
+  the box. Taking an operator's authority away stays a change to the database.
+- **Deleting an account is the one irreversible act of the API**, and exactly **two use cases** may do it:
+  `deleteAccount` (an erasure request) and `finalizeOffboardedClients` (the sweep). `scripts/userDeletionScope.test.ts`
+  holds the allow-list and is exercised against a third file, so widening it is a decision and not a line nobody read.
+  Migration 014 indexes every foreign key that points at `users`, because deleting a row looks its children up.
+- **What an account holds decides whether it may go.** One that **owns an event** (`409 account.holdsEvents`) or **wrote
+  media** (`409 account.holdsMedia`) is refused: an album is somebody's, and the foreign key cascade would delete a
+  photograph's row and leave its file on disk. What an erasure does remove is the membership rows and the pointer: the
+  audit lines keep their place and lose their author, which is what `ON DELETE SET NULL` is for.
+- **The trail names the client.** An act on an account writes one line per client the account belongs to, carrying the
+  client's id, so an owner reads that a member's account was switched off, back on or deleted; an account that belongs to
+  none leaves one line with no client. The subject is the account's opaque id, a pseudonym once the account is gone.
+- **Offboarding reuses the sweep and invents no deletion.** `offboardClient` closes live events, archives drafts,
+  suspends the client and sets `clients.purge_after`; the purge that already existed deletes the albums, and only then
+  does `finalizeOffboardedClients` (run by `retentionSweeper` after the purge, by the `system` actor labelled
+  `retention-sweeper`) delete the accounts that were nothing but the client's and the client row. It **keeps** an account
+  that belongs to another client, owns an event, wrote media, has a part in any event, or is an operator, and only removes
+  it from this client. A client is never finalised while an event of its remains, so a purge that failed is retried before
+  anything else goes. `offboarding.container.test.ts` runs the whole of it over the real stack.
+- **A feed does not outlive its account.** The moderation stream re-reads the account's place in the event at every
+  heartbeat (plan item A-22), so an account switched off or deleted, or removed from the event, is told to wait and is ended
+  within one beat; the wall's public feed has no account and keeps its suspension rule.
+- **Not here:** erasing media a moderator wrote (the account is refused instead), a self-service erasure (roadmap §5.2),
+  and a list of the accounts an erasure refused.
+
 **What the routes do not do.**
 
 - **Not every use case re-reads the caller's role.** R1's and R2's do (`inviteToClientAsOperator`,
@@ -3320,5 +3351,4 @@ Resuming is the same column set back to null; a suspended client's guests reach 
   A reset has no such exception: a refused mail is `409 reset.mailNotSent` and still no link. Held by
   `siteRoutes.clients.test.ts` and `siteRoutes.guard.test.ts`.
 - **A reset request is told to the owner by the operator**, not listed for them (§20).
-- **The accounts' own acts and offboarding** are not in this change; each arrives with its own
-  item and is documented here when it ships.
+- **What is not here.** Handover of an event to another account, and the console that calls these routes (G2-15).
