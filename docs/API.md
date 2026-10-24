@@ -1641,6 +1641,27 @@ Note the consequence of this living in §3 rather than §2: it needs a guest tok
 **projector cannot read reaction counts**. The wall response carries `reactionsEnabled`
 and nothing else about reactions. `404 photo.notFound` for a photo outside this event.
 
+**Who calls these three.** The guest's phone, from "Vos envois" on `/e/:slug/upload`
+(`web/src/features/guest-upload/components/ReactionBar.tsx`), under every photo of the
+guest's own whose `status` is `published`, and only when the `allowReactions` the join
+returned (§2) is `true`. It reads the row once with the `GET` and then:
+
+- **sends or withdraws before the server has answered**, so the button moves under the
+  thumb; a refusal (`403 event.reactionsDisabled`, `409 reaction.notPublished`,
+  `429 reaction.rateLimited` — the limiter and the per-guest budget answer with the same
+  code) or a dropped connection puts that one button back and says why, in the guest's
+  language, from the code alone;
+- **reads the row again on `409 reaction.alreadyExists` and on `404 reaction.notFound`**,
+  because both mean the phone's belief was out of date — a reply lost on venue Wi-Fi leaves
+  the server holding a reaction the phone thinks it never sent;
+- **never sends before the `GET` has answered**, so a tap cannot be refused for a reaction
+  the guest was never shown.
+
+The list is the guest's own photographs and nothing else: there is no route that gives a
+phone the photographs of the room, so today a guest reacts to their own photo and reads
+what the room felt about it. A guest-facing view of other people's photographs is not in
+this document, and would be a new route.
+
 ---
 
 ## 4. Media
