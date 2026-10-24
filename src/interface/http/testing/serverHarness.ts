@@ -83,7 +83,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
 
   createEvent: notWired('createEvent'),
   getEventBySlug: notWired('getEventBySlug'),
-  getEventLimits: notWired('getEventLimits'),
+  getEventView: notWired('getEventView'),
   listEventsForHost: notWired('listEventsForHost'),
   resolveJoinCode: notWired('resolveJoinCode'),
   updateEventSettings: notWired('updateEventSettings'),

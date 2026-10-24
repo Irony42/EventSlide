@@ -1,16 +1,9 @@
 import { Router, type RequestHandler, type Response } from 'express'
-import type { EventSummary } from '../../../application/ports/eventRepository'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { DomainError } from '../../../domain/shared/errors'
-import {
-  asClientId,
-  asGuestId,
-  asUserId,
-  type EventId,
-  type UserId,
-} from '../../../domain/shared/ids'
-import { unwrapOr, type Result } from '../../../domain/shared/result'
+import { asClientId, asGuestId, asUserId } from '../../../domain/shared/ids'
+import type { Result } from '../../../domain/shared/result'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole, requireUser } from '../middleware/authz'
 import { INVITATIONS_PER_ACCOUNT_PER_HOUR, invitationIssueLimiter } from '../middleware/rateLimit'
@@ -79,45 +72,25 @@ export const eventRoutes = ({
   const router = Router()
 
   /**
-   * The counts an `EventDto` carries, read out of the caller's own dashboard listing.
-   *
-   * No use case answers them for a single event: they live on `EventSummary`, which is
-   * a join over photos and guests that the aggregate deliberately does not know. This
-   * is a presentation read — the decision was already taken by the use case above it —
-   * and it is scoped to the caller, so it cannot report on an event they have no part
-   * in.
-   */
-  const countsFor = async (userId: UserId, eventId: EventId): Promise<EventCounts> => {
-    const listed = await usecases.listEventsForHost({ userId })
-    // `unwrapOr` rather than a branch here: the listing cannot fail today, and a
-    // branch for that would be an untestable one in a controller.
-    const rows = unwrapOr<readonly EventSummary[], DomainError>(listed, [])
-    return rows.find((summary) => summary.id === eventId) ?? ZERO_COUNTS
-  }
-
-  /**
    * Answers with one event. Every route that returns an `EventDto` ends here, so the
    * join code, the join URL and the counts cannot differ between them.
+   *
+   * What the event holds (its counts) and the limits it is under (the quota the box will
+   * actually hold it to, its live window) are one use case, `getEventView`, whatever the
+   * route's own use case was.
    */
   const sendEvent = async (
     res: Response,
     result: Result<Event, DomainError>,
-    actor: { readonly userId: UserId; readonly role: EventRole },
+    actor: { readonly role: EventRole },
     status = 200,
   ): Promise<void> => {
     if (!result.ok) {
       sendError(res, result.error)
       return
     }
-    const counts = await countsFor(actor.userId, result.value.id)
-    // The quota the box will actually hold the event to, and its live window: what its client
-    // makes of the event (G2-16 / P3-17). Nothing is read for an event with no client.
-    const limits = await usecases.getEventLimits({ event: result.value })
-    sendJson(
-      res,
-      toEventDto({ event: result.value, role: actor.role, counts, limits }, presenter),
-      status,
-    )
+    const { event, counts, limits } = await usecases.getEventView({ event: result.value })
+    sendJson(res, toEventDto({ event, role: actor.role, counts, limits }, presenter), status)
   }
 
   // ---------------------------------------------------------------- dashboard --
@@ -179,7 +152,7 @@ export const eventRoutes = ({
       // The creator is the owner: `createEvent` grants that membership as part of
       // creating the event — the `owner_id` column alone would not do, since every
       // authorization decision reads `roleFor` — so there is no role to look up.
-      await sendEvent(res, result, { userId: user.userId, role: 'owner' }, 201)
+      await sendEvent(res, result, { role: 'owner' }, 201)
     }),
   )
 
@@ -194,7 +167,7 @@ export const eventRoutes = ({
 
       const result = await usecases.getEventBySlug({ slug: params.eventSlug })
 
-      await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })
+      await sendEvent(res, result, { role: scope.role })
     }),
   )
 
@@ -211,7 +184,7 @@ export const eventRoutes = ({
         name: body.name,
       })
 
-      await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })
+      await sendEvent(res, result, { role: scope.role })
     }),
   )
 
@@ -255,7 +228,7 @@ export const eventRoutes = ({
         },
       })
 
-      await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })
+      await sendEvent(res, result, { role: scope.role })
     }),
   )
 
@@ -274,7 +247,7 @@ export const eventRoutes = ({
         status: body.status,
       })
 
-      await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })
+      await sendEvent(res, result, { role: scope.role })
     }),
   )
 
@@ -296,7 +269,7 @@ export const eventRoutes = ({
         scheduledCloseAt: body.scheduledCloseAt === null ? null : new Date(body.scheduledCloseAt),
       })
 
-      await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })
+      await sendEvent(res, result, { role: scope.role })
     }),
   )
 
@@ -314,7 +287,7 @@ export const eventRoutes = ({
         actorId: scope.user.userId,
       })
 
-      await sendEvent(res, result, { userId: scope.user.userId, role: scope.role })
+      await sendEvent(res, result, { role: scope.role })
     }),
   )
 
@@ -459,25 +432,6 @@ export const eventRoutes = ({
   )
 
   return router
-}
-
-interface EventCounts {
-  readonly photoCount: number
-  readonly pendingCount: number
-  readonly guestCount: number
-  readonly usedBytes: number
-}
-
-/**
- * For the one case the type demands and production does not reach: the caller's
- * listing not containing this event. `listForUser` returns every event they own or
- * moderate, and `requireRole` has already established that this is one of them.
- */
-const ZERO_COUNTS: EventCounts = {
-  photoCount: 0,
-  pendingCount: 0,
-  guestCount: 0,
-  usedBytes: 0,
 }
 
 /**

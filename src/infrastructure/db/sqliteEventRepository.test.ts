@@ -372,6 +372,22 @@ describe('SqliteEventRepository', () => {
 
       expect(summaries.find((summary) => summary.id === 'evt-mine')?.[field]).toBe(expected)
     })
+
+    // The answer about a single event reads the same four columns, so the same four numbers.
+    it.each(counts)('countsOf reports $field for that event alone', async ({ field, expected }) => {
+      const mine = await repo.countsOf(asEventId('evt-mine'))
+
+      expect(mine[field as keyof typeof mine]).toBe(expected)
+    })
+
+    it('countsOf counts the other event for the other event', async () => {
+      expect(await repo.countsOf(asEventId('evt-other'))).toEqual({
+        photoCount: 1,
+        pendingCount: 1,
+        guestCount: 2,
+        usedBytes: 9_000,
+      })
+    })
   })
 
   it('lists an event the user only moderates, because a moderator needs it too', async () => {
