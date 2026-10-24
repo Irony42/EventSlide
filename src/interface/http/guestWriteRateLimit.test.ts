@@ -5,6 +5,7 @@ import {
   makeAcknowledgePrivacyNotice,
   type AcknowledgePrivacyNotice,
 } from '../../application/usecases/guests/acknowledgePrivacyNotice'
+import { makeRenameGuest, type RenameGuest } from '../../application/usecases/guests/renameGuest'
 import { privacyNoticeFor } from '../../domain/privacy/privacyNotice'
 import { asEventId, asUserId } from '../../domain/shared/ids'
 import { ok } from '../../domain/shared/result'
@@ -39,6 +40,7 @@ import type { HttpConfig } from './types'
 const SLUG = 'mariage'
 const PHOTO = '11111111-1111-4111-8111-111111111111'
 const MODERATOR = '22222222-2222-4222-8222-222222222222'
+const LEA = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const MODERATOR_EMAIL = 'moderateur@example.test'
 
 interface Write {
@@ -79,10 +81,23 @@ const writesAt = (slug: string): readonly Write[] => [
     body: { revision: revisionOf },
     accepted: 200,
   },
+  {
+    name: 'renaming oneself',
+    method: 'patch',
+    path: `/api/events/${slug}/guests/${LEA}`,
+    body: { displayName: 'Léa D.' },
+    accepted: 200,
+  },
 ]
 
-const [CAPTION, TAKE_BACK, WITHDRAW, ACKNOWLEDGE] = writesAt(SLUG) as [Write, Write, Write, Write]
-const FOUR_WRITES = [CAPTION, TAKE_BACK, WITHDRAW, ACKNOWLEDGE].map(
+const [CAPTION, TAKE_BACK, WITHDRAW, ACKNOWLEDGE, RENAME] = writesAt(SLUG) as [
+  Write,
+  Write,
+  Write,
+  Write,
+  Write,
+]
+const GUEST_WRITES = [CAPTION, TAKE_BACK, WITHDRAW, ACKNOWLEDGE, RENAME].map(
   (write) => [write.name, write] as const,
 )
 
@@ -99,6 +114,7 @@ const buildSubject = (
   otherLimits: Partial<HttpConfig['rateLimits']> = {},
 ): Subject => {
   const acknowledge: { current?: AcknowledgePrivacyNotice } = {}
+  const rename: { current?: RenameGuest } = {}
   const harness = buildServerHarness({
     config: {
       trustProxyHops,
@@ -110,6 +126,10 @@ const buildSubject = (
       setPhotoCaption: async () => ok(undefined),
       deletePhoto: async () => ok(undefined),
       withdrawReaction: async () => ok(undefined),
+      renameGuest: async (input) => {
+        if (rename.current === undefined) throw new Error('rename was not built yet')
+        return rename.current(input)
+      },
       acknowledgePrivacyNotice: async (input) => {
         if (acknowledge.current === undefined) throw new Error('acknowledge was not built yet')
         return acknowledge.current(input)
@@ -118,6 +138,7 @@ const buildSubject = (
       authenticateUser: signInByAddress({ [MODERATOR_EMAIL]: MODERATOR }),
     },
   })
+  rename.current = makeRenameGuest({ guests: harness.guests })
   acknowledge.current = makeAcknowledgePrivacyNotice({
     events: harness.events,
     clients: harness.clients,
@@ -147,13 +168,13 @@ const buildSubject = (
     grantedAt: AT,
   })
   harness.guests.seed(
-    aGuest({ id: 'guest-lea', eventId: 'event-wedding' }),
-    aGuest({ id: 'guest-lea', eventId: 'event-gala' }),
+    aGuest({ id: LEA, eventId: 'event-wedding' }),
+    aGuest({ id: LEA, eventId: 'event-gala' }),
   )
   return {
     harness,
-    wedding: harness.issueGuestToken('event-wedding', 'guest-lea'),
-    gala: harness.issueGuestToken('event-gala', 'guest-lea'),
+    wedding: harness.issueGuestToken('event-wedding', LEA),
+    gala: harness.issueGuestToken('event-gala', LEA),
   }
 }
 
@@ -195,7 +216,7 @@ const browserOn = async (subject: Subject, defaultToken: string): Promise<Sender
 }
 
 describe('the guest-token writes are rate-limited per client address and event (HTTP-H-01)', () => {
-  it.each(FOUR_WRITES)(
+  it.each(GUEST_WRITES)(
     'refuses %s once the budget is spent, with the shared 429 and a Retry-After',
     async (_name, write) => {
       const subject = buildSubject(2)
@@ -225,7 +246,7 @@ describe('the guest-token writes are rate-limited per client address and event (
     expect(statuses[300]).toBe(429)
   })
 
-  it('spends one allowance across the four routes, not one each', async () => {
+  it('spends one allowance across the five routes, not one each', async () => {
     // `express-rate-limit` mints a store per instance, so a limiter built inside each router
     // would hand a guest a whole budget per router. Only `buildServer` holds the one
     // instance - the acknowledgement lives in a different router from the other three.
@@ -237,6 +258,7 @@ describe('the guest-token writes are rate-limited per client address and event (
     expect((await send(WITHDRAW)).status).toBe(204)
 
     expect((await send(ACKNOWLEDGE)).status).toBe(429)
+    expect((await send(RENAME)).status).toBe(429)
     expect((await send(CAPTION)).status).toBe(429)
   })
 
@@ -279,7 +301,7 @@ describe('the guest-token writes are rate-limited per client address and event (
     expect(moderated.status).toBe(204)
   })
 
-  it.each(FOUR_WRITES)(
+  it.each(GUEST_WRITES)(
     'drops a flood of %s before it costs a token verification',
     async (_name, write) => {
       // The limiter runs ahead of `requireGuest` on purpose (the same arrangement as the
@@ -300,7 +322,7 @@ describe('the guest-token writes are rate-limited per client address and event (
  * that a guest token opens is limited, including one that does not exist yet.
  *
  * HTTP-H-01 was a gap because nobody had enumerated the guest's writes; the tests above name
- * four routes and would pass beside a fifth that is open. This one reads the route table of
+ * five routes and would pass beside a sixth that is open. This one reads the route table of
  * the assembled server and asks each non-`GET` route under `:eventSlug` what a request with a
  * garbage `es_guest` cookie is told. A route that answers `401 guestToken.*` is guarded by
  * `requireGuest`, and what it must then do on the second request is answer 429: every limiter
@@ -337,7 +359,7 @@ describe('every guest-token write under an event is rate-limited (HTTP-H-01)', (
 
   it('answers 429 on the second request to every route that a guest token gates', async () => {
     // Every limiter on these routes at one, so that the second request is over whichever one
-    // the route carries. A **fresh server per route**: the four writes share one bucket, so on
+    // the route carries. A **fresh server per route**: the five writes share one bucket, so on
     // one server the first of them would spend what the next is judged by.
     const limits = { uploadPerMinute: 1, reactionPerMinute: 1 }
     const routes = mountedRoutes(buildSubject(1, 0, limits).harness.app).filter(
@@ -358,7 +380,7 @@ describe('every guest-token write under an event is rate-limited (HTTP-H-01)', (
       if ((await send(write)).status !== 429) open.push(write.name)
     }
 
-    // Not vacuous: the seven routes this repository has today are all found, and a new one is
+    // Not vacuous: the eight routes this repository has today are all found, and a new one is
     // found as well, and fails below if it is open.
     expect(gated).toEqual(
       expect.arrayContaining([
@@ -369,6 +391,7 @@ describe('every guest-token write under an event is rate-limited (HTTP-H-01)', (
         'delete /api/events/:eventSlug/photos/:photoId',
         'delete /api/events/:eventSlug/photos/:photoId/reactions/:kind',
         'post /api/events/:eventSlug/privacy-notice/acknowledgement',
+        'patch /api/events/:eventSlug/guests/:guestId',
       ]),
     )
     expect(open).toEqual([])

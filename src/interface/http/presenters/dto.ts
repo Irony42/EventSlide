@@ -137,6 +137,28 @@ export interface PrivacyNoticeStateDto {
   readonly acknowledgement: NoticeAcknowledgementStatus
 }
 
+/**
+ * What a phone is told about the event a join code names, **before** it joins
+ * (`GET /api/join/:code`). Everything a guest needs to confirm "yes, this is the wedding I am
+ * at" and nothing else: this is the lookup an attacker can enumerate, so every field here is a
+ * field they get too. No id, no owner, no quota, no counts, no theme.
+ */
+export interface JoinTargetDto {
+  readonly slug: string
+  readonly name: string
+  /** True whenever this answers at all: the doors are open. */
+  readonly acceptsGuests: boolean
+  readonly allowCaptions: boolean
+  readonly allowReactions: boolean
+}
+
+/** The name a guest's photos are now signed with (`PATCH /api/events/:slug/guests/:guestId`). */
+export interface RenamedGuestDto {
+  readonly guestId: string
+  /** As stored, so trimmed and folded: what the wall will print. `null`: no name. */
+  readonly displayName: string | null
+}
+
 export interface JoinResponseDto {
   readonly guestId: string
   readonly displayName: string | null

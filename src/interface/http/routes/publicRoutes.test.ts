@@ -7,6 +7,7 @@ import { sendJson, sendNoContent } from '../presenters/send'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
 import { makeJoinEvent } from '../../../application/usecases/guests/joinEvent'
+import { makeResolveJoinCode } from '../../../application/usecases/events/resolveJoinCode'
 import {
   makeGetWallPlaylist,
   type WallPlaylistView,
@@ -96,6 +97,7 @@ const world = (
               bus: deps.bus,
               operatorName: null,
             }),
+            resolveJoinCode: makeResolveJoinCode({ events: deps.events }),
             getWallPlaylist: makeGetWallPlaylist({
               events: deps.events,
               photos,
@@ -152,6 +154,149 @@ const guestCookie = (header: unknown): string =>
 
 const cookieValue = (cookie: string): string =>
   cookie.slice(cookie.indexOf('=') + 1).split(';')[0] ?? ''
+
+// ---------------------------------------------------------- GET /join/:code --
+
+/** The spelling of `rateLimits` a test lowers one budget of. */
+const withJoinBudget = (joinPerMinute: number): Partial<HttpConfig> => ({
+  rateLimits: {
+    uploadPerMinute: 12,
+    joinPerMinute,
+    loginPerMinute: 10,
+    reactionPerMinute: 30,
+    guestWritePerMinute: 300,
+    galleryPerMinute: 60,
+    galleryMediaPerMinute: 600,
+    galleryUnlockPerClient: 10,
+    galleryUnlockPerLink: 50,
+    eventCreationPerHour: 20,
+  },
+})
+
+describe('GET /api/join/:code', () => {
+  it('tells a stranger which event a printed card names, before they commit to joining it', async () => {
+    const { subject } = world()
+
+    const response = await request(subject.app).get('/api/join/H7K2QM')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({
+      slug: 'mariage',
+      name: 'Camille & Sacha',
+      acceptsGuests: true,
+      allowCaptions: true,
+      allowReactions: true,
+    })
+  })
+
+  it('creates no guest, sets no cookie and announces nothing: looking is not joining', async () => {
+    // The whole point of the route. `POST /join` is the commit.
+    const { subject } = world()
+
+    const response = await request(subject.app).get('/api/join/H7K2QM')
+
+    expect(setCookies(response.headers['set-cookie'])).toEqual([])
+    expect(await subject.guests.list(asEventId(WEDDING))).toEqual([])
+    expect(subject.bus.published).toEqual([])
+  })
+
+  it('is never cached, since rotating the join code changes what a code names', async () => {
+    const { subject } = world()
+
+    const response = await request(subject.app).get('/api/join/H7K2QM')
+
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('accepts the code as it was actually typed in a dark room', async () => {
+    const { subject } = world()
+
+    const response = await request(subject.app).get('/api/join/h7k2-qm')
+
+    expect(response.status).toBe(200)
+    expect(response.body.slug).toBe('mariage')
+  })
+
+  it('tells a guest nothing beyond the name and what they may do, and never echoes the code', async () => {
+    const { subject } = world()
+
+    const response = await request(subject.app).get('/api/join/H7K2QM')
+
+    expect(Object.keys(response.body).sort()).toEqual([
+      'acceptsGuests',
+      'allowCaptions',
+      'allowReactions',
+      'name',
+      'slug',
+    ])
+    expect(JSON.stringify(response.body)).not.toContain('H7K2QM')
+    expect(JSON.stringify(response.body)).not.toContain(WEDDING)
+  })
+
+  it.each([
+    { what: 'an unknown code', code: 'ZZZZZZ' },
+    { what: 'a draft event nobody may join yet', code: 'D3M41N' },
+    { what: 'a closed event', code: 'C10SED' },
+    { what: 'an archived event', code: 'ARCH1V' },
+  ])('answers an indistinguishable 404 for $what, as the join does', async ({ code }) => {
+    // The enumeration oracle this product must not be: the lookup is the same question
+    // as the join, so "not open yet" would confirm which guessed codes belong to events.
+    const { subject } = world()
+    const unknown = await request(subject.app).get('/api/join/ZZZZZZ')
+
+    const response = await request(subject.app).get(`/api/join/${code}`)
+    const joined = await request(subject.app).post('/api/join').send({ joinCode: code })
+
+    expect(response.status).toBe(404)
+    expect(response.body).toEqual(unknown.body)
+    expect(response.body.error.code).toBe('event.notFound')
+    expect(response.body).toEqual(joined.body)
+    expect(setCookies(response.headers['set-cookie'])).toEqual([])
+  })
+
+  it.each([
+    { what: 'a code of the wrong length', code: 'H7K2', error: 'joinCode.wrongLength' },
+    { what: 'a code outside the alphabet', code: 'H7K2Q!', error: 'joinCode.malformed' },
+    { what: 'a code too long to be parsed at all', code: 'A'.repeat(33), error: 'request.invalid' },
+  ])('answers 400 $error for $what, as the join does', async ({ code, error }) => {
+    const { subject } = world()
+
+    const response = await request(subject.app).get(`/api/join/${code}`)
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe(error)
+  })
+
+  it('rate-limits the lookup, with the shared 429 and a Retry-After', async () => {
+    const { subject } = world(withJoinBudget(1))
+    await request(subject.app).get('/api/join/H7K2QM').expect(200)
+
+    const response = await request(subject.app).get('/api/join/H7K2QM')
+
+    expect(response.status).toBe(429)
+    expect(response.body.error.code).toBe('rate.limited')
+    expect(Number(response.headers['retry-after'])).toBeGreaterThan(0)
+  })
+
+  it('spends the join budget, so the lookup cannot test codes faster than the join allowed', async () => {
+    // The lookup and the join answer one question: is this a real, open event. One budget
+    // per address bounds how fast codes can be tried, as it did before the lookup existed;
+    // a second bucket would have doubled the rate. Both orders, because a shared instance
+    // is only shared if each side sees what the other spent.
+    const first = world(withJoinBudget(1))
+    await request(first.subject.app).post('/api/join').send({ joinCode: 'H7K2QM' }).expect(200)
+    const lookupAfterJoin = await request(first.subject.app).get('/api/join/H7K2QM')
+
+    const second = world(withJoinBudget(1))
+    await request(second.subject.app).get('/api/join/H7K2QM').expect(200)
+    const joinAfterLookup = await request(second.subject.app)
+      .post('/api/join')
+      .send({ joinCode: 'H7K2QM' })
+
+    expect(lookupAfterJoin.status).toBe(429)
+    expect(joinAfterLookup.status).toBe(429)
+  })
+})
 
 // --------------------------------------------------------------- POST /join --
 
