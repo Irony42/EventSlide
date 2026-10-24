@@ -20,16 +20,6 @@ export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'co
  * dropped a table. `parseLocale` is the join, and the only place either knows the other.
  */
 export type EventLanguage = 'fr' | 'de' | 'en' | 'es' | 'it'
-/**
- * What `GET /media/:photoId/:variant` will serve.
- *
- * The clip pair is here because a clip is a facet of a photo and not a parallel thing:
- * the same row, the same moderation queue, two renditions instead of three. The staged
- * upload's `source` is deliberately **absent** — it is outside the server's
- * `SERVED_VARIANTS`, so no route can parse it, and a name for it here would be a name
- * for something a client can never ask for.
- */
-export type MediaVariant = 'thumb' | 'display' | 'original' | 'video' | 'poster'
 export type EventRole = 'owner' | 'moderator'
 /**
  * What a row on the wall actually is.
