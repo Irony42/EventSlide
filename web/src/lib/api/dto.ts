@@ -210,7 +210,7 @@ export interface ClipJobDto {
   readonly clipJobId: string
   readonly status: ClipJobStatus
   readonly photoId: string
-  /** The stable code behind a `failed` status; the client picks its French from it. */
+  /** The stable code behind a `failed` status; the client picks its sentence from it. */
   readonly failureCode: string | null
 }
 

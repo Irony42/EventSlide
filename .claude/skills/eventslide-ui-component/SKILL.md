@@ -137,9 +137,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       // `button` by default: an unspecified type inside a form submits it.
       type={type}
       className={cx(styles['button'], styles[variant], styles[size])}
-      // aria-busy keeps the accessible name; a spinner-only button announces nothing.
+      // aria-busy says the control is working; the label stays its accessible name.
       aria-busy={loading || undefined}
-      disabled={disabled ?? loading}
+      disabled={disabled === true || loading}
     >
       {loading ? <Spinner size="sm" /> : null}
       {children}

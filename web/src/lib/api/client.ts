@@ -164,19 +164,6 @@ export interface ClipUploadInput {
 }
 
 /**
- * An invitation, in full.
- *
- * The password is not optional and is not generated here. There is no mail service in
- * this product, so the host is the delivery channel: they type a temporary credential
- * and read it out to the person they are handing the laptop to. The server's
- * `moderatorInvitationBody` is `.strict()` and requires it — an invitation carrying only
- * an address is answered `400 request.invalid`, which is exactly what this panel used to
- * send, every time.
- *
- * An object rather than two positional strings: an address and a password are both
- * `string`, and a call site that swaps them typechecks.
- */
-/**
  * One prompt as the host writes it (roadmap §2.1).
  *
  * Both fields every time, on create and on edit alike: they are one decision made on one

@@ -130,15 +130,14 @@ const ChangePasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ChangePasswordPage')).ChangePasswordPage,
 }))
 
-/**
- * The second gate, inside `RequireAuth`.
- *
- * A moderator invited by a host arrives with a password somebody else chose for them;
- * until they replace it, every admin address leads to the change-password screen.
- */
 const SecurityPage = lazy(async () => ({
   default: (await import('../features/auth/SecurityPage')).SecurityPage,
 }))
+
+/**
+ * The second gate, inside `RequireAuth`: an account with `mustChangePassword` set reaches
+ * the change-password screen from every admin address until it has replaced its password.
+ */
 const MustChangePasswordGate = lazy(async () => ({
   default: (await import('../features/auth/MustChangePasswordGate')).MustChangePasswordGate,
 }))
@@ -400,8 +399,8 @@ export function AppRoutes() {
               group chat, a path that gained a segment: the reader is holding a phone
               and may not read French, and "this address does not exist, go here
               instead" is the whole value of the screen. The host catch-all below still
-              answers everything else, in French and at host width, which is right for a
-              mistyped `/admin` address. */}
+              answers everything else, at host width, which is right for a mistyped
+              `/admin` address. */}
           <Route path="/join/*" element={titled('notFound', <NotFoundView />)} />
           <Route path="/e/*" element={titled('notFound', <NotFoundView />)} />
           {/* The shared gallery. The token is a path segment, like the join code, and it
