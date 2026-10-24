@@ -2696,8 +2696,8 @@ which is what every event created before this field existed still does.
 `joinUrl` is built server-side from `PUBLIC_URL` so the QR code and the printed card
 cannot disagree — 1.0's central defect was exactly two client-side spellings of one link.
 `role` is the **caller's** role in this event, not a property of the event. The four
-counts come from the caller's own dashboard listing rather than a second repository read
-in the handler.
+counts are those of **this** event (one read, `getEventView`): the same four numbers its
+row on `GET /api/events` carries, and not a read of the caller's whole dashboard.
 
 **`quotaBytes` is the quota the event's uploads are judged against**, not the number it was created
 with (G2-16): the stored quota, lowered to the client's `max_event_quota_bytes` when that is smaller, as
