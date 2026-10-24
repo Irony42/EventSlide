@@ -30,11 +30,11 @@ const TOKEN = 'Q'.repeat(43)
 type Key = keyof typeof fr.titles
 
 /** A host on a box that has a client space, which is what `/admin/client` needs. */
-const asHost = (route: string, locale: 'fr' | 'de' = 'fr') => {
+const asHost = (route: string, locale: 'fr' | 'de' = 'fr', operator = false) => {
   const api = fakeApi({
     session: vi.fn(async (): Promise<SessionResponse> => ({
       authenticated: true,
-      user: aSessionUser(),
+      user: aSessionUser({ canOperateSite: operator }),
     })),
     about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: true } })),
   })
@@ -87,6 +87,14 @@ const HOST_SIGNED_IN: readonly (readonly [string, Key])[] = [
   ['/admin/security', 'security'],
 ]
 
+/** The operator's console: only for the account that operates a box that has one. */
+const OPERATOR: readonly (readonly [string, Key])[] = [
+  ['/admin/site', 'site'],
+  ['/admin/site/clients/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'siteClient'],
+  ['/admin/site/accounts', 'siteAccounts'],
+  ['/admin/site/audit', 'siteAudit'],
+]
+
 describe('the browser tab', () => {
   it.each(GUEST)('names %s after the page', async (route, key) => {
     rememberGuestSession({ event: aPublicEvent(), displayName: null, privacyNotice: null })
@@ -107,6 +115,21 @@ describe('the browser tab', () => {
 
     await expectTabToRead(key)
   })
+
+  it.each(OPERATOR)('names %s after the page, for the operator', async (route, key) => {
+    asHost(route, 'fr', true)
+
+    await expectTabToRead(key)
+  })
+
+  it.each(OPERATOR)(
+    'names %s as an unknown address for a host who is not the operator',
+    async (route) => {
+      asHost(route)
+
+      await expectTabToRead('notFound')
+    },
+  )
 
   it('names the page in the language the reader is in', async () => {
     asHost('/admin/events/mariage/moderation', 'de')
@@ -139,7 +162,7 @@ describe('the browser tab', () => {
       ),
     )
     const inTables = new Set<string>(
-      [...GUEST, ...HOST_WITHOUT_SESSION, ...HOST_SIGNED_IN].map(([, key]) => key),
+      [...GUEST, ...HOST_WITHOUT_SESSION, ...HOST_SIGNED_IN, ...OPERATOR].map(([, key]) => key),
     )
     const declared = Object.keys(fr.titles).sort()
 
