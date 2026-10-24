@@ -129,7 +129,7 @@ describe('createMediaSweeper', () => {
   })
 
   it('sweeps first at its offset, so it does not walk the disk in the same minute as the retention sweep', async () => {
-    // The offset is the point of : both timers start at boot with the same
+    // The offset is the point of `firstDelayMs`: both timers start at boot with the same
     // interval, and without it the two long disk walks land together every time.
     const sweep = vi.fn<SweepOrphanedMedia>(async () => nothingCollected)
     const { sweeper } = build(sweep, { firstDelayMs: INTERVAL_MS / 4 })
