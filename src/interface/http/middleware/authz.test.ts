@@ -1,7 +1,9 @@
+import { Router } from 'express'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ABSOLUTE_SESSION_LIFETIME_MS,
+  deferToHostSurface,
   GUEST_COOKIE,
   PASSWORD_CHANGE_EXEMPT,
   PASSWORD_CHANGE_REQUIRED_CODE,
@@ -99,6 +101,17 @@ const buildSubject = (): Harness =>
 
       app.get('/events/:eventSlug/upload', requireGuest(deps), (req, res) => {
         res.json({ guestId: req.context.guest?.guest.id })
+      })
+
+      // A path two principals share: the guest router in front, the host's behind it. What the
+      // answer says is which of the two was reached.
+      const guestRouter = Router()
+      guestRouter.delete('/events/:eventSlug/shared', deferToHostSurface(deps), (_req, res) => {
+        res.json({ answeredBy: 'guest' })
+      })
+      app.use(guestRouter)
+      app.delete('/events/:eventSlug/shared', (_req, res) => {
+        res.json({ answeredBy: 'host' })
       })
 
       app.get('/events/:eventSlug/wall', resolvePublicEvent(deps), (req, res) => {
@@ -1018,6 +1031,89 @@ describe('requireGuest', () => {
 
     expect(response.status).toBe(401)
     expect(response.body.error.code).toBe('guestToken.expired')
+  })
+})
+
+/**
+ * `deferToHostSurface`: which router answers a path two principals share (HTTP-M-02).
+ *
+ * Membership first, then the cookie. Walked here at the middleware, with a stand-in for each
+ * router, because the one thing that matters is which of the two was reached: the same
+ * sentence at the route level is in `guestRoutes.test.ts`, behind the real `requireRole`.
+ */
+describe('deferToHostSurface', () => {
+  const COOKIE = `${GUEST_COOKIE}=any-value-the-guest-router-would-verify`
+  const SHARED = '/events/mariage/shared'
+
+  const answeredBy = async (
+    subject: Harness,
+    options: { readonly as?: 'host' | 'other'; readonly cookie?: boolean; readonly path?: string },
+  ): Promise<string> => {
+    const agent =
+      options.as === undefined ? request.agent(subject.app) : await signedIn(subject, options.as)
+    const call = agent.delete(options.path ?? SHARED)
+    const response = await (options.cookie === true ? call.set('Cookie', COOKIE) : call)
+    return String((response.body as { answeredBy?: unknown }).answeredBy ?? response.status)
+  }
+
+  const wedding = (): Harness => {
+    const subject = harness()
+    seedWedding(subject)
+    return subject
+  }
+
+  it('hands a caller with no cookie to the host router, which refuses it', async () => {
+    expect(await answeredBy(wedding(), {})).toBe('host')
+  })
+
+  it('keeps a caller with a cookie and no session on the guest router', async () => {
+    expect(await answeredBy(wedding(), { cookie: true })).toBe('guest')
+  })
+
+  it('hands a moderator of the event to the host router, with a cookie or without one', async () => {
+    // The browser a host moderates from may also have scanned their own QR code.
+    expect(await answeredBy(wedding(), { as: 'host' })).toBe('host')
+    expect(await answeredBy(wedding(), { as: 'host', cookie: true })).toBe('host')
+  })
+
+  it('keeps an account whose role is at another event on the guest router when it holds a cookie', async () => {
+    // `OTHER_HOST` owns the gala: no role here, so a guest at this wedding who happens to have an account.
+    expect(await answeredBy(wedding(), { as: 'other', cookie: true })).toBe('guest')
+  })
+
+  it('keeps a moderator whose account was switched off on the guest router when it holds a cookie', async () => {
+    // `roleFor` is null for a disabled account, the one read every request makes: a switched-off
+    // moderator has no authority here, only the cookie they also hold.
+    const subject = wedding()
+    const agent = await signedIn(subject, 'host')
+    await subject.users.save(aUser({ id: HOST, email: 'host@example.com' }).disable(AT))
+
+    const response = await agent.delete(SHARED).set('Cookie', COOKIE)
+
+    expect((response.body as { answeredBy?: unknown }).answeredBy).toBe('guest')
+  })
+
+  it.each([
+    ['an event that does not exist', '/events/inconnu/shared'],
+    ['a slug the domain would never have stored', '/events/Not_A_Slug/shared'],
+  ])('leaves a signed-in caller with a cookie on the guest router for %s', async (_what, path) => {
+    // Nothing to read a role from, so the cookie decides, and the guest router answers (its own
+    // `requireGuest` says what it thinks of the event).
+    expect(await answeredBy(wedding(), { as: 'host', cookie: true, path })).toBe('guest')
+  })
+
+  it('forwards a repository failure instead of leaving the request hanging', async () => {
+    const subject = wedding()
+    const agent = await signedIn(subject, 'host')
+    Object.assign(subject.events, {
+      findBySlug: async () => {
+        throw new Error('database is locked')
+      },
+    })
+
+    const response = await agent.delete(SHARED).set('Cookie', COOKIE)
+
+    expect(response.status).toBe(500)
   })
 })
 

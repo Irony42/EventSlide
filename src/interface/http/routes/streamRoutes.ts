@@ -174,10 +174,13 @@ export interface StreamOptions {
   readonly lastEventId: string | undefined
   readonly res: Response
   /**
-   * What the beat does when the event's client turns out to be suspended (G2-14). `'ends'` is the
-   * public wall's: the same answer an unknown event gets, so the feed is closed. `'serves'` is the
-   * moderation console's: its members keep their reads while the client is frozen, so only an event
-   * that is gone ends it. Absent means `'ends'`, the refusal.
+   * What the beat does when the event is no longer served to whoever opened the stream. `'ends'` is
+   * the public wall's: the question that opened it is asked again (`Event.servesPublicWall`: the
+   * lifecycle serves the wall and the client is not suspended, G2-14), so an archived event or a
+   * suspended client closes the feed, the answer an unknown event gets. `'serves'` is the
+   * moderation console's: its members keep their reads while the client is frozen or the event is
+   * archived, so only an event that is gone ends it. Absent means `'ends'`, the refusal. (Named for
+   * the suspension it was written for; it now covers the lifecycle as well.)
    */
   readonly suspension?: 'ends' | 'serves'
   /**

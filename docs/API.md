@@ -607,8 +607,8 @@ to every screen that has the wall or a console open, so a guest token is not by 
 answer. The limiter runs before the token is verified, as the upload and reaction ones do. The
 number is a backstop sized for a room, not a tuned figure: a venue shares one address, and what it
 legitimately sends is bounded by the upload (12) and join (20) budgets, a few dozen a minute. A
-moderator's `DELETE` of the same path, sent without an `es_guest` cookie, is dispatched to §6 first
-and spends nothing here.
+moderator's `DELETE` of the same path is dispatched to §6 first, whatever `es_guest` cookie the
+browser also holds, and spends nothing here.
 
 † **Also throttled per account, with no lockout** (G3-04 / P4-07). The first five wrong
 passwords for an address from one network are free; from the sixth the answer is
@@ -1637,7 +1637,7 @@ call.
 
 **204**. **Errors** — `403 photo.deleteForbidden`,
 `403 event.guestSelfDeleteDisabled`, `404 photo.notFound`, `429 rate.limited` with a
-`Retry-After` (the guest-write bucket of §1; a moderator's request without an `es_guest` cookie is not
+`Retry-After` (the guest-write bucket of §1; a moderator's request is dispatched to §6 first and is not
 counted in it).
 
 This path is **shared with the moderator endpoint of the same name** in §6. The request

@@ -249,7 +249,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
 
   const harness = buildHarness({
     ...(options.config === undefined ? {} : { config: options.config }),
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.use(
         '/api',
         guestRoutes({
@@ -284,7 +284,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               budget,
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
-            renameGuest: makeRenameGuest({ guests: deps.guests }),
+            renameGuest: makeRenameGuest({ guests: base.guests }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
             getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
@@ -1474,7 +1474,7 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
   })
 
   it('keeps the guest handler when a guest token is presented', async () => {
-    // The deferral keys on the cookie, so a guest at an event they do not moderate is
+    // The deferral keys on membership and then the cookie, so a guest at an event they do not moderate is
     // still answered here — and by their own rules, not a moderator's.
     const subject = buildSubject()
 

@@ -4,12 +4,13 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, asUserId, type EventId, type GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
-import { AT, aGuest, anEvent } from '../../testing/builders'
+import { AT, aGuest, anEvent, aUser } from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
+import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { makeAuthenticateGuest } from '../guests/authenticateGuest'
 import { makeIdentifyMediaViewer } from './identifyMediaViewer'
 
@@ -120,6 +121,22 @@ describe('identifyMediaViewer', () => {
     const result = await identify({ userId: HOST, guestToken: tokenFor(WEDDING, LEA) })
 
     expect(result.ok && result.value.kind).toBe('moderator')
+  })
+
+  it('treats a moderator whose account was switched off as public: roleFor is the only authority', async () => {
+    // `roleFor` answers null for a disabled account, the one read every request makes. A cheaper
+    // read of the membership row would keep reading pending photographs and originals for an
+    // account the host switched off (CLAUDE.md section 8).
+    const users = new FakeUserRepository()
+    await users.save(aUser({ id: HELPER, email: 'helper@example.test' }).disable(AT))
+    memberships = new FakeMembershipRepository({ users }).seed({
+      eventId: WEDDING,
+      userId: HELPER,
+      role: 'moderator',
+      grantedAt: AT,
+    })
+
+    expect(await viewerOf({ userId: HELPER })).toBe('public')
   })
 
   it('treats a member of another event as public here, and tells them nothing more', async () => {
