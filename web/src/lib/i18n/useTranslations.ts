@@ -12,7 +12,7 @@ import type { UiText } from './translations'
  * wall's, and no component has to know which.
  *
  * A module that is not a component and not a hook takes `UiText` as a parameter instead —
- * `features/wall/photoAlt.ts` is the worked example.
+ * `lib/photoAlt.ts` is the worked example.
  */
 export const useTranslations = (): UiText => useContext(localeContext).text
 

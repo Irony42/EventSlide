@@ -1695,7 +1695,8 @@ projected in front of a family is not acceptable. One of each kind per guest per
 Only on a **published** photo: you react to what is on the wall.
 
 Not on one's **own** photograph: the photo of the night is the one the room liked most, and
-a guest voting for their own is not the room. A photograph the host took has no guest author
+a guest voting for their own is not the room. ("Own" is the guest the token names: a guest
+who cleared their cookies is a new guest, and nothing here can tell.) A photograph the host took has no guest author
 and can be reacted to by anyone. Withdrawing is not refused for the same reason, so a
 reaction given before the rule keeps its way out.
 
@@ -1729,7 +1730,8 @@ and nothing else about reactions. `404 photo.notFound` for a photo outside this 
 
 **Who calls these three.** The guest's phone, from "Les photos de la soirée"
 (`/e/:slug/photos`, `web/src/features/guest-feed/`): the photographs `GET /api/events/:slug/wall`
-returns (§2) — public, published only, newest first, twelve shown at a time — with the five
+returns (§2) — public, published only, newest first, at most the wall's window of the newest
+200, twelve shown at a time — with the five
 reaction buttons under every one that is **not the guest's own**. Whether the buttons are drawn
 is the `reactionsEnabled` the wall says _now_, not what the join said; which photographs are
 the guest's own comes from `GET …/photos/mine` (§3), and only decides what is drawn, because
@@ -1757,9 +1759,10 @@ switch says, because the setting governs sending, not undoing.
 
 **This is a new place for a published photograph to appear**, on the phone of every guest of
 the event. It is the same public read the projector makes, so nothing new leaves the box, and
-the privacy notice's `wall` audience already reads "the room, and anyone its public link
-reaches" (§3). It does not say "on every guest's phone" in so many words; whether it should
-is a decision about the notice's revision, which every guest would then be asked to read again.
+the notice's `wall` audience already reads "anyone who watches the evening's screen, in the room
+or through its link, once the photo is shown" (§3). It does not say "on every guest's phone" in
+so many words; whether it should is a decision about the notice's revision, which every guest
+would then be asked to read again.
 
 ---
 

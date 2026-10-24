@@ -219,7 +219,7 @@ npm run verify:full   # verify + test:e2e                         <- before open
   of its sections are carried by `de.ts`, `en.ts`, `es.ts` and `it.ts`, so adding a key
   anywhere fails the build until all four have it. **Every** component reads
   `useTranslations()`; a module that is not a component and not a hook takes `UiText` as a
-  parameter (`web/src/features/wall/photoAlt.ts` is the worked example). A file that
+  parameter (`web/src/lib/photoAlt.ts` is the worked example). A file that
   imports `fr` directly is either a test stating the French wording on purpose or a bug.
   `web/src/lib/i18n/translations.ts` carries the argument, including the one this reversed.
 - **Three surfaces, two answers about language.** The guest's phone and the host's console

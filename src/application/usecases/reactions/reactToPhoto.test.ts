@@ -111,6 +111,43 @@ describe('reactToPhoto', () => {
     expect(bus.published).toEqual([])
   })
 
+  it('refuses their own photograph before it looks at what they already sent', async () => {
+    photos = new FakePhotoRepository().seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-1' },
+      }),
+    )
+    reactions.seed(aReaction({ id: 'reaction-9', photoId: 'photo-1', guestId: 'guest-1' }))
+
+    const result = await react('love')
+
+    expect(!result.ok && result.error.code).toBe('reaction.ownPhoto')
+  })
+
+  it('refuses their own photograph before it counts their budget', async () => {
+    photos = new FakePhotoRepository().seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-1' },
+      }),
+    )
+    reactions.seed(aReaction({ id: 'reaction-9', photoId: 'photo-9', guestId: 'guest-1' }))
+
+    const result = await useCase({ windowMs: MINUTE, maxPerWindow: 1 })({
+      eventId: EVENT,
+      photoId: PHOTO,
+      guestId: GUEST,
+      kind: 'love',
+    })
+
+    expect(!result.ok && result.error.code).toBe('reaction.ownPhoto')
+  })
+
   it('lets a guest react to a photograph the host took from the venue camera', async () => {
     photos = new FakePhotoRepository().seed(
       aPhoto({

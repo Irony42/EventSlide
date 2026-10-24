@@ -69,8 +69,10 @@ describe('GuestFeedPage', () => {
 
     const images = await screen.findAllByRole('img')
 
+    // The caption and then the sender, as the wall words it: "who sent this" is the part a
+    // listener cannot get from the picture.
     expect(images.map((image) => image.getAttribute('alt'))).toEqual([
-      'Les confettis',
+      `Les confettis — ${fr.wall.photoBy('Léa')}`,
       fr.wall.photoBy('Léa'),
     ])
     expect(images[0]).toHaveAttribute('src', `/api/events/${SLUG}/photos/b/thumb`)
@@ -212,10 +214,9 @@ describe('GuestFeedPage', () => {
     renderFeed(withWall([aWallClip({ id: 'clip-1', caption: 'La danse' })]))
 
     expect(await screen.findByText(fr.upload.mineClipBadge)).toBeVisible()
-    expect(screen.getByRole('img', { name: 'La danse' })).toHaveAttribute(
-      'src',
-      `/api/events/${SLUG}/photos/clip-1/poster`,
-    )
+    expect(
+      screen.getByRole('img', { name: `La danse — ${fr.wall.videoBy('Léa')}` }),
+    ).toHaveAttribute('src', `/api/events/${SLUG}/photos/clip-1/poster`)
   })
 
   it('shows twelve photographs and offers the rest', async () => {
@@ -249,6 +250,89 @@ describe('GuestFeedPage', () => {
 
     await waitFor(() => expect(api.wall).toHaveBeenCalledTimes(2))
     expect(api.myPhotos).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps each photograph’s reactions with that photograph when a refresh puts a new one first', async () => {
+    // The cards are keyed by the photograph and not by their place: under an index key the
+    // first card would keep the hearts of whichever photograph used to be there.
+    havingJoined()
+    let reads = 0
+    const api = fakeApi({
+      wall: vi.fn(async () => {
+        reads += 1
+        return aWallResponse({
+          items: reads === 1 ? [photo('a'), photo('b')] : [photo('new'), photo('a'), photo('b')],
+        })
+      }),
+      reactions: vi.fn(async (_slug: string, photoId: string) => ({
+        counts: { love: 0, laugh: 0, wow: 0, cheers: 0, clap: 0 },
+        mine: photoId === 'a' ? (['love'] as const) : [],
+      })),
+    })
+    renderFeed(api)
+    const before = await screen.findAllByRole('listitem')
+    await waitFor(() =>
+      expect(
+        within(before[0]!).getByRole('button', { name: fr.upload.reactionKinds.love }),
+      ).toHaveAttribute('aria-pressed', 'true'),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: fr.feed.refresh }))
+
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(3))
+    const after = screen.getAllByRole('listitem')
+    await waitFor(() =>
+      expect(
+        within(after[1]!).getByRole('button', { name: fr.upload.reactionKinds.love }),
+      ).toHaveAttribute('aria-pressed', 'true'),
+    )
+    expect(
+      within(after[0]!).getByRole('button', { name: fr.upload.reactionKinds.love }),
+    ).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('says a refresh is under way, and says when it failed while keeping what was on screen', async () => {
+    havingJoined()
+    let reads = 0
+    const pending: { release: () => void } = { release: () => {} }
+    const api = fakeApi({
+      wall: vi.fn(async () => {
+        reads += 1
+        if (reads === 1) return aWallResponse({ items: [photo('a')] })
+        await new Promise<void>((resolve) => {
+          pending.release = resolve
+        })
+        throw ApiError.network()
+      }),
+    })
+    renderFeed(api)
+    await screen.findByRole('img')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.feed.refresh }))
+
+    // Not a second tap on a button that did nothing: on venue Wi-Fi that restarts both reads.
+    expect(await screen.findByRole('button', { name: fr.feed.refresh })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+
+    pending.release()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.feed.failed)
+    expect(screen.getByRole('img')).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.feed.refresh })).not.toHaveAttribute('aria-busy')
+  })
+
+  it('moves focus to the first photograph that “Voir plus” added', async () => {
+    // On the last page the button is gone from under the finger that pressed it, and focus
+    // would otherwise fall to the top of a long page.
+    havingJoined()
+    renderFeed(withWall(manyPhotos(15)))
+    await screen.findAllByRole('listitem')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.feed.more }))
+
+    expect(screen.getAllByRole('listitem')[12]).toHaveFocus()
   })
 
   it('asks a guest who has not joined to join', () => {

@@ -1,4 +1,12 @@
-import { closeQuietly, expect, joinAsGuest, signInAsHost, test, wallUrl } from '../fixtures/app'
+import {
+  closeQuietly,
+  csrfHeaders,
+  expect,
+  joinAsGuest,
+  signInAsHost,
+  test,
+  wallUrl,
+} from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
@@ -128,4 +136,17 @@ test('a guest reacts to another guest’s photo: the wall shows it, a reload kee
   await expect(author.getByRole('img')).toBeVisible()
   await expect(author.getByText(fr.feed.own, { exact: true })).toBeVisible()
   await expect(author.getByRole('group')).toHaveCount(0)
+
+  // And the server is what refuses, not the page: asked directly, with the author's own
+  // token, it answers 403 and the projector gets no heart.
+  const ownPhotoId = (await author.getByRole('img').getAttribute('src'))?.split('/').at(-2)
+  expect(ownPhotoId).toBeDefined()
+  const refused = await author.request.post(
+    app.url(`/api/events/${event.slug}/photos/${ownPhotoId}/reactions`),
+    { data: { kind: 'love' }, headers: await csrfHeaders(author.request, app) },
+  )
+  expect(refused.status()).toBe(403)
+  expect(await refused.json()).toMatchObject({ error: { code: 'reaction.ownPhoto' } })
+  // The one heart the other guest's tap floated, and no second one.
+  await expect(projector.getByTestId('wall-reaction')).toHaveCount(1)
 })

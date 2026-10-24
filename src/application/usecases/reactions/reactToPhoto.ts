@@ -76,7 +76,8 @@ export const makeReactToPhoto =
     // A reaction is the room's voice, and the photo of the night is the one the room liked
     // most: a guest voting for their own photograph is not the room. A photograph the host
     // took has no guest author, so it is anyone's to react to. Withdrawing is not gated: a
-    // reaction given before this rule keeps its way out.
+    // reaction given before this rule keeps its way out. The rule is about the guest the token
+    // names: a guest who cleared their cookies is a new guest, and nothing here can tell.
     if (photo.isAuthoredBy({ kind: 'guest', guestId })) {
       return err(DomainError.forbidden('reaction.ownPhoto'))
     }

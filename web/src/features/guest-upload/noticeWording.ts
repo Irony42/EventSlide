@@ -5,7 +5,7 @@ import type { UiText } from '../../lib/i18n/translations'
  * The privacy notice's values, worded (roadmap §5.1).
  *
  * A module rather than a component, and it takes the copy table as a parameter, for the
- * reason `features/wall/photoAlt.ts` does: the sentences are a pure function of what the
+ * reason `lib/photoAlt.ts` does: the sentences are a pure function of what the
  * server said and which language is on screen, and that is testable without rendering a
  * page. The server decided every clause; nothing here decides whether a guest can delete
  * a photo or how long it is kept, it only says so.

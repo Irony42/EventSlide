@@ -1170,6 +1170,29 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId/reactions/:kind', () => 
     expect(response.status).toBe(204)
   })
 
+  it('withdraws a reaction given to the guest’s own photograph, from before the rule existed', async () => {
+    // Taking a reaction back is not what the own-photo rule refuses, so a guest who gave one
+    // before it keeps their way out of it.
+    const subject = buildSubject()
+    subject.reactions.seed(
+      aReaction({ eventId: WEDDING, photoId: PUBLISHED, guestId: GUEST, kind: 'clap' }),
+    )
+
+    await request(subject.app)
+      .delete(`${BASE}/photos/${PUBLISHED}/reactions/clap`)
+      .set('Cookie', cookie(subject.token))
+      .expect(204)
+
+    expect(
+      await subject.reactions.findOne(
+        asEventId(WEDDING),
+        asPhotoId(PUBLISHED),
+        asGuestId(GUEST),
+        'clap',
+      ),
+    ).toBeNull()
+  })
+
   it('answers 404 when there is nothing of that kind to withdraw', async () => {
     const subject = buildSubject()
 

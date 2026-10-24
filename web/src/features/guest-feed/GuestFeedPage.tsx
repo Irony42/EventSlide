@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -7,11 +7,11 @@ import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { readGuestSession } from '../../lib/guestSession'
+import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { ReactionBar } from './components/ReactionBar'
 import { usePhotoFeed } from './hooks/usePhotoFeed'
-import type { PublicEventDto, WallItemDto } from '../../lib/api/dto'
-import type { UiText } from '../../lib/i18n/translations'
+import type { PublicEventDto } from '../../lib/api/dto'
 import styles from './GuestFeedPage.module.css'
 
 /**
@@ -56,14 +56,6 @@ function NotJoined() {
   )
 }
 
-/**
- * The caption and the sender, said for a screen reader: the caption is what a guest wrote and
- * is passed through untouched, and the frame around the sender is the product's.
- */
-const altFor = (item: WallItemDto, t: UiText): string =>
-  item.caption ??
-  (item.authorName === null ? t.wall.photoByAnonymous : t.wall.photoBy(item.authorName))
-
 interface FeedScreenProps {
   readonly slug: string
   readonly event: PublicEventDto
@@ -77,6 +69,22 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
   const items = feed.items ?? []
   const visible = items.slice(0, shown)
 
+  /**
+   * Where focus goes when "Voir plus" is pressed: the first photograph it added.
+   *
+   * On the last page the button unmounts under the finger that pressed it, and focus would
+   * fall to `<body>` — the top of a long page. A ref and an effect that only moves focus: no
+   * state is set from the effect.
+   */
+  const list = useRef<HTMLUListElement | null>(null)
+  const focusIndex = useRef<number | null>(null)
+  useEffect(() => {
+    if (focusIndex.current === null) return
+    const target = list.current?.children.item(focusIndex.current)
+    focusIndex.current = null
+    if (target instanceof HTMLElement) target.focus()
+  }, [shown])
+
   return (
     <div {...themeSurfaceProps(event.theme, 'guest')} className={styles['page']}>
       <header className={styles['header']}>
@@ -86,7 +94,7 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
           <Link className={styles['link']} to={`/e/${slug}/upload`}>
             {t.feed.back}
           </Link>
-          <Button variant="ghost" size="sm" onClick={feed.refresh}>
+          <Button variant="ghost" size="sm" loading={feed.refreshing} onClick={feed.refresh}>
             {t.feed.refresh}
           </Button>
         </div>
@@ -103,6 +111,14 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
         </div>
       ) : null}
 
+      {/* A refresh that failed: what is on screen is older than the guest asked for, and
+          they were waiting on the answer. */}
+      {feed.items !== null && feed.error !== null ? (
+        <Notice tone="danger" variant="inline" role="alert">
+          {t.feed.failed}
+        </Notice>
+      ) : null}
+
       {feed.settling ? (
         <div className={styles['loading']}>
           <Spinner label={t.app.loading} />
@@ -114,15 +130,15 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
       ) : null}
 
       {!feed.settling && visible.length > 0 ? (
-        <ul className={styles['list']}>
+        <ul ref={list} className={styles['list']}>
           {visible.map((item, index) => (
-            <li key={item.id} className={styles['card']}>
+            <li key={item.id} tabIndex={-1} className={styles['card']}>
               <img
                 className={styles['photo']}
                 src={item.thumbUrl}
                 width={item.width}
                 height={item.height}
-                alt={altFor(item, t)}
+                alt={photoAlt(item, t)}
                 loading="lazy"
                 decoding="async"
               />
@@ -144,7 +160,14 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
       ) : null}
 
       {!feed.settling && items.length > visible.length ? (
-        <Button variant="secondary" block onClick={() => setShown((count) => count + PAGE_SIZE)}>
+        <Button
+          variant="secondary"
+          block
+          onClick={() => {
+            focusIndex.current = visible.length
+            setShown((count) => count + PAGE_SIZE)
+          }}
+        >
           {t.feed.more}
         </Button>
       ) : null}

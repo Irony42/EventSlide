@@ -30,7 +30,12 @@ export interface PhotoFeedState {
   readonly ownIds: ReadonlySet<string>
   /** True until both reads have answered once: drawing bars before then would flash them. */
   readonly settling: boolean
-  /** A sentence in the guest's language when the wall could not be read. */
+  /** A refresh is in the air: the screen shows the previous answer meanwhile. */
+  readonly refreshing: boolean
+  /**
+   * A sentence in the guest's language when the last read of the wall failed. With `items`
+   * still set, what is on screen is older than the guest asked for.
+   */
   readonly error: string | null
   readonly refresh: () => void
 }
@@ -59,7 +64,8 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
     reactionsEnabled: wall.data?.reactionsEnabled ?? false,
     ownIds,
     settling: (wall.data === null && wall.loading) || (mine.data === null && mine.loading),
-    error: wall.data === null ? wall.error : null,
+    refreshing: wall.data !== null && wall.loading,
+    error: wall.error,
     refresh,
   }
 }

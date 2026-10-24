@@ -589,7 +589,7 @@ export const es: UiText = {
     refresh: 'Actualizar',
     more: 'Ver más fotos',
     empty: 'Todavía no hay ninguna foto en la pantalla.',
-    emptyHint: 'Las fotos que apruebe el organizador aparecerán aquí.',
+    emptyHint: 'Las fotos que aprueben los organizadores aparecerán aquí.',
     failed: 'No se han podido cargar las fotos. Inténtelo de nuevo.',
     own: 'Su foto',
   },
