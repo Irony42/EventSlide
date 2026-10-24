@@ -5,8 +5,7 @@ import type { LogContext, Logger } from '../ports/logger'
  *
  * Twenty-seven test files declared their own, in two shapes (a class here, a closure there)
  * with the same three fields, because `src/application/testing/` held no logger. This is the
- * shared one. What is left on it is under `src/interface/http` and the `auth` and `clients` use
- * cases, and the production `silentLogger` that `pinoLogger.ts` still exports for two harnesses. A line is the level, the message and the context the caller passed, and nothing is
+ * shared one. A line is the level, the message and the context the caller passed, and nothing is
  * redacted or reformatted: the production adapter's redaction is `pinoLogger`'s to test, and
  * a double that cleaned a line up would hide exactly what a test looks for.
  *
@@ -49,6 +48,14 @@ export class CapturingLogger implements Logger {
   /** The messages logged at `level`, in order. */
   messages(level: LogLevel): string[] {
     return this.lines.filter((line) => line.level === level).map((line) => line.message)
+  }
+
+  /**
+   * Every line as one string, for a test that asserts a secret appears nowhere in the log:
+   * the address, the token, the link it travels in.
+   */
+  get everything(): string {
+    return JSON.stringify(this.lines)
   }
 
   /** The line logged with `message`, for a test that asserts on its context. */

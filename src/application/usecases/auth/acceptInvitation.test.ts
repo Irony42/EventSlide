@@ -16,6 +16,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { InvitationAcceptance } from '../../ports/invitationAcceptance'
 import type { PasswordHasher } from '../../ports/passwordHasher'
 import { makeAcceptInvitation, type AcceptInvitation } from './acceptInvitation'
+import { FakePasswordHasher } from '../../testing/fakePasswordHasher'
 
 const emailOf = (raw: string): EmailAddress => {
   const parsed = EmailAddress.create(raw)
@@ -320,12 +321,7 @@ describe('acceptInvitation', () => {
 
     it('is refused a hash that comes back empty, which is a hasher bug and creates no account', async () => {
       const { token } = await world.invite()
-      const broken: PasswordHasher = {
-        hash: async () => '',
-        verify: async () => false,
-        needsRehash: () => false,
-        dummyHash: 'hash:x',
-      }
+      const broken = new FakePasswordHasher({ produces: () => '' })
       const refusing = makeAcceptInvitation({
         tokens: world.tokens,
         secrets: world.secrets,

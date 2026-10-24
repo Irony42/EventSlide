@@ -9,7 +9,6 @@ import { unusedSecondFactorUseCases } from '../testing/signIn'
 import type { HttpConfig } from '../types'
 import { AT, aUser } from '../../../application/testing/builders'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
-import type { PasswordHasher } from '../../../application/ports/passwordHasher'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
@@ -22,8 +21,7 @@ import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import type { Mailer } from '../../../application/ports/mailer'
 import { asUserId } from '../../../domain/shared/ids'
-import type { Password } from '../../../domain/users/password'
-import type { PasswordHash } from '../../../domain/users/user'
+import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 
 const HOST_ID = 'host-id'
 const HOST_EMAIL = 'camille@example.test'
@@ -43,34 +41,6 @@ const NEW_PASSWORD = 'une-phrase-de-passe-2026'
  * the wrong name is the failure that test exists to catch.
  */
 const HARNESS_SESSION_COOKIE = 'connect.sid'
-
-/**
- * `hash:<plaintext>` — the shape `builders.aUser` already defaults to, so a fixture and
- * a login agree on one password without either restating it.
- *
- * Real bcrypt costs ~200 ms by design and there is no seam that makes it cheaper, which
- * is the whole reason `PasswordHasher` is a port. The fake still behaves: a wrong
- * password genuinely fails to verify, which is all these tests observe. Built here
- * rather than in `src/interface/http/testing/`, because the shared harness is mounted
- * by sibling route modules and a use-case bag is this module's own business.
- */
-class FakePasswordHasher implements PasswordHasher {
-  readonly dummyHash: PasswordHash = 'hash:*no-such-account*'
-
-  async hash(password: Password): Promise<PasswordHash> {
-    return `hash:${password.value}`
-  }
-
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    return hash === `hash:${attempt}`
-  }
-
-  needsRehash(): boolean {
-    // The opportunistic cost upgrade on sign-in is `authenticateUser`'s rule and has
-    // its own ring-2 test. Exercising it here would add a branch no response reveals.
-    return false
-  }
-}
 
 const passThrough: RequestHandler = (_req, _res, next) => {
   next()
