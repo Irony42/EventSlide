@@ -141,10 +141,7 @@ export class FakeEventRepository implements EventRepository {
   async listByClient(clientId: ClientId): Promise<readonly Event[]> {
     return [...this.rows.values()]
       .filter((event) => event.clientId === clientId)
-      .sort(
-        (a, b) =>
-          a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-      )
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.id, b.id))
       .flatMap((event) => {
         const standing = this.withClientStanding(event)
         return standing === null ? [] : [standing]

@@ -229,7 +229,7 @@ export class FakeClientRepository implements ClientRepository, ClientEventSource
     return [...this.memberships.values()]
       .filter((membership) => membership.clientId === clientId)
       .map((membership) => membership.userId)
-      .sort()
+      .sort(compareIds)
   }
 
   async listDueForFinalization(now: Date, limit: number): Promise<readonly ClientId[]> {
@@ -240,8 +240,7 @@ export class FakeClientRepository implements ClientRepository, ClientEventSource
       .filter((client) => this.eventsOf(client.id).length === 0)
       .sort(
         (a, b) =>
-          (a.purgeAfter?.getTime() ?? 0) - (b.purgeAfter?.getTime() ?? 0) ||
-          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+          (a.purgeAfter?.getTime() ?? 0) - (b.purgeAfter?.getTime() ?? 0) || compareIds(a.id, b.id),
       )
       .slice(0, limit)
       .map((client) => client.id)
