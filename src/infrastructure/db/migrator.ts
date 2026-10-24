@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto'
+import type { Clock } from '../../application/ports/clock'
+import { systemClock } from '../time/systemClock'
 import type { Db } from './connection'
 
 /**
@@ -109,8 +111,14 @@ const ordered = (migrations: readonly Migration[]): readonly Migration[] =>
  * Refuses to proceed — loudly, before touching anything — if a migration already
  * recorded in the ledger has a different checksum, or if the ledger contains an id the
  * code no longer knows about (a database migrated by a newer build).
+ *
+ * `clock` stamps `applied_at`; a test passes its own, everything else the real one.
  */
-export const migrate = (db: Db, migrations: readonly Migration[]): readonly number[] => {
+export const migrate = (
+  db: Db,
+  migrations: readonly Migration[],
+  clock: Clock = systemClock,
+): readonly number[] => {
   assertWellFormed(migrations)
   const all = ordered(migrations)
   const applied = readLedger(db)
@@ -150,7 +158,7 @@ export const migrate = (db: Db, migrations: readonly Migration[]): readonly numb
     // either both land or neither does, so a partially-migrated database cannot exist.
     const run = db.transaction(() => {
       db.exec(migration.sql)
-      record.run(migration.id, migration.name, checksumOf(migration), new Date().toISOString())
+      record.run(migration.id, migration.name, checksumOf(migration), clock.now().toISOString())
     })
 
     try {
