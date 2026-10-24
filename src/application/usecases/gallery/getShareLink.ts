@@ -1,4 +1,3 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import type { ShareLink } from '../../../domain/gallery/shareLink'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -8,6 +7,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { ShareLinkRepository } from '../../ports/shareLinkRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { eventBehind } from './galleryAccess'
+import { requireEventRole } from '../shared/eventRole'
 
 /**
  * What the host's console shows about the event's link: whether there is one, until when,
@@ -50,11 +50,8 @@ export const makeGetShareLink =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
 
     const link = await shareLinks.findCurrent(eventId)
     if (link === null) return ok(null)

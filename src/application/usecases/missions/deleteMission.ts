@@ -1,4 +1,3 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, MissionId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -6,6 +5,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEditable, requireEventRole } from '../shared/eventRole'
 
 /**
  * The host removes a prompt from the list.
@@ -42,15 +42,11 @@ export const makeDeleteMission =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
 
-    if (!event.allowsEditing()) {
-      return err(DomainError.conflict('event.immutable', { status: event.status }))
-    }
+    const editable = requireEditable(event)
+    if (!editable.ok) return editable
 
     const mission = await missions.findById(eventId, missionId)
     if (mission === null) return err(DomainError.notFound('mission.notFound'))
