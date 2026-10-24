@@ -29,6 +29,11 @@ import {
   type BackupManifest,
   type ManifestEntry,
 } from './backupArchive'
+import type { MediaVariant } from '../../application/ports/mediaStore'
+import { ContentHash } from '../../domain/photos/contentHash'
+import { asEventId } from '../../domain/shared/ids'
+import { createFsMediaStore } from '../media/fsMediaStore'
+import { mediaObjectPath } from '../media/mediaLayout'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { migrations } from './migrations'
 import { migrate, type Migration } from './migrator'
@@ -47,6 +52,14 @@ const VARIANTS = ['original', 'display', 'thumb'] as const
 const NOW = new Date('2026-09-11T21:30:00.000Z')
 
 const hashOf = (seed: string): string => createHash('sha256').update(seed).digest('hex')
+
+/** Where an object is under any root: the media root, or the `media/` folder of an archive. */
+const objectUnder = (
+  root: string,
+  eventId: string,
+  contentHash: string,
+  variant: MediaVariant,
+): string => join(root, ...mediaObjectPath(eventId, contentHash, variant).split('/'))
 
 const sha256OfFile = async (path: string): Promise<string> =>
   createHash('sha256')
@@ -118,18 +131,22 @@ describe('backup and restore', () => {
     ).run(input.id, input.eventId ?? EVENT, input.guestId, input.contentHash)
   }
 
-  /** Lays bytes down exactly where `fsMediaStore` would put them. */
+  /** Lays bytes down through the media store itself, so this test cannot disagree with it about where. */
   const writeMedia = async (
     eventId: string,
     contentHash: string,
-    variant: string,
+    variant: MediaVariant,
     bytes: string,
   ): Promise<string> => {
-    const directory = join(mediaRoot, eventId, variant, contentHash.slice(0, 2))
-    await mkdir(directory, { recursive: true })
-    const path = join(directory, `${contentHash}.jpg`)
-    await writeFile(path, bytes)
-    return path
+    const hash = ContentHash.create(contentHash)
+    if (!hash.ok) throw new Error(`test fixture produced an invalid hash: ${contentHash}`)
+    await createFsMediaStore({ root: mediaRoot }).put(
+      asEventId(eventId),
+      hash.value,
+      variant,
+      new TextEncoder().encode(bytes),
+    )
+    return objectUnder(mediaRoot, eventId, contentHash, variant)
   }
 
   const writeAllVariants = async (
@@ -217,14 +234,7 @@ describe('backup and restore', () => {
       expect(await exists(join(archive, MANIFEST_FILE))).toBe(true)
       expect(await exists(join(archive, DATABASE_FILE))).toBe(true)
       for (const variant of VARIANTS) {
-        const copied = join(
-          archive,
-          MEDIA_DIR,
-          EVENT,
-          variant,
-          contentHash.slice(0, 2),
-          `${contentHash}.jpg`,
-        )
+        const copied = objectUnder(join(archive, MEDIA_DIR), EVENT, contentHash, variant)
         expect(await exists(copied)).toBe(true)
       }
       expect(manifest.counts.mediaFiles).toBe(3)
@@ -316,9 +326,7 @@ describe('backup and restore', () => {
       ).run(EVENT, videoHash, posterHash)
       db.close()
 
-      const videoDirectory = join(mediaRoot, EVENT, 'video', videoHash.slice(0, 2))
-      await mkdir(videoDirectory, { recursive: true })
-      await writeFile(join(videoDirectory, `${videoHash}.mp4`), 'mp4-bytes')
+      await writeMedia(EVENT, videoHash, 'video', 'mp4-bytes')
       await writeMedia(EVENT, posterHash, 'poster', 'poster-bytes')
 
       const { manifest } = await backup()
@@ -349,9 +357,7 @@ describe('backup and restore', () => {
       ).run(EVENT, sourceHash)
       db.close()
 
-      const directory = join(mediaRoot, EVENT, 'source', sourceHash.slice(0, 2))
-      await mkdir(directory, { recursive: true })
-      await writeFile(join(directory, `${sourceHash}.bin`), 'the guest original')
+      await writeMedia(EVENT, sourceHash, 'source', 'the guest original')
 
       const { manifest } = await backup()
 
@@ -570,9 +576,7 @@ describe('backup and restore', () => {
     it('catches a media file that has been deleted from the archive', async () => {
       const { contentHash } = await seedAnEvening()
       await backup()
-      await rm(
-        join(archive, MEDIA_DIR, EVENT, 'thumb', contentHash.slice(0, 2), `${contentHash}.jpg`),
-      )
+      await rm(objectUnder(join(archive, MEDIA_DIR), EVENT, contentHash, 'thumb'))
 
       const report = await verify()
 
@@ -583,10 +587,7 @@ describe('backup and restore', () => {
     it('catches a media file that has been truncated, without hashing anything', async () => {
       const { contentHash } = await seedAnEvening()
       await backup()
-      await writeFile(
-        join(archive, MEDIA_DIR, EVENT, 'display', contentHash.slice(0, 2), `${contentHash}.jpg`),
-        'short',
-      )
+      await writeFile(objectUnder(join(archive, MEDIA_DIR), EVENT, contentHash, 'display'), 'short')
 
       const report = await verify(archive, false)
 
@@ -598,14 +599,7 @@ describe('backup and restore', () => {
     it('catches a flipped byte only on the full check, which is the point of --quick', async () => {
       const { contentHash } = await seedAnEvening()
       await backup()
-      const path = join(
-        archive,
-        MEDIA_DIR,
-        EVENT,
-        'original',
-        contentHash.slice(0, 2),
-        `${contentHash}.jpg`,
-      )
+      const path = objectUnder(join(archive, MEDIA_DIR), EVENT, contentHash, 'original')
       const original = await readFile(path, 'utf8')
       // Same length, different bytes: exactly what silent corruption looks like.
       await writeFile(path, `X${original.slice(1)}`)
@@ -825,7 +819,7 @@ describe('backup and restore', () => {
     it('brings back the rows and the bytes after both are destroyed', async () => {
       const { contentHash } = await seedAnEvening()
       const originalThumb = await readFile(
-        join(mediaRoot, EVENT, 'thumb', contentHash.slice(0, 2), `${contentHash}.jpg`),
+        objectUnder(mediaRoot, EVENT, contentHash, 'thumb'),
         'utf8',
       )
       await backup()
@@ -845,12 +839,9 @@ describe('backup and restore', () => {
       } finally {
         closeDatabase(db)
       }
-      expect(
-        await readFile(
-          join(mediaRoot, EVENT, 'thumb', contentHash.slice(0, 2), `${contentHash}.jpg`),
-          'utf8',
-        ),
-      ).toBe(originalThumb)
+      expect(await readFile(objectUnder(mediaRoot, EVENT, contentHash, 'thumb'), 'utf8')).toBe(
+        originalThumb,
+      )
     })
 
     it('leaves the restored database needing no migration, so the server starts', async () => {
@@ -910,8 +901,7 @@ describe('backup and restore', () => {
       } finally {
         closeDatabase(back)
       }
-      const strayDirectory = join(mediaRoot, EVENT, 'original', hashOf('later').slice(0, 2))
-      expect(await exists(join(strayDirectory, `${hashOf('later')}.jpg`))).toBe(false)
+      expect(await exists(objectUnder(mediaRoot, EVENT, hashOf('later'), 'original'))).toBe(false)
     })
 
     it.skipIf(process.platform === 'win32')(
@@ -983,9 +973,7 @@ describe('backup and restore', () => {
       // discovering the replacement is short. Verification happens first for this.
       const { contentHash } = await seedAnEvening()
       await backup()
-      await rm(
-        join(archive, MEDIA_DIR, EVENT, 'display', contentHash.slice(0, 2), `${contentHash}.jpg`),
-      )
+      await rm(objectUnder(join(archive, MEDIA_DIR), EVENT, contentHash, 'display'))
 
       await expect(restore({ force: true })).rejects.toThrow(/damaged archive/)
 
@@ -996,11 +984,7 @@ describe('backup and restore', () => {
         closeDatabase(db)
       }
       for (const variant of VARIANTS) {
-        expect(
-          await exists(
-            join(mediaRoot, EVENT, variant, contentHash.slice(0, 2), `${contentHash}.jpg`),
-          ),
-        ).toBe(true)
+        expect(await exists(objectUnder(mediaRoot, EVENT, contentHash, variant))).toBe(true)
       }
     })
 
@@ -1142,27 +1126,14 @@ describe('backup and restore', () => {
       // The window is real, and the message is honest about it rather than reassuring:
       // the photo that was in the media root a moment ago is already gone, and what is
       // at its path now is the empty stub of a copy that was cut off.
-      const displayed = join(
-        mediaRoot,
-        EVENT,
-        'display',
-        contentHash.slice(0, 2),
-        `${contentHash}.jpg`,
-      )
+      const displayed = objectUnder(mediaRoot, EVENT, contentHash, 'display')
       expect(await readFile(displayed, 'utf8').catch(() => '')).toBe('')
     })
 
     it('says the same when a file changes under it after the deep check passed', async () => {
       const { contentHash } = await seedAnEvening()
       await backup()
-      const thumb = join(
-        archive,
-        MEDIA_DIR,
-        EVENT,
-        'thumb',
-        contentHash.slice(0, 2),
-        `${contentHash}.jpg`,
-      )
+      const thumb = objectUnder(join(archive, MEDIA_DIR), EVENT, contentHash, 'thumb')
 
       const message = await restoreWhileTheArchiveIsDisturbed(() => {
         // Same length, different bytes: the corruption a size check cannot see, landing

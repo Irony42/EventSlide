@@ -12,12 +12,14 @@ import type {
 import { ALL_MEDIA_VARIANTS } from '../../application/ports/mediaStore'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { asEventId, type EventId } from '../../domain/shared/ids'
+import { CONTENT_TYPE, EXTENSION, mediaObjectPath } from './mediaLayout'
 
 /**
  * Media on the local filesystem, laid out as:
  *
  *     <root>/<eventId>/<variant>/<ab>/<contentHash>.<ext>
  *
+ * The layout and the names are `mediaLayout.ts`, which the backup archive walks as well.
  * Three deliberate properties:
  *
  * 1. **The event id is the first path segment**, so purging an event is one `rm -r`
@@ -29,36 +31,6 @@ import { asEventId, type EventId } from '../../domain/shared/ids'
  *    noticeably once a single directory holds tens of thousands of entries, and a
  *    conference with four thousand photos across three variants gets there.
  */
-
-/**
- * The declared type of each rendition, indexed rather than assumed.
- *
- * This table used to be three entries all reading `image/jpeg`, with the extension a
- * single `const EXTENSION = 'jpg'` beside it — which was true while every byte in the
- * store was a JPEG and became a bug the moment one of them was not. A clip served
- * through that store would have reached the projector labelled `image/jpeg` inside a
- * file called `.jpg`, and with `X-Content-Type-Options: nosniff` on every media response
- * the browser would have believed the label and rendered nothing.
- */
-const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
-  original: 'image/jpeg',
-  display: 'image/jpeg',
-  thumb: 'image/jpeg',
-  video: 'video/mp4',
-  poster: 'image/jpeg',
-  // Never served (`source` is outside `SERVED_VARIANTS`), so the honest answer is "some
-  // bytes" rather than a type that would invite something to open them.
-  source: 'application/octet-stream',
-}
-
-const EXTENSION: Readonly<Record<MediaVariant, string>> = {
-  original: 'jpg',
-  display: 'jpg',
-  thumb: 'jpg',
-  video: 'mp4',
-  poster: 'jpg',
-  source: 'bin',
-}
 
 /** UUIDs from the id generator; anything else is a bug upstream, not user input. */
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
@@ -104,9 +76,9 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
       throw new Error('media store received an unsafe content hash')
     }
 
-    const shard = hash.value.slice(0, 2)
     const candidate = resolve(
-      join(absoluteRoot, eventId, variant, shard, `${hash.value}.${EXTENSION[variant]}`),
+      absoluteRoot,
+      ...mediaObjectPath(eventId, hash.value, variant).split('/'),
     )
     if (candidate !== absoluteRoot && !candidate.startsWith(absoluteRoot + sep)) {
       throw new Error('media store refused a path outside its root')
