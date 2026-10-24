@@ -8,7 +8,7 @@ import { TextInput } from '../../../design-system/components/TextInput'
 import { useToast } from '../../../design-system/components/useToast'
 import type { SecondFactorProof } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../adminShared'
+import { messageForError } from '../../../lib/i18n/translations'
 import styles from './StepUpDialog.module.css'
 
 export interface StepUpDialogProps {
@@ -111,7 +111,7 @@ function StepUpForm({ id, passwordRef, onBusy, onConfirmed }: StepUpFormProps) {
       },
       (cause: unknown) => {
         onBusy(false)
-        if (live.current) setError(errorMessage(cause, t))
+        if (live.current) setError(messageForError(cause, t))
       },
     )
   }

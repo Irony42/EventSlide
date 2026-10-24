@@ -5,7 +5,7 @@ import { useSession } from '../../app/useSession'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { errorMessage } from './adminShared'
+import { messageForError } from '../../lib/i18n/translations'
 import { StepUpProvider } from './StepUpProvider'
 import styles from './SiteLayout.module.css'
 
@@ -44,7 +44,7 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
                 setFailure(null)
                 api.logout().then(
                   () => navigate('/login', { replace: true }),
-                  (cause: unknown) => setFailure(errorMessage(cause, t)),
+                  (cause: unknown) => setFailure(messageForError(cause, t)),
                 )
               }}
             >

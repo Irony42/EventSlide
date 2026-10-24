@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../adminShared'
+import { messageForError } from '../../../lib/i18n/translations'
 import { useStepUp } from '../useStepUp'
 
 /**
@@ -51,7 +51,7 @@ export const useOperatorAction = <A extends readonly unknown[], R>(
           return { ok: true, value: await action(...args) }
         }
       } catch (cause) {
-        return { ok: false, message: errorMessage(cause, t) }
+        return { ok: false, message: messageForError(cause, t) }
       } finally {
         setPending(null)
       }

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../adminShared'
+import { messageForError } from '../../../lib/i18n/translations'
 import { useLoader } from '../adminShared'
 
 /** One page of a listing: the rows, and the cursor of the next page or `null` at the end. */
@@ -78,7 +78,7 @@ export const usePagedList = <Item, Cursor>(
 
   const moreError = useMemo(
     () =>
-      failure === null || failure.after !== first.data ? null : errorMessage(failure.cause, t),
+      failure === null || failure.after !== first.data ? null : messageForError(failure.cause, t),
     [failure, first.data, t],
   )
 
