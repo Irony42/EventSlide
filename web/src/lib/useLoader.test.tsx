@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useLoader } from './useLoader'
-import { fr } from '../../../lib/i18n/fr'
-import { ApiError } from '../../../lib/http'
+import { fr } from './i18n/fr'
+import { ApiError } from './http'
 
 /**
- * The one read behind every admin screen.
+ * The one read on mount, behind the admin screens, the invitation page and the guest's checklist.
  *
  * The pages built on it assert what each of the four states looks like. What is left
- * here is which answer wins when two reads are in flight — a host pressing "Réessayer"
+ * here is which answer wins when two reads are in flight — a reader pressing "Réessayer"
  * on a venue connection that then delivers both — because a stale answer landing last
  * is invisible in the markup and looks exactly like a server that lost the change.
  */
@@ -166,5 +166,97 @@ describe('useLoader', () => {
 
     await waitFor(() => expect(result.current.error).toBe(fr.errors.unknown))
     expect(result.current.loading).toBe(false)
+  })
+})
+
+/**
+ * What the readers that adopted this hook rely on, beyond the four states: how a failure
+ * ends, and what a screen sees while a retry is on its way.
+ */
+describe('useLoader: how a failure ends', () => {
+  it('stops reporting a failure once a retry has been answered', async () => {
+    const { load } = loaderOf([
+      () => Promise.reject(ApiError.network()),
+      () => Promise.resolve('là'),
+    ])
+    const { result } = renderHook(() => useLoader(load))
+    await waitFor(() => expect(result.current.error).toBe(fr.errors.network))
+
+    act(() => result.current.reload())
+
+    await waitFor(() => expect(result.current.data).toBe('là'))
+    // A "retry" button that leaves the sentence up beside the answer it just fetched sends the
+    // reader looking for a problem that is already over.
+    expect(result.current.error).toBeNull()
+    expect(result.current.loading).toBe(false)
+  })
+
+  it('says it is waiting from the press of the retry, and still names the failure until it is answered', async () => {
+    // `loading` is what a screen reads first, so the wait wins at once. The sentence stays
+    // until the next answer replaces it: a page that keeps its form on show while it revalidates
+    // (`EventSettingsPage`) would otherwise have its banner flicker off and on.
+    const retry = deferred<string>()
+    const { load } = loaderOf([() => Promise.reject(ApiError.network()), () => retry.promise])
+    const { result } = renderHook(() => useLoader(load))
+    await waitFor(() => expect(result.current.error).toBe(fr.errors.network))
+
+    act(() => result.current.reload())
+
+    expect(result.current.loading).toBe(true)
+    expect(result.current.error).toBe(fr.errors.network)
+    await act(async () => {
+      retry.settle('là')
+      await retry.promise
+    })
+  })
+
+  it('drops a failure when a write hands back the answer instead', async () => {
+    const { load } = loaderOf([
+      () => Promise.resolve('chargé'),
+      () => Promise.reject(ApiError.network()),
+    ])
+    const { result } = renderHook(() => useLoader(load))
+    await waitFor(() => expect(result.current.data).toBe('chargé'))
+    act(() => result.current.reload())
+    await waitFor(() => expect(result.current.error).toBe(fr.errors.network))
+
+    act(() => result.current.replace('enregistré'))
+
+    expect(result.current.data).toBe('enregistré')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('gives each request its own signal, and aborts the first when a second supersedes it', async () => {
+    const { load, calls } = loaderOf([
+      () => new Promise<string>(() => {}),
+      () => new Promise<string>(() => {}),
+    ])
+    const { result } = renderHook(() => useLoader(load))
+
+    act(() => result.current.reload())
+
+    expect(calls).toHaveLength(2)
+    expect(calls[0]?.aborted).toBe(true)
+    expect(calls[1]?.aborted).toBe(false)
+  })
+
+  it('reports nothing for the abort its own cleanup causes', async () => {
+    // A transport rejects with `AbortError` when the signal fires, which is exactly what a
+    // superseded read does. It must not surface as a failure of the read that replaced it.
+    const abortable = (signal: AbortSignal) =>
+      new Promise<string>((_resolve, reject) => {
+        signal.addEventListener('abort', () =>
+          reject(new DOMException('The user aborted a request.', 'AbortError')),
+        )
+      })
+    const { result, rerender } = renderHook(
+      (load: (signal: AbortSignal) => Promise<string>) => useLoader(load),
+      { initialProps: abortable },
+    )
+
+    rerender(() => Promise.resolve('après'))
+
+    await waitFor(() => expect(result.current.data).toBe('après'))
+    expect(result.current.error).toBeNull()
   })
 })

@@ -3,7 +3,7 @@ import { useAbout } from '../../../app/useAbout'
 import { useApi } from '../../../app/useApi'
 import type { ClientLimitsDto } from '../../../lib/api/dto'
 import { contactActionOf, type ContactAction } from '../ceilingLevels'
-import { useLoader } from './useLoader'
+import { useLoader } from '../../../lib/useLoader'
 
 export interface ClientLimits {
   /** The caller's own clients, and none on a box with no client space or for an account in none. */

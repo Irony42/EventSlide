@@ -15,7 +15,7 @@ import { SuspensionScreen } from './components/SuspensionScreen'
 import { useAction } from './hooks/useAction'
 import { useAbout } from '../../app/useAbout'
 import { contactActionOf } from './ceilingLevels'
-import { useLoader } from './hooks/useLoader'
+import { useLoader } from '../../lib/useLoader'
 import styles from './ClientSpacePage.module.css'
 import type {
   CeilingMeterDto,

@@ -18,4 +18,4 @@
 export { CheckboxField } from '../admin/components/CheckboxField'
 export { LoadFailure, Pending } from '../admin/components/AsyncState'
 export { SelectField } from '../admin/components/SelectField'
-export { useLoader } from '../admin/hooks/useLoader'
+export { useLoader } from '../../lib/useLoader'

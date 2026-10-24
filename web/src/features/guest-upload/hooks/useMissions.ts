@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import { useLoader } from '../../../lib/useLoader'
 import type { GuestMissionDto } from '../../../lib/api/dto'
 
 /**
@@ -15,9 +16,10 @@ import type { GuestMissionDto } from '../../../lib/api/dto'
  * and that is a decision rather than an omission. The checklist is an invitation, not a
  * report: a guest whose network dropped while it was loading still has to be able to send
  * their photographs, and a spinner or a red sentence above the picker would be the
- * feature getting in the way of the thing the product exists for. A failed read leaves an
- * empty list, the screen renders as it does for the majority of events that set no
- * prompts, and the next settled upload retries it.
+ * feature getting in the way of the thing the product exists for. A failed read leaves the
+ * list as it was (empty, on a first failure), the screen renders as it does for the majority
+ * of events that set no prompts, and the next settled upload retries it. The read is
+ * `useLoader`'s; this hook takes its answer and drops its `loading` and `error` on purpose.
  */
 
 export interface MissionsState {
@@ -29,33 +31,17 @@ export interface MissionsState {
   readonly refresh: () => void
 }
 
+const NO_MISSIONS: readonly GuestMissionDto[] = []
+
 export const useMissions = (slug: string): MissionsState => {
   const api = useApi()
-  const [missions, setMissions] = useState<readonly GuestMissionDto[]>([])
+  const load = useCallback(
+    async (signal: AbortSignal) => (await api.myMissions(slug, signal)).items,
+    [api, slug],
+  )
+  const { data, reload: refresh } = useLoader(load)
+  const missions = data ?? NO_MISSIONS
   const [selected, setSelected] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState(0)
-
-  const refresh = useCallback(() => setAttempt((current) => current + 1), [])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    let current = true
-
-    api.myMissions(slug, controller.signal).then(
-      (response) => {
-        if (current) setMissions(response.items)
-      },
-      () => {
-        // Deliberately silent; see the note above. The list simply stays as it was, which
-        // on a first failed load is empty.
-      },
-    )
-
-    return () => {
-      current = false
-      controller.abort()
-    }
-  }, [api, slug, attempt])
 
   const toggle = useCallback((missionId: string) => {
     setSelected((current) => (current === missionId ? null : missionId))
