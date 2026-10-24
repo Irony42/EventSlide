@@ -12,7 +12,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * One decision on one photo — the operation the whole product is built around.
@@ -67,6 +67,9 @@ export const makeModeratePhoto =
 
     const allowed = await requireEventRole(memberships, eventId, actor.userId, 'moderate')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // An archived event is a record: its media may already have been tiered off, and a
     // decision recorded now would apply to an album nobody can act on.

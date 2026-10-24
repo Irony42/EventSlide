@@ -9,7 +9,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { clientContextOf } from '../clients/clientContextOf'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * Open the doors, close the party, archive the album.
@@ -53,6 +53,9 @@ export const makeChangeEventStatus =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // The client's ceilings go **into** the transition: whether an event may go live is the
     // entity's rule (`live_allowed`, and the window `opened_at + max_live_days` that bounds

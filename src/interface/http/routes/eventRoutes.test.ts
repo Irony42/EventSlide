@@ -331,11 +331,11 @@ const buildWorld = ({
         purgeEvent: makePurgeEvent({ events, memberships, media }),
         renameEvent: makeRenameEvent({ events, memberships, bus: deps.bus }),
         listModerators: makeListModerators({ memberships }),
-        revokeModerator: makeRevokeModerator({ memberships }),
+        revokeModerator: makeRevokeModerator({ events, memberships }),
 
         joinEvent: absent('joinEvent'),
         renameGuest: absent('renameGuest'),
-        revokeGuest: makeRevokeGuest({ guests, memberships, clock: deps.clock }),
+        revokeGuest: makeRevokeGuest({ events, guests, memberships, clock: deps.clock }),
         listGuests: makeListGuests({ guests, memberships, clock: deps.clock }),
         getPrivacyNotice: absent('getPrivacyNotice'),
         acknowledgePrivacyNotice: absent('acknowledgePrivacyNotice'),

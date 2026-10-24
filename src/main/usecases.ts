@@ -529,7 +529,10 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       bus: adapters.bus,
     }),
     listModerators: makeListModerators({ memberships: adapters.memberships }),
-    revokeModerator: makeRevokeModerator({ memberships: adapters.memberships }),
+    revokeModerator: makeRevokeModerator({
+      events: adapters.events,
+      memberships: adapters.memberships,
+    }),
     purgeExpiredEvents: makePurgeExpiredEvents({
       events: adapters.events,
       media: adapters.media,
@@ -586,6 +589,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     renameGuest: makeRenameGuest({ guests: adapters.guests, events: adapters.events }),
     revokeGuest: makeRevokeGuest({
+      events: adapters.events,
       guests: adapters.guests,
       memberships: adapters.memberships,
       clock: adapters.clock,

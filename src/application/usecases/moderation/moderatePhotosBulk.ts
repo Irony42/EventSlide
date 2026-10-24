@@ -12,7 +12,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * One decision over a shift-clicked screenful.
@@ -75,6 +75,9 @@ export const makeModeratePhotosBulk =
 
     const allowed = await requireEventRole(memberships, eventId, actor.userId, 'moderate')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     if (!event.allowsModeration()) {
       return err(DomainError.conflict('event.notModeratable', { status: event.status }))

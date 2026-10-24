@@ -7,7 +7,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The emergency lever: a join link is circulating outside the venue, or a printed card
@@ -72,6 +72,9 @@ export const makeRotateJoinCode =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     const joinCode = await allocateJoinCode(events, ids, joinCodeLength)
     if (!joinCode.ok) return joinCode

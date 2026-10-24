@@ -90,7 +90,7 @@ const buildSubject = (): Harness =>
         res.json({ slug: req.context.event?.slug.value, role: req.context.role })
       })
 
-      // Every verb on one path: what a suspended client's member may still do is decided by the verb.
+      // Every verb on one path: what the middleware lets a member of a suspended client through to.
       app.all('/events/:eventSlug/anything', requireRole('moderator', deps), (_req, res) => {
         res.status(204).end()
       })
@@ -562,14 +562,18 @@ describe('requireRole', () => {
       expect((await agent.head('/events/mariage/anything')).status).toBe(204)
     })
 
+    // Not the middleware's rule any more: it used to test the verb, and every host-side write use
+    // case asks `requireWritable` itself (`suspendedClientWrites.test.ts`), swept over every
+    // non-GET route by `suspension.container.test.ts`. What is held here is that the member is
+    // let through to the use case, which is where the answer comes from.
     it.each(WRITES)(
-      'refuses a member a %s with 403 client.suspended, which is not a 404: they may be told why',
+      'lets a member through to the use case, which refuses the %s, rather than refusing by verb',
       async (verb) => {
         const agent = await signedIn(frozen(), 'host')
 
         const response = await agent[verb]('/events/mariage/anything')
 
-        expect([response.status, response.body.error.code]).toEqual([403, 'client.suspended'])
+        expect(response.status).toBe(204)
       },
     )
 

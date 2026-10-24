@@ -5,7 +5,7 @@ import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { ShareLinkRepository } from '../../ports/shareLinkRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
-import { requireEventRole } from '../shared/eventRole'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host takes the link back. **Immediately**: every request a gallery makes — the page,
@@ -38,6 +38,9 @@ export const makeRevokeShareLink =
 
     const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
     if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     await shareLinks.revokeCurrent(eventId, clock.now())
     return ok(undefined)
