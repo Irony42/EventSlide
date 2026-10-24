@@ -90,6 +90,9 @@ const RENAMES: Readonly<Record<string, string>> = {
   // would compare the client against a type no route on this path returns.
   ModerationPhotoDto: 'ModerationQueueItemDto',
   ModerationQueueResponse: 'ModerationQueuePageDto',
+  // The answer to inviting a moderator: the client names a response envelope, the server the
+  // thing it presents.
+  ModeratorInviteResponse: 'InvitationIssuedDto',
 }
 
 const serverNameFor = (clientName: string): string | null => {
@@ -152,6 +155,20 @@ describe('the wire contract', () => {
     const unpaired = [...client.keys()].filter((name) => serverNameFor(name) === null)
 
     expect(unpaired, 'client shapes with no server counterpart — add a RENAMES entry').toEqual([])
+  })
+
+  it('reads the three invitation shapes, the flow that creates accounts (HTTP-M-12)', () => {
+    // They lived in `presenters.ts` and `client.ts`, outside both files this test compares, so
+    // the shapes of previewing a link, accepting it and issuing one were compared by nobody.
+    const paired = pairs.map((pair) => pair.serverName)
+
+    expect(paired).toEqual(
+      expect.arrayContaining([
+        'InvitationIssuedDto',
+        'InvitationPreviewDto',
+        'InvitationAcceptedDto',
+      ]),
+    )
   })
 
   it('found shapes on both sides at all', () => {

@@ -21,6 +21,8 @@ import type {
   ClientAuditPageDto,
   ClientLimitsDto,
   ClientUsageDto,
+  ClipJobDto,
+  CurrentUserDto,
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
@@ -29,20 +31,59 @@ import type {
   GalleryPageDto,
   GalleryPhotoDto,
   GuestDto,
+  GuestMissionDto,
   GuestPhotoDto,
+  InvitationAcceptedDto,
+  InvitationIssuedDto,
+  InvitationPreviewDto,
   JoinTargetDto,
+  MissionDto,
   ModerationPhotoDto,
+  ModerationQueueItemDto,
+  ModeratorDto,
   MyLimitsDto,
   PendingInvitationDto,
   PendingInvitationsDto,
   PrivacyNoticeDto,
   PrivacyNoticeStateDto,
   PublicEventDto,
+  ReactionsResponseDto,
+  RecoveryCodesDto,
   RenamedGuestDto,
+  SecondFactorRequiredDto,
+  SecondFactorStatusDto,
+  SessionResponseDto,
   SessionUserDto,
   ShareLinkCreatedDto,
   ShareLinkDto,
+  TopPhotoDto,
+  TotpEnrolmentDto,
+  UploadOutcomeDto,
+  UploadResponseDto,
+  WallItemDto,
+  WallMissionDto,
+  WallResponseDto,
 } from './dto'
+import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
+import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
+import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
+import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
+import type { UserPrincipal } from '../types'
+import type { TotpEnrolment } from '../../../application/usecases/auth/enrollTotp'
+import type {
+  UploadOutcome,
+  UploadPhotosResult,
+} from '../../../application/usecases/photos/uploadPhotos'
+import type { PhotoReactionsView } from '../../../application/usecases/reactions/getPhotoReactions'
+import type { WallPlaylistView } from '../../../application/usecases/slideshow/getWallPlaylist'
+import type { PhotoId } from '../../../domain/shared/ids'
+import type { MembershipWithUser } from '../../../application/ports/userRepository'
+import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
+import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
+import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
+import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
+import type { MissionSummary } from '../../../application/usecases/missions/listMissions'
+import type { WallMissionStanding } from '../../../application/usecases/slideshow/getWallPlaylist'
 import type { CreatedShareLink } from '../../../application/usecases/gallery/createShareLink'
 import type { ArchiveGrant, MediaGrant } from '../../../application/usecases/gallery/galleryAccess'
 import type { ShareLinkView } from '../../../application/usecases/gallery/getShareLink'
@@ -368,15 +409,7 @@ export const toSessionUserDto = (user: User): SessionUserDto => ({
   mustChangePassword: user.mustChangePassword,
 })
 
-// ------------------------------------------- moderation routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that five route modules being written against this file at the same time merge
-// cleanly. Type-only, so nothing is added to the bundle.
-import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
-import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
-import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
-import type { ClipJobDto, ModerationQueueItemDto, TopPhotoDto } from './dto'
+// ------------------------------------------- moderation routes --
 
 export interface ModerationQueueItemDtoInput {
   readonly row: ModerationQueueRow
@@ -459,22 +492,7 @@ export const toTopPhotoDto = ({ photo, slug, counts, total }: TopPhotoDtoInput):
   total,
 })
 
-// ------------------------------------------------ auth routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that several route modules being written against this file at the same time merge
-// cleanly. Type-only, so nothing is added to the bundle.
-import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
-import type { UserPrincipal } from '../types'
-import type { TotpEnrolment } from '../../../application/usecases/auth/enrollTotp'
-import type {
-  CurrentUserDto,
-  RecoveryCodesDto,
-  SecondFactorRequiredDto,
-  SecondFactorStatusDto,
-  SessionResponseDto,
-  TotpEnrolmentDto,
-} from './dto'
+// ------------------------------------------------ auth routes --
 
 /**
  * What a successful login answers with.
@@ -562,17 +580,7 @@ export const toRecoveryCodesDto = (codes: readonly string[]): RecoveryCodesDto =
   recoveryCodes: [...codes],
 })
 
-// ----------------------------------------------- guest routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that route modules being written against this file at the same time merge cleanly.
-// Type-only, so nothing is added to the bundle.
-import type {
-  UploadOutcome,
-  UploadPhotosResult,
-} from '../../../application/usecases/photos/uploadPhotos'
-import type { PhotoReactionsView } from '../../../application/usecases/reactions/getPhotoReactions'
-import type { ReactionsResponseDto, UploadOutcomeDto, UploadResponseDto } from './dto'
+// ----------------------------------------------- guest routes --
 
 /**
  * One file's fate.
@@ -622,14 +630,7 @@ export const toReactionsDto = (view: PhotoReactionsView): ReactionsResponseDto =
   mine: view.mine,
 })
 
-// ---------------------------------------------- public routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that route modules being written against this file at the same time merge cleanly.
-// Type-only, so nothing is added to the bundle.
-import type { WallPlaylistView } from '../../../application/usecases/slideshow/getWallPlaylist'
-import type { PhotoId } from '../../../domain/shared/ids'
-import type { WallItemDto, WallResponseDto } from './dto'
+// ---------------------------------------------- public routes --
 
 /**
  * One slide.
@@ -725,16 +726,7 @@ export const toWallResponseDto = (
   }
 }
 
-// ------------------------------------------------ event routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that route modules being written against this file at the same time merge cleanly.
-// Type-only, so nothing is added to the bundle.
-import type { MembershipWithUser } from '../../../application/ports/userRepository'
-import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
-import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
-import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
-import type { ModeratorDto } from './dto'
+// ------------------------------------------------ event routes --
 
 /**
  * One membership, for the host's "who has the console" list.
@@ -752,45 +744,11 @@ export const toModeratorDto = (membership: MembershipWithUser): ModeratorDto => 
   grantedAt: iso(membership.grantedAt),
 })
 
-/**
- * The answer to an invitation (docs/API.md, `POST /api/events/:slug/moderators`): that it was
- * written, and until when it works — and, **only when no mail went out**, the link for the
- * inviter to pass on.
- *
- * What is deliberately absent, and was the whole of the 2.x answer: whether an account was
- * created, and its id. They said whether the address was already on the box, to whoever typed
- * it. The answer is now the same for an address that has an account and one that has not, and
- * `link` is a fact about the box and its relay, never about the address.
- */
-export interface InvitationIssuedDto {
-  readonly status: 'invited'
-  readonly expiresAt: string
-  readonly link?: string
-}
-
 export const toInvitationIssuedDto = (issued: IssuedInvitation): InvitationIssuedDto => ({
   status: 'invited',
   expiresAt: iso(issued.expiresAt),
   ...(issued.delivery === 'link' ? { link: issued.link } : {}),
 })
-
-/**
- * What a link would do, for the page that asks its holder to accept: the purpose, the target's
- * name and when it ends. Nothing about the inviter, the address, or whether the address has an
- * account (`previewInvitation` says why).
- */
-export interface InvitationPreviewDto {
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly expiresAt: string
-  /**
-   * The terms accepting agrees to (G2-20), **present only on a box that asks for them**: a
-   * self-hosted box answers the four keys it always did, byte for byte. `url` is an https
-   * address or a path on this site, and `version` is what the audit entry will say.
-   */
-  readonly terms?: { readonly url: string; readonly version: string }
-}
 
 export const toInvitationPreviewDto = (preview: InvitationPreview): InvitationPreviewDto => ({
   kind: preview.kind,
@@ -802,19 +760,6 @@ export const toInvitationPreviewDto = (preview: InvitationPreview): InvitationPr
     : { terms: { url: preview.terms.url, version: preview.terms.version } }),
 })
 
-/**
- * What was accepted and where the person lands: for an event its slug, which the page opens.
- * **No address and no account id**: the person who accepted has them, and a response that
- * carried the address would tell whoever holds a link whose mailbox it was.
- */
-export interface InvitationAcceptedDto {
-  readonly status: 'accepted'
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly eventSlug: string | null
-}
-
 export const toInvitationAcceptedDto = (accepted: AcceptedInvitation): InvitationAcceptedDto => ({
   status: 'accepted',
   kind: accepted.target.kind,
@@ -824,14 +769,6 @@ export const toInvitationAcceptedDto = (accepted: AcceptedInvitation): Invitatio
 })
 
 // --------------------------------------------------------------- missions --
-
-// Imported here rather than folded into the statement list at the top of the file, for
-// the same reason the event-route presenters below are: route modules written against
-// this file at the same time then merge cleanly. Type-only, so nothing reaches the bundle.
-import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
-import type { MissionSummary } from '../../../application/usecases/missions/listMissions'
-import type { WallMissionStanding } from '../../../application/usecases/slideshow/getWallPlaylist'
-import type { GuestMissionDto, MissionDto, WallMissionDto } from './dto'
 
 /**
  * The host's row: the prompt, and the three numbers a host at a laptop mid-evening

@@ -9,7 +9,8 @@ import { fr } from '../../../lib/i18n/fr'
 import { anInvitationPreview, fakeApi } from '../../../testing/renderWithProviders'
 import { useInvitationPreview } from './useInvitation'
 import type { ReactNode } from 'react'
-import type { Api, InvitationPreviewDto } from '../../../lib/api/client'
+import type { Api } from '../../../lib/api/client'
+import type { InvitationPreviewDto } from '../../../lib/api/dto'
 
 /**
  * What a link's preview comes to, as state.

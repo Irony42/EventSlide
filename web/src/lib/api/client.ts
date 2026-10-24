@@ -18,6 +18,8 @@ import type {
   GuestListResponse,
   GuestMissionListResponse,
   GuestPhotoDto,
+  InvitationAcceptedDto,
+  InvitationPreviewDto,
   JoinResponse,
   MissionDto,
   MissionListResponse,
@@ -25,6 +27,7 @@ import type {
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
+  ModeratorInviteResponse,
   OperatorInvitationDto,
   OperatorPasswordResetDto,
   MyLimitsDto,
@@ -209,20 +212,6 @@ export interface ModeratorInvitationInput {
 }
 
 /**
- * What `POST /api/events/:slug/moderators` answers, as the server presents it: a 201 saying
- * the invitation exists and when it ends — and, **only when no mail went out**, the link to
- * pass on. It says nothing about whether the address already has an account.
- *
- * Declared here rather than in `dto.ts` because the response envelope of a write is not
- * one of the shapes the wall and the console share.
- */
-export interface ModeratorInviteResponse {
-  readonly status: 'invited'
-  readonly expiresAt: string
-  readonly link?: string
-}
-
-/**
  * What accepting an invitation sends (`POST /api/invitations/:token/accept`): a person
  * choosing how to sign in, or — from a session the link is for — nothing at all.
  *
@@ -243,42 +232,6 @@ export type InvitationAcceptance =
       readonly acceptTerms?: boolean
     }
   | { readonly kind: 'signedInAccount'; readonly acceptTerms?: boolean }
-
-/*
- * The two answers of the invitation routes, declared here and not in `dto.ts` for the reason
- * `ModeratorInviteResponse` is: the response envelope of one route is not one of the shapes
- * the wall and the console share, and the server's presenters for them live beside the route.
- */
-/**
- * What a link offers, as `GET /api/invitations/:token` answers it (G2-09 / P3-10): the kind
- * of thing it opens, the role, the name of the event or client, and when it ends. Nothing
- * about who invited, nor about the address — and so nothing about whether it has an account.
- * `targetName` is content (an event's or a client's name): printed as written, never translated.
- */
-export interface InvitationPreviewDto {
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly expiresAt: string
-  /**
-   * The terms accepting agrees to (G2-20): present **only on a box that asks for them**, where
-   * the page shows a required, unticked box beside a link to `url`. Absent on every
-   * self-hosted box, which is the page as it was.
-   */
-  readonly terms?: { readonly url: string; readonly version: string }
-}
-
-/**
- * What accepting answers (`POST /api/invitations/:token/accept`). `eventSlug` is `null` for a
- * client: there is no event to open yet. No address and no account id, by design.
- */
-export interface InvitationAcceptedDto {
-  readonly status: 'accepted'
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly eventSlug: string | null
-}
 
 export const createApi = (transport: Transport) => ({
   // ------------------------------------------------------------------ public --
