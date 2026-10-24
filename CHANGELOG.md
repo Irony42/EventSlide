@@ -255,7 +255,7 @@ Read these before you upgrade, and back up with the version you run now.
 - **The host dashboard's `usedBytes` now counts the clip sources still waiting in the queue**
   as well as the photographs (#117), so it can read higher than before while clips are queued.
   It is the figure an upload is checked against.
-- **A guest token for another event is answered `404 event.notFound`, no longer `403 guest.wrongEvent`** (#194).
+- **A guest token for another event is answered `404 event.notFound`, no longer a `403` with the code `guest.wrongEvent`** (#194).
   The 403 told a guest of any event which slugs exist, drafts and archived events included, where the public
   wall answers `404` for all three. A client that branched on `guest.wrongEvent` now sees `event.notFound`;
   the reason is in the log, as a warning with the two event ids. The web app's outbox keeps a queued photo
