@@ -470,7 +470,6 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   deleteMyPhoto: vi.fn(async () => undefined),
-  setCaption: vi.fn(async () => undefined),
   react: vi.fn(async () => undefined),
   withdrawReaction: vi.fn(async () => undefined),
   reactions: vi.fn(async () => ({
@@ -533,7 +532,6 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   listEvents: vi.fn(async () => ({ items: [] })),
   createEvent: vi.fn(async () => anEventDto()),
   getEvent: vi.fn(async () => anEventDto()),
-  renameEvent: vi.fn(async () => anEventDto()),
   updateSettings: vi.fn(async () => anEventDto()),
   setEventStatus: vi.fn(async () => anEventDto()),
   setSchedule: vi.fn(async () => anEventDto()),
@@ -543,7 +541,6 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   moderationQueue: vi.fn(async () => ({ items: [], pendingCount: 0, nextCursor: null })),
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),
-  deletePhoto: vi.fn(async () => undefined),
   topPhotos: vi.fn(async () => ({ items: [] })),
 
   listGuests: vi.fn(async () => ({ items: [], activeCount: 0 })),

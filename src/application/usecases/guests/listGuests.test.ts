@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventRole } from '../../../domain/events/eventRole'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
-import { AT, aGuest, atPlus } from '../../testing/builders'
+import { AT, aGuest, aPhoto, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
+import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { makeListGuests, PRESENCE_WINDOW_MS } from './listGuests'
 
 const WEDDING = asEventId('event-1')
@@ -44,6 +45,28 @@ describe('listGuests', () => {
       'guest-late',
       'guest-early',
     ])
+  })
+
+  it('carries how many photos each guest took, counted from the album and not kept on the guest', async () => {
+    const photos = new FakePhotoRepository().seed(
+      aPhoto({ id: 'p1', eventId: WEDDING, author: { kind: 'guest', id: 'guest-lea' } }),
+      aPhoto({ id: 'p2', eventId: WEDDING, author: { kind: 'guest', id: 'guest-lea' } }),
+      aPhoto({ id: 'p3', eventId: WEDDING, author: { kind: 'guest', id: 'guest-tom' } }),
+      aPhoto({ id: 'p4', eventId: GALA, author: { kind: 'guest', id: 'guest-lea' } }),
+    )
+    guests = new FakeGuestRepository(photos).seed(
+      aGuest({ id: 'guest-lea', eventId: WEDDING }),
+      aGuest({ id: 'guest-tom', eventId: WEDDING }),
+    )
+    // A count carried by a saved guest is not what the host is shown.
+    await guests.save(aGuest({ id: 'guest-new', eventId: WEDDING, photoCount: 9 }))
+
+    const result = await list()
+
+    expect(
+      result.ok &&
+        Object.fromEntries(result.value.guests.map((guest) => [guest.id, guest.photoCount])),
+    ).toEqual({ 'guest-lea': 2, 'guest-tom': 1, 'guest-new': 0 })
   })
 
   it('lists nobody at an event nobody has joined', async () => {

@@ -161,7 +161,7 @@ describe('AppRoutes', () => {
     at('/admin/evenements')
 
     expect(await screen.findByRole('heading', { name: fr.shell.notFoundTitle })).toBeVisible()
-    expect(screen.queryByRole('heading', { name: fr.upload.title })).toBeNull()
+    expect(screen.queryByRole('heading', { name: fr.upload.notJoinedTitle })).toBeNull()
   })
 
   it('answers an unknown guest-looking address with a 404 too', async () => {
@@ -210,8 +210,8 @@ describe('which language each surface speaks', () => {
   })
 
   it('renders the host console in the language the host is in', async () => {
-    // The reader the old rule forgot: a moderator invited by e-mail and handed a
-    // temporary password, who installed nothing and has no reason to read French.
+    // The reader the old rule forgot: a moderator invited by e-mail, who installed nothing
+    // and has no reason to read French.
     const api = fakeApi({
       session: vi.fn(async (): Promise<SessionResponse> => ({
         authenticated: true,

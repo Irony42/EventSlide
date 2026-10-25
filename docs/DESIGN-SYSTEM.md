@@ -75,8 +75,6 @@ token exactly.
   --success: oklch(76% 0.16 155);
   --danger: oklch(68% 0.19 22);
   --warning: oklch(82% 0.15 85);
-  /* ---- Focus. The ring is derived from the accent, so it is declared with it. ---- */
-  --focus-offset: 2px;
 
   /* ---- Space. 4 px base. No in-between values. ---- */
   --space-1: 0.25rem;
@@ -113,7 +111,6 @@ token exactly.
   --wall-frame-radius: var(--radius-md); /* a framed photo's corner; §12 moves it */
 
   /* ---- Shadows. Elevation is the only thing shadows encode. ---- */
-  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
 
@@ -327,8 +324,7 @@ reason. `classNames.guard.test.ts` fails on the old spellings.
 | `Async`          | Waiting, failed with a retry, empty or answered: the one switch over a `useLoader` result.                     | The wait is a labelled `role="status"`, the failure a `role="alert"`; only an empty list is empty, no answer yet renders nothing.                                                        |
 | `Pending`        | The wait of a screen that keeps its own switch: a spinner and its label.                                       | A `role="status"` whose text is the label. Prefer `Async`.                                                                                                                               |
 | `LoadFailure`    | A read that failed: the sentence and a retry, never an empty list.                                             | `role="alert"`; `as` is the heading level, one below the card that holds it.                                                                                                             |
-| `Stack`          | Vertical/horizontal rhythm with `gap`.                                                                         | Renders a plain element with no ARIA. Exists so no component hand-writes margins.                                                                                                        |
-| `Grid`           | Responsive tile grids (§6).                                                                                    | `role="list"` / `role="listitem"` when the tiles are a collection, so counts are announced.                                                                                              |
+| `Stack`          | Vertical/horizontal rhythm with `gap`.                                                                         | Renders a plain element with no ARIA. One screen (`JoinPage`) uses it; the others lay themselves out in their own CSS Module.                                                            |
 
 A glyph beside a sentence is a `Notice`, in one of its two variants, and the call site says which: `variant` has no default. `boxed` is a block of its own, framed in the tone's colour with the ink left alone: a refused save, a disclosure the host must see. `inline` has no frame and tints the sentence itself, for a line attached to something else: the message under a field, under a progress bar. `statusIcon.guard.test.ts` fails when a feature draws a `StatusIcon` itself instead of using it; its allowlist names the few places that are not a line of text with a status (a badge, a toast, a list marker, a card or banner that carries more than one sentence, the projected wall), each with its reason.
 
@@ -518,7 +514,7 @@ gone and every slide change still moves. What keeps the attribute honest now is 
 | Requirement                     | Concretely                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Touch targets                   | ≥ `var(--touch-min)` (44 px) for every interactive element on a guest surface, including the delete `IconButton` on a thumbnail. 1.0's `.delete-icon` was 28 px.                                                                                                                                                                                 |
-| Focus                           | `:focus-visible` ring from `--focus-ring` with `--focus-offset`, on every focusable element. `outline: none` without a replacement ring fails review.                                                                                                                                                                                            |
+| Focus                           | `:focus-visible` ring from `--focus-ring`, drawn once for every focusable element by `base.css` (`focusRing.guard.test.ts` fails on a module that draws it again). `outline: none` without a replacement ring fails review.                                                                                                                      |
 | Semantics                       | Semantic element first. 1.0's moderation tile was a `<div role="button" tabIndex={0}>` with hand-rolled `Enter`/`Space` handling and a nested delete `<button>` — nested interactives, a fake button, and `stopPropagation` holding it together. 2.0: a `<button>` for the status toggle, a sibling `IconButton` for delete, no nesting.         |
 | Page title                      | Every address names itself in `<title>` (`PageTitle`, fed from `text.titles`), so three tabs of one event can be told apart. Static and translated: never an event's name, a caption or a link's token.                                                                                                                                          |
 | Images                          | Every `<img>` has meaningful `alt` or `alt=""` when decorative; so is one whose `<figcaption>` beside it already says the same words (the gallery viewer), because a screen reader would read both. A guest photo's alt is its caption and author; fallback `Photo envoyée par Léa`. 1.0 used the filename, which reads aloud as `IMG_4821.jpg`. |
@@ -694,7 +690,7 @@ already does. The filmstrip and the collage show no captions at all.
 | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Add Bootstrap or any CSS framework                                                 | 1.0 pulled `bootstrap@5.3.3` from jsDelivr in `index.html` and then fought it with 186 lines of `!important` overrides in `public/app.css`. The primitives in §5 are smaller than the overrides were.            |
 | Load anything from a CDN — `<script>`, `<link>`, a font, an icon set               | The `helmet` CSP forbids it and a venue's Wi-Fi will drop it mid-event. Bundle it.                                                                                                                               |
-| Write utility-class soup (`className="d-flex flex-wrap gap-2 mb-3 p-3 rounded-3"`) | Real 1.0 line. Layout intent becomes unreadable and untestable; use `Stack`, `Grid`, and a CSS Module.                                                                                                           |
+| Write utility-class soup (`className="d-flex flex-wrap gap-2 mb-3 p-3 rounded-3"`) | Real 1.0 line. Layout intent becomes unreadable and untestable; use `Stack` or a CSS Module.                                                                                                                     |
 | Use `style={{ … }}` for a static value                                             | Real 1.0 line: `style={{ background: 'rgba(0,0,0,0.2)' }}`. Inline style is only for a computed value — `--progress-value`, `--wall-kenburns-duration`, a grid position, a transform.                            |
 | Add a fourth bespoke button                                                        | `Button` has four variants and three sizes. If your action does not fit, the action is wrong or the variant belongs in `Button`.                                                                                 |
 | Add a shade that duplicates an existing role                                       | `#cbd5e1`, `#e2e8f0`, `#94a3b8` and `#f8fafc` all coexisted in 1.0 as "light text". Three text tokens is the whole budget.                                                                                       |

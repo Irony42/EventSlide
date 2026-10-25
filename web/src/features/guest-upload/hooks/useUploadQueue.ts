@@ -39,7 +39,7 @@ export interface UploadItem {
   readonly state: UploadItemState
   /** 0-100, from the transport's upload progress events. */
   readonly progress: number
-  /** A French sentence, ready to render. `null` while nothing has failed. */
+  /** A sentence in the language on screen when it failed, ready to render. `null` while nothing has failed. */
   readonly error: string | null
   readonly photoId: string | null
   /** Whether offering "Réessayer" would be honest. A client fault fails again. */
