@@ -256,8 +256,9 @@ export class InMemoryMediaStore implements MediaStore {
 }
 
 /**
- * The declared type of each rendition, as `fsMediaStore` declares it: a still is a JPEG, a clip
- * an mp4, and a staged source, which nothing serves, is just bytes.
+ * The declared type of each rendition, as `infrastructure/media/mediaLayout.ts` declares it (the
+ * application layer cannot import it, and `mediaStoreContract` holds the two together): a still
+ * is a JPEG, a clip an mp4, and a staged source, which nothing serves, is just bytes.
  */
 const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   original: 'image/jpeg',

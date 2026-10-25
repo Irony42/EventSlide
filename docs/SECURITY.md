@@ -727,13 +727,13 @@ would have stayed green with `bootstrapOwner` writing `none`.
 
 One box hosts many events. Isolation is not a feature; it is the thing that must not break.
 
-| Layer   | Mechanism                                                                                                                             | Consequence                                                                                                                             |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Ports   | every event-scoped method takes `eventId` **first**: `findById(eventId, photoId)`, never `findById(photoId)`                          | a method that can name another event's row cannot be written by accident; the three that deliberately span events are listed below      |
-| Schema  | `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE` plus an index leading with `event_id`, on every event-scoped table   | the cascade makes "delete this event and everything in it" atomic                                                                       |
-| Fakes   | `FakePhotoRepository` keys its map on `(eventId, photoId)`                                                                            | a cross-tenant bug fails a ring-2 test instead of passing because a mock returned what it was told                                      |
-| Media   | served by a controller that resolves the event from the path, authorizes, then streams from an explicit root — never `express.static` | scoping applies to every byte; a hash guessed from another event is a 404                                                               |
-| Storage | `<MEDIA_ROOT>/<eventId>/<variant>/<hash[0:2]>/<hash>.<jpg                                                                             | mp4>`— the extension follows the rendition, so a clip is never served labelled`image/jpeg` (`src/infrastructure/media/fsMediaStore.ts`) | the only client input in a media URL is an id, and it is looked up, never concatenated into a path |
+| Layer   | Mechanism                                                                                                                             | Consequence                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Ports   | every event-scoped method takes `eventId` **first**: `findById(eventId, photoId)`, never `findById(photoId)`                          | a method that can name another event's row cannot be written by accident; the three that deliberately span events are listed below     |
+| Schema  | `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE` plus an index leading with `event_id`, on every event-scoped table   | the cascade makes "delete this event and everything in it" atomic                                                                      |
+| Fakes   | `FakePhotoRepository` keys its map on `(eventId, photoId)`                                                                            | a cross-tenant bug fails a ring-2 test instead of passing because a mock returned what it was told                                     |
+| Media   | served by a controller that resolves the event from the path, authorizes, then streams from an explicit root — never `express.static` | scoping applies to every byte; a hash guessed from another event is a 404                                                              |
+| Storage | `<MEDIA_ROOT>/<eventId>/<variant>/<hash[0:2]>/<hash>.<jpg                                                                             | mp4>`— the extension follows the rendition, so a clip is never served labelled`image/jpeg` (`src/infrastructure/media/mediaLayout.ts`) | the only client input in a media URL is an id, and it is looked up, never concatenated into a path |
 
 ### The documented exceptions, and why each is one
 
@@ -2030,7 +2030,7 @@ nothing, and a directory can be rsynced, resumed and inspected at 2am.
 ```
 <archive>/manifest.json          counts, SHA-256 checksums, the migration ledger
 <archive>/database.sqlite        the snapshot
-<archive>/media/<eventId>/<variant>/<ab>/<contentHash>.jpg
+<archive>/media/<eventId>/<variant>/<ab>/<contentHash>.<ext>
 ```
 
 **The database is captured first, and the skew that leaves is the recoverable one.** The
@@ -2503,10 +2503,10 @@ multipart uploads are genuinely covered, as §7 claims.
   §4.1's claims about `-protocol_whitelist file`, the pinned `-f` demuxer, the absence of
   `-c copy`, `-map 0:v:0 -map 0:a:0? -dn -sn` and the double `yuv420p` are all CONFIRMED at
   `ffmpegVideoTranscoder.ts:311`, `:313`, `:464-467`, `:483-491`, `:497` and `:510`.
-- **No guest string reaches a path segment.** `fsMediaStore.ts:99-115` builds paths from a
+- **No guest string reaches a path segment.** `fsMediaStore.ts`'s `pathFor` builds paths (the layout is `mediaLayout.ts`) from a
   `randomUUID` event id, a closed-union variant and a `/^[0-9a-f]{64}$/` digest, each
   re-validated at the store boundary, with an explicit `startsWith(absoluteRoot + sep)`
-  containment check at `:111-113`. `originalname` is carried as `declaredName` metadata
+  containment check after it. `originalname` is carried as `declaredName` metadata
   (`routes/guestRoutes.ts:347`, `routes/clipRoutes.ts:186`) and is deliberately kept out of
   the response body (`presenters/presenters.ts:443-456`). `express.static` serves only the
   built web bundle (`server.ts:182`), never `MEDIA_ROOT`.
