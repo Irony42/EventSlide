@@ -16,15 +16,6 @@
   font-size: var(--text-xl);
 }
 
-/* Programmatic focus lands here when the page arrives with its answer. The heading is not
-   a control, so the ring is for the person whose eyes follow the cursor, not a promise
-   that Tab will stop on it. */
-.title:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
 .intro {
   color: var(--text-secondary);
 }

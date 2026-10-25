@@ -88,9 +88,9 @@ describe('numbered French copy', () => {
 /**
  * Every code a client can receive, transcribed rather than imported: lint forbids the
  * web app importing the server, the same reason `dto.ts` transcribes the wire format.
- * Taken from `docs/API.md` **and** from the refusals the use cases return, because the
- * two disagree in one place — see `event.photoLimitReached` below. Adding a code to
- * the API means adding a row here, and the row fails until the code has French copy.
+ * Taken from `docs/API.md` **and** from the refusals the use cases return, some of which
+ * the document names only in passing — see the second group below. Adding a code to the
+ * API means adding a row here, and the row fails until the code has French copy.
  */
 const DOCUMENTED_CODES: readonly string[] = [
   'request.invalid',
@@ -141,7 +141,6 @@ const DOCUMENTED_CODES: readonly string[] = [
 
   'photo.notFound',
   'photo.illegalTransition',
-  'photo.tooManyForGuest',
   'photo.captionEditForbidden',
   'photo.deleteForbidden',
 
@@ -191,9 +190,8 @@ const DOCUMENTED_CODES: readonly string[] = [
   'membership.lastOwner',
   'guest.notFound',
 
-  // Answered by a use case under a name docs/API.md does not use, or does not list at
-  // all. `event.photoLimitReached` is what the server sends where the doc says
-  // `photo.tooManyForGuest`; both are pinned until the contract picks one.
+  // Answered by a use case and named by docs/API.md only in passing, or not at all.
+  // `event.photoLimitReached` is the per-guest cap.
   'event.photoLimitReached',
   'event.notModeratable',
   'photo.pixelBudgetExceeded',

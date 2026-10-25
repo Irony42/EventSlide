@@ -70,34 +70,16 @@ const BASE_DELAY_MS = 1_000
  */
 const MAX_DELAY_MS = 30_000
 
-/** What the server can emit, from `DomainEvent['type']` in the application layer. */
-export const STREAM_SIGNAL_TYPES = [
-  'photo.uploaded',
-  'photo.moderated',
-  'photo.deleted',
-  'photo.captionChanged',
-  'guest.joined',
-  'reaction.added',
-  'event.statusChanged',
-  'event.settingsChanged',
-] as const
-
-export type StreamSignalType = (typeof STREAM_SIGNAL_TYPES)[number]
-
 export interface StreamSignal {
   /**
    * The frame's `type`, as sent. Typed as a plain string on purpose: a newer server
    * may emit a signal this build has never heard of, and an invalidation nobody acts
    * on shows as a stale wall — so an unrecognised type is delivered rather than
-   * dropped. Narrow it with {@link isStreamSignalType} when the distinction matters.
+   * dropped. A consumer compares it with the types it acts on (`DomainEvent['type']` in
+   * `src/application/ports/eventBus.ts` is the server's list) and ignores the rest.
    */
   readonly type: string
 }
-
-const KNOWN_TYPES: ReadonlySet<string> = new Set(STREAM_SIGNAL_TYPES)
-
-export const isStreamSignalType = (value: string): value is StreamSignalType =>
-  KNOWN_TYPES.has(value)
 
 /**
  * The frame body, parsed defensively.

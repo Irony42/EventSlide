@@ -634,6 +634,13 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.
   photoListQuery: 'GET /api/events/:eventSlug/photos has no client method',
+  // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
+  // routes are written and held at ring 4, and no screen sends either. The client methods were
+  // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a
+  // screen that needs one writes it back and takes its entry out of this list.
+  renameEventBody: 'PATCH /api/events/:eventSlug: no screen renames an event',
+  captionBody:
+    'PATCH /api/events/:eventSlug/photos/:photoId/caption: no screen edits a caption after upload',
   // `PATCH /api/events/:slug/guests/:guestId` (`renameGuest`): the route exists and is held at ring
   // 4 (`guestRoutes.test.ts`: a body with no `displayName` or an extra key is a 400); the screen that
   // sends it is not built, and `GuestSession` stores no guest id to put in the path yet.
