@@ -32,9 +32,12 @@
 import { formattersFor } from './formatters'
 import type { CuratedAccent } from '../../design-system/eventTheme'
 import type {
+  EventStatus,
   EventTemplateKey,
   NoticeAudience,
   NoticePublication,
+  ReactionKind,
+  SiteAuditEntryDto,
   ThemeFonts,
   ThemeFrame,
   ThemeMaterial,
@@ -60,7 +63,6 @@ export const fr = {
     cancel: 'Annuler',
     close: 'Fermer',
     save: 'Enregistrer',
-    back: 'Retour',
     confirm: 'Confirmer',
     /**
      * The accessible name of the language picker (roadmap 1.5).
@@ -86,14 +88,12 @@ export const fr = {
   },
 
   upload: {
-    title: 'Vos photos',
     intro: 'Ajoutez vos photos, elles apparaîtront sur l’écran après validation.',
     addPhotos: 'Ajouter des photos',
     takePhoto: 'Prendre une photo',
     captionLabel: 'Légende',
     captionHint: (max: number) => `${t.number(max)} caractères maximum. Facultatif.`,
     send: 'Envoyer',
-    sending: 'Envoi…',
     sendCount: (count: number) =>
       t.count(count, {
         one: 'Envoyer la photo',
@@ -105,7 +105,6 @@ export const fr = {
     itemDone: 'Envoyée',
     itemDuplicate: 'Déjà envoyée',
     itemFailed: 'Échec',
-    remove: 'Retirer',
     // The guest's own photos, whatever the host decided: being told a photo is waiting
     // beats wondering whether the upload worked.
     mine: 'Vos envois',
@@ -115,9 +114,7 @@ export const fr = {
     statusHidden: 'Retirée de l’écran',
     deleteOwn: 'Supprimer',
     deleteOwnConfirm: 'Supprimer cette photo ? Cette action est définitive.',
-    graceOver: 'Le délai pour supprimer vous-même cette photo est passé.',
     thanks: 'Merci, vos photos sont bien arrivées.',
-    sendMore: 'Envoyer d’autres photos',
 
     /* ---------- guest surface: features/join + features/guest-upload ---------- */
 
@@ -452,7 +449,7 @@ export const fr = {
       wow: 'Waouh',
       cheers: 'Santé',
       clap: 'Bravo',
-    },
+    } satisfies Record<ReactionKind, string>,
     /** The row's name. Numbered like `deleteOwnNumbered`, so two rows are never one label. */
     reactionsGroup: (position: number) => `Réagir à la photo ${t.number(position)}`,
     reactionsFailed: 'Les réactions n’ont pas pu être chargées.',
@@ -617,7 +614,6 @@ export const fr = {
     empty: 'Les premières photos vont bientôt arriver',
     emptyHint: 'Scannez le QR code pour envoyer les vôtres.',
     joinPrompt: 'Rejoignez la galerie',
-    reactions: 'Réactions',
     offline: 'Connexion perdue — nouvelle tentative en cours',
     paused: 'Diaporama en pause',
 
@@ -699,7 +695,6 @@ export const fr = {
   },
 
   admin: {
-    title: 'Administration',
     events: 'Vos évènements',
     newEvent: 'Nouvel évènement',
     eventName: 'Nom de l’évènement',
@@ -891,7 +886,6 @@ export const fr = {
      */
     retentionUnlimited: 'Conservation illimitée',
     moderators: 'Modérateurs',
-    inviteModerator: 'Inviter un modérateur',
 
     /* ---- Added by features/admin (auth, event management). ---- */
     loading: 'Chargement de vos évènements…',
@@ -1100,7 +1094,6 @@ export const fr = {
     email: 'Adresse e-mail',
     password: 'Mot de passe',
     submit: 'Se connecter',
-    submitting: 'Connexion…',
     logout: 'Se déconnecter',
     changePassword: 'Changer de mot de passe',
     currentPassword: 'Mot de passe actuel',
@@ -1108,7 +1101,6 @@ export const fr = {
     newPasswordHint: (min: number) =>
       `Au moins ${min} caractères. Une phrase est plus sûre qu’un mot.`,
     confirmPassword: 'Confirmer le nouveau mot de passe',
-    mustChangePassword: 'Choisissez un mot de passe avant de continuer.',
 
     /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Choisissez un mot de passe que vous n’utilisez pas ailleurs.',
@@ -1303,7 +1295,6 @@ export const fr = {
 
     'photo.notFound': 'Cette photo n’existe plus.',
     'photo.illegalTransition': 'Cette action n’est pas possible sur cette photo.',
-    'photo.tooManyForGuest': 'Vous avez atteint le nombre de photos autorisé.',
 
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',
@@ -1388,12 +1379,10 @@ export const fr = {
     'request.csrfMissing': 'Cette page a expiré. Rechargez-la puis réessayez.',
     'request.csrfMismatch': 'Cette page a expiré. Rechargez-la puis réessayez.',
 
-    /* ---- Codes the use cases actually answer with, which docs/API.md either names
-            differently or does not list. `event.photoLimitReached` is the important
-            one: the doc calls the per-guest cap `photo.tooManyForGuest`, the server
-            sends `event.photoLimitReached`, so the only refusal a host deliberately
-            configured reached the guest as the generic sentence. Both spellings are
-            kept until the contract picks one. ---- */
+    /* ---- Codes the use cases answer with that docs/API.md names only in passing or
+            does not list. `event.photoLimitReached` is the important one: it is the
+            per-guest cap, the only refusal a host deliberately configures, and without
+            its own sentence it reaches the guest as the generic one. ---- */
     'event.photoLimitReached': 'Vous avez atteint le nombre de photos autorisé.',
     'photo.pixelBudgetExceeded': 'Cette photo est trop grande. Réduisez-la puis réessayez.',
     'upload.rejected': 'Cet envoi n’a pas pu être lu. Réessayez.',
@@ -1498,7 +1487,6 @@ export const fr = {
    */
   ui: {
     dialogClose: 'Fermer la fenêtre',
-    notifications: 'Notifications',
     dismissNotification: 'Masquer cette notification',
     /**
      * The narrow space before the sign is French and not universal: English writes
@@ -1517,7 +1505,6 @@ export const fr = {
     notFoundTitle: 'Page introuvable',
     notFoundHint: 'Cette adresse n’existe pas. Vérifiez le lien ou revenez à l’accueil.',
     notFoundHome: 'Revenir à l’accueil',
-    comingSoon: 'Cet écran arrive bientôt.',
   },
 
   /* ======================================================================== */
@@ -1878,7 +1865,7 @@ export const fr = {
       live: 'En direct',
       closed: 'Clôturé',
       archived: 'Archivé',
-    },
+    } satisfies Record<EventStatus, string>,
     photoCount: (count: number) =>
       t.count(count, {
         one: `${t.number(count)} photo`,
@@ -1929,7 +1916,7 @@ export const fr = {
       member: 'Membre',
       system: 'Système',
       integration: 'Intégration',
-    },
+    } satisfies Record<SiteAuditEntryDto['actor']['kind'], string>,
     actions: {
       'client.created': 'Client ouvert.',
       'client.renamed': 'Client renommé.',

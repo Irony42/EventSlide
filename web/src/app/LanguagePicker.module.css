@@ -35,12 +35,6 @@
   color: var(--text-primary);
 }
 
-.select:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
 /*
  * The list itself is drawn by the platform, which on a desktop browser inherits the
  * page's dark background for the popup and its own colour for the text. Naming both

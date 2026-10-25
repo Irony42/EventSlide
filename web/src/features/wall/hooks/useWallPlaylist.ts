@@ -39,25 +39,13 @@ const INITIAL: Fetched = { wall: null, loading: true, error: null }
 const RETRY_DELAY_MS = 10_000
 
 /**
- * Everything on a wall response that is **not** the playlist, compared.
+ * The keys of a wall response that {@link sameSettings} deliberately does not compare: the
+ * playlist, whose changes `revision` decides.
  *
- * `revision` fingerprints `items` and nothing else, which is exactly right for deciding
- * whether the room's photos moved — and exactly wrong for deciding whether the response
- * is worth keeping. A host who changes a setting produces `event.settingsChanged`, the
- * wall refetches, and every field below comes back different while `revision` does not.
- *
- * That was a real defect in per-event theming (roadmap 2.2): a host picking a colour saw
- * nothing happen on the projector until somebody reloaded it — and on the empty wall,
- * which is the screen they are looking at while they choose, `revision` never changes at
- * all, so it would never have arrived. The same staleness applied to the slide interval
- * and to `reactionsEnabled` before that; it is fixed here for all of them rather than for
- * the field that happened to expose it.
- */
-/**
  * Exported for the test that enumerates the response rather than trusting this list.
  *
  * Hand-written comparisons are complete today and silently incomplete the day another
- * field is added — which is exactly the defect the docblock above describes, reappearing
+ * field is added — which is exactly the defect `sameSettings` exists to prevent, reappearing
  * one field later. `useWallPlaylist.settings.test.ts` walks `WallResponse` and fails naming
  * any key that is neither compared here nor deliberately exempted.
  *
@@ -101,6 +89,21 @@ const sameMissions = (kept: WallResponse, fresh: WallResponse): boolean => {
   })
 }
 
+/**
+ * Everything on a wall response that is **not** the playlist, compared.
+ *
+ * `revision` fingerprints `items` and nothing else, which is exactly right for deciding
+ * whether the room's photos moved — and exactly wrong for deciding whether the response
+ * is worth keeping. A host who changes a setting produces `event.settingsChanged`, the
+ * wall refetches, and every field below comes back different while `revision` does not.
+ *
+ * That was a real defect in per-event theming (roadmap 2.2): a host picking a colour saw
+ * nothing happen on the projector until somebody reloaded it — and on the empty wall,
+ * which is the screen they are looking at while they choose, `revision` never changes at
+ * all, so it would never have arrived. The same staleness applied to the slide interval
+ * and to `reactionsEnabled` before that; it is fixed here for all of them rather than for
+ * the field that happened to expose it.
+ */
 export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =>
   kept.joinCode === fresh.joinCode &&
   // Compared rather than inferred from `joinCode`. The two do move together when a host

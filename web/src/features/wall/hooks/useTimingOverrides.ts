@@ -25,8 +25,10 @@ const readMs = (raw: string | null): number | null => {
  * slide intervals, and the alternative — mocking the clock inside the browser — would
  * stop testing the thing that actually runs at the venue.
  *
- * Reading them here rather than in each component keeps one parser: the server refuses
- * to boot production with `E2E_HOOKS` set, so the hooks cannot reach a real event.
+ * Reading them here rather than in each component keeps one parser. They are read in the
+ * browser, from the display address, by the same bundle production serves: a projector
+ * opened on `?e2e_interval=50` is sped up in production too, and only the screen that
+ * opened that address is affected (`docs/API.md` §9.5).
  */
 export const useTimingOverrides = (): TimingOverrides => {
   const [params] = useSearchParams()
