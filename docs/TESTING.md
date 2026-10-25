@@ -75,7 +75,7 @@ suites as the SQLite adapters (§4).
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `FakeEventRepository`      | slug and join-code uniqueness, exactly as the SQLite unique indexes enforce                                                |
 | `FakePhotoRepository`      | keyed by `${eventId}:${photoId}`; `list` filters by `eventId` and sorts newest first                                       |
-| `FakeGuestRepository`      | a device token belongs to one event and resolves in no other                                                               |
+| `FakeGuestRepository`      | a device token belongs to one event and resolves in no other; `photoCount` is derived from the photo fake it is handed     |
 | `FakeUserRepository`       | accounts found by id or by normalised email, with the credentials epoch and the sign-in committed by one conditional write |
 | `FakeMembershipRepository` | per-event role membership, so "moderator" is never global                                                                  |
 | `InMemoryMediaStore`       | byte buffers copied in and out, reports real sizes; held to `mediaStoreContract`                                           |

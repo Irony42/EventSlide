@@ -7,6 +7,7 @@ import { AT, aGuest, atPlus } from '../../application/testing/builders'
 import {
   GUEST_CONTRACT_FIXTURES,
   guestRepositoryContract,
+  type AuthoredPhoto,
 } from '../../application/testing/contracts/guestRepositoryContract'
 import { asEventId, asGuestId } from '../../domain/shared/ids'
 
@@ -48,12 +49,31 @@ const seedEvents = (db: Db, eventIds: readonly string[]): void => {
  * `(event_id, content_hash)` is unique and the column is CHECKed at 64 characters, so
  * the digest comes from the caller's index instead of being shared between fixtures.
  */
-const seedPhoto = (db: Db, index: number, eventId: string, guestId: string): void => {
-  db.prepare<[string, string, string, string, string]>(
+const seedPhoto = (
+  db: Db,
+  index: number,
+  eventId: string,
+  guestId: string,
+  what: AuthoredPhoto = {},
+): void => {
+  const clip = what.clip === true
+  db.prepare<
+    [string, string, string, string, string, string, string, number | null, string | null]
+  >(
     `INSERT INTO photos (id, event_id, author_guest_id, status, content_hash, width, height,
-                         byte_size, created_at)
-          VALUES (?, ?, ?, 'pending', ?, 4032, 3024, 2400000, ?)`,
-  ).run(`photo-${index}`, eventId, guestId, String(index).padStart(64, '0'), AT.toISOString())
+                         byte_size, created_at, media_kind, duration_ms, poster_hash)
+          VALUES (?, ?, ?, ?, ?, 4032, 3024, 2400000, ?, ?, ?, ?)`,
+  ).run(
+    `photo-${index}`,
+    eventId,
+    guestId,
+    what.status ?? 'pending',
+    String(index).padStart(64, '0'),
+    AT.toISOString(),
+    clip ? 'clip' : 'photo',
+    clip ? 5_000 : null,
+    clip ? String(index + 1_000).padStart(64, '0') : null,
+  )
 }
 
 interface QueryLog {
@@ -107,8 +127,14 @@ guestRepositoryContract('sqlite', async () => {
   const db = migratedDatabase()
   seedEvents(db, GUEST_CONTRACT_FIXTURES.eventIds)
 
+  let taken = 0
+
   return {
     repo: new SqliteGuestRepository(db),
+    authorPhoto: async (eventId, guestId, what) => {
+      taken += 1
+      seedPhoto(db, taken, eventId, guestId, what)
+    },
     dispose: async () => {
       closeDatabase(db)
     },
@@ -129,44 +155,6 @@ describe('SqliteGuestRepository', () => {
     closeDatabase(db)
   })
 
-  // ------------------------------------------------------- derived photo count --
-
-  it('derives the photo count from the photos table, which holds the only copy', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
-    seedPhoto(db, 1, WEDDING, LEA)
-    seedPhoto(db, 2, WEDDING, LEA)
-
-    const stored = await repo.findById(WEDDING, LEA)
-
-    expect(stored?.photoCount).toBe(2)
-  })
-
-  it('never counts a photo filed under another event towards a guest photo count', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
-    seedPhoto(db, 1, GALA, LEA)
-
-    const stored = await repo.findById(WEDDING, LEA)
-
-    expect(stored?.photoCount).toBe(0)
-  })
-
-  it('discards the photo count carried by a saved guest, because no column stores it', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING, photoCount: 7 }))
-
-    const stored = await repo.findById(WEDDING, LEA)
-
-    expect(stored?.photoCount).toBe(0)
-  })
-
-  it('derives the photo count when listing the guests of an event too', async () => {
-    await repo.save(aGuest({ id: 'guest-lea', eventId: WEDDING }))
-    seedPhoto(db, 1, WEDDING, LEA)
-
-    const [stored] = await repo.list(WEDDING)
-
-    expect(stored?.photoCount).toBe(1)
-  })
-
   // ------------------------------------------------------------------- upsert --
 
   it('keeps a guest photos when that guest is saved again', async () => {
@@ -180,7 +168,12 @@ describe('SqliteGuestRepository', () => {
 
     await repo.save(guest.touch(atPlus(60_000)))
 
-    expect((await repo.findById(WEDDING, LEA))?.photoCount).toBe(1)
+    const row = db
+      .prepare<[string], { n: number }>(
+        'SELECT COUNT(*) AS n FROM photos WHERE author_guest_id = ?',
+      )
+      .get(LEA)
+    expect(row?.n).toBe(1)
   })
 
   // -------------------------------------------------------- cross-event writes --
