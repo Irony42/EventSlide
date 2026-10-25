@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto'
 import type { Clock } from '../../application/ports/clock'
+import { sha256Hex } from '../crypto/primitives'
 import { systemClock } from '../time/systemClock'
 import type { Db } from './connection'
 
@@ -73,10 +73,7 @@ const LEDGER = `
  * nothing to reveal it.
  */
 export const checksumOf = (migration: Migration): string =>
-  createHash('sha256')
-    .update(`${migration.id}:${migration.name}:${migration.sql}`)
-    .digest('hex')
-    .slice(0, 32)
+  sha256Hex(`${migration.id}:${migration.name}:${migration.sql}`).slice(0, 32)
 
 const readLedger = (db: Db): AppliedMigration[] => {
   db.exec(LEDGER)

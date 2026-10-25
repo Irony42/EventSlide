@@ -1,5 +1,7 @@
-import { createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import type { GallerySigner, MintedShareToken } from '../../application/ports/gallerySigner'
+import { constantTimeEqual, deriveKey } from './primitives'
+import { sha256SecretTokens } from './sha256SecretTokens'
 
 /**
  * HMAC-SHA256 for the shared gallery: tokens, their digests, and every signed statement a
@@ -33,8 +35,6 @@ import type { GallerySigner, MintedShareToken } from '../../application/ports/ga
  * first part names the purpose; see the port.
  */
 
-const TOKEN_BYTES = 32
-const KEY_BYTES = 32
 const LABEL = 'eventslide/gallery/v1'
 
 /** A base64url HMAC-SHA256 is always 43 characters. Anything else is not one of ours. */
@@ -62,32 +62,26 @@ export const createHmacGallerySigner = ({
     throw new Error('the gallery signing key must be derived from a secret of 32+ characters')
   }
 
-  const key = Buffer.from(hkdfSync('sha256', rootSecret, Buffer.alloc(0), LABEL, KEY_BYTES))
+  const key = deriveKey(rootSecret, LABEL)
 
   const mac = (parts: readonly string[]): string =>
     createHmac('sha256', key).update(canonical(parts)).digest('base64url')
 
-  const digestOf = (token: string): string =>
-    createHash('sha256').update(token, 'utf8').digest('hex')
-
   return {
-    mintToken: (): MintedShareToken => {
-      const token = randomBytes(TOKEN_BYTES).toString('base64url')
-      return { token, digest: digestOf(token) }
-    },
+    // A share link's token is the same thing as any other secret token: 256 random bits,
+    // stored as their SHA-256. The one construction is `sha256SecretTokens`, and what is
+    // keyed here is only what a gallery signs.
+    mintToken: (): MintedShareToken => sha256SecretTokens.mint(),
 
-    digestOf,
+    digestOf: sha256SecretTokens.digestOf,
 
     sign: mac,
 
     verify: (parts: readonly string[], signature: string): boolean => {
-      // Length first: `timingSafeEqual` throws on a mismatch, and the length of an HMAC is
-      // public, so checking it leaks nothing an attacker did not already know.
+      // The length of an HMAC is public, so refusing on it leaks nothing, and it spares
+      // computing a MAC for a value that cannot be one.
       if (signature.length !== SIGNATURE_LENGTH) return false
-      const expected = Buffer.from(mac(parts), 'utf8')
-      const provided = Buffer.from(signature, 'utf8')
-      if (expected.length !== provided.length) return false
-      return timingSafeEqual(new Uint8Array(expected), new Uint8Array(provided))
+      return constantTimeEqual(mac(parts), signature)
     },
   }
 }

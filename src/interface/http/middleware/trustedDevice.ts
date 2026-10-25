@@ -1,4 +1,4 @@
-import { createHmac, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHmac, hkdfSync, randomBytes } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import type { Clock } from '../../../application/ports/clock'
@@ -6,6 +6,7 @@ import type { UserRepository } from '../../../application/ports/userRepository'
 import { asUserId } from '../../../domain/shared/ids'
 import { normalisedAddress } from '../../../domain/users/emailAddress'
 import { TRUSTED_DEVICE_LIFETIME_MS, isTrustedDevice } from '../../../domain/users/trustedDevice'
+import { constantTimeEqual } from './constantTime'
 
 /**
  * The trusted-device cookie of the sign-in throttle (free plan G3-04b, on top of G3-04 / P4-07).
@@ -92,9 +93,9 @@ const DEVICE_ID_BYTES = 16
 
 /**
  * A base64url HMAC-SHA256 is always these 43 characters, which are also 43 bytes. Checked as a
- * shape and not as a length: `timingSafeEqual` throws when its two inputs differ in **bytes**,
- * and a cookie made of 43 two-byte characters has the right length in characters. The throw
- * would be a 500 for a forged cookie where no cookie gets a 401.
+ * shape and not as a length, because a cookie made of 43 two-byte characters has the right
+ * length in characters: `constantTimeEqual` compares bytes and would refuse it, and the shape
+ * keeps anything that is not base64url from reaching it at all.
  */
 const MAC_SHAPE = /^[A-Za-z0-9_-]{43}$/
 
@@ -121,6 +122,8 @@ const canonical = (parts: readonly string[]): Buffer =>
 
 /** The signing and the checking, with no Express and no clock in them. */
 export const trustedDeviceCodec = (secret: string) => {
+  // The HTTP layer's copy of `deriveKey` in `infrastructure/crypto/primitives.ts`, which it may
+  // not import: the same HKDF-SHA256 with an empty salt, under a label of its own.
   const key = Buffer.from(hkdfSync('sha256', secret, Buffer.alloc(0), LABEL, KEY_BYTES))
 
   const macOf = (payload: string, address: string): string =>
@@ -153,9 +156,7 @@ export const trustedDeviceCodec = (secret: string) => {
         return undefined
       }
       if (!MAC_SHAPE.test(mac)) return undefined
-      const expected = Buffer.from(macOf(payload, address), 'utf8')
-      const presented = Buffer.from(mac, 'utf8')
-      if (!timingSafeEqual(new Uint8Array(expected), new Uint8Array(presented))) return undefined
+      if (!constantTimeEqual(macOf(payload, address), mac)) return undefined
 
       let decoded: unknown
       try {
