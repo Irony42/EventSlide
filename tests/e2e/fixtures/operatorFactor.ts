@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
-import { codeOf, sessionOn, succeeded } from './clients'
+import { codeOf } from './clients'
+import { sessionOn, succeeded } from './session'
 import type { TestApp } from './startTestApp'
 
 /**

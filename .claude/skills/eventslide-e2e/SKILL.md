@@ -19,7 +19,9 @@ tests/e2e/
     app.ts             # server-per-worker fixture and the guestPhone / hostDesktop / projector
                        # browser contexts (surfaces); freshServerTest for the visual specs
     startTestApp.ts    # boots the built server on a throwaway DB + media root
-    clients.ts         # signed-in API clients for seeding
+    session.ts         # fetch client with a cookie jar and the CSRF token, for everything
+                       # that is not a page: seeding, ceilings, operators
+    clients.ts         # what a spec about clients, ceilings and operators arranges with it
     guest.ts           # the guest journey: join, then upload
     media.ts           # generated JPEGs, one with EXIF orientation 6 and GPS
   journeys/
