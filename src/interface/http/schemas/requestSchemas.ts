@@ -582,7 +582,7 @@ export const wallQuery = z.strictObject({
   e2e_transition: z.coerce.number().int().min(0).max(10_000).optional(),
 })
 
-// ------------------------------------------- moderation routes (additive) --
+// ------------------------------------------- moderation routes --
 
 /**
  * "Photo de la soirée". Bounded low on purpose: the panel is projected, and a podium
@@ -593,7 +593,7 @@ export const topPhotosQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 })
 
-// ------------------------------------------------ event routes (additive) --
+// ------------------------------------------------ event routes --
 
 /**
  * The invitation form: an address, and the language of the page it was written from, which is

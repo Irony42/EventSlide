@@ -18,7 +18,7 @@ import { useAcceptInvitation, useInvitationPreview } from './hooks/useInvitation
 import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 import styles from './AcceptInvitationPage.module.css'
 import type { AcceptOutcome } from './hooks/useInvitation'
-import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../lib/api/client'
+import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
 
 /** What the link is for, in a sentence. The name is content: printed as written. */

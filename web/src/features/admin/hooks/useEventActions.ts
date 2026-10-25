@@ -6,7 +6,6 @@ import type {
   EventScheduleInput,
   MissionInput,
   ModeratorInvitationInput,
-  ModeratorInviteResponse,
   ShareLinkInput,
 } from '../../../lib/api/client'
 import type {
@@ -14,6 +13,7 @@ import type {
   EventSettingsDto,
   EventStatus,
   MissionDto,
+  ModeratorInviteResponse,
   ShareLinkCreated,
 } from '../../../lib/api/dto'
 

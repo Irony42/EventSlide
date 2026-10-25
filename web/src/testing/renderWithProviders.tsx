@@ -10,12 +10,12 @@ import { DEFAULT_EVENT_THEME } from '../design-system/eventTheme'
 import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { installDialogStub } from './dialogStub'
 import { aSiteClientDefaults, aSiteInvitation, CLIENT_ID, noCeilings } from './siteFixtures'
+import type { Api } from '../lib/api/client'
 import type {
-  Api,
   InvitationAcceptedDto,
   InvitationPreviewDto,
   ModeratorInviteResponse,
-} from '../lib/api/client'
+} from '../lib/api/dto'
 import type { Locale } from '../lib/i18n/locale'
 import type {
   About,

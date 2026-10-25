@@ -47,6 +47,13 @@ import { describe, expect, it } from 'vitest'
  * - **Route-level drift.** Nothing here checks that a given endpoint actually returns
  *   the DTO the client's method expects; that pairing lives in `client.ts` and
  *   `routes/*.ts`.
+ * - **A shape declared outside the two `dto.ts` files.** It is invisible to every case below;
+ *   that is how the three invitation shapes went uncompared until they moved in (HTTP-M-12).
+ *   Still outside: the error envelope (`send.ts`, `web/src/lib/http.ts`) and the anonymous
+ *   `{ items: ... }` envelopes written inline in a route or in `client.ts`.
+ * - **A type alias's body, and a member-level `readonly`.** Only interfaces are compared,
+ *   and a `readonly` on a field itself is not part of the text compared (one nested inside a
+ *   field's type is).
  */
 
 const SERVER = join(process.cwd(), 'src/interface/http/presenters/dto.ts')
@@ -90,6 +97,9 @@ const RENAMES: Readonly<Record<string, string>> = {
   // would compare the client against a type no route on this path returns.
   ModerationPhotoDto: 'ModerationQueueItemDto',
   ModerationQueueResponse: 'ModerationQueuePageDto',
+  // The answer to inviting a moderator: the client names a response envelope, the server the
+  // thing it presents.
+  ModeratorInviteResponse: 'InvitationIssuedDto',
 }
 
 const serverNameFor = (clientName: string): string | null => {
@@ -152,6 +162,20 @@ describe('the wire contract', () => {
     const unpaired = [...client.keys()].filter((name) => serverNameFor(name) === null)
 
     expect(unpaired, 'client shapes with no server counterpart — add a RENAMES entry').toEqual([])
+  })
+
+  it('reads the three invitation shapes, the flow that creates accounts (HTTP-M-12)', () => {
+    // They lived in `presenters.ts` and `client.ts`, outside both files this test compares, so
+    // the shapes of previewing a link, accepting it and issuing one were compared by nobody.
+    const paired = pairs.map((pair) => pair.serverName)
+
+    expect(paired).toEqual(
+      expect.arrayContaining([
+        'InvitationIssuedDto',
+        'InvitationPreviewDto',
+        'InvitationAcceptedDto',
+      ]),
+    )
   })
 
   it('found shapes on both sides at all', () => {
@@ -228,7 +252,14 @@ describe('the wire contract', () => {
       recursive: true,
       encoding: 'utf8',
     })
-      .filter((entry) => entry.endsWith('.ts') && !entry.endsWith('dto.ts'))
+      // Not this file either: `RENAMES` and the named cases below spell DTO names, so a shape
+      // that nothing else uses would still be found here.
+      .filter(
+        (entry) =>
+          entry.endsWith('.ts') &&
+          !entry.endsWith('dto.ts') &&
+          !entry.endsWith('dtoContract.test.ts'),
+      )
       .map((entry) => readFileSync(join(process.cwd(), 'src/interface/http', entry), 'utf8'))
       .join('\n')
 
