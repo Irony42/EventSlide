@@ -164,19 +164,6 @@ export interface ClipUploadInput {
 }
 
 /**
- * An invitation, in full.
- *
- * The password is not optional and is not generated here. There is no mail service in
- * this product, so the host is the delivery channel: they type a temporary credential
- * and read it out to the person they are handing the laptop to. The server's
- * `moderatorInvitationBody` is `.strict()` and requires it — an invitation carrying only
- * an address is answered `400 request.invalid`, which is exactly what this panel used to
- * send, every time.
- *
- * An object rather than two positional strings: an address and a password are both
- * `string`, and a call site that swaps them typechecks.
- */
-/**
  * One prompt as the host writes it (roadmap §2.1).
  *
  * Both fields every time, on create and on edit alike: they are one decision made on one
@@ -393,9 +380,6 @@ export const createApi = (transport: Transport) => ({
 
   deleteMyPhoto: (slug: string, photoId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
-
-  setCaption: (slug: string, photoId: string, caption: string | null): Promise<void> =>
-    transport.patch(`/api/events/${encode(slug)}/photos/${encode(photoId)}/caption`, { caption }),
 
   react: (slug: string, photoId: string, kind: ReactionKind): Promise<void> =>
     transport.post(`/api/events/${encode(slug)}/photos/${encode(photoId)}/reactions`, { kind }),
@@ -650,9 +634,6 @@ export const createApi = (transport: Transport) => ({
   getEvent: (slug: string, signal?: AbortSignal): Promise<EventDto> =>
     transport.get(`/api/events/${encode(slug)}`, undefined, signal),
 
-  renameEvent: (slug: string, name: string): Promise<EventDto> =>
-    transport.patch(`/api/events/${encode(slug)}`, { name }),
-
   updateSettings: (slug: string, settings: Partial<EventSettingsDto>): Promise<EventDto> =>
     transport.patch(`/api/events/${encode(slug)}/settings`, settings),
 
@@ -698,9 +679,6 @@ export const createApi = (transport: Transport) => ({
     decision: ModerationDecision,
   ): Promise<BulkModerationResponse> =>
     transport.post(`/api/events/${encode(slug)}/moderation/bulk`, { photoIds, decision }),
-
-  deletePhoto: (slug: string, photoId: string): Promise<void> =>
-    transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
 
   topPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly TopPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/top-photos`, undefined, signal),

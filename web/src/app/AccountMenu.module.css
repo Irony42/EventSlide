@@ -70,9 +70,3 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-
-.item:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}

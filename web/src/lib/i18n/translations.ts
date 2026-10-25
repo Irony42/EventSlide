@@ -12,7 +12,7 @@ import type { Locale } from './locale'
  * **This module used to argue for translating only the guest's half**, on the grounds that
  * the admin console "has exactly one reader, and they are the person who installed the
  * box". Two premises to keep, because they are the reasons not to reinstate it: a
- * moderator is invited by e-mail and handed a temporary password, so nothing implies they
+ * moderator is invited by e-mail, whatever language the host reads, so nothing implies they
  * read French — and the `wall` copy is *projected*. What survives is its best line, now a
  * reason to be careful rather than not to: a stale translation on the screen that decides
  * what goes on a projector is worse than French.

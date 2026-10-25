@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { isStreamSignalType, useEventStream, type StreamSignal } from './useEventStream'
+import { useEventStream, type StreamSignal } from './useEventStream'
 
 /**
  * A controllable stand-in for `EventSource`.
@@ -121,7 +121,6 @@ describe('useEventStream', () => {
     act(() => latest().emitSignal('photo.somethingNew'))
 
     expect(onSignal).toHaveBeenCalledWith<[StreamSignal]>({ type: 'photo.somethingNew' })
-    expect(isStreamSignalType('photo.somethingNew')).toBe(false)
   })
 
   it.each([

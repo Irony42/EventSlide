@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { createServer } from 'node:net'
 import type { EventLanguage, MissionScope } from '../../../web/src/lib/api/dto'
 import { serverEnvironment, type EventCreation } from './childEnvironment'
+import { sessionOn, succeeded, type Reply } from './session'
 
 /**
  * Boots a real EventSlide server for the end-to-end suite.
@@ -64,7 +65,7 @@ export interface TestApp {
    * stranger produces just as well. The same suite would have stayed green with
    * `bootstrapOwner` writing `'none'`.
    *
-   * Reading is not the shortcut `apiSession` refuses. Writing rows would let a fixture
+   * Reading is not the shortcut `session.ts` refuses. Writing rows would let a fixture
    * build state the application cannot, and a journey on impossible state proves nothing;
    * reading one back is what ring 6 already does to the media root when it checks that a
    * stored file carries no EXIF.
@@ -106,69 +107,27 @@ const OWNER = {
 export const OWNER_SETTLED_PASSWORD = 'e2e-fixture-rotated-passphrase-not-a-secret'
 
 /**
- * A cookie jar and a CSRF token, because the fixture talks to the API exactly as a
- * browser does.
- *
- * Not a shortcut around the boundary: writing rows directly would let a fixture create
- * state the application cannot, and a journey built on impossible state proves nothing.
- * Going through the API also means the seeding path is itself covered.
- */
-const apiSession = async (baseUrl: string) => {
-  const jar: string[] = []
-
-  const remember = (response: Response): void => {
-    for (const value of response.headers.getSetCookie()) {
-      const pair = value.split(';')[0]
-      if (pair !== undefined) jar.push(pair)
-    }
-  }
-
-  // A CSRF token is issued on any GET, and every write has to echo it. Double-submit,
-  // so the cookie is readable by design — guests have no session to bind a token to.
-  const primed = await fetch(`${baseUrl}/api/auth/me`)
-  remember(primed)
-  const csrf = jar.map((pair) => pair.split('=')).find(([key]) => key === 'es_csrf')?.[1]
-  if (csrf === undefined) throw new Error('the server issued no CSRF cookie')
-
-  const headers = (): Record<string, string> => ({
-    'content-type': 'application/json',
-    'x-csrf-token': csrf,
-    ...(jar.length > 0 ? { cookie: jar.join('; ') } : {}),
-  })
-
-  const post = async (path: string, body?: unknown): Promise<Response> => {
-    const response = await fetch(`${baseUrl}${path}`, {
-      method: 'POST',
-      headers: headers(),
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    })
-    remember(response)
-    return response
-  }
-
-  return { post }
-}
-
-/**
  * Signs the owner in and clears the forced-rotation flag, once per worker.
  *
  * Idempotent in effect: after this returns, `OWNER_SETTLED_PASSWORD` is the account's
  * password and `mustChangePassword` is false.
  */
 const settleOwnerPassword = async (baseUrl: string): Promise<void> => {
-  const api = await apiSession(baseUrl)
+  const api = await sessionOn(baseUrl)
 
   const login = await api.post('/api/auth/login', {
     email: OWNER.email,
     password: OWNER.password,
   })
-  if (!login.ok) throw new Error(`the bootstrap owner could not sign in: ${login.status}`)
+  if (!succeeded(login)) {
+    throw new Error(`the bootstrap owner could not sign in: ${login.status}`)
+  }
 
   const rotated = await api.post('/api/auth/password', {
     currentPassword: OWNER.password,
     newPassword: OWNER_SETTLED_PASSWORD,
   })
-  if (!rotated.ok) {
+  if (!succeeded(rotated)) {
     throw new Error(`the owner's forced password rotation failed with ${rotated.status}`)
   }
 }
@@ -289,7 +248,7 @@ export const startTestApp = async ({
     })
   }
 
-  /** Seeds through the API rather than by writing SQL — see `apiSession`. */
+  /** Seeds through the API rather than by writing SQL — see `session.ts`. */
   const seedEvent = async ({
     slug,
     name,
@@ -299,13 +258,13 @@ export const startTestApp = async ({
     name?: string
     wallLanguage?: EventLanguage
   }): Promise<SeededEvent> => {
-    const api = await apiSession(baseUrl)
+    const api = await sessionOn(baseUrl)
 
     const login = await api.post('/api/auth/login', {
       email: OWNER.email,
       password: OWNER_SETTLED_PASSWORD,
     })
-    if (!login.ok) throw new Error(`seed login failed with ${login.status}`)
+    if (!succeeded(login)) throw new Error(`seed login failed with ${login.status}`)
 
     /**
      * The slug is unique per server, and the server is per *worker*, not per test.
@@ -317,7 +276,7 @@ export const startTestApp = async ({
      * URLs in a trace readable; later callers get `mariage-2`, `mariage-3`, and every
      * spec navigates by the returned `event.slug` regardless.
      */
-    const create = async (attempt: number): Promise<Response> => {
+    const create = async (attempt: number): Promise<Reply> => {
       const response = await api.post('/api/events', {
         // With no slug requested the server derives one from the name, so the name is
         // what has to vary — `seedEvent({})` is the common case (it is what
@@ -332,13 +291,13 @@ export const startTestApp = async ({
     }
 
     const created = await create(1)
-    if (!created.ok) throw new Error(`seed event failed with ${created.status}`)
-    const event = (await created.json()) as { slug: string; name: string; joinCode: string }
+    if (!succeeded(created)) throw new Error(`seed event failed with ${created.status}`)
+    const event = created.body as { slug: string; name: string; joinCode: string }
 
     // A newly created event is a draft; guests cannot join until it is live, and a
     // journey that forgets this fails in a confusing place.
     const opened = await api.post(`/api/events/${event.slug}/status`, { status: 'live' })
-    if (!opened.ok) throw new Error(`opening the event failed with ${opened.status}`)
+    if (!succeeded(opened)) throw new Error(`opening the event failed with ${opened.status}`)
 
     return { slug: event.slug, name: event.name, joinCode: event.joinCode }
   }
@@ -348,16 +307,16 @@ export const startTestApp = async ({
     eventSlug: string,
     input: { prompt: string; scope: MissionScope },
   ): Promise<void> => {
-    const api = await apiSession(baseUrl)
+    const api = await sessionOn(baseUrl)
 
     const login = await api.post('/api/auth/login', {
       email: OWNER.email,
       password: OWNER_SETTLED_PASSWORD,
     })
-    if (!login.ok) throw new Error(`mission setup login failed with ${login.status}`)
+    if (!succeeded(login)) throw new Error(`mission setup login failed with ${login.status}`)
 
     const created = await api.post(`/api/events/${eventSlug}/missions`, input)
-    if (!created.ok) throw new Error(`creating mission failed with ${created.status}`)
+    if (!succeeded(created)) throw new Error(`creating mission failed with ${created.status}`)
   }
 
   return {

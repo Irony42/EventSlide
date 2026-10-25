@@ -171,10 +171,3 @@ export const raiseInstallPrompt = async (): Promise<'accepted' | 'dismissed' | n
     return null
   }
 }
-
-/** Testing seam: forgets everything captured so far. Never called in production. */
-export const resetInstallState = (): void => {
-  captured = null
-  installed = false
-  subscribers.clear()
-}

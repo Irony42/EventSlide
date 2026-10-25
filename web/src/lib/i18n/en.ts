@@ -29,7 +29,6 @@ export const en: UiText = {
     cancel: 'Cancel',
     close: 'Close',
     save: 'Save',
-    back: 'Back',
     confirm: 'Confirm',
     language: 'Language',
   },
@@ -47,14 +46,12 @@ export const en: UiText = {
   },
 
   upload: {
-    title: 'Your photos',
     intro: 'Add your photos. They will appear on the screen once they are approved.',
     addPhotos: 'Add photos',
     takePhoto: 'Take a photo',
     captionLabel: 'Caption',
     captionHint: (max: number) => `${t.number(max)} characters maximum. Optional.`,
     send: 'Send',
-    sending: 'Sending…',
     sendCount: (count: number) =>
       t.count(count, { one: 'Send the photo', other: `Send the ${t.number(count)} photos` }),
     queueEmpty: 'No photos selected yet.',
@@ -63,7 +60,6 @@ export const en: UiText = {
     itemDone: 'Sent',
     itemDuplicate: 'Already sent',
     itemFailed: 'Failed',
-    remove: 'Remove',
     mine: 'Your uploads',
     statusPending: 'Waiting for approval',
     statusPublished: 'On the screen',
@@ -71,9 +67,7 @@ export const en: UiText = {
     statusHidden: 'Taken off the screen',
     deleteOwn: 'Delete',
     deleteOwnConfirm: 'Delete this photo? This cannot be undone.',
-    graceOver: 'The time to delete this photo yourself has passed.',
     thanks: 'Thank you, your photos have arrived.',
-    sendMore: 'Send more photos',
 
     itemPreparing: 'Preparing…',
     queueLabel: 'Photos to send',
@@ -227,7 +221,6 @@ export const en: UiText = {
 
   ui: {
     dialogClose: 'Close the dialog',
-    notifications: 'Notifications',
     dismissNotification: 'Hide this notification',
     percent: (value: number) => t.percent(value),
     optional: 'Optional',
@@ -242,7 +235,6 @@ export const en: UiText = {
     notFoundTitle: 'Page not found',
     notFoundHint: 'This address does not exist. Check the link, or go back to the start.',
     notFoundHome: 'Back to the start',
-    comingSoon: 'This screen is coming soon.',
   },
 
   errors: {
@@ -327,7 +319,6 @@ export const en: UiText = {
 
     'photo.notFound': 'This photo no longer exists.',
     'photo.illegalTransition': 'This action is not possible on this photo.',
-    'photo.tooManyForGuest': 'You have reached the number of photos allowed.',
 
     'image.unsupportedFormat': 'This file is not a photo. Accepted formats: JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'This photo looks damaged. Try another one.',
@@ -575,7 +566,6 @@ export const en: UiText = {
     empty: 'The first photos will arrive soon',
     emptyHint: 'Scan the QR code to send yours.',
     joinPrompt: 'Join the gallery',
-    reactions: 'Reactions',
     offline: 'Connection lost — reconnecting',
     paused: 'Slideshow paused',
 
@@ -616,7 +606,6 @@ export const en: UiText = {
   },
 
   admin: {
-    title: 'Administration',
     events: 'Your events',
     newEvent: 'New event',
     eventName: 'Event name',
@@ -717,7 +706,6 @@ export const en: UiText = {
       }),
     retentionUnlimited: 'Kept indefinitely',
     moderators: 'Moderators',
-    inviteModerator: 'Invite a moderator',
 
     loading: 'Loading your events…',
     eventLoading: 'Loading the event…',
@@ -890,14 +878,12 @@ export const en: UiText = {
     email: 'Email address',
     password: 'Password',
     submit: 'Sign in',
-    submitting: 'Signing in…',
     logout: 'Sign out',
     changePassword: 'Change your password',
     currentPassword: 'Current password',
     newPassword: 'New password',
     newPasswordHint: (min: number) => `At least ${min} characters. A phrase is safer than a word.`,
     confirmPassword: 'Confirm the new password',
-    mustChangePassword: 'Choose a password before you continue.',
 
     changePasswordIntro: 'Choose a password you do not use anywhere else.',
     passwordSaved: 'Password saved.',

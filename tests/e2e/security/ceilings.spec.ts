@@ -12,10 +12,10 @@ import {
   refusalOf,
   rewind,
   setCeilings,
-  succeeded,
   uploadPhoto,
   usedBytesOf,
 } from '../fixtures/clients'
+import { succeeded } from '../fixtures/session'
 import { aPhoto } from '../fixtures/media'
 import { startTestApp } from '../fixtures/startTestApp'
 
