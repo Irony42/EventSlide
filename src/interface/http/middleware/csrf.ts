@@ -1,7 +1,8 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import type { RequestHandler, Response } from 'express'
 import { DomainError } from '../../../domain/shared/errors'
 import { sendError } from '../presenters/send'
+import { constantTimeEqual } from './constantTime'
 
 /**
  * Double-submit CSRF.
@@ -135,15 +136,6 @@ export const rotateCsrfToken = (res: Response, { secureCookie }: CsrfOptions): v
   setCsrfCookie(res, secureCookie)
 }
 
-const matches = (a: string, b: string): boolean => {
-  const left = Buffer.from(a, 'utf8')
-  const right = Buffer.from(b, 'utf8')
-  // `timingSafeEqual` throws on a length mismatch, so the lengths are compared first.
-  // Length is not secret here — the token is a fixed size — so this leaks nothing.
-  if (left.length !== right.length) return false
-  return timingSafeEqual(new Uint8Array(left), new Uint8Array(right))
-}
-
 export const requireCsrfToken: RequestHandler = (req, res, next) => {
   if (SAFE_METHODS.has(req.method)) {
     next()
@@ -157,7 +149,7 @@ export const requireCsrfToken: RequestHandler = (req, res, next) => {
     sendError(res, DomainError.forbidden('request.csrfMissing'))
     return
   }
-  if (!matches(cookie, header)) {
+  if (!constantTimeEqual(cookie, header)) {
     sendError(res, DomainError.forbidden('request.csrfMismatch'))
     return
   }

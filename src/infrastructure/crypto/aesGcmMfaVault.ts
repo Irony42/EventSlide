@@ -1,5 +1,6 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import type { MfaVault, SealedSecret } from '../../application/ports/mfaVault'
+import { deriveKey } from './primitives'
 
 /**
  * `MfaVault` over `node:crypto`: AES-256-GCM, a random 96-bit IV per seal, and the key
@@ -46,9 +47,7 @@ export const createAesGcmMfaVault = ({
   if (keyMaterial.length < KEY_BYTES) {
     throw new Error(`the MFA encryption key must be at least ${KEY_BYTES} bytes`)
   }
-  const key = Buffer.from(
-    hkdfSync('sha256', keyMaterial, Buffer.alloc(0), Buffer.from(HKDF_LABEL, 'utf8'), KEY_BYTES),
-  )
+  const key = deriveKey(keyMaterial, HKDF_LABEL)
 
   return {
     seal: (plaintext: Uint8Array): SealedSecret => {
