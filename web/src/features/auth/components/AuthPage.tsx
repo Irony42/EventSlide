@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import styles from './AuthPage.module.css'
 
 export interface AuthPageProps {
@@ -28,7 +28,12 @@ export interface AuthPageProps {
 export function AuthPage({ title, intro, focusTitle = false, children }: AuthPageProps) {
   const heading = useRef<HTMLHeadingElement>(null)
 
-  useEffect(() => {
+  // A layout effect, so the keyboard is on the heading in the commit that shows the screen. A
+  // passive one runs a tick later: for that tick the form is on screen and usable with the
+  // focus on nothing, and a box the person focused in that tick is taken away from them when
+  // the effect lands. Anything that reads the focus right after the screen appears (a test, a
+  // screen reader) is racing it.
+  useLayoutEffect(() => {
     if (focusTitle) heading.current?.focus()
   }, [focusTitle])
 
