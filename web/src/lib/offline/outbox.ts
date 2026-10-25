@@ -91,10 +91,6 @@ export interface NewOutboxEntry {
 }
 
 /**
- * The port. One IndexedDB adapter, one in-memory fake, one shared contract suite —
- * the same arrangement `src/application/ports/` uses on the server side.
- */
-/**
  * What an append did — including what it had to throw away to make room.
  *
  * `evicted` is the reason this is not just an `OutboxEntry`. The per-event cap drops
@@ -107,6 +103,10 @@ export interface OutboxAddition {
   readonly evicted: readonly string[]
 }
 
+/**
+ * The port. One IndexedDB adapter, one in-memory fake, one shared contract suite —
+ * the same arrangement `src/application/ports/` uses on the server side.
+ */
 export interface OutboxStore {
   /** Appends a photo, evicting the oldest if the event is over its cap. */
   add(entry: NewOutboxEntry, now: number): Promise<OutboxAddition>

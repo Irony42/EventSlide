@@ -4,9 +4,9 @@ import type { UiText } from './i18n/translations'
 /**
  * A wall item's alternative text: its caption and who sent it.
  *
- * 1.0 used the stored filename, so a screen reader read out `IMG_4821.jpg`. The author
- * is always named even when the caption carries the meaning, because "who sent this"
- * is the part a listener cannot get from the picture.
+ * Never the stored filename: a screen reader reading out `IMG_4821.jpg` says nothing. The
+ * author is always named even when the caption carries the meaning, because "who sent
+ * this" is the part a listener cannot get from the picture.
  *
  * A clip says "vidéo" rather than "photo", and it says it whether or not this layout is
  * playing it: the row **is** a video, and describing the poster frame as a photograph
@@ -16,10 +16,9 @@ import type { UiText } from './i18n/translations'
  *
  * **The copy is passed in rather than imported**, because this is not a component and
  * cannot ask a hook. The wall speaks the event's language, which arrives on the wall
- * response, so there is no table this module could reach for that would be right — the
- * French one it used to import was right only while the whole surface was French. The two
- * lookup tables are therefore built per call rather than at module load, which is the one
- * cost of the change and is a pair of object literals in an `alt` attribute.
+ * response, so there is no table this module could reach for that would be right. The two
+ * lookup tables are therefore built per call rather than at module load: a pair of object
+ * literals in an `alt` attribute.
  *
  * **The caption and the author are the event's content and are not translated**, here or
  * anywhere. What this function translates is the frame around them — "Photo envoyée par",

@@ -44,7 +44,7 @@ the structural replacement for `--passWithNoTests`).
 | 2 Use case      | `src/application/**/*.test.ts`    | is the orchestration correct?             | in-memory fakes from `src/application/testing/` | <1 ms   |
 | 3 Adapter       | `src/infrastructure/**/*.test.ts` | does the adapter honour the port?         | real SQLite `:memory:`, real `mkdtemp` dirs     | ms      |
 | 4 HTTP contract | `src/interface/http/**/*.test.ts` | is the wire contract and the authz right? | supertest against `buildServer(deps)` + fakes   | ms      |
-| 5 Component     | `web/src/**/*.test.tsx`           | does the UI behave?                       | Testing Library + fake transport                | ms      |
+| 5 Component     | `web/src/**/*.test.tsx`           | does the UI behave?                       | Testing Library + fake `Api`                    | ms      |
 | 6 E2E           | `tests/e2e/**/*.spec.ts`          | does the journey work for real?           | none — real server, real SQLite, real browsers  | seconds |
 
 Rings 1–5 run under vitest (projects `server` = node, `web` = jsdom). Ring 6 runs under
@@ -75,7 +75,7 @@ suites as the SQLite adapters (§4).
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `FakeEventRepository`      | slug and join-code uniqueness, exactly as the SQLite unique indexes enforce                                                |
 | `FakePhotoRepository`      | keyed by `${eventId}:${photoId}`; `list` filters by `eventId` and sorts newest first                                       |
-| `FakeGuestRepository`      | a device token belongs to one event and resolves in no other                                                               |
+| `FakeGuestRepository`      | a device token belongs to one event and resolves in no other; `photoCount` is derived from the photo fake it is handed     |
 | `FakeUserRepository`       | accounts found by id or by normalised email, with the credentials epoch and the sign-in committed by one conditional write |
 | `FakeMembershipRepository` | per-event role membership, so "moderator" is never global                                                                  |
 | `InMemoryMediaStore`       | byte buffers copied in and out, reports real sizes; held to `mediaStoreContract`                                           |

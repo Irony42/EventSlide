@@ -15,7 +15,7 @@ still full of holes.
 | 2 Use case      | `src/application/**/*.test.ts`    | is the orchestration correct?         | in-memory fakes                   | <1 ms   |
 | 3 Adapter       | `src/infrastructure/**/*.test.ts` | does the adapter honour the port?     | real SQLite `:memory:`, temp dirs | ms      |
 | 4 HTTP contract | `src/interface/http/**/*.test.ts` | is the wire contract and authz right? | supertest + fakes                 | ms      |
-| 5 Component     | `web/src/**/*.test.tsx`           | does the UI behave?                   | Testing Library + fake transport  | ms      |
+| 5 Component     | `web/src/**/*.test.tsx`           | does the UI behave?                   | Testing Library + fake `Api`      | ms      |
 | 6 E2E           | `tests/e2e/**/*.spec.ts`          | does the journey work for real?       | none — real everything            | seconds |
 
 Choosing:
@@ -39,7 +39,7 @@ the leak. Regression tests go in the cheapest ring that would have caught it.
 | ----------------------- | ---------------------------------------------------------------------- |
 | `FakeEventRepository`   | slug and join-code uniqueness enforced, as in SQLite                   |
 | `FakePhotoRepository`   | keyed by `${eventId}:${photoId}` — a cross-event read genuinely misses |
-| `FakeGuestRepository`   | tokens scoped to one event                                             |
+| `FakeGuestRepository`   | tokens scoped to one event; `photoCount` derived from the photo fake   |
 | `FakeUserRepository`    | per-event role membership                                              |
 | `InMemoryMediaStore`    | byte buffers, `put`/`get`/`delete`, reports sizes                      |
 | `FakeImageProcessor`    | deterministic metadata, simulates rotation and failure                 |
