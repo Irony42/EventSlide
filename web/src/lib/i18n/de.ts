@@ -30,7 +30,6 @@ export const de: UiText = {
     cancel: 'Abbrechen',
     close: 'Schließen',
     save: 'Speichern',
-    back: 'Zurück',
     confirm: 'Bestätigen',
     language: 'Sprache',
   },
@@ -48,14 +47,12 @@ export const de: UiText = {
   },
 
   upload: {
-    title: 'Ihre Fotos',
     intro: 'Fügen Sie Ihre Fotos hinzu. Sie erscheinen nach der Freigabe auf dem Bildschirm.',
     addPhotos: 'Fotos hinzufügen',
     takePhoto: 'Foto aufnehmen',
     captionLabel: 'Bildunterschrift',
     captionHint: (max: number) => `Maximal ${t.number(max)} Zeichen. Optional.`,
     send: 'Senden',
-    sending: 'Wird gesendet…',
     sendCount: (count: number) =>
       t.count(count, { one: 'Foto senden', other: `${t.number(count)} Fotos senden` }),
     queueEmpty: 'Noch keine Fotos ausgewählt.',
@@ -64,7 +61,6 @@ export const de: UiText = {
     itemDone: 'Gesendet',
     itemDuplicate: 'Bereits gesendet',
     itemFailed: 'Fehlgeschlagen',
-    remove: 'Entfernen',
     mine: 'Ihre Beiträge',
     statusPending: 'Wartet auf Freigabe',
     statusPublished: 'Auf dem Bildschirm',
@@ -72,9 +68,7 @@ export const de: UiText = {
     statusHidden: 'Vom Bildschirm genommen',
     deleteOwn: 'Löschen',
     deleteOwnConfirm: 'Dieses Foto löschen? Das lässt sich nicht rückgängig machen.',
-    graceOver: 'Die Frist, dieses Foto selbst zu löschen, ist abgelaufen.',
     thanks: 'Danke, Ihre Fotos sind angekommen.',
-    sendMore: 'Weitere Fotos senden',
 
     itemPreparing: 'Wird vorbereitet…',
     queueLabel: 'Fotos zum Senden',
@@ -238,7 +232,6 @@ export const de: UiText = {
 
   ui: {
     dialogClose: 'Fenster schließen',
-    notifications: 'Benachrichtigungen',
     dismissNotification: 'Diese Benachrichtigung ausblenden',
     percent: (value: number) => t.percent(value),
     optional: 'Optional',
@@ -256,7 +249,6 @@ export const de: UiText = {
     notFoundHint:
       'Diese Adresse gibt es nicht. Prüfen Sie den Link oder gehen Sie zurück zum Anfang.',
     notFoundHome: 'Zurück zum Anfang',
-    comingSoon: 'Dieser Bildschirm kommt bald.',
   },
 
   errors: {
@@ -358,7 +350,6 @@ export const de: UiText = {
 
     'photo.notFound': 'Dieses Foto gibt es nicht mehr.',
     'photo.illegalTransition': 'Diese Aktion ist bei diesem Foto nicht möglich.',
-    'photo.tooManyForGuest': 'Sie haben die erlaubte Anzahl an Fotos erreicht.',
 
     'image.unsupportedFormat':
       'Diese Datei ist kein Foto. Zulässige Formate: JPEG, PNG, HEIC, WebP.',
@@ -623,7 +614,6 @@ export const de: UiText = {
     empty: 'Die ersten Fotos kommen gleich',
     emptyHint: 'Scannen Sie den QR-Code und senden Sie Ihre eigenen Fotos.',
     joinPrompt: 'Treten Sie der Galerie bei',
-    reactions: 'Reaktionen',
     offline: 'Verbindung unterbrochen — es wird erneut versucht',
     paused: 'Diashow angehalten',
 
@@ -663,7 +653,6 @@ export const de: UiText = {
   },
 
   admin: {
-    title: 'Verwaltung',
     events: 'Ihre Veranstaltungen',
     newEvent: 'Neue Veranstaltung',
     eventName: 'Name der Veranstaltung',
@@ -763,7 +752,6 @@ export const de: UiText = {
       }),
     retentionUnlimited: 'Unbegrenzte Aufbewahrung',
     moderators: 'Moderatoren',
-    inviteModerator: 'Moderator einladen',
 
     loading: 'Ihre Veranstaltungen werden geladen…',
     eventLoading: 'Die Veranstaltung wird geladen…',
@@ -942,7 +930,6 @@ export const de: UiText = {
     email: 'E-Mail-Adresse',
     password: 'Passwort',
     submit: 'Anmelden',
-    submitting: 'Wird angemeldet…',
     logout: 'Abmelden',
     changePassword: 'Passwort ändern',
     currentPassword: 'Aktuelles Passwort',
@@ -950,7 +937,6 @@ export const de: UiText = {
     newPasswordHint: (min: number) =>
       `Mindestens ${min} Zeichen. Ein Satz ist sicherer als ein Wort.`,
     confirmPassword: 'Neues Passwort bestätigen',
-    mustChangePassword: 'Wählen Sie ein Passwort, bevor Sie fortfahren.',
 
     changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
     passwordSaved: 'Passwort gespeichert.',

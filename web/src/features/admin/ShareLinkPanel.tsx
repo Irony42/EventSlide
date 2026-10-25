@@ -60,8 +60,8 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setCreateFailure(null)
-    // Not trimmed, for the reason the moderator invitation gives: a passphrase's spaces
-    // are part of it, and the one the host reads out must be the one that was stored.
+    // Not trimmed: a passphrase's spaces are part of it, and the one the host passes on
+    // must be the one that was stored.
     void create.run('create', slug, { expiresInDays: lifetime, password }).then((result) => {
       if (!result.ok) {
         setCreateFailure(result.message)

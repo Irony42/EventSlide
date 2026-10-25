@@ -186,12 +186,6 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.deleteMyPhoto(SLUG, PHOTO),
   },
   {
-    name: 'setCaption',
-    verb: 'patch',
-    path: `/api/events/${SLUG}/photos/${PHOTO}/caption`,
-    invoke: (client) => client.setCaption(SLUG, PHOTO, 'Les confettis'),
-  },
-  {
     name: 'react',
     verb: 'post',
     path: `/api/events/${SLUG}/photos/${PHOTO}/reactions`,
@@ -277,12 +271,6 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.getEvent(SLUG),
   },
   {
-    name: 'renameEvent',
-    verb: 'patch',
-    path: `/api/events/${SLUG}`,
-    invoke: (client) => client.renameEvent(SLUG, 'Camille et Sacha'),
-  },
-  {
     name: 'updateSettings',
     verb: 'patch',
     path: `/api/events/${SLUG}/settings`,
@@ -335,12 +323,6 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'post',
     path: `/api/events/${SLUG}/moderation/bulk`,
     invoke: (client) => client.moderateBulk(SLUG, [PHOTO], 'reject'),
-  },
-  {
-    name: 'deletePhoto',
-    verb: 'del',
-    path: `/api/events/${SLUG}/photos/${PHOTO}`,
-    invoke: (client) => client.deletePhoto(SLUG, PHOTO),
   },
   {
     name: 'topPhotos',
@@ -712,12 +694,6 @@ describe('request bodies', () => {
     await subject().join('H7K2QM', null)
 
     expect(only().body).toEqual({ joinCode: 'H7K2QM', displayName: null })
-  })
-
-  it('sends a null caption to clear one, rather than omitting the field', async () => {
-    await subject().setCaption(SLUG, PHOTO, null)
-
-    expect(only().body).toEqual({ caption: null })
   })
 
   it('sends the decision the moderator pressed', async () => {

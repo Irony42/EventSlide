@@ -73,7 +73,7 @@ export interface ClipUpload {
   readonly stage: ClipStage
   /** 0-100, from the transport's upload progress events. */
   readonly progress: number
-  /** A French sentence, ready to render. `null` while there is nothing to say. */
+  /** A sentence in the language on screen, ready to render. `null` while there is nothing to say. */
   readonly message: string | null
   /** Whether offering "Réessayer" would be honest. */
   readonly retryable: boolean
