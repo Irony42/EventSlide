@@ -10,7 +10,7 @@ import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 
 /**
  * Surface: the host's laptop. Reached on purpose, or forced by
- * `MustChangePasswordGate` for a moderator who has never chosen a password.
+ * `MustChangePasswordGate` for an account whose password was set for it and not by it.
  */
 export function ChangePasswordPage() {
   const t = useTranslations()

@@ -3824,10 +3824,9 @@ neither.
 `src/application/usecases/photos/uploadPhotos.ts:177` returns
 `DomainError.quotaExceeded('event.photoLimitReached')`. This file said
 `403 photo.tooManyForGuest`, which the server has never sent and which is also the wrong
-status — `quotaExceeded` maps to **413**. `web/src/lib/i18n/fr.ts` already carries French
-for **both** spellings, with a comment saying it is keeping them until the contract picks
-one. It has now picked: `event.photoLimitReached`. The `photo.tooManyForGuest` entry in
-`fr.ts` is dead and can go.
+status — `quotaExceeded` maps to **413**. The contract has picked `event.photoLimitReached`;
+`web/src/lib/i18n/fr.ts` carried French for both spellings and no longer does, and
+`keysRead.guard.test.ts` fails on an error sentence for a code nothing sends.
 
 ### 9.5 The wall's e2e timing hooks are accepted and read by nothing — **stale code**
 

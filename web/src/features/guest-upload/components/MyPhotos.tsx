@@ -46,7 +46,7 @@ const TONES: Record<PhotoStatus, StatusTone> = {
 export interface MyPhotosProps {
   readonly photos: readonly GuestPhotoDto[]
   readonly loading: boolean
-  /** A French sentence, ready to render. `null` when nothing has failed. */
+  /** A sentence in the language on screen, ready to render. `null` when nothing has failed. */
   readonly error: string | null
   readonly onRetry: () => void
   readonly onDelete: (photoId: string) => Promise<void>

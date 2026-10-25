@@ -148,7 +148,8 @@ describe('requireCsrfToken', () => {
     const response = await request(subject.app)
       .post('/write')
       .set('Cookie', `${CSRF_COOKIE}=${token}`)
-      .set(CSRF_HEADER, 'a-different-value-of-the-same-length!!')
+      // As long as the token, so it is the comparison that refuses it and not the length.
+      .set(CSRF_HEADER, 'x'.repeat(token.length))
 
     expect(response.status).toBe(403)
     expect(response.body.error.code).toBe('request.csrfMismatch')

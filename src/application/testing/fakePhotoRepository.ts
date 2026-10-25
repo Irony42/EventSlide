@@ -12,6 +12,7 @@ import type {
 } from '../../domain/shared/ids'
 import type { StagedByteSource } from '../ports/clipJobRepository'
 import type { ClientEventSource } from './fakeClientRepository'
+import type { GuestPhotoSource } from './fakeGuestRepository'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
@@ -111,7 +112,7 @@ const insertInto = (rows: Map<string, Photo>, photo: Photo): void => {
   rows.set(key(photo.eventId, photo.id), photo)
 }
 
-export class FakePhotoRepository implements PhotoRepository {
+export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
   private readonly rows = new Map<string, Photo>()
 
   /**
@@ -322,7 +323,26 @@ export class FakePhotoRepository implements PhotoRepository {
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
+    return this.authoredBy(eventId, guestId)
+  }
+
+  /**
+   * How many rows of one event a guest authored, synchronously, whatever their status and
+   * whether a still or a clip — what `countByAuthor` answers and what `FakeGuestRepository`
+   * derives `photoCount` from. **Test infrastructure, not a port method.**
+   */
+  authoredBy(eventId: EventId, guestId: GuestId): number {
     return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
+  }
+
+  /**
+   * What `photos.author_guest_id … ON DELETE CASCADE` does when a guest is erased: their
+   * photographs go with them. `FakeGuestRepository.delete` calls it. **Test infrastructure.**
+   */
+  deleteAuthoredBy(eventId: EventId, guestId: GuestId): void {
+    for (const photo of this.forEvent(eventId)) {
+      if (this.matchesAuthor(photo, guestId)) this.rows.delete(key(photo.eventId, photo.id))
+    }
   }
 
   async save(photo: Photo): Promise<void> {

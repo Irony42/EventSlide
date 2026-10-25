@@ -10,6 +10,18 @@ gallerySignerContract('hmac', () => createHmacGallerySigner({ rootSecret: SECRET
 describe('createHmacGallerySigner', () => {
   const STATEMENT = ['media', 'link-1', 'photo-1', 'original', '1782000000000']
 
+  it('signs with the key it has always derived, so a link or an unlock cookie issued before an upgrade still verifies', () => {
+    // A literal, computed independently of this repository (HKDF-SHA256, empty salt, label
+    // `eventslide/gallery/v1`, then HMAC-SHA256 over the length-prefixed parts). A change to the
+    // label, the salt or the encoding voids every outstanding gallery URL and no other test notices.
+    const signer = createHmacGallerySigner({ rootSecret: SECRET })
+
+    expect(signer.sign(['media', 'link-1'])).toBe('jmDSwvg882QRsj32socHq26DEXae1zcIFjhlJoWVnnU')
+    expect(signer.verify(['media', 'link-1'], 'jmDSwvg882QRsj32socHq26DEXae1zcIFjhlJoWVnnU')).toBe(
+      true,
+    )
+  })
+
   it('refuses a key derived from a short secret, rather than signing with it', () => {
     expect(() => createHmacGallerySigner({ rootSecret: 'too-short' })).toThrow(/32/)
   })
