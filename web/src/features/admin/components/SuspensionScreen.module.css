@@ -1,0 +1,5 @@
+.screen {
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}

@@ -5,7 +5,6 @@ import {
   INVITATION_MAX_PER_ADDRESS_PER_HOUR,
   INVITATION_WINDOW_MS,
 } from '../../../domain/users/accountToken'
-import type { LogContext, Logger } from '../../ports/logger'
 import { mailFailure, type Mailer } from '../../ports/mailer'
 import { AT } from '../../testing/builders'
 import { FakeAccountTokenRepository } from '../../testing/fakeAccountTokenRepository'
@@ -18,6 +17,7 @@ import {
   type InvitedPlace,
   type IssueInvitationInput,
 } from './issueInvitation'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 const PUBLIC_URL = 'https://photos.example.test'
 const NEWCOMER = 'nouveau@example.test'
@@ -28,34 +28,6 @@ const DAY = 24 * HOUR
 const nullMailer: Mailer = {
   canDeliver: false,
   send: async () => err(mailFailure('notConfigured')),
-}
-
-class RecordingLogger implements Logger {
-  readonly lines: { level: string; message: string; context: LogContext }[] = []
-
-  private record(level: string, message: string, context: LogContext = {}): void {
-    this.lines.push({ level, message, context })
-  }
-
-  debug(message: string, context?: LogContext): void {
-    this.record('debug', message, context)
-  }
-  info(message: string, context?: LogContext): void {
-    this.record('info', message, context)
-  }
-  warn(message: string, context?: LogContext): void {
-    this.record('warn', message, context)
-  }
-  error(message: string, context?: LogContext): void {
-    this.record('error', message, context)
-  }
-  child(): Logger {
-    return this
-  }
-
-  get everything(): string {
-    return JSON.stringify(this.lines)
-  }
 }
 
 const EVENT_PLACE: InvitedPlace = {
@@ -77,7 +49,7 @@ describe('issueInvitation', () => {
   let secrets: FakeSecretTokens
   let mailer: FakeMailer
   let clock: FakeClock
-  let logger: RecordingLogger
+  let logger: CapturingLogger
   let ids: SequentialIdGenerator
 
   const build = (withMailer: Mailer = mailer) =>
@@ -108,7 +80,7 @@ describe('issueInvitation', () => {
     secrets = new FakeSecretTokens()
     mailer = new FakeMailer()
     clock = new FakeClock(AT)
-    logger = new RecordingLogger()
+    logger = new CapturingLogger()
     ids = new SequentialIdGenerator()
   })
 

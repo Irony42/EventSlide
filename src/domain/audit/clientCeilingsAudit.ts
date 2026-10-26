@@ -11,14 +11,18 @@ import type { AuditDetails } from './auditDetails'
  *
  * - **Nothing changed, nothing written.** A patch that restates the current values is not
  *   an act on the client, and an audit log that records it is a log nobody reads.
- * - **A ceiling changed: `client.ceilingsChanged {before, after}`**, both full snapshots.
+ * - **A ceiling changed: `client.ceilingsChanged {before, after, reason}`**, both full snapshots
+ *   and the operator's reason, which the caller has already parsed (`parseAuditReason`).
  * - **The period moved: `client.periodReset {before, after}`**, written *as well*. A renewal
  *   zeroes the counter of events created in the period, and that zeroing is the part a
  *   client disputes, so it gets a line of its own with the counter on both sides.
  */
 
 export interface PlannedAuditEntry {
-  readonly action: Extract<AuditAction, 'client.ceilingsChanged' | 'client.periodReset'>
+  readonly action: Extract<
+    AuditAction,
+    'client.created' | 'client.ceilingsChanged' | 'client.periodReset'
+  >
   readonly details: AuditDetails
 }
 
@@ -52,7 +56,22 @@ const periodSnapshot = (client: Client): AuditDetails => ({
 const same = (left: AuditDetails, right: AuditDetails): boolean =>
   JSON.stringify(left) === JSON.stringify(right)
 
-export const describeCeilingsChange = (before: Client, after: Client): PlannedAuditEntry[] => {
+/**
+ * The entry for a client that has just been opened: **always written**, unlike a change, and
+ * carrying the full snapshot of the ceilings it starts with (G2-18). A client created with no
+ * ceiling at all says so, with seven `null`s and two `true`s, because "it was never limited" is
+ * as much a fact about the day it was opened as any number.
+ */
+export const describeClientCreation = (client: Client): PlannedAuditEntry => ({
+  action: 'client.created',
+  details: { ceilings: ceilingsSnapshot(client.ceilings.toProps()) },
+})
+
+export const describeCeilingsChange = (
+  before: Client,
+  after: Client,
+  reason: string,
+): PlannedAuditEntry[] => {
   const planned: PlannedAuditEntry[] = []
 
   const ceilingsBefore = ceilingsSnapshot(before.ceilings.toProps())
@@ -60,7 +79,7 @@ export const describeCeilingsChange = (before: Client, after: Client): PlannedAu
   if (!same(ceilingsBefore, ceilingsAfter)) {
     planned.push({
       action: 'client.ceilingsChanged',
-      details: { before: ceilingsBefore, after: ceilingsAfter },
+      details: { before: ceilingsBefore, after: ceilingsAfter, reason },
     })
   }
 

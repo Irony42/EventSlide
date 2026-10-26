@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { configSources } from './configSources'
 
 /**
  * `docs/UPGRADING.md` (roadmap G3-09 / P4-11), held to the code it describes.
@@ -23,8 +24,14 @@ import { describe, expect, it } from 'vitest'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (...segments: string[]): string => readFileSync(join(ROOT, ...segments), 'utf8')
 
-/** A source file as one string, with the seams of `'a' + 'b'` closed so a phrase can be found. */
-const source = (...segments: string[]): string => read(...segments).replace(/`\s*\+\s*`/g, '')
+/** Source text with the seams of a template-literal concatenation closed, so a phrase can be found. */
+const closeSeams = (text: string): string => text.replace(/`\s*\+\s*`/g, '')
+
+/** A source file as one string, seams closed. */
+const source = (...segments: string[]): string => closeSeams(read(...segments))
+
+/** The configuration module as one string, seams closed. */
+const configSource = (): string => closeSeams(configSources())
 
 /** Running text: Prettier wraps lines, and a phrase can break across one. */
 const flat = (text: string): string => text.replace(/\s+/g, ' ')
@@ -214,7 +221,7 @@ describe('the messages docs/UPGRADING.md says to expect', () => {
   })
 
   it('cites the three boot warnings 3.0.0 added, which are warnings and not refusals', () => {
-    const env = source('src', 'infrastructure', 'config', 'env.ts')
+    const env = configSource()
 
     expect(prose).toContain('`PUBLIC_URL`')
     expect(prose).toContain('`TRUST_PROXY_HOPS=0`')
@@ -246,6 +253,10 @@ describe('the upgrade to 3.0 against the code it describes', () => {
       expect(section, `${padded} in the 3.0 section`).toContain(padded)
       expect(entry, `${padded} in the 3.0.0 entry`).toContain(padded)
     }
+    // The first boot logs the ids it applied; the page quotes them as a range.
+    expect(flat(section), 'the range of ids the first boot logs').toContain(
+      `ids ${Math.min(...ids)} to ${Math.max(...ids)}`,
+    )
   })
 
   it('names the Docker Compose version that the long form of env_file in compose.yaml needs', () => {
@@ -290,6 +301,17 @@ describe('the error codes that docs/UPGRADING.md and the 3.0.0 entry of the CHAN
   it('are given the status docs/API.md gives them', () => {
     for (const { status, code } of named)
       expect(documented(status, code), `${status} ${code}`).toBe(true)
+  })
+})
+
+describe('the setting that switches the terms of use on (G2-20)', () => {
+  // A new boot-checked setting goes into the 3.0.0 list of new settings and into "Upgrading to 3.0"
+  // (docs/UPGRADING.md, the upgrade policy). Nothing else enumerates the names, so this is the
+  // only thing that notices the day one of the two lists loses it.
+  it('is named in the list the 3.0.0 CHANGELOG gives and in the one this page gives', () => {
+    expect(entry).toContain('`LEGAL_TERMS_VERSION` takes at most 32 characters')
+    expect(entry).toContain('`LEGAL_TERMS_VERSION` without `LEGAL_TERMS_URL`')
+    expect(section).toContain('`LEGAL_TERMS_VERSION`')
   })
 })
 
@@ -375,5 +397,170 @@ describe('the links of docs/UPGRADING.md', () => {
 describe('the places that must point at docs/UPGRADING.md', () => {
   it.each(['README.md', 'CHANGELOG.md', 'CONTRIBUTING.md'])('%s links it', (file) => {
     expect(read(file)).toContain('(docs/UPGRADING.md)')
+  })
+})
+
+describe('a setting that was documented and is read by nothing (docs/UPGRADING.md, the deprecation policy)', () => {
+  // A documented setting is removed in a major, and only after a deprecation: marked
+  // `### Deprecated` in the CHANGELOG and, where the code can, a warning logged when it is
+  // used. `GUEST_SELF_DELETE_GRACE_SECONDS` was validated and mapped into the config and read by
+  // nothing (the grace is a setting of each event), so it is kept parsing and warned about
+  // instead of being deleted outright. Nothing else says that the three agree.
+  const NAME = 'GUEST_SELF_DELETE_GRACE_SECONDS'
+  const deprecated = entry.slice(entry.indexOf('### Deprecated'))
+
+  it('is listed under Deprecated in the 3.0.0 entry, before the next heading', () => {
+    expect(entry).toContain('### Deprecated')
+    expect(deprecated.slice(0, deprecated.indexOf('\n### Added'))).toContain(`\`${NAME}\``)
+  })
+
+  it('is named on the upgrade page, as a setting to remove', () => {
+    expect(section).toContain(NAME)
+  })
+
+  it('is warned about at boot by the code that still validates it', () => {
+    const env = configSource()
+
+    expect(env).toContain(`${NAME}: positiveInt(`)
+    expect(env).toContain(`${NAME} is deprecated and does nothing`)
+  })
+
+  it('names the same release for its removal in the warning and in the entry', () => {
+    // Four places carry the version; an operator who reads one must not be told another.
+    const env = configSource()
+
+    expect(env).toContain('it will be removed in 4.0.0')
+    expect(flat(deprecated)).toContain('removed in 4.0.0')
+    expect(read('.env.example')).toContain('Removed in 4.0.0')
+  })
+
+  it('is no longer an active line of .env.example, which a host copies', () => {
+    // A copied line would set it, and the boot would warn about a setting the operator never chose.
+    expect(read('.env.example')).not.toMatch(new RegExp(`^${NAME}=`, 'm'))
+  })
+})
+
+describe('every setting the configuration declares that 2.1.0 did not (docs/UPGRADING.md, the upgrade policy)', () => {
+  // An operator learns what a major adds from two places: the 3.0.0 entry, whose BREAKING list says
+  // what each new setting accepts and refuses, and the order "Upgrading to 3.0" gives. A setting
+  // added and written in neither is one a box can set, or inherit from its environment, without
+  // anything having said so. `OPERATOR_RESET_LINKS` was in neither on the day this was written,
+  // and nothing noticed, because the two lists are prose and `envDocs.test.ts` only reads
+  // `.env.example`.
+
+  /** The variables `buildSchema` declared at 2.1.0 (the commit `gpl-final` names), the host's own included. */
+  const SETTINGS_OF_2_1_0: ReadonlySet<string> = new Set([
+    'ALLOW_CUSTOM_SLUGS',
+    'BACKUP_DIR',
+    'BCRYPT_COST',
+    'BOOTSTRAP_OWNER_EMAIL',
+    'BOOTSTRAP_OWNER_PASSWORD',
+    'CLIP_MAX_HEIGHT',
+    'DATABASE_PATH',
+    'DEFAULT_EVENT_QUOTA_BYTES',
+    'E2E_HOOKS',
+    'EVENT_CREATION_RATE_LIMIT_PER_HOUR',
+    'EVENT_SLUG_SUFFIX',
+    'FFMPEG_PATH',
+    'FFPROBE_PATH',
+    'GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE',
+    'GALLERY_RATE_LIMIT_PER_MINUTE',
+    'GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT',
+    'GALLERY_UNLOCK_ATTEMPTS_PER_LINK',
+    'GUEST_SELF_DELETE_GRACE_SECONDS',
+    'GUEST_TOKEN_SECRET',
+    'JOIN_CODE_LENGTH',
+    'JOIN_RATE_LIMIT_PER_MINUTE',
+    'LOGIN_RATE_LIMIT_PER_MINUTE',
+    'LOG_LEVEL',
+    'MAX_CLIP_BYTES',
+    'MAX_CLIP_PIXELS',
+    'MAX_CLIP_SECONDS',
+    'MAX_EVENT_QUOTA_BYTES',
+    'MAX_FILES_PER_UPLOAD',
+    'MAX_IMAGE_PIXELS',
+    'MAX_QUEUED_CLIPS',
+    'MAX_UPLOAD_BYTES',
+    'MEDIA_ROOT',
+    'NODE_ENV',
+    'PATH',
+    'PATHEXT',
+    'PORT',
+    'PUBLIC_URL',
+    'REACTION_RATE_LIMIT_PER_MINUTE',
+    'RETENTION_SWEEP_INTERVAL_MINUTES',
+    'SCHEDULE_SWEEP_INTERVAL_MINUTES',
+    'SESSION_COOKIE_SECURE',
+    'SESSION_SECRET',
+    'SITE_ADMIN',
+    'SYSTEMROOT',
+    'TEMP',
+    'TMP',
+    'TRUST_PROXY_HOPS',
+    'UPLOAD_RATE_LIMIT_PER_MINUTE',
+    'WINDIR',
+  ])
+
+  /** Read off the schema's own source, as `envDocs.test.ts` does: six spaces, two levels in. */
+  const declared = [...configSource().matchAll(/^ {6}([A-Z][A-Z0-9_]*):/gm)].map(
+    (match) => match[1] ?? '',
+  )
+  const added = declared.filter((name) => !SETTINGS_OF_2_1_0.has(name))
+
+  /** What the entries newer than 3.0.0 say: a setting a later release adds is announced there. */
+  // From the first entry's heading, not from the top of the file: the introduction names no setting
+  // as announced, and a name mentioned there would exempt a setting nobody announced.
+  const changelog = read('CHANGELOG.md')
+  const laterEntries = changelog.slice(
+    changelog.search(/^## \[/m),
+    changelog.search(/^## \[3\.0\.0\]/m),
+  )
+
+  /** `name` as a whole word: `NEW_CLIENT_MAX_EVENTS` is not found inside `..._PER_PERIOD`. */
+  const names = (text: string, name: string): boolean =>
+    new RegExp(`(?<![A-Z0-9_])${name}(?![A-Z0-9_])`).test(text)
+
+  it('are read off the schema, or the check below would pass for the wrong reason', () => {
+    expect(declared.length, 'variables declared by the configuration').toBeGreaterThan(
+      SETTINGS_OF_2_1_0.size,
+    )
+    expect(added.length, 'variables added since 2.1.0').toBeGreaterThanOrEqual(34)
+    expect(added).toContain('OPERATOR_RESET_LINKS')
+    // A name of 2.1.0 that the schema stopped declaring would hide behind this list for good.
+    for (const name of SETTINGS_OF_2_1_0) expect(declared, name).toContain(name)
+  })
+
+  it.each(added)(
+    '%s is named in the 3.0.0 entry and in "Upgrading to 3.0", or by a later one',
+    (name) => {
+      if (names(laterEntries, name)) return
+
+      expect(names(entry, name), `${name} in the 3.0.0 entry`).toBe(true)
+      expect(names(section, name), `${name} in the "Upgrading to 3.0" section`).toBe(true)
+    },
+  )
+})
+
+describe('the routes the 3.0.0 entry and "Upgrading to 3.0" name', () => {
+  // The page and the entry send an operator, or a script, to a method and a path. One that
+  // docs/API.md does not carry is one nobody can look up: a typo, a route renamed in the
+  // contract, or one that was dropped. The check above reads `GET` on the page only.
+  const routes = [
+    ...new Set(
+      [...(section + entry).matchAll(/`(GET|POST|PUT|PATCH|DELETE) (\/api\/[\w/:.-]+)`/g)].map(
+        (match) => `${match[1]} ${match[2]}`,
+      ),
+    ),
+  ]
+
+  it('are read from the text, or this checks nothing', () => {
+    expect(routes.length, 'routes named').toBeGreaterThan(15)
+  })
+
+  it('are all in docs/API.md, spelled as it spells them', () => {
+    const api = read('docs', 'API.md')
+
+    // With the closing backtick: `POST /api/auth/password` is a prefix of the route that resets one.
+    for (const route of routes) expect(api, route).toContain(`\`${route}\``)
   })
 })

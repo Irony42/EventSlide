@@ -18,7 +18,7 @@ export interface ApproveInvitationInput {
 
 export interface ApproveInvitationDeps {
   readonly users: Pick<UserRepository, 'findById' | 'siteRoleFor'>
-  readonly clients: Pick<ClientRepository, 'memberRole'>
+  readonly clients: Pick<ClientRepository, 'memberRole' | 'findById'>
   readonly tokens: Pick<AccountTokenRepository, 'findById' | 'approve'>
   /** Only the writing half of the log: this use case cannot prune it. */
   readonly audit: AuditRecorder

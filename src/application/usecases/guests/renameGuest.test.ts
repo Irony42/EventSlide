@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Event } from '../../../domain/events/event'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
-import { aGuest, atPlus } from '../../testing/builders'
+import { aGuest, anEvent, atPlus } from '../../testing/builders'
+import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { makeRenameGuest, type RenameGuestInput } from './renameGuest'
 
@@ -11,14 +13,19 @@ const SACHA = asGuestId('guest-2')
 
 describe('renameGuest', () => {
   let guests: FakeGuestRepository
+  let events: FakeEventRepository
 
-  const rename = (input: RenameGuestInput) => makeRenameGuest({ guests })(input)
+  const rename = (input: RenameGuestInput) => makeRenameGuest({ guests, events })(input)
 
   /** The common case: a guest renaming themselves at the wedding they joined. */
   const renameSelf = (displayName: string | null, guestId = LEA) =>
     rename({ eventId: WEDDING, actingGuestId: guestId, guestId, displayName })
 
   beforeEach(() => {
+    events = new FakeEventRepository().seed(
+      anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status: 'live' }),
+      anEvent({ id: GALA, slug: 'gala', joinCode: 'B4N9PT', status: 'live' }),
+    )
     guests = new FakeGuestRepository().seed(
       aGuest({ id: LEA, eventId: WEDDING, displayName: 'Léa' }),
       aGuest({ id: SACHA, eventId: WEDDING, displayName: 'Sacha' }),
@@ -62,6 +69,85 @@ describe('renameGuest', () => {
 
     const stored = await guests.findById(WEDDING, LEA)
     expect(stored?.label()).toBe('Léa')
+  })
+
+  // ---------------------------------------------------------- only while it is live --
+
+  /**
+   * The name is printed on the wall of a closed event, unmoderated. Once the host closes it the credit
+   * under the photographs they approved is fixed: the refusal is the one an upload gets, and the rule
+   * is the upload's own (`acceptsUploads()`), so the two cannot disagree.
+   */
+  it.each(['closed', 'archived', 'draft'] as const)(
+    'refuses a rename once the event is %s, with the 409 an upload gets',
+    async (status) => {
+      await events.delete(WEDDING)
+      events.seed(anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status }))
+
+      const result = await renameSelf('Léa B.')
+
+      expect(!result.ok && result.error.kind).toBe('conflict')
+      expect(!result.ok && result.error.code).toBe('event.notAcceptingUploads')
+      expect(!result.ok && result.error.details).toEqual({ status })
+    },
+  )
+
+  it('keeps the name as the host last saw it when the event is closed', async () => {
+    await events.delete(WEDDING)
+    events.seed(anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status: 'closed' }))
+
+    await renameSelf('Léa B.')
+
+    const stored = await guests.findById(WEDDING, LEA)
+    expect(stored?.label()).toBe('Léa')
+  })
+
+  it('asks who is renaming before it asks about the event, so a closed event is not a probe of guest ids', async () => {
+    await events.delete(WEDDING)
+    events.seed(anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status: 'closed' }))
+
+    const result = await rename({
+      eventId: WEDDING,
+      actingGuestId: LEA,
+      guestId: SACHA,
+      displayName: 'Un autre nom',
+    })
+
+    expect(!result.ok && result.error.code).toBe('auth.forbidden')
+  })
+
+  it('refuses a rename at the event of a suspended client, as an upload there is refused', async () => {
+    // `acceptsUploads()` is false while the client is suspended: the rule is the upload's own, not a
+    // copy of its status test.
+    await events.delete(WEDDING)
+    events.seed(
+      Event.restore({
+        ...anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status: 'live' }).toProps(),
+        clientSuspendedAt: atPlus(0),
+      }),
+    )
+
+    const result = await renameSelf('Léa B.')
+
+    expect(!result.ok && result.error.code).toBe('event.notAcceptingUploads')
+  })
+
+  it('asks about the event before it reads any guest row', async () => {
+    await events.delete(WEDDING)
+    events.seed(anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status: 'closed' }))
+    const absent = asGuestId('guest-inconnu')
+
+    const result = await renameSelf('Léa B.', absent)
+
+    expect(!result.ok && result.error.code).toBe('event.notAcceptingUploads')
+  })
+
+  it('answers an event that is not there as such', async () => {
+    await events.delete(WEDDING)
+
+    const result = await renameSelf('Léa B.')
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
   })
 
   // ---------------------------------------------------------------- theirs only --

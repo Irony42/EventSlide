@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApi } from '../../../app/useApi'
-import { ApiError } from '../../../lib/http'
+import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { GuestPhotoDto } from '../../../lib/api/dto'
@@ -35,9 +35,9 @@ export interface MyPhotosState {
  * The sentence is composed at render, from {@link Failure} and the active table, and
  * that is the whole reason this type exists: storing the finished French put the copy
  * table into the read effect's dependencies, so changing language re-read the list. On
- * venue Wi-Fi that is a round trip for a word — and when it failed, the error branch
- * replaced the thumbnails with an empty list and told the guest their uploads could not
- * be shown, for no reason except that they had tapped the language picker.
+ * venue Wi-Fi that is a round trip for a word — and when it failed, the guest was told
+ * their list could not be updated, for no reason except that they had tapped the
+ * language picker.
  *
  * `code` is the server's own, so a refused deletion still says *why* it was refused,
  * in whichever language the guest is reading when they look at it.
@@ -82,8 +82,11 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         if (!current) return
         // The abort is this effect's own cleanup — StrictMode mounts twice — and not
         // a failure to report to the guest.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
-        setState({ photos: [], loading: false, failure: { kind: 'load' } })
+        if (isAbortError(cause)) return
+        // The photos already on screen stay: a read that fails (a moment of bad Wi-Fi) is
+        // news about the read, and this list is what tells the guest their uploads arrived.
+        // Only the very first read has nothing to keep.
+        setState((previous) => ({ ...previous, loading: false, failure: { kind: 'load' } }))
       },
     )
 
@@ -97,7 +100,16 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     async (photoId: string) => {
       try {
         await api.deleteMyPhoto(slug, photoId)
-        refresh()
+        // The photo leaves the list now and not when the re-read answers: the list is kept
+        // when that read fails, and a deleted photograph still listed under a failure would
+        // read as a deletion that did not happen.
+        setState((previous) => ({
+          ...previous,
+          photos: previous.photos.filter((photo) => photo.id !== photoId),
+          loading: true,
+          failure: null,
+        }))
+        setAttempt((current) => current + 1)
       } catch (cause) {
         // The list is kept: a refused deletion is not a reason to blank the one screen
         // that tells the guest their photos arrived.
@@ -107,7 +119,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         }))
       }
     },
-    [api, refresh, slug],
+    [api, slug],
   )
 
   /**

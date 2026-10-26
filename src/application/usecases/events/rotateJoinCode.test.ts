@@ -3,6 +3,7 @@ import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
 import { AT, anEvent } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { SaturatedJoinCodeEventRepository } from '../../testing/saturatedEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
@@ -24,13 +25,6 @@ const joinCode = (value: string): JoinCode => {
   const parsed = JoinCode.create(value)
   if (!parsed.ok) throw new Error(`invalid test join code: ${value}`)
   return parsed.value
-}
-
-/** A box whose join-code space answers "taken" to everything — what the bound is for. */
-class SaturatedEventRepository extends FakeEventRepository {
-  override async joinCodeTaken(): Promise<boolean> {
-    return true
-  }
 }
 
 /** A generator that under-delivers entropy: the port lying, which `JoinCode` refuses. */
@@ -125,11 +119,11 @@ describe('rotateJoinCode', () => {
   })
 
   describe('when no join code is free', () => {
-    let saturated: SaturatedEventRepository
+    let saturated: SaturatedJoinCodeEventRepository
     let rotate: RotateJoinCode
 
     beforeEach(async () => {
-      saturated = new SaturatedEventRepository()
+      saturated = new SaturatedJoinCodeEventRepository()
       saturated.seed(
         anEvent({
           id: WEDDING,
@@ -146,6 +140,26 @@ describe('rotateJoinCode', () => {
       const result = await rotate({ eventId: WEDDING, actorId: OWNER })
 
       expect(!result.ok && result.error.code).toBe('event.joinCodeExhausted')
+    })
+
+    it('asks about five join codes and no more before it gives up', async () => {
+      const counting = new SaturatedJoinCodeEventRepository()
+      counting.seed(
+        anEvent({ id: WEDDING, slug: 'camille-et-sacha', ownerId: OWNER, joinCode: PRINTED_CODE }),
+      )
+      const rotateCounting = makeRotateJoinCode({
+        events: counting,
+        memberships,
+        ids,
+        bus,
+        joinCodeLength: 6,
+      })
+
+      const result = await rotateCounting({ eventId: WEDDING, actorId: OWNER })
+
+      expect(counting.asked).toBe(5)
+      expect(!result.ok && result.error.details).toEqual({ attempts: 5 })
+      expect(!result.ok && result.error.kind).toBe('unexpected')
     })
 
     it('leaves the printed code working, which is better than no code at all', async () => {

@@ -3,9 +3,9 @@ import type { DomainEvent, Unsubscribe } from '../../../application/ports/eventB
 import type { Logger } from '../../../application/ports/logger'
 import type { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { EventId } from '../../../domain/shared/ids'
+import type { EventId, UserId } from '../../../domain/shared/ids'
 import { requireRole, resolvePublicEvent } from '../middleware/authz'
-import { streamConnectionLimiter } from '../middleware/rateLimit'
+import { STREAM_RETRY_AFTER_SECONDS, streamConnectionLimiter } from '../middleware/rateLimit'
 import { errorBody } from '../presenters/send'
 import type { HttpDeps } from '../types'
 
@@ -173,6 +173,23 @@ export interface StreamOptions {
   readonly eventId: EventId
   readonly lastEventId: string | undefined
   readonly res: Response
+  /**
+   * What the beat does when the event is no longer served to whoever opened the stream. `'ends'` is
+   * the public wall's: the question that opened it is asked again (`Event.servesPublicWall`: the
+   * lifecycle serves the wall and the client is not suspended, G2-14), so an archived event or a
+   * suspended client closes the feed, the answer an unknown event gets. `'serves'` is the
+   * moderation console's: its members keep their reads while the client is frozen or the event is
+   * archived, so only an event that is gone ends it. Absent means `'ends'`, the refusal. (Named for
+   * the suspension it was written for; it now covers the lifecycle as well.)
+   */
+  readonly suspension?: 'ends' | 'serves'
+  /**
+   * The account behind a moderation feed (G2-14 part 3, plan item A-22). Its authority is read again at
+   * every beat, as it is on every request: an account that was switched off or deleted since the
+   * feed opened, or that lost its place in the event, is told to wait and ended, so a console left
+   * open does not outlive the account behind it. Absent for the public wall, which has no account.
+   */
+  readonly member?: UserId
 }
 
 /**
@@ -192,6 +209,8 @@ export const openStream = ({
   eventId,
   lastEventId,
   res,
+  suspension = 'ends',
+  member,
 }: StreamOptions): Result<Unsubscribe, DomainError> => {
   let closed = false
   const channel = acquireChannel(eventId)
@@ -228,13 +247,50 @@ export const openStream = ({
   // immediately that bytes flow.
   res.write(`: connected\n\n`)
 
-  const heartbeat = setInterval(() => {
+  // **An open stream is authorised again at every beat** (G2-14; the plan's A-22). Nothing about
+  // a connection that was opened at 19:00 says it may still be open at 23:00: the client may have
+  // been suspended, or the event purged. So the beat asks first, and a stream that is no longer
+  // served is told to wait and ended, which is "at most one beat" (fifteen seconds) after the
+  // operator pressed the button. A read that fails is logged and leaves the stream as it was:
+  // a database blip must not blank every projector on the box.
+  const stillServed = async (): Promise<boolean> => {
+    const current = await deps.events.findById(eventId)
+    if (current === null) return false
+    // The public wall asks what opened it, so an event the host has since archived, or whose
+    // client has been suspended, ends the stream: a stream opened while the event was live used to
+    // stay open after it was archived and keep its slot of the per-client cap. A moderation feed
+    // (`'serves'`) reads through a suspension and an archive alike: its members still moderate.
+    if (suspension === 'ends' && !current.servesPublicWall()) return false
+    // `roleFor` is null for a disabled account and for one that is gone: the same read every request makes.
+    return member === undefined || (await deps.memberships.roleFor(eventId, member)) !== null
+  }
+
+  const beat = async (): Promise<void> => {
     if (closed || res.writableEnded) return
-    // One block, two jobs. The comment line is invisible to every client handler and is
+    // A read that fails leaves the stream as it was, `: keep-alive` included: a database blip must
+    // not read, to a projector's silence watchdog, as a pipe that stopped delivering.
+    const served = await stillServed().catch((error: unknown) => {
+      logger.warn('a stream could not be re-checked at its heartbeat', {
+        eventId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return true
+    })
+    if (closed || res.writableEnded) return
+    if (!served) {
+      res.write(`retry: ${UNSERVED_RETRY_MS}\n\n`)
+      res.end()
+      return
+    }
+    // One block, two jobs. (It is also written when the re-check above failed to answer.) The comment line is invisible to every client handler and is
     // what keeps a proxy from closing an idle connection; the named frame carries no
     // `id:`, so it moves no cursor, and is the only thing that lets a client tell a
     // quiet evening from a pipe that has stopped delivering.
     res.write(`: keep-alive\nevent: ${HEARTBEAT_EVENT}\ndata: {}\n\n`)
+  }
+
+  const heartbeat = setInterval(() => {
+    void beat()
   }, HEARTBEAT_MS)
 
   // Must not hold the process open during a graceful shutdown.
@@ -260,6 +316,13 @@ export const openStream = ({
 
   return ok(cleanup)
 }
+
+/**
+ * What a stream that is no longer served tells its client to wait: long, because what it will find
+ * on reconnecting is the same 404 an unknown event answers, and a projector retrying every two
+ * seconds against it would be a small flood from every wall of a frozen client.
+ */
+const UNSERVED_RETRY_MS = 60_000
 
 /** What a drained connection tells the client to wait before its next reconnect. */
 const DRAIN_RETRY_MS = 2000
@@ -292,7 +355,7 @@ export const drainStreams = (): void => {
  * connections a second, short enough that a projector rejoins within a song once the
  * screens that were hogging the channel have gone.
  */
-const RETRY_AFTER_SECONDS = '30'
+const RETRY_AFTER_SECONDS = String(STREAM_RETRY_AFTER_SECONDS)
 
 /**
  * Opens the channel for the event the middleware in front resolved.
@@ -313,7 +376,7 @@ const RETRY_AFTER_SECONDS = '30'
  * correct answer about a temporary state, and the client's own backoff is built for it.
  */
 export const streamHandler =
-  (deps: HttpDeps): RequestHandler =>
+  (deps: HttpDeps, channel: 'wall' | 'moderation' = 'wall'): RequestHandler =>
   (req, res) => {
     const event = req.context.event
     if (event === undefined) {
@@ -327,6 +390,10 @@ export const streamHandler =
       eventId: event.id,
       lastEventId: req.get('last-event-id'),
       res,
+      suspension: channel === 'moderation' ? 'serves' : 'ends',
+      ...(channel === 'moderation' && req.context.user !== undefined
+        ? { member: req.context.user.userId }
+        : {}),
     })
 
     if (opened.ok) return
@@ -363,7 +430,7 @@ export const streamRoutes = (deps: HttpDeps): Router => {
     '/events/:eventSlug/moderation/stream',
     connections,
     requireRole('moderator', deps),
-    streamHandler(deps),
+    streamHandler(deps, 'moderation'),
   )
 
   return router

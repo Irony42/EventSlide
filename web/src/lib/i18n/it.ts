@@ -28,11 +28,11 @@ export const it: UiText = {
   app: {
     name: 'EventSlide',
     loading: 'Caricamento…',
+    loadFailed: 'Caricamento non riuscito',
     retry: 'Riprova',
     cancel: 'Annulla',
     close: 'Chiudi',
     save: 'Salva',
-    back: 'Indietro',
     confirm: 'Conferma',
     language: 'Lingua',
   },
@@ -50,14 +50,12 @@ export const it: UiText = {
   },
 
   upload: {
-    title: 'Le sue foto',
     intro: 'Aggiunga le sue foto. Appariranno sullo schermo dopo l’approvazione.',
     addPhotos: 'Aggiungi delle foto',
     takePhoto: 'Scatta una foto',
     captionLabel: 'Didascalia',
     captionHint: (max: number) => `${t.number(max)} caratteri al massimo. Facoltativa.`,
     send: 'Invia',
-    sending: 'Invio…',
     sendCount: (count: number) =>
       t.count(count, { one: 'Invia la foto', other: `Invia le ${t.number(count)} foto` }),
     queueEmpty: 'Nessuna foto selezionata al momento.',
@@ -66,7 +64,6 @@ export const it: UiText = {
     itemDone: 'Inviata',
     itemDuplicate: 'Già inviata',
     itemFailed: 'Non inviata',
-    remove: 'Rimuovi',
     mine: 'I suoi invii',
     statusPending: 'In attesa di approvazione',
     statusPublished: 'Sullo schermo',
@@ -74,9 +71,7 @@ export const it: UiText = {
     statusHidden: 'Rimossa dallo schermo',
     deleteOwn: 'Elimina',
     deleteOwnConfirm: 'Eliminare questa foto? L’operazione è definitiva.',
-    graceOver: 'Il tempo per eliminare personalmente questa foto è scaduto.',
     thanks: 'Grazie, le sue foto sono arrivate.',
-    sendMore: 'Invia altre foto',
 
     itemPreparing: 'Preparazione…',
     queueLabel: 'Foto da inviare',
@@ -102,7 +97,7 @@ export const it: UiText = {
     signedAs: (name: string) => `Le sue foto appariranno con il nome ${name}.`,
     signedAnonymous: 'Le sue foto appariranno senza nome.',
     mineEmpty: 'Non ha ancora inviato nessuna foto.',
-    mineFailed: 'Non è stato possibile mostrare i suoi invii. Riprovi.',
+    mineFailed: 'Non è stato possibile aggiornare l’elenco dei suoi invii. Riprovi.',
     mineAlt: 'La sua foto',
     deleteOwnNumbered: (position: number) => `Elimina la foto ${t.number(position)}`,
     notJoinedTitle: 'Entri nella galleria per inviare le sue foto',
@@ -220,11 +215,22 @@ export const it: UiText = {
       'Altrimenti, lo chieda all’organizzatore: può eliminare qualsiasi foto.',
     noticeRemovalAskHost: 'Lo chieda all’organizzatore: può eliminare qualsiasi foto.',
     clipDoneImmediate: 'Video inviato. Sta per apparire sullo schermo.',
+
+    /* ---- Added by guest reactions. ---- */
+
+    reactionKinds: {
+      love: 'Adoro',
+      laugh: 'Ahah',
+      wow: 'Wow',
+      cheers: 'Cin cin',
+      clap: 'Applausi',
+    },
+    reactionsGroup: (position: number) => `Reagisci alla foto ${t.number(position)}`,
+    reactionsFailed: 'Non è stato possibile caricare le reazioni.',
   },
 
   ui: {
     dialogClose: 'Chiudi la finestra',
-    notifications: 'Notifiche',
     dismissNotification: 'Nascondi questa notifica',
     percent: (value: number) => t.percent(value),
     optional: 'Facoltativo',
@@ -241,10 +247,48 @@ export const it: UiText = {
     notFoundHint:
       'Questo indirizzo non esiste. Controlli il link, oppure torni alla pagina iniziale.',
     notFoundHome: 'Torna alla pagina iniziale',
-    comingSoon: 'Questa schermata arriverà presto.',
   },
 
   errors: {
+    'clientName.empty': 'Dia un nome al cliente.',
+    'clientName.tooLong': 'Questo nome è troppo lungo.',
+    'clientName.invalid': 'Questo nome contiene un carattere non accettato.',
+    'clientCeilings.maxEventsInvalid': 'Questo numero di eventi non è accettato.',
+    'clientCeilings.maxEventsPerPeriodInvalid':
+      'Questo numero di eventi per periodo non è accettato.',
+    'clientCeilings.maxTotalBytesInvalid': 'Questo spazio totale non è accettato.',
+    'clientCeilings.maxEventQuotaBytesInvalid': 'Questa quota di evento non è accettata.',
+    'clientCeilings.maxRetentionDaysInvalid':
+      'Questa durata di conservazione non è accettata: da 1 a 3.650 giorni.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'Questa durata di diretta non è accettata: da 1 a 365 giorni.',
+    'clientCeilings.periodStartedAtInvalid': 'Questo inizio di periodo non è accettato.',
+    'clientCeilings.clipsAllowedInvalid': 'Questa impostazione dei video non è accettata.',
+    'clientCeilings.liveAllowedInvalid': 'Questa impostazione di apertura non è accettata.',
+    'audit.reasonInvalid':
+      'Il motivo deve stare su una riga di al massimo 200 caratteri, senza indirizzo e-mail.',
+    'reset.mailerRequired':
+      'Questa istanza non invia posta: non è possibile emettere alcun link di reimpostazione.',
+    'reset.mailNotSent':
+      'Il server di posta ha rifiutato il messaggio. Nessun link è stato emesso.',
+    'reset.approverUnavailable':
+      'Questo account non appartiene ad alcun cliente, o ne ha più di uno: nessun proprietario può approvare la richiesta.',
+    'reset.requestNotFound': 'Questa richiesta non esiste o non è ancora stata approvata.',
+    'reset.tooManyForAddress':
+      'Questo indirizzo ha già ricevuto diverse reimpostazioni. Riprovi tra un’ora.',
+    'account.disabled': 'Questo account è disattivato.',
+    'account.operatorProtected':
+      'L’account di un operatore non può essere né disattivato né eliminato.',
+    'account.holdsEvents': 'Questo account possiede un evento: lo trasferisca o lo elimini prima.',
+    'account.holdsMedia':
+      'Questo account ha caricato foto o video, i cui file resterebbero sul disco.',
+    'account.holdsReviews':
+      'Questo account ha esaminato delle foto, le cui righe portano il suo nome.',
+    'account.lastClientOwner':
+      'Questo account è l’unico proprietario di un cliente che ha ancora membri o eventi: aggiunga un proprietario o concluda l’incarico del cliente.',
+    'client.graceInvalid': 'Questo termine non è accettato. Indichi un numero intero di giorni.',
+    'client.offboarding':
+      'L’incarico di questo cliente sta per concludersi: la sua sospensione non si può revocare.',
     unknown: 'Si è verificato un errore. Riprovi tra un istante.',
     network: 'La connessione si è interrotta. Controlli la rete, poi riprovi.',
     'request.invalid': 'Le informazioni inviate non sono valide.',
@@ -278,6 +322,7 @@ export const it: UiText = {
     'event.quotaAboveCeiling': 'Questa quota supera il limite consentito da questo server.',
     'event.creationNotAllowed': 'Il tuo account non può creare eventi su questo server.',
     'client.notFound': 'Questo account cliente non è stato trovato.',
+    'client.ownerRequired': 'Solo un proprietario dell’account può consultarlo.',
     'client.ceilingReached': 'Il tuo account ha raggiunto il numero di eventi consentito.',
     'client.storageFull': 'La galleria ha raggiunto la capacità massima. Avvisi l’organizzatore.',
     'client.liveNotAllowed': 'Il tuo account non può aprire un evento per ora.',
@@ -289,7 +334,6 @@ export const it: UiText = {
     'event.immutable': 'Questo evento è archiviato e non può più essere modificato.',
     'event.illegalTransition': 'Questo cambio di stato non è possibile.',
 
-    'guest.wrongEvent': 'Il suo accesso non corrisponde a questa galleria.',
     'guest.revoked': 'Il suo accesso è stato revocato dall’organizzatore.',
     'guestToken.expired': 'Il suo accesso è scaduto. Scansioni di nuovo il codice QR.',
     'guestToken.malformed': 'Il suo accesso non è più valido. Scansioni di nuovo il codice QR.',
@@ -297,7 +341,6 @@ export const it: UiText = {
 
     'photo.notFound': 'Questa foto non esiste più.',
     'photo.illegalTransition': 'Questa azione non è possibile su questa foto.',
-    'photo.tooManyForGuest': 'Ha raggiunto il numero di foto consentito.',
 
     'image.unsupportedFormat':
       'Questo file non è una foto. Formati accettati: JPEG, PNG, HEIC, WebP.',
@@ -340,11 +383,14 @@ export const it: UiText = {
     'invitation.notFound':
       'Questo invito non è più valido. Ne chieda uno nuovo alla persona che lo ha inviato.',
     'invitation.signInRequired':
-      'Un account usa già questo indirizzo. Acceda con quell’account, poi riapra il link.',
+      'Un account usa già l’indirizzo di questo invito. Acceda con quell’account: tornerà qui per accettare.',
+    'terms.notAccepted': 'Per continuare, spunti la casella che accetta le condizioni d’uso.',
     'invitation.wrongAccount':
       'Questo invito è stato scritto per un indirizzo e-mail diverso da quello di questo account.',
     'invitation.credentialsRequired':
       'Acceda con l’account invitato, oppure scelga un nome e una password.',
+    'accountName.empty': 'Inserisca il suo nome.',
+    'accountName.tooLong': 'Questo nome è troppo lungo.',
 
     'displayName.tooLong': 'Nome troppo lungo.',
     'joinCode.wrongLength': 'Questo codice non ha il numero corretto di caratteri.',
@@ -362,6 +408,7 @@ export const it: UiText = {
     'reaction.alreadyExists': 'Ha già reagito così a questa foto.',
     'reaction.notPublished': 'Questa foto non è ancora sullo schermo.',
     'reaction.notFound': 'Questa reazione non esiste più.',
+    'reaction.ownPhoto': 'Non può reagire alla sua foto.',
     'upload.noFiles': 'Non è stata ricevuta nessuna foto. Ne selezioni una, poi riprovi.',
     'upload.unexpectedField': 'Non è stato possibile leggere questo invio. Riprovi.',
     'request.csrfMissing': 'Questa pagina è scaduta. La ricarichi, poi riprovi.',
@@ -527,11 +574,23 @@ export const it: UiText = {
       'Questo video non può essere riprodotto qui. Si vede solo l’immagine di anteprima.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Le foto della serata',
+    link: 'Guarda le foto della serata',
+    back: 'Invia le foto',
+    refresh: 'Aggiorna',
+    more: 'Mostra altre foto',
+    empty: 'Nessuna foto è ancora sullo schermo.',
+    emptyHint: 'Le foto approvate dagli organizzatori compariranno qui.',
+    failed: 'Non è stato possibile caricare le foto. Riprovi.',
+    own: 'La sua foto',
+  },
+
   wall: {
     empty: 'Le prime foto stanno per arrivare',
     emptyHint: 'Scansioni il codice QR per inviare le sue foto.',
     joinPrompt: 'Entri nella galleria',
-    reactions: 'Reazioni',
     offline: 'Connessione persa — nuovo tentativo in corso',
     paused: 'Presentazione in pausa',
     codeLabel: 'Codice della serata',
@@ -565,7 +624,6 @@ export const it: UiText = {
   },
 
   admin: {
-    title: 'Amministrazione',
     events: 'I suoi eventi',
     newEvent: 'Nuovo evento',
     eventName: 'Nome dell’evento',
@@ -662,13 +720,14 @@ export const it: UiText = {
       }),
     retentionUnlimited: 'Conservazione illimitata',
     moderators: 'Moderatori',
-    inviteModerator: 'Invita un moderatore',
 
     loading: 'Caricamento dei suoi eventi…',
-    loadFailed: 'Caricamento non riuscito',
     eventLoading: 'Caricamento dell’evento…',
     eventsEmpty: 'Nessun evento al momento.',
-    eventsEmptyHint: 'Crei il suo primo evento, poi stampi il codice QR da mettere sui tavoli.',
+    eventsEmptyHint: 'Tre passaggi per essere pronti il giorno dell’evento.',
+    emptyStepCreate: 'Crei l’evento.',
+    emptyStepTest: 'Provi lo schermo sulla rete del locale, da un telefono che non sia il suo.',
+    emptyStepPrint: 'Stampi il codice QR e lo metta sui tavoli.',
     create: 'Crea l’evento',
     slugHint: 'Facoltativo. Lo lasci vuoto per ricavarlo dal nome.',
     slugPreviewLabel: 'Indirizzo della galleria',
@@ -833,7 +892,6 @@ export const it: UiText = {
     email: 'Indirizzo e-mail',
     password: 'Password',
     submit: 'Accedi',
-    submitting: 'Accesso…',
     logout: 'Esci',
     changePassword: 'Cambia password',
     currentPassword: 'Password attuale',
@@ -841,7 +899,6 @@ export const it: UiText = {
     newPasswordHint: (min: number) =>
       `Almeno ${min} caratteri. Una frase è più sicura di una parola.`,
     confirmPassword: 'Conferma la nuova password',
-    mustChangePassword: 'Scelga una password prima di continuare.',
     changePasswordIntro: 'Scelga una password che non usa altrove.',
     passwordSaved: 'Password salvata.',
 
@@ -881,6 +938,54 @@ export const it: UiText = {
     recoveryCodesRegenerate: 'Genera nuovi codici di recupero',
     secondFactorDisable: 'Disattiva la verifica',
     secondFactorDisabled: 'Verifica in due passaggi disattivata.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Invito',
+    invitationToModerate: (name: string) => `Ha ricevuto un invito a moderare l’evento «${name}».`,
+    invitationToOwn: (name: string) =>
+      `Ha ricevuto un invito a creare e gestire gli eventi di «${name}».`,
+    invitationToJoin: (name: string) => `Ha ricevuto un invito a unirsi al team di «${name}».`,
+    invitationExpires: (when: string) => `Valido fino al ${when}.`,
+    invitationChoose:
+      'Scelga il suo nome e una password: l’account viene creato quando invia questo modulo.',
+    invitationName: 'Il suo nome',
+    invitationNameHint: 'Compare nell’elenco delle persone con accesso.',
+    invitationConfirmPassword: 'Conferma la password',
+    invitationSubmit: 'Crea il mio account e accetta',
+    invitationAccepted: 'Invito accettato.',
+    invitationHaveAccount: 'Ha già un account?',
+    invitationSignedInAs: (email: string) => `Ha effettuato l’accesso come ${email}.`,
+    invitationAcceptAs: 'Accetta con questo account',
+    invitationUseAnother: 'Usa un altro account',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `Accetto le condizioni d’uso (versione ${version}), incluse le clausole sul trattamento dei dati per conto del titolare.`,
+    invitationReadTerms: 'Leggi le condizioni d’uso',
+    deadLinkTitle: 'Questo link non è valido',
+    forgotLink: 'Password dimenticata?',
+    forgotTitle: 'Password dimenticata',
+    forgotIntro:
+      'Inserisca l’indirizzo e-mail del suo account. Se un account lo usa, riceverà un link per scegliere una nuova password.',
+    forgotSubmit: 'Invia il link',
+    forgotSentTitle: 'Controlli la posta',
+    forgotSent:
+      'Se un account usa questo indirizzo, è appena stato inviato un messaggio con un link. Il link vale un’ora e si usa una sola volta.',
+    forgotUnavailable:
+      'Questo server non può inviare e-mail, quindi qui la password non si può reimpostare in questo modo. Chieda a chi lo gestisce.',
+    backToLogin: 'Torna all’accesso',
+    resetTitle: 'Nuova password',
+    resetIntro:
+      'Scelga una password che non usa altrove. Verrà disconnesso da tutti i suoi dispositivi.',
+    resetSubmit: 'Cambia la password',
+    resetDoneTitle: 'Password cambiata',
+    resetDone: 'Tutte le sue sessioni sono state chiuse. Acceda con la nuova password.',
+    resetAskAgain: 'Richiedi un nuovo link',
+    accountMenu: 'Account',
+    accountSignedInAs: (email: string) => `Connesso come ${email}`,
+    logoutEverywhere: 'Disconnetti ovunque',
+    logoutEverywhereTitle: 'Disconnettersi ovunque?',
+    logoutEverywhereHint:
+      'La sua sessione verrà chiusa su tutti i dispositivi, questo compreso, e dovrà accedere di nuovo. Utile se ha perso un dispositivo o usato un computer condiviso.',
   },
 
   mobileModeration: {
@@ -949,5 +1054,320 @@ export const it: UiText = {
     operatorNameLabel: 'Operatore',
     operatorContactLabel: 'Contatto',
     operatorHostedBy: 'Ospitato da',
+  },
+  clientSpace: {
+    bannerLabel: 'Limiti del suo account',
+    warningTitle: 'Si sta avvicinando a un limite del suo account',
+    reachedTitle: 'È stato raggiunto un limite del suo account',
+    eventsMeter: (used: number, max: number) => `Eventi: ${used} su ${max}`,
+    eventsPerPeriodMeter: (used: number, max: number) =>
+      `Eventi creati nel periodo: ${used} su ${max}`,
+    storageMeter: (used: string, max: string) => `Spazio: ${used} su ${max}`,
+    liveNotAllowed: 'L’apertura di nuovi eventi è sospesa sul suo account.',
+    contactHint: 'Per togliere un limite, contatti il suo operatore.',
+    contactAction: 'Contatta l’operatore',
+    suspendedTitle: 'Il suo account è sospeso',
+    suspendedBody:
+      'I suoi album restano consultabili ed esportabili. Finché la sospensione dura, non può creare, aprire né modificare un evento, e il pubblico non vede più i suoi schermi.',
+    spaceLink: 'Area cliente',
+    spaceTitle: 'Area cliente',
+    limitsTitle: 'Limiti e utilizzo',
+    noLimits: 'Il suo operatore non ha fissato alcun limite sul suo account.',
+    roleOwner: 'Proprietario',
+    roleMember: 'Membro',
+    pendingTitle: 'In attesa della sua approvazione',
+    pendingHint:
+      'Il suo operatore ha invitato queste persone nel suo account. Vi entrano solo con l’approvazione di un proprietario.',
+    pendingEmpty: 'Nulla attende la sua approvazione.',
+    pendingValidUntil: (date: string) => `Valido fino al ${date}`,
+    approve: 'Approva',
+    approved: 'Invito approvato.',
+    auditTitle: 'Registro delle azioni',
+    auditHint:
+      'Tutto ciò che il suo operatore, il sistema o il suo team ha fatto sul suo account, dal più recente al più vecchio.',
+    auditEmpty: 'Nessuna azione registrata per ora.',
+    auditMore: 'Mostra le azioni più vecchie',
+    actorOperator: 'Operatore',
+    actorMember: 'Il suo team',
+    actorSystem: 'Sistema',
+    actorIntegration: 'Integrazione',
+    actionCeilingsChanged: 'I suoi limiti sono stati modificati.',
+    actionPeriodReset: 'Il suo periodo è stato rinnovato.',
+    actionInvitationIssued: 'È stato emesso un invito.',
+    actionInvitationIssuedPending: 'È stato emesso un invito; attende la sua approvazione.',
+    actionInvitationApproved: 'Un invito è stato approvato.',
+    actionResetRequested: 'È stato richiesto il ripristino della password di un membro.',
+    actionResetApproved: 'Un ripristino della password è stato approvato.',
+    actionResetMailed: 'Un link di ripristino è stato inviato al membro.',
+    actionResetShown: 'Un link di ripristino è stato consegnato all’operatore.',
+    actionTermsAccepted: 'Una persona ha accettato le condizioni d’uso accettando un invito.',
+    actionOther: 'È stata registrata un’azione.',
+    liveWindowEnd: (date: string) => `La finestra in diretta termina il ${date}.`,
+  },
+
+  site: {
+    menuLink: 'Console dell’operatore',
+    consoleTitle: 'Console dell’operatore',
+    consoleIntro:
+      'Qui vede forme e dimensioni, mai ciò che i suoi clienti hanno creato: nessuna foto, nessun nome di evento.',
+    navLabel: 'Sezioni della console',
+    navClients: 'Clienti',
+    navAccounts: 'Account',
+    navAudit: 'Registro',
+    factorTitle: 'Verifica in due passaggi obbligatoria',
+    factorEnrol:
+      'Questa istanza la richiede all’operatore e il suo account non l’ha ancora attivata. La attivi, poi torni qui.',
+    factorEnrolLink: 'Attiva la verifica in due passaggi',
+    factorSignIn:
+      'Questo accesso non ha superato la verifica in due passaggi. Acceda di nuovo e inserisca il codice della sua app.',
+    factorSignOut: 'Accedi di nuovo',
+    stepUpTitle: 'Confermi la sua identità',
+    stepUpIntro:
+      'Questa azione modifica un’istanza condivisa. Inserisca la sua password, e il codice della sua app se ne ha una: la conferma vale cinque minuti.',
+    more: 'Mostra altro',
+
+    clientsTitle: 'Clienti',
+    clientsHint:
+      'Un cliente è un account, i suoi eventi e i suoi limiti. Lei legge le sue dimensioni, mai i suoi contenuti.',
+    newClient: 'Nuovo cliente',
+    clientsEmpty: 'Nessun cliente per ora.',
+    clientsEmptyHint:
+      'Apra un cliente: il suo proprietario riceve un invito e sceglie da sé la propria password.',
+    clientsTableLabel: 'I clienti dell’istanza',
+    clientColumn: 'Cliente',
+    statusColumn: 'Stato',
+    eventsColumn: 'Eventi',
+    membersColumn: 'Membri',
+    storageColumn: 'Spazio',
+    createdColumn: 'Aperto il',
+    statusActive: 'Attivo',
+    statusSuspended: 'Sospeso',
+    statusOffboarding: 'In chiusura',
+    eventsCell: (total: number, live: number) =>
+      `${t.number(total)} (${t.number(live)} in diretta)`,
+    storageOf: (used: string, max: string) => `${used} su ${max}`,
+    noCeiling: 'Nessun limite',
+
+    newClientTitle: 'Aprire un cliente',
+    newClientIntro:
+      'Il cliente viene aperto senza membri né eventi e il suo proprietario viene invitato via e-mail, oppure con un link che lei gli trasmette se l’istanza non può inviare posta. Lei non sceglie mai la sua password.',
+    clientName: 'Nome del cliente',
+    ownerEmail: 'Indirizzo e-mail del proprietario',
+    inviteLanguage: 'Lingua dell’invito',
+    defaultsHint:
+      'I limiti sono quelli che questa istanza assegna per impostazione predefinita a un nuovo cliente. Svuoti un campo per non fissare alcun limite.',
+    createClient: 'Apri il cliente',
+    clientCreated: 'Cliente aperto.',
+
+    invitationMailed: (email: string) => `Un invito è stato inviato a ${email}.`,
+    invitationPending:
+      'L’invito è scritto, ma si apre solo con il consenso di un proprietario del cliente.',
+    invitationLinkTitle: 'Nessuna e-mail è partita',
+    invitationLinkBody:
+      'Questa istanza non può inviare posta, oppure il server di posta ha rifiutato questo messaggio. Questo link è l’unica copia: lo trasmetta al destinatario, poi chiuda questo riquadro.',
+    invitationLinkLabel: 'Link d’invito',
+    copyLink: 'Copia il link',
+    linkCopied: 'Link copiato.',
+    invitationValidUntil: (date: string) => `Valido fino al ${date}.`,
+
+    ceilingsLegend: 'Limiti',
+    maxEvents: 'Eventi, al massimo',
+    maxEventsPerPeriod: 'Eventi creati per periodo, al massimo',
+    maxTotalGigabytes: 'Spazio totale, in GB',
+    maxEventQuotaGigabytes: 'Quota di un evento, in GB',
+    maxRetentionDays: 'Conservazione dopo la chiusura, in giorni, al massimo',
+    maxLiveDays: 'Durata di una diretta, in giorni, al massimo',
+    clipsAllowed: 'Video consentiti',
+    liveAllowed: 'Apertura di eventi consentita',
+    renewPeriod: 'Rinnova il periodo adesso',
+    renewPeriodHint: 'Azzera il contatore degli eventi creati nel periodo.',
+    emptyMeansNone: 'Vuoto: nessun limite.',
+    notANumber: 'Inserisca un numero positivo.',
+
+    allClients: 'Tutti i clienti',
+    memberCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} membro`,
+        other: `${t.number(count)} membri`,
+      }),
+    periodEvents: (count: number) => `Creati nel periodo: ${t.number(count)}`,
+    suspendedSince: (date: string) => `Sospeso dal ${date}.`,
+    purgeOn: (date: string) => `Gli album saranno eliminati al più tardi il ${date}.`,
+    suspend: 'Sospendi',
+    suspendTitle: 'Sospendere questo cliente?',
+    suspendBody:
+      'Gli ospiti non possono più unirsi ai suoi eventi né inviare foto, il pubblico non vede più i suoi schermi né le sue gallerie e i suoi membri non possono più modificare nulla. Non viene eliminato nulla e nessun account viene disattivato.',
+    suspended: 'Cliente sospeso.',
+    resume: 'Revoca la sospensione',
+    resumeTitle: 'Revocare la sospensione?',
+    resumeBody:
+      'Gli schermi e le gallerie del cliente tornano subito visibili e i suoi ospiti possono di nuovo unirsi e inviare foto.',
+    resumed: 'Sospensione revocata.',
+    rename: 'Rinomina',
+    renameTitle: 'Nome del cliente',
+    renamed: 'Cliente rinominato.',
+    ceilingsTitle: 'Limiti',
+    ceilingsReason: 'Motivo della modifica',
+    ceilingsReasonHint:
+      'Una frase su una riga, al massimo 200 caratteri, senza indirizzo e-mail. Viene scritta nel registro dell’operatore e il cliente non la legge. Solo motivi non finanziari: dimensione di un evento, capacità, abuso.',
+    ceilingsSave: 'Salva i limiti',
+    ceilingsSaved: 'Limiti salvati.',
+    ceilingsUnchanged: 'Nessun limite è cambiato.',
+    inviteTitle: 'Invitare in questo cliente',
+    inviteIntro:
+      'Una persona entra nell’account del cliente, mai in un evento. Se il cliente ha già eventi o membri, un proprietario deve approvare l’invito.',
+    inviteEmail: 'Indirizzo e-mail',
+    inviteRole: 'Ruolo',
+    inviteSend: 'Invita',
+    roleOwner: 'Proprietario',
+    roleMember: 'Membro',
+    eventsTitle: 'Eventi',
+    eventsHint: 'Solo forme e dimensioni: né nome, né indirizzo, né foto.',
+    eventsEmpty: 'Questo cliente non ha alcun evento.',
+    eventsTableLabel: 'Gli eventi del cliente',
+    eventColumn: 'Evento',
+    eventStatusColumn: 'Stato',
+    photosColumn: 'Foto',
+    usedColumn: 'Spazio usato',
+    startsColumn: 'Inizio previsto',
+    eventLabel: (short: string) => `Evento ${short}`,
+    eventStatuses: {
+      draft: 'Bozza',
+      live: 'In diretta',
+      closed: 'Chiuso',
+      archived: 'Archiviato',
+    },
+    photoCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto`,
+        other: `${t.number(count)} foto`,
+      }),
+    auditLink: 'Vedi il registro di questo cliente',
+
+    accountsTitle: 'Account',
+    accountsHint:
+      'Gli indirizzi delle persone che hanno un account su questa istanza, e nient’altro: né nome visualizzato, né password.',
+    accountsEmpty: 'Nessun account per ora.',
+    accountsTableLabel: 'Gli account dell’istanza',
+    addressColumn: 'Indirizzo',
+    roleColumn: 'Ruolo sull’istanza',
+    accountStateColumn: 'Stato',
+    lastLoginColumn: 'Ultimo accesso',
+    ownedColumn: 'Eventi posseduti',
+    clientsColumn: 'Clienti',
+    siteRoleOperator: 'Operatore',
+    accountActive: 'Attivo',
+    accountDisabled: 'Disattivato',
+    neverSignedIn: 'Mai',
+    mustChange: 'Deve cambiare la password',
+    resetPassword: 'Reimposta la password',
+    resetTitle: 'Reimpostare questa password?',
+    resetBody:
+      'Un link valido per un’ora parte verso l’indirizzo dell’account e da nessun’altra parte: lei lo vede solo su un’istanza che non invia posta.',
+    resetSent: 'Il link è stato inviato all’indirizzo dell’account.',
+    resetPending: 'In attesa di un proprietario',
+    resetPendingBody:
+      'Questa istanza non invia posta. Un altro proprietario del cliente deve approvare la richiesta prima che il link le venga consegnato.',
+    resetFetch: 'Recupera il link approvato',
+    resetLinkTitle: 'Link di reimpostazione',
+    resetLinkBody:
+      'Funziona una sola volta. Lo trasmetta al titolare dell’account, poi chiuda questo riquadro.',
+
+    auditTitle: 'Registro',
+    auditHint:
+      'Tutto ciò che è stato fatto sull’istanza, dal più recente al più vecchio. Il motivo di una modifica dei limiti è la frase dell’operatore stesso.',
+    auditEmpty: 'Nessuna azione registrata per ora.',
+    auditMore: 'Mostra le azioni più vecchie',
+    auditFiltered: 'Registro di un solo cliente.',
+    auditShowAll: 'Mostra tutto il registro',
+    auditReason: (reason: string) => `Motivo: ${reason}`,
+    auditAccount: (short: string) => `account ${short}`,
+    actors: {
+      operator: 'Operatore',
+      member: 'Membro',
+      system: 'Sistema',
+      integration: 'Integrazione',
+    },
+    actions: {
+      'client.created': 'Cliente aperto.',
+      'client.renamed': 'Cliente rinominato.',
+      'client.ceilingsChanged': 'Limiti modificati.',
+      'client.periodReset': 'Periodo rinnovato.',
+      'client.suspended': 'Cliente sospeso.',
+      'client.resumed': 'Sospensione revocata.',
+      'invitation.issued': 'Invito emesso.',
+      'invitation.approved': 'Invito approvato da un proprietario.',
+      'account.resetRequested': 'Reimpostazione della password richiesta.',
+      'account.resetApproved': 'Reimpostazione approvata da un proprietario.',
+      'account.resetIssued': 'Reimpostazione emessa.',
+      'account.disabled': 'Account disattivato.',
+      'client.offboarded': 'Fine dell’incarico avviata.',
+      'client.finalized': 'Cliente eliminato alla fine del suo incarico.',
+      'account.enabled': 'Account riattivato.',
+      'account.deleted': 'Account eliminato.',
+      'account.termsAccepted': 'Condizioni d’uso accettate.',
+      'account.secondFactorEnrolled': 'Verifica in due passaggi attivata.',
+      'account.secondFactorDisabled': 'Verifica in due passaggi disattivata.',
+      'account.recoveryCodesRegenerated': 'Codici di recupero rinnovati.',
+      'account.recoveryCodeUsed': 'È stato usato un codice di recupero.',
+    },
+    actionInvitationIssuedPending: 'Invito emesso; attende il consenso di un proprietario.',
+    actionOther: 'È stata registrata un’azione.',
+    accountActionsColumn: 'Azioni sull’account',
+    disableAccount: 'Disattiva',
+    enableAccount: 'Riattiva',
+    deleteAccount: 'Elimina',
+    disableTitle: (address: string) => `Disattivare l’account di ${address}?`,
+    disableBody:
+      'Tutte le sue sessioni terminano subito e la persona non può più accedere. Non viene eliminato nulla: riattivarlo restituisce l’accesso, ma dovrà accedere di nuovo.',
+    accountDisabledDone: 'Account disattivato.',
+    accountEnabledDone: 'Account riattivato.',
+    deleteTitle: (address: string) => `Eliminare l’account di ${address}?`,
+    deleteBody:
+      'Risponde a una richiesta di cancellazione. L’account, le sue appartenenze, gli inviti indirizzati a lui, il suo secondo fattore e i link di condivisione che ha creato scompaiono. Le righe del registro che ha scritto restano, senza il suo nome, e così gli inviti che ha emesso. Il suo indirizzo resta nelle sue sessioni aperte (al massimo sette giorni) e nei link già emessi fino alla loro scadenza. Questa azione è definitiva.',
+    accountDeletedDone: 'Account eliminato.',
+    offboardTitle: 'Fine dell’incarico',
+    offboardIntro:
+      'Gli eventi in diretta vengono chiusi, le bozze archiviate, il cliente sospeso e i suoi album eliminati al più tardi allo scadere del termine che lei indica: è il tempo di cui il cliente dispone per esportare ciò che vuole conservare (la conservazione propria di un evento o i limiti del cliente possono eliminarli prima). Poi vengono eliminati gli account che appartenevano solo a lui e non hanno nient’altro, e con essi il cliente.',
+    graceDays: 'Termine prima dell’eliminazione, in giorni',
+    graceDaysHint: 'Un numero intero di giorni: i limiti sono quelli del server.',
+    offboardAction: 'Concludi l’incarico',
+    offboardConfirmTitle: 'Concludere l’incarico di questo cliente?',
+    offboardConfirmBody: (days: number) =>
+      t.count(days, {
+        one: `Tra ${t.number(days)} giorno al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in diretta sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
+        other: `Tra ${t.number(days)} giorni al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in diretta sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
+      }),
+    offboardedDone: 'Fine dell’incarico avviata.',
+    offboardingRunning:
+      'Questo incarico sta per concludersi: gli album verranno eliminati al più tardi alla data indicata sopra.',
+    daysNotWhole: 'Indichi un numero intero di giorni.',
+  },
+
+  titles: {
+    join: 'Entri nella galleria',
+    upload: 'Invio di foto',
+    feed: 'Foto della serata',
+    wall: 'Schermo dell’evento',
+    gallery: 'Album condiviso',
+    about: 'Informazioni',
+    notFound: 'Pagina non trovata',
+    login: 'Accesso',
+    forgotPassword: 'Password dimenticata',
+    resetPassword: 'Nuova password',
+    invitation: 'Invito',
+    changePassword: 'Cambio della password',
+    security: 'Sicurezza dell’account',
+    dashboard: 'I suoi eventi',
+    newEvent: 'Nuovo evento',
+    event: 'Evento',
+    moderation: 'Moderazione',
+    mobileModeration: 'Moderazione da telefono',
+    settings: 'Impostazioni dell’evento',
+    clientSpace: 'Area cliente',
+    site: 'Console dell’operatore',
+    siteClient: 'Cliente',
+    siteAccounts: 'Account dell’istanza',
+    siteAudit: 'Registro dell’istanza',
   },
 }

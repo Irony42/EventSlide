@@ -60,9 +60,30 @@ export const notWiredUseCases = (): HttpUseCases => ({
   acceptInvitation: notWired('acceptInvitation'),
 
   approveInvitation: notWired('approveInvitation'),
+  approvePasswordReset: notWired('approvePasswordReset'),
+  getClientLimits: notWired('getClientLimits'),
+  listClientAudit: notWired('listClientAudit'),
+  listPendingInvitations: notWired('listPendingInvitations'),
+
+  listSiteClients: notWired('listSiteClients'),
+  listSiteClientEvents: notWired('listSiteClientEvents'),
+  listSiteAccounts: notWired('listSiteAccounts'),
+  listSiteAudit: notWired('listSiteAudit'),
+  provisionClientOwner: notWired('provisionClientOwner'),
+  renameClient: notWired('renameClient'),
+  setClientCeilings: notWired('setClientCeilings'),
+  suspendClient: notWired('suspendClient'),
+  resumeClient: notWired('resumeClient'),
+  offboardClient: notWired('offboardClient'),
+  disableAccount: notWired('disableAccount'),
+  enableAccount: notWired('enableAccount'),
+  deleteAccount: notWired('deleteAccount'),
+  inviteToClientAsOperator: notWired('inviteToClientAsOperator'),
+  issuePasswordResetForAccount: notWired('issuePasswordResetForAccount'),
 
   createEvent: notWired('createEvent'),
   getEventBySlug: notWired('getEventBySlug'),
+  getEventView: notWired('getEventView'),
   listEventsForHost: notWired('listEventsForHost'),
   resolveJoinCode: notWired('resolveJoinCode'),
   updateEventSettings: notWired('updateEventSettings'),
@@ -70,9 +91,11 @@ export const notWiredUseCases = (): HttpUseCases => ({
   changeEventStatus: notWired('changeEventStatus'),
   scheduleEvent: notWired('scheduleEvent'),
   purgeEvent: notWired('purgeEvent'),
+  renameEvent: notWired('renameEvent'),
+  listModerators: notWired('listModerators'),
+  revokeModerator: notWired('revokeModerator'),
 
   joinEvent: notWired('joinEvent'),
-  authenticateGuest: notWired('authenticateGuest'),
   renameGuest: notWired('renameGuest'),
   revokeGuest: notWired('revokeGuest'),
   listGuests: notWired('listGuests'),
@@ -85,6 +108,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   deletePhoto: notWired('deletePhoto'),
   setPhotoCaption: notWired('setPhotoCaption'),
   getPhotoMedia: notWired('getPhotoMedia'),
+  identifyMediaViewer: notWired('identifyMediaViewer'),
 
   uploadClip: notWired('uploadClip'),
   getClipJob: notWired('getClipJob'),
@@ -170,6 +194,13 @@ export interface ServerHarnessOptions {
   readonly secondFactors?: FakeSecondFactorRepository
   /** The clock the use cases were built with, so the server and they agree on now. */
   readonly clock?: FakeClock
+  /**
+   * Ports to put in place of the world's fakes, for a suite whose subject needs the server to read
+   * what its use cases write through **real** adapters (`siteHarness.ts`: SQLite, so that the
+   * operator's listings see the client a route just created). Everything the harness would have
+   * built stays as it was for a key that is not given.
+   */
+  readonly deps?: Partial<HttpDeps>
 }
 
 /**
@@ -198,6 +229,7 @@ export const buildServerHarness = ({
   users,
   secondFactors,
   clock,
+  deps: depOverrides = {},
 }: ServerHarnessOptions = {}): ServerHarness => {
   const world = buildTestWorld(config, {
     ...(logger === undefined ? {} : { logger }),
@@ -206,7 +238,7 @@ export const buildServerHarness = ({
     ...(clock === undefined ? {} : { clock }),
     ...(mailer === undefined ? {} : { mailer }),
   })
-  const { deps } = world
+  const deps: HttpDeps = { ...world.deps, ...depOverrides }
 
   const health: MutableHealthChecks = {
     version: '2.0.0-test',
@@ -257,5 +289,5 @@ export const buildServerHarness = ({
     ...(clientDir === undefined ? {} : { clientDir }),
   })
 
-  return { app, health, ...world }
+  return { ...world, app, health, deps }
 }

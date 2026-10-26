@@ -12,6 +12,7 @@ import { AT, aClient, aClientCeilings, aUser, anEvent } from '../../testing/buil
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { SaturatedJoinCodeEventRepository } from '../../testing/saturatedEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { FakeUserRepository } from '../../testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
@@ -58,16 +59,12 @@ const joinCode = (value: string): JoinCode => {
   return parsed.value
 }
 
-/** A box whose join-code space answers "taken" to everything — what the bound is for. */
-class SaturatedEventRepository extends FakeEventRepository {
-  override async joinCodeTaken(): Promise<boolean> {
-    return true
-  }
-}
-
 /** The same bound, for the random slug suffix's own retry loop. */
 class SlugSaturatedEventRepository extends FakeEventRepository {
+  asked = 0
+
   override async slugTaken(): Promise<boolean> {
+    this.asked += 1
     return true
   }
 }
@@ -332,6 +329,8 @@ describe('createEvent', () => {
 
       expect(!result.ok && result.error.code).toBe('event.slugExhausted')
       expect(!result.ok && result.error.kind).toBe('unexpected')
+      expect(saturatedSlugs.asked).toBe(5)
+      expect(!result.ok && result.error.details).toEqual({ attempts: 5 })
     })
 
     it('refuses a name that folds away to nothing even with a suffix to append', async () => {
@@ -386,7 +385,7 @@ describe('createEvent', () => {
   })
 
   it('gives up rather than looping when no join code is free', async () => {
-    const saturated = new SaturatedEventRepository()
+    const saturated = new SaturatedJoinCodeEventRepository()
     const create = makeCreateEvent({
       events: saturated,
       clients,
@@ -404,8 +403,30 @@ describe('createEvent', () => {
     expect(!result.ok && result.error.code).toBe('event.joinCodeExhausted')
   })
 
+  it('asks about five join codes and no more before it gives up', async () => {
+    const saturated = new SaturatedJoinCodeEventRepository()
+    const create = makeCreateEvent({
+      events: saturated,
+      clients,
+      users,
+      eventCreation: 'anyAccount',
+      ids,
+      clock,
+      defaultQuotaBytes: DEFAULT_QUOTA,
+      maxQuotaBytes: null,
+      ...CORE_DEFAULTS,
+    })
+
+    const result = await create({ ownerId: OWNER, name: 'Camille & Sacha' })
+
+    expect(saturated.asked).toBe(5)
+    expect(!result.ok && result.error.details).toEqual({ attempts: 5 })
+    // The box is broken, not the host's input: a 500 for the operator, not a 409 to retry.
+    expect(!result.ok && result.error.kind).toBe('unexpected')
+  })
+
   it('saves nothing when it cannot allocate a join code', async () => {
-    const saturated = new SaturatedEventRepository()
+    const saturated = new SaturatedJoinCodeEventRepository()
     const create = makeCreateEvent({
       events: saturated,
       clients,
@@ -522,10 +543,10 @@ describe('createEvent', () => {
       expect(await events.listForUser(OWNER)).toEqual([])
     })
 
-    it('never compares the configured default against the ceiling, because env.ts already guarantees it fits', async () => {
+    it('never compares the configured default against the ceiling, because the config already guarantees it fits', async () => {
       // No `quotaBytes` in the request at all — the path that falls back to
       // `defaultQuotaBytes` — must never be refused for a ceiling reason, even one set
-      // below the default: that combination cannot be configured (env.ts refuses it),
+      // below the default: that combination cannot be configured (the config refuses it),
       // so this is what proves the comparison is skipped rather than coincidentally
       // passing.
       const create = makeCreateEvent({
@@ -769,6 +790,35 @@ describe('createEvent', () => {
       await grant(CLIENT_1, MEMBER)
       await grant(CLIENT_1, TWO_CLIENTS)
       await grant(CLIENT_2, TWO_CLIENTS)
+    })
+
+    it('refuses a member of a suspended client a new event, under either policy, and creates nothing (G2-14)', async () => {
+      clients.seed(aClient({ id: CLIENT_1, name: 'Atelier Camille', suspendedAt: AT }))
+
+      for (const policy of ['anyAccount', 'clientMembers'] as const) {
+        const result = await policyCreateEvent(policy)({
+          ownerId: MEMBER,
+          name: 'Un autre mariage',
+        })
+
+        expect(!result.ok && [result.error.kind, result.error.code], policy).toEqual([
+          'forbidden',
+          'client.suspended',
+        ])
+      }
+      expect(await events.listForUser(MEMBER)).toEqual([])
+    })
+
+    it('refuses it for a client the creator names as well, which is attaching to a suspended client', async () => {
+      clients.seed(aClient({ id: CLIENT_2, name: 'Studio Sacha', suspendedAt: AT }))
+
+      const result = await policyCreateEvent('anyAccount')({
+        ownerId: TWO_CLIENTS,
+        clientId: CLIENT_2,
+        name: 'Un autre mariage',
+      })
+
+      expect(!result.ok && result.error.code).toBe('client.suspended')
     })
 
     describe.each<EventCreationPolicy>(['anyAccount', 'clientMembers'])(

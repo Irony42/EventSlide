@@ -254,6 +254,11 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         <p className={styles['signature']}>
           {displayName === null ? t.upload.signedAnonymous : t.upload.signedAs(displayName)}
         </p>
+        {/* What the room is looking at, on a page of its own: a list that grows all evening
+            would push the controls below off the bottom of the phone. */}
+        <Link className={styles['feedLink']} to={`/e/${slug}/photos`}>
+          {t.feed.link}
+        </Link>
         {/* The way back to the notice once it has been read. Not rendered while the card
             is on screen, where it would open the same text a second time. */}
         {notice.state === null || gated ? null : (

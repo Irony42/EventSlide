@@ -6,7 +6,6 @@ import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/aut
 import { sendNoContent } from '../presenters/send'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
-import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import {
   aMission,
   AT,
@@ -36,11 +35,12 @@ import {
   type ReactionBudgetPolicy,
 } from '../../../application/usecases/reactions/reactToPhoto'
 import { makeWithdrawReaction } from '../../../application/usecases/reactions/withdrawReaction'
+import { makeRenameGuest } from '../../../application/usecases/guests/renameGuest'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
-import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
 /**
  * The guest surface, driven through a real Express app.
@@ -54,11 +54,14 @@ import { ok, type Result } from '../../../domain/shared/result'
 
 const WEDDING = 'wedding-id'
 const GALA = 'gala-id'
-const GUEST = 'guest-1'
-const OTHER_GUEST = 'guest-2'
+/** UUIDs because `guestParams` says so, and `PATCH /guests/:guestId` carries one in the path. */
+const GUEST = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const OTHER_GUEST = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 /** A moderator of the wedding, for the one path the host surface also owns. */
 const MODERATOR = '99999999-9999-4999-8999-999999999999'
 const MODERATOR_EMAIL = 'moderateur@example.test'
+/** A signed-in account with no role at the wedding. */
+const OUTSIDER = '88888888-8888-4888-8888-888888888888'
 
 /**
  * Photo ids are UUIDs because `photoParams` says so — the ids in a URL are opaque and
@@ -68,6 +71,8 @@ const PENDING = '11111111-1111-4111-8111-111111111111'
 const PUBLISHED = '22222222-2222-4222-8222-222222222222'
 const REJECTED = '33333333-3333-4333-8333-333333333333'
 const ANOTHER_GUESTS = '44444444-4444-4444-8444-444444444444'
+/** On the wall, and not the token's guest's own: the one a reaction can be given to. */
+const OTHERS_PUBLISHED = '66666666-6666-4666-8666-666666666666'
 /** Lives in the gala. Reachable only if tenant scoping is broken. */
 const GALA_PHOTO = '55555555-5555-4555-8555-555555555555'
 
@@ -86,65 +91,6 @@ const NO_TOKEN = ''
 type Client = ReturnType<typeof request>
 
 // ------------------------------------------------------------- test doubles --
-
-const unreached = (method: string): string =>
-  `MediaStore.${method} is not reached from the guest surface`
-
-/**
- * A `MediaStore` that records deletions, answers how old an object is, and refuses
- * everything else.
- *
- * Two methods are reachable from here — a guest taking a photo back is a `delete`, and
- * `deletePhoto` asks `stat` how recently the bytes were written before it unlinks them,
- * because bytes written moments ago may belong to a row that has not committed yet. The
- * rest throw rather than answering politely, so a route that started reading or writing
- * bytes itself fails loudly instead of passing against a store that shrugs.
- */
-class RecordingMediaStore implements MediaStore {
-  readonly deleted: string[] = []
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    this.deleted.push(`${eventId}:${hash.value}`)
-  }
-
-  async put(): Promise<void> {
-    throw new Error(unreached('put'))
-  }
-
-  async exists(): Promise<boolean> {
-    throw new Error(unreached('exists'))
-  }
-
-  async stat(): Promise<MediaMetadata | null> {
-    // Written at the epoch: old enough that the concurrent-writer guard has nothing to
-    // say, so what these tests are about — who may delete what — is what decides.
-    return { byteSize: 1, contentType: 'image/jpeg', modifiedAt: new Date(0) }
-  }
-
-  async openRead(): Promise<AsyncIterable<Uint8Array> | null> {
-    throw new Error(unreached('openRead'))
-  }
-
-  async read(): Promise<Uint8Array | null> {
-    throw new Error(unreached('read'))
-  }
-
-  async deleteEvent(): Promise<void> {
-    throw new Error(unreached('deleteEvent'))
-  }
-
-  async usedBytes(): Promise<number> {
-    throw new Error(unreached('usedBytes'))
-  }
-
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error(unreached('listEvents'))
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error(unreached('list'))
-  }
-}
 
 /**
  * A programmable `uploadPhotos`.
@@ -206,7 +152,7 @@ interface Subject {
   readonly app: Express
   readonly photos: FakePhotoRepository
   readonly reactions: FakeReactionRepository
-  readonly media: RecordingMediaStore
+  readonly media: InMemoryMediaStore
   readonly missions: FakeMissionRepository
   readonly upload: ScriptedUploadPhotos
   /** Paths the stand-in moderator handler answered, so a deferral is observable. */
@@ -237,7 +183,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
   const photos = new FakePhotoRepository()
   const missions = new FakeMissionRepository(photos)
   const reactions = new FakeReactionRepository()
-  const media = new RecordingMediaStore()
+  const media = new InMemoryMediaStore().forbidEnumeration('the guest surface')
   const upload = new ScriptedUploadPhotos()
   const ids = new SequentialIdGenerator()
   const budget = options.budget ?? { windowMs: 60_000, maxPerWindow: 30 }
@@ -245,7 +191,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
 
   const harness = buildHarness({
     ...(options.config === undefined ? {} : { config: options.config }),
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.use(
         '/api',
         guestRoutes({
@@ -280,6 +226,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               budget,
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
+            renameGuest: makeRenameGuest({ guests: base.guests, events: deps.events }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
             getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
@@ -299,6 +246,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
         },
       )
       app.post('/sign-in/moderator', signInAs({ userId: MODERATOR, email: MODERATOR_EMAIL }))
+      app.post('/sign-in/outsider', signInAs({ userId: OUTSIDER, email: 'autre@example.test' }))
     },
   })
 
@@ -346,6 +294,12 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     aPhoto({
       id: ANOTHER_GUESTS,
       eventId: WEDDING,
+      author: { kind: 'guest', id: OTHER_GUEST },
+    }),
+    aPhoto({
+      id: OTHERS_PUBLISHED,
+      eventId: WEDDING,
+      status: 'published',
       author: { kind: 'guest', id: OTHER_GUEST },
     }),
     aPhoto({
@@ -646,7 +600,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
     expect(response.body.error.code).toBe('upload.tooManyFiles')
   })
 
-  it('answers 403 guest.wrongEvent for a token issued for another event', async () => {
+  it('answers 404 event.notFound for a token issued for another event', async () => {
     // The cross-event attack: a guest at the gala pointing their own cookie at the
     // wedding's upload endpoint.
     const subject = buildSubject()
@@ -656,8 +610,8 @@ describe('POST /api/events/:eventSlug/photos', () => {
       .set('Cookie', cookie(subject.galaToken))
       .attach('photos', Buffer.from('one'), 'one.jpg')
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
     expect(subject.upload.calls).toHaveLength(0)
   })
 
@@ -705,6 +659,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
           joinPerMinute: 20,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
@@ -857,6 +812,8 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
 describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
   it('lets the author take back their own pending photo inside the window', async () => {
     const subject = buildSubject()
+    const pending = aPhoto({ id: PENDING, eventId: WEDDING })
+    await subject.media.put(pending.eventId, pending.contentHash, 'original', Uint8Array.of(1))
 
     const response = await request(subject.app)
       .delete(`${BASE}/photos/${PENDING}`)
@@ -864,7 +821,7 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
 
     expect(response.status).toBe(204)
     expect(await subject.photos.findById(asEventId(WEDDING), asPhotoId(PENDING))).toBe(null)
-    expect(subject.media.deleted).toHaveLength(1)
+    expect(subject.media.variantsOf(pending.eventId, pending.contentHash)).toEqual([])
     expect(subject.harness.bus.published).toContainEqual(
       expect.objectContaining({ type: 'photo.deleted' }),
     )
@@ -906,6 +863,40 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
 })
 
 // ------------------------------------- caption: PATCH /photos/:id/caption --
+
+/**
+ * The button and the refusal are one rule (HTTP-M-10): the `canDelete` flag the phone is shown
+ * must be exactly whether the same guest's `DELETE` is then accepted. Both read
+ * `Photo.deletionVerdict`; walked here over the switch, the three photographs and the window.
+ */
+describe('the canDelete flag agrees with what DELETE then does', () => {
+  const GRACE_MS = 15 * 60 * 1000
+  const cases = [true, false].flatMap((allowGuestSelfDelete) =>
+    [PENDING, PUBLISHED, REJECTED].flatMap((photoId) =>
+      [0, GRACE_MS + 1].map((elapsedMs) => ({ allowGuestSelfDelete, photoId, elapsedMs })),
+    ),
+  )
+
+  it.each(cases)(
+    'self-deletion $allowGuestSelfDelete, photo $photoId, $elapsedMs ms after the upload',
+    async ({ allowGuestSelfDelete, photoId, elapsedMs }) => {
+      const subject = buildSubject({ settings: { allowGuestSelfDelete } })
+      subject.harness.clock.advance(elapsedMs)
+
+      const mine = await request(subject.app)
+        .get(`${BASE}/photos/mine`)
+        .set('Cookie', cookie(subject.token))
+      const flagged = mine.body.items.find((item: { id: string }) => item.id === photoId) as {
+        canDelete: boolean
+      }
+      const deleted = await request(subject.app)
+        .delete(`${BASE}/photos/${photoId}`)
+        .set('Cookie', cookie(subject.token))
+
+      expect(flagged.canDelete).toBe(deleted.status === 204)
+    },
+  )
+})
 
 describe('PATCH /api/events/:eventSlug/photos/:photoId/caption', () => {
   it('writes the caption on the author own pending photo', async () => {
@@ -983,7 +974,7 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     const subject = buildSubject()
 
     const response = await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'love' })
 
@@ -996,13 +987,13 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
   it('answers 409 for the same kind twice, so a double tap is not a second count', async () => {
     const subject = buildSubject()
     await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'love' })
       .expect(204)
 
     const response = await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'love' })
 
@@ -1029,12 +1020,67 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     )
 
     const response = await request(subject.app)
-      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
       .set('Cookie', cookie(subject.token))
       .send({ kind: 'clap' })
 
     expect(response.status).toBe(429)
     expect(response.body.error.code).toBe('reaction.rateLimited')
+    // The budget's own window (60 s here): without it a phone retries at once.
+    expect(response.headers['retry-after']).toBe('60')
+  })
+
+  it('answers 429 once the per-minute limit for this address and event is spent', async () => {
+    // The coarse control, in front of the use case and apart from the guest's own budget:
+    // the budget here is generous, so only the limiter can refuse the second tap. A phone
+    // that taps at the speed of a thumb is what the limiter exists to slow down.
+    const subject = buildSubject({
+      config: {
+        rateLimits: {
+          uploadPerMinute: 12,
+          joinPerMinute: 20,
+          loginPerMinute: 10,
+          reactionPerMinute: 1,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
+          guestWritePerMinute: 300,
+        },
+      },
+    })
+    await request(subject.app)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
+      .set('Cookie', cookie(subject.token))
+      .send({ kind: 'love' })
+      .expect(204)
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos/${OTHERS_PUBLISHED}/reactions`)
+      .set('Cookie', cookie(subject.token))
+      .send({ kind: 'clap' })
+
+    expect(response.status).toBe(429)
+    expect(response.body.error.code).toBe('reaction.rateLimited')
+    expect(
+      subject.harness.bus.published.filter((frame) => frame.type === 'reaction.added'),
+    ).toHaveLength(1)
+  })
+
+  it('refuses a reaction to the guest’s own photograph, and announces nothing', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+      .set('Cookie', cookie(subject.token))
+      .send({ kind: 'love' })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('reaction.ownPhoto')
+    expect(
+      subject.harness.bus.published.filter((frame) => frame.type === 'reaction.added'),
+    ).toEqual([])
   })
 
   it('refuses every reaction when the host turned them off', async () => {
@@ -1064,6 +1110,29 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId/reactions/:kind', () => 
       .set('Cookie', cookie(subject.token))
 
     expect(response.status).toBe(204)
+  })
+
+  it('withdraws a reaction given to the guest’s own photograph, from before the rule existed', async () => {
+    // Taking a reaction back is not what the own-photo rule refuses, so a guest who gave one
+    // before it keeps their way out of it.
+    const subject = buildSubject()
+    subject.reactions.seed(
+      aReaction({ eventId: WEDDING, photoId: PUBLISHED, guestId: GUEST, kind: 'clap' }),
+    )
+
+    await request(subject.app)
+      .delete(`${BASE}/photos/${PUBLISHED}/reactions/clap`)
+      .set('Cookie', cookie(subject.token))
+      .expect(204)
+
+    expect(
+      await subject.reactions.findOne(
+        asEventId(WEDDING),
+        asPhotoId(PUBLISHED),
+        asGuestId(GUEST),
+        'clap',
+      ),
+    ).toBeNull()
   })
 
   it('answers 404 when there is nothing of that kind to withdraw', async () => {
@@ -1143,6 +1212,156 @@ describe('GET /api/events/:eventSlug/photos/:photoId/reactions', () => {
   })
 })
 
+// ------------------------------------- rename: PATCH /guests/:guestId --
+
+describe('PATCH /api/events/:eventSlug/guests/:guestId', () => {
+  const rename = (subject: Subject, displayName: string | null, target = GUEST) =>
+    request(subject.app)
+      .patch(`${BASE}/guests/${target}`)
+      .set('Cookie', cookie(subject.token))
+      .send({ displayName })
+
+  const nameOf = async (
+    subject: Subject,
+    eventId: string,
+    guestId: string,
+  ): Promise<string | null | undefined> =>
+    (await subject.harness.guests.findById(asEventId(eventId), asGuestId(guestId)))?.label()
+
+  it('lets a guest change the name their photos are signed with, and says what is stored', async () => {
+    const subject = buildSubject()
+
+    const response = await rename(subject, 'Léa D.')
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ guestId: GUEST, displayName: 'Léa D.' })
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa D.')
+    // A name is the one thing on this answer a phone is about to print on a projector.
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('answers the name as the domain stored it, not as it was typed', async () => {
+    // Folded and trimmed by `DisplayName`: the phone shows what the wall will print.
+    const subject = buildSubject()
+
+    const response = await rename(subject, '  Léa \n  D.  ')
+
+    expect(response.status).toBe(200)
+    expect(response.body.displayName).toBe('Léa D.')
+  })
+
+  it.each([
+    { what: 'null', displayName: null },
+    { what: 'a blank string', displayName: '   ' },
+  ])('takes the name off the wall when sent $what', async ({ displayName }) => {
+    const subject = buildSubject()
+
+    const response = await rename(subject, displayName)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ guestId: GUEST, displayName: null })
+    expect(await nameOf(subject, WEDDING, GUEST)).toBeNull()
+  })
+
+  it('refuses to rename another guest of the same event, and leaves their name alone', async () => {
+    // The name is projected in front of a room: editing somebody else's is a way to put
+    // words under their photograph.
+    const subject = buildSubject()
+
+    const response = await rename(subject, 'Piraté', OTHER_GUEST)
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('auth.forbidden')
+    expect(await nameOf(subject, WEDDING, OTHER_GUEST)).toBe('Sacha')
+  })
+
+  it('answers a guest id that does not exist exactly as one that does, so ids cannot be probed', async () => {
+    const subject = buildSubject()
+    const nobody = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+
+    const unknown = await rename(subject, 'Piraté', nobody)
+    const known = await rename(subject, 'Piraté', OTHER_GUEST)
+
+    expect(unknown.status).toBe(403)
+    expect(unknown.body).toEqual(known.body)
+  })
+
+  it('renames the guest of the event in the path, never the same id at another event', async () => {
+    // Guest ids are only unique within an event, so the use case reads `(eventId, guestId)`.
+    // The gala's guest happens to carry the wedding guest's id.
+    const subject = buildSubject()
+    subject.harness.guests.seed(aGuest({ id: GUEST, eventId: GALA, displayName: 'Léa du gala' }))
+
+    const response = await request(subject.app)
+      .patch(`/api/events/gala/guests/${GUEST}`)
+      .set('Cookie', cookie(subject.galaToken))
+      .send({ displayName: 'Renommée' })
+
+    expect(response.status).toBe(200)
+    expect(await nameOf(subject, GALA, GUEST)).toBe('Renommée')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+
+  it('refuses the wedding path to a token that names the gala, and renames nothing', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .patch(`${BASE}/guests/${GUEST}`)
+      .set('Cookie', cookie(subject.galaToken))
+      .send({ displayName: 'Piraté' })
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+
+  it('refuses a name past the domain limit with the domain code, which the boundary bound lets through', async () => {
+    // 41 characters is inside the boundary's 120 and outside `DisplayName`'s 40: the rule
+    // is the domain's, the boundary only bounds the size of what is parsed.
+    const subject = buildSubject()
+
+    const response = await rename(subject, 'x'.repeat(41))
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('displayName.tooLong')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+
+  it.each(['closed', 'archived'] as const)(
+    'refuses a rename once the event is %s, with the 409 an upload gets, and keeps the name',
+    async (status) => {
+      // The name is printed on the wall of a closed event, unmoderated: the credit under photographs the
+      // host approved must not move after the host closed it. The rule is the upload's own
+      // (`acceptsUploads()`), so a guest is told what an upload would be told.
+      const subject = buildSubject()
+      subject.harness.events.seed(
+        anEvent({ id: 'ended-id', slug: 'termine', joinCode: 'C10SED', status }),
+      )
+      subject.harness.guests.seed(aGuest({ id: GUEST, eventId: 'ended-id', displayName: 'Léa' }))
+
+      const response = await request(subject.app)
+        .patch(`/api/events/termine/guests/${GUEST}`)
+        .set('Cookie', cookie(subject.harness.issueGuestToken('ended-id', GUEST)))
+        .send({ displayName: 'Léa D.' })
+
+      expect(response.status).toBe(409)
+      expect(response.body.error.code).toBe('event.notAcceptingUploads')
+      expect(response.body.error.details).toEqual({ status })
+      expect(await nameOf(subject, 'ended-id', GUEST)).toBe('Léa')
+    },
+  )
+
+  it('refuses a guest the host has revoked, who may no longer sign anything', async () => {
+    const subject = buildSubject({ revoked: true })
+
+    const response = await rename(subject, 'Encore moi')
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('guest.revoked')
+    expect(await nameOf(subject, WEDDING, GUEST)).toBe('Léa')
+  })
+})
+
 // ------------------------------------------------- authorization, per route --
 
 /**
@@ -1205,6 +1424,15 @@ const ROUTES = [
     send: (client: Client, token: string) =>
       client.get(`${BASE}/photos/${PUBLISHED}/reactions`).set('Cookie', cookie(token)),
   },
+  {
+    name: 'PATCH /guests/:guestId',
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'Léa' }),
+  },
 ]
 
 /** The routes this router owns outright, where a session grants nothing at all. */
@@ -1220,13 +1448,13 @@ describe('the guest surface requires a guest token on every route', () => {
     expect(response.body.error.code).toBe('auth.required')
   })
 
-  it.each(ROUTES)('$name answers 403 for a token naming another event', async ({ send }) => {
+  it.each(ROUTES)('$name answers 404 for a token naming another event', async ({ send }) => {
     const subject = buildSubject()
 
     const response = await send(request(subject.app), subject.galaToken)
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it.each(ROUTES)('$name answers 403 once the host has revoked the guest', async ({ send }) => {
@@ -1278,7 +1506,7 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
   })
 
   it('keeps the guest handler when a guest token is presented', async () => {
-    // The deferral keys on the cookie, so a guest at an event they do not moderate is
+    // The deferral keys on membership and then the cookie, so a guest at an event they do not moderate is
     // still answered here — and by their own rules, not a moderator's.
     const subject = buildSubject()
 
@@ -1288,6 +1516,65 @@ describe('DELETE /api/events/:eventSlug/photos/:photoId is shared with the host 
 
     expect(response.status).toBe(403)
     expect(response.body.error.code).toBe('photo.deleteForbidden')
+    expect(subject.hostHandlerReached).toEqual([])
+  })
+
+  it('answers a moderator as a moderator even when the browser holds a guest cookie of this event (HTTP-M-02)', async () => {
+    // A host who scanned their own QR code in the browser they moderate from is a guest of the
+    // event for thirty-six hours. Dispatched on the cookie alone, their delete of somebody
+    // else's photograph was refused as a guest's would be: `403 photo.deleteForbidden`.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(204)
+    expect(subject.hostHandlerReached).toEqual([`/api/events/mariage/photos/${ANOTHER_GUESTS}`])
+  })
+
+  it('answers a moderator as a moderator even with the guest cookie of another event', async () => {
+    // `403 guest.wrongEvent` before (and `404` since HTTP-M-03): the cookie was weighed against an event the caller was
+    // not asking about, and the role they hold in this one was never read.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/moderator').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.galaToken))
+
+    expect(response.status).toBe(204)
+    expect(subject.hostHandlerReached).toHaveLength(1)
+  })
+
+  it('keeps a signed-in account with no role here on the guest handler when it holds a guest cookie', async () => {
+    // The direction the dispatch was written for, and still true: a guest at somebody else's
+    // event, who happens to have an account, must not be sent into `requireRole` and told 404.
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/outsider').expect(204)
+
+    const response = await agent
+      .delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(403)
+    expect(response.body.error.code).toBe('photo.deleteForbidden')
+    expect(subject.hostHandlerReached).toEqual([])
+  })
+
+  it('hands a signed-in account with no role and no guest cookie to the host handler, which refuses it', async () => {
+    const subject = buildSubject()
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in/outsider').expect(204)
+
+    const response = await agent.delete(`${BASE}/photos/${ANOTHER_GUESTS}`)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
     expect(subject.hostHandlerReached).toEqual([])
   })
 
@@ -1349,6 +1636,42 @@ const CROSS_EVENT_ROUTES = [
   },
 ]
 
+/**
+ * A guest token that does not name the event of the path is answered as that event **not being there**
+ * (HTTP-M-03). `403 guest.wrongEvent` told a guest of any event which slugs exist, drafts and archived
+ * events included, where the public wall answers 404 for all three: an enumeration oracle over other
+ * people's evenings, on a guessable slug (`camille-et-sacha`). The reason is in the log.
+ */
+describe('a token for another event cannot tell which events exist (HTTP-M-03)', () => {
+  const answerFor = async (subject: Subject, slug: string) => {
+    const response = await request(subject.app)
+      .get(`/api/events/${slug}/photos/mine`)
+      .set('Cookie', cookie(subject.token))
+    return { status: response.status, body: response.body as unknown }
+  }
+
+  it('answers a live event, a draft, an archived one and an absent slug identically', async () => {
+    const subject = buildSubject()
+    subject.harness.events.seed(
+      anEvent({ id: 'draft-id', slug: 'brouillon', joinCode: 'D3M41N', status: 'draft' }),
+      anEvent({ id: 'archive-id', slug: 'archive', joinCode: 'ARCH1V', status: 'archived' }),
+    )
+
+    const answers = {
+      live: await answerFor(subject, 'gala'),
+      draft: await answerFor(subject, 'brouillon'),
+      archived: await answerFor(subject, 'archive'),
+      absent: await answerFor(subject, 'inconnu'),
+    }
+
+    expect(answers.absent.status).toBe(404)
+    expect(answers.live).toEqual(answers.absent)
+    expect(answers.draft).toEqual(answers.absent)
+    expect(answers.archived).toEqual(answers.absent)
+    expect(answers.absent.body).toMatchObject({ error: { code: 'event.notFound' } })
+  })
+})
+
 describe('a resource from another event does not exist', () => {
   it.each(CROSS_EVENT_ROUTES)('$name answers 404 $code', async ({ send, code }) => {
     const subject = buildSubject()
@@ -1395,6 +1718,43 @@ const INVALID_REQUESTS = [
         .post(`${BASE}/photos/${PUBLISHED}/reactions`)
         .set('Cookie', cookie(token))
         .send({ kind: 'shrug' }),
+  },
+  {
+    name: 'a guest id that is not a uuid',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/not-a-uuid`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'Léa' }),
+  },
+  {
+    name: 'a rename body with no displayName key',
+    send: (client: Client, token: string) =>
+      client.patch(`${BASE}/guests/${GUEST}`).set('Cookie', cookie(token)).send({}),
+  },
+  {
+    name: 'a display name that is not a string',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 42 }),
+  },
+  {
+    name: 'a display name past the boundary bound of 120 characters',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'x'.repeat(121) }),
+  },
+  {
+    name: 'a rename body carrying a key that is not the name',
+    send: (client: Client, token: string) =>
+      client
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set('Cookie', cookie(token))
+        .send({ displayName: 'Léa', revokedAt: null }),
   },
   {
     name: 'a reaction kind outside the closed set in the path',
@@ -1575,7 +1935,7 @@ describe('GET /api/events/:eventSlug/missions/mine', () => {
       .get(`${BASE}/missions/mine`)
       .set('Cookie', cookie(subject.galaToken))
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 })

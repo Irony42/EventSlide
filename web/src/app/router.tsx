@@ -1,17 +1,24 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { PageTitle } from '../design-system/components/PageTitle'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DeferredLocale } from '../lib/i18n/LocaleProvider'
+import { useAbout, useAboutAnswered } from './useAbout'
+import type { UiText } from '../lib/i18n/translations'
 import { useTranslations } from '../lib/i18n/useTranslations'
+import { GuestFeedPage } from '../features/guest-feed/GuestFeedPage'
 import { GuestUploadPage } from '../features/guest-upload/GuestUploadPage'
 import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
+import { AccountMenu } from './AccountMenu'
 import { ErrorBoundary } from './ErrorBoundary'
 import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
 import { NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
+import { RequireOperator } from './RequireOperator'
+import { SessionProvider } from './SessionProvider'
 import { SiteFooter } from './SiteFooter'
 import styles from './router.module.css'
 
@@ -92,21 +99,63 @@ const AboutPage = lazy(async () => ({
   default: (await import('../features/about/AboutPage')).AboutPage,
 }))
 
+/**
+ * The client's own space (G2-16 / P3-17): lazy, and registered only on a box that has one.
+ */
+const ClientSpacePage = lazy(async () => ({
+  default: (await import('../features/admin/ClientSpacePage')).ClientSpacePage,
+}))
+
+/**
+ * The operator's console (G2-15 / P3-16): five lazy chunks, registered only on a box that has one.
+ * A guest, and a host who is not the operator, never download a line of it.
+ */
+const SiteLayout = lazy(async () => ({
+  default: (await import('../features/site/SiteLayout')).SiteLayout,
+}))
+const SiteClientsPage = lazy(async () => ({
+  default: (await import('../features/site/ClientsPage')).ClientsPage,
+}))
+const SiteClientPage = lazy(async () => ({
+  default: (await import('../features/site/ClientPage')).ClientPage,
+}))
+const SiteAccountsPage = lazy(async () => ({
+  default: (await import('../features/site/AccountsPage')).AccountsPage,
+}))
+const SiteAuditPage = lazy(async () => ({
+  default: (await import('../features/site/AuditPage')).AuditPage,
+}))
+
 const ChangePasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ChangePasswordPage')).ChangePasswordPage,
 }))
 
-/**
- * The second gate, inside `RequireAuth`.
- *
- * A moderator invited by a host arrives with a password somebody else chose for them;
- * until they replace it, every admin address leads to the change-password screen.
- */
 const SecurityPage = lazy(async () => ({
   default: (await import('../features/auth/SecurityPage')).SecurityPage,
 }))
+
+/**
+ * The second gate, inside `RequireAuth`: an account with `mustChangePassword` set reaches
+ * the change-password screen from every admin address until it has replaced its password.
+ */
 const MustChangePasswordGate = lazy(async () => ({
   default: (await import('../features/auth/MustChangePasswordGate')).MustChangePasswordGate,
+}))
+
+/**
+ * The pages a link opens: an invitation (G2-09), and the two halves of a forgotten password
+ * (G2-08). Lazy for the reason the sign-in form is (nobody needs them while photographing a
+ * party) and **none of them behind `RequireAuth`**: the person who opens one has no session,
+ * and the link or the form is the whole credential.
+ */
+const AcceptInvitationPage = lazy(async () => ({
+  default: (await import('../features/auth/AcceptInvitationPage')).AcceptInvitationPage,
+}))
+const ForgotPasswordPage = lazy(async () => ({
+  default: (await import('../features/auth/ForgotPasswordPage')).ForgotPasswordPage,
+}))
+const ResetPasswordPage = lazy(async () => ({
+  default: (await import('../features/auth/ResetPasswordPage')).ResetPasswordPage,
 }))
 
 /**
@@ -151,6 +200,11 @@ const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
  * not-found screen under the host's footer, and a guest is not who is being asked. The
  * source offer is not subject to this: it belongs on every screen that has a footer.
  */
+const useSignedInArea = (): boolean => {
+  const { pathname } = useLocation()
+  return pathname === '/admin' || pathname.startsWith('/admin/')
+}
+
 const useHostScreen = (): boolean => {
   const { pathname } = useLocation()
   return pathname === '/login' || pathname === '/admin' || pathname.startsWith('/admin/')
@@ -204,6 +258,24 @@ const LazyGuestPage = () => (
 )
 
 /**
+ * The host layout's header: the picker, and the account menu where there is an account.
+ *
+ * The menu is mounted on `/admin/**` and nowhere else, which is the signed-in area by
+ * construction (`RequireAuth` guards exactly that subtree). Mounting it there rather than on
+ * every host screen means it appears on arrival and goes with the sign-out's navigation,
+ * with no state to keep in step with a login that happened on a sibling route.
+ */
+const HostHeader = () => {
+  const signedInArea = useSignedInArea()
+  return (
+    <div className={styles['hostHeader']}>
+      <LanguagePicker />
+      {signedInArea ? <AccountMenu /> : null}
+    </div>
+  )
+}
+
+/**
  * The host console, in the host's own language, re-providing nothing.
  *
  * It used to wrap everything under it in a `FrenchSurface`; a host reading their console
@@ -220,22 +292,27 @@ const LazyGuestPage = () => (
 const HostLayout = () => {
   const backdrop = useGlassBackdrop()
   const hostScreen = useHostScreen()
+  const signedInArea = useSignedInArea()
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <AppShell
-          surface="host"
-          backdrop={backdrop}
-          header={<LanguagePicker />}
-          // The one footer that may carry "Soutenir le projet" (roadmap G4-02) and the
-          // operator's help page (G2-17), and only on the host's own screens: nobody on them
-          // is mid-upload or in front of the room.
-          footer={<SiteFooter supportLink={hostScreen} helpLink={hostScreen} />}
-        >
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
-        </AppShell>
+        {/* Around the shell and not inside the gate: the account menu in the header and the
+            gates under the outlet read the same answer, and that is the whole point. */}
+        <SessionProvider scope={signedInArea ? 'signed-in' : 'open'}>
+          <AppShell
+            surface="host"
+            backdrop={backdrop}
+            header={<HostHeader />}
+            // The one footer that may carry "Soutenir le projet" (roadmap G4-02) and the
+            // operator's help page (G2-17), and only on the host's own screens: nobody on them
+            // is mid-upload or in front of the room.
+            footer={<SiteFooter supportLink={hostScreen} helpLink={hostScreen} />}
+          >
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </AppShell>
+        </SessionProvider>
       </ToastProvider>
     </ErrorBoundary>
   )
@@ -267,7 +344,42 @@ const WallLayout = () => (
   </DeferredLocale>
 )
 
+/**
+ * A page, named in the browser tab (WCAG 2.4.2).
+ *
+ * The title is declared here, beside the address it belongs to, and not inside each page:
+ * a screen mounted from four addresses (the not-found one) carries no title of its own, a
+ * page with six states (the invitation) needs one in none of them, and a reader of this table
+ * sees every tab name together. It sits inside the layout, so the title is in the language
+ * that layout speaks: the event's, on the wall, once its response has said which.
+ *
+ * `pageTitles.test.tsx` mounts every address and holds this table to `fr.titles`.
+ */
+const TabTitle = ({ page }: { readonly page: keyof UiText['titles'] }) => {
+  const t = useTranslations()
+  return <PageTitle title={t.titles[page]} />
+}
+
+const titled = (page: keyof UiText['titles'], element: ReactNode): ReactNode => (
+  <>
+    <TabTitle page={page} />
+    {element}
+  </>
+)
+
 export function AppRoutes() {
+  // Read once the box has said so: with `SITE_ADMIN=off` there is no client space, so no route is
+  // registered and a direct visit to its address is the not-found screen, as for any address
+  // nobody wrote (G2-00 / P3-21).
+  const siteAdmin = useAbout().features.siteAdmin
+  const aboutAnswered = useAboutAnswered()
+  const { pathname } = useLocation()
+  // The console's addresses exist only on a box that says so, and a box has not said so yet: a
+  // reload of `/admin/site` would be answered "not found" for the moments before it does, and then
+  // be the console. Waited for here, and only here: no other address waits on the box.
+  if (!aboutAnswered && (pathname === '/admin/site' || pathname.startsWith('/admin/site/'))) {
+    return <RouteFallback />
+  }
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
@@ -276,60 +388,110 @@ export function AppRoutes() {
         <Route path="/" element={<Navigate to="/join" replace />} />
 
         <Route element={<GuestLayout />}>
-          <Route path="/join" element={<JoinPage />} />
+          <Route path="/join" element={titled('join', <JoinPage />)} />
           {/* A path, not a query string. 1.0 emitted `?partyname=` and read `?party`,
               so every guest silently uploaded to the default event. */}
-          <Route path="/join/:code" element={<JoinPage />} />
-          <Route path="/e/:slug/upload" element={<GuestUploadPage />} />
+          <Route path="/join/:code" element={titled('join', <JoinPage />)} />
+          <Route path="/e/:slug/upload" element={titled('upload', <GuestUploadPage />)} />
+          <Route path="/e/:slug/photos" element={titled('feed', <GuestFeedPage />)} />
           {/* The guest's own dead ends, answered on the guest's own surface.
               A card printed against an older URL shape, a link forwarded through a
               group chat, a path that gained a segment: the reader is holding a phone
               and may not read French, and "this address does not exist, go here
               instead" is the whole value of the screen. The host catch-all below still
-              answers everything else, in French and at host width, which is right for a
-              mistyped `/admin` address. */}
-          <Route path="/join/*" element={<NotFoundView />} />
-          <Route path="/e/*" element={<NotFoundView />} />
+              answers everything else, at host width, which is right for a mistyped
+              `/admin` address. */}
+          <Route path="/join/*" element={titled('notFound', <NotFoundView />)} />
+          <Route path="/e/*" element={titled('notFound', <NotFoundView />)} />
           {/* The shared gallery. The token is a path segment, like the join code, and it
               is the whole credential: nothing here signs anybody in. */}
           <Route element={<LazyGuestPage />}>
-            <Route path="/g/:token" element={<GalleryPage />} />
-            <Route path="/about" element={<AboutPage />} />
+            <Route path="/g/:token" element={titled('gallery', <GalleryPage />)} />
+            <Route path="/about" element={titled('about', <AboutPage />)} />
           </Route>
-          <Route path="/g/*" element={<NotFoundView />} />
+          <Route path="/g/*" element={titled('notFound', <NotFoundView />)} />
         </Route>
 
         {/* Public, and behind no session: a projector has nobody to log it in. */}
         <Route element={<WallLayout />}>
-          <Route path="/e/:slug/display" element={<WallPage />} />
+          <Route path="/e/:slug/display" element={titled('wall', <WallPage />)} />
         </Route>
 
         <Route element={<HostLayout />}>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={titled('login', <LoginPage />)} />
+
+          {/* The pages a link or a forgotten password opens, with no session behind them. The
+              token is the last segment of the address, like the gallery's; `/invite` and
+              `/password` alone are the catch-all's, not these. */}
+          <Route path="/invite/:token" element={titled('invitation', <AcceptInvitationPage />)} />
+          <Route
+            path="/password/forgot"
+            element={titled('forgotPassword', <ForgotPasswordPage />)}
+          />
+          <Route
+            path="/password/reset/:token"
+            element={titled('resetPassword', <ResetPasswordPage />)}
+          />
 
           <Route element={<RequireAuth />}>
             <Route element={<MustChangePasswordGate />}>
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/events/new" element={<EventCreatePage />} />
-              <Route path="/admin/events/:slug" element={<EventDetailPage />} />
-              <Route path="/admin/events/:slug/moderation" element={<ModerationPage />} />
+              <Route path="/admin" element={titled('dashboard', <AdminDashboardPage />)} />
+              <Route path="/admin/events/new" element={titled('newEvent', <EventCreatePage />)} />
+              <Route path="/admin/events/:slug" element={titled('event', <EventDetailPage />)} />
+              <Route
+                path="/admin/events/:slug/moderation"
+                element={titled('moderation', <ModerationPage />)}
+              />
               {/* Beside the console rather than instead of it: the host chooses the
                   surface by choosing the address, and a phone-shaped screen is a
                   different screen, not a narrow one. */}
               <Route
                 path="/admin/events/:slug/moderation/mobile"
-                element={<MobileModerationPage />}
+                element={titled('mobileModeration', <MobileModerationPage />)}
               />
-              <Route path="/admin/events/:slug/settings" element={<EventSettingsPage />} />
-              <Route path="/admin/password" element={<ChangePasswordPage />} />
-              {/* The operator's second factor (G2-13). Not linked from a menu yet: the console
-                  that will link it (G2-15) does not exist, and the address is the entry. */}
-              <Route path="/admin/security" element={<SecurityPage />} />
+              <Route
+                path="/admin/events/:slug/settings"
+                element={titled('settings', <EventSettingsPage />)}
+              />
+              {siteAdmin ? (
+                <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />
+              ) : null}
+              {/* The operator's console. Registered only where the box has one, and then only
+                  for the account that operates it: anybody else is answered the not-found
+                  screen, as for an address nobody wrote, and is told nothing about a console. */}
+              {siteAdmin ? (
+                <Route
+                  element={<RequireOperator fallback={titled('notFound', <NotFoundView />)} />}
+                >
+                  <Route element={<SiteLayout />}>
+                    <Route path="/admin/site" element={titled('site', <SiteClientsPage />)} />
+                    <Route
+                      path="/admin/site/clients/:clientId"
+                      element={titled('siteClient', <SiteClientPage />)}
+                    />
+                    <Route
+                      path="/admin/site/accounts"
+                      element={titled('siteAccounts', <SiteAccountsPage />)}
+                    />
+                    <Route
+                      path="/admin/site/audit"
+                      element={titled('siteAudit', <SiteAuditPage />)}
+                    />
+                  </Route>
+                </Route>
+              ) : null}
+              <Route
+                path="/admin/password"
+                element={titled('changePassword', <ChangePasswordPage />)}
+              />
+              {/* The operator's second factor (G2-13). The console's gate links here for an
+                  operator who has not enrolled; the address is otherwise the entry. */}
+              <Route path="/admin/security" element={titled('security', <SecurityPage />)} />
             </Route>
           </Route>
 
           {/* Not a redirect to the upload page. See NotFoundView. */}
-          <Route path="*" element={<NotFoundView />} />
+          <Route path="*" element={titled('notFound', <NotFoundView />)} />
         </Route>
       </Routes>
     </Suspense>

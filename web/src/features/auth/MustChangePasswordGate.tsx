@@ -15,10 +15,12 @@ export interface MustChangePasswordGateProps {
 /**
  * The second gate on `/admin/**`, inside `RequireAuth`.
  *
- * A moderator invited by a host arrives with a password somebody else chose and sent
- * them. Until they replace it, every admin address leads to one screen: an account
- * whose credentials have been through a third party must not be able to publish photos
- * to a room of two hundred people.
+ * An account with `mustChangePassword` set — the owner a box creates from
+ * `BOOTSTRAP_OWNER_PASSWORD`, a password that sits in a deployment manifest and in shell
+ * history — has to replace it first. Until it does, every admin address leads to one
+ * screen: an account whose credentials have been through a third party must not be able
+ * to publish photos to a room of two hundred people. The server refuses every other route
+ * the same way (`auth.passwordChangeRequired`); this is the screen that says why.
  *
  * A session that could not be *asked for* is not a session that must change its
  * password: the page renders. `RequireAuth` above already decides what an

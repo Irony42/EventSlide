@@ -1,4 +1,4 @@
-import { canTransition, needsDecision, type PhotoStatus } from '../photos/photoStatus'
+import { canTransition, type PhotoStatus } from '../photos/photoStatus'
 import { DomainError } from '../shared/errors'
 import type { PhotoId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
@@ -19,12 +19,6 @@ export interface QueueItem {
   readonly id: PhotoId
   readonly status: PhotoStatus
   readonly createdAt: Date
-  /**
-   * The row shows a badge when the photo carries guest text, because a caption is
-   * projected at the size of the room and has to be read before publishing. No rule
-   * here consults it; it travels with the row so the console needs no second query.
-   */
-  readonly hasCaption: boolean
 }
 
 /** The console's tabs. `all` is the album view rather than a moderation view. */
@@ -109,36 +103,6 @@ export const buildQueue = <T extends QueueItem>(
 
   const ordered = orderQueue(filterQueue(items, filter), order)
   return ok(limit === undefined ? ordered : ordered.slice(0, limit))
-}
-
-/** What the badge shows: how many photos are still waiting on the host. */
-export const pendingCount = (items: readonly QueueItem[]): number =>
-  items.filter((item) => needsDecision(item.status)).length
-
-/**
- * Where the host's focus goes after they decide, so the queue can be worked with one
- * hand on the keyboard: the next photo in the order they are actually looking at, the
- * preceding one when they just decided on the last row, and nothing when that was the
- * whole queue.
- *
- * `items` is the list as displayed, before the decision is applied. An id absent from
- * it means another moderator already dealt with that photo, or an SSE update changed
- * the list under the keystroke: focus then stays where it is rather than jumping the
- * host to an unrelated photo.
- */
-export const nextAfterDecision = (
-  items: readonly QueueItem[],
-  decidedId: PhotoId,
-  filter: QueueFilter,
-  order: QueueOrder,
-): PhotoId | null => {
-  const ordered = orderQueue(filterQueue(items, filter), order)
-  const index = ordered.findIndex((item) => item.id === decidedId)
-  if (index === -1) return null
-
-  const next = ordered[index + 1] ?? ordered[index - 1]
-  if (next === undefined) return null
-  return next.id
 }
 
 /**

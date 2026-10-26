@@ -7,7 +7,6 @@ import type { PresenterContext } from '../presenters/presenters'
 import { sendNoContent } from '../presenters/send'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
-import type { MediaMetadata, MediaStore, StoredObject } from '../../../application/ports/mediaStore'
 import {
   AT,
   aGuest,
@@ -25,10 +24,10 @@ import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobR
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListEventPhotos } from '../../../application/usecases/photos/listEventPhotos'
 import { makeGetTopPhotos } from '../../../application/usecases/reactions/getTopPhotos'
-import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asPhotoId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
+import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
 /**
  * Ring 4: the wire contract and the authorization decision for the host's console.
@@ -65,56 +64,10 @@ const PRESENTER: PresenterContext = {
   clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: true },
 }
 
-/**
- * Only `delete` matters to a moderator removing a photo; the read paths belong to
- * `mediaRoutes`. Recording the deletion is what proves the file went before the row —
- * the row is the only record of the file's address, so the other order strands bytes
- * nobody can name.
- */
-class RecordingMediaStore implements MediaStore {
-  readonly deleted: string[] = []
-
-  async put(): Promise<void> {}
-
-  async exists(): Promise<boolean> {
-    return false
-  }
-
-  async stat(): Promise<MediaMetadata | null> {
-    return null
-  }
-
-  async openRead(): Promise<AsyncIterable<Uint8Array> | null> {
-    return null
-  }
-
-  async read(): Promise<Uint8Array | null> {
-    return null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    this.deleted.push(`${eventId}|${hash.value}`)
-  }
-
-  async deleteEvent(): Promise<void> {}
-
-  async usedBytes(): Promise<number> {
-    return 0
-  }
-
-  async listEvents(): Promise<readonly EventId[]> {
-    return []
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    return []
-  }
-}
-
 interface Adapters {
   readonly photos: FakePhotoRepository
   readonly reactions: FakeReactionRepository
-  readonly media: RecordingMediaStore
+  readonly media: InMemoryMediaStore
 }
 
 /**
@@ -131,8 +84,12 @@ const notWired = async () => err(DomainError.unexpected('test.useCaseNotWired'))
  * Built here rather than in the shared harness because five sibling route modules are
  * using that harness, and each needs a different half of this list to be real.
  */
-const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): HttpUseCases => {
-  const { events, guests, memberships, bus, clock } = deps
+const usecasesFor = (
+  deps: HttpDeps,
+  { photos, reactions, media }: Adapters,
+  guests: Harness['guests'],
+): HttpUseCases => {
+  const { events, memberships, bus, clock } = deps
   return {
     authenticateUser: notWired,
     changePassword: notWired,
@@ -146,20 +103,43 @@ const usecasesFor = (deps: HttpDeps, { photos, reactions, media }: Adapters): Ht
     regenerateRecoveryCodes: notWired,
     disableSecondFactor: notWired,
     approveInvitation: notWired,
+    approvePasswordReset: notWired,
+    listSiteClients: notWired,
+    listSiteClientEvents: notWired,
+    listSiteAccounts: notWired,
+    listSiteAudit: notWired,
+    provisionClientOwner: notWired,
+    renameClient: notWired,
+    setClientCeilings: notWired,
+    suspendClient: notWired,
+    resumeClient: notWired,
+    offboardClient: notWired,
+    disableAccount: notWired,
+    enableAccount: notWired,
+    deleteAccount: notWired,
+    inviteToClientAsOperator: notWired,
+    issuePasswordResetForAccount: notWired,
+    getClientLimits: notWired,
+    listClientAudit: notWired,
+    listPendingInvitations: notWired,
     registerModerator: notWired,
     previewInvitation: notWired,
     acceptInvitation: notWired,
     createEvent: notWired,
     getEventBySlug: notWired,
+    getEventView: async () => Promise.reject(new Error('test.useCaseNotWired')),
     listEventsForHost: notWired,
     resolveJoinCode: notWired,
+    identifyMediaViewer: notWired,
     updateEventSettings: notWired,
     rotateJoinCode: notWired,
     changeEventStatus: notWired,
     scheduleEvent: notWired,
     purgeEvent: notWired,
+    renameEvent: notWired,
+    listModerators: notWired,
+    revokeModerator: notWired,
     joinEvent: notWired,
-    authenticateGuest: notWired,
     renameGuest: notWired,
     revokeGuest: notWired,
     listGuests: notWired,
@@ -216,11 +196,11 @@ type World = Harness & Adapters
 const world = (): World => {
   const photos = new FakePhotoRepository()
   const reactions = new FakeReactionRepository()
-  const media = new RecordingMediaStore()
+  const media = new InMemoryMediaStore().forbidEnumeration('the moderation routes')
   const adapters: Adapters = { photos, reactions, media }
 
   const harness = buildHarness({
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))
       app.post(
         '/sign-in/moderator',
@@ -229,7 +209,11 @@ const world = (): World => {
       app.post('/sign-in/gala', signInAs({ userId: GALA_OWNER, email: 'gala@example.test' }))
       app.use(
         '/api',
-        moderationRoutes({ deps, usecases: usecasesFor(deps, adapters), presenter: PRESENTER }),
+        moderationRoutes({
+          deps,
+          usecases: usecasesFor(deps, adapters, base.guests),
+          presenter: PRESENTER,
+        }),
       )
     },
   })
@@ -763,14 +747,16 @@ describe('POST /api/events/:eventSlug/moderation/bulk', () => {
  * principal is present, and `server.ts` is not this module's to edit.
  */
 describe('DELETE /api/events/:eventSlug/photos/:photoId', () => {
-  it('lets a moderator delete any photo in their event, media before row', async () => {
+  it('lets a moderator delete any photo in their event, and the bytes go with it', async () => {
     const agent = await signedIn(subject, 'moderator')
+    const published = aPhoto({ id: P.published, eventId: WEDDING })
+    await subject.media.put(published.eventId, published.contentHash, 'original', Uint8Array.of(1))
 
     const response = await agent.delete(`/api/events/mariage/photos/${P.published}`)
 
     expect(response.status).toBe(204)
     expect(await statusOf(subject, P.published)).toBeNull()
-    expect(subject.media.deleted).toHaveLength(1)
+    expect(subject.media.variantsOf(published.eventId, published.contentHash)).toEqual([])
     expect(subject.bus.published).toContainEqual(
       expect.objectContaining({ type: 'photo.deleted', photoId: P.published }),
     )
@@ -925,11 +911,10 @@ describe('GET /api/events/:eventSlug/top-photos', () => {
     ])
   })
 
-  it('returns a shorter podium when the room favourite is no longer on the wall', async () => {
-    // `getTopPhotos` applies the limit to the ranking and *then* drops what is no
-    // longer on the wall, so a podium of one whose winner has since been rejected
-    // comes back empty rather than promoting the runner-up. Asserted here because the
-    // panel has to render a short list, not because this route decides it.
+  it('promotes the runner-up when the room favourite is no longer on the wall', async () => {
+    // `getTopPhotos` used to apply the limit to the ranking and *then* drop what is no
+    // longer on the wall, so a podium of one whose winner had since been rejected came back
+    // empty with a published photo holding reactions. The limit counts what is shown now.
     seedWallReactions(subject)
     seedRejectedFavourite(subject)
     const agent = await signedIn(subject, 'moderator')
@@ -937,7 +922,9 @@ describe('GET /api/events/:eventSlug/top-photos', () => {
     const response = await agent.get('/api/events/mariage/top-photos?limit=1')
 
     expect(response.status).toBe(200)
-    expect(response.body.items).toEqual([])
+    expect(response.body.items.map((item: { photoId: string }) => item.photoId)).toEqual([
+      P.published,
+    ])
   })
 
   it('is never stored', async () => {

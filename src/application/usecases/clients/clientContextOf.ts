@@ -20,7 +20,7 @@ import type {
  * `contextForEvent` is the lookup and this is the decision not to make it.
  */
 export const clientContextOf = async (
-  clients: ClientRepository,
+  clients: Pick<ClientRepository, 'contextForEvent'>,
   event: Event,
 ): Promise<ClientEventContext | null> =>
   event.clientId === null ? null : clients.contextForEvent(event.id)

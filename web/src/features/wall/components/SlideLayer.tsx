@@ -1,8 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { cx } from '../../../design-system/classNames'
 import type { WallItemDto } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { photoAlt } from '../photoAlt'
+import { photoAlt } from '../../../lib/photoAlt'
 import { PhotoPreload } from './PhotoPreload'
 import { WallMedia } from './WallMedia'
 import styles from './SlideLayer.module.css'
@@ -120,7 +121,7 @@ export function SlideLayer({
           <figure
             // The slot, never the photo: this element outlives every photo it shows.
             key={slot}
-            className={[styles['slide'], isFront ? styles['front'] : ''].filter(Boolean).join(' ')}
+            className={cx(styles['slide'], isFront && styles['front'])}
             style={slideStyle}
             // Ken Burns is declared from this attribute rather than unconditionally,
             // because base.css collapses animation *duration* under reduced motion and
@@ -157,7 +158,7 @@ export function SlideLayer({
                 // The outgoing copy is the same photo the front layer already named, on
                 // its way out, and is `aria-hidden` besides.
                 alt={isFront ? photoAlt(item, text) : ''}
-                className={styles['image'] ?? ''}
+                className={styles['image']}
               />
             ) : null}
             {isFront ? caption : null}

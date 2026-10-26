@@ -18,6 +18,8 @@ import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepos
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
+import { SqliteAccountHoldings } from '../infrastructure/db/sqliteAccountHoldings'
+import { SqliteSiteOverview } from '../infrastructure/db/sqliteSiteOverview'
 import { SqliteAccountTokenRepository } from '../infrastructure/db/sqliteAccountTokenRepository'
 import { SqliteSecondFactorRepository } from '../infrastructure/db/sqliteSecondFactorRepository'
 import { createAesGcmMfaVault } from '../infrastructure/crypto/aesGcmMfaVault'
@@ -43,6 +45,7 @@ import { randomIdGenerator } from '../infrastructure/crypto/randomIdGenerator'
 import { createSequentialIdGenerator } from '../infrastructure/crypto/sequentialIdGenerator'
 import { sha256ContentHasher } from '../infrastructure/crypto/sha256ContentHasher'
 import { createInMemoryEventBus } from '../infrastructure/realtime/inMemoryEventBus'
+import { createInMemorySignInAttempts } from '../infrastructure/security/inMemorySignInAttempts'
 import { createPinoLogger } from '../infrastructure/logging/pinoLogger'
 import { nullMailer } from '../infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
@@ -292,7 +295,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger.info('applied migrations', { ids: applied.join(', ') })
   }
 
-  const sessionStore = new SqliteSessionStore({ db, logger })
+  const sessionStore = new SqliteSessionStore({ db, logger, clock: systemClock })
 
   // ----------------------------------------------------------------- ports --
 
@@ -408,6 +411,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     shareLinks: new SqliteShareLinkRepository(db),
     clients: new SqliteClientRepository(db),
     audit: new SqliteAuditLog(db),
+    siteOverview: new SqliteSiteOverview(db),
+    accountHoldings: new SqliteAccountHoldings(db),
     accountTokens: new SqliteAccountTokenRepository(db),
     secretTokens: sha256SecretTokens,
     mailer,
@@ -420,6 +425,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       config.mfa.encryptionKey === null
         ? null
         : createAesGcmMfaVault({ keyMaterial: config.mfa.encryptionKey }),
+    // One counter for the box, so every request of a sign-in meets the same number.
+    signInAttempts: createInMemorySignInAttempts({ clock: systemClock }),
     invitationAcceptance: new SqliteInvitationAcceptance(db),
     // HKDF-derived from the session secret under its own label — see the adapter for why
     // that parent, and why not a new variable a running installation would lack.
@@ -438,7 +445,9 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mediaSweepMinimumAgeMs: MEDIA_SWEEP_MIN_AGE_MS,
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
     auditRetentionDays: config.audit.retentionDays,
+    newClientDefaults: config.newClientCeilings,
     operatorName: config.operator.name,
+    termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
     clips: {
       maxQueuedClips: config.clips.maxQueuedClips,
@@ -468,6 +477,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       : createRetentionSweeper({
           purge: usecases.purgeExpiredEvents,
           pruneAuditLog: usecases.pruneAuditLog,
+          finalizeOffboardedClients: usecases.finalizeOffboardedClients,
           logger,
           clock: adapters.clock,
           intervalMs: config.retention.sweepIntervalMs,
@@ -609,6 +619,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     secureCookie: config.session.secureCookie,
     e2eHooks: config.e2eHooks,
     siteAdmin: config.siteAdmin,
+    newClientCeilings: config.newClientCeilings,
     secondFactor: {
       available: config.mfa.encryptionKey !== null,
       requiredForOperators: config.mfa.requireOperatorSecondFactor,
@@ -643,7 +654,6 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     logger,
     bus: adapters.bus,
     events: adapters.events,
-    guests: adapters.guests,
     memberships: adapters.memberships,
     // Narrowed by `HttpDeps` to `siteRoleFor` and `authStateFor`: the whole adapter is
     // passed, and the HTTP layer can still only ask who operates the box and what
@@ -653,7 +663,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // Narrowed by `HttpDeps` to `find`: whether an account has an authenticator, and nothing
     // of what it holds.
     secondFactors: adapters.secondFactors,
-    guestTokens: adapters.guestTokens,
+    authenticateGuest: usecases.authenticateGuest,
     // Narrowed by `HttpDeps` to the one fact the HTTP layer publishes.
     mailer,
     diskSpaceChecker: statfsDiskSpaceChecker,

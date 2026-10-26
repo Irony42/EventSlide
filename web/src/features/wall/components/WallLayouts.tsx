@@ -1,9 +1,10 @@
 import type { CSSProperties } from 'react'
+import { cx } from '../../../design-system/classNames'
 import type { WallItemDto, WallLayout } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import type { Slideshow } from '../hooks/useSlideshow'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { photoAlt } from '../photoAlt'
+import { photoAlt } from '../../../lib/photoAlt'
 import { wallLayoutPlaysVideo } from '../wallLayoutPlayback'
 import { PhotoPreload } from './PhotoPreload'
 import { SlideCaption } from './SlideCaption'
@@ -240,7 +241,7 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
       {tiles.map((item, slot) => (
         <figure
           key={slot}
-          className={`${styles['tile']} ${styles[`slot${slot}`]}`}
+          className={cx(styles['tile'], styles[`slot${slot}`])}
           // The photo this tile is holding. Same reason as the spotlight's: the tile a
           // mosaic gives a photo is derived from the index alone, and this is what lets
           // two projectors be shown to agree tile for tile.
@@ -254,7 +255,7 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
             item={item}
             plays={plays}
             alt={photoAlt(item, text)}
-            className={styles['image'] ?? ''}
+            className={styles['image']}
           />
           <SlideCaption caption={null} authorName={item.authorName} variant="tile" />
         </figure>
@@ -315,7 +316,7 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
                 item={item}
                 plays={plays}
                 alt={photoAlt(item, text)}
-                className={styles['printImage'] ?? ''}
+                className={styles['printImage']}
               />
             </span>
             {/* On the mat, not on the photo: the one caption in the product that is ink
@@ -394,7 +395,7 @@ function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewPr
               item={item}
               plays={plays}
               alt={photoAlt(item, text)}
-              className={styles['frameImage'] ?? ''}
+              className={styles['frameImage']}
             />
           </figure>
         ))}
@@ -450,7 +451,7 @@ function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProp
             item={item}
             plays={plays}
             alt={photoAlt(item, text)}
-            className={styles['image'] ?? ''}
+            className={styles['image']}
           />
         </figure>
       ))}
@@ -490,7 +491,7 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
               item={item}
               plays={plays}
               alt={photoAlt(item, text)}
-              className={styles['paneImage'] ?? ''}
+              className={styles['paneImage']}
             />
           </span>
           <SlideCaption caption={item.caption} authorName={item.authorName} variant="pane" />

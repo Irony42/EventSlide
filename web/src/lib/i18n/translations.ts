@@ -1,3 +1,4 @@
+import { ApiError } from '../http'
 import { de } from './de'
 import { en } from './en'
 import { es } from './es'
@@ -11,7 +12,7 @@ import type { Locale } from './locale'
  * **This module used to argue for translating only the guest's half**, on the grounds that
  * the admin console "has exactly one reader, and they are the person who installed the
  * box". Two premises to keep, because they are the reasons not to reinstate it: a
- * moderator is invited by e-mail and handed a temporary password, so nothing implies they
+ * moderator is invited by e-mail, whatever language the host reads, so nothing implies they
  * read French — and the `wall` copy is *projected*. What survives is its best line, now a
  * reason to be careful rather than not to: a stale translation on the screen that decides
  * what goes on a projector is worse than French.
@@ -121,3 +122,18 @@ export const messageForCode = (code: string | undefined, text: UiText): string =
   const message = code !== undefined && Object.hasOwn(text.errors, code) ? table[code] : undefined
   return message ?? text.errors.unknown
 }
+
+/**
+ * A thrown value turned into a sentence a person can read, in the language they are reading.
+ *
+ * An `ApiError` carries the server's stable code and nothing else, so its sentence is
+ * `messageForCode`. Anything that is not an `ApiError` is a bug in this build, which nobody
+ * at the event can do anything about beyond retrying: it gets the generic sentence, never
+ * the English internal message.
+ *
+ * The table is a parameter because this is a plain function, not a component: whichever hook
+ * or screen caught the failure is the one holding the context, and hands over the active
+ * table. A screen that needs a different line for "not an `ApiError`" does not use this.
+ */
+export const messageForError = (cause: unknown, text: UiText): string =>
+  cause instanceof ApiError ? messageForCode(cause.code, text) : text.errors.unknown

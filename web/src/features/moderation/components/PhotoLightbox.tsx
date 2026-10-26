@@ -84,8 +84,7 @@ export function PhotoLightbox({
       open={showing}
       title={isClip ? t.moderation.videoOf(authorInName) : t.moderation.photoOf(authorInName)}
       onClose={onClose}
-      // Coalesced because a CSS module is typed as an index signature, so it is string-or-undefined.
-      className={styles['lightbox'] ?? ''}
+      className={styles['lightbox']}
       footer={
         <>
           <Button variant="ghost" size="sm" onClick={onPrevious}>

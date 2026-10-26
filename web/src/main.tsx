@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './design-system/tokens.css'
 import './design-system/base.css'
+import { AboutProvider } from './app/AboutProvider'
 import { ApiProvider } from './app/ApiProvider'
 import { ErrorBoundary } from './app/ErrorBoundary'
 import { AppRoutes } from './app/router'
@@ -80,9 +81,12 @@ createRoot(container).render(
           shows a way back rather than a white screen on a projector. */}
       <ErrorBoundary>
         <ApiProvider api={api}>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          {/* Above the router, which reads it to know whether a client space exists. */}
+          <AboutProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </AboutProvider>
         </ApiProvider>
       </ErrorBoundary>
     </LocaleProvider>

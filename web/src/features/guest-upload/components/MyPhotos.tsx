@@ -6,8 +6,9 @@ import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog'
 import { EmptyState } from '../../../design-system/components/EmptyState'
 import { IconButton } from '../../../design-system/components/IconButton'
+import { Notice } from '../../../design-system/components/Notice'
 import { Spinner } from '../../../design-system/components/Spinner'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
@@ -45,7 +46,7 @@ const TONES: Record<PhotoStatus, StatusTone> = {
 export interface MyPhotosProps {
   readonly photos: readonly GuestPhotoDto[]
   readonly loading: boolean
-  /** A French sentence, ready to render. `null` when nothing has failed. */
+  /** A sentence in the language on screen, ready to render. `null` when nothing has failed. */
   readonly error: string | null
   readonly onRetry: () => void
   readonly onDelete: (photoId: string) => Promise<void>
@@ -72,10 +73,9 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
     <Card as="h2" title={t.upload.mine} className={styles['mine']}>
       {error === null ? null : (
         <div className={styles['failure']}>
-          <p className={styles['error']} role="alert">
-            <StatusIcon tone="danger" />
+          <Notice tone="danger" role="alert" variant="boxed">
             {error}
-          </p>
+          </Notice>
           <Button variant="secondary" onClick={onRetry}>
             {t.app.retry}
           </Button>
@@ -97,9 +97,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
           {photos.map((photo, index) => (
             <li
               key={photo.id}
-              className={[styles['photo'], photo.kind === 'clip' ? styles['clipRow'] : '']
-                .filter(Boolean)
-                .join(' ')}
+              className={cx(styles['photo'], photo.kind === 'clip' && styles['clipRow'])}
             >
               {photo.kind === 'clip' && photo.videoUrl !== null ? (
                 /*

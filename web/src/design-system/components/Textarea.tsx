@@ -1,4 +1,5 @@
 import { forwardRef, type TextareaHTMLAttributes } from 'react'
+import { cx } from '../classNames'
 import styles from './Textarea.module.css'
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -14,9 +15,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   { grow = true, className, rows = 2, ...rest },
   ref,
 ) {
-  const classes = [styles['textarea'], grow ? styles['grow'] : '', className]
-    .filter(Boolean)
-    .join(' ')
+  const classes = cx(styles['textarea'], grow && styles['grow'], className)
 
   return <textarea {...rest} ref={ref} rows={rows} className={classes} />
 })

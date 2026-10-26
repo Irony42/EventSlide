@@ -1,5 +1,4 @@
 import type { Event } from '../../../domain/events/event'
-import { canManageEvent } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
@@ -8,6 +7,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The emergency lever: a join link is circulating outside the venue, or a printed card
@@ -70,13 +70,11 @@ export const makeRotateJoinCode =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    // `notFound` rather than `forbidden` for a caller with no part in the event, so
-    // this cannot be used to discover that the event exists.
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     const joinCode = await allocateJoinCode(events, ids, joinCodeLength)
     if (!joinCode.ok) return joinCode

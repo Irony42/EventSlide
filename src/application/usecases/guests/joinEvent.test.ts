@@ -2,10 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import { privacyNoticeFor } from '../../../domain/privacy/privacyNotice'
-import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, type EventId, type GuestId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
-import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
 import { AT, aClient, aGuest, anEvent, anEventSettings, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
@@ -14,40 +11,7 @@ import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
 import { makeJoinEvent, type JoinEventInput } from './joinEvent'
-
-/**
- * A device token a test can read: `token|<eventId>|<guestId>|<issuedAt ms>`.
- *
- * Local to this file rather than shared, because the only thing worth asserting about
- * the real service is the HMAC, and a double cannot fake a signature into meaning
- * anything — `hmacTokenService` has its own ring-3 tests. What a join owes is that the
- * token names the event the code resolved to and the guest row it just created, and
- * that is legible here.
- *
- * `verify` is the exact inverse of `issue` and refuses everything else, which is all
- * the re-join path needs from it: the question a join asks a presented token is *which
- * guest of which event does this name*, and a signature this double cannot forge either
- * way would only move the assertions somewhere they prove less. Age is deliberately not
- * modelled — expiry is the HMAC service's own ring-3 test, and a stale token reaches
- * this use case as a refusal, which `an unreadable token` already covers.
- */
-class FakeGuestTokenService implements GuestTokenService {
-  issue({ eventId, guestId, issuedAt }: GuestTokenClaims): string {
-    return `token|${eventId}|${guestId}|${issuedAt.getTime()}`
-  }
-
-  verify(token: string): Result<GuestTokenClaims, DomainError> {
-    const [prefix, eventId, guestId, issuedAt] = token.split('|')
-    if (prefix !== 'token' || eventId === undefined || guestId === undefined) {
-      return err(DomainError.unauthenticated('guestToken.malformed'))
-    }
-    return ok({
-      eventId: asEventId(eventId),
-      guestId: asGuestId(guestId),
-      issuedAt: new Date(Number(issuedAt)),
-    })
-  }
-}
+import { FakeGuestTokenService } from '../../testing/fakeGuestTokenService'
 
 /** The cookie a phone would present on its way back in. */
 const deviceTokenFor = (eventId: EventId, guestId: GuestId): string =>
@@ -651,5 +615,54 @@ describe('joinEvent', () => {
 
       expect(result.ok && result.value.privacyNotice.notice.retentionDays).toBe(7)
     })
+  })
+})
+
+/**
+ * Whether the join says a guest may send a video (G2-16 / P3-17, closing a finding of G2-05's
+ * review): the host's switch **and** the client's plan, the two conditions `uploadClip`
+ * refuses on, so the upload screen does not offer a control that answers 403 after the bytes.
+ */
+describe('joinEvent: clipsAccepted', () => {
+  const joinWith = async (options: {
+    readonly hostAllowsClips: boolean
+    readonly client: ReturnType<typeof aClient> | null
+  }) => {
+    const clients = new FakeClientRepository()
+    if (options.client !== null) clients.seed(options.client)
+    const event = anEvent({
+      id: WEDDING,
+      slug: 'camille-et-sacha',
+      joinCode: WEDDING_CODE,
+      settings: { allowClips: options.hostAllowsClips },
+      ...(options.client === null ? {} : { clientId: options.client.id }),
+    })
+    const result = await makeJoinEvent({
+      events: new FakeEventRepository({ clients }).seed(event),
+      clients,
+      guests: new FakeGuestRepository(),
+      tokens: new FakeGuestTokenService(),
+      ids: new SequentialIdGenerator(),
+      clock: new FakeClock(),
+      bus: new RecordingEventBus(),
+      operatorName: null,
+    })({ joinCode: WEDDING_CODE })
+    if (!result.ok) throw new Error('fixture: the join was refused')
+    return result.value.clipsAccepted
+  }
+
+  it('follows the host’s switch for an event with no client', async () => {
+    expect(await joinWith({ hostAllowsClips: true, client: null })).toBe(true)
+    expect(await joinWith({ hostAllowsClips: false, client: null })).toBe(false)
+  })
+
+  it('is false once the client’s plan lost clips, though the host’s switch still says yes', async () => {
+    const client = aClient({ ceilings: { clipsAllowed: false } })
+
+    expect(await joinWith({ hostAllowsClips: true, client })).toBe(false)
+  })
+
+  it('is true when the host and the client’s plan both allow clips', async () => {
+    expect(await joinWith({ hostAllowsClips: true, client: aClient() })).toBe(true)
   })
 })

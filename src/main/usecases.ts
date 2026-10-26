@@ -20,8 +20,10 @@ import type { GuestTokenService } from '../application/ports/guestTokenService'
 import type { ShareLinkRepository } from '../application/ports/shareLinkRepository'
 import type { ClientRepository } from '../application/ports/clientRepository'
 import type { AuditLog } from '../application/ports/auditLog'
+import type { SiteOverview } from '../application/ports/siteOverview'
 import type { AccountTokenRepository } from '../application/ports/accountTokenRepository'
 import type { MfaVault } from '../application/ports/mfaVault'
+import type { SignInAttempts } from '../application/ports/signInAttempts'
 import type { SecondFactorRepository } from '../application/ports/secondFactorRepository'
 import type { TotpEngine } from '../application/ports/totpEngine'
 import type { InvitationAcceptance } from '../application/ports/invitationAcceptance'
@@ -35,6 +37,11 @@ import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
 import { makeConfirmTotpEnrollment } from '../application/usecases/auth/confirmTotpEnrollment'
 import { makeDisableAccount } from '../application/usecases/auth/disableAccount'
+import { makeEnableAccount } from '../application/usecases/auth/enableAccount'
+import { makeDeleteAccount } from '../application/usecases/site/deleteAccount'
+import { makeOffboardClient } from '../application/usecases/clients/offboardClient'
+import { makeFinalizeOffboardedClients } from '../application/usecases/clients/finalizeOffboardedClients'
+import type { AccountHoldings } from '../application/ports/accountHoldings'
 import { makeDisableSecondFactor } from '../application/usecases/auth/disableSecondFactor'
 import { makeEnrollTotp } from '../application/usecases/auth/enrollTotp'
 import { makeRegenerateRecoveryCodes } from '../application/usecases/auth/regenerateRecoveryCodes'
@@ -56,7 +63,10 @@ import {
 } from '../application/usecases/events/createEvent'
 import { makeGetEventBySlug } from '../application/usecases/events/getEventBySlug'
 import { makeListEventsForHost } from '../application/usecases/events/listEventsForHost'
+import { makeListModerators } from '../application/usecases/events/listModerators'
 import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
+import { makeRenameEvent } from '../application/usecases/events/renameEvent'
+import { makeRevokeModerator } from '../application/usecases/events/revokeModerator'
 import { makePurgeExpiredEvents } from '../application/usecases/events/purgeExpiredEvents'
 import { makeSweepOrphanedMedia } from '../application/usecases/media/sweepOrphanedMedia'
 import { makeResolveJoinCode } from '../application/usecases/events/resolveJoinCode'
@@ -79,6 +89,7 @@ import { makeModeratePhotosBulk } from '../application/usecases/moderation/moder
 import { makeDeletePhoto } from '../application/usecases/photos/deletePhoto'
 import { makeExportAlbum } from '../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../application/usecases/photos/getPhotoMedia'
+import { makeIdentifyMediaViewer } from '../application/usecases/photos/identifyMediaViewer'
 import { makeListEventPhotos } from '../application/usecases/photos/listEventPhotos'
 import { makeListGuestPhotos } from '../application/usecases/photos/listGuestPhotos'
 import { makeSetPhotoCaption } from '../application/usecases/photos/setPhotoCaption'
@@ -115,11 +126,24 @@ import { makeCreateClient } from '../application/usecases/clients/createClient'
 import { makeDeleteEmptyClient } from '../application/usecases/clients/deleteEmptyClient'
 import { makeListClients } from '../application/usecases/clients/listClients'
 import { makeApproveInvitation } from '../application/usecases/clients/approveInvitation'
+import { makeGetClientLimits } from '../application/usecases/clients/getClientLimits'
+import { makeListClientAudit } from '../application/usecases/clients/listClientAudit'
+import { makeListPendingInvitations } from '../application/usecases/clients/listPendingInvitations'
+import { makeGetEventLimits } from '../application/usecases/events/getEventLimits'
+import { makeGetEventView } from '../application/usecases/events/getEventView'
 import { makeApprovePasswordReset } from '../application/usecases/clients/approvePasswordReset'
 import { makeInviteToClientAsOperator } from '../application/usecases/clients/inviteToClientAsOperator'
 import { makeProvisionClientOwner } from '../application/usecases/clients/provisionClientOwner'
 import { makeRenameClient } from '../application/usecases/clients/renameClient'
+import { makeResumeClient } from '../application/usecases/clients/resumeClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
+import { makeSuspendClient } from '../application/usecases/clients/suspendClient'
+import { makeListSiteAccounts } from '../application/usecases/site/listSiteAccounts'
+import { makeListSiteAudit } from '../application/usecases/site/listSiteAudit'
+import { makeListSiteClientEvents } from '../application/usecases/site/listSiteClientEvents'
+import { makeListSiteClients } from '../application/usecases/site/listSiteClients'
+import type { NewClientDefaults } from '../domain/clients/newClientCeilings'
+import type { TermsOfUse } from '../domain/legal/termsOfUse'
 import { makePruneAuditLog } from '../application/usecases/audit/pruneAuditLog'
 import { makeUnlockGallery } from '../application/usecases/gallery/unlockGallery'
 
@@ -158,6 +182,10 @@ export interface Adapters {
   readonly gallerySigner: GallerySigner
   /** The append-only audit log (roadmap §10.8). Empty on a box nobody operates. */
   readonly audit: AuditLog
+  /** What the operator may see of the box: ids, statuses, instants and sizes, no content (§10.4). */
+  readonly siteOverview: SiteOverview
+  /** What an account holds that deleting it would destroy: counts only (G2-14 part 3). */
+  readonly accountHoldings: AccountHoldings
   /** One-use links that prove control of a mailbox (roadmap §10.3). Digests only. */
   readonly accountTokens: AccountTokenRepository
   /** The secrets that go in those links, and the digests they are stored as. */
@@ -170,6 +198,8 @@ export interface Adapters {
   readonly totpEngine: TotpEngine
   /** Encryption of a secret at rest; `null` on a box with no `MFA_ENCRYPTION_KEY`. */
   readonly mfaVault: MfaVault | null
+  /** How many second-factor guesses each half-finished sign-in has spent. In memory, one per box. */
+  readonly signInAttempts: SignInAttempts
   /** Spending an invitation: the link, the account and the grant in one transaction. */
   readonly invitationAcceptance: InvitationAcceptance
 }
@@ -210,11 +240,23 @@ export interface UseCasePolicy {
   /** `audit.retentionDays`: how long a row of the audit log is kept. 365 at the least. */
   readonly auditRetentionDays: number
   /**
+   * `newClientCeilings`: what `provisionClientOwner` gives a client whose operator named no
+   * ceiling (`NEW_CLIENT_*`, G2-18). No ceiling at all on a box that set none.
+   */
+  readonly newClientDefaults: NewClientDefaults
+  /**
    * `operator.name`: who the guest's privacy notice says hosts their photo, or `null` on a
    * box whose operator said nothing (roadmap G2-17). One value for the three use cases that
    * derive the notice, so a guest's acknowledgement is always compared with the text they saw.
    */
   readonly operatorName: string | null
+  /**
+   * `termsOfUse`: the terms an invitation's acceptance asks the person to agree to, or `null`
+   * on a box that asks for none, which is every self-hosted box (`LEGAL_TERMS_URL` with
+   * `LEGAL_TERMS_VERSION`, G2-20). Required here and not optional, so a composition that forgets
+   * it does not fail open: the test that boots the real container holds it to the config.
+   */
+  readonly termsOfUse: TermsOfUse | null
   readonly clips: {
     readonly maxQueuedClips: number
     /** The same backpressure, scoped to one event. */
@@ -238,7 +280,11 @@ const galleryAccess = (adapters: Adapters) => ({
   clock: adapters.clock,
 })
 
-/** One instance of the second-factor check per caller: it holds no state, so sharing is not a concern. */
+/**
+ * One instance of the second-factor check per caller. The check holds no state of its own; what
+ * is counted across calls (a sign-in's guesses) lives in `adapters.signInAttempts`, which is one
+ * object for the whole box, so every instance reads the same count.
+ */
 const verifySecondFactorFrom = (adapters: Adapters) =>
   makeVerifySecondFactor({
     users: adapters.users,
@@ -246,6 +292,7 @@ const verifySecondFactorFrom = (adapters: Adapters) =>
     vault: adapters.mfaVault,
     engine: adapters.totpEngine,
     secrets: adapters.secretTokens,
+    attempts: adapters.signInAttempts,
     audit: adapters.audit,
     clock: adapters.clock,
     logger: adapters.logger,
@@ -380,6 +427,21 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
      */
     disableAccount: makeDisableAccount({
       users: adapters.users,
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /** The operator's account acts (G2-14 part 3): behind `/api/site`, a second factor and a step-up. */
+    enableAccount: makeEnableAccount({
+      users: adapters.users,
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    deleteAccount: makeDeleteAccount({
+      users: adapters.users,
+      clients: adapters.clients,
+      holdings: adapters.accountHoldings,
       audit: adapters.audit,
       clock: adapters.clock,
     }),
@@ -392,6 +454,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     previewInvitation: makePreviewInvitation({
       ...invitationReaders(adapters),
       clock: adapters.clock,
+      terms: policy.termsOfUse,
     }),
     acceptInvitation: makeAcceptInvitation({
       ...invitationReaders(adapters),
@@ -400,6 +463,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       acceptance: adapters.invitationAcceptance,
       ids: adapters.ids,
       clock: adapters.clock,
+      terms: policy.termsOfUse,
     }),
     registerModerator: makeRegisterModerator({
       events: adapters.events,
@@ -429,6 +493,10 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       joinCodeLength: policy.events.joinCodeLength,
     }),
     getEventBySlug: makeGetEventBySlug({ events: adapters.events }),
+    getEventView: makeGetEventView({
+      events: adapters.events,
+      getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
+    }),
     listEventsForHost: makeListEventsForHost({ events: adapters.events }),
     resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
     updateEventSettings: makeUpdateEventSettings({
@@ -455,6 +523,19 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       events: adapters.events,
       memberships: adapters.memberships,
       media: adapters.media,
+    }),
+    // Built here, with the others, since the route module composed them from `deps` until now
+    // (HTTP-M-05): a logger, an audit line or a clock added to the rest reaches these three too, and a
+    // test can hand the router a stub.
+    renameEvent: makeRenameEvent({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+    }),
+    listModerators: makeListModerators({ memberships: adapters.memberships }),
+    revokeModerator: makeRevokeModerator({
+      events: adapters.events,
+      memberships: adapters.memberships,
     }),
     purgeExpiredEvents: makePurgeExpiredEvents({
       events: adapters.events,
@@ -508,9 +589,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       guests: adapters.guests,
       tokens: adapters.guestTokens,
       clock: adapters.clock,
+      logger: adapters.logger,
     }),
-    renameGuest: makeRenameGuest({ guests: adapters.guests }),
+    renameGuest: makeRenameGuest({ guests: adapters.guests, events: adapters.events }),
     revokeGuest: makeRevokeGuest({
+      events: adapters.events,
       guests: adapters.guests,
       memberships: adapters.memberships,
       clock: adapters.clock,
@@ -566,6 +649,12 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clock: adapters.clock,
     }),
     getPhotoMedia: makeGetPhotoMedia({ photos: adapters.photos, media: adapters.media }),
+    identifyMediaViewer: makeIdentifyMediaViewer({
+      guests: adapters.guests,
+      tokens: adapters.guestTokens,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
     exportAlbum: makeExportAlbum({
       events: adapters.events,
       photos: adapters.photos,
@@ -759,26 +848,32 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     // ---------------------------------------------------------------- clients --
     //
     // Built whatever `SITE_ADMIN` says, like every use case: the mode decides which routes
-    // are mounted (roadmap §10.9), never which use cases exist. **No route calls these yet**
-    // — the operator API is G2-14, behind `SITE_ADMIN` and `requireOperator`. The gate is the
-    // HTTP layer's, as for every operator route, so only `setClientCeilings` takes an actor:
-    // it is the one that writes the audit log (§10.8), and an entry must say who did it.
+    // are mounted (roadmap §10.9), never which use cases exist. The operator's routes call them
+    // (`/api/site`, G2-14), behind `SITE_ADMIN` and `requireOperator`. The gate is the HTTP
+    // layer's, so the use cases that write the audit log (§10.8) take an actor: an entry must say
+    // who did it. `createClient` and `deleteEmptyClient` have no route: the first is what
+    // `provisionClientOwner` builds on, and the second only removes the husk of a failed provisioning.
     createClient: clientCreator(adapters),
     /**
-     * Opens a client and invites its owner (G2-09 / P3-10). The operator API that puts
-     * `requireOperator` in front of it is G2-14; until then nothing calls it.
+     * Opens a client and invites its owner (G2-09 / P3-10), behind `requireOperator` and a
+     * step-up in `POST /api/site/clients` (G2-14).
      */
     provisionClientOwner: makeProvisionClientOwner({
       createClient: clientCreator(adapters),
       issueInvitation,
       clients: adapters.clients,
+      tokens: adapters.accountTokens,
+      newClientDefaults: policy.newClientDefaults,
+      audit: adapters.audit,
+      clock: adapters.clock,
     }),
     /**
-     * The operator guard's use cases (G2-12 / P3-14, rules R1 and R2). **Only
-     * `approveInvitation` has a route** (`POST /api/client/invitations/:id/approve`, the
-     * owner's); the other three are the operator API's to call (G2-14), behind `requireOperator`
-     * and the second factor, and each reads the caller's site role itself rather than trust the
-     * route to have checked it. They write invitations through the box's one issuer, so the
+     * The operator guard's use cases (G2-12 / P3-14, rules R1 and R2). The owner's two have
+     * routes (`POST /api/client/invitations/:id/approve` and
+     * `POST /api/client/password-resets/:id/approve`); the operator's two are called by
+     * `/api/site/clients/:clientId/invitations` and `/api/site/accounts/:userId/password-reset`
+     * (G2-14), behind `requireOperator`, the second factor and a step-up, and each reads the
+     * caller's site role itself rather than trust the route to have checked it. They write invitations through the box's one issuer, so the
      * per-address queue is still one queue.
      */
     inviteToClientAsOperator: makeInviteToClientAsOperator({
@@ -794,6 +889,18 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clients: adapters.clients,
       tokens: adapters.accountTokens,
       audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * The client's own space, read-only (G2-16 / P3-17): the caller's limits, the log of their
+     * own client and what waits for their approval. Mounted only on a box with `SITE_ADMIN=on`,
+     * and scoped by the caller's own roster in each use case, never by an id from the request.
+     */
+    getClientLimits: makeGetClientLimits({ clients: adapters.clients, photos: adapters.photos }),
+    listClientAudit: makeListClientAudit({ clients: adapters.clients, audit: adapters.audit }),
+    listPendingInvitations: makeListPendingInvitations({
+      clients: adapters.clients,
+      tokens: adapters.accountTokens,
       clock: adapters.clock,
     }),
     approvePasswordReset: makeApprovePasswordReset({
@@ -816,9 +923,49 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       mode: policy.operatorResetLinks,
       audit: adapters.audit,
     }),
-    renameClient: makeRenameClient({ clients: adapters.clients }),
+    // The operator's reads (G2-14): the read model and the log, and nothing else.
+    listSiteClients: makeListSiteClients({ overview: adapters.siteOverview }),
+    listSiteClientEvents: makeListSiteClientEvents({ overview: adapters.siteOverview }),
+    listSiteAccounts: makeListSiteAccounts({ overview: adapters.siteOverview }),
+    listSiteAudit: makeListSiteAudit({ audit: adapters.audit }),
+    renameClient: makeRenameClient({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
     setClientCeilings: makeSetClientCeilings({
       clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * Freezing a client and lifting it (G2-14): `POST /api/site/clients/:clientId/suspend` and
+     * `/resume`, behind the operator's gate and a step-up.
+     */
+    suspendClient: makeSuspendClient({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    resumeClient: makeResumeClient({
+      clients: adapters.clients,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    offboardClient: makeOffboardClient({
+      clients: adapters.clients,
+      events: adapters.events,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
+    /**
+     * The end of an offboarding (G2-14 part 3). Like `pruneAuditLog`, **not reachable from any
+     * route**: `src/main/retentionSweeper.ts` is its one caller, after it purged what was due.
+     */
+    finalizeOffboardedClients: makeFinalizeOffboardedClients({
+      clients: adapters.clients,
+      users: adapters.users,
+      holdings: adapters.accountHoldings,
       audit: adapters.audit,
       clock: adapters.clock,
     }),

@@ -1,5 +1,4 @@
 import type { Event } from '../../../domain/events/event'
-import { canManageEvent } from '../../../domain/events/eventRole'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -9,6 +8,7 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { clientContextOf } from '../clients/clientContextOf'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host changes the event's policy: moderation mode, captions, reactions,
@@ -47,14 +47,11 @@ export const makeUpdateEventSettings =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    // No membership answers `notFound`, not `forbidden`: confirming that an event
-    // exists to someone with no part in it turns this into an enumeration oracle for
-    // other people's events. Same choice `requireRole` makes at the HTTP boundary.
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // Validated as a whole, so one field cannot be persisted out of range while its
     // neighbour is refused.

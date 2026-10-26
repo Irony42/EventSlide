@@ -9,6 +9,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import { SERVED_VARIANTS, type MediaStore } from '../../ports/mediaStore'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import { requireWritable } from '../shared/eventRole'
 
 /**
  * Remove a photo, for a host at any time or for the guest who regrets it.
@@ -76,22 +77,22 @@ export const makeDeletePhoto = ({
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
+
     // Scoped read: passing `eventId` is what makes a photo of another event a 404
     // rather than a deletion.
     const photo = await photos.findById(eventId, photoId)
     if (photo === null) return err(DomainError.notFound('photo.notFound'))
 
-    const settings = event.settings
-
-    // The host can switch self-deletion off entirely — a wedding where the album is the
-    // point, and a guest changing their mind at midnight is the host's decision to make.
-    if (actor.kind === 'guest' && !settings.allowGuestSelfDelete) {
+    // One verdict, which the guest's `canDelete` flag is read from as well (`deletionVerdict`): the
+    // host's switch over the whole feature (a wedding where the album is the point, and a guest
+    // changing their mind at midnight is the host's decision to make), then the photo's own rule.
+    const verdict = photo.deletionVerdict(actor, clock.now(), event.settings)
+    if (verdict === 'selfDeleteDisabled') {
       return err(DomainError.forbidden('event.guestSelfDeleteDisabled'))
     }
-
-    if (!photo.canBeDeletedBy(actor, clock.now(), settings.guestSelfDeleteGraceMs)) {
-      return err(DomainError.forbidden('photo.deleteForbidden'))
-    }
+    if (verdict === 'forbidden') return err(DomainError.forbidden('photo.deleteForbidden'))
 
     // Media first: the row is the only record of the file's address, so removing it
     // first would strand bytes nobody can name — neither this use case nor the

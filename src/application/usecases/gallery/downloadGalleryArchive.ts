@@ -1,14 +1,15 @@
 import type { Event } from '../../../domain/events/event'
-import { DOWNLOAD_EXTENSION, GALLERY_RENDITIONS } from '../../../domain/gallery/galleryMedia'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { ServedVariant } from '../../../domain/photos/mediaVariant'
+import type { Photo } from '../../../domain/photos/photo'
 import type { DomainError } from '../../../domain/shared/errors'
 import type { ShareLinkId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
+import type { ArchiveWriter } from '../../ports/archiveWriter'
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
-import type { PhotoPage, PhotoRepository } from '../../ports/photoRepository'
+import type { PhotoRepository } from '../../ports/photoRepository'
+import { albumEntries } from '../shared/albumEntries'
 import {
   eventBehind,
   GALLERY_STATUSES,
@@ -22,8 +23,8 @@ import {
  * The whole shared album as one ZIP, behind a signed URL.
  *
  * It reuses the host's own export path — `ArchiveWriter`, streamed end to end with
- * nothing materialised — and differs from `exportAlbum` in the three ways a public surface
- * has to:
+ * nothing materialised, and the same `albumEntries` — and differs from `exportAlbum` in the
+ * three ways a public surface has to:
  *
  * - **What is in it** is the gallery's rule, not the album's: published only, so a hidden
  *   photograph the host's own ZIP keeps is not in the one a stranger downloads. Clips are
@@ -34,11 +35,8 @@ import {
  *   throw, which aborts the response — deliberately, rather than ending the archive
  *   cleanly: a ZIP that ends early but well-formed looks exactly like a complete album,
  *   and a truncated one does not. See `bytesOf` for why the check has to be there.
- * - **The album is read in pages**, not as the export's row stream. See `entries`.
+ * - **The album is read in pages**, not as a row stream. See `albumEntries`.
  */
-
-/** Rows per read while listing the album. Each is one statement, run to completion. */
-const ARCHIVE_PAGE_SIZE = 200
 
 export class ShareLinkWithdrawnError extends Error {
   constructor() {
@@ -102,7 +100,7 @@ export const makeDownloadGalleryArchive =
      * sources and the real files, so a writer that went back to taking the album at once
      * would turn this sentence false in a red test rather than in a production incident.
      *
-     * Bytes that vanish between being sized and being read — a retention purge running
+     * Bytes that vanish between being found and being read — a retention purge running
      * under a download — abort the archive rather than leave an empty entry in it: the
      * entry's name is already written, and a zero-byte photograph in a ZIP that otherwise
      * looks complete is the failure this file refuses everywhere else.
@@ -121,54 +119,30 @@ export const makeDownloadGalleryArchive =
     }
 
     /**
-     * Pages rather than the export's row stream, because of what the stream holds open.
-     *
-     * `streamForExport` keeps one better-sqlite3 statement iterating across every `await`
-     * below it, and while a statement is iterating the connection refuses every write —
-     * measured, 600 of 602 uploads on a *different* event failed during one archive. That
-     * shape is tolerable for a host's own occasional export; on a public route anybody
-     * holding a link can start four at once. Each page here is one statement that runs to
-     * completion before anything else happens.
+     * What the entries are made of, and what a row with no stored download is: skipped, as the
+     * host's export skips it. One orphaned row must not abort a download whose headers are
+     * long gone. The pages, the names and what each kind is archived as are `albumEntries`.
      */
-    const entries = async function* (): AsyncIterable<ArchiveEntry> {
-      let sequence = 0
-      let cursor: string | null = null
-      do {
-        const page: PhotoPage = await deps.photos.list(event.id, {
-          statuses: GALLERY_STATUSES,
-          limit: ARCHIVE_PAGE_SIZE,
-          ...(cursor === null ? {} : { cursor }),
+    const open = async (
+      _photo: Photo,
+      hash: ContentHash,
+      variant: ServedVariant,
+    ): Promise<AsyncIterable<Uint8Array> | null> =>
+      (await deps.media.stat(eventId, hash, variant)) === null ? null : bytesOf(hash, variant)
+
+    const entries = albumEntries({
+      photos: deps.photos,
+      eventId,
+      slug: event.slug.value,
+      statuses: GALLERY_STATUSES,
+      open,
+      skipped: (photo) => {
+        deps.logger.warn('gallery archive skipped a photo with no stored download', {
+          eventId,
+          photoId: photo.id,
         })
-        for (const photo of page.items) {
-          const variant = GALLERY_RENDITIONS[photo.kind].download
-          const hash = photo.hashFor(variant)
-          const metadata = await deps.media.stat(event.id, hash, variant)
-          if (metadata === null) {
-            // Skipped, as the host's export skips it: one orphaned row must not abort a
-            // download whose headers are long gone.
-            deps.logger.warn('gallery archive skipped a photo with no stored download', {
-              eventId: event.id,
-              photoId: photo.id,
-            })
-            continue
-          }
+      },
+    })
 
-          sequence += 1
-          // Server-generated throughout: a counter, the digest's first characters and a
-          // validated slug. Nothing a guest typed names an entry.
-          const name = `${event.slug.value}/${String(sequence).padStart(4, '0')}-${hash.short}.${
-            DOWNLOAD_EXTENSION[photo.kind]
-          }`
-          yield {
-            name,
-            bytes: bytesOf(hash, variant),
-            byteSize: metadata.byteSize,
-            modifiedAt: photo.createdAt,
-          }
-        }
-        cursor = page.nextCursor
-      } while (cursor !== null)
-    }
-
-    return ok({ event, chunks: deps.archive.stream(entries()) })
+    return ok({ event, chunks: deps.archive.stream(entries) })
   }

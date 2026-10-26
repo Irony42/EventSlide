@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   joinUrl,
   mediaUrl,
+  toClientAuditPageDto,
   toEventDto,
   toEventSettingsDto,
   toGuestDto,
@@ -14,7 +15,9 @@ import {
   toSessionUserDto,
   type PresenterContext,
 } from './presenters'
+import type { AuditRecord } from '../../../application/ports/auditLog'
 import { AT, aGuest, aPhoto, aUser, anEvent } from '../../../application/testing/builders'
+import { asClientId, asUserId } from '../../../domain/shared/ids'
 
 const context: PresenterContext = {
   publicUrl: 'https://photos.example.com',
@@ -78,6 +81,7 @@ describe('the invitation DTOs', () => {
         role: 'member',
         targetName: 'Atelier',
         expiresAt: NOW,
+        terms: null,
       }),
     ).toEqual({
       kind: 'client',
@@ -85,6 +89,23 @@ describe('the invitation DTOs', () => {
       targetName: 'Atelier',
       expiresAt: NOW.toISOString(),
     })
+  })
+
+  it('adds the terms to the preview only when the box asks for them, so a self-hosted body is unchanged', () => {
+    const preview = {
+      kind: 'event' as const,
+      role: 'moderator' as const,
+      targetName: 'Camille',
+      expiresAt: NOW,
+    }
+
+    expect(toInvitationPreviewDto({ ...preview, terms: null })).not.toHaveProperty('terms')
+    expect(
+      toInvitationPreviewDto({
+        ...preview,
+        terms: { url: 'https://hosted.example.org/legal/cgu', version: '2027-01' },
+      }).terms,
+    ).toEqual({ url: 'https://hosted.example.org/legal/cgu', version: '2027-01' })
   })
 })
 
@@ -122,7 +143,7 @@ describe('toPublicEventDto', () => {
   })
 
   it('tells a guest the name and what they are allowed to do', () => {
-    expect(toPublicEventDto(event, context)).toEqual({
+    expect(toPublicEventDto(event, context, true)).toEqual({
       slug: 'mariage',
       name: 'Camille & Sacha',
       allowCaptions: true,
@@ -144,10 +165,11 @@ describe('toPublicEventDto', () => {
     // megabytes go up a venue's Wi-Fi is the whole reason they are on the wire. A
     // constant in the bundle would be a second copy of `MAX_CLIP_BYTES` that no
     // deployment's `.env` could move.
-    const strict = toPublicEventDto(event, {
-      ...context,
-      clipLimits: { maxBytes: 40_000_000, maxSeconds: 8, supported: true },
-    })
+    const strict = toPublicEventDto(
+      event,
+      { ...context, clipLimits: { maxBytes: 40_000_000, maxSeconds: 8, supported: true } },
+      true,
+    )
 
     expect(strict.maxClipBytes).toBe(40_000_000)
     expect(strict.maxClipSeconds).toBe(8)
@@ -159,22 +181,22 @@ describe('toPublicEventDto', () => {
     // **after** multer has written the upload to disk — so a deployment with no ffmpeg
     // and a ticked checkbox charges every guest a full eighty-megabyte upload to be told
     // `500`, and nothing about the answer improves by repeating it.
-    const noEncoder = toPublicEventDto(event, {
-      ...context,
-      clipLimits: { ...context.clipLimits, supported: false },
-    })
+    const noEncoder = toPublicEventDto(
+      event,
+      { ...context, clipLimits: { ...context.clipLimits, supported: false } },
+      true,
+    )
 
     expect(noEncoder.allowClips).toBe(false)
   })
 
-  it('tells a guest when the host has turned video off', () => {
-    // Without this the picker offers a video control that answers
-    // `403 event.clipsNotAllowed` after the upload — on exactly the events the
-    // persistence fallback reads `false` for, which is every event created before
-    // clips shipped.
-    const noClips = anEvent({ settings: { allowClips: false } })
-
-    expect(toPublicEventDto(noClips, context).allowClips).toBe(false)
+  it('tells a guest there is no video when the join says the event does not accept clips', () => {
+    // The host's switch and the client's plan are the use case's conjunction
+    // (`Event.acceptsClips`, held at ring 1 and in `joinEvent`); the presenter reads the answer
+    // and not the host's setting, so a plan that lost video is not offered to a guest as one.
+    // Without it the picker offers a control that answers `403 event.clipsNotAllowed` after the
+    // upload.
+    expect(toPublicEventDto(event, context, false).allowClips).toBe(false)
   })
 
   it.each(['joinCode', 'quotaBytes', 'ownerId', 'photoCount', 'settings', 'retentionDays'])(
@@ -184,7 +206,7 @@ describe('toPublicEventDto', () => {
       // toggles. Everything else — who owns it, how full it is, how long it is kept —
       // is none of their business, and a leak here would be permanent once printed on
       // a card.
-      expect(Object.keys(toPublicEventDto(event, context))).not.toContain(field)
+      expect(Object.keys(toPublicEventDto(event, context, true))).not.toContain(field)
     },
   )
 })
@@ -202,6 +224,7 @@ describe('toEventDto', () => {
     }),
     role: 'owner' as const,
     counts: { photoCount: 42, pendingCount: 7, guestCount: 18, usedBytes: 900_000 },
+    limits: { quotaBytes: 5_000_000_000, liveWindowEnd: null },
   }
 
   it('gives a host the join code and the link behind the QR code', () => {
@@ -223,6 +246,30 @@ describe('toEventDto', () => {
       role: 'owner',
       status: 'live',
     })
+  })
+
+  it('answers with the quota the event is judged against, not the one it was stored with', () => {
+    // G2-05's review, finding 4: an operator lowered the client's ceiling after the event
+    // was created, so the stored 5 GB is a promise the box no longer keeps.
+    const dto = toEventDto(
+      { ...input, limits: { quotaBytes: 2_000, liveWindowEnd: null } },
+      context,
+    )
+
+    expect(dto.quotaBytes).toBe(2_000)
+  })
+
+  it('announces when the live window closes, and has no such key when there is none', () => {
+    const closing = new Date('2026-06-23T18:00:00.000Z')
+
+    const announced = toEventDto(
+      { ...input, limits: { quotaBytes: 1, liveWindowEnd: closing } },
+      context,
+    )
+    const silent = toEventDto(input, context)
+
+    expect(announced.liveWindowEnd).toBe('2026-06-23T18:00:00.000Z')
+    expect(Object.keys(silent)).not.toContain('liveWindowEnd')
   })
 
   it('serialises timestamps as ISO strings', () => {
@@ -378,11 +425,12 @@ describe('toModerationPhotoDto', () => {
 
 describe('toGuestDto', () => {
   it('reports the display name, the counts and whether the guest was removed', () => {
-    const guest = aGuest({ id: 'guest-1', displayName: 'Léa' })
+    const guest = aGuest({ id: 'guest-1', displayName: 'Léa', photoCount: 4 })
 
     expect(toGuestDto(guest)).toMatchObject({
       id: 'guest-1',
       displayName: 'Léa',
+      photoCount: 4,
       revoked: false,
       joinedAt: AT.toISOString(),
     })
@@ -416,5 +464,132 @@ describe('toSessionUserDto', () => {
     const user = aUser({ mustChangePassword: true })
 
     expect(toSessionUserDto(user).mustChangePassword).toBe(true)
+  })
+})
+
+describe('toClientAuditPageDto', () => {
+  const record = (over: Partial<AuditRecord> = {}): AuditRecord => ({
+    seq: 7,
+    at: AT,
+    actor: { kind: 'operator', userId: asUserId('user-operator'), label: null },
+    action: 'invitation.issued',
+    subject: { type: 'invitation', id: 'inv-1' },
+    clientId: asClientId('client-1'),
+    details: { pendingApproval: true },
+    ...over,
+  })
+
+  it('names the kind of actor and never the account behind it', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: null })
+
+    expect(dto.items[0]?.actor).toEqual({ kind: 'operator', label: null })
+    expect(JSON.stringify(dto)).not.toContain('user-operator')
+  })
+
+  it('keeps the label of an integration, which is a constant and not a person', () => {
+    const dto = toClientAuditPageDto({
+      items: [
+        record({ actor: { kind: 'integration', userId: null, label: 'cloud:stripe-webhook' } }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]?.actor).toEqual({ kind: 'integration', label: 'cloud:stripe-webhook' })
+  })
+
+  it('keeps the id of an invitation, which the owner matches against their own list', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: null })
+
+    expect(dto.items[0]?.subject).toEqual({ type: 'invitation', id: 'inv-1' })
+  })
+
+  it('lets the owner read that a person accepted the terms, and shows neither who nor the version', () => {
+    // The entry names the account twice (as the actor and as the subject) and carries the box's
+    // version. The owner's door passes numbers, switches and instants only, so it reads the line
+    // and not the string: the version stays in the log, where the operator can say it.
+    const dto = toClientAuditPageDto({
+      items: [
+        record({
+          actor: { kind: 'member', userId: asUserId('user-camille'), label: null },
+          action: 'account.termsAccepted',
+          subject: { type: 'account', id: 'user-camille' },
+          details: { version: '2027-01' },
+        }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]).toMatchObject({
+      action: 'account.termsAccepted',
+      actor: { kind: 'member', label: null },
+      subject: { type: 'account' },
+      details: {},
+    })
+    expect(JSON.stringify(dto)).not.toContain('user-camille')
+    expect(JSON.stringify(dto)).not.toContain('2027-01')
+  })
+
+  it('drops the id of an account, which identifies a person and means nothing to its reader', () => {
+    const dto = toClientAuditPageDto({
+      items: [
+        record({ action: 'account.resetIssued', subject: { type: 'account', id: 'user-member' } }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]?.subject).toEqual({ type: 'account' })
+    expect(JSON.stringify(dto)).not.toContain('user-member')
+  })
+
+  it('lets through only numbers, switches and instants of an entry’s details, whatever the row holds', () => {
+    // A row is read back as stored, so an older allow-list, or a future one with an id kind, could
+    // have put a string in it. The owner's door checks again.
+    const dto = toClientAuditPageDto({
+      items: [
+        record({
+          details: {
+            pendingApproval: true,
+            count: 3,
+            gone: null,
+            at: '2026-06-21T10:00:00.000Z',
+            note: 'jean.dupont@example.org',
+            list: ['x'] as never,
+            nested: { max: 5, label: 'Mariage Secret', since: '2026-06-21T10:00:00.000Z' },
+          },
+        }),
+      ],
+      next: null,
+    })
+
+    expect(dto.items[0]?.details).toEqual({
+      pendingApproval: true,
+      count: 3,
+      gone: null,
+      at: '2026-06-21T10:00:00.000Z',
+      nested: { max: 5, since: '2026-06-21T10:00:00.000Z' },
+    })
+    expect(JSON.stringify(dto)).not.toMatch(/dupont|Secret/)
+  })
+
+  it('carries the instant, the sequence, the details and the cursor as they are', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: 6 })
+
+    expect(dto).toMatchObject({
+      items: [
+        {
+          seq: 7,
+          at: AT.toISOString(),
+          action: 'invitation.issued',
+          details: { pendingApproval: true },
+        },
+      ],
+      next: 6,
+    })
+  })
+
+  it('does not carry the client the entry belongs to, which the caller named or is the only one of', () => {
+    const dto = toClientAuditPageDto({ items: [record()], next: null })
+
+    expect(Object.keys(dto.items[0] ?? {})).not.toContain('clientId')
   })
 })

@@ -4,7 +4,7 @@ import { err, ok, type Result } from '../../domain/shared/result'
 /**
  * `SMTP_URL` and `MAIL_FROM`, parsed (G2-07 / P3-08). Pure: no socket, no `nodemailer`.
  *
- * It lives beside the adapter and is imported by `config/env.ts` rather than the other way
+ * It lives beside the adapter and is imported by `config/featureFields.ts` rather than the other way
  * round, so the one place that reads the variables is also the one that refuses a bad
  * one at boot — and so the adapter receives **parts**, never a URL. That matters for two
  * reasons. `nodemailer` will take a connection string whole, and then reads its query

@@ -2,7 +2,9 @@ import type { ClientRole } from '../../../domain/clients/clientRole'
 import { clientInvitationStillHonourable } from '../../../domain/clients/operatorGuard'
 import { canInviteModerators } from '../../../domain/events/eventRole'
 import { isMutable } from '../../../domain/events/eventStatus'
+import type { TermsOfUse } from '../../../domain/legal/termsOfUse'
 import { DomainError } from '../../../domain/shared/errors'
+import type { ClientId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import {
   invitationTargetOf,
@@ -38,6 +40,12 @@ export interface ResolvedInvitation {
   readonly record: AccountToken
   readonly target: InvitationTarget
   readonly place: InvitationPlace
+  /**
+   * The client the invitation belongs to: the one it is into, or the one that owns its event,
+   * `null` for an event no client owns. What an audit entry about this acceptance is filed
+   * under, so that the client's own owner reads it (G2-16).
+   */
+  readonly clientId: ClientId | null
 }
 
 export interface ResolveInvitationDeps {
@@ -106,7 +114,9 @@ export const makeResolveInvitation = ({
 
     if (target.kind === 'client') {
       const client = await clients.findById(target.clientId)
-      if (client === null) return err(invitationNotFound())
+      // A suspended client opens no invitation, and says nothing of why (G2-14): the link is as dead
+      // as one that was never written, and it opens again the day the client is resumed.
+      if (client === null || client.isSuspended()) return err(invitationNotFound())
 
       // Both read now: an approval is worth what the owner who gave it still is, and so is an
       // owner's own invitation. An author the box no longer has (`null`) is nobody.
@@ -131,11 +141,17 @@ export const makeResolveInvitation = ({
         return err(invitationNotFound())
       }
 
-      return ok({ record, target, place: { kind: 'client', name: client.name.value } })
+      return ok({
+        record,
+        target,
+        place: { kind: 'client', name: client.name.value },
+        clientId: client.id,
+      })
     }
 
     const event = await events.findById(target.eventId)
-    if (event === null) return err(invitationNotFound())
+    // Before the status is judged, so that a frozen event's state is not what the answer tells.
+    if (event === null || event.isClientSuspended()) return err(invitationNotFound())
     if (!isMutable(event.status)) {
       return err(DomainError.conflict('event.immutable', { status: event.status }))
     }
@@ -150,6 +166,7 @@ export const makeResolveInvitation = ({
       record,
       target,
       place: { kind: 'event', slug: event.slug.value, name: event.name.value },
+      clientId: event.clientId,
     })
   }
 }
@@ -161,6 +178,12 @@ export interface InvitationPreview {
   /** The event's or the client's name, as its owner wrote it. */
   readonly targetName: string
   readonly expiresAt: Date
+  /**
+   * The terms the person is about to agree to by accepting (G2-20), `null` on a box that asks
+   * for none. **The same for every link on the box**, so it says nothing about this one, and
+   * it is read after the link was found: a dead link still answers 404 and never this.
+   */
+  readonly terms: TermsOfUse | null
 }
 
 export interface PreviewInvitationInput {
@@ -174,6 +197,8 @@ export type PreviewInvitation = (
 
 export interface PreviewInvitationDeps extends ResolveInvitationDeps {
   readonly clock: Clock
+  /** `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION`, both or neither. Absent: no terms (G2-20). */
+  readonly terms?: TermsOfUse | null
 }
 
 /**
@@ -203,6 +228,7 @@ export const makePreviewInvitation = (deps: PreviewInvitationDeps): PreviewInvit
       role: target.role,
       targetName: place.name,
       expiresAt: record.expiresAt,
+      terms: deps.terms ?? null,
     })
   }
 }

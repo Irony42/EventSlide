@@ -1,0 +1,42 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  /* A click target on a phone as much as on a laptop, and the sentence is part of it. */
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.box {
+  /* The native control, tinted: a hand-built checkbox loses the platform's keyboard
+     behaviour and its high-contrast rendering. */
+  accent-color: var(--accent);
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  flex: none;
+  /* Aligns the box with the first line of a sentence that may wrap on a narrow phone. */
+  margin-block-start: var(--space-1);
+  cursor: pointer;
+}
+
+.label {
+  line-height: var(--leading-snug);
+}
+
+.link {
+  /* Under the box, in the column the sentence starts at, so it reads as part of it. */
+  padding-inline-start: calc(var(--space-5) + var(--space-3));
+  font-size: var(--text-sm);
+}
+
+/* The failure sits in the same column as the sentence it is about, under the box, so it
+   reads as part of it. The glyph and the colour are the `Notice`'s. */
+.error {
+  padding-inline-start: calc(var(--space-5) + var(--space-3));
+}

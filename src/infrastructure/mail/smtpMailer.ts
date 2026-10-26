@@ -15,6 +15,7 @@ import { checkOutgoingMail } from '../../domain/mail/outgoingMail'
 import type { DomainError } from '../../domain/shared/errors'
 import { err, ok, type Result } from '../../domain/shared/result'
 import { isLoopbackHost, type SmtpSettings } from './smtpEndpoint'
+import { setBackgroundTimeout } from '../time/backgroundTimers'
 
 /**
  * The SMTP adapter (G2-07 / P3-08), on `nodemailer` — MIT-0, so compatible with this
@@ -226,12 +227,11 @@ export const transportOptionsFor = (
  */
 const within = <T>(work: Promise<T>, ms: number): Promise<T> =>
   new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
+    // A background timeout, never the reason a process stays up: the deadline only matters
+    // while a send is in flight, and a send holds the loop open with its own socket.
+    const timer = setBackgroundTimeout(() => {
       reject(Object.assign(new Error('the mail was not accepted in time'), { code: 'ETIMEDOUT' }))
     }, ms)
-    // Never the reason a process stays up: the deadline only matters while a send is in
-    // flight, and a send holds the loop open with its own socket.
-    timer.unref()
     work.then(
       (value) => {
         clearTimeout(timer)

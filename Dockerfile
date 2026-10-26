@@ -54,7 +54,7 @@ WORKDIR /app
 #
 # Declared here so `vite build` sees it as the default the footer shows from its first
 # paint (web/buildInfo.ts), and again on the runtime stage so the server answers
-# `GET /api/about` with the same one (`SOURCE_REF` in src/infrastructure/config/env.ts).
+# `GET /api/about` with the same one (`SOURCE_REF` in src/infrastructure/config/schema.ts).
 # An ARG does not persist into a later stage, so one declaration would not reach both.
 # Placed before `COPY . .`: a different value is a different bundle, and the layers that
 # follow must not come from the cache.

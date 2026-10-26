@@ -6,7 +6,6 @@ import type {
   EventScheduleInput,
   MissionInput,
   ModeratorInvitationInput,
-  ModeratorInviteResponse,
   ShareLinkInput,
 } from '../../../lib/api/client'
 import type {
@@ -14,6 +13,7 @@ import type {
   EventSettingsDto,
   EventStatus,
   MissionDto,
+  ModeratorInviteResponse,
   ShareLinkCreated,
 } from '../../../lib/api/dto'
 
@@ -81,11 +81,8 @@ export const useRevokeGuest = (): ActionState<[string, string], void> => {
 }
 
 /**
- * The whole invitation, not just the address.
- *
- * The temporary password travels with it because the server requires one and there is
- * no mailer to send it: the host reads it out. Threading it through as part of the input
- * object keeps the hook from having to know which of two strings is which.
+ * A moderator's invitation: the address, and the language the invitation is written in. The
+ * person chooses their own name and password when they accept it.
  */
 export const useInviteModerator = (): ActionState<
   [string, ModeratorInvitationInput],

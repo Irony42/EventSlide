@@ -16,9 +16,10 @@ import type { ReactionRepository } from '../../ports/reactionRepository'
  *
  * This is the only write a guest can repeat as fast as a thumb moves, and each one
  * fans out to every browser holding the wall open — a spam channel on the projector and
- * a denial of service on a self-hosted box at the same time. Four gates, in this order:
- * the host allows reactions at all, the photo is actually on the wall, the guest has
- * not already sent this kind, and the guest's own recent count still fits the budget.
+ * a denial of service on a self-hosted box at the same time. Five gates, in this order:
+ * the host allows reactions at all, the photo is actually on the wall, it is not the
+ * guest's own, the guest has not already sent this kind, and the guest's own recent count
+ * still fits the budget.
  */
 
 /**
@@ -72,6 +73,15 @@ export const makeReactToPhoto =
       return err(DomainError.conflict('reaction.notPublished', { status: photo.status }))
     }
 
+    // A reaction is the room's voice, and the photo of the night is the one the room liked
+    // most: a guest voting for their own photograph is not the room. A photograph the host
+    // took has no guest author, so it is anyone's to react to. Withdrawing is not gated: a
+    // reaction given before this rule keeps its way out. The rule is about the guest the token
+    // names: a guest who cleared their cookies is a new guest, and nothing here can tell.
+    if (photo.isAuthoredBy({ kind: 'guest', guestId })) {
+      return err(DomainError.forbidden('reaction.ownPhoto'))
+    }
+
     const now = clock.now()
     const reaction = Reaction.create({ eventId, photoId, guestId, kind }, ids.reactionId(), now)
     if (!reaction.ok) return reaction
@@ -92,7 +102,14 @@ export const makeReactToPhoto =
       maxPerWindow: budget.maxPerWindow,
     })
     if (!allowed.ok) return allowed
-    if (!allowed.value) return err(DomainError.rateLimited('reaction.rateLimited'))
+    // The budget's window is the longest a guest waits (HTTP-M-04), which is what `Retry-After` is.
+    if (!allowed.value) {
+      return err(
+        DomainError.rateLimited('reaction.rateLimited', {
+          retryAfterSeconds: Math.ceil(budget.windowMs / 1_000),
+        }),
+      )
+    }
 
     await reactions.save(reaction.value)
     bus.publish({ type: 'reaction.added', eventId, photoId, kind: reaction.value.kind })

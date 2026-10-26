@@ -12,6 +12,7 @@ import {
   makeInvitationWorld,
   type InvitationWorld,
 } from '../../../application/testing/invitationWorld'
+import type { TermsOfUse } from '../../../domain/legal/termsOfUse'
 import { makeAcceptInvitation } from '../../../application/usecases/auth/acceptInvitation'
 import { makePreviewInvitation } from '../../../application/usecases/auth/previewInvitation'
 import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken } from '../middleware/csrf'
@@ -31,9 +32,11 @@ interface Subject extends Harness {
 interface Options {
   readonly config?: Partial<HttpConfig>
   readonly csrf?: boolean
+  /** The terms this box asks for (G2-20). None by default, like a self-hosted box. */
+  readonly terms?: TermsOfUse
 }
 
-const harness = ({ config = {}, csrf = false }: Options = {}): Subject => {
+const harness = ({ config = {}, csrf = false, terms }: Options = {}): Subject => {
   const world = makeInvitationWorld()
 
   const built = buildHarness({
@@ -70,6 +73,7 @@ const harness = ({ config = {}, csrf = false }: Options = {}): Subject => {
               memberships: world.memberships,
               users: world.users,
               clock: world.clock,
+              ...(terms === undefined ? {} : { terms }),
             }),
             acceptInvitation: makeAcceptInvitation({
               tokens: world.tokens,
@@ -82,6 +86,7 @@ const harness = ({ config = {}, csrf = false }: Options = {}): Subject => {
               acceptance: world.acceptance,
               ids: world.ids,
               clock: world.clock,
+              ...(terms === undefined ? {} : { terms }),
             }),
           },
         }),
@@ -508,5 +513,241 @@ describe('POST /api/invitations/:token/accept, as the signed-in account', () => 
 
     expect(response.status).toBe(400)
     expect(subject.world.tokens.all[0]?.consumedAt).toBeNull()
+  })
+})
+
+// -------------------------------------------------------- the terms of use --
+
+/**
+ * G2-20, over HTTP. On a box that sets `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION`, an
+ * acceptance without the tick is a **400 form error** and never a dead link, and one with it
+ * is the acceptance it always was plus an audit entry. On a box that sets neither, nothing here
+ * changes: the preview answers its four keys and no acceptance is refused for want of a tick.
+ */
+describe('invitations, with the terms of use (G2-20)', () => {
+  const TERMS = { url: 'https://hosted.example.org/legal/cgu', version: '2027-01' }
+
+  const asked = (): Subject => harness({ terms: TERMS })
+
+  const accept = (subject: Subject, token: string, body: Record<string, unknown>) =>
+    request.agent(subject.app).post(`/api/invitations/${token}/accept`).send(body)
+
+  const logged = async (subject: Subject) => (await subject.world.audit.list({ limit: 50 })).items
+
+  describe('the preview', () => {
+    it('says which terms accepting agrees to, so the page can ask for them', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite()
+
+      const response = await request(subject.app).get(`/api/invitations/${token}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.terms).toEqual(TERMS)
+    })
+
+    it('has no terms key at all on a box that asks for none', async () => {
+      const subject = harness()
+      const { token } = await subject.world.invite()
+
+      const response = await request(subject.app).get(`/api/invitations/${token}`)
+
+      expect(Object.keys(response.body).sort()).toEqual(['expiresAt', 'kind', 'role', 'targetName'])
+    })
+
+    it('answers a dead link with the one dead-link body, whatever the box asks for', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite({ consumedAt: atPlus(-1) })
+
+      const response = await request(subject.app).get(`/api/invitations/${token}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body).toMatchObject(NOT_FOUND)
+      expect(JSON.stringify(response.body)).not.toContain(TERMS.version)
+    })
+  })
+
+  describe('choosing a password', () => {
+    it.each([
+      ['without the tick', CREDENTIALS],
+      ['with the box unticked', { ...CREDENTIALS, acceptTerms: false }],
+    ])(
+      'is a 400 terms.notAccepted %s, with no account, no session and the link still usable',
+      async (_what, body) => {
+        const subject = asked()
+        const { token } = await subject.world.invite()
+
+        const refused = await accept(subject, token, body)
+
+        expect(refused.status).toBe(400)
+        expect(refused.body.error.code).toBe('terms.notAccepted')
+        expect(cookieNamed(refused.headers, SESSION_COOKIE_IN_HARNESS)).toBeUndefined()
+        expect(await subject.world.users.findByEmail(emailOf(NEWCOMER))).toBeNull()
+        expect(await logged(subject)).toEqual([])
+        expect((await accept(subject, token, { ...CREDENTIALS, acceptTerms: true })).status).toBe(
+          200,
+        )
+      },
+    )
+
+    it('creates the account with the tick, and writes the entry that says which version it agreed to', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite()
+
+      const response = await accept(subject, token, { ...CREDENTIALS, acceptTerms: true })
+
+      expect(response.status).toBe(200)
+      const account = await subject.world.users.findByEmail(emailOf(NEWCOMER))
+      expect(await logged(subject)).toEqual([
+        expect.objectContaining({
+          action: 'account.termsAccepted',
+          actor: { kind: 'member', userId: account?.id, label: null },
+          subject: { type: 'account', id: account?.id },
+          details: { version: '2027-01' },
+        }),
+      ])
+    })
+
+    it('says no more of the answer than it did before: the entry is not in the body', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite()
+
+      const response = await accept(subject, token, { ...CREDENTIALS, acceptTerms: true })
+
+      expect(Object.keys(response.body).sort()).toEqual([
+        'eventSlug',
+        'kind',
+        'role',
+        'status',
+        'targetName',
+      ])
+    })
+
+    it('says the same 400 for an address that has an account as for one that has none', async () => {
+      const subject = asked()
+      const stranger = await subject.world.invite()
+      const known = await subject.world.invite({ email: EXISTING_EMAIL })
+
+      const forStranger = await accept(subject, stranger.token, CREDENTIALS)
+      const forKnown = await accept(subject, known.token, CREDENTIALS)
+
+      expect([forStranger.status, forKnown.status]).toEqual([400, 400])
+      expect(forKnown.body).toEqual(forStranger.body)
+    })
+
+    it('says 404 for a dead link with the tick missing, exactly as it does with it given', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite({ revokedAt: atPlus(-1) })
+
+      const without = await accept(subject, token, CREDENTIALS)
+      const given = await accept(subject, token, { ...CREDENTIALS, acceptTerms: true })
+
+      expect(without.status).toBe(404)
+      expect(without.body).toEqual(given.body)
+      expect(without.body).toMatchObject(NOT_FOUND)
+    })
+
+    it.each([
+      ['a word', { acceptTerms: 'yes' }],
+      ['a number', { acceptTerms: 1 }],
+      ['null', { acceptTerms: null }],
+    ])('refuses %s for the tick, which is a boolean', async (_what, tick) => {
+      const subject = asked()
+      const { token } = await subject.world.invite()
+
+      const response = await accept(subject, token, { ...CREDENTIALS, ...tick })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+      expect(subject.world.tokens.all[0]?.consumedAt).toBeNull()
+    })
+
+    it.each([['version'], ['termsVersion'], ['terms']])(
+      'does not let a request name the version it agreed to: a %s key is refused',
+      async (key) => {
+        const subject = asked()
+        const { token } = await subject.world.invite()
+
+        const response = await accept(subject, token, {
+          ...CREDENTIALS,
+          acceptTerms: true,
+          [key]: '1999-01',
+        })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('request.invalid')
+        expect(await logged(subject)).toEqual([])
+      },
+    )
+  })
+
+  describe('as the signed-in account', () => {
+    const asExisting = async (subject: Subject) => {
+      const agent = request.agent(subject.app)
+      await agent.post('/test/sign-in/existing').expect(204)
+      return agent
+    }
+
+    it('is a 400 terms.notAccepted with an empty body, and the link is not spent', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite({ email: EXISTING_EMAIL })
+      const agent = await asExisting(subject)
+
+      const response = await agent.post(`/api/invitations/${token}/accept`).send({})
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('terms.notAccepted')
+      expect(subject.world.tokens.all[0]?.consumedAt).toBeNull()
+    })
+
+    it('attaches the account with the tick, and writes the entry as that account', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite({ email: EXISTING_EMAIL })
+      const agent = await asExisting(subject)
+
+      const response = await agent
+        .post(`/api/invitations/${token}/accept`)
+        .send({ acceptTerms: true })
+
+      expect(response.status).toBe(200)
+      expect((await logged(subject)).map((row) => [row.action, row.actor.userId])).toEqual([
+        ['account.termsAccepted', EXISTING_ID],
+      ])
+    })
+
+    it('still refuses a body that names an account, tick or none', async () => {
+      const subject = asked()
+      const { token } = await subject.world.invite({ email: EXISTING_EMAIL })
+      const agent = await asExisting(subject)
+
+      const response = await agent
+        .post(`/api/invitations/${token}/accept`)
+        .send({ acceptTerms: true, userId: HOST_ID })
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+      expect(subject.world.tokens.all[0]?.consumedAt).toBeNull()
+    })
+  })
+
+  describe('on a box that asks for none', () => {
+    it('accepts with no tick at all and records nothing, as it always did', async () => {
+      const subject = harness()
+      const { token } = await subject.world.invite()
+
+      const response = await accept(subject, token, CREDENTIALS)
+
+      expect(response.status).toBe(200)
+      expect(await logged(subject)).toEqual([])
+    })
+
+    it('accepts a tick it did not ask for, and records nothing for it', async () => {
+      const subject = harness()
+      const { token } = await subject.world.invite()
+
+      const response = await accept(subject, token, { ...CREDENTIALS, acceptTerms: true })
+
+      expect(response.status).toBe(200)
+      expect(await logged(subject)).toEqual([])
+    })
   })
 })

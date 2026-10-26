@@ -15,12 +15,36 @@ import type { RevokeOtherSessions } from '../../application/usecases/auth/revoke
 import type { StepUp } from '../../application/usecases/auth/stepUp'
 import type { VerifySecondFactor } from '../../application/usecases/auth/verifySecondFactor'
 
+import type { IssuePasswordResetForAccount } from '../../application/usecases/auth/issuePasswordResetForAccount'
+
 import type { ApproveInvitation } from '../../application/usecases/clients/approveInvitation'
+import type { ApprovePasswordReset } from '../../application/usecases/clients/approvePasswordReset'
+import type { InviteToClientAsOperator } from '../../application/usecases/clients/inviteToClientAsOperator'
+import type { ProvisionClientOwner } from '../../application/usecases/clients/provisionClientOwner'
+import type { RenameClient } from '../../application/usecases/clients/renameClient'
+import type { ResumeClient } from '../../application/usecases/clients/resumeClient'
+import type { DisableAccount } from '../../application/usecases/auth/disableAccount'
+import type { EnableAccount } from '../../application/usecases/auth/enableAccount'
+import type { DeleteAccount } from '../../application/usecases/site/deleteAccount'
+import type { OffboardClient } from '../../application/usecases/clients/offboardClient'
+import type { SetClientCeilings } from '../../application/usecases/clients/setClientCeilings'
+import type { SuspendClient } from '../../application/usecases/clients/suspendClient'
+import type { ListSiteAccounts } from '../../application/usecases/site/listSiteAccounts'
+import type { ListSiteAudit } from '../../application/usecases/site/listSiteAudit'
+import type { ListSiteClientEvents } from '../../application/usecases/site/listSiteClientEvents'
+import type { ListSiteClients } from '../../application/usecases/site/listSiteClients'
+import type { GetClientLimits } from '../../application/usecases/clients/getClientLimits'
+import type { ListClientAudit } from '../../application/usecases/clients/listClientAudit'
+import type { ListPendingInvitations } from '../../application/usecases/clients/listPendingInvitations'
+import type { GetEventView } from '../../application/usecases/events/getEventView'
 
 import type { ChangeEventStatus } from '../../application/usecases/events/changeEventStatus'
 import type { CreateEvent } from '../../application/usecases/events/createEvent'
 import type { GetEventBySlug } from '../../application/usecases/events/getEventBySlug'
 import type { ListEventsForHost } from '../../application/usecases/events/listEventsForHost'
+import type { ListModerators } from '../../application/usecases/events/listModerators'
+import type { RenameEvent } from '../../application/usecases/events/renameEvent'
+import type { RevokeModerator } from '../../application/usecases/events/revokeModerator'
 import type { PurgeEvent } from '../../application/usecases/events/purgeEvent'
 import type { ResolveJoinCode } from '../../application/usecases/events/resolveJoinCode'
 import type { RotateJoinCode } from '../../application/usecases/events/rotateJoinCode'
@@ -28,7 +52,6 @@ import type { ScheduleEvent } from '../../application/usecases/events/scheduleEv
 import type { UpdateEventSettings } from '../../application/usecases/events/updateEventSettings'
 
 import type { AcknowledgePrivacyNotice } from '../../application/usecases/guests/acknowledgePrivacyNotice'
-import type { AuthenticateGuest } from '../../application/usecases/guests/authenticateGuest'
 import type { GetPrivacyNotice } from '../../application/usecases/guests/getPrivacyNotice'
 import type { JoinEvent } from '../../application/usecases/guests/joinEvent'
 import type { ListGuests } from '../../application/usecases/guests/listGuests'
@@ -45,6 +68,7 @@ import type { UploadClip } from '../../application/usecases/clips/uploadClip'
 import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
 import type { ExportAlbum } from '../../application/usecases/photos/exportAlbum'
 import type { GetPhotoMedia } from '../../application/usecases/photos/getPhotoMedia'
+import type { IdentifyMediaViewer } from '../../application/usecases/photos/identifyMediaViewer'
 import type { ListEventPhotos } from '../../application/usecases/photos/listEventPhotos'
 import type { ListGuestPhotos } from '../../application/usecases/photos/listGuestPhotos'
 import type { SetPhotoCaption } from '../../application/usecases/photos/setPhotoCaption'
@@ -112,10 +136,39 @@ export interface HttpUseCases {
 
   // the client's own space (G2-12 / P3-14): the owner's half of R1
   readonly approveInvitation: ApproveInvitation
+  // ... and what it reads of its own space (G2-16 / P3-17), each scoped by the caller's roster
+  readonly getClientLimits: GetClientLimits
+  readonly listClientAudit: ListClientAudit
+  readonly listPendingInvitations: ListPendingInvitations
+
+  // the owner's half of R2 (G2-14 / P3-13): another owner of an account's client lets an operator be
+  // handed its password-reset link, on a box with no mail relay and `copyLinkWithOwnerApproval`
+  readonly approvePasswordReset: ApprovePasswordReset
+
+  // the operator's namespace, `/api/site` (G2-14 / P3-13), behind `requireOperator`: what it reads of
+  // the box, content-free (`SiteOverview`) ...
+  readonly listSiteClients: ListSiteClients
+  readonly listSiteClientEvents: ListSiteClientEvents
+  readonly listSiteAccounts: ListSiteAccounts
+  readonly listSiteAudit: ListSiteAudit
+  // ... and what it does to a client and its owner, each audited and each reading the caller's site
+  // role again for itself where the operator guard (R1, R2) is concerned
+  readonly provisionClientOwner: ProvisionClientOwner
+  readonly renameClient: RenameClient
+  readonly setClientCeilings: SetClientCeilings
+  readonly suspendClient: SuspendClient
+  readonly resumeClient: ResumeClient
+  readonly offboardClient: OffboardClient
+  readonly disableAccount: DisableAccount
+  readonly enableAccount: EnableAccount
+  readonly deleteAccount: DeleteAccount
+  readonly inviteToClientAsOperator: InviteToClientAsOperator
+  readonly issuePasswordResetForAccount: IssuePasswordResetForAccount
 
   // events
   readonly createEvent: CreateEvent
   readonly getEventBySlug: GetEventBySlug
+  readonly getEventView: GetEventView
   readonly listEventsForHost: ListEventsForHost
   readonly resolveJoinCode: ResolveJoinCode
   readonly updateEventSettings: UpdateEventSettings
@@ -123,10 +176,12 @@ export interface HttpUseCases {
   readonly changeEventStatus: ChangeEventStatus
   readonly scheduleEvent: ScheduleEvent
   readonly purgeEvent: PurgeEvent
+  readonly renameEvent: RenameEvent
+  readonly listModerators: ListModerators
+  readonly revokeModerator: RevokeModerator
 
   // guests
   readonly joinEvent: JoinEvent
-  readonly authenticateGuest: AuthenticateGuest
   readonly renameGuest: RenameGuest
   readonly revokeGuest: RevokeGuest
   readonly listGuests: ListGuests
@@ -140,6 +195,8 @@ export interface HttpUseCases {
   readonly deletePhoto: DeletePhoto
   readonly setPhotoCaption: SetPhotoCaption
   readonly getPhotoMedia: GetPhotoMedia
+  /** Who is asking for the bytes: the media route's one answer to "who is this" (HTTP-H-02). */
+  readonly identifyMediaViewer: IdentifyMediaViewer
   readonly exportAlbum: ExportAlbum
 
   // clips

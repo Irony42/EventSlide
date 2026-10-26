@@ -3,11 +3,11 @@ import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings
 import type { Event } from '../../../domain/events/event'
 import { asEventId, type EventId } from '../../../domain/shared/ids'
 import { aClient, anEvent, atPlus, type EventInput } from '../../testing/builders'
-import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeApplyEventSchedules, type ApplyEventSchedules } from './applyEventSchedules'
+import { CountingClientRepository } from '../../testing/countingClientRepository'
 
 /**
  * Ring 2: the sweep that opens and closes events on their own.
@@ -27,18 +27,6 @@ const OPEN_AT = atPlus(HOUR)
 const CLOSE_AT = atPlus(9 * HOUR)
 /** The sweep that should have run at the opening instant, seven minutes late. */
 const SEVEN_MINUTES_LATE = atPlus(HOUR + 7 * 60_000)
-
-/** Counts the reads, so "an event with no client never asks" is a number. */
-class CountingClientRepository extends FakeClientRepository {
-  contextReads = 0
-
-  override async contextForEvent(
-    ...args: Parameters<FakeClientRepository['contextForEvent']>
-  ): ReturnType<FakeClientRepository['contextForEvent']> {
-    this.contextReads += 1
-    return super.contextForEvent(...args)
-  }
-}
 
 /** A repository whose `save` fails for named events, as a locked database would. */
 class FlakyEventRepository extends FakeEventRepository {
@@ -103,6 +91,28 @@ describe('applyEventSchedules', () => {
 
     expect(report.opened).toEqual([WEDDING])
     expect((await stored(WEDDING)).status).toBe('live')
+  })
+
+  it('reports nothing refused for a schedule that was applied', async () => {
+    // `scheduleSweeper` logs a warning for a non-empty `refused`, so a report that listed the
+    // events it opened as refused would be a warning on every pass.
+    seedWedding()
+
+    const report = await applyEventSchedules()
+
+    expect(report.refused).toEqual([])
+  })
+
+  it('reports nothing refused for a closing that was applied either', async () => {
+    // Closing and archiving are never refused (docs/API.md), so a refusal reported for one is a
+    // false warning at the end of every party.
+    seedWedding({ status: 'live', scheduledOpenAt: null })
+    clock.set(CLOSE_AT)
+
+    const report = await applyEventSchedules()
+
+    expect(report.closed).toEqual([WEDDING])
+    expect(report.refused).toEqual([])
   })
 
   it('opens an event whose opening was missed while the server was down', async () => {

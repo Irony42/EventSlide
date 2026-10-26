@@ -24,8 +24,8 @@ export type PhotoVariant = (typeof MEDIA_VARIANTS)[number]
 
 /**
  * A clip: the transcoded H.264/AAC file, and the still frame everything that cannot play
- * a video renders instead — the moderation grid, the album index, the wall while the
- * clip is loading, and the ZIP export.
+ * a video renders instead — the moderation grid, the album index and the wall while the
+ * clip is loading. The ZIP exports carry the `video`, never the `poster`.
  *
  * There is no `original`. The stored bytes are always the pipeline's output; a clip's
  * upload is never kept, because keeping it would keep the GPS atom, the gyroscope track
@@ -69,10 +69,3 @@ export const VARIANTS_BY_KIND: Readonly<Record<MediaKind, readonly ServedVariant
   photo: MEDIA_VARIANTS,
   clip: CLIP_VARIANTS,
 }
-
-export const isServedVariant = (value: unknown): value is ServedVariant =>
-  typeof value === 'string' && (SERVED_VARIANTS as readonly string[]).includes(value)
-
-/** Whether this rendition belongs to a row of this kind. */
-export const hasVariant = (kind: MediaKind, variant: ServedVariant): boolean =>
-  VARIANTS_BY_KIND[kind].includes(variant)

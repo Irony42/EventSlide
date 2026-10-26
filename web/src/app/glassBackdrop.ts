@@ -65,6 +65,8 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
   { path: '/join/:code', backdrop: 'ground', page: 'features/join/JoinPage.tsx' },
   { path: '/join/*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
   { path: '/e/:slug/upload', backdrop: 'photo', page: 'features/guest-upload/GuestUploadPage.tsx' },
+  // Every photograph the room can see, in one column: the strict floor.
+  { path: '/e/:slug/photos', backdrop: 'photo', page: 'features/guest-feed/GuestFeedPage.tsx' },
   { path: '/e/:slug/display', backdrop: 'photo', page: 'features/wall/WallPage.tsx' },
   { path: '/e/*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
   // A grid of guest photographs scrolls under the download bar: the strict floor.
@@ -72,6 +74,14 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
   { path: '/g/*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },
   { path: '/about', backdrop: 'ground', page: 'features/about/AboutPage.tsx' },
   { path: '/login', backdrop: 'ground', page: 'features/auth/LoginPage.tsx' },
+  // The pages a link opens: forms and sentences, nothing a person uploaded.
+  { path: '/invite/:token', backdrop: 'ground', page: 'features/auth/AcceptInvitationPage.tsx' },
+  { path: '/password/forgot', backdrop: 'ground', page: 'features/auth/ForgotPasswordPage.tsx' },
+  {
+    path: '/password/reset/:token',
+    backdrop: 'ground',
+    page: 'features/auth/ResetPasswordPage.tsx',
+  },
   { path: '/admin', backdrop: 'ground', page: 'features/admin/DashboardPage.tsx' },
   { path: '/admin/events/new', backdrop: 'ground', page: 'features/admin/NewEventPage.tsx' },
   { path: '/admin/events/:slug', backdrop: 'photo', page: 'features/admin/EventPage.tsx' },
@@ -90,6 +100,18 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
     backdrop: 'ground',
     page: 'features/admin/EventSettingsPage.tsx',
   },
+  { path: '/admin/client', backdrop: 'ground', page: 'features/admin/ClientSpacePage.tsx' },
+  // The operator's console: tables and sentences of shapes and sizes. Nothing a person uploaded can
+  // be on it, which is the whole point of the screen, and the guard below walks its imports to
+  // see that this stays true.
+  { path: '/admin/site', backdrop: 'ground', page: 'features/site/ClientsPage.tsx' },
+  {
+    path: '/admin/site/clients/:clientId',
+    backdrop: 'ground',
+    page: 'features/site/ClientPage.tsx',
+  },
+  { path: '/admin/site/accounts', backdrop: 'ground', page: 'features/site/AccountsPage.tsx' },
+  { path: '/admin/site/audit', backdrop: 'ground', page: 'features/site/AuditPage.tsx' },
   { path: '/admin/password', backdrop: 'ground', page: 'features/auth/ChangePasswordPage.tsx' },
   { path: '/admin/security', backdrop: 'photo', page: 'features/auth/SecurityPage.tsx' },
   { path: '*', backdrop: 'ground', page: 'app/NotFoundView.tsx' },

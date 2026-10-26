@@ -5,9 +5,11 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { useToast } from '../../design-system/components/useToast'
+import { cx } from '../../design-system/classNames'
 import { useAbout } from '../../app/useAbout'
-import { useTranslations } from '../../lib/i18n/useTranslations'
-import { LoadFailure, Pending } from './components/AsyncState'
+import { formatDateTime } from '../../lib/format'
+import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
+import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { EventQrCard } from './components/EventQrCard'
 import { EventStatusBadge } from './components/EventStatusBadge'
 import { StorageMeter } from './components/StorageMeter'
@@ -32,6 +34,7 @@ import type { EventStatus } from '../../lib/api/dto'
 /** Surface: the host's laptop. The screen they come back to during the event. */
 export function EventPage() {
   const t = useTranslations()
+  const { locale } = useLocale()
   const { slug = '' } = useParams()
   const { data: event, loading, error, reload, replace } = useEvent(slug)
   const statusChange = useStatusChange()
@@ -106,7 +109,7 @@ export function EventPage() {
       </header>
 
       <div className={styles['columns']}>
-        <div className={`${styles['column']} ${styles['screenOnly']}`}>
+        <div className={cx(styles['column'], styles['screenOnly'])}>
           <Card as="h2" title={t.admin.joinCode} subtitle={t.admin.joinCodeHint}>
             <p className={styles['joinCode']}>{event.joinCode}</p>
             <p className={styles['joinUrl']}>
@@ -167,6 +170,13 @@ export function EventPage() {
               </a>
             </div>
             <StorageMeter usedBytes={event.usedBytes} quotaBytes={event.quotaBytes} />
+            {event.liveWindowEnd === undefined ? null : (
+              <p className={styles['liveWindow']}>
+                {t.clientSpace.liveWindowEnd(
+                  formatDateTime(event.liveWindowEnd, locale) ?? event.liveWindowEnd,
+                )}
+              </p>
+            )}
             {isOwner ? (
               <div className={styles['actions']}>
                 {lifecycleActions(event.status, t).map((action) => (
@@ -200,7 +210,7 @@ export function EventPage() {
         </div>
       </div>
 
-      <div className={`${styles['column']} ${styles['screenOnly']}`}>
+      <div className={cx(styles['column'], styles['screenOnly'])}>
         <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
         {/* Owner-only for the reason below, and mounted above the moderators because a
             host sets the prompts up before the evening rather than during it (roadmap

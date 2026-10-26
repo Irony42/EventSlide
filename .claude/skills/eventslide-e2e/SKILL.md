@@ -16,19 +16,27 @@ covers **journeys and cross-surface contracts only**.
 ```
 tests/e2e/
   fixtures/
-    app.ts             # server-per-worker fixture, throwaway DB + media root
-    surfaces.ts        # guestPhone / hostDesktop / projector browser contexts
+    app.ts             # server-per-worker fixture and the guestPhone / hostDesktop / projector
+                       # browser contexts (surfaces); freshServerTest for the visual specs
+    startTestApp.ts    # boots the built server on a throwaway DB + media root
+    session.ts         # fetch client with a cookie jar and the CSRF token, for everything
+                       # that is not a page: seeding, ceilings, operators
+    clients.ts         # what a spec about clients, ceilings and operators arranges with it
+    guest.ts           # the guest journey: join, then upload
     media.ts           # generated JPEGs, one with EXIF orientation 6 and GPS
   journeys/
     guest-upload.spec.ts
     moderation.spec.ts
     display-wall.spec.ts
-    host-onboarding.spec.ts
-    album-sharing.spec.ts
+    moderator-invitation.spec.ts
+    shared-gallery.spec.ts
+    # ...one spec per journey: `ls tests/e2e/journeys` is the list
   security/
     tenant-isolation.spec.ts
-    guest-token-scope.spec.ts
-    upload-hardening.spec.ts
+    ceilings.spec.ts
+    operator-second-factor.spec.ts
+  offline/
+    offline-upload.spec.ts
   a11y/
     accessibility.spec.ts
   visual/

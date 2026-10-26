@@ -7,6 +7,7 @@ import type { EmailAddress } from '../../domain/users/emailAddress'
 import type { AccountTokenId, ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type { AccountTokenPurpose, InvitationTarget } from '../../domain/users/accountToken'
 import type { AccountTokenRepository } from '../ports/accountTokenRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `AccountTokenRepository`.
@@ -107,6 +108,32 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
     return this.rows.get(id) ?? null
   }
 
+  async listAwaitingApproval(
+    clientId: ClientId,
+    now: Date,
+    limit: number,
+  ): Promise<readonly AccountToken[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1) {
+      throw new RangeError('limit must be a positive integer')
+    }
+    return [...this.rows.values()]
+      .filter(
+        (row) =>
+          row.purpose === 'invitation' &&
+          row.clientId === clientId &&
+          row.requiresApproval &&
+          row.approvedAt === null &&
+          row.consumedAt === null &&
+          row.revokedAt === null &&
+          row.expiresAt.getTime() > now.getTime(),
+      )
+      .sort(
+        (left, right) =>
+          right.createdAt.getTime() - left.createdAt.getTime() || compareIds(right.id, left.id),
+      )
+      .slice(0, limit)
+  }
+
   async consume(id: AccountTokenId, now: Date): Promise<boolean> {
     const row = this.rows.get(id)
     if (row === undefined || !isAccountTokenUsable(row, now)) return false
@@ -153,6 +180,22 @@ export class FakeAccountTokenRepository implements AccountTokenRepository {
       }
     }
     return revoked
+  }
+
+  async countLiveClientInvitations(
+    clientId: ClientId,
+    now: Date,
+    except: EmailAddress,
+  ): Promise<number> {
+    return [...this.rows.values()].filter(
+      (row) =>
+        row.purpose === 'invitation' &&
+        row.clientId === clientId &&
+        !row.email.equals(except) &&
+        row.consumedAt === null &&
+        row.revokedAt === null &&
+        row.expiresAt.getTime() > now.getTime(),
+    ).length
   }
 
   async revokeOutstandingInvitations(

@@ -420,6 +420,17 @@ export const clipJobRepositoryContract = (
         expect((await repo.claimNext(atPlus(10_000)))?.id).toBe('job-early')
       })
 
+      it('breaks a tie on the id as bytes, which is how the database orders text', async () => {
+        // Two jobs that are equally old and equally due: the order is then the id's, and an id
+        // sort that consulted the host's locale would take 'job-a' first where SQLite takes
+        // 'job-B' (0x42 sorts before 0x61).
+        await insertJob(aClipJob({ id: 'job-a', eventId: 'evt-wedding', createdAt: AT }))
+        await insertJob(aClipJob({ id: 'job-B', eventId: 'evt-wedding', createdAt: AT }))
+
+        expect((await repo.claimNext(AT))?.id).toBe('job-B')
+        expect((await repo.claimNext(AT))?.id).toBe('job-a')
+      })
+
       it('drains every event, because there is one worker for the box', async () => {
         // The deliberate exception to "every read is scoped by eventId": the worker
         // cannot name the event whose guest is about to upload.

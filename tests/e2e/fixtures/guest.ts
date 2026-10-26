@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import type { TestApp } from './startTestApp'
+import { joinAsGuest } from './app'
 import { aPhoto } from './media'
 import { SUPPORTED_LOCALES } from '../../../web/src/lib/i18n/locale'
 import { TRANSLATIONS } from '../../../web/src/lib/i18n/translations'
@@ -71,13 +72,7 @@ export const joinAndUpload = async (
   joinCode: string,
   options: JoinAndUploadOptions = {},
 ): Promise<void> => {
-  await page.goto(app.url(`/join/${joinCode}`))
-
-  if (options.displayName !== undefined) {
-    await page.getByLabel(/Votre prénom/i).fill(options.displayName)
-  }
-  await page.getByRole('button', { name: /Rejoindre/i }).click()
-  await page.waitForURL(/\/e\/[^/]+\/upload/)
+  await joinAsGuest(page, app, joinCode, options.displayName)
   await passPrivacyNotice(page)
 
   const file = options.file ?? (await aPhoto('journey', 1200, 900))

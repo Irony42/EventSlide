@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { makeGetWallPlaylist, type GetWallPlaylist } from './getWallPlaylist'
-import type { Event } from '../../../domain/events/event'
+import { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
@@ -47,6 +47,7 @@ const recording = (inner: FakeGuestRepository): RecordedGuests => {
       list: (eventId) => inner.list(eventId),
       countActive: (eventId, since) => inner.countActive(eventId, since),
       save: (guest) => inner.save(guest),
+      touch: (eventId, guestId, at) => inner.touch(eventId, guestId, at),
       delete: (eventId, guestId) => inner.delete(eventId, guestId),
     },
   }
@@ -98,6 +99,62 @@ describe('getWallPlaylist', () => {
     expect(result.ok && result.value.playlist.items).toEqual(['photo-2', 'photo-1'])
   })
 
+  /**
+   * The wall is a public endpoint, and the query it can provoke is bounded here rather than by
+   * whatever the client typed. The cap shows twice: in what the repository is asked for, which
+   * is what bounds the work (the wall re-reads on every signal, and a window of two hundred
+   * would hide an unbounded read behind the same answer), and in what a use case handed a
+   * larger window than the route ever sends can return.
+   */
+  it('asks the repository for at most five hundred photos, whatever the window', async () => {
+    events.seed(wedding)
+    const limits: (number | undefined)[] = []
+    const recording = new (class extends FakePhotoRepository {
+      override async list(
+        ...args: Parameters<FakePhotoRepository['list']>
+      ): ReturnType<FakePhotoRepository['list']> {
+        limits.push(args[1]?.limit)
+        return super.list(...args)
+      }
+    })()
+    const recorded = makeGetWallPlaylist({
+      events,
+      photos: recording,
+      guests,
+      missions: new FakeMissionRepository(recording),
+    })
+
+    await recorded({
+      slug: wedding.slug,
+      layout: null,
+      slideIntervalMs: null,
+      windowSize: 10_000,
+    })
+
+    expect(limits).toEqual([500])
+  })
+
+  it('plays at most five hundred photos however large a window is asked for, keeping the newest', async () => {
+    events.seed(wedding)
+    for (let index = 0; index < 501; index += 1) {
+      photos.seed(
+        aPhoto({
+          id: `photo-${String(index).padStart(3, '0')}`,
+          eventId: 'event-1',
+          status: 'published',
+          createdAt: atPlus(index * 1_000),
+        }),
+      )
+    }
+
+    const result = await ask({ windowSize: 10_000 })
+
+    const items = result.ok ? result.value.playlist.items : []
+    expect(items).toHaveLength(500)
+    expect(items).not.toContain('photo-000')
+    expect(items).toContain('photo-500')
+  })
+
   it.each(['pending', 'rejected', 'hidden'] as const)(
     'never puts a %s photo on the wall',
     async (status: PhotoStatus) => {
@@ -129,6 +186,20 @@ describe('getWallPlaylist', () => {
     'refuses to serve a %s event, indistinguishably from one that does not exist',
     async (status: EventStatus) => {
       events.seed(anEventWith(status))
+
+      const result = await ask()
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+    },
+  )
+
+  it.each(['live', 'closed'] as const)(
+    'refuses to serve a %s event whose client is suspended, indistinguishably from one that does not exist (G2-14)',
+    async (status: EventStatus) => {
+      events.seed(
+        Event.restore({ ...anEventWith(status).toProps(), clientSuspendedAt: atPlus(MINUTE) }),
+      )
+      photos.seed(aPhoto({ id: 'photo-1', eventId: 'event-1', status: 'published' }))
 
       const result = await ask()
 

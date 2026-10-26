@@ -6,7 +6,13 @@ import { NewEventPage } from './NewEventPage'
 import { ApiError } from '../../lib/http'
 import { de } from '../../lib/i18n/de'
 import { fr } from '../../lib/i18n/fr'
-import { anEventDto, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import {
+  aClientLimits,
+  anAbout,
+  anEventDto,
+  fakeApi,
+  renderWithProviders,
+} from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 
 const EVENT_PAGE = 'Page de l’évènement'
@@ -53,6 +59,24 @@ describe('NewEventPage', () => {
     await userEvent.type(screen.getByLabelText(fr.admin.slug), 'Fête des Voisins')
 
     expect(screen.getByText('/e/fete-des-voisins')).toBeVisible()
+  })
+
+  it('treats a space in the address box as no address: the preview and the submit follow the name', async () => {
+    // A lone space is not an address, so the form sends none and the server derives one from
+    // the name. The preview names that same address; it does not fold the space to nothing and
+    // announce that there is none over a name that has one.
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.type(screen.getByLabelText(fr.admin.eventName), 'Camille & Sacha')
+    await userEvent.type(screen.getByLabelText(fr.admin.slug), ' ')
+
+    expect(screen.getByText('/e/camille-sacha')).toBeVisible()
+    expect(screen.queryByText(fr.admin.slugPreviewEmpty)).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.create }))
+
+    expect(api.createEvent).toHaveBeenCalledWith({ name: 'Camille & Sacha', wallLanguage: 'fr' })
   })
 
   it('creates the event from the name alone and opens it', async () => {
@@ -209,5 +233,43 @@ describe('NewEventPage', () => {
       name: 'Camille & Sacha',
       wallLanguage: 'de',
     })
+  })
+})
+
+/** A client's limits on the new-event form (G2-16 / P3-17). */
+describe('NewEventPage: a client’s limits', () => {
+  const onBox = (clients: ReturnType<typeof aClientLimits>[]) =>
+    fakeApi({
+      about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
+      myLimits: vi.fn(async () => ({ clients })),
+    })
+
+  it('warns before the form, not after the refusal, when a ceiling is close', async () => {
+    const limits = aClientLimits({
+      meters: [{ kind: 'events', used: 9, max: 10, level: 'warning' }],
+    })
+
+    renderPage(onBox([limits]))
+
+    const banner = await screen.findByRole('region', { name: fr.clientSpace.bannerLabel })
+    expect(banner).toHaveTextContent(fr.clientSpace.eventsMeter(9, 10))
+    expect(screen.getByLabelText(fr.admin.eventName)).toBeVisible()
+  })
+
+  it('offers no form to a suspended account, and says why', async () => {
+    renderPage(onBox([aClientLimits({ suspended: true })]))
+
+    expect(await screen.findByText(fr.clientSpace.suspendedTitle)).toBeVisible()
+    expect(screen.queryByLabelText(fr.admin.eventName)).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.admin.create })).toBeNull()
+  })
+
+  it('is the form it always was on a box with no client space', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+
+    expect(screen.getByLabelText(fr.admin.eventName)).toBeVisible()
+    expect(api.myLimits).not.toHaveBeenCalled()
   })
 })

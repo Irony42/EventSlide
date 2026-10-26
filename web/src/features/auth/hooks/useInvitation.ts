@@ -1,0 +1,129 @@
+import { useCallback, useMemo, useState } from 'react'
+import { useApi } from '../../../app/useApi'
+import type { InvitationAcceptance } from '../../../lib/api/client'
+import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../../lib/api/dto'
+import { ApiError } from '../../../lib/http'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { messageForError } from '../../../lib/i18n/translations'
+import { useLoader } from '../../../lib/useLoader'
+
+/**
+ * What an invitation link is, as the reader's page needs it (G2-09 / P3-10, G2-10 / P3-11).
+ *
+ * Both hooks exist so the page never touches the transport, and so the one decision that is
+ * not a sentence — "is this link dead?" — is made in one place.
+ */
+
+/**
+ * The two codes that mean "this link opens nothing", and the page says one thing for both.
+ *
+ * `invitation.notFound` is every unknown, malformed, spent, replaced or expired link, byte for
+ * byte (the server's own rule: a refusal never says which). `event.immutable` is the same
+ * outcome for a link to an event that has since been archived: it can never be accepted, and
+ * to the person holding it that is a dead link. Showing it as another sentence would be a
+ * second answer where the server took care to give one.
+ */
+const DEAD_LINK = new Set(['invitation.notFound', 'event.immutable'])
+
+const isDeadLink = (cause: unknown): boolean =>
+  cause instanceof ApiError && DEAD_LINK.has(cause.code)
+
+export type InvitationView =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'ready'; readonly preview: InvitationPreviewDto }
+  /** Dead, whatever killed it. */
+  | { readonly kind: 'dead' }
+  /**
+   * Could not be asked, which is not the same as dead: the link may be perfectly good. The
+   * sentence is `useLoader`'s, composed at render from the page's current language, so a person
+   * who changes it is answered in it without the link being asked about again.
+   */
+  | { readonly kind: 'failed'; readonly message: string }
+
+/** What asking about a link came to, short of a failure to ask. */
+type Verdict = Extract<InvitationView, { readonly kind: 'ready' | 'dead' }>
+
+export interface InvitationPreviewState {
+  readonly view: InvitationView
+  /** Asks again. Offered only after a failure to ask. */
+  readonly reload: () => void
+}
+
+/**
+ * Reads what the link offers. Spends nothing: a mail client that opens links to preview them
+ * cannot use one up, and neither can this.
+ *
+ * A dropped connection is `failed` with a retry, never `dead`: telling somebody on a venue's
+ * Wi-Fi that their invitation is no longer valid because the network blinked would send them
+ * to ask for a new one they do not need.
+ */
+export const useInvitationPreview = (token: string): InvitationPreviewState => {
+  const api = useApi()
+  // The link is the request, so a navigation from one link to another shows the wait again
+  // instead of the previous link's invitation for a moment, and a retry shows it at once.
+  const load = useCallback(
+    (signal: AbortSignal): Promise<Verdict> =>
+      api.invitation(token, signal).then(
+        (preview): Verdict => ({ kind: 'ready', preview }),
+        (cause: unknown): Verdict => {
+          if (isDeadLink(cause)) return { kind: 'dead' }
+          throw cause
+        },
+      ),
+    [api, token],
+  )
+  const { data, loading, error, reload } = useLoader(load)
+
+  const view = useMemo<InvitationView>(() => {
+    if (loading) return { kind: 'loading' }
+    if (error !== null) return { kind: 'failed', message: error }
+    return data ?? { kind: 'loading' }
+  }, [data, loading, error])
+
+  return { view, reload }
+}
+
+/** What accepting came to. */
+export type AcceptOutcome =
+  | { readonly kind: 'accepted'; readonly accepted: InvitationAcceptedDto }
+  /** The link died between the preview and the press: spent by the person it was for, replaced. */
+  | { readonly kind: 'dead' }
+  /** The address has an account: nothing was created, the link is not spent. */
+  | { readonly kind: 'signInRequired' }
+  /** Anything else, as a sentence. `code` is what the page keys a remedy on. */
+  | { readonly kind: 'refused'; readonly code: string; readonly message: string }
+
+export interface AcceptInvitationState {
+  readonly submit: (acceptance: InvitationAcceptance) => Promise<AcceptOutcome>
+  readonly submitting: boolean
+}
+
+export const useAcceptInvitation = (token: string): AcceptInvitationState => {
+  const api = useApi()
+  const t = useTranslations()
+  const [submitting, setSubmitting] = useState(false)
+
+  const submit = useCallback(
+    async (acceptance: InvitationAcceptance): Promise<AcceptOutcome> => {
+      setSubmitting(true)
+      try {
+        return { kind: 'accepted', accepted: await api.acceptInvitation(token, acceptance) }
+      } catch (cause) {
+        if (isDeadLink(cause)) return { kind: 'dead' }
+        if (cause instanceof ApiError && cause.code === 'invitation.signInRequired') {
+          return { kind: 'signInRequired' }
+        }
+        return {
+          kind: 'refused',
+          code: cause instanceof ApiError ? cause.code : 'unknown',
+          message: messageForError(cause, t),
+        }
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [api, t, token],
+  )
+
+  return { submit, submitting }
+}

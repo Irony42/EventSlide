@@ -113,10 +113,11 @@ src/
     moderation/    Queue ordering and decisions (pure)
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
-    clients/       Client entity, ceilings, roles (roadmap §10.2; no route yet)
-    audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; no route yet)
+    clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5)
+    audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; an owner reads their client's, G2-16)
     mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
-    site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; no route yet)
+    legal/         The terms of use an invitation's acceptance agrees to: a URL and a short version (G2-20)
+    site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; served by `/api/site`, G2-14)
   application/
     ports/         Interfaces. One file per port. No implementations.
     usecases/      One file, one exported factory, one responsibility.
@@ -126,7 +127,7 @@ src/
     media/         Filesystem store, sharp pipeline, magic bytes
     crypto/        Hashing, HMAC tokens, id generation
     mail/          NullMailer (the default) and the optional SMTP adapter on nodemailer
-    realtime/      Event bus + SSE hub
+    realtime/      The in-memory event bus (the SSE channels live with their route, interface/http/routes/streamRoutes.ts)
     logging/       pino
     time/          System clock
   interface/http/  server.ts (pure builder), middleware/, routes/, schemas/
@@ -218,7 +219,7 @@ npm run verify:full   # verify + test:e2e                         <- before open
   of its sections are carried by `de.ts`, `en.ts`, `es.ts` and `it.ts`, so adding a key
   anywhere fails the build until all four have it. **Every** component reads
   `useTranslations()`; a module that is not a component and not a hook takes `UiText` as a
-  parameter (`web/src/features/wall/photoAlt.ts` is the worked example). A file that
+  parameter (`web/src/lib/photoAlt.ts` is the worked example). A file that
   imports `fr` directly is either a test stating the French wording on purpose or a bug.
   `web/src/lib/i18n/translations.ts` carries the argument, including the one this reversed.
 - **Three surfaces, two answers about language.** The guest's phone and the host's console

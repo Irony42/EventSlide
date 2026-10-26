@@ -14,17 +14,3 @@
   font-size: var(--text-lg);
   text-align: center;
 }
-
-/**
- * The failure that belongs to the whole step rather than to one field: a name could
- * not be recorded, or the connection dropped after the code had already resolved.
- * A code that was refused is reported on the code field instead, where the correction
- * has to happen.
- */
-.error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--danger);
-  font-size: var(--text-sm);
-}

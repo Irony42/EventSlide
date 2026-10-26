@@ -1,4 +1,3 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import {
   hasRoomForMission,
   MAX_MISSIONS_PER_EVENT,
@@ -15,6 +14,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEditable, requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host adds a prompt to the list (roadmap §2.1).
@@ -60,20 +60,16 @@ export const makeCreateMission =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    // No membership answers `notFound`, not `forbidden`: confirming that an event exists
-    // to someone with no part in it turns this into an enumeration oracle for other
-    // people's weddings. The same choice `requireRole` makes at the HTTP boundary.
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // The archived rule lives in the entity, so the mission list and the event's own
     // fields refuse an archived event for the same reason and in the same words.
-    if (!event.allowsEditing()) {
-      return err(DomainError.conflict('event.immutable', { status: event.status }))
-    }
+    const editable = requireEditable(event)
+    if (!editable.ok) return editable
 
     const parsed = MissionPrompt.create(prompt)
     if (!parsed.ok) return parsed

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useApi } from './useApi'
+import { useContext, useEffect } from 'react'
+import { SessionContext, type SessionStore } from './sessionContext'
 import type { SessionResponse } from '../lib/api/dto'
 
 export interface SessionState {
@@ -10,62 +10,39 @@ export interface SessionState {
   readonly refresh: () => void
 }
 
+const useStore = (): SessionStore => {
+  const store = useContext(SessionContext)
+  if (store === null) {
+    throw new Error(
+      'useSession must be used inside a <SessionProvider>. HostLayout mounts it; use renderWithProviders in a test.',
+    )
+  }
+  return store
+}
+
 /**
- * The current session, from `GET /api/auth/me`.
+ * The current session, from `GET /api/auth/me`, shared by every reader under the provider.
  *
  * The endpoint answers 200 with `{ authenticated: false }` rather than 401, so a first
  * visit is an ordinary answer and not an error. That distinction is the whole point:
  * "not logged in" sends the host to the login page, while "could not ask" must not —
  * a dropped Wi-Fi connection at a venue would otherwise log the host out mid-event.
+ *
+ * Mounting is what asks: the provider reads nothing until some reader needs the answer, and
+ * reads it again if it was forgotten while a reader was still mounted.
  */
 export const useSession = (): SessionState => {
-  const api = useApi()
-  const [state, setState] = useState<Omit<SessionState, 'refresh'>>({
-    session: null,
-    loading: true,
-    error: null,
-  })
-  const [attempt, setAttempt] = useState(0)
-
-  /**
-   * Marks the refetch as pending here rather than in the effect body.
-   *
-   * Setting state synchronously inside an effect causes a cascading render, and lint
-   * rejects it. Doing it in the event handler that asked for the refresh is both
-   * correct and cheaper: the first load already starts with `loading: true` from the
-   * initial state, so the effect never needs to set it.
-   */
-  const refresh = useCallback(() => {
-    setState((previous) => ({ ...previous, loading: true, error: null }))
-    setAttempt((current) => current + 1)
-  }, [])
+  const { data, requested, request, refresh } = useStore()
 
   useEffect(() => {
-    const controller = new AbortController()
-    let current = true
+    if (!requested) request()
+  }, [requested, request])
 
-    api.session(controller.signal).then(
-      (session) => {
-        if (current) setState({ session, loading: false, error: null })
-      },
-      (cause: unknown) => {
-        if (!current) return
-        // The abort came from this effect's own cleanup — StrictMode mounts twice —
-        // and is not a failure to report to the host.
-        if (cause instanceof DOMException && cause.name === 'AbortError') return
-        setState({
-          session: null,
-          loading: false,
-          error: cause instanceof Error ? cause : new Error(String(cause)),
-        })
-      },
-    )
-
-    return () => {
-      current = false
-      controller.abort()
-    }
-  }, [api, attempt])
-
-  return { ...state, refresh }
+  return { ...data, refresh }
 }
+
+/**
+ * Says the shared answer may be wrong now: somebody signed in or out, or changed what the
+ * session must do. Does not subscribe, so a sign-in form that calls it still asks nothing.
+ */
+export const useForgetSession = (): (() => void) => useStore().forget

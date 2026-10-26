@@ -1,7 +1,7 @@
 import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { GalleryPhotoDto } from '../../../lib/api/dto'
-import styles from '../GalleryPage.module.css'
+import styles from './GalleryViewer.module.css'
 
 export interface GalleryViewerProps {
   /** The photograph open in the viewer, or `null` when it is closed. */
@@ -28,7 +28,10 @@ export function GalleryViewer({ photo, position, total, onClose }: GalleryViewer
   const t = useTranslations()
   if (photo === null) return null
 
-  const alt = photo.caption ?? t.gallery.photoAlt(position)
+  // The caption is printed under the photograph, so a screen reader meets it there. As the
+  // alt as well it was read twice, once as the image and once as the figure's caption; with
+  // no caption the position in the album is all there is to say.
+  const alt = photo.caption === null ? t.gallery.photoAlt(position) : ''
 
   return (
     <Dialog

@@ -1,8 +1,9 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import type { GuestTokenClaims, GuestTokenService } from '../../application/ports/guestTokenService'
 import { DomainError } from '../../domain/shared/errors'
 import { err, ok, type Result } from '../../domain/shared/result'
 import { asEventId, asGuestId } from '../../domain/shared/ids'
+import { constantTimeEqual } from './primitives'
 
 /**
  * The guest device token: `v1.<payload>.<mac>`, all base64url.
@@ -78,12 +79,7 @@ export const createHmacGuestTokenService = ({
 
       // Compare before parsing. An attacker must not be able to reach the JSON parser,
       // or the id lookups behind it, with a payload they forged.
-      const expected = Buffer.from(sign(encoded), 'utf8')
-      const provided = Buffer.from(mac, 'utf8')
-      if (
-        expected.length !== provided.length ||
-        !timingSafeEqual(new Uint8Array(expected), new Uint8Array(provided))
-      ) {
+      if (!constantTimeEqual(sign(encoded), mac)) {
         return err(DomainError.unauthenticated('guestToken.badSignature'))
       }
 

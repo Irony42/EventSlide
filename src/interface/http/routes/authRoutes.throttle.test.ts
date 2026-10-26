@@ -18,15 +18,13 @@ import { FakeSecretTokens } from '../../../application/testing/fakeSecretTokens'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
 import type { Logger, LogContext } from '../../../application/ports/logger'
-import type { PasswordHasher } from '../../../application/ports/passwordHasher'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
 import { asUserId } from '../../../domain/shared/ids'
-import type { Password } from '../../../domain/users/password'
-import type { PasswordHash } from '../../../domain/users/user'
+import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 
 /**
  * The per-account sign-in throttle (free plan G3-04, paid plan P4-07), through the real
@@ -54,32 +52,6 @@ const NOT_AN_ADDRESS = 'pas-une-adresse'
 const PASSWORD = 'un-mot-de-passe-solide'
 const WRONG = 'un-autre-mot-de-passe'
 
-/**
- * `hash:<plaintext>`, like the fake the other route tests use. Counts how many comparisons
- * were started, and can hold them all open until a test lets them go: the means to put
- * twelve guesses in flight at once.
- */
-class CountingHasher implements PasswordHasher {
-  readonly dummyHash: PasswordHash = 'hash:*no-such-account*'
-  started = 0
-
-  constructor(private readonly gate: Promise<void> = Promise.resolve()) {}
-
-  async hash(password: Password): Promise<PasswordHash> {
-    return `hash:${password.value}`
-  }
-
-  async verify(attempt: string, hash: PasswordHash): Promise<boolean> {
-    this.started += 1
-    await this.gate
-    return hash === `hash:${attempt}`
-  }
-
-  needsRehash(): boolean {
-    return false
-  }
-}
-
 interface Warning {
   readonly message: string
   readonly context: LogContext | undefined
@@ -102,7 +74,7 @@ afterAll(() => {
 
 interface Subject extends Harness {
   readonly server: Server
-  readonly hasher: CountingHasher
+  readonly hasher: FakePasswordHasher
   readonly mailer: FakeMailer
   readonly tokens: FakeAccountTokenRepository
   /** The durations the throttle was asked to hold a request for, instead of holding it. */
@@ -126,7 +98,7 @@ const subjectOf = ({
   const users = new FakeUserRepository()
   users.seed(aUser({ id: OWNER_ID, email: OWNER, displayName: 'Camille' }))
   users.seed(aUser({ id: 'former-id', email: FORMER, disabledAt: new Date(0) }))
-  const hasher = new CountingHasher(gate)
+  const hasher = new FakePasswordHasher({ gate })
   const mailer = new FakeMailer()
   const tokens = new FakeAccountTokenRepository().withAccounts(asUserId(OWNER_ID))
   const secrets = new FakeSecretTokens()
@@ -524,7 +496,7 @@ describe('the sign-in throttle, per account', () => {
     // Five are inside their password comparison; the other seven were turned away at the
     // door, before any of the five could say it was a failure.
     await vi.waitFor(() => {
-      expect(subject.hasher.started).toBe(5)
+      expect(subject.hasher.verifications.length).toBe(5)
       expect(answered).toEqual(Array.from({ length: 7 }, () => 429))
     })
     release()

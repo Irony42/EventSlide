@@ -5,7 +5,6 @@ import {
   isInAlbum,
   isPhotoStatus,
   isVisibleOnWall,
-  needsDecision,
   PHOTO_STATUSES,
   type PhotoStatus,
 } from './photoStatus'
@@ -93,7 +92,6 @@ describe('allowedTransitionsFrom', () => {
 })
 
 const OFF_THE_WALL: readonly PhotoStatus[] = ['pending', 'rejected', 'hidden']
-const ALREADY_DECIDED: readonly PhotoStatus[] = ['published', 'rejected', 'hidden']
 const IN_THE_ALBUM: readonly PhotoStatus[] = ['published', 'hidden']
 
 describe('isVisibleOnWall', () => {
@@ -105,19 +103,6 @@ describe('isVisibleOnWall', () => {
     'keeps a %s photo off the wall, so nothing is projected without a decision',
     (status) => {
       expect(isVisibleOnWall(status)).toBe(false)
-    },
-  )
-})
-
-describe('needsDecision', () => {
-  it('counts a pending photo as awaiting the host', () => {
-    expect(needsDecision('pending')).toBe(true)
-  })
-
-  it.each(ALREADY_DECIDED)(
-    'does not ask the host to decide a %s photo again',
-    (status) => {
-      expect(needsDecision(status)).toBe(false)
     },
   )
 })

@@ -223,7 +223,7 @@ regret not having afterwards. Reuses the entire moderation path.
 
 At the end of the night, a two-minute sequence of the most-reacted photos, slower and
 tighter than the ambient loop. Also the natural artefact to hand the host afterwards.
-Reaction tallies and `topPhotos` already exist.
+Reaction tallies and `rankedPhotos` already exist.
 
 ### 2.8 Schedule overlays (P3, effort S, risk: low)
 
@@ -603,14 +603,17 @@ and an install that never wanted any of this must behave exactly as it does toda
 
 ### 10.2 Clients as a record, not a convention (P1, effort M, risk: low)
 
-> **Partly shipped**: the record itself, and the events' side of it; still no way to reach
-> the records over HTTP. The `clients` and `client_members` tables (migration 008, with
+> **Partly shipped**: the record itself, the events' side of it and, since G2-14, the operator's
+> routes to it (`/api/site`, API.md §1). The `clients` and `client_members` tables (migration 008, with
 > `events.client_id` and `events.opened_at`), the `Client` entity and its `ClientCeilings`,
 > the `ClientRepository` port with its SQLite and in-memory adapters under one contract
 > suite, and the use cases `createClient`, `renameClient`, `setClientCeilings`,
-> `listClients` and `deleteEmptyClient` are built. **No HTTP route calls those**: the operator
-> API is its own item, behind `SITE_ADMIN` and `requireOperator` (§10.9). `setClientCeilings`
-> now writes its audit entries; see §10.8.
+> `listClients` and `deleteEmptyClient` are built. **The operator's API calls them since G2-14**,
+> behind `SITE_ADMIN` and `requireOperator` (§10.9): `POST /api/site/clients` opens a client and
+> invites its owner, `PATCH /api/site/clients/:clientId` renames it and
+> `PUT /api/site/clients/:clientId/ceilings` changes its ceilings; `deleteEmptyClient`, which only
+> removes the husk of a failed provisioning, has no route. `setClientCeilings` and `renameClient`
+> write their audit entries; see §10.8.
 >
 > **Events are attached to a client at creation** (G2-04 / P3-05). `createEvent` resolves the
 > creator's client and writes `events.client_id`, fixed from then on; `EventRepository.createWithOwner`
@@ -664,9 +667,10 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 > link; one live link per address and place; five invitations an hour to one address, and thirty an
 > hour from one account.
 >
-> **Still to come:** the page that opens `/invite/:token` (G2-10 / P3-11) — until it lands, accepting
-> is an API call, and every link a box mails ends on the "not found" page, so **3.0.0 should not be
-> tagged before it** — and the operator routes that write an invitation to a client (G2-14).
+> **The page that opens the link** is G2-10 / P3-11, and it is in: `/invite/:token` shows what the
+> link is for, takes a name and a password (or accepts as the account already signed in), and says
+> one sentence for every dead link. Before it, accepting was an API call and every link a box
+> mailed ended on the "not found" page, which is why 3.0.0 was not tagged ahead of it.
 >
 > **The operator guard is built** (G2-12 / P3-14, [ADR 0009](adr/0009-operator-cannot-grant-itself-access.md),
 > [SECURITY.md §20](SECURITY.md)): the rules that stop the operator from using these invitations, and
@@ -674,9 +678,11 @@ Suspension is of a client. Without it each of those grows its own ad-hoc groupin
 > client that has an event or a member waits for one of its owners (`POST /api/client/invitations/:id/approve`,
 > mounted with `SITE_ADMIN=on`), and is judged again when it is spent; an operator's reset is mailed and
 > never shown, `OPERATOR_RESET_LINKS=mailOnly` by default, with an opt-in for a box with no relay that
-> needs another owner's approval. Each leaves a line in the audit log. **Not built**: the operator routes
-> that call them (G2-14), the owner's list of what waits (G2-16), the break-glass command, and
-> the ownership transfer (P9-02).
+> needs another owner's approval. Each leaves a line in the audit log. **Shipped since (G2-14)**: the
+> operator's routes that call them (`POST /api/site/clients/:clientId/invitations` and
+> `POST /api/site/accounts/:userId/password-reset`) and the owner's approval of a reset request
+> (`POST /api/client/password-resets/:requestId/approve`), so `copyLinkWithOwnerApproval` is usable end to
+> end. **Not built**: the break-glass command, and the ownership transfer (P9-02).
 
 The flow of 2.x — create the account, read the password aloud — is what this replaces: a
 single-use, expiring, signed link that lets a client set their own password and lands them
@@ -694,15 +700,19 @@ an account that does not exist yet.
 
 ### 10.4 The operator console (P1, effort M, risk: low)
 
-> **Partly shipped**: the read model it will present, and no route and no screen yet.
+> **Shipped in stages**: the read model it presents, the API that serves it, and (G2-15) the screens.
 > `SiteOverview` (G2-11 / P3-12) lists every client with its ceilings and what it is using, one
 > client's events, and every account — ids, statuses, dates and sizes, with a client's name and an
 > account's address as the only free text, so the "shapes and sizes, not photographs" below is a
 > property of the type rather than of the screen. It is held by a closed field vocabulary, a
 > per-query list of the columns each statement reads, and a contract that plants content in every
 > place it could come from and sweeps what comes out (SECURITY.md §18). `GET /api/auth/me` now
-> reports `canOperateSite`, the one input the account menu will need. **Not built**: the operator API that
-> serves it (`/api/site`, G2-14), the console (G2-15), and an event's expiry date, which would have the overview read
+> reports `canOperateSite`, the one input the account menu will need. **Shipped since (G2-14)**: the operator
+> API that serves it, `GET /api/site/clients`, `/clients/:clientId/events` and `/accounts` (API.md §1), with a
+> response-side sweep that plants content in every place it is kept and reads every answer of every route
+> (SECURITY.md §22). **Shipped since (G2-15)**: the console, `/admin/site` (SECURITY.md §23): the clients, one client with its
+> ceilings and the reason for changing them, the end of its engagement, the accounts (a reset, switching one off, on or away) and the log, behind the same gate and one confirmation prompt.
+> **Not built**: an event's expiry date, which would have the overview read
 > `events.settings`, the host's whole configuration blob, to get at the retention it holds.
 
 One screen the operator actually lives in: every client, their events, what state each is
@@ -725,6 +735,14 @@ that one client's 4K video habit should not fill the disk the other four wedding
 > retention purge. The table, and the argument for each choice (one byte sum in the write
 > transaction, the live window counted from the first opening, a purge that no `NULL` can disable),
 > is in [SECURITY.md](SECURITY.md) §5; the wire contract is in [API.md](API.md) §2, §3 and §6.
+>
+> **Defaults for a new client (G2-18)**: seven optional settings, `NEW_CLIENT_*`, give a client the
+> operator did not limit a starting set of ceilings (absent is none, so a box that sets none is
+> unchanged; refused at boot with `SITE_ADMIN=off`, with a quota above `MAX_EVENT_QUOTA_BYTES`, or misspelt).
+> `provisionClientOwner` applies them, `GET /api/site/client-defaults` shows them to the console, and
+> the ceilings a client starts with are written to the audit log. **Shipped since (G2-14)**: a later change of
+> ceilings carries a **mandatory reason**, `client.ceilingsChanged {before, after, reason}`, and
+> `PUT /api/site/clients/:clientId/ceilings` answers `400` without one (see [SECURITY.md](SECURITY.md) §5 and §22).
 
 ### 10.6 Support access, with the audit trail that makes it acceptable (P2, effort M, risk: medium)
 
@@ -744,6 +762,12 @@ album elsewhere. Suspension freezes an account without touching media; handover 
 ownership of an event to another account; export-then-purge (§4.4) is the door out. The
 three together are what let an operator stop a relationship without a database console.
 
+> **Shipped (G2-14)**: suspension and its resumption, `POST /api/site/clients/:clientId/suspend` and
+> `.../resume`, with the surfaces that obey it; the accounts' own acts (`disable`, `enable`, and `DELETE` for a
+> GDPR erasure request); and **offboarding** (`POST /api/site/clients/:clientId/offboard`, finalised by the
+> retention sweep), all described in docs/SECURITY.md §22. Still to come: **handover** of an event to another
+> account, and erasing the media a moderator wrote.
+
 ### 10.8 An audit log of operator actions (P2, effort S, risk: low)
 
 > **Partly shipped**: the log itself, and no way to read it yet. Migration 009 creates
@@ -755,10 +779,14 @@ three together are what let an operator stop a relationship without a database c
 > token), `subject_type` already admits `photo` (§5.4 shares this storage) and `access_request`,
 > and `AUDIT_RETENTION_DAYS` (1095 by default, 365 at least) is honoured by the retention sweep
 > through `pruneAuditLog`. `setClientCeilings` is the first writer, write-ahead (the entry is
-> recorded before the client is saved): `client.ceilingsChanged {before, after}`, and
-> `client.periodReset {before, after}` when a renewal zeroes the period counter. **Not built**: any route that reads the log (the operator's
-> `/api/site` view, G2-14, and the client-readable view, G2-16), the other operator actions'
-> entries, pruning from `npm run purge`, and a transaction shared with the act being recorded.
+> recorded before the client is saved): `client.ceilingsChanged {before, after, reason}`, and
+> `client.periodReset {before, after}` when a renewal zeroes the period counter, and
+> `provisionClientOwner` writes `client.created {ceilings}` (G2-18). **Shipped since (G2-16)**: the client-readable view, `GET /api/client/audit`, for an owner of the client.
+> **Shipped since (G2-14)**: the operator's view, `GET /api/site/audit`; `client.renamed`, and
+> `invitation.issued` for a provisioning's own invitation; and the one free-text detail the log holds, the
+> operator's **reason** for a change of ceilings, with a kind and a bound of its own (SECURITY.md §22).
+> **Not built**: the entries of the operator's other acts (suspension, offboarding, an account's switch-off
+> and deletion), pruning from `npm run purge`, and a transaction shared with the act being recorded.
 > See [SECURITY.md §17](SECURITY.md).
 
 Who created this client, who changed that ceiling, who used support access and when. Pairs
@@ -780,9 +808,9 @@ on data it does not own, "what happened" stops being a question the git history 
 > the boot (exit 78, naming the variable) unless `SITE_ADMIN=on` (G2-04 / P3-05); each later
 > operator-only setting adds its own line to the same refinement in `env.ts`. The first slice
 > of the ring-6 half has landed with it: CI runs `tenant-isolation.spec.ts` under both creation
-> policies (the `chromium-client-members` Playwright project). **Still to come**, each with
-> the item that gives it something to act on: the SPA's `/admin/site` routes (which will read
-> that flag); the boot warning when clients exist and the mode is off; the remaining
+> policies (the `chromium-client-members` Playwright project). The SPA's `/admin/site` routes read
+> that flag since G2-15. **Still to come**, each with the item that gives it something to act
+> on: the boot warning when clients exist and the mode is off; the remaining
 > operator-only settings; and the rest of the ring-6 half — CI running rings 4 and 6 once per
 > `SITE_ADMIN` mode.
 

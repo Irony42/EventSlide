@@ -82,7 +82,7 @@ export type GetPhotoMedia = (
 
 /**
  * A moderator of this event may read anything, including the rendered original the
- * album export uses. Everyone else gets the two derived variants only, and only for a
+ * album export archives for a photograph. Everyone else gets the two derived variants only, and only for a
  * photo that is either on the wall or their own — so a guest can see their photo
  * waiting for moderation without being able to see anybody else's.
  */

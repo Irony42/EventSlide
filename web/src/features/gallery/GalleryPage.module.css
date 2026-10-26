@@ -49,14 +49,6 @@
   font-size: var(--text-sm);
 }
 
-.error {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--danger);
-  font-size: var(--text-sm);
-}
-
 /**
  * Tiles that fill the width: three across on a phone, as many as fit on a laptop. Square
  * crops, because a grid of mixed orientations reads as noise at thumbnail size; the viewer
@@ -124,35 +116,9 @@
   border-radius: var(--radius-lg);
 }
 
-/* Links that look like the primary control, because they are the page's primary action. */
-.downloadAll,
-.download {
+/* A link that looks like the primary control, because it is the page's primary action. */
+.downloadAll {
   composes: button primary md from '../../design-system/components/Button.module.css';
   text-decoration: none;
-}
-
-.downloadAll {
   inline-size: 100%;
-}
-
-.figure {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-/* The whole photograph, never cropped: `contain`, inside the dialog's own bounds. */
-.large {
-  display: block;
-  inline-size: 100%;
-  block-size: auto;
-  max-block-size: 60dvh;
-  object-fit: contain;
-  background: var(--surface-base);
-  border-radius: var(--radius-sm);
-}
-
-.caption {
-  color: var(--text-secondary);
 }

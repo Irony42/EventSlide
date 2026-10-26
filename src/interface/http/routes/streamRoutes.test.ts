@@ -1,4 +1,5 @@
 import http from 'node:http'
+import type { Request } from 'express'
 import type { AddressInfo } from 'node:net'
 import supertest from 'supertest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,8 +18,8 @@ import {
   type TestWorld,
 } from '../testing/middlewareHarness'
 import { SseSink, asResponse } from '../testing/sseSink'
-import { AT, anEvent } from '../../../application/testing/builders'
-import { asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import { AT, aClient, aUser, anEvent } from '../../../application/testing/builders'
+import { asClientId, asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import { DomainError } from '../../../domain/shared/errors'
 import { err } from '../../../domain/shared/result'
 import type { DomainEvent, EventBus } from '../../../application/ports/eventBus'
@@ -510,6 +511,8 @@ describe('openStream', () => {
   beforeEach(() => {
     resetSignalLogs()
     world = buildTestWorld()
+    // The beat asks whether the event is still served (G2-14), so there has to be one.
+    world.events.seed(anEvent({ id: WEDDING }))
     // Nothing in this block awaits a real timer, so the heartbeat can simply be driven.
     vi.useFakeTimers()
   })
@@ -540,27 +543,271 @@ describe('openStream', () => {
     expect(sink.headersFlushed).toBe(true)
   })
 
-  it('emits a comment frame on the heartbeat interval, so a proxy sees traffic', () => {
+  it('emits a comment frame on the heartbeat interval, so a proxy sees traffic', async () => {
     // Proxies and mobile networks close an idle connection after 30–60 seconds. 1.0
     // sent nothing between events, so a quiet spell ended the stream and the wall
     // stopped updating for the rest of the night with nothing on screen to say so.
     const sink = open()
 
-    vi.advanceTimersByTime(15_000)
+    await vi.advanceTimersByTimeAsync(15_000)
 
     expect(sink.text).toContain(': keep-alive')
   })
 
-  it('names the heartbeat too, so a client can tell quiet from dead', () => {
+  it('names the heartbeat too, so a client can tell quiet from dead', async () => {
     // A comment reaches no client handler, which is what makes it safe for a proxy and
     // useless as a sign of life. The named half is what the client's watchdog listens
     // for; it carries no `id:`, so it never moves a reconnecting client's cursor.
     const sink = open()
 
-    vi.advanceTimersByTime(15_000)
+    await vi.advanceTimersByTimeAsync(15_000)
 
     expect(sink.text).toContain('event: ping')
     expect(sink.text).not.toContain('id:')
+  })
+
+  describe('is authorised again at every beat (G2-14, plan item A-22)', () => {
+    const CLIENT = 'client-frozen'
+
+    const seedAClient = async (): Promise<void> => {
+      // An event is never moved to another client by saving it, so the one the block seeded
+      // without a client is removed before the one that has one is written.
+      await world.events.delete(asEventId(WEDDING))
+      world.clients.seed(aClient({ id: CLIENT }))
+      world.events.seed(anEvent({ id: WEDDING, clientId: CLIENT }))
+    }
+
+    const suspendTheClient = async (): Promise<void> => {
+      const frozen = (await world.clients.findById(asClientId(CLIENT)))?.suspend(AT)
+      if (frozen === undefined) throw new Error('fixture rejected')
+      await world.clients.save(frozen)
+    }
+
+    /** An event of a client the test can suspend and resume, open on a stream. */
+    const openForAClient = async (): Promise<SseSink> => {
+      await seedAClient()
+      return open()
+    }
+
+    it('closes at the first beat after its client is suspended, telling the client to wait a long time', async () => {
+      const sink = await openForAClient()
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(sink.text).toContain(': keep-alive')
+      expect(sink.writableEnded).toBe(false)
+
+      await suspendTheClient()
+      const before = sink.frames.length
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(true)
+      expect(sink.frames.slice(before).join('')).toBe('retry: 60000\n\n')
+      expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
+    })
+
+    it('holds the connection open for a client that is not suspended, however many beats pass', async () => {
+      const sink = await openForAClient()
+
+      await vi.advanceTimersByTimeAsync(15_000 * 4)
+
+      expect(sink.writableEnded).toBe(false)
+      expect(sink.text.match(/: keep-alive/g)).toHaveLength(4)
+    })
+
+    const moveTheEventTo = async (status: 'closed' | 'archived'): Promise<void> => {
+      const event = await world.events.findById(asEventId(WEDDING))
+      const moved = status === 'closed' ? event?.close(AT) : event?.archive(AT)
+      if (moved === undefined || !moved.ok) throw new Error('fixture rejected')
+      await world.events.save(moved.value)
+    }
+
+    it('closes at the first beat after the host archives the event, which a new stream would be refused (HTTP-M-08)', async () => {
+      // `resolvePublicEvent` refuses an event that no longer serves its wall, and the beat asks the
+      // same question: a wall opened while the event was live stayed open after the archive, and kept
+      // its slot of the per-client cap, with four more keep-alive frames to show for it.
+      const sink = open()
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(sink.writableEnded).toBe(false)
+
+      await moveTheEventTo('archived')
+      const before = sink.frames.length
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(true)
+      expect(sink.frames.slice(before).join('')).toBe('retry: 60000\n\n')
+      expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
+    })
+
+    it('keeps the wall open when the host only closes the event, which still serves its wall', async () => {
+      const sink = open()
+
+      await moveTheEventTo('closed')
+      await vi.advanceTimersByTimeAsync(15_000 * 3)
+
+      expect(sink.writableEnded).toBe(false)
+      expect(sink.text.match(/: keep-alive/g)).toHaveLength(3)
+    })
+
+    it('closes at the first beat after the event is gone, as a purge would leave it', async () => {
+      const sink = open()
+      await world.events.delete(asEventId(WEDDING))
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(true)
+      expect(sink.text).not.toContain(': keep-alive')
+    })
+
+    it('keeps the stream as it was when the check itself fails, so a database blip does not blank every projector', async () => {
+      const sink = new SseSink()
+      const failing = Object.assign(Object.create(world.events) as typeof world.events, {
+        findById: async () => {
+          throw new Error('database is locked')
+        },
+      })
+      openStreamFor({
+        deps: { ...world.deps, events: failing },
+        logger: world.deps.logger,
+        eventId: asEventId(WEDDING),
+        lastEventId: undefined,
+        res: asResponse(sink),
+      })
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(false)
+      expect(sink.text).toContain(': keep-alive')
+    })
+
+    it('writes nothing when the connection closes while the check is still being answered', async () => {
+      const sink = new SseSink()
+      let answer: () => void = () => undefined
+      const slow = Object.assign(Object.create(world.events) as typeof world.events, {
+        findById: () =>
+          new Promise<Awaited<ReturnType<typeof world.events.findById>>>((resolve) => {
+            answer = () => resolve(null)
+          }),
+      })
+      openStreamFor({
+        deps: { ...world.deps, events: slow },
+        logger: world.deps.logger,
+        eventId: asEventId(WEDDING),
+        lastEventId: undefined,
+        res: asResponse(sink),
+      })
+      await vi.advanceTimersByTimeAsync(15_000)
+      sink.emit('close')
+      const before = sink.frames.length
+
+      answer()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(sink.frames.length).toBe(before)
+    })
+
+    describe('a moderation feed answers to the account behind it (G2-14 part 3)', () => {
+      const MODERATOR = asUserId('moderator-id')
+
+      const openForModerator = (): SseSink => {
+        world.users.seed(aUser({ id: 'moderator-id', email: 'moderateur@example.test' }))
+        world.memberships.seed({
+          eventId: asEventId(WEDDING),
+          userId: MODERATOR,
+          role: 'moderator',
+          grantedAt: AT,
+        })
+        const sink = new SseSink()
+        openStreamFor({
+          deps: world.deps,
+          logger: world.deps.logger,
+          eventId: asEventId(WEDDING),
+          lastEventId: undefined,
+          res: asResponse(sink),
+          suspension: 'serves',
+          member: MODERATOR,
+        })
+        return sink
+      }
+
+      it('is what the handler gives a moderation channel, and the wall channel is given none', async () => {
+        openForModerator()
+        const event = await world.events.findById(asEventId(WEDDING))
+        const request = {
+          context: { event, user: { userId: MODERATOR }, logger: world.deps.logger },
+          get: () => undefined,
+        } as unknown as Request
+        const through = (channel: 'wall' | 'moderation'): SseSink => {
+          const sink = new SseSink()
+          streamHandler(world.deps, channel)(request, asResponse(sink), () => undefined)
+          return sink
+        }
+        const moderation = through('moderation')
+        const wall = through('wall')
+        const stored = await world.users.findById(MODERATOR)
+        if (stored === null) throw new Error('fixture rejected')
+        await world.users.save(stored.disable(AT))
+
+        await vi.advanceTimersByTimeAsync(15_000)
+
+        expect(moderation.writableEnded).toBe(true)
+        expect(wall.writableEnded).toBe(false)
+      })
+
+      it('stays open for an account that still holds its place, however many beats pass', async () => {
+        const sink = openForModerator()
+
+        await vi.advanceTimersByTimeAsync(15_000 * 3)
+
+        expect(sink.writableEnded).toBe(false)
+        expect(sink.text.match(/: keep-alive/g)).toHaveLength(3)
+      })
+
+      it('ends at the first beat after the account is switched off, telling the console to wait', async () => {
+        const sink = openForModerator()
+        await vi.advanceTimersByTimeAsync(15_000)
+        const stored = await world.users.findById(MODERATOR)
+        if (stored === null) throw new Error('fixture rejected')
+        await world.users.save(stored.disable(AT))
+        const before = sink.frames.length
+
+        await vi.advanceTimersByTimeAsync(15_000)
+
+        expect(sink.writableEnded).toBe(true)
+        expect(sink.frames.slice(before).join('')).toBe('retry: 60000\n\n')
+      })
+
+      it('ends at the first beat after the account loses its place in the event, which is what an deletion of an account leaves behind', async () => {
+        const sink = openForModerator()
+
+        await world.memberships.revoke(asEventId(WEDDING), MODERATOR)
+        await vi.advanceTimersByTimeAsync(15_000)
+
+        expect(sink.writableEnded).toBe(true)
+      })
+    })
+
+    it('keeps a moderation stream open for a suspended client, whose members keep their reads, and ends it when the event is gone', async () => {
+      await seedAClient()
+      await suspendTheClient()
+      const sink = new SseSink()
+      openStreamFor({
+        deps: world.deps,
+        logger: world.deps.logger,
+        eventId: asEventId(WEDDING),
+        lastEventId: undefined,
+        res: asResponse(sink),
+        suspension: 'serves',
+      })
+
+      await vi.advanceTimersByTimeAsync(15_000 * 3)
+
+      expect(sink.writableEnded).toBe(false)
+      expect(sink.text.match(/: keep-alive/g)).toHaveLength(3)
+
+      await world.events.delete(asEventId(WEDDING))
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(sink.writableEnded).toBe(true)
+    })
   })
 
   it('writes nothing at all when the bus has no room for the connection', () => {

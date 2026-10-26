@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import type {
   EventOwnerGrant,
   EventRepository,
+  EventCounts,
   EventSummary,
   PurgePolicy,
 } from '../../application/ports/eventRepository'
@@ -28,7 +29,14 @@ import {
 } from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
 import { DomainError } from '../../domain/shared/errors'
-import { asClientId, asEventId, asUserId, type EventId, type UserId } from '../../domain/shared/ids'
+import {
+  asClientId,
+  asEventId,
+  asUserId,
+  type ClientId,
+  type EventId,
+  type UserId,
+} from '../../domain/shared/ids'
 import { JoinCode } from '../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../domain/shared/result'
 import { Slug } from '../../domain/shared/slug'
@@ -63,6 +71,8 @@ interface EventRow {
   readonly scheduled_open_at: string | null
   readonly scheduled_close_at: string | null
   readonly schedule_discarded_at: string | null
+  /** Only the three single-event lookups select it (`WITH_CLIENT_STANDING`). */
+  readonly client_suspended_at?: string | null
 }
 
 /** Named rather than positional: sixteen columns in the right order by luck is no plan. */
@@ -97,6 +107,13 @@ interface SummaryRow {
   readonly used_bytes: number
 }
 
+interface CountsRow {
+  readonly photo_count: number
+  readonly pending_count: number
+  readonly guest_count: number
+  readonly used_bytes: number
+}
+
 interface PresenceRow {
   readonly present: number
 }
@@ -108,6 +125,15 @@ interface CountRow {
 const EVENT_COLUMNS = `id, owner_id, name, slug, join_code, status, settings, quota_bytes,
                        created_at, starts_at, client_id, closed_at, opened_at,
                        scheduled_open_at, scheduled_close_at, schedule_discarded_at`
+
+/**
+ * What a **lookup of one event** adds: whether its client is suspended (roadmap §10.7), read from
+ * the client's own row on every call so that a suspension is in force on the next request. The
+ * three lookups the public surfaces use (by id, by slug, by join code) carry it; a listing does
+ * not, and its events read as not suspended, because nothing serves a guest from a listing.
+ */
+const WITH_CLIENT_STANDING = `${EVENT_COLUMNS},
+       (SELECT c.suspended_at FROM clients c WHERE c.id = events.client_id) AS client_suspended_at`
 
 /**
  * `strftime`'s format for every instant this query builds, so each one is ISO-8601 to the
@@ -438,19 +464,41 @@ const toEvent = (row: EventRow): Event =>
     scheduledOpenAt: fromNullableIsoText(row.scheduled_open_at),
     scheduledCloseAt: fromNullableIsoText(row.scheduled_close_at),
     scheduleDiscardedAt: fromNullableIsoText(row.schedule_discarded_at),
+    clientSuspendedAt: fromNullableIsoText(row.client_suspended_at ?? null),
   })
+
+const toCounts = (row: CountsRow): EventCounts => ({
+  photoCount: row.photo_count,
+  pendingCount: row.pending_count,
+  guestCount: row.guest_count,
+  usedBytes: row.used_bytes,
+})
+
+const NO_COUNTS: EventCounts = { photoCount: 0, pendingCount: 0, guestCount: 0, usedBytes: 0 }
 
 const toSummary = (row: SummaryRow): EventSummary => ({
   id: asEventId(row.id),
   slug: row.slug,
   name: row.name,
   status: statusOf(row.status),
-  photoCount: row.photo_count,
-  pendingCount: row.pending_count,
-  guestCount: row.guest_count,
-  usedBytes: row.used_bytes,
+  ...toCounts(row),
   createdAt: fromIsoText(row.created_at),
 })
+
+/**
+ * The four counts of the event `e` is bound to, one correlated subquery each. Written once for
+ * the dashboard's listing and for a single event's counts, so the number a host reads on the
+ * dashboard and the number an event's own answer carries cannot be two queries that drifted.
+ *
+ * `used_bytes` is the one sum every reader of an event's bytes shares (photographs **and** the
+ * clips still waiting to be transcoded), so the dashboard says what the upload path will
+ * enforce: it used to count photographs alone.
+ */
+const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id) AS photo_count,
+              (SELECT COUNT(*) FROM photos p
+                WHERE p.event_id = e.id AND p.status = 'pending')      AS pending_count,
+              (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id)  AS guest_count,
+              ${eventHoldingBytesSum('e.id')}                           AS used_bytes`
 
 const toParams = (event: Event): EventParams => {
   const props = event.toProps()
@@ -477,9 +525,11 @@ const toParams = (event: Event): EventParams => {
 
 export class SqliteEventRepository implements EventRepository {
   private readonly selectById: Database.Statement<[string], EventRow>
+  private readonly selectByClient: Database.Statement<[string], EventRow>
   private readonly selectBySlug: Database.Statement<[string], EventRow>
   private readonly selectByJoinCode: Database.Statement<[string], EventRow>
   private readonly selectSummaries: Database.Statement<[string, string], SummaryRow>
+  private readonly selectCounts: Database.Statement<[string], CountsRow>
   private readonly selectDueForPurge: Database.Statement<PurgeParams, EventRow>
   private readonly selectDueForSchedule: Database.Statement<[string, string], EventRow>
   private readonly selectLiveOfClients: Database.Statement<[], EventRow>
@@ -499,16 +549,20 @@ export class SqliteEventRepository implements EventRepository {
    * slide: re-preparing there is a parse per frame for no reason.
    */
   constructor(private readonly db: Db) {
+    this.selectByClient = db.prepare<[string], EventRow>(
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE client_id = ? ORDER BY created_at, id`,
+    )
+
     this.selectById = db.prepare<[string], EventRow>(
-      `SELECT ${EVENT_COLUMNS} FROM events WHERE id = ?`,
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE id = ?`,
     )
 
     this.selectBySlug = db.prepare<[string], EventRow>(
-      `SELECT ${EVENT_COLUMNS} FROM events WHERE slug = ?`,
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE slug = ?`,
     )
 
     this.selectByJoinCode = db.prepare<[string], EventRow>(
-      `SELECT ${EVENT_COLUMNS} FROM events WHERE join_code = ?`,
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE join_code = ?`,
     )
 
     // Correlated subqueries instead of a query per count: a host with twenty events
@@ -516,21 +570,22 @@ export class SqliteEventRepository implements EventRepository {
     // lag that makes an admin screen feel broken. Each subquery is served by an index
     // leading with event_id.
     //
-    // `used_bytes` is the one sum every reader of an event's bytes shares (photographs
-    // **and** the clips still waiting to be transcoded), so the dashboard says what the
-    // upload path will enforce: it used to count photographs alone.
+    // The columns are `COUNT_COLUMNS`, shared with the one-event read below.
     this.selectSummaries = db.prepare<[string, string], SummaryRow>(
       `SELECT e.id, e.slug, e.name, e.status, e.created_at,
-              (SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id) AS photo_count,
-              (SELECT COUNT(*) FROM photos p
-                WHERE p.event_id = e.id AND p.status = 'pending')      AS pending_count,
-              (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id)  AS guest_count,
-              ${eventHoldingBytesSum('e.id')}                           AS used_bytes
+              ${COUNT_COLUMNS}
          FROM events e
         WHERE e.owner_id = ?
            OR EXISTS (SELECT 1 FROM event_memberships m
                        WHERE m.event_id = e.id AND m.user_id = ?)
         ORDER BY e.created_at DESC, e.id`,
+    )
+
+    // One event's counts: the same four columns, without listing the host's other events.
+    this.selectCounts = db.prepare<[string], CountsRow>(
+      `SELECT ${COUNT_COLUMNS}
+         FROM events e
+        WHERE e.id = ?`,
     )
 
     // The deadline is `PURGE_DEADLINE_SQL` — the host's retention, the client's ceiling, the
@@ -639,6 +694,10 @@ export class SqliteEventRepository implements EventRepository {
     this.deleteById = db.prepare<[string]>(`DELETE FROM events WHERE id = ?`)
   }
 
+  async listByClient(clientId: ClientId): Promise<readonly Event[]> {
+    return this.selectByClient.all(clientId).map(toEvent)
+  }
+
   async findById(id: EventId): Promise<Event | null> {
     const row = this.selectById.get(id)
     return row === undefined ? null : toEvent(row)
@@ -661,6 +720,11 @@ export class SqliteEventRepository implements EventRepository {
    */
   async listForUser(userId: UserId): Promise<readonly EventSummary[]> {
     return this.selectSummaries.all(userId, userId).map(toSummary)
+  }
+
+  async countsOf(id: EventId): Promise<EventCounts> {
+    const row = this.selectCounts.get(id)
+    return row === undefined ? NO_COUNTS : toCounts(row)
   }
 
   /** Insert or update. The unique indexes on slug and join code are the real guard. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CROSSFADE_MS, kenBurnsDisabled, kenBurnsDurationMs, kenBurnsScale } from './kenBurns'
+import { CROSSFADE_MS, kenBurnsDurationMs } from './kenBurns'
 import { SlideInterval } from './slideInterval'
 
 const intervalOf = (ms: number): SlideInterval => {
@@ -37,37 +37,5 @@ describe('kenBurnsDurationMs', () => {
 describe('CROSSFADE_MS', () => {
   it('takes up only part of even the shortest slide', () => {
     expect(CROSSFADE_MS).toBeLessThan(SlideInterval.minMs)
-  })
-})
-
-describe('kenBurnsScale', () => {
-  it('starts at the photo natural size, so nothing is cropped on arrival', () => {
-    expect(kenBurnsScale().from).toBe(1)
-  })
-
-  it('zooms in rather than out', () => {
-    const scale = kenBurnsScale()
-
-    expect(scale.to).toBeGreaterThan(scale.from)
-  })
-
-  it('keeps the zoom subtle enough for a phone photo on a projector', () => {
-    expect(kenBurnsScale().to).toBeLessThanOrEqual(1.2)
-  })
-})
-
-describe('kenBurnsDisabled', () => {
-  it('runs no animation at all under prefers-reduced-motion', () => {
-    expect(kenBurnsDisabled().durationMs).toBe(0)
-  })
-
-  it('holds the photo still rather than zooming faster', () => {
-    const { scale } = kenBurnsDisabled()
-
-    expect(scale.to).toBe(scale.from)
-  })
-
-  it('holds it at its natural size, not frozen at the end of the zoom', () => {
-    expect(kenBurnsDisabled().scale.from).toBe(1)
   })
 })

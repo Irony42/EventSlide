@@ -2,11 +2,7 @@ import { Router, type Request, type RequestHandler, type Response } from 'expres
 import type { Session } from 'express-session'
 import { DomainError } from '../../../domain/shared/errors'
 import { asUserId, type UserId } from '../../../domain/shared/ids'
-import {
-  MAX_SECOND_FACTOR_ATTEMPTS,
-  PENDING_SECOND_FACTOR_LIFETIME_MS,
-  isStampFresh,
-} from '../../../domain/users/secondFactor'
+import { PENDING_SECOND_FACTOR_LIFETIME_MS, isStampFresh } from '../../../domain/users/secondFactor'
 import { DEFAULT_SITE_ROLE, canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 import { asyncHandler } from '../middleware/asyncHandler'
 import {
@@ -188,8 +184,9 @@ const stampsOf = (req: Request): SessionStamps => {
  * `pendingSecondFactor` and **no `userId`**, which is what every gate keys on — so until
  * the second step passes, this session is anonymous to `attachUser`, `requireUser`,
  * `requireRole` and `requireOperator` alike, and no route that needs a principal can be
- * reached with it. The failure counter lives here so five wrong codes end the attempt and the
- * password has to be typed again.
+ * reached with it. Five wrong codes end the attempt and the password has to be typed again;
+ * that count is the use case's, keyed by this session's id, and not a number in the session: a
+ * session is copied into every request that carries it, so a copy cannot count what the others do.
  */
 const startPendingSecondFactor = async (
   req: Request,
@@ -206,7 +203,6 @@ const startPendingSecondFactor = async (
     displayName: who.displayName,
     mustChangePassword: who.mustChangePassword,
     startedAt: deps.clock.now().getTime(),
-    failures: 0,
   }
   Object.assign(req.session, { pendingSecondFactor: pending } satisfies SessionPayload)
 }
@@ -409,20 +405,14 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
         userId: asUserId(pending.userId),
         proof,
         passwordVerifiedAt: new Date(pending.startedAt),
+        // The session id is what is stable across one sign-in's requests and unknown to anyone
+        // who does not hold the sign-in; the use case counts the guesses under it.
+        attemptId: req.sessionID,
       })
 
       if (!result.ok) {
-        if (result.error.code === 'auth.invalidSecondFactor') {
-          pending.failures += 1
-          if (pending.failures < MAX_SECOND_FACTOR_ATTEMPTS) {
-            sendError(res, result.error)
-            return
-          }
-          // The fifth wrong code ends the attempt.
-          await regenerateSession(req.session)
-          sendError(res, DomainError.unauthenticated('auth.secondFactorExpired'))
-          return
-        }
+        // The use case ends a sign-in by saying so (the fifth wrong code, a sign-in that expired
+        // meanwhile, credentials that changed): the half-finished session is then thrown away.
         if (result.error.code === 'auth.secondFactorExpired') await regenerateSession(req.session)
         sendError(res, result.error)
         return
@@ -495,7 +485,8 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       // Never stored. This read carries the identity itself, and `rolling: true` on the
       // session means an authenticated one also carries a fresh `Set-Cookie` — so a
       // shared cache holding this response would hand one host's session to whoever
-      // asks next. Every principal-scoped read in this API says so explicitly.
+      // asks next. (`/api` is `no-store` by default now, `server.ts`; said here as well, since this
+      // read carries the identity itself and must not depend on a default staying.)
       res.setHeader('Cache-Control', 'no-store')
 
       // The account, not only the session. This is the answer the admin shell routes

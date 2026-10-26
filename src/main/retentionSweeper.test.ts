@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRetentionSweeper, type RetentionSweeperDeps } from './retentionSweeper'
 import { FakeClock } from '../application/testing/fakeClock'
-import { asEventId } from '../domain/shared/ids'
-import type { LogContext, Logger } from '../application/ports/logger'
+import { asClientId, asEventId } from '../domain/shared/ids'
+import { CapturingLogger, type LoggedLine } from '../application/testing/capturingLogger'
 import type {
   PurgeExpiredEvents,
   PurgeExpiredEventsReport,
@@ -36,29 +36,6 @@ const GALA = asEventId('evt-gala')
 const nothingPurged: PurgeExpiredEventsReport = { purged: [], failed: [] }
 const nothingPruned: PruneAuditLogReport = { pruned: 0, cutoff: AT }
 
-interface LoggedLine {
-  readonly level: 'debug' | 'info' | 'warn' | 'error'
-  readonly message: string
-  readonly context: LogContext | undefined
-}
-
-const recordingLogger = (): { logger: Logger; lines: LoggedLine[] } => {
-  const lines: LoggedLine[] = []
-  const record =
-    (level: LoggedLine['level']) =>
-    (message: string, context?: LogContext): void =>
-      void lines.push({ level, message, context })
-
-  const logger: Logger = {
-    debug: record('debug'),
-    info: record('info'),
-    warn: record('warn'),
-    error: record('error'),
-    child: () => logger,
-  }
-  return { logger, lines }
-}
-
 const at = (lines: readonly LoggedLine[], level: LoggedLine['level']): readonly LoggedLine[] =>
   lines.filter((line) => line.level === level)
 
@@ -88,12 +65,16 @@ const controllableSweep = (): {
   return state
 }
 
+const nothingFinalized = { finalized: [], accountsDeleted: 0, failed: [], reasons: [] }
+
 const build = (overrides: Partial<RetentionSweeperDeps> = {}) => {
-  const { logger, lines } = recordingLogger()
+  const logger = new CapturingLogger()
+  const { lines } = logger
   const clock = new FakeClock(AT)
   const sweeper = createRetentionSweeper({
     purge: async () => nothingPurged,
     pruneAuditLog: async () => nothingPruned,
+    finalizeOffboardedClients: async () => nothingFinalized,
     logger,
     clock,
     intervalMs: INTERVAL_MS,
@@ -146,9 +127,9 @@ describe('createRetentionSweeper', () => {
       sweeper.stop()
     })
 
-    it('starts one timer however many times it is started', async () => {
+    it('starts one timer however many times it is started, and says it is scheduled once', async () => {
       let swept = 0
-      const { sweeper } = build({
+      const { sweeper, lines } = build({
         purge: async () => {
           swept += 1
           return nothingPurged
@@ -160,6 +141,7 @@ describe('createRetentionSweeper', () => {
       await vi.advanceTimersByTimeAsync(INTERVAL_MS)
 
       expect(swept).toBe(1)
+      expect(lines.filter((line) => line.message === 'retention sweep scheduled')).toHaveLength(1)
       sweeper.stop()
     })
 
@@ -610,29 +592,122 @@ describe('createRetentionSweeper', () => {
   })
 })
 
-describe('createRetentionSweeper, against real timers', () => {
-  it('unrefs its interval, so a pending sweep never holds `docker stop` open', () => {
-    // Asserted on the handle itself rather than on `unref` having been called: what
-    // matters is that the timer has stopped keeping the event loop alive. Without it,
-    // shutdown waits out the whole interval — up to a day — and the 15 s backstop in
-    // index.ts never runs, because the process was never trying to exit.
-    const created = vi.spyOn(globalThis, 'setInterval')
-    const { logger } = recordingLogger()
-    const sweeper = createRetentionSweeper({
-      purge: async () => nothingPurged,
-      pruneAuditLog: async () => nothingPruned,
-      logger,
-      clock: new FakeClock(AT),
-      intervalMs: INTERVAL_MS,
+describe('createRetentionSweeper: the end of an offboarding (G2-14 part 3)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('finalises after it purged, in that order, once per sweep and never at startup', async () => {
+    const order: string[] = []
+    const { sweeper } = build({
+      purge: async () => {
+        order.push('purge')
+        return nothingPurged
+      },
+      finalizeOffboardedClients: async () => {
+        order.push('finalize')
+        return nothingFinalized
+      },
     })
 
     sweeper.start()
-
-    const handle = created.mock.results[0]?.value
+    await vi.advanceTimersByTimeAsync(INTERVAL_MS - 1)
+    expect(order).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(order).toEqual(['purge', 'finalize'])
     sweeper.stop()
-    created.mockRestore()
+  })
 
-    expect(handle).toBeDefined()
-    expect(handle?.hasRef()).toBe(false)
+  it('says what it finalised, with the ids and the number of accounts that went', async () => {
+    const { sweeper, lines } = build({
+      finalizeOffboardedClients: async () => ({
+        finalized: [asClientId('client-1'), asClientId('client-2')],
+        accountsDeleted: 3,
+        failed: [],
+        reasons: [],
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    expect(at(lines, 'info')).toContainEqual(
+      expect.objectContaining({
+        message: 'retention sweep finalised offboarded clients',
+        context: expect.objectContaining({
+          finalized: 2,
+          finalizedIds: 'client-1 client-2',
+          accountsDeleted: 3,
+        }),
+      }),
+    )
+  })
+
+  it('reports a client it could not finish as an error, with its id', async () => {
+    const { sweeper, lines } = build({
+      finalizeOffboardedClients: async () => ({
+        finalized: [],
+        accountsDeleted: 0,
+        failed: [asClientId('client-3')],
+        reasons: [{ clientId: asClientId('client-3'), reason: 'database is locked' }],
+      }),
+    })
+
+    await sweeper.runOnce()
+
+    expect(at(lines, 'error')).toContainEqual(
+      expect.objectContaining({
+        message: 'retention sweep could not finalise every offboarded client',
+        context: expect.objectContaining({
+          failed: 1,
+          failedIds: 'client-3',
+          reasons: 'client-3: database is locked',
+        }),
+      }),
+    )
+  })
+
+  it('survives a finalisation that throws, and still prunes the audit log and releases the guard', async () => {
+    let pruned = 0
+    const { sweeper, lines } = build({
+      pruneAuditLog: async () => {
+        pruned += 1
+        return nothingPruned
+      },
+      finalizeOffboardedClients: async () => {
+        throw new Error('database is locked')
+      },
+    })
+
+    const first = await sweeper.runOnce()
+    const second = await sweeper.runOnce()
+
+    expect(first.status).toBe('completed')
+    expect(second.status).toBe('completed')
+    expect(pruned).toBe(2)
+    expect(at(lines, 'error')).toContainEqual(
+      expect.objectContaining({ message: 'offboarded clients could not be finalised' }),
+    )
+  })
+
+  it('finalises even when the purge itself failed: the two are independent halves of a sweep', async () => {
+    let finalized = 0
+    const { sweeper } = build({
+      purge: async () => {
+        throw new Error('database is locked')
+      },
+      finalizeOffboardedClients: async () => {
+        finalized += 1
+        return nothingFinalized
+      },
+    })
+
+    const outcome = await sweeper.runOnce()
+
+    expect(outcome.status).toBe('failed')
+    expect(finalized).toBe(1)
   })
 })

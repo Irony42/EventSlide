@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
+import { useForgetSession } from '../../../app/useSession'
 import { useApi } from '../../../app/useApi'
 import type { SecondFactorProof } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { errorMessage } from '../errorMessage'
+import { messageForError } from '../../../lib/i18n/translations'
 
 /**
  * The write actions of the auth surface, as view-state.
@@ -43,6 +44,7 @@ export interface LoginState {
 export const useLogin = (): LoginState => {
   const api = useApi()
   const t = useTranslations()
+  const forgetSession = useForgetSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,18 +54,23 @@ export const useLogin = (): LoginState => {
       setError(null)
       try {
         const answer = await api.login(email, password)
-        return 'secondFactorRequired' in answer ? 'secondFactor' : 'signedIn'
+        if ('secondFactorRequired' in answer) return 'secondFactor'
+        // Whatever the shared session said before ("nobody", read by the page that sent the
+        // person here) is not true any more, and the page they return to may be outside the
+        // console, where no change of scope will say so.
+        forgetSession()
+        return 'signedIn'
       } catch (cause) {
         // One message for every failure, because the server sends one code for an
         // unknown address and for a wrong password. Telling the two apart in the UI
         // would turn the form into an account-enumeration oracle.
-        setError(errorMessage(cause, t))
+        setError(messageForError(cause, t))
         return 'refused'
       } finally {
         setSubmitting(false)
       }
     },
-    [api, t],
+    [api, forgetSession, t],
   )
 
   return { submit, submitting, error }
@@ -96,6 +103,7 @@ const OVER_FOR_GOOD = new Set(['auth.secondFactorExpired'])
 export const useSecondFactorLogin = (): SecondFactorLoginState => {
   const api = useApi()
   const t = useTranslations()
+  const forgetSession = useForgetSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -105,9 +113,10 @@ export const useSecondFactorLogin = (): SecondFactorLoginState => {
       setError(null)
       try {
         await api.loginSecondFactor(proof)
+        forgetSession()
         return { kind: 'signedIn' }
       } catch (cause) {
-        const reason = errorMessage(cause, t)
+        const reason = messageForError(cause, t)
         setError(reason)
         return cause instanceof ApiError && OVER_FOR_GOOD.has(cause.code)
           ? { kind: 'expired', reason }
@@ -116,7 +125,7 @@ export const useSecondFactorLogin = (): SecondFactorLoginState => {
         setSubmitting(false)
       }
     },
-    [api, t],
+    [api, forgetSession, t],
   )
 
   return { submit, submitting, error }
@@ -130,6 +139,7 @@ export interface PasswordChange {
 export const useChangePassword = (): AuthActionState<PasswordChange> => {
   const api = useApi()
   const t = useTranslations()
+  const forgetSession = useForgetSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -139,19 +149,81 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
       setError(null)
       try {
         await api.changePassword(currentPassword, newPassword)
+        // The session read before this said the account must choose a password, and the gate
+        // holds every admin address shut on that answer: without a new read the host would be
+        // sent back to the screen they have just finished.
+        forgetSession()
         return true
       } catch (cause) {
         // Every rule about what makes a password acceptable lives on the server, and
         // its code is what picks the sentence — length, reuse, and "too common" all
         // arrive here the same way.
-        setError(errorMessage(cause, t))
+        setError(messageForError(cause, t))
         return false
       } finally {
         setSubmitting(false)
       }
     },
-    [api, t],
+    [api, forgetSession, t],
   )
 
   return { submit, submitting, error }
+}
+
+/** What a way out came to. A refusal carries its sentence, because the caller is a menu with a toast. */
+export type SignOutResult = { readonly ok: true } | { readonly ok: false; readonly message: string }
+
+export interface SignOutState {
+  /** This browser only. */
+  readonly signOut: () => Promise<SignOutResult>
+  /**
+   * Every device, this one included. `ok` only once **both** halves are done: the account's
+   * other sessions revoked, then this one destroyed.
+   */
+  readonly signOutEverywhere: () => Promise<SignOutResult>
+  readonly busy: boolean
+}
+
+/**
+ * The two ways out. `api.logout` had no caller before this: 1.0 had no control that signed
+ * anybody out, so a laptop handed to the next person at a venue stayed the host's.
+ *
+ * "Everywhere" is revoke-others and then logout, in that order and not the other: the first
+ * call needs the session the second one destroys. The server's `revoke-others` leaves the
+ * caller signed in — right for "sign out my other devices", but a button that says
+ * *everywhere* and leaves this one open would say something untrue, so the second call is
+ * made here. If it fails, the others are already out and the sentence says the attempt failed;
+ * pressing again repeats both, and both are safe to repeat.
+ */
+export const useSignOut = (): SignOutState => {
+  const api = useApi()
+  const t = useTranslations()
+  const [busy, setBusy] = useState(false)
+
+  const run = useCallback(
+    async (steps: () => Promise<void>): Promise<SignOutResult> => {
+      setBusy(true)
+      try {
+        await steps()
+        return { ok: true }
+      } catch (cause) {
+        return { ok: false, message: messageForError(cause, t) }
+      } finally {
+        setBusy(false)
+      }
+    },
+    [t],
+  )
+
+  const signOut = useCallback(() => run(() => api.logout()), [api, run])
+  const signOutEverywhere = useCallback(
+    () =>
+      run(async () => {
+        await api.revokeOtherSessions()
+        await api.logout()
+      }),
+    [api, run],
+  )
+
+  return { signOut, signOutEverywhere, busy }
 }

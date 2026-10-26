@@ -3,6 +3,9 @@ import type { Locale } from '../i18n/locale'
 import type {
   About,
   BulkModerationResponse,
+  ClientAuditPageDto,
+  ClientCeilingsChangedDto,
+  ClientDefaultsDto,
   ClipJobDto,
   EventDto,
   EventLanguage,
@@ -15,6 +18,8 @@ import type {
   GuestListResponse,
   GuestMissionListResponse,
   GuestPhotoDto,
+  InvitationAcceptedDto,
+  InvitationPreviewDto,
   JoinResponse,
   MissionDto,
   MissionListResponse,
@@ -22,8 +27,14 @@ import type {
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
+  ModeratorInviteResponse,
+  OperatorInvitationDto,
+  OperatorPasswordResetDto,
+  MyLimitsDto,
+  PendingInvitationsDto,
   PhotoStatus,
   PrivacyNoticeState,
+  ProvisionedClientDto,
   ReactionKind,
   ReactionsResponse,
   RecoveryCodesDto,
@@ -33,6 +44,11 @@ import type {
   SessionUserDto,
   ShareLinkCreated,
   ShareLinkResponse,
+  SiteAccountPageDto,
+  SiteAuditPageDto,
+  SiteCeilingsPatch,
+  SiteClientPageDto,
+  SiteEventPageDto,
   TopPhotoDto,
   TotpEnrolmentDto,
   UploadResponse,
@@ -54,6 +70,31 @@ const codeOf = (proof: SecondFactorProof | undefined): string | undefined =>
   proof !== undefined && 'code' in proof ? proof.code : undefined
 const recoveryCodeOf = (proof: SecondFactorProof | undefined): string | undefined =>
   proof !== undefined && 'recoveryCode' in proof ? proof.recoveryCode : undefined
+
+/**
+ * `POST /api/site/clients`. `ceilings` is the operator's own: a ceiling it names is kept, `null`
+ * included (it lifts the box's `NEW_CLIENT_*` default for this client), and one it leaves out takes
+ * the default. `locale` is the language the owner's invitation is written in.
+ */
+export interface SiteProvisionInput {
+  readonly clientName: string
+  readonly ownerEmail: string
+  readonly locale: Locale
+  readonly ceilings?: SiteCeilingsPatch
+}
+
+/** `POST /api/site/clients/:clientId/invitations`: into the client's account, never an event. */
+export interface SiteInvitationInput {
+  readonly email: string
+  readonly role: 'owner' | 'member'
+  readonly locale: Locale
+}
+
+/** `POST /api/site/accounts/:userId/password-reset`. `approvalId` is an id, never a secret. */
+export interface SiteResetInput {
+  readonly locale: Locale
+  readonly approvalId?: string
+}
 
 export interface CreateEventInput {
   readonly name: string
@@ -126,19 +167,6 @@ export interface ClipUploadInput {
 }
 
 /**
- * An invitation, in full.
- *
- * The password is not optional and is not generated here. There is no mail service in
- * this product, so the host is the delivery channel: they type a temporary credential
- * and read it out to the person they are handing the laptop to. The server's
- * `moderatorInvitationBody` is `.strict()` and requires it — an invitation carrying only
- * an address is answered `400 request.invalid`, which is exactly what this panel used to
- * send, every time.
- *
- * An object rather than two positional strings: an address and a password are both
- * `string`, and a call site that swaps them typechecks.
- */
-/**
  * One prompt as the host writes it (roadmap §2.1).
  *
  * Both fields every time, on create and on edit alike: they are one decision made on one
@@ -171,18 +199,26 @@ export interface ModeratorInvitationInput {
 }
 
 /**
- * What `POST /api/events/:slug/moderators` answers, as the server presents it: a 201 saying
- * the invitation exists and when it ends — and, **only when no mail went out**, the link to
- * pass on. It says nothing about whether the address already has an account.
+ * What accepting an invitation sends (`POST /api/invitations/:token/accept`): a person
+ * choosing how to sign in, or — from a session the link is for — nothing at all.
  *
- * Declared here rather than in `dto.ts` because the response envelope of a write is not
- * one of the shapes the wall and the console share.
+ * Two shapes and no third. The server's body is `.strict()`, so a field that could name an
+ * account (an address, an id) is a 400: the account an acceptance attaches is the one in the
+ * session, never one the request names.
+ *
+ * Either may carry `acceptTerms`, the tick of "I accept the terms of use" (G2-20), and **only
+ * when the preview said the box asks for terms**: on any other box the key is not sent, so a
+ * self-hosted server sees the body it always did. It is a boolean and never a version: the
+ * version recorded is the box's own.
  */
-export interface ModeratorInviteResponse {
-  readonly status: 'invited'
-  readonly expiresAt: string
-  readonly link?: string
-}
+export type InvitationAcceptance =
+  | {
+      readonly kind: 'newAccount'
+      readonly displayName: string
+      readonly password: string
+      readonly acceptTerms?: boolean
+    }
+  | { readonly kind: 'signedInAccount'; readonly acceptTerms?: boolean }
 
 export const createApi = (transport: Transport) => ({
   // ------------------------------------------------------------------ public --
@@ -298,9 +334,6 @@ export const createApi = (transport: Transport) => ({
   deleteMyPhoto: (slug: string, photoId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
 
-  setCaption: (slug: string, photoId: string, caption: string | null): Promise<void> =>
-    transport.patch(`/api/events/${encode(slug)}/photos/${encode(photoId)}/caption`, { caption }),
-
   react: (slug: string, photoId: string, kind: ReactionKind): Promise<void> =>
     transport.post(`/api/events/${encode(slug)}/photos/${encode(photoId)}/reactions`, { kind }),
 
@@ -360,6 +393,190 @@ export const createApi = (transport: Transport) => ({
   changePassword: (currentPassword: string, newPassword: string): Promise<void> =>
     transport.post('/api/auth/password', { currentPassword, newPassword }),
 
+  /**
+   * "Forgot your password?" (G2-08 / P3-09). `202 {}` for **every** address — an account, a
+   * stranger, a malformed one — so the page says the same thing whatever was typed; `404
+   * feature.unavailable` only on a box that cannot send mail, whatever the address. The
+   * locale is the page's, because it is the language the mail is written in.
+   */
+  requestPasswordReset: (email: string, locale: Locale): Promise<void> =>
+    transport.post('/api/auth/password-reset/request', { email, locale }),
+
+  /**
+   * The mailed link's token and the password chosen with it. `204`: the password is set and
+   * **every session is signed out**, none started. The token travels in the body, never in a
+   * URL the client builds. A refused password does not spend the link (`400 password.*`).
+   */
+  confirmPasswordReset: (token: string, password: string): Promise<void> =>
+    transport.post('/api/auth/password-reset/confirm', { token, password }),
+
+  /**
+   * Signs out every other session of this account. The caller's own is replaced and stays
+   * in, so "sign out everywhere" is this call and then {@link Api.logout}.
+   */
+  revokeOtherSessions: (): Promise<void> => transport.post('/api/auth/sessions/revoke-others'),
+
+  // ------------------------------------------------------------- invitations --
+
+  /**
+   * What the link in front of the reader offers, spending nothing. `404 invitation.notFound`
+   * for every dead link alike — unknown, malformed, spent, replaced, expired — and the page
+   * says one thing for all of them.
+   */
+  invitation: (token: string, signal?: AbortSignal): Promise<InvitationPreviewDto> =>
+    transport.get(`/api/invitations/${encode(token)}`, undefined, signal),
+
+  /**
+   * Accepts it. A new account starts a session in the same answer; a signed-in account
+   * sends `{}` and its session is the only thing that names it.
+   */
+  acceptInvitation: (
+    token: string,
+    acceptance: InvitationAcceptance,
+  ): Promise<InvitationAcceptedDto> =>
+    transport.post(`/api/invitations/${encode(token)}/accept`, {
+      ...(acceptance.kind === 'newAccount'
+        ? { displayName: acceptance.displayName, password: acceptance.password }
+        : {}),
+      ...(acceptance.acceptTerms === undefined ? {} : { acceptTerms: acceptance.acceptTerms }),
+    }),
+
+  // ------------------------------------------------------------ client space --
+  //
+  // Only on a box with `SITE_ADMIN=on`: with it off these are unknown routes, so a caller reads
+  // `features.siteAdmin` from `about` first and never probes them.
+
+  myLimits: (signal?: AbortSignal): Promise<MyLimitsDto> =>
+    transport.get('/api/me/limits', undefined, signal),
+
+  clientAudit: (
+    query: {
+      readonly clientId?: string
+      readonly before?: number
+      readonly limit?: number
+    } = {},
+    signal?: AbortSignal,
+  ): Promise<ClientAuditPageDto> =>
+    transport.get(
+      '/api/client/audit',
+      { clientId: query.clientId, before: query.before, limit: query.limit },
+      signal,
+    ),
+
+  pendingInvitations: (clientId?: string, signal?: AbortSignal): Promise<PendingInvitationsDto> =>
+    transport.get('/api/client/invitations', { clientId }, signal),
+
+  approveInvitation: (invitationId: string): Promise<void> =>
+    transport.post(`/api/client/invitations/${encode(invitationId)}/approve`),
+
+  // --------------------------------------------------------- the operator's console --
+  //
+  // `/api/site/*` (docs/API.md §1; G2-14), on a box with `SITE_ADMIN=on` and for the operator's
+  // own session. **Every write is behind a fresh step-up** (`stepUp` above): a write that meets
+  // `403 auth.stepUpRequired` is the console's cue to ask for it and send the same request again.
+  // Nothing here reaches `/api/events/*` or `/api/gallery*`: what an operator reads of a client
+  // is a shape and a size, and no function below could be handed anything else.
+
+  siteClients: (
+    query: { readonly after?: string; readonly limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteClientPageDto> =>
+    transport.get('/api/site/clients', { after: query.after, limit: query.limit }, signal),
+
+  siteClientEvents: (
+    clientId: string,
+    query: { readonly after?: string; readonly limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteEventPageDto> =>
+    transport.get(
+      `/api/site/clients/${encode(clientId)}/events`,
+      { after: query.after, limit: query.limit },
+      signal,
+    ),
+
+  siteAccounts: (
+    query: { readonly after?: string; readonly limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteAccountPageDto> =>
+    transport.get('/api/site/accounts', { after: query.after, limit: query.limit }, signal),
+
+  /** The whole log; `before` is a bound (every line older than it), not a pointer. */
+  siteAudit: (
+    query: {
+      readonly clientId?: string
+      readonly before?: number
+      readonly limit?: number
+    } = {},
+    signal?: AbortSignal,
+  ): Promise<SiteAuditPageDto> =>
+    transport.get(
+      '/api/site/audit',
+      { clientId: query.clientId, before: query.before, limit: query.limit },
+      signal,
+    ),
+
+  /** What a client is given when the form leaves a ceiling alone: the box's `NEW_CLIENT_*`. */
+  siteClientDefaults: (signal?: AbortSignal): Promise<ClientDefaultsDto> =>
+    transport.get('/api/site/client-defaults', undefined, signal),
+
+  /**
+   * Opens a client with no member and no event, and invites its owner. `ceilings` is the
+   * operator's own: a key it names is kept (`null` lifts the box's default), one it leaves
+   * out takes the default. `locale` is the language the owner's invitation is written in.
+   */
+  siteProvisionClient: (input: SiteProvisionInput): Promise<ProvisionedClientDto> =>
+    transport.post('/api/site/clients', input),
+
+  siteRenameClient: (clientId: string, name: string): Promise<void> =>
+    transport.patch(`/api/site/clients/${encode(clientId)}`, { name }),
+
+  /** A patch, with a reason that is **mandatory** and one line of at most 200 characters. */
+  siteSetCeilings: (
+    clientId: string,
+    ceilings: SiteCeilingsPatch,
+    reason: string,
+  ): Promise<ClientCeilingsChangedDto> =>
+    transport.put(`/api/site/clients/${encode(clientId)}/ceilings`, { ceilings, reason }),
+
+  siteSuspendClient: (clientId: string): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/suspend`),
+
+  siteResumeClient: (clientId: string): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/resume`),
+
+  /**
+   * Ends an engagement: live events are closed, drafts archived, the client suspended, and its
+   * albums purged `graceDays` from now (whole days; the range is the server's). Idempotent.
+   */
+  siteOffboardClient: (clientId: string, graceDays: number): Promise<void> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/offboard`, { graceDays }),
+
+  /** Into the client's account, never into an event. `pendingApproval` says an owner must agree. */
+  siteInviteToClient: (
+    clientId: string,
+    input: SiteInvitationInput,
+  ): Promise<{ readonly invitation: OperatorInvitationDto }> =>
+    transport.post(`/api/site/clients/${encode(clientId)}/invitations`, input),
+
+  /** Switches an account off and ends every session it has. Idempotent; refused for an operator. */
+  siteDisableAccount: (userId: string): Promise<void> =>
+    transport.post(`/api/site/accounts/${encode(userId)}/disable`),
+
+  /** Switches it back on; the sessions it had stay ended. */
+  siteEnableAccount: (userId: string): Promise<void> =>
+    transport.post(`/api/site/accounts/${encode(userId)}/enable`),
+
+  /** An erasure request (GDPR). Refused while the account holds an event, media or a review. */
+  siteDeleteAccount: (userId: string): Promise<void> =>
+    transport.del(`/api/site/accounts/${encode(userId)}`),
+
+  /**
+   * Resets an account's password. Where a mailer delivers the answer holds no link and no token:
+   * it went to the account's own address and nowhere else.
+   */
+  siteResetPassword: (userId: string, input: SiteResetInput): Promise<OperatorPasswordResetDto> =>
+    transport.post(`/api/site/accounts/${encode(userId)}/password-reset`, input),
+
   // ------------------------------------------------------------------ events --
 
   listEvents: (signal?: AbortSignal): Promise<{ items: readonly EventSummaryDto[] }> =>
@@ -369,9 +586,6 @@ export const createApi = (transport: Transport) => ({
 
   getEvent: (slug: string, signal?: AbortSignal): Promise<EventDto> =>
     transport.get(`/api/events/${encode(slug)}`, undefined, signal),
-
-  renameEvent: (slug: string, name: string): Promise<EventDto> =>
-    transport.patch(`/api/events/${encode(slug)}`, { name }),
 
   updateSettings: (slug: string, settings: Partial<EventSettingsDto>): Promise<EventDto> =>
     transport.patch(`/api/events/${encode(slug)}/settings`, settings),
@@ -418,9 +632,6 @@ export const createApi = (transport: Transport) => ({
     decision: ModerationDecision,
   ): Promise<BulkModerationResponse> =>
     transport.post(`/api/events/${encode(slug)}/moderation/bulk`, { photoIds, decision }),
-
-  deletePhoto: (slug: string, photoId: string): Promise<void> =>
-    transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
 
   topPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly TopPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/top-photos`, undefined, signal),

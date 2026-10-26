@@ -101,6 +101,8 @@ describe('SecurityPage', () => {
       expect(within(list).getByText(CODE)).toBeVisible()
       expect(within(list).getByText('ABCD-EFGH-JKMN-PQRS')).toBeVisible()
       expect(screen.getByText(fr.auth.recoveryCodesIntro)).toBeVisible()
+      // The section is named by its own heading, so a screen reader announces where it is.
+      expect(screen.getByRole('region', { name: fr.auth.recoveryCodesTitle })).toBeVisible()
     })
 
     it('keeps the codes on screen across a refresh of the session, and clears them only when saved', async () => {
@@ -185,6 +187,7 @@ describe('SecurityPage', () => {
         await screen.findByRole('button', { name: fr.auth.recoveryCodesRegenerate }),
       ).toBeVisible()
       expect(screen.getByRole('button', { name: fr.auth.secondFactorDisable })).toBeVisible()
+      expect(screen.getByRole('region', { name: fr.auth.securityTitle })).toBeVisible()
     })
 
     it('confirms with a recovery code instead when the phone is gone', async () => {

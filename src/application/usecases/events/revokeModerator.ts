@@ -1,8 +1,9 @@
-import { canManageEvent } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { EventRepository } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * The host takes the console back.
@@ -26,21 +27,23 @@ export interface RevokeModeratorInput {
 }
 
 export interface RevokeModeratorDeps {
+  readonly events: EventRepository
   readonly memberships: MembershipRepository
 }
 
 export type RevokeModerator = (input: RevokeModeratorInput) => Promise<Result<void, DomainError>>
 
 export const makeRevokeModerator =
-  ({ memberships }: RevokeModeratorDeps): RevokeModerator =>
+  ({ events, memberships }: RevokeModeratorDeps): RevokeModerator =>
   async ({ eventId, actorId, userId }) => {
-    const actorRole = await memberships.roleFor(eventId, actorId)
-    // No membership answers exactly as an event that does not exist, so this cannot be
-    // used to discover other people's events.
-    if (actorRole === null) return err(DomainError.notFound('event.notFound'))
-    if (!canManageEvent(actorRole)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const event = await events.findById(eventId)
+    if (event === null) return err(DomainError.notFound('event.notFound'))
+
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'manage')
+    if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // The **row**, not the authority, because this is the row about to be deleted.
     // `roleFor` refuses a disabled account, which would leave an owner unable to tidy a

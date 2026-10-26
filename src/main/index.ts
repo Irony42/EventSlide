@@ -81,7 +81,7 @@ const bootstrap = async (): Promise<void> => {
     )
   }
   // Configuration problems real enough to name but not real enough to refuse — see
-  // `computeWarnings` in env.ts. Said once, here, beside the other boot-time notices,
+  // `computeWarnings` in config/load.ts. Said once, here, beside the other boot-time notices,
   // rather than discovered later as a host who cannot sign in or a guest whose QR code
   // points nowhere.
   for (const warning of config.warnings) {

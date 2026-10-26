@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ok } from '../shared/result'
-import { canReact, nextAllowedAt, type ReactionBudget } from './reactionBudget'
+import { canReact, type ReactionBudget } from './reactionBudget'
 
 const WINDOW_MS = 10_000
 
@@ -73,38 +73,5 @@ describe('canReact', () => {
     const result = canReact(budget({ maxPerWindow: 0 }))
 
     expect(!result.ok && result.error.kind).toBe('invalid')
-  })
-})
-
-describe('nextAllowedAt', () => {
-  it('frees the guest one window after their oldest recent reaction', () => {
-    const oldest = new Date('2026-06-20T21:30:00.000Z')
-
-    const result = nextAllowedAt(budget(), oldest)
-
-    expect(result.ok && result.value.toISOString()).toBe('2026-06-20T21:30:10.000Z')
-  })
-
-  it('measures from the window the budget carries, not from a window of its own', () => {
-    const oldest = new Date('2026-06-20T21:30:00.000Z')
-
-    const result = nextAllowedAt(budget({ windowMs: 60_000 }), oldest)
-
-    expect(result.ok && result.value.toISOString()).toBe('2026-06-20T21:31:00.000Z')
-  })
-
-  it('leaves the reaction it was measured from untouched', () => {
-    const oldest = new Date('2026-06-20T21:30:00.000Z')
-
-    nextAllowedAt(budget(), oldest)
-
-    expect(oldest.toISOString()).toBe('2026-06-20T21:30:00.000Z')
-  })
-
-  it('refuses the same invalid window that canReact refuses', () => {
-    const result = nextAllowedAt(budget({ windowMs: 0 }), new Date('2026-06-20T21:30:00.000Z'))
-
-    expect(result.ok).toBe(false)
-    expect(!result.ok && result.error.code).toBe('reaction.windowInvalid')
   })
 })

@@ -42,9 +42,6 @@ export const allowedTransitionsFrom = (from: PhotoStatus): readonly PhotoStatus[
  */
 export const isVisibleOnWall = (status: PhotoStatus): boolean => status === 'published'
 
-/** Awaiting a host decision — what the moderation badge counts. */
-export const needsDecision = (status: PhotoStatus): boolean => status === 'pending'
-
 /**
  * Included in the host's own album export. A rejected photo is excluded: 1.0's ZIP
  * download shipped every row regardless of status, so a host who carefully rejected a

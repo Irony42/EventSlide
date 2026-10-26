@@ -92,6 +92,9 @@ describe('downloadGalleryArchive', () => {
 
     expect(world.archive.names).toHaveLength(2)
     expect(world.logger.lines.map((line) => line.level)).toEqual(['warn'])
+    expect(world.logger.lines.map((line) => line.context)).toEqual([
+      { eventId: WEDDING, photoId: 'orphan' },
+    ])
   })
 
   it('aborts, rather than archive an empty photograph, when bytes vanish before they are read', async () => {

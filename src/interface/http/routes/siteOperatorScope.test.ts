@@ -6,6 +6,10 @@ import type {
   GetPhotoMediaInput,
   MediaViewer,
 } from '../../../application/usecases/photos/getPhotoMedia'
+import {
+  makeIdentifyMediaViewer,
+  type IdentifyMediaViewer,
+} from '../../../application/usecases/photos/identifyMediaViewer'
 import { AT, anEvent, aUser } from '../../../application/testing/builders'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
@@ -91,6 +95,12 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
     'the join code **is** the credential, and a guest arrives holding nothing else — the ' +
     'route reaches an event, by a body field rather than by the path, so it is classified ' +
     'here rather than as a route that touches no event at all',
+  'get /api/join/:code':
+    'the lookup before the join: the join code **is** the credential, a guest arrives holding ' +
+    'nothing else, and the answer is the one every stranger gets — the name of an open event and ' +
+    'what a guest may do there, or the one 404 that an unknown, draft, closed and archived event ' +
+    'share. Like `post /api/join` it reaches an event by a path segment that is not a slug, so it ' +
+    'is classified here and not as a route that touches no event',
   'get /api/gallery/:token':
     'the shared gallery (roadmap §4.1): the link’s token **is** the credential, and the ' +
     'use case decides everything with it — an operator holding no token gets the neutral ' +
@@ -159,10 +169,23 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
  * is not a route". The same claim is checked of them in the mode that mounts them.
  */
 const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
+  'post /api/client/password-resets/:requestId/approve':
+    'another owner letting an operator be handed an account’s reset link (R2, ' +
+    '`copyLinkWithOwnerApproval`): decided by the client’s own roster, so an operator who is no ' +
+    'part of the client is answered as a stranger is, and it reads no event',
   'post /api/client/invitations/:invitationId/approve':
     'an owner letting an operator’s invitation into the client’s **account** (R1 of the ' +
     'operator guard): the answer is decided by the client’s own roster, so an operator who ' +
     'is no part of the client is answered as a stranger is, and no event is read',
+  'get /api/client/audit':
+    'an owner reading the log of their own **client** (R5): scoped by the caller’s roster, so ' +
+    'an operator who is no part of the client is answered as a stranger is, and no event is read',
+  'get /api/client/invitations':
+    'an owner reading what waits for their approval: the client’s roster decides, an operator ' +
+    'who is no part of the client is answered as a stranger is, and no event is read',
+  'get /api/me/limits':
+    'the caller’s own clients’ ceilings and usage, from their own memberships: it takes no id, ' +
+    'so there is nothing to name another client with, and no event is read',
 }
 
 /**
@@ -191,10 +214,56 @@ const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
  * sweep excludes an entry only where it really sits on that mount.
  *
  * Each one is declared in `siteRoutes.ts`, below its router-level gate; no other router may
- * declare a path in the namespace, which {@link trespassersOn} holds. Empty today, because
- * the namespace carries no route yet: the first one adds its line here in the same diff.
+ * declare a path in the namespace, which {@link trespassersOn} holds. Each new route adds its
+ * line here in the same diff.
  */
-const OPERATOR_ROUTES: Readonly<Record<string, string>> = {}
+const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
+  'get /api/site/clients':
+    'every client with its ceilings and what it uses, read through `SiteOverview`, whose rows ' +
+    'have no field for an event’s name, a photograph or a guest — so no evening is behind it',
+  'get /api/site/clients/:clientId/events':
+    'one client’s events as ids, statuses, dates and sizes, through the same read model: ' +
+    'there is no name, slug, join code or photograph in the row type for it to hand out',
+  'get /api/site/accounts':
+    'every account by address, with its clients, through the read model: never a hash, ' +
+    'never a display name, and no event is read',
+  'get /api/site/audit':
+    'the audit log, whose entries are numbers, switches, instants and one bounded reason, ' +
+    'and which holds no photograph, caption, name or token by construction',
+  'post /api/site/clients':
+    'opens a client and invites its owner (`provisionClientOwner`): writes the clients table, ' +
+    'one account token and two audit lines, and reads no event',
+  'patch /api/site/clients/:clientId':
+    'renames a client (`renameClient`): one column of the clients table and one audit line',
+  'put /api/site/clients/:clientId/ceilings':
+    'changes a client’s ceilings with a mandatory reason (`setClientCeilings`): the clients ' +
+    'table and the audit log; no event is read or written',
+  'post /api/site/clients/:clientId/suspend':
+    'freezes a client (`suspendClient`): one column of the clients table and one audit line; it reads\n' +
+    'no event, and what it changes is what every other router reads of an event, not what it holds',
+  'post /api/site/clients/:clientId/resume':
+    'lifts a suspension (`resumeClient`): the same one column and one audit line',
+  'post /api/site/clients/:clientId/offboard':
+    "ends an engagement (`offboardClient`): it moves the client's events by status and dates the purge of its\n" +
+    'albums; it reads no content, and what it destroys is destroyed later by the retention sweep, not here',
+  'post /api/site/accounts/:userId/disable':
+    'switches an account off (`disableAccount`): one column of the users table and its audit lines; it reads no\n' +
+    'event, and refuses an operator',
+  'post /api/site/accounts/:userId/enable': 'switches an account back on (`enableAccount`)',
+  'delete /api/site/accounts/:userId':
+    'deletes an account for an erasure request (`deleteAccount`): it counts what the account holds and refuses an\n' +
+    'owner of an event, an author of media and an operator; it reads no content',
+  'post /api/site/clients/:clientId/invitations':
+    'invites somebody into a client’s **account** (`inviteToClientAsOperator`, R1), waiting ' +
+    'for an owner where the client is in use; it grants no event role, which R4 forbids',
+  'post /api/site/accounts/:userId/password-reset':
+    'resets an account’s password by mail to its own address (`issuePasswordResetForAccount`, ' +
+    'R2); it opens no session and changes nothing about the account until its holder uses the link',
+  'get /api/site/client-defaults':
+    'the ceilings a new client starts with (`NEW_CLIENT_*`, G2-18): the box’s own configuration, ' +
+    'read from nothing but the process’s settings, naming no client, no event and no account — ' +
+    'so there is no evening behind it for an operator to reach',
+}
 
 /** Where `buildServer` mounts `siteRoutes`, the one router that may declare a route here. */
 const SITE_NAMESPACE = '/api/site'
@@ -298,6 +367,9 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   linkId: A_PHOTO,
   invitationId: A_PHOTO,
+  clientId: CLIENT,
+  requestId: A_PHOTO,
+  code: 'H7K2QM',
 }
 
 /**
@@ -955,9 +1027,8 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
     })
 
     // `it.each` over an empty table registers zero cases, in either mode, and says nothing:
-    // while `OPERATOR_ROUTES` is empty this line is not a skipped case but an absent one,
-    // and the report lists no "refuses …" line at all. The first entry is what makes one
-    // appear, so its absence from a green run today is expected, not a gap.
+    // were `OPERATOR_ROUTES` empty this line would not be a skipped case but an absent one,
+    // and the report would list no "refuses …" line at all.
     it.runIf(siteAdmin).each(Object.keys(OPERATOR_ROUTES))(
       'refuses %s to a signed-in account that does not operate the box, with requireOperator’s 403',
       async (name) => {
@@ -1082,13 +1153,25 @@ describe.each(MODES)('with SITE_ADMIN=%s', (mode) => {
       // the assertion is on what the use case was actually handed: `public`, which is what
       // decides that a pending photograph stays unreadable.
       const viewers: MediaViewer[] = []
+      // The real identification, over the world the harness builds: it is the thing asked.
+      const identify: { current?: IdentifyMediaViewer } = {}
       const subject = operatorHarness({
         usecases: {
+          identifyMediaViewer: async (input) => {
+            if (identify.current === undefined) throw new Error('identification was not built yet')
+            return identify.current(input)
+          },
           getPhotoMedia: async (input: GetPhotoMediaInput) => {
             viewers.push(input.viewer)
             return err(DomainError.notFound('photo.notFound'))
           },
         },
+      })
+      identify.current = makeIdentifyMediaViewer({
+        guests: subject.guests,
+        tokens: subject.guestTokens,
+        memberships: subject.deps.memberships,
+        clock: subject.clock,
       })
       seedClientEvent(subject)
       const { agent } = await signInAsOperator(subject)

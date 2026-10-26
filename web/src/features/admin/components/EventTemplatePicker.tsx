@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { Notice } from '../../../design-system/components/Notice'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import {
   EVENT_TEMPLATE_KEYS,
@@ -128,12 +128,9 @@ export function EventTemplatePicker({ value, disabled, onChange }: EventTemplate
                   which is stronger than the settings page's `aria-live`, where the
                   warning arrives after the choice.
                 */
-                <p className={styles['warning']}>
-                  <span className={styles['warningGlyph']}>
-                    <StatusIcon tone="warning" />
-                  </span>
+                <Notice tone="warning" variant="boxed">
                   {warning}
-                </p>
+                </Notice>
               )}
             </div>
           </div>

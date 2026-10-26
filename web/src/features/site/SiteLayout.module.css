@@ -1,0 +1,57 @@
+.console {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: var(--container-host);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.brand {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.intro {
+  color: var(--text-secondary);
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-start: var(--space-2);
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  border-color: var(--border-strong);
+}
+
+/* Colour is never the only signal: the current section also carries aria-current, and the
+   border is the stronger of the two hairlines, so a reader who cannot tell the accent from the
+   grey still sees which one is open. */
+.navLink[aria-current='page'] {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  font-weight: 600;
+}
+
+.link {
+  color: var(--accent);
+}

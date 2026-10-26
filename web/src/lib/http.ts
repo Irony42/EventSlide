@@ -1,9 +1,14 @@
 /**
- * The only place in the web app that calls `fetch`.
+ * The transport every request for data goes through: JSON over `fetch` (an upload goes
+ * over `XMLHttpRequest` instead, for its progress events), credentials, the CSRF header,
+ * and an `ApiError` for a refusal.
  *
- * Components receive data through a hook, and a hook calls a typed function in
- * `web/src/lib/api/`. That is what lets a component test inject a fake transport
- * instead of stubbing a global.
+ * Components receive data through a hook, and a hook calls a method of `Api`
+ * (`web/src/lib/api/client.ts`), which calls this. That is what lets a component test
+ * inject a fake `Api` instead of stubbing a global. Three callers of `fetch` are not
+ * requests for data and do not come through here: the outbox replaying a queued upload
+ * (`lib/offline/fetchSender.ts`), the app shell cache (`lib/pwa/appShell.ts`) and the
+ * service worker.
  */
 
 export interface ApiErrorBody {
@@ -17,19 +22,20 @@ export interface ApiErrorBody {
 /**
  * A failure the server described, carrying the stable machine code and nothing else.
  *
- * **`message` is the code, deliberately.** It used to be the French sentence, chosen in
- * this constructor — which stopped being possible once the guest surface grew languages:
- * the transport has no locale, and reaching for one here would make the one module that
- * wraps `fetch` depend on the copy tables and on React's context. So this class carries
- * what the wire said and nothing else, the caller resolves `code` against the table it
- * already holds, and `message` is what a developer sees in a stack trace — the same split
- * the server itself makes between `error.code` and `error.message`.
+ * **`message` is the code, deliberately.** The transport has no locale, and reaching for
+ * one here would make the one module that wraps `fetch` depend on the copy tables and on
+ * React's context. So this class carries what the wire said and nothing else, the caller
+ * resolves `code` against the table it already holds, and `message` is what a developer
+ * sees in a stack trace — the same split the server itself makes between `error.code` and
+ * `error.message`.
  *
- * The resolution still happens where the failure is *caught*, not where it is rendered:
- * `useJoin`, `useMyPhotos` and `useUploadQueue` each store a finished sentence in state.
- * A guest who changes language while a failed upload is still on screen therefore keeps
- * the old sentence until the next attempt. Known, and left: carrying the code through
- * three hooks' state shapes to re-word a message nobody is reading is not worth it.
+ * Where the resolution happens is the caller's choice. `useMyPhotos` keeps the code and
+ * composes the sentence at render, so a guest who changes language reads a refusal in the
+ * language they chose. `useJoin` and `useUploadQueue` resolve where the failure is
+ * *caught* and keep a finished sentence in state, so a guest who changes language while a
+ * failed upload is on screen keeps the old sentence until the next attempt. Known, and
+ * left: carrying the code through those state shapes to re-word a message nobody is
+ * reading is not worth it.
  */
 export class ApiError extends Error {
   readonly status: number
@@ -66,6 +72,33 @@ export class ApiError extends Error {
     return this.status >= 400 && this.status < 500 && this.status !== 429
   }
 }
+
+/**
+ * Whether a thrown value is the browser reporting an abort: `fetch` and a `play()` that
+ * `pause()` cut short both reject with a `DOMException` named `AbortError`.
+ *
+ * An abort is the caller's own doing — an effect's cleanup (StrictMode mounts twice), an
+ * unmounted screen, a row the guest removed — so a catch that would report a failure of a
+ * request or a `play()` asks this first and returns when it is true. It is the one spelling of
+ * the question "is this error an abort?" (`errorHelpers.guard.test.ts`); a hook that already
+ * holds its own `AbortController` may also look at `signal.aborted`, which asks a different
+ * one. A `DOMException` with another name (a `NotAllowedError` from `play()`) is a refusal,
+ * and a plain `Error` that merely carries the name is not the browser's.
+ */
+export const isAbortError = (cause: unknown): boolean =>
+  cause instanceof DOMException && cause.name === 'AbortError'
+
+/**
+ * A thrown value as an `Error`, for state that holds one.
+ *
+ * Anything can be thrown, and a hook that keeps the failure in state types it as `Error`
+ * so a screen can branch on its presence. A string or an object is wrapped rather than
+ * cast, so what reaches the state is always a real `Error` (a string becomes its message;
+ * an object becomes `[object Object]`, which is why a caller that needs the detail keeps
+ * the cause as well).
+ */
+export const asError = (cause: unknown): Error =>
+  cause instanceof Error ? cause : new Error(String(cause))
 
 const isApiErrorBody = (value: unknown): value is ApiErrorBody => {
   if (typeof value !== 'object' || value === null) return false
@@ -191,7 +224,7 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
     response = await fetch(buildUrl(path, options.query), init)
   } catch (cause) {
     // An aborted request is the caller's own doing, not a network failure to report.
-    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause
+    if (isAbortError(cause)) throw cause
     throw ApiError.network()
   }
 
@@ -339,6 +372,7 @@ export interface Transport {
     signal?: AbortSignal,
   ): Promise<T>
   post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
+  put<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
   patch<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>
   del<T>(path: string, signal?: AbortSignal): Promise<T>
   upload<T>(
@@ -353,6 +387,11 @@ export const http: Transport = {
     request('GET', path, { ...(query ? { query } : {}), ...(signal ? { signal } : {}) }),
   post: (path, body, signal) =>
     request('POST', path, {
+      ...(body !== undefined ? { body } : {}),
+      ...(signal ? { signal } : {}),
+    }),
+  put: (path, body, signal) =>
+    request('PUT', path, {
       ...(body !== undefined ? { body } : {}),
       ...(signal ? { signal } : {}),
     }),

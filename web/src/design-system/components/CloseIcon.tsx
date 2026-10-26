@@ -1,7 +1,8 @@
+import { cx } from '../classNames'
 import styles from './CloseIcon.module.css'
 
 export interface CloseIconProps {
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /**
@@ -14,7 +15,7 @@ export interface CloseIconProps {
  * Always `aria-hidden`: the button's `aria-label` is the accessible name.
  */
 export function CloseIcon({ className }: CloseIconProps) {
-  const classes = [styles['icon'], className].filter(Boolean).join(' ')
+  const classes = cx(styles['icon'], className)
 
   return (
     <svg className={classes} viewBox="0 0 16 16" aria-hidden="true" focusable="false">

@@ -2,15 +2,24 @@ import { render, type RenderResult } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactElement, ReactNode } from 'react'
 import { vi } from 'vitest'
+import { AboutProvider } from '../app/AboutProvider'
 import { ApiProvider } from '../app/ApiProvider'
+import { SessionProvider } from '../app/SessionProvider'
 import { ToastProvider } from '../design-system/components/ToastProvider'
 import { DEFAULT_EVENT_THEME } from '../design-system/eventTheme'
 import { LocaleProvider } from '../lib/i18n/LocaleProvider'
 import { installDialogStub } from './dialogStub'
-import type { Api, ModeratorInviteResponse } from '../lib/api/client'
+import { aSiteClientDefaults, aSiteInvitation, CLIENT_ID, noCeilings } from './siteFixtures'
+import type { Api } from '../lib/api/client'
+import type {
+  InvitationAcceptedDto,
+  InvitationPreviewDto,
+  ModeratorInviteResponse,
+} from '../lib/api/dto'
 import type { Locale } from '../lib/i18n/locale'
 import type {
   About,
+  ClientLimitsDto,
   ClipJobDto,
   CurrentUserDto,
   EventDto,
@@ -66,6 +75,34 @@ export const aPublicEvent = (overrides: Partial<PublicEventDto> = {}): PublicEve
 })
 
 /**
+ * One client as `GET /api/me/limits` answers for its own member: an owner of a client with a
+ * ceiling on events and on storage, both well below their lines, so a test says what it moves.
+ */
+export const aClientLimits = (overrides: Partial<ClientLimitsDto> = {}): ClientLimitsDto => ({
+  id: 'client-1',
+  name: 'Atelier Alpha',
+  role: 'owner',
+  suspended: false,
+  ceilings: {
+    maxEvents: 5,
+    maxTotalBytes: 5_000_000_000,
+    maxEventQuotaBytes: null,
+    maxRetentionDays: null,
+    clipsAllowed: true,
+    liveAllowed: true,
+    maxLiveDays: null,
+    maxEventsPerPeriod: null,
+    periodStartedAt: null,
+  },
+  usage: { events: 1, eventsCreatedInPeriod: 1, usedBytes: 1_000_000 },
+  meters: [
+    { kind: 'events', used: 1, max: 5, level: 'ok' },
+    { kind: 'storage', used: 1_000_000, max: 5_000_000_000, level: 'ok' },
+  ],
+  ...overrides,
+})
+
+/**
  * What `GET /api/about` answers. A recognisable build with its own source address, **not**
  * the build-time defaults the test run injects (`vitest.config.ts`), so a test can tell
  * "the footer is showing what the server said" from "the footer never heard back".
@@ -76,7 +113,7 @@ export const anAbout = (overrides: Partial<About> = {}): About => ({
   license: 'AGPL-3.0-only',
   sourceUrl: 'https://git.example.org/me/eventslide/tree/v9.9.9-server',
   links: {},
-  features: { siteAdmin: false },
+  features: { siteAdmin: false, forgotPassword: false },
   ...overrides,
 })
 
@@ -368,6 +405,29 @@ export const aClipJob = (overrides: Partial<ClipJobDto> = {}): ClipJobDto => ({
   ...overrides,
 })
 
+/** What a link to moderate "Camille & Sacha" shows its holder (G2-09). */
+export const anInvitationPreview = (
+  overrides: Partial<InvitationPreviewDto> = {},
+): InvitationPreviewDto => ({
+  kind: 'event',
+  role: 'moderator',
+  targetName: 'Camille & Sacha',
+  expiresAt: '2026-06-27T21:00:00.000Z',
+  ...overrides,
+})
+
+/** The answer to accepting it, for an event: where to go is the slug. */
+export const anInvitationAccepted = (
+  overrides: Partial<InvitationAcceptedDto> = {},
+): InvitationAcceptedDto => ({
+  status: 'accepted',
+  kind: 'event',
+  role: 'moderator',
+  targetName: 'Camille & Sacha',
+  eventSlug: 'camille-et-sacha',
+  ...overrides,
+})
+
 export const aSessionUser = (overrides: Partial<CurrentUserDto> = {}): CurrentUserDto => ({
   userId: 'user-1',
   email: 'organisation@example.com',
@@ -410,7 +470,6 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   deleteMyPhoto: vi.fn(async () => undefined),
-  setCaption: vi.fn(async () => undefined),
   react: vi.fn(async () => undefined),
   withdrawReaction: vi.fn(async () => undefined),
   reactions: vi.fn(async () => ({
@@ -424,6 +483,12 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   // so a test that forgets to log in exercises the redirect rather than a 401 branch.
   session: vi.fn(async (): Promise<SessionResponse> => ({ authenticated: false })),
   changePassword: vi.fn(async () => undefined),
+  // The same answer for every address, which is what the server gives.
+  requestPasswordReset: vi.fn(async () => undefined),
+  confirmPasswordReset: vi.fn(async () => undefined),
+  revokeOtherSessions: vi.fn(async () => undefined),
+  invitation: vi.fn(async () => anInvitationPreview()),
+  acceptInvitation: vi.fn(async () => anInvitationAccepted()),
   loginSecondFactor: vi.fn(async () => aSessionUser()),
   enrollSecondFactor: vi.fn(async () => ({
     otpauthUri: 'otpauth://totp/EventSlide:organisation%40example.com?secret=JBSWY3DPEHPK3PXP',
@@ -434,10 +499,39 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   regenerateRecoveryCodes: vi.fn(async () => ({ recoveryCodes: ['K7QM-2XTR-9PHD-4VNB'] })),
   disableSecondFactor: vi.fn(async () => undefined),
 
+  myLimits: vi.fn(async () => ({ clients: [] })),
+  clientAudit: vi.fn(async () => ({ items: [], next: null })),
+  pendingInvitations: vi.fn(async () => ({ items: [] })),
+  approveInvitation: vi.fn(async () => undefined),
+
+  // The operator's console: empty pages and a no-op for every write, so a test states only the
+  // answers it is about. Nothing here is a photograph or an event's name, because none is sent.
+  siteClients: vi.fn(async () => ({ items: [], next: null })),
+  siteClientEvents: vi.fn(async () => ({ items: [], next: null })),
+  siteAccounts: vi.fn(async () => ({ items: [], next: null })),
+  siteAudit: vi.fn(async () => ({ items: [], next: null })),
+  siteClientDefaults: vi.fn(async () => aSiteClientDefaults()),
+  siteProvisionClient: vi.fn(async () => ({
+    clientId: CLIENT_ID,
+    invitation: aSiteInvitation(),
+  })),
+  siteRenameClient: vi.fn(async () => undefined),
+  siteSetCeilings: vi.fn(async () => ({ ceilings: noCeilings(), eventsCreatedInPeriod: 0 })),
+  siteOffboardClient: vi.fn(async () => undefined),
+  siteDisableAccount: vi.fn(async () => undefined),
+  siteEnableAccount: vi.fn(async () => undefined),
+  siteDeleteAccount: vi.fn(async () => undefined),
+  siteSuspendClient: vi.fn(async () => undefined),
+  siteResumeClient: vi.fn(async () => undefined),
+  siteInviteToClient: vi.fn(async () => ({ invitation: aSiteInvitation() })),
+  siteResetPassword: vi.fn(async () => ({
+    delivery: 'mail' as const,
+    expiresAt: '2026-06-20T22:00:00.000Z',
+  })),
+
   listEvents: vi.fn(async () => ({ items: [] })),
   createEvent: vi.fn(async () => anEventDto()),
   getEvent: vi.fn(async () => anEventDto()),
-  renameEvent: vi.fn(async () => anEventDto()),
   updateSettings: vi.fn(async () => anEventDto()),
   setEventStatus: vi.fn(async () => anEventDto()),
   setSchedule: vi.fn(async () => anEventDto()),
@@ -447,7 +541,6 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   moderationQueue: vi.fn(async () => ({ items: [], pendingCount: 0, nextCursor: null })),
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),
-  deletePhoto: vi.fn(async () => undefined),
   topPhotos: vi.fn(async () => ({ items: [] })),
 
   listGuests: vi.fn(async () => ({ items: [], activeCount: 0 })),
@@ -506,6 +599,13 @@ export interface RenderWithProvidersOptions {
    * above is a fixed instant.
    */
   readonly locale?: Locale
+  /**
+   * Whether to mount a `SessionProvider` around `ui`. **Yes unless a test says otherwise**:
+   * a host-screen component under test has no `HostLayout` above it. A test of the route
+   * table passes `false`, so that the provider `HostLayout` mounts is the one under test and
+   * a layout that forgot it fails loudly instead of being served by this one.
+   */
+  readonly session?: boolean
 }
 
 export interface RenderWithProvidersResult extends RenderResult {
@@ -526,20 +626,32 @@ export const renderWithProviders = (
   const route = options.route ?? '/'
   const path = options.path
   const locale = options.locale ?? 'fr'
+  const session = options.session ?? true
+
+  /** One scope for the whole test: a component under test never crosses the area's border. */
+  const Session = ({ children }: { readonly children: ReactNode }) =>
+    session ? <SessionProvider scope="test">{children}</SessionProvider> : <>{children}</>
 
   const Providers = ({ children }: { readonly children: ReactNode }) => (
     <LocaleProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[route]}>
         <ApiProvider api={api}>
-          <ToastProvider>
-            {path === undefined ? (
-              children
-            ) : (
-              <Routes>
-                <Route path={path} element={children} />
-              </Routes>
-            )}
-          </ToastProvider>
+          {/* `main.tsx` mounts the first, `HostLayout` the second: a component under test
+              has neither above it, so both are here. Neither asks the server until a reader
+              mounts. A route-level test opts out of the second (`session: false`). */}
+          <AboutProvider>
+            <Session>
+              <ToastProvider>
+                {path === undefined ? (
+                  children
+                ) : (
+                  <Routes>
+                    <Route path={path} element={children} />
+                  </Routes>
+                )}
+              </ToastProvider>
+            </Session>
+          </AboutProvider>
         </ApiProvider>
       </MemoryRouter>
     </LocaleProvider>

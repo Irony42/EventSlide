@@ -201,12 +201,76 @@ describe('validateDetails', () => {
   })
 
   it('has no kind for an id, because a slug and a token are strings of the same alphabet', () => {
+    // `reason` is the one kind that holds text a person typed (G2-14), with a bound and a parser
+    // of its own; it is listed here so that a second such kind is a line in a diff.
     expect(Object.keys(detail).sort()).toEqual([
       'boolean',
       'instant',
       'integer',
       'nullable',
       'object',
+      'reason',
+      'termsVersion',
     ])
+  })
+
+  describe('the reason kind', () => {
+    const WITH_REASON = { why: detail.reason }
+
+    it('accepts a reason that is already canonical', () => {
+      expect(validateDetails(WITH_REASON, { why: 'capacité du disque' }).ok).toBe(true)
+    })
+
+    it.each([
+      ['a number', 3],
+      ['a switch', true],
+      ['null', null],
+      ['an object', { a: 1 }],
+      ['an empty string', ''],
+      [
+        'a sentence with surrounding blanks, which would be reshaped and not stored as typed',
+        ' abus ',
+      ],
+      ['a line break', 'a' + String.fromCharCode(10) + 'b'],
+      ['an address', 'ecrire a marie@example.test'],
+      ['a string over the bound', 'a'.repeat(201)],
+    ])('refuses %s where a reason is declared', (_label, value) => {
+      const result = validateDetails(WITH_REASON, { why: value } as unknown as AuditDetails)
+
+      expect(!result.ok && result.error.details).toEqual({ path: 'why', problem: 'wrongType' })
+    })
+
+    it('never puts the refused text in the error, only where it was', () => {
+      const result = validateDetails(WITH_REASON, { why: 'mon@example.test' })
+
+      expect(!result.ok && JSON.stringify(result.error.details)).not.toContain('example')
+    })
+  })
+
+  describe('a terms version', () => {
+    const VERSION_FIELDS = { version: detail.termsVersion }
+
+    it('accepts the version a box is on', () => {
+      expect(validateDetails(VERSION_FIELDS, { version: '2027-01' }).ok).toBe(true)
+    })
+
+    it.each([
+      ['a sentence', 'the new terms apply'],
+      ['an address', 'camille@example.org'],
+      ['a token as long as a real one', 'Z7q-Mx0Ld3Tn9VbRk2YcHs8WfAe5GuJi4PoXz1NvB6E'],
+      ['nothing', ''],
+      ['a number', 3],
+      ['null', null],
+    ])('refuses %s, so the log cannot be made to hold prose under this key', (_what, version) => {
+      const result = validateDetails(VERSION_FIELDS, { version } as unknown as AuditDetails)
+
+      expect(!result.ok && result.error.details['problem']).toBe('wrongType')
+    })
+
+    it('never puts the refused text in the error, only where it was', () => {
+      const result = validateDetails(VERSION_FIELDS, { version: 'camille@example.org' })
+
+      expect(!result.ok && JSON.stringify(result.error.details)).not.toContain('camille')
+    })
   })
 })

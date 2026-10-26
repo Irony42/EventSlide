@@ -9,6 +9,7 @@ import {
   invitationAcceptanceContract,
 } from './contracts/invitationAcceptanceContract'
 import { FakeAccountTokenRepository } from './fakeAccountTokenRepository'
+import { FakeAuditLog } from './fakeAuditLog'
 import { FakeClientRepository } from './fakeClientRepository'
 import { FakeInvitationAcceptance } from './fakeInvitationAcceptance'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
@@ -29,7 +30,8 @@ const world = () => {
     grantedAt: new Date(0),
   })
   const clients = new FakeClientRepository().seed(aClient({ id: ACCEPTANCE_CLIENT }))
-  return { users, tokens, memberships, clients }
+  const audit = new FakeAuditLog()
+  return { users, tokens, memberships, clients, audit }
 }
 
 invitationAcceptanceContract('fake', async () => {

@@ -25,11 +25,11 @@ export const de: UiText = {
   app: {
     name: 'EventSlide',
     loading: 'Wird geladen…',
+    loadFailed: 'Laden nicht möglich',
     retry: 'Erneut versuchen',
     cancel: 'Abbrechen',
     close: 'Schließen',
     save: 'Speichern',
-    back: 'Zurück',
     confirm: 'Bestätigen',
     language: 'Sprache',
   },
@@ -47,14 +47,12 @@ export const de: UiText = {
   },
 
   upload: {
-    title: 'Ihre Fotos',
     intro: 'Fügen Sie Ihre Fotos hinzu. Sie erscheinen nach der Freigabe auf dem Bildschirm.',
     addPhotos: 'Fotos hinzufügen',
     takePhoto: 'Foto aufnehmen',
     captionLabel: 'Bildunterschrift',
     captionHint: (max: number) => `Maximal ${t.number(max)} Zeichen. Optional.`,
     send: 'Senden',
-    sending: 'Wird gesendet…',
     sendCount: (count: number) =>
       t.count(count, { one: 'Foto senden', other: `${t.number(count)} Fotos senden` }),
     queueEmpty: 'Noch keine Fotos ausgewählt.',
@@ -63,7 +61,6 @@ export const de: UiText = {
     itemDone: 'Gesendet',
     itemDuplicate: 'Bereits gesendet',
     itemFailed: 'Fehlgeschlagen',
-    remove: 'Entfernen',
     mine: 'Ihre Beiträge',
     statusPending: 'Wartet auf Freigabe',
     statusPublished: 'Auf dem Bildschirm',
@@ -71,9 +68,7 @@ export const de: UiText = {
     statusHidden: 'Vom Bildschirm genommen',
     deleteOwn: 'Löschen',
     deleteOwnConfirm: 'Dieses Foto löschen? Das lässt sich nicht rückgängig machen.',
-    graceOver: 'Die Frist, dieses Foto selbst zu löschen, ist abgelaufen.',
     thanks: 'Danke, Ihre Fotos sind angekommen.',
-    sendMore: 'Weitere Fotos senden',
 
     itemPreparing: 'Wird vorbereitet…',
     queueLabel: 'Fotos zum Senden',
@@ -101,7 +96,8 @@ export const de: UiText = {
     signedAs: (name: string) => `Ihre Fotos erscheinen unter dem Namen ${name}.`,
     signedAnonymous: 'Ihre Fotos erscheinen ohne Namen.',
     mineEmpty: 'Sie haben noch keine Fotos gesendet.',
-    mineFailed: 'Ihre Beiträge konnten nicht angezeigt werden. Versuchen Sie es erneut.',
+    mineFailed:
+      'Die Liste Ihrer Beiträge konnte nicht aktualisiert werden. Versuchen Sie es erneut.',
     mineAlt: 'Ihr Foto',
     deleteOwnNumbered: (position: number) => `Foto ${t.number(position)} löschen`,
     notJoinedTitle: 'Treten Sie der Galerie bei, um Ihre Fotos zu senden',
@@ -220,11 +216,22 @@ export const de: UiText = {
       'Andernfalls wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
     noticeRemovalAskHost: 'Wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
     clipDoneImmediate: 'Video gesendet. Es erscheint jetzt auf dem Bildschirm.',
+
+    /* ---- Added by guest reactions. ---- */
+
+    reactionKinds: {
+      love: 'Liebe',
+      laugh: 'Haha',
+      wow: 'Wow',
+      cheers: 'Prost',
+      clap: 'Applaus',
+    },
+    reactionsGroup: (position: number) => `Auf Foto ${t.number(position)} reagieren`,
+    reactionsFailed: 'Die Reaktionen konnten nicht geladen werden.',
   },
 
   ui: {
     dialogClose: 'Fenster schließen',
-    notifications: 'Benachrichtigungen',
     dismissNotification: 'Diese Benachrichtigung ausblenden',
     percent: (value: number) => t.percent(value),
     optional: 'Optional',
@@ -242,10 +249,49 @@ export const de: UiText = {
     notFoundHint:
       'Diese Adresse gibt es nicht. Prüfen Sie den Link oder gehen Sie zurück zum Anfang.',
     notFoundHome: 'Zurück zum Anfang',
-    comingSoon: 'Dieser Bildschirm kommt bald.',
   },
 
   errors: {
+    'clientName.empty': 'Geben Sie dem Kunden einen Namen.',
+    'clientName.tooLong': 'Dieser Name ist zu lang.',
+    'clientName.invalid': 'Dieser Name enthält ein nicht zulässiges Zeichen.',
+    'clientCeilings.maxEventsInvalid': 'Diese Anzahl von Veranstaltungen wird nicht akzeptiert.',
+    'clientCeilings.maxEventsPerPeriodInvalid':
+      'Diese Anzahl von Veranstaltungen pro Zeitraum wird nicht akzeptiert.',
+    'clientCeilings.maxTotalBytesInvalid': 'Dieser Gesamtspeicher wird nicht akzeptiert.',
+    'clientCeilings.maxEventQuotaBytesInvalid': 'Dieses Kontingent wird nicht akzeptiert.',
+    'clientCeilings.maxRetentionDaysInvalid':
+      'Diese Aufbewahrungsdauer wird nicht akzeptiert: von 1 bis 3.650 Tagen.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'Diese Live-Dauer wird nicht akzeptiert: von 1 bis 365 Tagen.',
+    'clientCeilings.periodStartedAtInvalid': 'Dieser Zeitraumbeginn wird nicht akzeptiert.',
+    'clientCeilings.clipsAllowedInvalid': 'Diese Videoeinstellung wird nicht akzeptiert.',
+    'clientCeilings.liveAllowedInvalid': 'Diese Öffnungseinstellung wird nicht akzeptiert.',
+    'audit.reasonInvalid':
+      'Der Grund muss in eine Zeile mit höchstens 200 Zeichen passen, ohne E-Mail-Adresse.',
+    'reset.mailerRequired':
+      'Diese Instanz sendet keine E-Mails: Es kann kein Link zum Zurücksetzen ausgestellt werden.',
+    'reset.mailNotSent':
+      'Der Mailserver hat die Nachricht abgelehnt. Es wurde kein Link ausgestellt.',
+    'reset.approverUnavailable':
+      'Dieses Konto gehört keinem oder mehreren Kunden: Kein Inhaber kann die Anfrage genehmigen.',
+    'reset.requestNotFound': 'Diese Anfrage existiert nicht oder wurde noch nicht genehmigt.',
+    'reset.tooManyForAddress':
+      'Diese Adresse hat bereits mehrere Zurücksetzungen erhalten. Versuchen Sie es in einer Stunde erneut.',
+    'account.disabled': 'Dieses Konto ist deaktiviert.',
+    'account.operatorProtected':
+      'Das Konto eines Betreibers kann weder deaktiviert noch gelöscht werden.',
+    'account.holdsEvents':
+      'Dieses Konto besitzt eine Veranstaltung: Übergeben oder löschen Sie sie zuerst.',
+    'account.holdsMedia':
+      'Dieses Konto hat Fotos oder Videos hochgeladen, deren Dateien auf dem Datenträger blieben.',
+    'account.holdsReviews': 'Dieses Konto hat Fotos geprüft, deren Zeilen seinen Namen tragen.',
+    'account.lastClientOwner':
+      'Dieses Konto ist der einzige Inhaber eines Kunden, der noch Mitglieder oder Veranstaltungen hat: Fügen Sie einen Inhaber hinzu oder beenden Sie die Zusammenarbeit mit dem Kunden.',
+    'client.graceInvalid':
+      'Diese Frist wird nicht akzeptiert. Geben Sie eine ganze Zahl von Tagen an.',
+    'client.offboarding':
+      'Die Zusammenarbeit mit diesem Kunden endet gerade: Seine Sperre lässt sich nicht aufheben.',
     unknown: 'Etwas ist schiefgelaufen. Versuchen Sie es gleich noch einmal.',
     network: 'Die Verbindung ist abgebrochen. Prüfen Sie Ihr Netz und versuchen Sie es erneut.',
     'request.invalid': 'Die gesendeten Angaben sind nicht gültig.',
@@ -286,6 +332,7 @@ export const de: UiText = {
     'event.creationNotAllowed':
       'Mit Ihrem Konto können auf diesem Server keine Veranstaltungen erstellt werden.',
     'client.notFound': 'Dieses Kundenkonto wurde nicht gefunden.',
+    'client.ownerRequired': 'Nur ein Inhaber des Kontos kann das einsehen.',
     'client.ceilingReached': 'Ihr Konto hat die zulässige Anzahl an Veranstaltungen erreicht.',
     'client.storageFull': 'Die Galerie ist voll. Sagen Sie dem Veranstalter Bescheid.',
     'client.liveNotAllowed': 'Ihr Konto kann derzeit keine Veranstaltung öffnen.',
@@ -296,7 +343,6 @@ export const de: UiText = {
     'event.immutable': 'Diese Veranstaltung ist archiviert und kann nicht mehr geändert werden.',
     'event.illegalTransition': 'Dieser Statuswechsel ist nicht möglich.',
 
-    'guest.wrongEvent': 'Ihr Zugang gehört nicht zu dieser Galerie.',
     'guest.revoked': 'Der Veranstalter hat Ihren Zugang entzogen.',
     'guestToken.expired': 'Ihr Zugang ist abgelaufen. Scannen Sie den QR-Code erneut.',
     'guestToken.malformed': 'Ihr Zugang ist nicht mehr gültig. Scannen Sie den QR-Code erneut.',
@@ -304,7 +350,6 @@ export const de: UiText = {
 
     'photo.notFound': 'Dieses Foto gibt es nicht mehr.',
     'photo.illegalTransition': 'Diese Aktion ist bei diesem Foto nicht möglich.',
-    'photo.tooManyForGuest': 'Sie haben die erlaubte Anzahl an Fotos erreicht.',
 
     'image.unsupportedFormat':
       'Diese Datei ist kein Foto. Zulässige Formate: JPEG, PNG, HEIC, WebP.',
@@ -350,11 +395,14 @@ export const de: UiText = {
     'invitation.notFound':
       'Diese Einladung ist nicht mehr gültig. Bitten Sie die Person, die sie geschickt hat, um eine neue.',
     'invitation.signInRequired':
-      'Ein Konto verwendet diese Adresse bereits. Melden Sie sich mit diesem Konto an und öffnen Sie den Link erneut.',
+      'Die Adresse dieser Einladung gehört bereits zu einem Konto. Melden Sie sich mit diesem Konto an: Sie kehren dann hierher zurück, um die Einladung anzunehmen.',
+    'terms.notAccepted': 'Um fortzufahren, setzen Sie das Häkchen bei den Nutzungsbedingungen.',
     'invitation.wrongAccount':
       'Diese Einladung wurde für eine andere E-Mail-Adresse als die dieses Kontos ausgestellt.',
     'invitation.credentialsRequired':
       'Melden Sie sich mit dem eingeladenen Konto an oder wählen Sie einen Namen und ein Passwort.',
+    'accountName.empty': 'Geben Sie Ihren Namen ein.',
+    'accountName.tooLong': 'Dieser Name ist zu lang.',
 
     'displayName.tooLong': 'Vorname zu lang.',
     'joinCode.wrongLength': 'Dieser Code hat nicht die richtige Anzahl an Zeichen.',
@@ -373,6 +421,7 @@ export const de: UiText = {
     'reaction.alreadyExists': 'So haben Sie auf dieses Foto bereits reagiert.',
     'reaction.notPublished': 'Dieses Foto ist noch nicht auf dem Bildschirm.',
     'reaction.notFound': 'Diese Reaktion gibt es nicht mehr.',
+    'reaction.ownPhoto': 'Sie können nicht auf Ihr eigenes Foto reagieren.',
     'upload.noFiles':
       'Es ist kein Foto angekommen. Wählen Sie eines aus und versuchen Sie es erneut.',
     'upload.unexpectedField': 'Diese Datei konnte nicht gelesen werden. Versuchen Sie es erneut.',
@@ -548,11 +597,23 @@ export const de: UiText = {
       'Dieses Video kann hier nicht abgespielt werden. Zu sehen ist nur das Vorschaubild.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Die Fotos des Abends',
+    link: 'Fotos des Abends ansehen',
+    back: 'Eigene Fotos senden',
+    refresh: 'Aktualisieren',
+    more: 'Weitere Fotos anzeigen',
+    empty: 'Noch ist kein Foto auf dem Bildschirm.',
+    emptyHint: 'Fotos, die die Veranstalter freigegeben haben, erscheinen hier.',
+    failed: 'Die Fotos konnten nicht geladen werden. Versuchen Sie es erneut.',
+    own: 'Ihr Foto',
+  },
+
   wall: {
     empty: 'Die ersten Fotos kommen gleich',
     emptyHint: 'Scannen Sie den QR-Code und senden Sie Ihre eigenen Fotos.',
     joinPrompt: 'Treten Sie der Galerie bei',
-    reactions: 'Reaktionen',
     offline: 'Verbindung unterbrochen — es wird erneut versucht',
     paused: 'Diashow angehalten',
 
@@ -592,7 +653,6 @@ export const de: UiText = {
   },
 
   admin: {
-    title: 'Verwaltung',
     events: 'Ihre Veranstaltungen',
     newEvent: 'Neue Veranstaltung',
     eventName: 'Name der Veranstaltung',
@@ -692,14 +752,15 @@ export const de: UiText = {
       }),
     retentionUnlimited: 'Unbegrenzte Aufbewahrung',
     moderators: 'Moderatoren',
-    inviteModerator: 'Moderator einladen',
 
     loading: 'Ihre Veranstaltungen werden geladen…',
-    loadFailed: 'Laden nicht möglich',
     eventLoading: 'Die Veranstaltung wird geladen…',
     eventsEmpty: 'Noch keine Veranstaltungen.',
-    eventsEmptyHint:
-      'Legen Sie Ihre erste Veranstaltung an und drucken Sie dann ihren QR-Code für die Tische aus.',
+    eventsEmptyHint: 'Drei Schritte, damit am Tag selbst alles bereit ist.',
+    emptyStepCreate: 'Legen Sie die Veranstaltung an.',
+    emptyStepTest:
+      'Testen Sie den Bildschirm im Netzwerk des Veranstaltungsorts, mit einem Telefon, das nicht Ihres ist.',
+    emptyStepPrint: 'Drucken Sie den QR-Code aus und legen Sie ihn auf die Tische.',
     create: 'Veranstaltung anlegen',
     slugHint: 'Optional. Leer lassen, dann wird sie aus dem Namen abgeleitet.',
     slugPreviewLabel: 'Adresse der Galerie',
@@ -869,7 +930,6 @@ export const de: UiText = {
     email: 'E-Mail-Adresse',
     password: 'Passwort',
     submit: 'Anmelden',
-    submitting: 'Wird angemeldet…',
     logout: 'Abmelden',
     changePassword: 'Passwort ändern',
     currentPassword: 'Aktuelles Passwort',
@@ -877,7 +937,6 @@ export const de: UiText = {
     newPasswordHint: (min: number) =>
       `Mindestens ${min} Zeichen. Ein Satz ist sicherer als ein Wort.`,
     confirmPassword: 'Neues Passwort bestätigen',
-    mustChangePassword: 'Wählen Sie ein Passwort, bevor Sie fortfahren.',
 
     changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
     passwordSaved: 'Passwort gespeichert.',
@@ -918,6 +977,56 @@ export const de: UiText = {
     recoveryCodesRegenerate: 'Neue Wiederherstellungscodes erzeugen',
     secondFactorDisable: 'Bestätigung ausschalten',
     secondFactorDisabled: 'Bestätigung in zwei Schritten ausgeschaltet.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Einladung',
+    invitationToModerate: (name: string) =>
+      `Sie wurden eingeladen, die Veranstaltung „${name}“ zu moderieren.`,
+    invitationToOwn: (name: string) =>
+      `Sie wurden eingeladen, die Veranstaltungen von „${name}“ zu erstellen und zu verwalten.`,
+    invitationToJoin: (name: string) =>
+      `Sie wurden eingeladen, dem Team von „${name}“ beizutreten.`,
+    invitationExpires: (when: string) => `Gültig bis ${when}.`,
+    invitationChoose:
+      'Wählen Sie Ihren Namen und ein Passwort: Mit dem Absenden dieses Formulars wird Ihr Konto angelegt.',
+    invitationName: 'Ihr Name',
+    invitationNameHint: 'Er erscheint in der Liste der Personen mit Zugriff.',
+    invitationConfirmPassword: 'Passwort bestätigen',
+    invitationSubmit: 'Konto anlegen und annehmen',
+    invitationAccepted: 'Einladung angenommen.',
+    invitationHaveAccount: 'Sie haben bereits ein Konto?',
+    invitationSignedInAs: (email: string) => `Sie sind als ${email} angemeldet.`,
+    invitationAcceptAs: 'Mit diesem Konto annehmen',
+    invitationUseAnother: 'Anderes Konto verwenden',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `Ich akzeptiere die Nutzungsbedingungen (Version ${version}), einschließlich der Klauseln zur Auftragsverarbeitung.`,
+    invitationReadTerms: 'Nutzungsbedingungen lesen',
+    deadLinkTitle: 'Dieser Link ist ungültig',
+    forgotLink: 'Passwort vergessen?',
+    forgotTitle: 'Passwort vergessen',
+    forgotIntro:
+      'Geben Sie die E-Mail-Adresse Ihres Kontos ein. Wenn ein Konto sie verwendet, erhalten Sie einen Link, um ein neues Passwort zu wählen.',
+    forgotSubmit: 'Link senden',
+    forgotSentTitle: 'Prüfen Sie Ihr Postfach',
+    forgotSent:
+      'Wenn ein Konto diese Adresse verwendet, wurde soeben eine Nachricht mit einem Link gesendet. Der Link ist eine Stunde gültig und funktioniert nur einmal.',
+    forgotUnavailable:
+      'Dieser Server kann keine E-Mails senden, daher lässt sich das Passwort hier nicht auf diesem Weg zurücksetzen. Fragen Sie die Person, die ihn betreibt.',
+    backToLogin: 'Zurück zur Anmeldung',
+    resetTitle: 'Neues Passwort',
+    resetIntro:
+      'Wählen Sie ein Passwort, das Sie sonst nirgends verwenden. Sie werden auf allen Ihren Geräten abgemeldet.',
+    resetSubmit: 'Passwort ändern',
+    resetDoneTitle: 'Passwort geändert',
+    resetDone: 'Alle Ihre Sitzungen wurden beendet. Melden Sie sich mit Ihrem neuen Passwort an.',
+    resetAskAgain: 'Neuen Link anfordern',
+    accountMenu: 'Konto',
+    accountSignedInAs: (email: string) => `Angemeldet als ${email}`,
+    logoutEverywhere: 'Überall abmelden',
+    logoutEverywhereTitle: 'Überall abmelden?',
+    logoutEverywhereHint:
+      'Ihre Sitzung wird auf allen Geräten beendet, auch auf diesem, und Sie müssen sich erneut anmelden. Sinnvoll, wenn Sie ein Gerät verloren oder einen gemeinsam genutzten Computer verwendet haben.',
   },
 
   mobileModeration: {
@@ -986,5 +1095,322 @@ export const de: UiText = {
     operatorNameLabel: 'Betreiber',
     operatorContactLabel: 'Kontakt',
     operatorHostedBy: 'Gehostet von',
+  },
+  clientSpace: {
+    bannerLabel: 'Grenzen Ihres Kontos',
+    warningTitle: 'Sie nähern sich einer Grenze Ihres Kontos',
+    reachedTitle: 'Eine Grenze Ihres Kontos ist erreicht',
+    eventsMeter: (used: number, max: number) => `Veranstaltungen: ${used} von ${max}`,
+    eventsPerPeriodMeter: (used: number, max: number) =>
+      `In diesem Zeitraum angelegte Veranstaltungen: ${used} von ${max}`,
+    storageMeter: (used: string, max: string) => `Speicher: ${used} von ${max}`,
+    liveNotAllowed: 'Neue Veranstaltungen zu öffnen ist für Ihr Konto ausgesetzt.',
+    contactHint: 'Um eine Grenze aufzuheben, wenden Sie sich an Ihren Betreiber.',
+    contactAction: 'Betreiber kontaktieren',
+    suspendedTitle: 'Ihr Konto ist gesperrt',
+    suspendedBody:
+      'Ihre Alben bleiben einsehbar und exportierbar. Solange die Sperre dauert, können Sie keine Veranstaltung anlegen, öffnen oder ändern, und das Publikum sieht Ihre Bildschirme nicht mehr.',
+    spaceLink: 'Kundenbereich',
+    spaceTitle: 'Kundenbereich',
+    limitsTitle: 'Grenzen und Nutzung',
+    noLimits: 'Ihr Betreiber hat für Ihr Konto keine Grenze festgelegt.',
+    roleOwner: 'Inhaber',
+    roleMember: 'Mitglied',
+    pendingTitle: 'Wartet auf Ihre Zustimmung',
+    pendingHint:
+      'Ihr Betreiber hat diese Personen in Ihr Konto eingeladen. Sie kommen nur mit der Zustimmung eines Inhabers hinein.',
+    pendingEmpty: 'Nichts wartet auf Ihre Zustimmung.',
+    pendingValidUntil: (date: string) => `Gültig bis ${date}`,
+    approve: 'Zustimmen',
+    approved: 'Einladung genehmigt.',
+    auditTitle: 'Aktionsprotokoll',
+    auditHint:
+      'Alles, was Ihr Betreiber, das System oder Ihr Team auf Ihrem Konto getan hat, das Neueste zuerst.',
+    auditEmpty: 'Bisher wurde keine Aktion aufgezeichnet.',
+    auditMore: 'Ältere Aktionen anzeigen',
+    actorOperator: 'Betreiber',
+    actorMember: 'Ihr Team',
+    actorSystem: 'System',
+    actorIntegration: 'Integration',
+    actionCeilingsChanged: 'Ihre Grenzen wurden geändert.',
+    actionPeriodReset: 'Ihr Zeitraum wurde erneuert.',
+    actionInvitationIssued: 'Eine Einladung wurde ausgestellt.',
+    actionInvitationIssuedPending:
+      'Eine Einladung wurde ausgestellt; sie wartet auf Ihre Zustimmung.',
+    actionInvitationApproved: 'Eine Einladung wurde genehmigt.',
+    actionResetRequested: 'Für ein Mitglied wurde ein Zurücksetzen des Passworts angefordert.',
+    actionResetApproved: 'Ein Zurücksetzen des Passworts wurde genehmigt.',
+    actionResetMailed: 'Ein Link zum Zurücksetzen wurde an das Mitglied gesendet.',
+    actionResetShown: 'Ein Link zum Zurücksetzen wurde dem Betreiber übergeben.',
+    actionTermsAccepted:
+      'Eine Person hat die Nutzungsbedingungen akzeptiert, indem sie eine Einladung angenommen hat.',
+    actionOther: 'Eine Aktion wurde aufgezeichnet.',
+    liveWindowEnd: (date: string) => `Das Live-Fenster endet am ${date}.`,
+  },
+
+  site: {
+    menuLink: 'Betreiber-Konsole',
+    consoleTitle: 'Betreiber-Konsole',
+    consoleIntro:
+      'Sie sehen hier Formen und Größen, nie das, was Ihre Kunden erstellt haben: kein Foto, keinen Namen einer Veranstaltung.',
+    navLabel: 'Bereiche der Konsole',
+    navClients: 'Kunden',
+    navAccounts: 'Konten',
+    navAudit: 'Protokoll',
+    factorTitle: 'Bestätigung in zwei Schritten erforderlich',
+    factorEnrol:
+      'Diese Instanz verlangt sie vom Betreiber, und Ihr Konto hat sie noch nicht eingerichtet. Richten Sie sie ein und kehren Sie dann hierher zurück.',
+    factorEnrolLink: 'Bestätigung in zwei Schritten einrichten',
+    factorSignIn:
+      'Diese Anmeldung hat die Bestätigung in zwei Schritten nicht durchlaufen. Melden Sie sich erneut an und geben Sie den Code Ihrer App ein.',
+    factorSignOut: 'Erneut anmelden',
+    stepUpTitle: 'Bestätigen Sie Ihre Identität',
+    stepUpIntro:
+      'Diese Aktion ändert eine gemeinsam genutzte Instanz. Geben Sie Ihr Passwort ein, und den Code Ihrer App, falls Sie eine haben: Die Bestätigung gilt fünf Minuten.',
+    more: 'Mehr anzeigen',
+
+    clientsTitle: 'Kunden',
+    clientsHint:
+      'Ein Kunde ist ein Konto, seine Veranstaltungen und seine Grenzen. Sie lesen seine Größen, nie seine Inhalte.',
+    newClient: 'Neuer Kunde',
+    clientsEmpty: 'Noch kein Kunde.',
+    clientsEmptyHint:
+      'Eröffnen Sie einen Kunden: Der Inhaber erhält eine Einladung und wählt sein Passwort selbst.',
+    clientsTableLabel: 'Die Kunden der Instanz',
+    clientColumn: 'Kunde',
+    statusColumn: 'Status',
+    eventsColumn: 'Veranstaltungen',
+    membersColumn: 'Mitglieder',
+    storageColumn: 'Speicher',
+    createdColumn: 'Eröffnet am',
+    statusActive: 'Aktiv',
+    statusSuspended: 'Gesperrt',
+    statusOffboarding: 'Wird beendet',
+    eventsCell: (total: number, live: number) => `${t.number(total)} (${t.number(live)} live)`,
+    storageOf: (used: string, max: string) => `${used} von ${max}`,
+    noCeiling: 'Keine Grenze',
+
+    newClientTitle: 'Einen Kunden eröffnen',
+    newClientIntro:
+      'Der Kunde wird ohne Mitglied und ohne Veranstaltung eröffnet, und sein Inhaber wird per E-Mail eingeladen, oder über einen Link, den Sie weitergeben, wenn die Instanz keine E-Mails senden kann. Sie wählen nie sein Passwort.',
+    clientName: 'Name des Kunden',
+    ownerEmail: 'E-Mail-Adresse des Inhabers',
+    inviteLanguage: 'Sprache der Einladung',
+    defaultsHint:
+      'Die Grenzen sind die, die diese Instanz einem neuen Kunden standardmäßig gibt. Leeren Sie ein Feld, um keine Grenze zu setzen.',
+    createClient: 'Kunden eröffnen',
+    clientCreated: 'Kunde eröffnet.',
+
+    invitationMailed: (email: string) => `Eine Einladung wurde an ${email} gesendet.`,
+    invitationPending:
+      'Die Einladung ist geschrieben, gilt aber erst, wenn ein Inhaber des Kunden zustimmt.',
+    invitationLinkTitle: 'Es wurde keine E-Mail gesendet',
+    invitationLinkBody:
+      'Diese Instanz kann keine E-Mails senden, oder der Mailserver hat diese abgelehnt. Dieser Link ist die einzige Kopie: Geben Sie ihn an den Empfänger weiter und schließen Sie dann dieses Feld.',
+    invitationLinkLabel: 'Einladungslink',
+    copyLink: 'Link kopieren',
+    linkCopied: 'Link kopiert.',
+    invitationValidUntil: (date: string) => `Gültig bis ${date}.`,
+
+    ceilingsLegend: 'Grenzen',
+    maxEvents: 'Veranstaltungen, höchstens',
+    maxEventsPerPeriod: 'Veranstaltungen pro Zeitraum, höchstens',
+    maxTotalGigabytes: 'Gesamtspeicher in GB',
+    maxEventQuotaGigabytes: 'Kontingent einer Veranstaltung in GB',
+    maxRetentionDays: 'Aufbewahrung nach dem Ende, in Tagen, höchstens',
+    maxLiveDays: 'Dauer einer Live-Veranstaltung, in Tagen, höchstens',
+    clipsAllowed: 'Videos erlaubt',
+    liveAllowed: 'Öffnen von Veranstaltungen erlaubt',
+    renewPeriod: 'Zeitraum jetzt erneuern',
+    renewPeriodHint: 'Setzt den Zähler der im Zeitraum erstellten Veranstaltungen auf null.',
+    emptyMeansNone: 'Leer: keine Grenze.',
+    notANumber: 'Geben Sie eine positive Zahl ein.',
+
+    allClients: 'Alle Kunden',
+    memberCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Mitglied`,
+        other: `${t.number(count)} Mitglieder`,
+      }),
+    periodEvents: (count: number) => `Im Zeitraum erstellt: ${t.number(count)}`,
+    suspendedSince: (date: string) => `Gesperrt seit ${date}.`,
+    purgeOn: (date: string) => `Die Alben werden spätestens am ${date} gelöscht.`,
+    suspend: 'Sperren',
+    suspendTitle: 'Diesen Kunden sperren?',
+    suspendBody:
+      'Gäste können seinen Veranstaltungen nicht mehr beitreten und keine Fotos mehr senden, die Öffentlichkeit sieht seine Bildschirme und Galerien nicht mehr, und seine Mitglieder können nichts mehr ändern. Nichts wird gelöscht, und kein Konto wird deaktiviert.',
+    suspended: 'Kunde gesperrt.',
+    resume: 'Sperre aufheben',
+    resumeTitle: 'Sperre aufheben?',
+    resumeBody:
+      'Die Bildschirme und Galerien des Kunden sind sofort wieder sichtbar, und seine Gäste können wieder beitreten und Fotos senden.',
+    resumed: 'Sperre aufgehoben.',
+    rename: 'Umbenennen',
+    renameTitle: 'Name des Kunden',
+    renamed: 'Kunde umbenannt.',
+    ceilingsTitle: 'Grenzen',
+    ceilingsReason: 'Grund der Änderung',
+    ceilingsReasonHint:
+      'Ein Satz in einer Zeile, höchstens 200 Zeichen, ohne E-Mail-Adresse. Er steht im Protokoll des Betreibers, der Kunde liest ihn nicht. Nur nichtfinanzielle Gründe: Größe einer Veranstaltung, Kapazität, Missbrauch.',
+    ceilingsSave: 'Grenzen speichern',
+    ceilingsSaved: 'Grenzen gespeichert.',
+    ceilingsUnchanged: 'Keine Grenze hat sich geändert.',
+    inviteTitle: 'In diesen Kunden einladen',
+    inviteIntro:
+      'Eine Person tritt dem Konto des Kunden bei, nie einer Veranstaltung. Hat der Kunde bereits Veranstaltungen oder Mitglieder, muss ein Inhaber die Einladung genehmigen.',
+    inviteEmail: 'E-Mail-Adresse',
+    inviteRole: 'Rolle',
+    inviteSend: 'Einladen',
+    roleOwner: 'Inhaber',
+    roleMember: 'Mitglied',
+    eventsTitle: 'Veranstaltungen',
+    eventsHint: 'Nur Formen und Größen: kein Name, keine Adresse, kein Foto.',
+    eventsEmpty: 'Dieser Kunde hat keine Veranstaltung.',
+    eventsTableLabel: 'Die Veranstaltungen des Kunden',
+    eventColumn: 'Veranstaltung',
+    eventStatusColumn: 'Status',
+    photosColumn: 'Fotos',
+    usedColumn: 'Belegter Speicher',
+    startsColumn: 'Geplanter Beginn',
+    eventLabel: (short: string) => `Veranstaltung ${short}`,
+    eventStatuses: {
+      draft: 'Entwurf',
+      live: 'Live',
+      closed: 'Beendet',
+      archived: 'Archiviert',
+    },
+    photoCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto`,
+        other: `${t.number(count)} Fotos`,
+      }),
+    auditLink: 'Protokoll dieses Kunden ansehen',
+
+    accountsTitle: 'Konten',
+    accountsHint:
+      'Die Adressen der Personen, die ein Konto auf dieser Instanz haben, und sonst nichts: kein Anzeigename, kein Passwort.',
+    accountsEmpty: 'Noch kein Konto.',
+    accountsTableLabel: 'Die Konten der Instanz',
+    addressColumn: 'Adresse',
+    roleColumn: 'Rolle auf der Instanz',
+    accountStateColumn: 'Status',
+    lastLoginColumn: 'Letzte Anmeldung',
+    ownedColumn: 'Eigene Veranstaltungen',
+    clientsColumn: 'Kunden',
+    siteRoleOperator: 'Betreiber',
+    accountActive: 'Aktiv',
+    accountDisabled: 'Deaktiviert',
+    neverSignedIn: 'Nie',
+    mustChange: 'Passwort muss geändert werden',
+    resetPassword: 'Passwort zurücksetzen',
+    resetTitle: 'Dieses Passwort zurücksetzen?',
+    resetBody:
+      'Ein Link, der eine Stunde gültig ist, geht an die Adresse des Kontos und nirgendwohin sonst: Sie sehen ihn nur auf einer Instanz, die keine E-Mails sendet.',
+    resetSent: 'Der Link wurde an die Adresse des Kontos gesendet.',
+    resetPending: 'Wartet auf einen Inhaber',
+    resetPendingBody:
+      'Diese Instanz sendet keine E-Mails. Ein anderer Inhaber des Kunden muss die Anfrage genehmigen, bevor Ihnen der Link übergeben wird.',
+    resetFetch: 'Genehmigten Link abrufen',
+    resetLinkTitle: 'Link zum Zurücksetzen',
+    resetLinkBody:
+      'Er funktioniert nur einmal. Geben Sie ihn an den Kontoinhaber weiter und schließen Sie dann dieses Feld.',
+
+    auditTitle: 'Protokoll',
+    auditHint:
+      'Alles, was auf der Instanz getan wurde, das Neueste zuerst. Der Grund einer Änderung der Grenzen ist der eigene Satz des Betreibers.',
+    auditEmpty: 'Noch keine Aktion aufgezeichnet.',
+    auditMore: 'Ältere Aktionen anzeigen',
+    auditFiltered: 'Protokoll eines einzelnen Kunden.',
+    auditShowAll: 'Gesamtes Protokoll anzeigen',
+    auditReason: (reason: string) => `Grund: ${reason}`,
+    auditAccount: (short: string) => `Konto ${short}`,
+    actors: {
+      operator: 'Betreiber',
+      member: 'Mitglied',
+      system: 'System',
+      integration: 'Integration',
+    },
+    actions: {
+      'client.created': 'Kunde eröffnet.',
+      'client.renamed': 'Kunde umbenannt.',
+      'client.ceilingsChanged': 'Grenzen geändert.',
+      'client.periodReset': 'Zeitraum erneuert.',
+      'client.suspended': 'Kunde gesperrt.',
+      'client.resumed': 'Sperre aufgehoben.',
+      'invitation.issued': 'Einladung ausgestellt.',
+      'invitation.approved': 'Einladung von einem Inhaber genehmigt.',
+      'account.resetRequested': 'Zurücksetzen des Passworts angefordert.',
+      'account.resetApproved': 'Zurücksetzen von einem Inhaber genehmigt.',
+      'account.resetIssued': 'Zurücksetzen ausgestellt.',
+      'account.disabled': 'Konto deaktiviert.',
+      'client.offboarded': 'Ende der Zusammenarbeit eingeleitet.',
+      'client.finalized': 'Kunde nach dem Ende der Zusammenarbeit gelöscht.',
+      'account.enabled': 'Konto reaktiviert.',
+      'account.deleted': 'Konto gelöscht.',
+      'account.termsAccepted': 'Nutzungsbedingungen akzeptiert.',
+      'account.secondFactorEnrolled': 'Bestätigung in zwei Schritten eingerichtet.',
+      'account.secondFactorDisabled': 'Bestätigung in zwei Schritten ausgeschaltet.',
+      'account.recoveryCodesRegenerated': 'Wiederherstellungscodes erneuert.',
+      'account.recoveryCodeUsed': 'Ein Wiederherstellungscode wurde verwendet.',
+    },
+    actionInvitationIssuedPending:
+      'Einladung ausgestellt; sie wartet auf die Zustimmung eines Inhabers.',
+    actionOther: 'Eine Aktion wurde aufgezeichnet.',
+    accountActionsColumn: 'Aktionen für das Konto',
+    disableAccount: 'Deaktivieren',
+    enableAccount: 'Reaktivieren',
+    deleteAccount: 'Löschen',
+    disableTitle: (address: string) => `Konto von ${address} deaktivieren?`,
+    disableBody:
+      'Alle seine Sitzungen enden sofort, und die Person kann sich nicht mehr anmelden. Nichts wird gelöscht: Beim Reaktivieren bekommt sie den Zugang zurück, muss sich aber neu anmelden.',
+    accountDisabledDone: 'Konto deaktiviert.',
+    accountEnabledDone: 'Konto reaktiviert.',
+    deleteTitle: (address: string) => `Konto von ${address} löschen?`,
+    deleteBody:
+      'Das beantwortet eine Löschanfrage. Das Konto, seine Zugehörigkeiten, die an es gerichteten Einladungen, sein zweiter Faktor und die von ihm erstellten Freigabelinks verschwinden. Die von ihm geschriebenen Protokollzeilen bleiben, ohne seinen Namen, ebenso die von ihm ausgestellten Einladungen. Seine Adresse bleibt in seinen laufenden Sitzungen (höchstens sieben Tage) und in bereits ausgestellten Links bis zu deren Ablauf. Das lässt sich nicht rückgängig machen.',
+    accountDeletedDone: 'Konto gelöscht.',
+    offboardTitle: 'Ende der Zusammenarbeit',
+    offboardIntro:
+      'Live-Veranstaltungen werden beendet, Entwürfe archiviert, der Kunde wird gesperrt, und seine Alben werden spätestens nach der von Ihnen gesetzten Frist gelöscht: So lange hat der Kunde Zeit, zu exportieren, was er behalten will (die Aufbewahrung einer Veranstaltung oder die Grenzen des Kunden können früher löschen). Danach werden die Konten, die nur ihm gehörten und sonst nichts halten, gelöscht, und mit ihnen der Kunde.',
+    graceDays: 'Frist bis zur Löschung, in Tagen',
+    graceDaysHint: 'Eine ganze Zahl von Tagen: Die Grenzen setzt der Server.',
+    offboardAction: 'Zusammenarbeit beenden',
+    offboardConfirmTitle: 'Die Zusammenarbeit mit diesem Kunden beenden?',
+    offboardConfirmBody: (days: number) =>
+      t.count(days, {
+        one: `Spätestens in ${t.number(days)} Tag werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
+        other: `Spätestens in ${t.number(days)} Tagen werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
+      }),
+    offboardedDone: 'Ende der Zusammenarbeit eingeleitet.',
+    offboardingRunning:
+      'Diese Zusammenarbeit endet: Die Alben werden spätestens an dem oben genannten Datum gelöscht.',
+    daysNotWhole: 'Geben Sie eine ganze Zahl von Tagen an.',
+  },
+
+  titles: {
+    join: 'Der Galerie beitreten',
+    upload: 'Fotos senden',
+    feed: 'Fotos des Abends',
+    wall: 'Bildschirm der Veranstaltung',
+    gallery: 'Geteiltes Album',
+    about: 'Info',
+    notFound: 'Seite nicht gefunden',
+    login: 'Anmeldung',
+    forgotPassword: 'Passwort vergessen',
+    resetPassword: 'Neues Passwort',
+    invitation: 'Einladung',
+    changePassword: 'Passwort ändern',
+    security: 'Kontosicherheit',
+    dashboard: 'Ihre Veranstaltungen',
+    newEvent: 'Neue Veranstaltung',
+    event: 'Veranstaltung',
+    moderation: 'Moderation',
+    mobileModeration: 'Moderation am Telefon',
+    settings: 'Einstellungen der Veranstaltung',
+    clientSpace: 'Kundenbereich',
+    site: 'Betreiber-Konsole',
+    siteClient: 'Kunde',
+    siteAccounts: 'Konten der Instanz',
+    siteAudit: 'Protokoll der Instanz',
   },
 }

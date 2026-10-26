@@ -1,0 +1,56 @@
+/* The tone is declared once, as `--notice-tone`, and the glyph, the frame and an inline
+   sentence all read it. */
+.neutral {
+  --notice-tone: var(--text-secondary);
+}
+
+.success {
+  --notice-tone: var(--success);
+}
+
+.danger {
+  --notice-tone: var(--danger);
+}
+
+.warning {
+  --notice-tone: var(--warning);
+}
+
+.accent {
+  --notice-tone: var(--accent);
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+/* The tone is carried by the frame and the glyph, on a raised surface: the sentence is
+   read in its own ink, so the words never depend on a hue. */
+.boxed {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--notice-tone);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/* A neutral notice claims nothing, so it gets a hairline rather than the ink's own colour. */
+.boxed.neutral {
+  border-color: var(--border-strong);
+}
+
+.inline {
+  color: var(--notice-tone);
+}
+
+/* Optically centred on the first line of the sentence beside it. */
+.glyph {
+  display: inline-flex;
+  flex: none;
+  margin-block-start: var(--space-1);
+  color: var(--notice-tone);
+}

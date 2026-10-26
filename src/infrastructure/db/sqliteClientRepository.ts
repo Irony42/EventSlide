@@ -237,6 +237,11 @@ export class SqliteClientRepository implements ClientRepository {
   private readonly deleteIfEmptyStatement: Database.Statement<[string]>
   private readonly countEventsStatement: Database.Statement<[string], { readonly events: number }>
   private readonly countMembersStatement: Database.Statement<[string], { readonly members: number }>
+  private readonly selectMemberIds: Database.Statement<[string], { readonly user_id: string }>
+  private readonly selectDueForFinalization: Database.Statement<
+    [string, number],
+    { readonly id: string }
+  >
 
   constructor(db: Db) {
     this.selectById = db.prepare<[string], ClientRow>(
@@ -356,6 +361,19 @@ export class SqliteClientRepository implements ClientRepository {
     this.countMembersStatement = db.prepare<[string], { readonly members: number }>(
       `SELECT COUNT(*) AS members FROM client_members WHERE client_id = ?`,
     )
+
+    this.selectMemberIds = db.prepare<[string], { readonly user_id: string }>(
+      `SELECT user_id FROM client_members WHERE client_id = ? ORDER BY user_id`,
+    )
+
+    this.selectDueForFinalization = db.prepare<[string, number], { readonly id: string }>(
+      `SELECT id FROM clients
+        WHERE purge_after IS NOT NULL
+          AND purge_after <= ?
+          AND NOT EXISTS (SELECT 1 FROM events WHERE client_id = clients.id)
+        ORDER BY purge_after, id
+        LIMIT ?`,
+    )
   }
 
   async save(client: Client): Promise<void> {
@@ -428,5 +446,13 @@ export class SqliteClientRepository implements ClientRepository {
 
   async countMembers(clientId: ClientId): Promise<number> {
     return this.countMembersStatement.get(clientId)?.members ?? 0
+  }
+
+  async memberIds(clientId: ClientId): Promise<readonly UserId[]> {
+    return this.selectMemberIds.all(clientId).map((row) => asUserId(row.user_id))
+  }
+
+  async listDueForFinalization(now: Date, limit: number): Promise<readonly ClientId[]> {
+    return this.selectDueForFinalization.all(toIsoText(now), limit).map((row) => asClientId(row.id))
   }
 }

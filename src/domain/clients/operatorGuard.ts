@@ -14,7 +14,7 @@ import type { ClientRole } from './clientRole'
  *
  * | Rule | In one line |
  * | --- | --- |
- * | R1 | An operator's invitation into a client **with an event or a member** waits for an owner's approval. |
+ * | R1 | An operator's invitation into a client **with an event, a member or another live invitation** waits for an owner's approval. |
  * | R2 | An operator's password reset is **mailed**; the answer never carries a link. |
  * | R3 | Ownership moves only by an owner's decision, never by an operator's. |
  * | R4 | No operator action grants an event role, opens a session, or impersonates a client. |
@@ -39,6 +39,19 @@ export interface ClientHoldings {
 }
 
 /**
+ * What an operator's invitation is written against: what the client holds, **and the other
+ * invitations into it that are still waiting to be accepted** (G2-14). `otherLiveInvitationCount`
+ * counts those written to a different address than the one being invited: re-sending the same
+ * person their link replaces the old one and is not a second invitation.
+ */
+export interface ClientHoldingsAtWrite extends ClientHoldings {
+  readonly otherLiveInvitationCount: number
+}
+
+const holdsSomething = (client: ClientHoldings): boolean =>
+  client.eventCount > 0 || client.memberCount > 0
+
+/**
  * R1, at the moment the invitation is written: **does it have to wait for an owner?**
  *
  * It does as soon as the client is somebody's. **A client with no event and no member** is the
@@ -53,9 +66,20 @@ export interface ClientHoldings {
  * window open for every client between its owner's sign-up and its first event, and for every
  * client whose events retention has purged. It costs the provisioning flow nothing, which is a
  * client with neither.
+ *
+ * **And with no other invitation waiting** (G2-14). `POST /api/site/clients` invites the client's
+ * first owner, and that invitation is one nobody had to approve: it is the operator's one free
+ * invitation into an empty client. Without this clause the operator could write a second, to an
+ * address it controls, before the customer had accepted the first; accept it; and so hold an
+ * "owner" of the client whose approval is the consent R1 and R2 are made of (it approves the
+ * operator's next invitation, and, with `copyLinkWithOwnerApproval`, the operator's request for
+ * the customer's password-reset link) while the customer's own invitation, now an unapproved link
+ * into a client that holds a member, is dead until that account approves it. **An empty client
+ * admits exactly one live operator invitation**; the second waits, and nobody exists to approve
+ * it until the first has been accepted, which is the point.
  */
-export const operatorInvitationNeedsApproval = (client: ClientHoldings): boolean =>
-  client.eventCount > 0 || client.memberCount > 0
+export const operatorInvitationNeedsApproval = (client: ClientHoldingsAtWrite): boolean =>
+  holdsSomething(client) || client.otherLiveInvitationCount > 0
 
 /**
  * R1, at the moment the invitation is **spent**: is it still good?
@@ -84,9 +108,7 @@ export const clientInvitationStillHonourable = (
     readonly writtenByAStandingOwner: boolean
   },
 ): boolean =>
-  facts.approvedByAStandingOwner ||
-  facts.writtenByAStandingOwner ||
-  !operatorInvitationNeedsApproval(facts)
+  facts.approvedByAStandingOwner || facts.writtenByAStandingOwner || !holdsSomething(facts)
 
 /**
  * Who may approve something that waits for an owner (R1's invitation, R2's reset link), as the
@@ -128,7 +150,7 @@ export const approvalVerdictFor = (approver: {
  *   as doing so: on a box with no relay the link is handed to the operator, but only after
  *   **another owner of the account's client** has said yes.
  *
- * A word that is neither is a refusal at boot (`env.ts`), never a guess at which was meant.
+ * A word that is neither is a refusal at boot (`config/featureFields.ts`), never a guess at which was meant.
  */
 export const OPERATOR_RESET_LINK_MODES = ['mailOnly', 'copyLinkWithOwnerApproval'] as const
 

@@ -4,6 +4,7 @@ import request from 'supertest'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import * as clientSchemas from '../schemas/clientSchemas'
 import * as requestSchemas from '../schemas/requestSchemas'
 import { buildServerHarness } from '../testing/serverHarness'
 
@@ -123,12 +124,13 @@ const CLIENT_SHAPES = ((): ReadonlyMap<string, Keys> => {
 
 // ------------------------------------------------------------------- client --
 
-type Verb = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Verb = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 /** `transport`'s own vocabulary. `del` carries no body, which is why it has no payload. */
 const VERBS: Readonly<Record<string, Verb>> = {
   get: 'GET',
   post: 'POST',
+  put: 'PUT',
   patch: 'PATCH',
   del: 'DELETE',
   upload: 'POST',
@@ -392,6 +394,9 @@ interface ServerRoute {
 const ROUTER_VERBS: Readonly<Record<string, Verb>> = {
   get: 'GET',
   post: 'POST',
+  // `PUT /api/site/clients/:clientId/ceilings` (G2-14): the one `put` in the product, which the
+  // console's client calls since G2-15.
+  put: 'PUT',
   patch: 'PATCH',
   delete: 'DELETE',
 }
@@ -556,7 +561,7 @@ const routeFor = (call: ClientCall): ServerRoute | null => {
 
 // ------------------------------------------------------------------ pairing --
 
-const SCHEMAS: Readonly<Record<string, unknown>> = { ...requestSchemas }
+const SCHEMAS: Readonly<Record<string, unknown>> = { ...requestSchemas, ...clientSchemas }
 
 const asObjectSchema = (name: string): z.ZodObject | null => {
   const schema = SCHEMAS[name]
@@ -629,17 +634,47 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.
   photoListQuery: 'GET /api/events/:eventSlug/photos has no client method',
-  // The forgotten-password pages (roadmap G2-10 / P3-11) are the first caller of these two
-  // routes. The server half ships first so the pages have something to call; until they land
-  // the only clients are the ring-4 and container tests.
-  passwordResetRequestBody:
-    'POST /api/auth/password-reset/request has no client method yet (G2-10)',
-  passwordResetConfirmBody:
-    'POST /api/auth/password-reset/confirm has no client method yet (G2-10)',
-  // The invitation page is the first caller of the two invitee routes (G2-10 / P3-11). Their
-  // server half ships first, with the host's side, so the page has something to call.
+  // `PATCH /api/events/:slug` (rename) and `PATCH /api/events/:slug/photos/:photoId/caption`: both
+  // routes are written and held at ring 4, and no screen sends either. The client methods were
+  // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a
+  // screen that needs one writes it back and takes its entry out of this list.
+  renameEventBody: 'PATCH /api/events/:eventSlug: no screen renames an event',
+  captionBody:
+    'PATCH /api/events/:eventSlug/photos/:photoId/caption: no screen edits a caption after upload',
+  // `PATCH /api/events/:slug/guests/:guestId` (`renameGuest`): the route exists and is held at ring
+  // 4 (`guestRoutes.test.ts`: a body with no `displayName` or an extra key is a 400); the screen that
+  // sends it is not built, and `GuestSession` stores no guest id to put in the path yet.
+  renameGuestBody:
+    'PATCH /api/events/:eventSlug/guests/:guestId: the rename screen is not built yet',
+  // `POST /api/invitations/:token/accept` has a client method (G2-10, `acceptInvitation`), but its
+  // body is a **union** of two strict shapes — `{}` from a signed-in account, `{ displayName,
+  // password }` from a person choosing how to sign in — and this pairing reads object schemas
+  // only. Both shapes are pinned where they can be: the client sends exactly one of them
+  // (`client.test.ts`, "the account-token requests") and the server refuses a body that mixes them
+  // or names an account (`invitationRoutes.test.ts`).
   acceptInvitationBody:
-    'POST /api/invitations/:token/accept has no client method yet (G2-10, the acceptance page)',
+    'a union of two strict bodies, which the object-schema pairing cannot read; both shapes are pinned in client.test.ts and invitationRoutes.test.ts',
+  // The operator's namespace (`/api/site`, G2-14): its routes are written, and the console that
+  // calls them (G2-15) is not, so nothing in `web/src` sends any of these yet. Each is held at
+  // ring 4 by `siteRoutes*.test.ts` (a body with a key it does not declare is a 400, a body
+  // without a reason is a 400), and the pairing starts the day `web/src/features/site` exists:
+  // this list is then what shrinks.
+  siteClientsQuery: 'GET /api/site/clients: the operator console (G2-15) is not built yet',
+  siteClientEventsQuery:
+    'GET /api/site/clients/:clientId/events: the operator console (G2-15) is not built yet',
+  siteAccountsQuery: 'GET /api/site/accounts: the operator console (G2-15) is not built yet',
+  siteAuditQuery: 'GET /api/site/audit: the operator console (G2-15) is not built yet',
+  provisionClientBody: 'POST /api/site/clients: the operator console (G2-15) is not built yet',
+  renameClientBody:
+    'PATCH /api/site/clients/:clientId: the operator console (G2-15) is not built yet',
+  setCeilingsBody:
+    'PUT /api/site/clients/:clientId/ceilings: the operator console (G2-15) is not built yet',
+  operatorInvitationBody:
+    'POST /api/site/clients/:clientId/invitations: the operator console (G2-15) is not built yet',
+  offboardClientBody:
+    'POST /api/site/clients/:clientId/offboard: the operator console (G2-15) is not built yet',
+  operatorPasswordResetBody:
+    'POST /api/site/accounts/:userId/password-reset: the operator console (G2-15) is not built yet',
 }
 
 // --------------------------------------------------------------------- tests --

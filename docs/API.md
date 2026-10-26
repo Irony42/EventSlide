@@ -101,10 +101,16 @@ Status codes come from the domain error kind, mapped in one place
 | `rateLimited`     | 429    | Too many attempts. `Retry-After` is set                |
 | `unexpected`      | 500    | A bug or an unavailable dependency                     |
 
+**Caching.** Everything under `/api` is `Cache-Control: no-store` unless its own entry says otherwise:
+the media of a photograph (§4, `immutable`, because its name is its content hash) and the event
+streams (§7) set their own. A route does not have to remember to say it, and one that forgot used to
+answer the host's list of moderators, with their e-mail addresses, with no header at all.
+
 **404 and 403 are used deliberately.** A photo, guest or reaction belonging to another
 event returns **404**, not 403 — a 403 would confirm the resource exists and turn the
-endpoint into an enumeration oracle. 403 is only for a principal who is genuinely in
-scope but lacks the role.
+endpoint into an enumeration oracle. **So does a guest token that names another event**: it is
+`404 event.notFound` too, whatever the status of the event asked about. 403 is only for a principal
+who is genuinely in scope but lacks the role.
 
 Concretely, in `middleware/authz.ts`: no session on an event-scoped route is
 `401 auth.required` **before** the slug is looked up, so an anonymous request cannot be
@@ -179,7 +185,8 @@ days, renewed by every successful sign-in and kept across a sign-out.
 
 A guest token grants: upload to **that one event** while it is `live`, deletion of
 **their own** photo inside the grace window, a caption on their own pending photo, a
-reaction, and reading and acknowledging the event's privacy notice for **that device**.
+reaction, changing **their own** display name, and reading and acknowledging the event's privacy
+notice for **that device**.
 Nothing else. It is checked against the event in the URL on every request,
 and the named guest row must not be revoked.
 
@@ -192,8 +199,11 @@ from it.
 
 The namespace for running one box for other people (roadmap §10.9): `/api/site` itself and
 every path below it, at a segment boundary — `/api/sites` is not in it and answers as any
-unknown path does. **No route is mounted in it yet**; the clients, invitations and
-ceilings of roadmap §10.2–§10.8 will be, each documented here when it ships.
+unknown path does. What it carries is below: the box's **reads** (clients, a client's events, accounts,
+the audit log, the defaults a new client starts with) and the operator's **acts on a client and its
+owner** (open one, rename it, change its ceilings, invite into it, reset a password). Its suspension and resumption are here as well;
+The operator's acts on **accounts** (switch off, switch on, delete) and on the **end of an engagement**
+(offboard) are here too.
 
 A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) without a valid token meets
 CSRF (below) first, in both modes — `403 request.csrfMissing` or `request.csrfMismatch` —
@@ -216,25 +226,341 @@ applied to the namespace as a whole, so every route that lands under it inherits
 without restating it. The operator is the account whose site role is `operator`, read from
 storage on every request, and the role grants nothing inside any event — docs/SECURITY.md §2.
 
-The web client does not probe this namespace to learn the mode. It will read
+The web client does not probe this namespace to learn the mode. It reads
 `features.siteAdmin` from the public instance-information endpoint, `GET /api/about` (§2),
 which is derived from the very setting that decides whether the namespace is mounted, so
-the two cannot disagree. (Nothing in the SPA reads it yet: the `/admin/site` screens it
-gates do not exist.)
+the two cannot disagree. The operator's console, `/admin/site` (G2-15, docs/SECURITY.md §23),
+is registered only where that flag is true, and offered only to an account whose
+`GET /api/auth/me` says `canOperateSite`: two flags, two questions, and neither is an
+authorisation, since every request below is judged by the gate described here.
 
-**No operator route over clients exists yet.** Clients (roadmap §10.2) have a domain, a port, a SQLite
-adapter and use cases (`createClient`, `renameClient`, `setClientCeilings`, `listClients`,
-`deleteEmptyClient`, `provisionClientOwner`, and the operator guard's `inviteToClientAsOperator` and
-`issuePasswordResetForAccount`, docs/SECURITY.md §20), and nothing in this document is an operator route
-for them: the operator API that calls them is a later item (G2-14) and will be mounted under
-`/api/site`, behind `SITE_ADMIN` and `requireOperator`, like everything else in that namespace. Until
-it lands the use cases are built and unreachable from the wire. The one route a client's **owner**
-has is under `/api/client` (§6, `POST /api/client/invitations/:invitationId/approve`), mounted only with
-`SITE_ADMIN=on`: off, it answers as a path nobody wrote.
+**What the namespace is.** Every route below is behind `requireOperator` and, where the box asks for
+one, the second factor (the table above). **Every route that changes something is also behind
+`requireStepUp`** (§5): the session must have confirmed the person with their password, and a fresh code
+where they have an authenticator, within the last five minutes, or the answer is **403
+`auth.stepUpRequired`** — **before the body is read**, so a body is never parsed for a caller who may not
+send it. That is stricter than the plan's table, which names the irreversible acts only; a console prompts
+once before a session of writes. The reads ask for none. A state-changing request meets CSRF first.
 
-**No audit route exists yet either.** The append-only audit log (roadmap §10.8) is written by
-`setClientCeilings` and pruned by the retention sweep, and nothing reads it over the wire: the
-operator's view is G2-14 and the client-readable view is G2-16, both behind their own gates.
+| Route                                            | What it is                                      | Step-up | Audit line(s)                                       |
+| ------------------------------------------------ | ----------------------------------------------- | :-----: | --------------------------------------------------- |
+| `GET /api/site/clients`                          | every client with its ceilings and what it uses |    —    | —                                                   |
+| `GET /api/site/clients/:clientId/events`         | one client's events as shapes and sizes         |    —    | —                                                   |
+| `GET /api/site/accounts`                         | every account, by address                       |    —    | —                                                   |
+| `GET /api/site/audit`                            | the audit log                                   |    —    | —                                                   |
+| `GET /api/site/client-defaults`                  | the ceilings a new client starts with           |    —    | —                                                   |
+| `POST /api/site/clients`                         | open a client and invite its owner              |   yes   | `client.created`, `invitation.issued`               |
+| `PATCH /api/site/clients/:clientId`              | rename a client                                 |   yes   | `client.renamed`                                    |
+| `PUT /api/site/clients/:clientId/ceilings`       | change a client's ceilings, **with a reason**   |   yes   | `client.ceilingsChanged` (and `client.periodReset`) |
+| `POST /api/site/clients/:clientId/suspend`       | freeze a client                                 |   yes   | `client.suspended`                                  |
+| `POST /api/site/clients/:clientId/resume`        | lift a suspension                               |   yes   | `client.resumed`                                    |
+| `POST /api/site/clients/:clientId/invitations`   | invite somebody into a client's account         |   yes   | `invitation.issued`                                 |
+| `POST /api/site/accounts/:userId/password-reset` | reset an account's password                     |   yes   | `account.resetRequested`, `account.resetIssued`     |
+| `POST /api/site/clients/:clientId/offboard`      | end an engagement                               |   yes   | `client.offboarded`                                 |
+| `POST /api/site/accounts/:userId/disable`        | switch an account off                           |   yes   | `account.disabled` (one line per client)            |
+| `POST /api/site/accounts/:userId/enable`         | switch an account back on                       |   yes   | `account.enabled` (one line per client)             |
+| `DELETE /api/site/accounts/:userId`              | delete an account (erasure request)             |   yes   | `account.deleted` (one line per client)             |
+
+**The reads show shapes and sizes, never what a client or a guest made.** A client row is an id, a name,
+its ceilings, the instants it was created, suspended and set to be purged, and four counts and a byte sum;
+an event row is an id, a status, instants, a quota and what is used; an account row is an id, an address, a
+role on the box, instants, whether it must change its password, the number of events it owns and the
+clients it belongs to. There is **no** event name, slug or join code, no photograph or caption, no guest or
+guest's name, no mission prompt, no account display name, no contact address and no hash or token of any
+kind in any answer of the namespace (docs/SECURITY.md §18 and §22). Every read is `Cache-Control: no-store`.
+
+**Pages** are keyset pages, newest first. `limit` is 1 to 200 (50 by default); `after` is the `next` of
+the previous page and is an id. A page ends with `"next": null`. A cursor that names nobody is an **empty
+page**, not the first one again; so is a cursor that names another client's event. The audit log pages with
+`before` (the `next` of the previous page, a number), which is **a bound and not a pointer**: every line
+older than it, so a `before` past the newest line answers the newest page and not an empty one. A key a
+query does not have is `400 request.invalid`.
+
+#### `GET /api/site/clients`
+
+`?after=<clientId>&limit=<1..200>`. **200**
+
+```json
+{
+  "items": [
+    {
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "name": "Camille et Sacha",
+      "createdAt": "2026-06-20T21:00:00.000Z",
+      "suspendedAt": null,
+      "purgeAfter": null,
+      "ceilings": {
+        "maxEvents": 3,
+        "maxTotalBytes": null,
+        "maxEventQuotaBytes": null,
+        "maxRetentionDays": null,
+        "clipsAllowed": true,
+        "liveAllowed": true,
+        "maxLiveDays": null,
+        "maxEventsPerPeriod": null,
+        "periodStartedAt": null
+      },
+      "eventsCreatedInPeriod": 0,
+      "usage": {
+        "eventCount": 1,
+        "liveEventCount": 1,
+        "memberCount": 3,
+        "usedBytes": 0
+      }
+    }
+  ],
+  "next": null
+}
+```
+
+`usedBytes` is the figure the upload paths enforce `maxTotalBytes` against (photographs of every status
+plus the staged source of every clip still waiting to be transcoded), so the number the operator reads is
+the number a guest is refused against.
+
+#### `GET /api/site/clients/:clientId/events`
+
+`?after=<eventId>&limit=<1..200>`. **200** `{ "items": [ { "id", "status", "createdAt", "startsAt",
+"openedAt", "closedAt", "quotaBytes", "usedBytes", "photoCount" } ], "next" }`. **404 `client.notFound`** for
+a client that does not exist, which is **not** a client with no event (an empty page).
+
+#### `GET /api/site/accounts`
+
+`?after=<userId>&limit=<1..200>`. **200** `{ "items": [ { "id", "email", "siteRole", "createdAt",
+"lastLoginAt", "disabledAt", "mustChangePassword", "ownedEventCount", "clients": [ { "clientId", "role" } ] } ],
+"next" }`.
+
+#### `GET /api/site/audit`
+
+`?before=<seq>&limit=<1..200>&clientId=<clientId>`. The **whole log** when no `clientId` is named, which is
+the operator's view and not a client's, and one client's lines when one is. **200**
+
+```json
+{
+  "items": [
+    {
+      "seq": 17,
+      "at": "2026-06-20T21:00:00.000Z",
+      "action": "client.ceilingsChanged",
+      "actor": {
+        "kind": "operator",
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "label": null
+      },
+      "subject": { "type": "client", "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+      "clientId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "details": {
+        "before": { "maxEvents": null },
+        "after": { "maxEvents": 3 },
+        "reason": "Forfait mis à jour"
+      }
+    }
+  ],
+  "next": 16
+}
+```
+
+`details` holds numbers, switches, instants and, **at the top level and under the key `reason`, the
+operator's own sentence**: the one free text the log holds. A row stored under an older allow-list is read
+again at the door and anything else in text is dropped. Unlike the client's own view (`GET /api/client/audit`,
+§6), this one names the account behind an `operator` or a `member` actor and carries the reason.
+
+#### `POST /api/site/clients`
+
+`{ "clientName": string, "ownerEmail": string, "locale"?: "fr"|"en"|"de"|"es"|"it", "ceilings"?: { … } }`.
+Opens a client **with no member and no event** and invites its owner; the owner's account exists only once
+the invitation is accepted. `ceilings` is the operator's own: a ceiling it names is kept, `null` included
+(it lifts the box's `NEW_CLIENT_*` default for this client), and one it leaves out takes the default.
+**201**, `Cache-Control: no-store`
+
+```json
+{
+  "clientId": "…",
+  "invitation": {
+    "id": "…",
+    "delivery": "mail",
+    "expiresAt": "2026-06-27T21:00:00.000Z",
+    "pendingApproval": false
+  }
+}
+```
+
+`delivery` is `mail` or `link`. **`link` — the invitation's URL — is in the answer only where no mail went
+out** (a box with no relay, or a relay that failed), because there is then no other way to get it to the
+owner. Where a mailer delivers, **the answer holds no token and no link**: it is in the owner's inbox and
+nowhere else. `pendingApproval` is `false` by construction.
+
+**400** `request.invalid` (a missing or unknown key, a locale outside the catalogue); `email.malformed`;
+`email.tooLong` (an address over 254 characters); `clientName.empty` and the other name refusals; `clientCeilings.*Invalid`. Nothing is created and no line is
+written for any of them.
+
+#### `PATCH /api/site/clients/:clientId`
+
+`{ "name": string }`. **204**. **404** `client.notFound`; **400** `request.invalid` (a key the contract does not
+have, an id that is not one) or `clientName.*`. Renaming a client to the name it has changes and writes nothing.
+
+#### `PUT /api/site/clients/:clientId/ceilings`
+
+`{ "ceilings": { … }, "reason": string }`. **A patch, not a replacement**: a key left out keeps the client's
+value and an explicit `null` removes that ceiling, so raising one number cannot silently lift the other
+eight. The keys are the nine ceilings of `GET /api/me/limits` (§6) (`periodStartedAt` an ISO-8601 UTC instant); a renewal (a
+`periodStartedAt` that moves) resets the counter of events created in the period, and **a lowered
+`maxRetentionDays` starts the notice clock** (docs/SECURITY.md §5). **200**, `Cache-Control: no-store`
+
+```json
+{
+  "ceilings": { "maxEvents": 3, "maxTotalBytes": null, "…": "…" },
+  "eventsCreatedInPeriod": 0
+}
+```
+
+**The reason is mandatory** (decided 2026-10-23). A body without one is **400 `request.invalid`**; a blank or
+malformed one is **400 `audit.reasonInvalid`** with `details: { "max": 200 }`, **before the client is read or
+anything is written**, even for a patch that would change nothing. A reason is one line of at most 200
+characters, trimmed and NFC-normalised, with no control or invisible character and **no `@`**. It is written
+to the log as `client.ceilingsChanged { before, after, reason }` — the operator's view shows it, **the client's
+owner is not shown it** — and is never echoed back in an error. On the hosted instance only non-financial
+reasons are admitted (the size of an event, capacity, abuse: a policy of the operator and not something the
+route can check).
+
+**404** `client.notFound`; **400** `clientCeilings.*Invalid` for a value the catalogue refuses (`0`, a retention
+outside its bounds). Nothing moves for any of them.
+
+#### `POST /api/site/clients/:clientId/suspend` and `.../resume`
+
+No body. **204**. Suspension is **one column** (`clients.suspended_at`) and one audit line
+(`client.suspended` / `client.resumed`, carrying the client id and no detail): no account is disabled, no event
+changes status, no photograph is touched, and the ceilings are as they were when it is lifted. Both are
+idempotent: freezing a frozen client keeps its first instant and writes no second line, and lifting a client that is
+not frozen writes nothing. The line is written before the column, so a failure to record leaves the client as it
+was. **404** `client.notFound`. `resume` refuses a client whose engagement has ended (`offboard`) with **409** `client.offboarding`.
+
+What a suspended client is told, per surface (docs/SECURITY.md §22):
+
+| Surface                                                                                                | Answer                                                                                        |
+| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| join by code, guest upload, guest photographs, missions, privacy notice                                | the answer an event that does not exist gets (`404`), whatever the event's status             |
+| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media | the same `404` as an unknown event or a dead link                                             |
+| an open live feed                                                                                      | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does |
+| a member of the client, on any event route                                                             | **reads** as before; every **write** is `403 client.suspended`                                |
+| a member's moderation feed                                                                             | stays open: members keep their reads, and only an event that is gone ends it                  |
+| a malformed photograph id or variant on the media route                                                | the same `404`, answered before the ids are judged                                            |
+| an invitation into the client, or a moderator invitation to one of its events                          | `404 invitation.notFound`, to preview and to accept, until the client is resumed              |
+| a member creating an event, or attaching one to the client                                             | `403 client.suspended`, under either `EVENT_CREATION` policy                                  |
+| an owner approving an operator's invitation or reset request                                           | `403 client.suspended`; a stranger is still told `404`                                        |
+| `GET /api/me/limits`                                                                                   | `suspended: true`, so the screen can say so                                                   |
+
+#### `POST /api/site/clients/:clientId/invitations`
+
+`{ "email": string, "role": "owner"|"member", "locale"?: … }`. Invites somebody into the client's **account** —
+never into an event (docs/SECURITY.md §20, R1 and R4). **201**, `Cache-Control: no-store`
+
+```json
+{
+  "invitation": {
+    "id": "…",
+    "delivery": "mail",
+    "expiresAt": "…",
+    "pendingApproval": true
+  }
+}
+```
+
+`pendingApproval` is **`true` for a client that has an event, a member or another invitation waiting**: the invitation is written, mailed
+and shown as for any other, and **opens nothing until an owner of the client approves it**
+(`POST /api/client/invitations/:id/approve`, §6); the invitee cannot tell it from a link that never existed.
+It is `false` for a client that holds nothing, which is the one case the operator handles alone: **an empty
+client admits exactly one live operator invitation** (the first owner's, which `POST /api/site/clients`
+writes), a second to another address waits, and a person re-sent their own link is not a second one. The operator
+is read **from storage on this call**, not on the route's word. `link` is in the answer **only where no mail went out**:
+a box with no relay, **or a relay that refused this mail**. **404** `client.notFound`; **400** `email.malformed`, `email.tooLong` or `request.invalid`; **429**
+`invitation.tooManyForAddress` once an address has had its five an hour.
+
+#### `POST /api/site/clients/:clientId/offboard`
+
+`{ "graceDays": 1..365 }`, whole days, and nothing else. **204**. Ends an engagement: the client's **live events are
+closed and its drafts archived** (an event already closed or archived is left as it is, because its album is what the
+client may still export), the client is **suspended** as by `suspend`, and its albums are given a **purge date**
+`graceDays` from now. The retention sweep that already runs purges every event of a client whose date has passed, and
+then finalises the client (docs/SECURITY.md §22): the accounts that were nothing but its own are deleted, the others
+are only removed from it, and the client row goes. One audit line, `client.offboarded`, carries the window and how many
+events were closed and archived, never which. Idempotent: a client already being offboarded keeps its first date,
+whatever the second request asks for, and writes nothing. The purge date is an **upper bound**: an event's own retention, or a ceiling on the client, purges it sooner, and the earliest deadline wins. **400** `client.graceInvalid` outside the range (and
+`request.invalid` for a body that is not exactly one number), **404** `client.notFound`. A suspended client
+that is offboarding cannot be resumed.
+
+#### `POST /api/site/accounts/:userId/disable` and `.../enable`
+
+No body. **204**. `disable` switches an account off and ends every session it has; `enable` switches it back on, and the
+sessions it had **stay ended** (the person signs in again). Both are idempotent and write **one line per client the
+account belongs to**, each carrying that client's id (one with no client for an account that belongs to none), so the
+owner's own trail says that a member's account was switched off. **403** `account.operatorProtected` for an
+operator's account, another one's or the caller's own, which `disable` refuses and no route can switch off; **404**
+`user.notFound`.
+
+#### `DELETE /api/site/accounts/:userId`
+
+No body. **204**. Deletes an account for a person's **erasure request** (GDPR). Its memberships, the invitations written
+to it, its second factor and the share links it created go with it, and the actor pointer on every audit line it wrote is
+set to null by the foreign key, which is the whole erasure on the log's side: the lines stay and nothing on them says who.
+One `account.deleted` line per client it belonged to is written first. **What it does not erase**: the address is also in
+the account's live sessions (until they expire, seven days at most) and in the invitation and reset links ever written to
+it (until the opportunistic expiry sweep removes them). Refused with **403** `account.operatorProtected` (an operator's
+account, switched off or not), **409** `account.holdsEvents` (it **owns** an event: hand it over or purge it first),
+**409** `account.holdsMedia` (it **wrote** photographs or clips, whose files would stay on disk), **409**
+`account.holdsReviews` (it **reviewed** photographs, whose rows name the reviewer and which the schema refuses to leave
+with none) and **409** `account.lastClientOwner` (it is the only owner of a client that still has other members or an
+event, which would be orphaned: add an owner first, or offboard the client); **404** `user.notFound`, including the
+second time.
+
+#### `POST /api/site/accounts/:userId/password-reset`
+
+`{ "locale"?: …, "approvalId"?: string }`. **200**, `Cache-Control: no-store`
+
+| `delivery`        | When                                                                     | What the answer holds                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mail`            | the box can mail (either mode)                                           | `expiresAt`. The one-hour link went **to the account's own address and nowhere else**: **no token, no link, no address**                             |
+| `pendingApproval` | no relay, `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`, first call   | `approvalId` (an id, not a secret) and `expiresAt`. The request holds no secret anywhere; **another owner of the account's client** is to approve it |
+| `link`            | the same box, second call carrying `approvalId`, **after** that approval | `link` and `expiresAt`: the one link this route ever returns, spent once                                                                             |
+
+A box with no relay and the default `OPERATOR_RESET_LINKS=mailOnly` answers **409 `reset.mailerRequired`** and
+issues nothing. **409** `reset.mailNotSent` (the relay refused; still no link), `reset.approverUnavailable`
+(the account is in no client or in two: whose consent would it be?), `account.disabled`; **404**
+`user.notFound`, `reset.requestNotFound` (an `approvalId` that is not this operator's approved request for
+this account); **429** `reset.tooManyForAddress` (three an hour to one inbox, however asked for). The
+owner's half is `POST /api/client/password-resets/:requestId/approve` (§6).
+
+#### `GET /api/site/client-defaults`
+
+The ceilings a new client is created with when its operator names none: the `NEW_CLIENT_*`
+settings of `.env.example`, read once at boot. The console pre-fills the form that provisions a
+client with it, so what the form shows is what a form left blank would provision. It is the box's
+own configuration and reads no storage: it names no client, no event and no account.
+
+Behind the namespace's gate like everything under `/api/site`: `404 route.notFound` with
+`SITE_ADMIN=off`, `401 auth.required`, `403 auth.forbidden` for an account that does not operate the
+box, and `403 auth.secondFactorRequired` where a second factor is required and not yet given.
+
+**200**, `Cache-Control: no-store`
+
+```json
+{
+  "ceilings": {
+    "maxEvents": 1,
+    "maxEventsPerPeriod": 6,
+    "maxTotalBytes": 5000000000,
+    "maxEventQuotaBytes": 5000000000,
+    "maxRetentionDays": 30,
+    "maxLiveDays": 3,
+    "clipsAllowed": true
+  }
+}
+```
+
+A number is a ceiling and `null` is none; `clipsAllowed` is `true` unless `NEW_CLIENT_CLIPS_ALLOWED`
+says otherwise. A box that set no `NEW_CLIENT_*` answers `null` for the six numbers and `"clipsAllowed": true`,
+which is what every client of such a box has. These are seven of
+a client's nine ceilings: `liveAllowed` has no default (a new client may open), and the period's
+start is the day the client is provisioned.
 
 ### CSRF
 
@@ -259,9 +585,20 @@ Per minute, configurable, `429` with `Retry-After` when exceeded — **except ev
 creation**, which is per **hour** and per **account** (see the row below and the
 paragraph beneath the table).
 
+**Every** `429` carries `Retry-After`, in seconds, whichever layer answers it. A limiter that counts
+requests says how long until its window turns over. A use case that counts what was done (a guest's
+reaction budget, invitations to one address, resets for one inbox) says **the length of its
+window**, the longest anyone is asked to wait: the count does not say when the oldest item ages
+out, and an upper bound is true. The stream cap below answers `30`. The wait is **also** repeated
+as `error.details.retryAfterSeconds` in the body for the stream cap, `429 upload.busy` and the three
+use-case refusals (`invitation.tooManyForAddress`, `reset.tooManyForAddress`,
+`reaction.rateLimited`), because a client that cannot read response headers can read the body; the
+other limiters' bodies carry the header only.
+
 | Endpoint                                                           | Default       | Bucket                     | Code                               |
 | ------------------------------------------------------------------ | ------------- | -------------------------- | ---------------------------------- |
 | `POST /api/join`                                                   | 20            | client IP                  | `rate.limited`                     |
+| `GET /api/join/:code`                                              | 20            | client IP, same as join    | `rate.limited`                     |
 | `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                     |
 | `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                     |
 | `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                     |
@@ -273,9 +610,21 @@ paragraph beneath the table).
 | `POST /api/events/:slug/photos`                                    | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/clips`                                     | 12            | client IP **and** event    | `rate.limited`                     |
 | `POST /api/events/:slug/photos/:id/reactions`                      | 30            | client IP **and** event    | `reaction.rateLimited`             |
+| the five other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                     |
 | `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
 | `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
 | `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
+
+‡ **One bucket, five routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
+their photo back), `DELETE …/photos/:id/reactions/:kind`, `PATCH …/guests/:guestId` (a guest renaming themself) and
+`POST …/privacy-notice/acknowledgement` all spend the same allowance, `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`.
+The device token costs nothing to get (`POST /api/join` is public), and a caption edit is announced
+to every screen that has the wall or a console open, so a guest token is not by itself a reason to
+answer. The limiter runs before the token is verified, as the upload and reaction ones do. The
+number is a backstop sized for a room, not a tuned figure: a venue shares one address, and what it
+legitimately sends is bounded by the upload (12) and join (20) budgets, a few dozen a minute. A
+moderator's `DELETE` of the same path is dispatched to §6 first, whatever `es_guest` cookie the
+browser also holds, and spends nothing here.
 
 † **Also throttled per account, with no lockout** (G3-04 / P4-07). The first five wrong
 passwords for an address from one network are free; from the sixth the answer is
@@ -303,7 +652,7 @@ knows the password can ask for; a request that budget refuses is not counted as 
 concurrency instead, two per client and four for the box, because one request is minutes
 of disk reads.
 
-The two guest write endpoints key on IP **and** event on purpose: a whole table of
+The guest write endpoints (uploads, reactions and the five of the ‡ row) key on IP **and** event on purpose: a whole table of
 guests shares one access point and therefore one public IP, so a per-IP-only limit would
 throttle the venue rather than an abuser, and a burst on one event must not close
 another event running on the same box. IPv6 addresses are collapsed to their /56 subnet,
@@ -369,7 +718,7 @@ read-only bind mount and a full disk as writable and then fails on the first upl
     "database": "ok",
     "media": "ok",
     "video": "ok",
-    "disk": { "sufficient": true, "freeBytes": 42949672960 }
+    "disk": { "sufficient": true }
   }
 }
 ```
@@ -386,7 +735,7 @@ naming which:
       "database": "ok",
       "media": "unavailable",
       "video": "ok",
-      "disk": { "sufficient": true, "freeBytes": 42949672960 }
+      "disk": { "sufficient": true }
     }
   }
 }
@@ -404,9 +753,12 @@ instead (§3). It is decided once at boot, so this route starts no subprocess of
 `disk` is the same (G3-06 / P4-10): **reported, never acted on**, for the matching
 reason — the free-disk-space guard already refuses the one request that would have
 minded (§1), so a tight margin here must never flip this route's own status and take a
-whole venue's wall out of service over headroom no request currently needs. `freeBytes`
-is the tighter of the two checked paths, or `null` when either could not be read, in
-which case `sufficient` is `false`.
+whole venue's wall out of service over headroom no request currently needs. `sufficient`
+is the verdict on the tighter of the two checked paths, and is `false` when either could
+not be read. **The route says nothing more about the disk**: it is unauthenticated, and the
+exact free bytes of the volume the albums live on would let anyone watch an event fill the box.
+The margin is a log line instead (`readiness: free disk space`, with `sufficient` and `freeBytes`), a
+`warn` when it is too thin or could not be read and a `debug` otherwise.
 
 **Once a shutdown signal has been received, this always answers 503** —
 `{ "database": "unavailable", "media": "unavailable", "video": <as above> }` — whatever
@@ -593,7 +945,8 @@ which is what puts the right colour on the first frame instead of repainting one
 trip later under a guest's thumb. A client that has never heard of it renders the
 product's own look.
 
-`allowClips` here is **the host's switch and the box's capability together** — it answers
+`allowClips` here is **the host's switch, the client's plan (`clips_allowed`) and the box's capability
+together** — it answers
 "may a guest send a video to this event, on this deployment", which is a different
 question from `EventSettingsDto.allowClips` in §7, where the host sees their own setting
 exactly as they left it. A box with no video encoder answers `false` however the host set
@@ -627,10 +980,52 @@ revocation from being undone by re-scanning the QR code on the table (`docs/SECU
 §11). `400 joinCode.wrongLength`, `400 joinCode.malformed`, `400 displayName.tooLong`,
 `429 rate.limited`.
 
+### `GET /api/join/:code`
+
+Which event a join code names, **before** the phone commits to it. `POST /api/join` creates a
+guest and sets the `es_guest` cookie, so without this lookup the only way to learn which wedding a
+printed card belongs to is to join it. Public, like the join: the holder of a printed card has no
+credential but the card. The code is normalised exactly as the join's is, so `h7k2-qm` is
+`H7K2QM`.
+
+**200**
+
+```json
+{
+  "slug": "camille-et-sacha",
+  "name": "Camille & Sacha",
+  "acceptsGuests": true,
+  "allowCaptions": true,
+  "allowReactions": true
+}
+```
+
+Everything a guest needs to confirm "yes, this is the wedding I am at", and nothing else: no
+owner, quota, count, id, theme or upload limit, and never the code back. `acceptsGuests` is true
+whenever this answers at all; it is stated rather than implied, so the page shows its form
+because the server said the doors are open. The lookup **creates no guest, sets no cookie and
+announces nothing**: looking is not joining (the response sets no `es_guest` cookie). `Cache-Control:
+no-store` on **every** answer, because rotating the join code (§6) or opening the event changes
+what a code names, and a stored refusal would be as stale as a stored name.
+
+**Errors** — `404 event.notFound` for an unknown code and for an event that is `draft`, `closed`
+or `archived`: the answer `POST /api/join` gives, for the reason it gives it (a distinguishable
+"not open yet" would let someone enumerate which codes exist). `400 joinCode.wrongLength`,
+`400 joinCode.malformed`, `400 request.invalid` (more than 32 characters), `429 rate.limited` with
+a `Retry-After`. It spends **the same per-address budget as `POST /api/join`** (§1 "Rate limits"):
+looking and joining answer one question, so they get one allowance, and exposing the lookup does
+not make codes testable any faster than they were. It also means a client that looks a code up and
+then joins spends **two** hits of that budget per guest, which the default (20 a minute for an
+address, and a venue is one address) allows for ten guests a minute: size `JOIN_RATE_LIMIT_PER_MINUTE`
+for it before a client does.
+
 ### `GET /api/events/:slug/wall`
 
 The projected wall. Public read of **published** photos only — the read path is
 structurally incapable of returning a pending photo.
+
+The guest's phone reads it too, for "Les photos de la soirée" (§3, reactions): the same
+photographs the room sees, and `reactionsEnabled` as the host's switch stands now.
 
 **No query parameter this endpoint acts on.** In particular there is no `layout`: the
 layout a room sees is a presentation choice belonging to the screen showing it, not a
@@ -888,7 +1283,10 @@ otherwise.
 
 ## 3. Guest
 
-All of these require the `es_guest` cookie, scoped to the event in the path.
+All of these require the `es_guest` cookie, scoped to the event in the path. **A token that names another
+event is answered `404 event.notFound`**, exactly as an event that is not there is: a `403` would have told a
+guest of any event which slugs exist, drafts and archived events included, where the public wall answers
+`404` for all three. The reason (`guest.wrongEvent`) is written to the log and is on no response.
 
 ### `POST /api/events/:slug/photos`
 
@@ -949,8 +1347,8 @@ entry in `rejected` with the code alone; a clip, which is one file, answers a wh
 always was.
 
 **Whole-request errors** — `401 auth.required` / `401 guestToken.*` for a missing or
-invalid token; `403 guest.wrongEvent` when the token names another event;
-`403 guest.revoked`; `409 event.notAcceptingUploads`; `413 upload.tooLarge` (one file
+invalid token; `404 event.notFound` when the token names another event (see the
+introduction of this section); `403 guest.revoked`; `409 event.notAcceptingUploads`; `413 upload.tooLarge` (one file
 over `maxUploadBytes`, refused by multer before any of our code runs);
 `400 upload.tooManyFiles`; `400 caption.tooLong`; `403 event.captionsNotAllowed` when a
 caption is sent to an event with captions off; `413 event.photoLimitReached` when the
@@ -1055,8 +1453,8 @@ carries `completedByGuests` because the room draws a number there; a phone does 
 
 Empty for the overwhelming majority of events, which set no prompts.
 
-**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.wrongEvent`;
-`403 guest.revoked`; `404 event.notFound`.
+**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`;
+`404 event.notFound` (which includes a token for another event).
 
 ### `GET /api/events/:slug/privacy-notice`
 
@@ -1125,8 +1523,8 @@ wall language — leave every acknowledgement valid.
 Nothing here gates the upload routes: the notice is shown by the upload screen, which does
 not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.ts`.
 
-**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.wrongEvent`;
-`403 guest.revoked`; `404 event.notFound`.
+**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`;
+`404 event.notFound` (which includes a token for another event).
 
 ### `POST /api/events/:slug/privacy-notice/acknowledgement`
 
@@ -1146,7 +1544,9 @@ the first instant.
 (the host changed a setting while the guest was reading): nothing is recorded, and the
 client shows the new notice. `400 request.invalid` for a missing, empty or non-string
 `revision`, or any other key. `401 auth.required` / `401 guestToken.*`;
-`403 guest.wrongEvent`; `403 guest.revoked`; `404 event.notFound`.
+`403 guest.revoked`; `404 event.notFound` (which includes a token for another event);
+`429 rate.limited` with a
+`Retry-After` (§1 "Rate limits", the guest-write bucket).
 
 ### `POST /api/events/:slug/clips`
 
@@ -1262,12 +1662,19 @@ event allows self-deletion. Pulling a photo off the wall mid-slideshow is the ho
 call.
 
 **204**. **Errors** — `403 photo.deleteForbidden`,
-`403 event.guestSelfDeleteDisabled`, `404 photo.notFound`.
+`403 event.guestSelfDeleteDisabled`, `404 photo.notFound`, `429 rate.limited` with a
+`Retry-After` (the guest-write bucket of §1; a moderator's request is dispatched to §6 first and is not
+counted in it).
 
 This path is **shared with the moderator endpoint of the same name** in §6. The request
-is dispatched on the credential presented: with an `es_guest` cookie the guest rules
-above apply, and without one it is handled as the moderator endpoint — so a caller with
-neither credential gets `401 auth.required` from the role check.
+is dispatched on **membership first, then the credential presented**: a session that holds a
+moderator-level role in this event is answered as a moderator whatever `es_guest` cookie it
+also carries (a host who scanned their own QR code in the browser they moderate from is a
+guest of the event for 36 hours, and is still a host), the cookie of another event included.
+Otherwise, with an `es_guest` cookie the guest rules above apply, and without one it is
+handled as the moderator endpoint — so a caller with neither credential gets
+`401 auth.required` from the role check, and a signed-in account with no role here that holds a
+guest cookie is a guest.
 
 ### `PATCH /api/events/:slug/photos/:photoId/caption`
 
@@ -1283,7 +1690,7 @@ Author-only, while pending, inside the grace window. **204**.
 
 **Errors** — `403 photo.captionEditForbidden`, `403 event.captionsNotAllowed`,
 `404 photo.notFound`, `400 caption.tooLong` (the limit is 140 characters; `details.max`
-carries it).
+carries it), `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ### `POST /api/events/:slug/photos/:photoId/reactions`
 
@@ -1295,14 +1702,21 @@ carries it).
 projected in front of a family is not acceptable. One of each kind per guest per photo.
 Only on a **published** photo: you react to what is on the wall.
 
+Not on one's **own** photograph: the photo of the night is the one the room liked most, and
+a guest voting for their own is not the room. ("Own" is the guest the token names: a guest
+who cleared their cookies is a new guest, and nothing here can tell.) A photograph the host took has no guest author
+and can be reacted to by anyone. Withdrawing is not refused for the same reason, so a
+reaction given before the rule keeps its way out.
+
 **204**. **Errors** — `409 reaction.alreadyExists`, `409 reaction.notPublished`,
-`403 event.reactionsDisabled`, `429 reaction.rateLimited`.
+`403 event.reactionsDisabled`, `403 reaction.ownPhoto`, `429 reaction.rateLimited`.
 
 ### `DELETE /api/events/:slug/photos/:photoId/reactions/:kind`
 
 Withdraw one's own reaction. **204**. **Errors** — `404 reaction.notFound`, which is also
 the answer for another guest's reaction: the row is addressed by
-`(event, photo, guest, kind)`, so it is not forbidden, it is simply not there.
+`(event, photo, guest, kind)`, so it is not forbidden, it is simply not there;
+`429 rate.limited` with a `Retry-After` (the guest-write bucket of §1, not the reaction one).
 
 ### `GET /api/events/:slug/photos/:photoId/reactions`
 
@@ -1314,14 +1728,88 @@ the answer for another guest's reaction: the row is addressed by
 ```
 
 Every kind is always present and zeroed, so the client never handles a missing key.
-`Cache-Control: no-store`: a count is stale the instant it is read, and both the phone
-and the wall recount on the next SSE signal.
+`Cache-Control: no-store`: a count is stale the instant it is read. The wall pulses on the
+next SSE signal (`reaction.added`) without reading anything; the phone reads the row when
+its list opens and again only when a refusal says its screen was out of date (below).
 
 Note the consequence of this living in §3 rather than §2: it needs a guest token, so the
 **projector cannot read reaction counts**. The wall response carries `reactionsEnabled`
 and nothing else about reactions. `404 photo.notFound` for a photo outside this event.
 
+**Who calls these three.** The guest's phone, from "Les photos de la soirée"
+(`/e/:slug/photos`, `web/src/features/guest-feed/`): the photographs `GET /api/events/:slug/wall`
+returns (§2) — public, published only, newest first, at most the wall's window of the newest
+200, twelve shown at a time — with the five
+reaction buttons under every one that is **not the guest's own**. Whether the buttons are drawn
+is the `reactionsEnabled` the wall says _now_, not what the join said; which photographs are
+the guest's own comes from `GET …/photos/mine` (§3), and only decides what is drawn, because
+this route refuses it anyway (`403 reaction.ownPhoto`). Per photograph the phone reads the
+row once with the `GET` — for `mine`, which buttons to show pressed; the screen shows no
+counts — and then:
+
+- **sends or withdraws before the server has answered**, so the button moves under the
+  thumb; a refusal (`403 event.reactionsDisabled`, `403 reaction.ownPhoto`,
+  `409 reaction.notPublished`, `429 reaction.rateLimited` — the limiter and the per-guest
+  budget answer with the same code) or a dropped connection takes that one tap back and says
+  why, in the guest's language, from the code alone;
+- **reads the row again after `409 reaction.alreadyExists`, `404 reaction.notFound` and a
+  dropped connection**, because each leaves the phone not knowing what the server holds — a
+  reply lost on venue Wi-Fi leaves the server with a reaction the phone thinks it never
+  sent. The buttons rest until the read has answered, and the read starts only once no
+  other tap is still in the air, so its answer cannot be older than a tap it would undo;
+- **never sends before the `GET` has answered**, so a tap cannot be refused for a reaction
+  the guest was never shown.
+
+The list is a snapshot, read when the page opens and again on "Actualiser": a photograph
+approved or taken down afterwards is noticed at the next read, or at the next refusal
+(`409 reaction.notPublished`, said in words). A withdrawal is accepted whatever the host's
+switch says, because the setting governs sending, not undoing.
+
+**This is a new place for a published photograph to appear**, on the phone of every guest of
+the event. It is the same public read the projector makes, so nothing new leaves the box, and
+the notice's `wall` audience already reads "anyone who watches the evening's screen, in the room
+or through its link, once the photo is shown" (§3). It does not say "on every guest's phone" in
+so many words; whether it should is a decision about the notice's revision, which every guest
+would then be asked to read again.
+
 ---
+
+### `PATCH /api/events/:slug/guests/:guestId`
+
+A guest changing the name their photos are signed with. **Their own, and nobody else's**:
+`:guestId` must be the guest the `es_guest` token names. The name is projected in front of a room,
+so being able to edit another guest's would be a way to put words under somebody else's photo.
+
+```json
+{ "displayName": "Léa D." }
+```
+
+`displayName` is **required and nullable**, as the caption is: `null` or a blank string takes the
+name off the wall, and `{}` is a `400 request.invalid`, because "leave it as it was" is not an
+intent this endpoint has. A name follows the join's rules: one line, invisible characters
+removed, at most 40 characters once folded. The boundary's own bound is 120, so a name of 41 to
+120 characters is `400 displayName.tooLong` (with `details.max`) and one longer is
+`400 request.invalid`.
+
+**200**
+
+```json
+{ "guestId": "…", "displayName": "Léa D." }
+```
+
+`displayName` is the name **as stored**, trimmed and folded: what the wall will print, `null` for
+no name. `Cache-Control: no-store`. A rename announces nothing, so a wall or a console that is
+already open shows the new name when it next reloads what it shows, not at once. **Only while the event is `live`**, the rule an upload is held to: once the host
+closes the event the name printed under approved photographs is fixed, where an unmoderated guest could
+otherwise change it for the room after the host had finished moderating.
+
+**Errors** — `403 auth.forbidden` when `:guestId` is not the guest the token names, **and equally
+for an id that names nobody**: the comparison is made before any row is read, so the route cannot
+be used to learn which guest ids exist. `403 guest.revoked`,
+`401 auth.required` / `401 guestToken.*` (a host's or moderator's session is not a guest token, and
+there is no host route that renames a guest), `404 event.notFound`, **`409 event.notAcceptingUploads`**
+once the event is closed or archived (the answer an upload gets), `400 request.invalid`,
+`400 displayName.tooLong`, `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ## 4. Media
 
@@ -1403,6 +1891,10 @@ the logs from a scoping miss, and identical on the wire.
 Streams the album. Moderator or above. Includes only statuses the domain's `isInAlbum`
 accepts — `published` and `hidden`, **never** `rejected`. 1.0's ZIP shipped every row
 regardless of status, so a host who carefully rejected a photo handed it out anyway.
+
+Each photograph is archived as its stored original (`.jpg`) and each clip as its transcode
+(`.mp4`, the transcode: a clip's upload is never kept), the same file the shared gallery's own archive carries; a row whose
+file is gone is skipped with a warning rather than aborting the download.
 
 `Content-Disposition: attachment; filename="<slug>-album.zip"`, from the resolved event's
 canonical slug and never from the path, so the download cannot be called something the
@@ -1613,7 +2105,7 @@ address. There is no self-service reset on such a box and `features.forgotPasswo
 `GET /api/about` is `false`. The link is never returned in a response. **Errors** — `400
 request.invalid`, `429 rate.limited` (the sign-in budget, its own bucket, and the per-address
 throttle of §1 "Rate limits", whose `Retry-After` is the wait; both answer every address alike),
-and the CSRF codes like every write. Responses are `Cache-Control: no-store`, the rate-limit refusals aside.
+and the CSRF codes like every write. Responses are `Cache-Control: no-store`.
 
 ### `POST /api/auth/password-reset/confirm`
 
@@ -1662,7 +2154,18 @@ What the link offers, for the page that asks its holder to accept it. **200**
 invited, not the address, and not whether the address already has an account — the person holding
 a link may be the one who wrote it, and a preview that said "sign in" for some addresses and
 "choose a password" for others would be an oracle for who is on the box. It spends nothing, so
-a mail client that fetches links to preview them cannot use one up. **Errors** —
+a mail client that fetches links to preview them cannot use one up.
+
+On a box that asks for its terms of use (`LEGAL_TERMS_URL` **and** `LEGAL_TERMS_VERSION` both set,
+G2-20) the answer has one more key, **present only then**, so a self-hosted box answers the four above
+byte for byte:
+
+```json
+{ "terms": { "url": "https://hosted.example.org/legal/cgu", "version": "2027-01" } }
+```
+
+`url` is an https address or a path on this site. It is the same for every link on the box, so it says
+nothing about this one, and a dead link answers the same `404` it always did. **Errors** —
 `404 invitation.notFound`, `409 event.immutable` (the event was archived), `429 rate.limited`.
 
 ### `POST /api/invitations/:token/accept`
@@ -1692,6 +2195,18 @@ Attaches that account (from the **session**, never from the request) and spends 
 password, name and authority on the box are not touched, and a role it already holds there is not
 lowered.
 
+**The terms of use (G2-20).** Either body may carry `"acceptTerms": true`, the tick of "I accept the
+terms of use". It is a boolean and the only key besides the credentials: **no key can name a version**,
+because the version recorded is the box's own. It is read only on a box that asks for terms (the
+preview above says so): there, anything but `true` is `400 terms.notAccepted`, a form error and
+not a dead link; it is judged right after the link is found and before anything about who is accepting,
+so it is the same `400` for an address that has an account as for one that has none, and a dead link
+is the same `404` with or without it. Nothing is created and nothing is spent by that refusal. When the
+acceptance goes through, the audit entry `account.termsAccepted {version}` is written in the same
+transaction, as the account that accepted and filed under the invitation's client (or the client that
+owns its event), for an existing account's acceptance as for a new one's. On a box that asks for no
+terms the key is accepted and ignored, nothing is recorded, and nothing is refused for want of it.
+
 **200**, both forms
 
 ```json
@@ -1710,7 +2225,8 @@ lowered.
 has an account and a password was sent: **nothing is created and the link is not spent**, the
 person signs in as that account and accepts with the empty body; `403 invitation.wrongAccount`
 when the signed-in account is not the one the link was written to; `400 invitation.credentialsRequired`
-when the empty body is sent with no session; `400 password.*` and `400 accountName.*` for a
+when the empty body is sent with no session; `400 terms.notAccepted` on a box that asks for its terms,
+without the tick; `400 password.*` and `400 accountName.*` for a
 password or a name the rules refuse; `400 request.invalid` (an unknown key — no field can name an
 account); `409 event.immutable`; `429 rate.limited`; `403 auth.passwordChangeRequired` for a signed-in account that must
 first choose a password (§1); and the CSRF codes. A path whose token cannot be decoded
@@ -1789,6 +2305,9 @@ does, the caller holds a half-finished sign-in in the session, **with no `userId
 on that, so the session is anonymous to `requireUser`, `requireRole` and `requireOperator` alike and
 reaches nothing else. It lives **five minutes**, allows **five wrong codes**, and is void if the
 account's credentials changed (a reset, a password change, a switch-off) after the password was typed.
+The five are counted as the codes are **tried**, not as the answers come back: codes sent at the same
+moment share them, and the sixth to start, and every one after it, is refused unread, so a right code
+that arrives behind five others is not accepted either.
 
 On success the session is regenerated (new id, new CSRF token) and stamped as having passed the
 second factor. **200** is the same body as the login's, and the response sets `es_device` (see
@@ -1800,7 +2319,8 @@ password and the code again.
   (the replay refusal), a recovery code never issued or already used, and text that is neither: one
   answer, so what separates them stays the owner's to know.
 - **401** `auth.secondFactorExpired` — no half-finished sign-in, one past its five minutes, one that
-  used its five wrong codes, or one the account's credentials outlived. Start again with the password.
+  used its five wrong codes (the fifth wrong one is answered this way, not `auth.invalidSecondFactor`),
+  or one the account's credentials outlived. Start again with the password.
 - **429** `auth.tooManySecondFactorAttempts` — the account's budget of wrong attempts is spent
   (below).
 - **500** `auth.secondFactorUnavailable` — the stored secret will not open under the
@@ -1817,10 +2337,9 @@ A recovery code is **single use**, decided by one conditional statement, and spe
 
 `code` may be `recoveryCode` instead; **at most one**, and neither for an account with no
 authenticator, which proves itself with the password alone. Stamps the session, for **five minutes**,
-as having confirmed the person at the keyboard. Two routes ask for it today — `2fa/recovery-codes` and
-`2fa/disable`, below — and answer **403 `auth.stepUpRequired`** without a fresh stamp; the operator
-routes that cannot be taken back (offboarding a client, suspending or resuming one, changing a
-ceiling, G2-14) will carry the same gate, `requireStepUp`, when they are mounted. **204**. The code must be of a step **later than
+as having confirmed the person at the keyboard. Two routes of the account ask for it — `2fa/recovery-codes` and
+`2fa/disable`, below — and **so does every route of `/api/site` that changes something** (G2-14, §1), and each
+answers **403 `auth.stepUpRequired`** without a fresh stamp. **204**. The code must be of a step **later than
 the last one spent**, so the code that signed in cannot be reused here: the person waits for the
 app's next one. The stamp is not carried across a renewal of the session id (a password change).
 
@@ -2035,9 +2554,8 @@ create, delete, recreate cannot walk around it. The other
 - **What it may become** — `PATCH /settings` and `POST /status`, below; **what it may hold** —
   uploads, §3; **what it keeps** — the retention purge, below.
 
-Until the operator API exists (roadmap §10.2, G2-14), nothing over HTTP creates a client or
-adds a member, so on a box that sets `clientMembers` today the operator is the only account
-that can create an event; leave the policy at `anyAccount` until clients can be enrolled.
+On a box that sets `clientMembers`, an account can create an event once it belongs to a client: the operator
+opens one (`POST /api/site/clients`, §1) and its owner accepts the invitation; the operator itself is exempt.
 
 **The slug (roadmap G3-05 / P4-09, decision D-14).** Three environment variables govern
 it, all backward-compatible by default:
@@ -2178,8 +2696,17 @@ which is what every event created before this field existed still does.
 `joinUrl` is built server-side from `PUBLIC_URL` so the QR code and the printed card
 cannot disagree — 1.0's central defect was exactly two client-side spellings of one link.
 `role` is the **caller's** role in this event, not a property of the event. The four
-counts come from the caller's own dashboard listing rather than a second repository read
-in the handler.
+counts are those of **this** event (one read, `getEventView`): the same four numbers its
+row on `GET /api/events` carries, and not a read of the caller's whole dashboard.
+
+**`quotaBytes` is the quota the event's uploads are judged against**, not the number it was created
+with (G2-16): the stored quota, lowered to the client's `max_event_quota_bytes` when that is smaller, as
+`Event.effectiveQuotaBytes` computes it for every write path. An operator can lower the ceiling after an
+event was created, and a meter drawn against the stored number would promise room the box refuses. For an
+event with no client — every event on a box without clients — it is the stored quota exactly as before.
+`liveWindowEnd` (an ISO-8601 instant) is the end of the event's live window, `opened_at + max_live_days`;
+it is **absent**, not `null`, when there is none to announce (no client, no `max_live_days`, an event that
+has never opened), so a box without clients answers byte for byte as it did.
 
 ### `PATCH /api/events/:slug`
 
@@ -2533,7 +3060,7 @@ way to it. **No `409` is reachable on this route.**
 console still holding an SSE connection is not told. Its next request against the event
 answers `404 event.notFound`. A guest whose device token names the purged event gets
 `404 event.notFound` too; if the host later creates a new event on the same slug, that
-old token names a different event id and gets `403 guest.wrongEvent`.
+old token names a different event id and still gets `404 event.notFound`.
 
 **Errors** — `401 auth.required` with no session, answered before the slug is looked up
 so the route cannot be used to discover which events exist; `404 event.notFound` for an
@@ -2851,6 +3378,10 @@ on the wall exactly as it was.
 "Photo de la soirée". Query: `limit` 1..50, default 10 — bounded low on purpose, because
 the panel is projected and a podium of forty photos is not a podium.
 
+Only photos that are on the wall are ranked, and `limit` counts those: a photo the host has since
+hidden or rejected keeps its reactions but neither takes a place nor uses one up, so the panel
+asked for three answers the three best photos on the wall (fewer when fewer have reactions).
+
 **200**
 
 ```json
@@ -2994,6 +3525,160 @@ so the invitee still has to open it and accept.
 | `auth.forbidden`      | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner. `details.required: "owner"`                                                                                                                               |
 | `invitation.notFound` | 404    | An unknown id; another client's invitation; an invitation to an event, or one that never waited for anyone; a password-reset link; one already spent, revoked or expired; and a caller with no part in the client (an operator included). One answer for all of them |
 
+### `POST /api/client/password-resets/:requestId/approve`
+
+**Another** owner of an account's client lets an operator be handed that account's password-reset link (the
+operator guard's R2, docs/SECURITY.md §20). **Only with `SITE_ADMIN=on`**, like the rest of `/api/client`, and
+only meaningful on a box with no mail relay and `OPERATOR_RESET_LINKS=copyLinkWithOwnerApproval`: the request
+is the `approvalId` that `POST /api/site/accounts/:userId/password-reset` (§1) answered, and the operator tells
+the owner the id by whatever channel they already use. It is an id and not a secret.
+
+Approving hands nobody a link. It records who approved and when, which makes the request redeemable **once, by
+the operator who made it**, who is then given a link that did not exist until that moment.
+
+- **Auth:** a signed-in, enabled account (`401 auth.required` otherwise) that is an **owner of the account's
+  client**, **does not operate the box** and **is not the account being reset**. The caller is the session's.
+- **Request:** no body. `:requestId` is a UUID shape (`400 request.invalid` otherwise).
+- **Response:** **204**, also for a request already approved (nothing changes, nothing is written). The line
+  `account.resetApproved` is written before the approval is recorded.
+
+| Code                    | Status | When                                                                                                                                                                                                                                               |
+| ----------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.forbidden`        | 403    | A member of the client who is not an owner; **an operator**, whether or not the client made them an owner; the account the reset is for. `details.required: "owner"`                                                                               |
+| `reset.requestNotFound` | 404    | An unknown id; an invitation's; a request already spent, revoked or expired; a request for an account of **another client**, of **none** or of **two**; and a caller with no part in the client (an operator included). One answer for all of them |
+
+### `GET /api/me/limits`
+
+What the signed-in account reads of its own clients' ceilings and use (roadmap §10.5, G2-16 / P3-17): what
+the operator allows, what has been used against it, and how close that is. **Only with `SITE_ADMIN=on`**:
+off, the route is unmounted and answers `404 route.notFound`, status, body and headers exactly as for a path
+nobody wrote.
+
+- **Auth:** a signed-in, enabled account (`401 auth.required` otherwise). **Whose limits they are is never
+  the request's to say**: the route takes no parameter (`400 request.invalid` for any), and the answer is
+  the caller's own memberships and nobody else's.
+- **Response:** `200`, `Cache-Control: no-store`.
+
+```json
+{
+  "clients": [
+    {
+      "id": "6f1c…",
+      "name": "Atelier Alpha",
+      "role": "owner",
+      "suspended": false,
+      "ceilings": {
+        "maxEvents": 5,
+        "maxTotalBytes": 5000000000,
+        "maxEventQuotaBytes": null,
+        "maxRetentionDays": 30,
+        "clipsAllowed": true,
+        "liveAllowed": true,
+        "maxLiveDays": 3,
+        "maxEventsPerPeriod": 6,
+        "periodStartedAt": "2026-01-01T00:00:00.000Z"
+      },
+      "usage": { "events": 4, "eventsCreatedInPeriod": 4, "usedBytes": 4600000000 },
+      "meters": [
+        { "kind": "events", "used": 4, "max": 5, "level": "warning" },
+        { "kind": "eventsPerPeriod", "used": 4, "max": 6, "level": "ok" },
+        { "kind": "storage", "used": 4600000000, "max": 5000000000, "level": "warning" }
+      ]
+    }
+  ]
+}
+```
+
+`null` is "no ceiling". `clients` is empty, `200`, for an account in no client (the box's operator
+included). `usage.events` counts events in every status; `usedBytes` is the admission figure the byte
+ceiling is judged against (photographs of every status and the staged source of each clip). A `meters`
+entry exists only for a ceiling that has a bound, and its `level` is decided once, by the server:
+`ok` below 90 per cent, `warning` from 90 per cent up to the ceiling, `reached` at or past it (past it
+is possible: lowering a ceiling never deletes anything). The banner and the client space page show
+exactly this and compute nothing.
+
+```
+GET /api/me/limits?clientId=… → 400 request.invalid   (no parameter exists to name another client with)
+```
+
+### `GET /api/client/audit`
+
+The log of what was done on the owner's own client (roadmap §10.8, rule R5 of the operator guard, G2-16 /
+P3-17): **every** entry that carries the client's id — the operator's, an integration's, the system's and the
+client's own members' — newest first. Account-level lines written with no client (an operator switching an
+account off, a member's own second-factor lines) are not among them yet: docs/SECURITY.md §21. **Only with `SITE_ADMIN=on`**; off, `404 route.notFound` as for a path
+nobody wrote.
+
+- **Auth:** a signed-in, enabled account that is an **owner** of the client. `403 client.ownerRequired` for
+  a member who is not an owner; `404 client.notFound` for an account with no part in the client.
+- **Query (strict; any other key is `400 request.invalid`):** `clientId` (a UUID; needed only by an account
+  in **several** clients, who gets `404 client.notFound` without it, as for `POST /api/events`; naming a
+  client the caller is not in is the same `404` as naming one that does not exist), `before` (the `next` of
+  the previous page, an integer ≥ 1), `limit` (1 to 100, default 50).
+- **Response:** `200`, `Cache-Control: no-store`.
+
+```json
+{
+  "items": [
+    {
+      "seq": 41,
+      "at": "2026-06-21T10:00:00.000Z",
+      "action": "invitation.issued",
+      "actor": { "kind": "operator", "label": null },
+      "subject": { "type": "invitation", "id": "9b2e…" },
+      "details": { "pendingApproval": true }
+    }
+  ],
+  "next": 40
+}
+```
+
+`next` is the `before` for the page after this one, `null` on the last. `action` is the server's
+vocabulary (`src/domain/audit/auditAction.ts`); a row written under a name a client does not know is shown
+as "an action was recorded", never hidden. **What a line never carries**: the account behind the actor (the
+operator is "the operator", a member is "a member", never an id), the id of an **account** subject, an
+address, a slug, a join code, a name, a token or a link. `details` is what the action's allow-list admits,
+numbers, switches and instants (a ceilings change is `{ before, after }` snapshots). The one string
+the log holds besides an instant is the version of the terms in `account.termsAccepted` (G2-20), and
+**this door does not pass it**: an owner reads that a person accepted the terms, with `details` empty, and the
+version stays in the log. `actor.label` is
+present only for an integration (`cloud:stripe-webhook`), a constant a programmer chose.
+
+| Code                   | Status | When                                                                                |
+| ---------------------- | ------ | ----------------------------------------------------------------------------------- |
+| `client.ownerRequired` | 403    | A member of the client who is not an owner                                          |
+| `client.notFound`      | 404    | No part in the client; a client that does not exist; several clients and none named |
+
+### `GET /api/client/invitations`
+
+What waits for the owner's approval (rule R1 of the operator guard): the operator's invitations into the
+client that cannot be used until an owner lets them in, and **whom they are for** — the one fact the approve
+route's answer withholds. **Only with `SITE_ADMIN=on`**; off, `404 route.notFound`.
+
+- **Auth, query, errors:** as `GET /api/client/audit` (an owner; `clientId` only for an account in several
+  clients; no other key). The list is scoped by the client in the query itself: another client's invitation
+  is not a row this call can return.
+- **Response:** `200`, `Cache-Control: no-store`.
+
+```json
+{
+  "items": [
+    {
+      "id": "9b2e…",
+      "email": "nouveau@example.org",
+      "role": "member",
+      "createdAt": "2026-06-20T09:00:00.000Z",
+      "expiresAt": "2026-06-27T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+Newest first, at most 50, only invitations still waiting (not approved, spent, revoked or expired). The
+address is the invitee's, shown to the owners of the account the invitee would join, and appears nowhere
+in the audit log. No link, no digest and no operator account is in an item; `id` is what
+`POST /api/client/invitations/:invitationId/approve` takes.
+
 ## 7. Realtime
 
 ### `GET /api/events/:slug/stream`
@@ -3037,9 +3722,15 @@ whole evening, so requests-per-minute bounds nothing that matters here.
 
 | Bound                                   | Value | Answer                                    |
 | --------------------------------------- | ----- | ----------------------------------------- |
-| Streams open at once per client key     | 12    | `429 rate.limited`                        |
+| Streams open at once per client key     | 12    | `429 rate.limited`, `Retry-After: 30`     |
 | Streams open at once across the process | 500   | `503 service.notReady`, `Retry-After: 30` |
 | Subscribers per event, in the bus       | 200   | `503 service.notReady`, `Retry-After`     |
+
+An open wall stream is checked again at **every heartbeat** (15 s) with the question that
+opened it: an event the host has since **archived**, or whose client has been suspended, ends
+the stream with a `retry:` of a minute, and frees its slot. A closed event still serves its
+wall, so closing one ends nothing. The moderation stream asks only that the event still exists
+and the account still holds a role in it.
 
 A slot is returned the moment the connection closes, so a client that reloads gets it
 straight back. The client key is the one every other limiter uses, IPv6 collapsed to its
@@ -3079,16 +3770,10 @@ GraphQL.
 >
 > Sections 1–8 above are the contract: every route there exists and behaves as written.
 > **This section is the opposite** — it is the list of places where the server does _not_
-> do what a reader would expect, plus, in §9.10, two routes that have been **proposed and
-> never built**.
+> do what a reader would expect.
 >
 > If you are an agent or an integrator: §1–8 is what you may rely on. Treat anything you
-> find only in §9 as a bug report, not as a specification. In particular
-> `GET /api/join/:code` and `PATCH /api/events/:slug/guests/:guestId` in §9.10 **answer
-> `404 route.notFound` today**, from the unmatched-`/api` fallback in
-> `server.ts` — they are sketches of a shape that was judged natural, not endpoints.
-> Calling one, or writing a client that expects one, will fail against the running
-> server.
+> find only in §9 as a bug report, not as a specification.
 >
 > Each entry is labelled. **doc corrected above** means §1–8 was wrong and has been
 > fixed, so the entry is history. **code defect**, **stale code** and **drift** mean the
@@ -3116,8 +3801,8 @@ bug needs a name and a line number.
 
 Every route that exists is documented, and every route documented exists — verified in
 both directions: **37 routes in code, 37 `###` headings in §1–8, no discrepancy either
-way**. Nothing here is a missing endpoint. The audit found ten divergences; five have
-since been fixed and removed, and these five are the places where the code and the intent
+way**. Nothing here is a missing endpoint. The audit found ten divergences; six have
+since been fixed and removed, and these four are the places where the code and the intent
 above are not yet the same thing. Items marked **doc corrected above** have been fixed in
 this file. The rest are code defects — rewriting a specification to agree with a bug is
 the one outcome an audit must not produce.
@@ -3139,10 +3824,9 @@ neither.
 `src/application/usecases/photos/uploadPhotos.ts:177` returns
 `DomainError.quotaExceeded('event.photoLimitReached')`. This file said
 `403 photo.tooManyForGuest`, which the server has never sent and which is also the wrong
-status — `quotaExceeded` maps to **413**. `web/src/lib/i18n/fr.ts` already carries French
-for **both** spellings, with a comment saying it is keeping them until the contract picks
-one. It has now picked: `event.photoLimitReached`. The `photo.tooManyForGuest` entry in
-`fr.ts` is dead and can go.
+status — `quotaExceeded` maps to **413**. The contract has picked `event.photoLimitReached`;
+`web/src/lib/i18n/fr.ts` carried French for both spellings and no longer does, and
+`keysRead.guard.test.ts` fails on an error sentence for a code nothing sends.
 
 ### 9.5 The wall's e2e timing hooks are accepted and read by nothing — **stale code**
 
@@ -3218,50 +3902,3 @@ how likely anyone is to hit them:
 
 `server.unexpected` deliberately has none: it falls through to the generic sentence,
 which is the correct copy for a bug.
-
-### 9.10 Two use cases are wired into the container with no route in front of them
-
-Confirmed, and both are real: `makeResolveJoinCode`
-(`src/application/usecases/events/resolveJoinCode.ts`, wired at
-`src/main/usecases.ts:136`, declared at `src/interface/http/useCases.ts:62`) and
-`makeRenameGuest` (`src/application/usecases/guests/renameGuest.ts`, wired at
-`src/main/usecases.ts:180`, declared at `useCases.ts:71`). Both have unit tests; neither
-is called by any router.
-
-They are not the same kind of gap.
-
-`resolveJoinCode` answers the question `/join/:code` asks before a guest commits: it
-returns the event's name and whether captions and reactions are on, with the same
-"unknown code and closed event are indistinguishable" rule as `POST /api/join`. Without a
-route the join page cannot show a guest **which** event they are about to join before
-they hand over a name — the client must call `POST /api/join`, which creates the guest
-and sets the cookie, to find out. The natural shape is `GET /api/join/:code`, public,
-rate-limited like the POST. It is a deliberate contract addition, not a bug fix, so it is
-not written into §2 above.
-
-`renameGuest` is the guest's ability to correct the name their photos are signed with —
-and that name is projected in front of a room. `PATCH /api/events/:slug/guests/:guestId`
-with the guest token, answering `403 auth.forbidden` when the acting guest is not the
-target and `404 guest.notFound` when the id is not in this event, is what the use case is
-already written for.
-
-Neither is documented above, because this file specifies what the server implements.
-
-**Still open on 12 September, and re-verified**: `src/main/usecases.ts:136` and `:180` wire
-both, `useCases.ts:12` and `:19` declare both, `grep` over
-`src/interface/http/routes/` finds them in no router — only in the route tests, which
-stub them as deliberately unwired. Dead code that looks alive is worse than dead code that
-looks dead, and this has been true across two reviews.
-
-The decision is not deferrable much longer, and neither branch is a schema change, which
-is why it did not travel with 9.3 and 9.4: **giving them routes** means a handler in
-`publicRoutes.ts` for `GET /api/join/:code` (public, rate-limited like the POST) and one in
-`guestRoutes.ts` for `PATCH /api/events/:slug/guests/:guestId` — `renameGuest` takes an
-`actingGuestId` from the verified device token and refuses any other target, so it belongs
-behind the guest-token middleware and **cannot** be mounted on the host surface in
-`eventRoutes.ts`. **Deleting them** means the two use-case files, their unit tests, and the
-lines in `usecases.ts` and `useCases.ts`. What deletion loses is worth writing down before
-anyone takes it: the join page can then only tell a guest which event they are joining by
-calling `POST /api/join`, which creates the guest and sets the cookie — the guest commits
-before they can confirm they are at the right wedding — and a guest who mistypes the name
-projected under their photos has no way to correct it.

@@ -3,14 +3,15 @@ import { err, ok, type Result } from '../shared/result'
 import type { PhotoId } from '../shared/ids'
 
 /**
- * What the projector shows, and where it is in the sequence.
+ * What the projector shows.
  *
- * Both are derived from the photos themselves. 1.0 kept the slideshow index in
+ * It is derived from the photos themselves. 1.0 kept the slideshow index in
  * `sessionStorage`, so a second projector in the same room ran its own position and
  * the two walls disagreed all evening — and a refresh restarted the show from a photo
- * nobody had seen for hours. Here the playlist is a value with a fingerprint and the
- * cursor is an integer over it: two displays handed the same photos compute the same
- * items, the same revision and therefore the same slide.
+ * nobody had seen for hours. Here the playlist is a value with a fingerprint: two
+ * displays handed the same photos compute the same items and the same revision. Where a
+ * display is in it (the cursor, keeping the photo on screen when the list changes under it)
+ * is the web client's, in `useSlideshow`, and is not modelled here.
  */
 
 /**
@@ -45,12 +46,6 @@ export interface PlaylistOptions {
   readonly freshFirst: boolean
 }
 
-/** Where a running wall is: the playlist it holds, and the slot it is currently on. */
-export interface PlaylistPosition {
-  readonly playlist: Playlist
-  readonly cursor: number
-}
-
 const MIN_WINDOW_SIZE = 1
 
 /** FNV-1a, 32-bit. */
@@ -75,9 +70,6 @@ const byNewestThenId = (a: PlaylistCandidate, b: PlaylistCandidate): number => {
   if (byRecency !== 0) return byRecency
   return a.id < b.id ? -1 : 1
 }
-
-/** A cursor is any integer and the playlist is a ring, so negative steps wrap back. */
-const wrapIndex = (index: number, length: number): number => ((index % length) + length) % length
 
 const mix = (hash: number, codeUnit: number): number => Math.imul(hash ^ codeUnit, FNV_PRIME) >>> 0
 
@@ -120,85 +112,4 @@ export const buildPlaylist = (
   const items = (freshFirst ? newest : newest.reverse()).map((candidate) => candidate.id)
 
   return ok({ items, revision: playlistRevision(items) })
-}
-
-/**
- * Which photos occupy the visible slots at `cursor`, wrapping past the end.
- *
- * When the playlist holds fewer photos than the layout has slots the result is short
- * too, and the layout renders empty cells. Repeating an id to fill the grid was the
- * alternative and it is worse: the same face twice on one wall reads as a bug to the
- * room, and the moment it would happen — three photos in, ten minutes after the doors
- * open — is when the host is watching the screen hardest.
- */
-export const slotsAt = (
-  playlist: Playlist,
-  cursor: number,
-  slotCount: number,
-): readonly PhotoId[] => {
-  const length = playlist.items.length
-  if (length === 0 || slotCount < 1) return []
-
-  const count = Math.min(slotCount, length)
-  const start = wrapIndex(cursor, length)
-  const head = playlist.items.slice(start, start + count)
-  // Ran off the end: the front of the playlist follows the back, so the last slide is
-  // succeeded by the first rather than by a gap.
-  return head.length === count ? head : [...head, ...playlist.items.slice(0, count - head.length)]
-}
-
-/**
- * The next cursor. Wrapping and never negative, so the wall can run for eight hours
- * off a single incrementing counter without ever addressing a slot that has no photo.
- */
-export const advance = (playlist: Playlist, cursor: number, step: number): number => {
-  const length = playlist.items.length
-  // Nothing to show. Park at the start rather than let the timer drift the cursor into
-  // a position that would be meaningless once photos arrive.
-  if (length === 0) return 0
-  return wrapIndex(cursor + step, length)
-}
-
-/**
- * Where the cursor lands when the playlist changes under a running wall.
- *
- * Keep the photo that is on screen on screen — find its index in the new list — and
- * only fall back to a clamped position when it has genuinely gone: rejected, hidden,
- * or pushed out of the window. Without this the wall jumps to whatever now sits at the
- * old index every time a guest uploads, which is why 1.0's display appeared to shuffle
- * itself whenever the room got busy.
- */
-export const cursorForRevision = (playlist: Playlist, previous: PlaylistPosition): number => {
-  const length = playlist.items.length
-  if (length === 0) return 0
-
-  const showing = slotsAt(previous.playlist, previous.cursor, 1)[0]
-  if (showing !== undefined) {
-    const kept = playlist.items.indexOf(showing)
-    if (kept !== -1) return kept
-  }
-  return Math.min(Math.max(previous.cursor, 0), length - 1)
-}
-
-/**
- * Where to splice a just-published photo so the room sees it next — or `null` when it
- * is already in rotation and there is nothing to splice.
- *
- * Immediately after the current slide: the guest who sent it is still holding their
- * phone, and "it will come round in a few minutes" is not the promise this product
- * makes. The index is `items.length` when the wall is on the last slide, i.e. an
- * append.
- *
- * `null` rather than the id's existing index, because a host who hides a photo and
- * restores it later re-publishes an id the playlist already holds, and a caller handed
- * a bare index cannot tell "insert here" from "already there". Splicing at an existing
- * index would put the same face on the wall twice in a row, so the no-op is expressed
- * in the return type instead of asked of the caller.
- */
-export const insertionPointFor = (position: PlaylistPosition, freshId: PhotoId): number | null => {
-  if (position.playlist.items.includes(freshId)) return null
-
-  const length = position.playlist.items.length
-  if (length === 0) return 0
-  return wrapIndex(position.cursor, length) + 1
 }

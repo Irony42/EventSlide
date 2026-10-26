@@ -52,13 +52,13 @@ const buildNoticeHarness = (operatorName: string | null): Harness =>
             getPrivacyNotice: makeGetPrivacyNotice({
               events: deps.events,
               clients: world.clients,
-              guests: deps.guests,
+              guests: world.guests,
               operatorName,
             }),
             acknowledgePrivacyNotice: makeAcknowledgePrivacyNotice({
               events: deps.events,
               clients: world.clients,
-              guests: deps.guests,
+              guests: world.guests,
               clock: deps.clock,
               operatorName,
             }),
@@ -155,8 +155,8 @@ describe('GET /api/events/:slug/privacy-notice', () => {
       .get(NOTICE)
       .set('Cookie', cookie(harness.issueGuestToken(GALA, LEA)))
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it('refuses a guest the host removed', async () => {
@@ -264,8 +264,8 @@ describe('POST /api/events/:slug/privacy-notice/acknowledgement', () => {
       .set('Cookie', cookie(harness.issueGuestToken(GALA, LEA)))
       .send({ revision: WEDDING_NOTICE.revision })
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it('refuses a guest the host removed', async () => {

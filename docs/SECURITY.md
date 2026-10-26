@@ -349,10 +349,18 @@ feature.unavailable`, `features.forgotPassword = false` on `/api/about`. The lin
 - **Plain text only.** No HTML part, no image, no second link: a reset mail is a credential in
   transit and an HTML part is a surface (a remote image tells a stranger when it was opened).
 
-**Residuals.** The web pages that use these routes (forgot-password, reset, "sign out
-everywhere") are roadmap G2-10 / P3-11 and are not in the same change: until they land the
-routes have no browser client, and `features.forgotPassword` is published but unread. A
-successful reset does not set `email_verified_at` and does not mail the account holder that
+**The pages** (roadmap G2-10 / P3-11) are `/password/forgot`, `/password/reset/<token>` and the
+"Se déconnecter partout" entry of the account menu. The forgot page shows the one confirmation for
+every address, the sign-in offers its link only when `features.forgotPassword` is `true` (and
+reads `false` for a server that does not say), and the reset page sends the token in the **body** of
+its one request. The shell that serves `/password/reset/<token>` and `/invite/<token>` answers
+`Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`, like
+the gallery's; neither page writes the token to the document title, to storage or to a log line,
+and the service worker, which only answers from a precache of the shell's own files, keeps no copy
+of either address. "Sign out everywhere" revokes the other sessions and then ends this one, in
+that order, and leaves the page only once the server has answered.
+
+**Residuals.** A successful reset does not set `email_verified_at` and does not mail the account holder that
 their password changed; both are possible later without a schema change. `changePassword`
 and `disableAccount` still save a whole account they read earlier, so a concurrent change by
 a second actor (the owner changing a password while the operator switches the account off)
@@ -412,6 +420,27 @@ was already on the box. What holds now, each rule with the test that holds it:
   operator's invitation to that address wait an hour; that is accepted.
 - **The password is judged before the link is spent**, so a weak password costs the person nothing and
   the same link still works.
+- **The terms of use are agreed to by accepting, when the box says so** (G2-20). With
+  `LEGAL_TERMS_URL` **and** `LEGAL_TERMS_VERSION` set, an acceptance without the tick is
+  `400 terms.notAccepted`. That refusal must not become an oracle, and two rules keep it from being
+  one: it is judged **after the link is found**, so a dead link is the one `404` whatever the form
+  holds, which is to say **a dead link is never answered with the form error** (a live one is a `400`,
+  as it already is for a password the policy refuses); and **before anything about who is
+  accepting**, so an address that has an account gets the same `400` as one that has none rather than
+  `409 invitation.signInRequired` (`acceptInvitation.test.ts`, `invitationRoutes.test.ts`). The agreement is
+  written as `account.termsAccepted {version}` **in the transaction that spends the link**
+  (`AcceptInvitationRecord.audit`; `invitationAcceptanceContract.ts` holds the fake and SQLite to it:
+  nothing for a spent link or a taken address, and an entry the log refuses undoes the whole
+  acceptance). The version is the box's, read from its configuration and never from the request (the
+  body is strict and has no key for it), and the audit vocabulary has a kind of its own for it
+  (`termsVersion`: at most 32 characters of letters, digits, `.`, `_` and `-`) rather than a free-text
+  one. A box that sets neither setting, or only the address, asks nothing and records nothing.
+  Not done, on purpose: a forced re-acceptance when the version changes (the plan e-mails the owners 30
+  days ahead instead, G6-02); a record that outlives the log (the entry goes with the audit log after
+  `AUDIT_RETENTION_DAYS`, 365 at the least, and with the account's deletion it loses the pointer to the
+  person: the record that outlives both is the paid plan's `terms_acceptances`, P6-07); and the page
+  does not send the version it showed, so a version changed while a tab was open is recorded as the
+  new one (the 30-day notice is what keeps that window rare).
 - **The token is in the path and never in a log.** `/invite/<token>` and `/api/invitations/<token>`
   are written `:token` by the request logger (`loggablePath`, `errorHandler.test.ts`); the SPA
   fallback serves the former, so an error logged while serving it would otherwise have carried the
@@ -487,11 +516,14 @@ JSON, so the key names are on the wire every time.
 
 Verification lives in `src/infrastructure/crypto/hmacGuestTokenService.ts` behind the
 `GuestTokenService` port (`src/application/ports/guestTokenService.ts`). `requireGuest()`
-in `src/interface/http/middleware/authz.ts` compares the token's event id with the event
-resolved from `:eventSlug`: a valid token for another event is **403 `guest.wrongEvent`,
-not 401**. A revoked guest is **403 `guest.revoked`**; a guest row that is gone entirely
-is **401 `guestToken.malformed`**, because the event was purged and recreated and the
-phone should re-join rather than be told it is forbidden forever.
+in `src/interface/http/middleware/authz.ts` asks the `authenticateGuest` use case, which
+compares the token's event id with the event resolved from `:eventSlug`: a valid token for another event is **404 `event.notFound`**,
+the answer for an event that is not there (HTTP-M-03: the 403 it used to be, `guest.wrongEvent`, told a
+guest of any event which slugs exist, drafts and archived events included, where the public wall
+answers 404 for all three; the reason is now in the log only). A revoked guest is **403 `guest.revoked`**; a guest row that is gone entirely
+is **401 `guestToken.malformed`**, so that the phone drops the cookie and re-joins rather than
+being told it is forbidden forever. Both can only describe the event the token itself names: a
+purged and recreated slug has a new event id, so the old token takes the 404 branch above.
 
 ### Cookie flags
 
@@ -547,7 +579,8 @@ Everything in `src/interface/http/middleware/authz.ts`:
 | `requireSecondFactor(deps)`      | nothing. Mounted by `siteRoutes` **after** `requireOperator`: with `REQUIRE_OPERATOR_2FA=true`, a session whose `secondFactorAt` is not a stamp the server wrote refuses with `403 auth.secondFactorRequired` (§19); off, it does nothing                                                                             |
 | `requireStepUp(deps)`            | nothing. Declared per route, behind `requireUser`: refuses with `403 auth.stepUpRequired` unless the session confirmed a password and a code within five minutes (§19)                                                                                                                                                |
 | `requireOperator(deps)`          | the account that operates the **box**, nothing inside any event. Gates `/api/site` and `/api/site/*` when `SITE_ADMIN=on`; see the site role below                                                                                                                                                                    |
-| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked                                                                                                                                                                                                                         |
+| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, whose guest row exists and is not revoked; it also stamps the guest as seen                                                                                                                                                                                       |
+| `deferToHostSurface(deps)`       | nothing. Not a gate: on the one path a guest and a moderator share (`DELETE .../photos/:photoId`) it hands the request to the host router when the session holds a moderator-level role in that event, whatever cookie it carries, and otherwise dispatches on the cookie (HTTP-M-02)                                 |
 | `resolvePublicEvent(deps)`       | no principal, but only for an event whose `servesWall()` is true — a draft or archived event is a 404 to everyone                                                                                                                                                                                                     |
 | _(none)_                         | genuinely public — `POST /api/join`, `/api/health`, `/api/ready`, `POST /api/auth/login`, `POST /api/auth/login/2fa` (the half-finished sign-in is the credential), `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (the link is the credential) |
 | `GET /api/about`, no middleware  | genuinely public, mounted ahead of the cookie parser, the session and CSRF: the AGPL §13 source offer sets no cookie                                                                                                                                                                                                  |
@@ -612,7 +645,7 @@ different middleware, from the question of what anybody may do inside an event.
 | A site role grants **nothing** inside an event                          | an operator who could accidentally moderate a client's photographs is worse than one who cannot help at all. Support access is §10.6: time-boxed, announced and logged                                                                                                                                                                |
 | `requireRole` never reads it                                            | `authz.test.ts` asserts the refusals **and**, through `CallLog`, that the question is never even asked — including on the path where the membership is missing                                                                                                                                                                        |
 | Every event-scoped route refuses an operator who is not a member        | `siteOperatorScope.test.ts` sweeps every route off the assembled server, so a route added later is covered the day it is mounted rather than the day somebody adds it to a list                                                                                                                                                       |
-| Media is reached as a member of the public                              | `mediaRoutes` resolves its own viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                                                                   |
+| Media is reached as a member of the public                              | `identifyMediaViewer` is the viewer, so an operator asking for a photograph is `{kind:'public'}` and a pending photo stays unreadable — asserted at rings 4 and 6                                                                                                                                                                     |
 | It is read from storage on every request, never carried in the session  | a capability in a cookie outlives the account being switched off. `siteRoleFor` answers `none` for an unknown **or disabled** account, and **throws** on a value the domain does not know rather than guessing at it                                                                                                                  |
 | An operator is created in exactly two places, both on a box's first day | `bootstrapOwner` on a fresh install, and migration `004_site_role` on an upgrade — never both, since `bootstrapOwner` stops on a non-empty `users` table. Accepting an invitation creates `none` explicitly (`acceptInvitation`), and there is no route that changes a site role at all today                                         |
 | The operator's namespace exists only on a box that asked for it         | `/api/site` — itself and `/api/site/*`, never `/api/sites` — is mounted only with `SITE_ADMIN=on` (roadmap §10.9) and gated by `requireOperator` at **router level**, so a route there inherits the check. Off, every path under it answers as an unknown route does, headers included (`siteAdminMode.test.ts`): no operator surface |
@@ -666,7 +699,8 @@ disabled. It never walks to the next-oldest row. That distinction is the point: 
 account that is not disabled" reads like the same rule and stops being the same rule the
 moment the installer's login is switched off, at which point it names the first person
 somebody _invited_ — a moderator from one wedding, handed the box. A box with no operator
-costs nothing today, because `requireOperator` guards no route yet and §10.4 is both the
+costs nothing today, because `requireOperator` guards one route (`GET /api/site/client-defaults`,
+which holds configuration and no client's data) and §10.4 is both the
 first item that needs an operator and the item that ships a way to appoint one; a box with
 the wrong one holds a grant nothing can revoke. The two cases the migration cannot
 distinguish — a first account **deleted** rather than disabled — is written down in the
@@ -693,13 +727,13 @@ would have stayed green with `bootstrapOwner` writing `none`.
 
 One box hosts many events. Isolation is not a feature; it is the thing that must not break.
 
-| Layer   | Mechanism                                                                                                                             | Consequence                                                                                                                             |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Ports   | every event-scoped method takes `eventId` **first**: `findById(eventId, photoId)`, never `findById(photoId)`                          | a method that can name another event's row cannot be written by accident; the three that deliberately span events are listed below      |
-| Schema  | `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE` plus an index leading with `event_id`, on every event-scoped table   | the cascade makes "delete this event and everything in it" atomic                                                                       |
-| Fakes   | `FakePhotoRepository` keys its map on `(eventId, photoId)`                                                                            | a cross-tenant bug fails a ring-2 test instead of passing because a mock returned what it was told                                      |
-| Media   | served by a controller that resolves the event from the path, authorizes, then streams from an explicit root — never `express.static` | scoping applies to every byte; a hash guessed from another event is a 404                                                               |
-| Storage | `<MEDIA_ROOT>/<eventId>/<variant>/<hash[0:2]>/<hash>.<jpg                                                                             | mp4>`— the extension follows the rendition, so a clip is never served labelled`image/jpeg` (`src/infrastructure/media/fsMediaStore.ts`) | the only client input in a media URL is an id, and it is looked up, never concatenated into a path |
+| Layer   | Mechanism                                                                                                                             | Consequence                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Ports   | every event-scoped method takes `eventId` **first**: `findById(eventId, photoId)`, never `findById(photoId)`                          | a method that can name another event's row cannot be written by accident; the three that deliberately span events are listed below     |
+| Schema  | `event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE` plus an index leading with `event_id`, on every event-scoped table   | the cascade makes "delete this event and everything in it" atomic                                                                      |
+| Fakes   | `FakePhotoRepository` keys its map on `(eventId, photoId)`                                                                            | a cross-tenant bug fails a ring-2 test instead of passing because a mock returned what it was told                                     |
+| Media   | served by a controller that resolves the event from the path, authorizes, then streams from an explicit root — never `express.static` | scoping applies to every byte; a hash guessed from another event is a 404                                                              |
+| Storage | `<MEDIA_ROOT>/<eventId>/<variant>/<hash[0:2]>/<hash>.<jpg                                                                             | mp4>`— the extension follows the rendition, so a clip is never served labelled`image/jpeg` (`src/infrastructure/media/mediaLayout.ts`) | the only client input in a media URL is an id, and it is looked up, never concatenated into a path |
 
 ### The documented exceptions, and why each is one
 
@@ -751,16 +785,16 @@ client receives and maps to French in `web/src/lib/i18n/fr.ts`.
 | #   | Step                                                                                                                                                                                                                                                                                                                                               | Where                                                    | Failure                                                                                                                                                                          |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Rate-limit before anything else: a flood is dropped before it costs a token verification and two repository reads                                                                                                                                                                                                                                  | `middleware/rateLimit.ts`                                | 429 `rate.limited`                                                                                                                                                               |
-| 2   | Authorize: `requireGuest(deps)`, which runs **before** multer, so no byte of the body is parsed for a caller who has no standing                                                                                                                                                                                                                   | `middleware/authz.ts`                                    | 401 `auth.required`, 403 `guest.wrongEvent` / `guest.revoked`                                                                                                                    |
+| 2   | Authorize: `requireGuest(deps)`, which runs **before** multer, so no byte of the body is parsed for a caller who has no standing                                                                                                                                                                                                                   | `middleware/authz.ts`                                    | 401 `auth.required`, 404 `event.notFound` / 403 `guest.revoked`                                                                                                                  |
 | 3   | `multer` into **memory**, byte limit `MAX_UPLOAD_BYTES` (default 25 000 000) per file. No `fileFilter`: it could only read `file.mimetype`, which is the client's own string and the exact 1.0 defect                                                                                                                                              | `routes/guestRoutes.ts`                                  | 413 `upload.tooLarge`                                                                                                                                                            |
 | 4   | File count limit `MAX_FILES_PER_UPLOAD` (default 20), text-field ceiling `fields: 4`, and one accepted field name (`photos`)                                                                                                                                                                                                                       | same                                                     | 400 `upload.tooManyFiles` / `upload.unexpectedField`; an empty multipart is 400 `upload.noFiles`                                                                                 |
 | 5   | Magic-byte identification — JPEG, PNG, GIF, WebP, and HEIC/AVIF `ftyp` brands. An allow-list: an unrecognised signature is rejected, never "probably fine"                                                                                                                                                                                         | `src/infrastructure/media/magicBytes.ts` (no dependency) | 400 `image.unsupportedFormat`, with `identifySuspicious`'s guess (`svg`, `php`, `elf`, …) in `details.detected` for the log                                                      |
 | 6   | `sharp` **metadata probe** before decode, with `limitInputPixels: false` on the input so this check is the gate that decides: `width × height ≤ MAX_IMAGE_PIXELS` (default 50 000 000), each side inside `Dimensions`' 1…60 000, `pages ≤ 1`                                                                                                       | `src/infrastructure/media/sharpImageProcessor.ts`        | 413 `image.tooManyPixels`; 400 `dimensions.tooLarge` / `dimensions.tooSmall` / `dimensions.notInteger`; 400 `image.animated`; 400 `image.corrupt` when the header will not parse |
 | 7   | Re-encode **three variants**, each `.rotate()` → `.resize({ fit: 'inside', withoutEnlargement: true })` → JPEG: `original` at `Dimensions.maxEdge` q92, `display` 2560 px q82, `thumb` 480 px q72. Metadata is **not** carried over                                                                                                                | same                                                     | 400 `image.renderFailed`, with the first 200 characters of the cause in `details.reason`                                                                                         |
 | 8   | SHA-256 of the **re-encoded `display` bytes** → `content_hash`                                                                                                                                                                                                                                                                                     | `src/infrastructure/crypto/sha256ContentHasher.ts`       | 500 `photo.hashFailed`                                                                                                                                                           |
-| 9   | Write each variant: a unique temp name in the same directory, then an atomic `rename`                                                                                                                                                                                                                                                              | `src/infrastructure/media/fsMediaStore.ts`               | 500 `photo.mediaWriteFailed`; every hash this request wrote is unlinked                                                                                                          |
+| 9   | Write each variant: a unique temp name in the same directory, then an atomic `rename`                                                                                                                                                                                                                                                              | `src/infrastructure/media/fsMediaStore.ts`               | 500 `photo.mediaWriteFailed`; every hash this request wrote is unlinked unless a row names it                                                                                    |
 | 10  | Per-guest cap `settings.maxPhotosPerGuest`, then the byte quota per file, accumulating across the batch so ten files that each fit cannot collectively overrun it. This is the **cheap** check, taken before decoding so an over-quota batch is refused without doing the work; it is not the one that enforces the limit — see 11                 | `uploadPhotos.ts`                                        | 413 `event.photoLimitReached` / `event.quotaExceeded`                                                                                                                            |
-| 11  | `photos.saveManyWithinLimits(...)` — the whole batch in **one** transaction, after every byte is on disk, and the quota is re-read and compared **inside** it. That is what makes the limit hold: step 10 reads usage and then awaits three renders and three media writes per file, so two simultaneous uploads both passed it and both committed | `src/infrastructure/db/sqlitePhotoRepository.ts`         | 500 `photo.saveFailed`; the media this request wrote is unlinked                                                                                                                 |
+| 11  | `photos.saveManyWithinLimits(...)` — the whole batch in **one** transaction, after every byte is on disk, and the quota is re-read and compared **inside** it. That is what makes the limit hold: step 10 reads usage and then awaits three renders and three media writes per file, so two simultaneous uploads both passed it and both committed | `src/infrastructure/db/sqlitePhotoRepository.ts`         | a twin committed first: the file is a `duplicate` of it; else 500 `photo.saveFailed`, media unlinked unless a row names it                                                       |
 
 Steps 5 to 11 run **per file**, and a refusal is recorded against that file's index
 rather than failing the request: the response is `201` with one outcome per submitted
@@ -818,9 +852,13 @@ Details that are load-bearing:
   `CREATE UNIQUE INDEX idx_photos_event_hash ON photos (event_id, content_hash)` is the
   backstop underneath, scoped per event so two events each own their copy of the same
   bytes. It is in the database and not only in code because two concurrent requests can
-  both pass an application-level check — though today that genuine race surfaces as
-  `500 photo.saveFailed` from the batch insert rather than as a `duplicate` outcome, so
-  the duplicate is still never stored twice but the guest is told less than it could be.
+  both pass an application-level check. The loser's batch insert raises, the use case
+  asks again, and a file whose bytes now have a row is answered `duplicate` with that
+  row's id — the rest of its batch is still written. The same race can also surface as a
+  limit refusal, because a limit is decided before the index is reached, and a refused
+  photo whose bytes the album holds is answered `duplicate` too. Media is
+  content-addressed, so the loser's unwind never unlinks a digest a committed row names:
+  that is what a byte-identical twin's slide is made of.
 - **Write-then-insert, never insert-then-write.** In 1.0 a `sharp` failure after the
   insert left rows pointing at no file. A failed ingest now leaves neither.
 - **SVG is rejected, not sanitised.** It is a script container served from our own
@@ -1019,11 +1057,12 @@ on a restart loop)**.
 | --------------------------------------------- | ------------ | ---------------------- | --------------- | ------ |
 | `POST /api/auth/login` †                      | 10           | —                      | —               | 1 min  |
 | `POST /api/events` (create)\*                 | —            | —                      | —               | 1 hour |
-| `GET /api/join/:code` (code lookup)           | 20           | 60                     | —               | 1 min  |
+| `GET /api/join/:code` (code lookup)           | 20 (as join) | —                      | —               | 1 min  |
 | `POST /api/events/:slug/guests` (join)        | 10           | 60                     | —               | 1 min  |
 | `POST /api/events/:slug/photos`               | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/clips`                | **(defect)** | **(defect)**           | —               | 1 min  |
 | `POST /api/events/:slug/photos/:id/reactions` | 120          | 600                    | 60              | 1 min  |
+| the five other guest writes (below)           | 300 per pair | (keyed together)       | —               | 1 min  |
 | `GET /api/events/:slug/stream` (SSE)          | 5 concurrent | 200 concurrent         | —               | —      |
 | `GET /api/gallery/:token`, `…/photos`, unlock | 120          | —                      | —               | 1 min  |
 | `GET /api/gallery-media/…`                    | 3000         | —                      | —               | 1 min  |
@@ -1046,11 +1085,25 @@ limiter at all. The numbers above were never implemented; the intent — a limit
 whole table of guests behind one venue access point does not trip on somebody else's
 behalf — is served by the composite key rather than by three tiers.
 
-- Limits return **429** with `Retry-After` and the code `request.rateLimited`. A named
+**The five other guest writes** — a caption, taking a photo back, withdrawing a reaction,
+renaming oneself and acknowledging the privacy notice — spend **one** bucket keyed by `clientKey:eventSlug`,
+`GUEST_WRITE_RATE_LIMIT_PER_MINUTE` (default **300**), built once in `server.ts` and mounted ahead
+of `requireGuest` (HTTP-H-01). Before it a guest token, which costs nothing because
+`POST /api/join` is public, could repeat a caption edit without limit, and each edit is announced
+to every screen watching the event. 300 is a backstop sized for a room and not a tuned figure: a
+venue shares one address, and what it legitimately sends is bounded by the upload and join budgets.
+It counts per client address **and** event together (a pair has 300, not an address).
+`guestWriteRateLimit.test.ts` pins each mount and its place ahead of `requireGuest`, the shared
+bucket and the key, and sweeps the route table so that a sixth guest write with no limiter fails.
+
+- Limits return **429** with `Retry-After` and the code `rate.limited` (or the route's own, such as `reaction.rateLimited`). A named
   ring-4 test asserts the status; a limiter that silently allows everything is the
   classic dead control.
-- The join-code lookup is limited _per code as well as per IP_: an 8-character code is
-  guessable and a botnet defeats a per-IP limit alone.
+- The join-code lookup (`GET /api/join/:code`) and the join itself spend **one** budget per
+  address, `JOIN_RATE_LIMIT_PER_MINUTE`, because they answer one question (is this a real, open
+  event) and a second bucket would have doubled the rate at which codes can be tried. A
+  budget _per code_ as well, which a botnet spreading over addresses would meet, was planned and
+  is not built.
 - **The quota is the disk control, not the rate limit.** `events.quota_bytes` is compared
   against `SUM(byte_size)` for the event **inside the insert transaction**, because two
   concurrent uploads can both pass a check made outside it. When it is reached the event
@@ -1310,12 +1363,61 @@ hold back what the host themselves asked for: their shorter retention was the pr
 moved. The guest's privacy notice carries the retention the box applies (`privacyNoticeOf`), not the
 host's "for ever".
 
-**Not covered here, and said plainly.** A suspended client (`clients.suspended_at`) is not refused
-anywhere yet — suspension and its single "same 404 as an unknown event" answer belong to the operator API
-(roadmap §10.4, G2-14). The audit log exists (G2-06) but its catalogue has no `event.autoClosed` entry and
+**Not covered here, and said plainly.** The audit log exists (G2-06) but its catalogue has no `event.autoClosed` entry and
 the sweep does not write one, and the e-mail to the host when a window closes an event waits for the mailer
 (G2-07); the sweep already reports the closed ids as `autoClosed` and logs them, which is the seam both will use. An event already live when its client's `live_allowed` becomes 0 is not
 force-closed: `max_live_days` bounds it, and quarantine is about opening.
+
+### What a new client starts with (`NEW_CLIENT_*`, G2-18)
+
+The ceilings above are a client's own. A **new** client gets them from two places: the operator who
+provisions it, and, for every ceiling the operator leaves out, seven optional settings of the box —
+`NEW_CLIENT_MAX_EVENTS`, `_MAX_EVENTS_PER_PERIOD`, `_MAX_TOTAL_BYTES`, `_MAX_EVENT_QUOTA_BYTES`,
+`_MAX_RETENTION_DAYS`, `_MAX_LIVE_DAYS` and `NEW_CLIENT_CLIPS_ALLOWED`. They exist so that a box run for
+other people cannot hand out an unlimited client by forgetting to type a number, and they change
+nothing for anybody else: **absent is no ceiling**, so a box that sets none provisions every client as
+it always did.
+
+- **Named wins, omitted defaults.** `provisionClientOwner` keeps every ceiling the operator names, an
+  explicit `null` included (which lifts the default for that one client), and takes the default for each
+  one it leaves out. The other reading — defaults only when the operator names nothing at all — makes a
+  console form that forgets one field a client with no storage ceiling on a box that meant to have one.
+  `startingCeilings` is the rule and `newClientCeilings.test.ts` holds it; a per-period count, from the
+  defaults or named by the operator (a form pre-filled from the defaults sends it back named), starts
+  its period on the day of provisioning unless the operator dated it, so a renewal has a date to move.
+- **They bind new clients only.** Changing a setting and restarting touches no client that exists:
+  `setClientCeilings` is the way to move one, audited, and it never reads these settings. What a client
+  was promised on its first day is recorded, not recomputed: `provisionClientOwner` writes
+  `client.created` with the full snapshot of the ceilings it started with, **before** the invitation is
+  sent (§17), because the settings are configuration and change at the next boot.
+- **Refused at boot, naming the variable, exit 78**: a value outside the bounds of the `clients` table's
+  own `CHECK`s (the day counts are the domain's constants, not a second copy), and a `NEW_CLIENT_*` of any
+  kind with `SITE_ADMIN=off` — nothing can create a client on a box with no operator namespace, so the
+  setting would be one its owner believes is in force and nothing ever reads (roadmap §10.9). The refusal
+  finds the family by its prefix, so a variable added later is covered without a list to extend. A name
+  under the prefix that this version does not read (`NEW_CLIENT_MAX_EVENT`) is refused too, with the
+  seven it may have meant and never its value: a schema drops a key it does not declare in silence, and a
+  hosted box with a misspelt ceiling would boot with none.
+- **Against the box-wide ceiling.** `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` may not exceed
+  `MAX_EVENT_QUOTA_BYTES` (G3-02): the box's number binds every event whatever a client's own says
+  (`quotaBound`), so a larger default would promise a quota `createEvent` refuses. It may be **below**
+  `DEFAULT_EVENT_QUOTA_BYTES`, which the box-wide one may not: `createEvent` lowers a new event's default
+  quota to its client's ceiling, and refuses only a quota a host asked for by name.
+- **The route shows them, and only to the operator.** `GET /api/site/client-defaults` (API.md §1) answers
+  the seven values for the console's form, behind the namespace's gate (`requireOperator`, and the second
+  factor where required), `no-store`. It reads the process's settings and no table.
+
+Named tests: the `NEW_CLIENT_*` block of `env.test.ts`, `newClientCeilings.test.ts`,
+`provisionClientOwner.test.ts` (the ceilings it starts with, and the entry it writes), the `NEW_CLIENT_*`
+block of `container.test.ts` and `siteClientDefaults.test.ts`.
+
+**A change of ceilings carries a reason, and it is mandatory** (G2-14; decided 2026-10-23). The audit entry
+is `client.ceilingsChanged {before, after, reason}` and `PUT /api/site/clients/:clientId/ceilings` answers
+`400` without one (API.md §1). The audit vocabulary has no free-text kind on purpose (§17), so the reason is
+the **one** exception, with a kind of its own, a bound and a decision about what an operator may write there;
+both are in §22. `POST /api/site/clients` provisions through `provisionClientOwner`, so a client created over
+the wire always starts with the box's `NEW_CLIENT_*` defaults and a `client.created` line: `createClient`,
+which is also built, applies no default and writes no line, and no route calls it.
 
 ## 6. Session security
 
@@ -1350,17 +1452,24 @@ Passport is removed. Login is one use case (`authenticateUser`) plus one control
 
 So: **double-submit token**, on top of Lax.
 
-| Element      | Value                                                                                                       |
-| ------------ | ----------------------------------------------------------------------------------------------------------- |
-| Cookie       | `es_csrf`, 32 random bytes base64url, readable by JS, `SameSite=Lax`, `Secure` in prod                      |
-| Header       | `X-EventSlide-CSRF`                                                                                         |
-| Issued       | on session creation, on guest join, and by `GET /api/csrf` for a cold page load                             |
-| Enforced     | `middleware/csrf.ts` on every request whose method is not GET/HEAD/OPTIONS, **including multipart uploads** |
-| Compared     | `crypto.timingSafeEqual` on the raw bytes; mismatch or absence → 403 `request.csrfInvalid`                  |
-| Also checked | `Origin` (or `Referer` when absent) against `PUBLIC_URL`, as defence in depth                               |
+| Element  | Value                                                                                                                              |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Cookie   | `es_csrf`, 32 random bytes base64url, readable by JS, `SameSite=Lax`, `Secure` in prod                                             |
+| Header   | `X-CSRF-Token`                                                                                                                     |
+| Issued   | on any request that arrives without one, so a cold page load gets it; replaced when a login or a logout changes who the browser is |
+| Enforced | `middleware/csrf.ts` on every request whose method is not GET/HEAD/OPTIONS, **including multipart uploads**                        |
+| Compared | `crypto.timingSafeEqual` on the raw bytes; absence → 403 `request.csrfMissing`, mismatch → 403 `request.csrfMismatch`              |
 
 A cross-site attacker can make the browser _send_ the cookie but cannot _read_ it to set
 the header — the same-origin policy governs reading, not sending.
+
+**There is no `Origin` or `Referer` check**, against `PUBLIC_URL` or anything else: an earlier
+version of this table listed one as defence in depth, and the code never had it
+(`middleware/csrf.ts` reads a cookie and a header and nothing more). What stands where it was
+supposed to is the preflight. `X-CSRF-Token` is not a CORS-safelisted header, so a page on
+another origin may not send it unless the server says it may, and this server mounts no CORS
+middleware and emits no `Access-Control-Allow-*` header. **If CORS is ever added, this section
+is reopened**, and an `Origin` check is one of the things to weigh then.
 
 Consequence for the frontend: **no native `<form method="post">` submissions**. Every
 mutation goes through `web/src/lib/http.ts`, which attaches the header, so no endpoint
@@ -1440,25 +1549,25 @@ screen, and `src/interface/http/routes/privacyNoticeRoutes.ts` says why a refusa
 upload routes would put the offline queue's photos at risk to stop only a client that
 skipped the screen on purpose.
 
-| Data                                                                                            | Why                                                                                                                | Retention                                                                                                                                                                                                                                 |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Re-encoded photo bytes                                                                          | the product                                                                                                        | until photo delete, event purge, or `settings.retentionDays`                                                                                                                                                                              |
-| Transcoded clip bytes and its poster frame                                                      | the product                                                                                                        | as above                                                                                                                                                                                                                                  |
-| A clip still waiting for the transcoder                                                         | it is the guest upload, on its way                                                                                 | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1)                                                                 |
-| `guests.display_name` (a first name, guest-typed)                                               | attribution on the wall                                                                                            | with the event                                                                                                                                                                                                                            |
-| `guests.notice_revision` + `notice_acknowledged_at`                                             | which privacy notice this device read, and when (§5.1)                                                             | with the event; replaced when the guest reads a newer notice, so only the latest is kept                                                                                                                                                  |
-| Guest device token (cookie only, `gid` in `guests`)                                             | re-identify a device without an account                                                                            | token TTL                                                                                                                                                                                                                                 |
-| `es_device` (cookie only): a device id, the account id, an instant, a signature                 | tell a browser that has signed in before from a stranger on the same network, in the sign-in throttle (§5)         | 90 days from the last sign-in, in the browser; **nothing is stored on the server**, and it holds no e-mail address                                                                                                                        |
-| `photos.caption`                                                                                | the guest's words                                                                                                  | with the photo                                                                                                                                                                                                                            |
-| `account_tokens`: a token **digest**, the address it was sent to, an account id, times          | the links that prove control of a mailbox: a password reset, an invitation (§2)                                    | an hour (a reset) or a week (an invitation) from issue, then deleted by the next reset or invitation request once it has been expired for a day; deleted with the account (a reset) or with the event or client it was to (an invitation) |
-| `user_totp`: the authenticator secret, **encrypted**, a key version, times, the last step spent | the operator's second factor (§19)                                                                                 | with the account; removed when the factor is switched off                                                                                                                                                                                 |
-| `user_recovery_codes`: SHA-256 **digests** of the recovery codes, and when each was spent       | the way back in when the phone is gone (§19)                                                                       | with the factor                                                                                                                                                                                                                           |
-| `users.credentials_changed_at`                                                                  | the credentials epoch: when this account last changed its password, signed out everywhere or was switched off (§2) | with the account; it only moves forward                                                                                                                                                                                                   |
-| `users.email` + bcrypt hash                                                                     | host/moderator accounts                                                                                            | until account delete                                                                                                                                                                                                                      |
-| Session rows                                                                                    | login                                                                                                              | ≤ 12 h                                                                                                                                                                                                                                    |
-| `share_links`: token **digest**, password hash, creator, times                                  | the host's shared gallery (§15)                                                                                    | with the event; a revoked link's row is kept, and opens nothing                                                                                                                                                                           |
-| `clients.name`, `clients.contact_email` (operator-typed)                                        | who an operator runs the box for (§10.2)                                                                           | until the client is deleted, which is refused while it has a member or an event; empty on a box that never created one                                                                                                                    |
-| `audit_log`: an actor id, an action, ids, numbers                                               | who changed what on the box (§17)                                                                                  | `AUDIT_RETENTION_DAYS`, 1095 by default and never below 365; the actor id becomes `NULL` with its account                                                                                                                                 |
+| Data                                                                                                              | Why                                                                                                                | Retention                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Re-encoded photo bytes                                                                                            | the product                                                                                                        | until photo delete, event purge, or `settings.retentionDays`                                                                                                                                                                              |
+| Transcoded clip bytes and its poster frame                                                                        | the product                                                                                                        | as above                                                                                                                                                                                                                                  |
+| A clip still waiting for the transcoder                                                                           | it is the guest upload, on its way                                                                                 | minutes — deleted when the transcode succeeds or the clip itself is refused; kept until the event is purged when the box abandoned the job, and **never servable** (§4.1)                                                                 |
+| `guests.display_name` (a first name, guest-typed)                                                                 | attribution on the wall                                                                                            | with the event                                                                                                                                                                                                                            |
+| `guests.notice_revision` + `notice_acknowledged_at`                                                               | which privacy notice this device read, and when (§5.1)                                                             | with the event; replaced when the guest reads a newer notice, so only the latest is kept                                                                                                                                                  |
+| Guest device token (cookie only, `gid` in `guests`)                                                               | re-identify a device without an account                                                                            | token TTL                                                                                                                                                                                                                                 |
+| `es_device` (cookie only): a device id, the account id, an instant, a signature                                   | tell a browser that has signed in before from a stranger on the same network, in the sign-in throttle (§5)         | 90 days from the last sign-in, in the browser; **nothing is stored on the server**, and it holds no e-mail address                                                                                                                        |
+| `photos.caption`                                                                                                  | the guest's words                                                                                                  | with the photo                                                                                                                                                                                                                            |
+| `account_tokens`: a token **digest**, the address it was sent to, an account id, times                            | the links that prove control of a mailbox: a password reset, an invitation (§2)                                    | an hour (a reset) or a week (an invitation) from issue, then deleted by the next reset or invitation request once it has been expired for a day; deleted with the account (a reset) or with the event or client it was to (an invitation) |
+| `user_totp`: the authenticator secret, **encrypted**, a key version, times, the last step spent                   | the operator's second factor (§19)                                                                                 | with the account; removed when the factor is switched off                                                                                                                                                                                 |
+| `user_recovery_codes`: SHA-256 **digests** of the recovery codes, and when each was spent                         | the way back in when the phone is gone (§19)                                                                       | with the factor                                                                                                                                                                                                                           |
+| `users.credentials_changed_at`                                                                                    | the credentials epoch: when this account last changed its password, signed out everywhere or was switched off (§2) | with the account; it only moves forward                                                                                                                                                                                                   |
+| `users.email` + bcrypt hash                                                                                       | host/moderator accounts                                                                                            | until account delete                                                                                                                                                                                                                      |
+| Session rows                                                                                                      | login                                                                                                              | ≤ 12 h                                                                                                                                                                                                                                    |
+| `share_links`: token **digest**, password hash, creator, times                                                    | the host's shared gallery (§15)                                                                                    | with the event; a revoked link's row is kept, and opens nothing                                                                                                                                                                           |
+| `clients.name`, `clients.contact_email` (operator-typed)                                                          | who an operator runs the box for (§10.2)                                                                           | until the client is deleted, which is refused while it has a member or an event; empty on a box that never created one                                                                                                                    |
+| `audit_log`: an actor id, an action, ids, numbers, and **one operator-typed reason** per change of ceilings (§22) | who changed what on the box (§17)                                                                                  | `AUDIT_RETENTION_DAYS`, 1095 by default and never below 365; the actor id becomes `NULL` with its account                                                                                                                                 |
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
@@ -1503,6 +1612,9 @@ confirmation) against a real logger and a real access log and requires that the 
 token, the link and the new password appear in none of it.
 **`malformedPathLogCanary.test.ts`** is the other way a credential reaches an error log: a link
 cut in the middle of a percent-escape, whose decode error carries the raw parameter.
+**`loggablePathLogCanary.test.ts`** is the third: those same addresses spelled with doubled
+slashes and percent-escaped letters, so that the path the request's logger carries is the one
+under test.
 
 ### Data-subject flows a host can actually perform
 
@@ -1528,7 +1640,7 @@ once with zod at startup, exported as a frozen typed object.
 | `SESSION_SECRET`                   | **yes in production**                       | none                                  | signs `es_sid`                                                                                                                                                              |
 | `GUEST_TOKEN_SECRET`               | **yes in production**                       | none                                  | HMAC key for guest tokens                                                                                                                                                   |
 | `NODE_ENV`                         | no                                          | **`production`**                      | gates `Secure` cookies, HSTS, strict CSP, and both secrets — see below                                                                                                      |
-| `PUBLIC_URL`                       | no, but **warned** if unset in production   | `http://localhost:5173`               | join links, QR codes, `Origin` check — production refuses `http://` except on `localhost`; see below                                                                        |
+| `PUBLIC_URL`                       | no, but **warned** if unset in production   | `http://localhost:5173`               | join links, QR codes, the links in mailed invitations and password resets — production refuses `http://` except on `localhost`; see below                                   |
 | `DATABASE_PATH` / `MEDIA_ROOT`     | no                                          | `./data/eventslide.sqlite`, `./media` | see file permissions in §11                                                                                                                                                 |
 | `TRUST_PROXY_HOPS`                 | no                                          | `0`                                   | see §11 — wrong values break rate limiting, and warned below                                                                                                                |
 | `MAX_UPLOAD_BYTES`                 | no                                          | `25000000`                            | multer's per-photo limit                                                                                                                                                    |
@@ -1554,6 +1666,7 @@ once with zod at startup, exported as a frozen typed object.
 | `SOURCE_CODE_URL`                  | no                                          | upstream tag of this version          | the AGPL §13 source link: https only, no credentials, never hidden (API.md §2)                                                                                              |
 | `SOURCE_REF`                       | no                                          | none                                  | Docker build argument behind the same link: a git tag, branch or commit                                                                                                     |
 | `EVENT_CREATION`                   | no                                          | `anyAccount`                          | `clientMembers`: members of a client and the operator only; needs `SITE_ADMIN=on`                                                                                           |
+| `NEW_CLIENT_*` (seven)             | no                                          | none: no ceiling, clips allowed       | the ceilings a new client starts with (§5); **refused with `SITE_ADMIN=off`**; `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` at most `MAX_EVENT_QUOTA_BYTES`                           |
 | `OPERATOR_RESET_LINKS`             | no                                          | `mailOnly`                            | `copyLinkWithOwnerApproval` hands an operator a reset link on a box with no relay, after another owner approves; **weakens §20**; needs `SITE_ADMIN=on`                     |
 | `AUDIT_RETENTION_DAYS`             | no                                          | `1095`                                | how long the audit log keeps a row, 365 to 3650 (§17)                                                                                                                       |
 | `DONATION_URL` / `BUDGET_URL`      | no                                          | empty                                 | optional support links: https only, no credentials, off guest screens and the wall (API.md §2)                                                                              |
@@ -1564,6 +1677,7 @@ once with zod at startup, exported as a frozen typed object.
 | `OPERATOR_NAME`                    | no                                          | empty                                 | who runs the box: plain text, 100 characters, no control or bidi character; also named in the guest notice (API.md §2)                                                      |
 | `OPERATOR_CONTACT_EMAIL`           | no                                          | empty                                 | one plain address published beside the name; refused at boot without `OPERATOR_NAME`                                                                                        |
 | `LEGAL_*_URL`                      | no                                          | empty                                 | `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`: https or a path on this site (API.md §2)                                                                        |
+| `LEGAL_TERMS_VERSION`              | no                                          | empty                                 | the short name of the terms at `LEGAL_TERMS_URL` (32 characters of letters, digits, `.`, `_`, `-`); with the URL, accepting an invitation asks for the terms and records it |
 | `SUPPORT_URL` / `REPORT_URL`       | no                                          | empty                                 | help for a host; where to report a content. Same rule: never `javascript:`, `data:`, `http:` or `//host`                                                                    |
 
 Boot refuses, loudly, when in production either secret is missing, is shorter than 32
@@ -1591,6 +1705,16 @@ configurations they describe already run on boxes in the wild, and a self-hosted
 who upgrades expects a changed default to warn before it ever refuses. A refusal for
 either belongs in a major version, announced in the CHANGELOG, not a silent tightening of
 an existing minor.
+
+`PUBLIC_URL` is refused in every environment, too, when it contains a tab or a line break,
+ends in whitespace, a control character or an invisible one, carries a user name or a
+password, or carries a query string or a fragment (a `?` or a `#` anywhere, even a bare one: every
+link is made by appending a path to the address, so the join link would end up inside the query or the fragment;
+written as `%3F` or `%23` in a path prefix they are accepted). The refusal names the variable and
+never prints the value, which may be the password, and `http://user:pw@localhost` is no
+way round production's `localhost` exemption. What is accepted is handed on in its
+canonical form: lower-case scheme and host, no default port, the path as the URL parser
+spells it (its case is kept, a space becomes `%20`), no trailing slash. The QR code, the join link and the mails all carry that one spelling.
 
 **Saying nothing means production, and that is the security default of the file.** It used
 to mean development, and five controls hang off the answer at once: both secrets fell back
@@ -1752,10 +1876,10 @@ the moderation queue; nothing published itself.
 Revocation is the targeted control, and it holds on its own against the phone in the
 room. Two gates, and the second is what makes the first worth pressing:
 
-| Gate                                           | Where                                                                         | Answer                                                           |
-| ---------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| The token the guest is holding stops granting  | `requireGuest` (middleware) and `authenticateGuest` (use case), independently | `403 guest.revoked` on upload, delete, caption, reaction         |
-| The device cannot re-join for a fresh identity | `joinEvent` (`src/application/usecases/guests/joinEvent.ts`)                  | `404 event.notFound`, no guest row, no cookie, no `guest.joined` |
+| Gate                                           | Where                                                              | Answer                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| The token the guest is holding stops granting  | `requireGuest`, which asks `authenticateGuest`: one implementation | `403 guest.revoked` on upload, delete, caption, reaction         |
+| The device cannot re-join for a fresh identity | `joinEvent` (`src/application/usecases/guests/joinEvent.ts`)       | `404 event.notFound`, no guest row, no cookie, no `guest.joined` |
 
 `joinEvent` reads the device token the phone presents, and a token naming a **revoked
 guest of this event** refuses the join instead of falling through to a new row. Without
@@ -1906,7 +2030,7 @@ nothing, and a directory can be rsynced, resumed and inspected at 2am.
 ```
 <archive>/manifest.json          counts, SHA-256 checksums, the migration ledger
 <archive>/database.sqlite        the snapshot
-<archive>/media/<eventId>/<variant>/<ab>/<contentHash>.jpg
+<archive>/media/<eventId>/<variant>/<ab>/<contentHash>.<ext>
 ```
 
 **The database is captured first, and the skew that leaves is the recoverable one.** The
@@ -2382,7 +2506,8 @@ route would reach for a middleware that does not compile.
 > it answers an unauthenticated caller. `scripts/verify-image.sh` drives the refusal
 > against the built image with `NODE_ENV=` blanked. The two smaller divergences in the last
 > paragraph — the secrets not being required to differ, and the missing `Origin`/`Referer`
-> check — are **unchanged and still true**. See §10.
+> check — are **unchanged and still true**; §7 and §10 now say the check is missing
+> instead of listing it. See §10.
 
 `SESSION_SECRET` and `GUEST_TOKEN_SECRET` are held to 32 characters and a placeholder
 blocklist by `config/env.ts:36-42`, environment-independently, and
@@ -2399,7 +2524,8 @@ which arrangement is in force.
 
 Two smaller divergences. The two secrets are **not** required to differ — §2 says
 "separate from `SESSION_SECRET`" and no code compares them. And the `Origin`/`Referer`
-check that §7 lists as "also checked" and §10 credits to `PUBLIC_URL` **does not exist**:
+check that §7 listed as "also checked" and §10 credited to `PUBLIC_URL` **does not exist**
+(both sections now say so):
 `middleware/csrf.ts:147-165` reads a cookie and a header and nothing else. The
 double-submit token itself is correctly built — `timingSafeEqual` at `csrf.ts:138-145`,
 mounted globally at `server.ts:116` **ahead of both multer instances** (`:133`, `:137`), so
@@ -2416,10 +2542,10 @@ multipart uploads are genuinely covered, as §7 claims.
   §4.1's claims about `-protocol_whitelist file`, the pinned `-f` demuxer, the absence of
   `-c copy`, `-map 0:v:0 -map 0:a:0? -dn -sn` and the double `yuv420p` are all CONFIRMED at
   `ffmpegVideoTranscoder.ts:311`, `:313`, `:464-467`, `:483-491`, `:497` and `:510`.
-- **No guest string reaches a path segment.** `fsMediaStore.ts:99-115` builds paths from a
+- **No guest string reaches a path segment.** `fsMediaStore.ts`'s `pathFor` builds paths (the layout is `mediaLayout.ts`) from a
   `randomUUID` event id, a closed-union variant and a `/^[0-9a-f]{64}$/` digest, each
   re-validated at the store boundary, with an explicit `startsWith(absoluteRoot + sep)`
-  containment check at `:111-113`. `originalname` is carried as `declaredName` metadata
+  containment check after it. `originalname` is carried as `declaredName` metadata
   (`routes/guestRoutes.ts:347`, `routes/clipRoutes.ts:186`) and is deliberately kept out of
   the response body (`presenters/presenters.ts:443-456`). `express.static` serves only the
   built web bundle (`server.ts:182`), never `MEDIA_ROOT`.
@@ -2465,8 +2591,8 @@ cannot be traced to a file must be marked, never left standing.
 | §8                       | `base-uri 'none'`                                                                 | `baseUri: ["'self'"]` — `securityHeaders.ts:43`                                                                                                                                                                                                                                                                                                                                    |
 | §8                       | helmet lives in `server.ts`                                                       | `middleware/securityHeaders.ts:15-74`, mounted at `server.ts:65`                                                                                                                                                                                                                                                                                                                   |
 | §8                       | HSTS 180 days                                                                     | 365 days — `securityHeaders.ts:66`. Here the code is stricter than the doc                                                                                                                                                                                                                                                                                                         |
-| §7, §10                  | an `Origin` / `Referer` check against `PUBLIC_URL`                                | Does not exist — `middleware/csrf.ts:147-165`                                                                                                                                                                                                                                                                                                                                      |
-| §5                       | `GET /api/join/:code` limited per code as well as per IP                          | **That route does not exist.** The code is resolved inside `POST /api/join`, limited per IP only — `routes/publicRoutes.ts:94`                                                                                                                                                                                                                                                     |
+| §7, §10                  | an `Origin` / `Referer` check against `PUBLIC_URL`                                | Does not exist — `middleware/csrf.ts:147-165`. §7 and §10 no longer claim it                                                                                                                                                                                                                                                                                                       |
+| §5                       | `GET /api/join/:code` limited per code as well as per IP                          | **Per IP only.** The route now exists and shares the join's one per-IP budget; none is per code — `routes/publicRoutes.ts`                                                                                                                                                                                                                                                         |
 | §5                       | the SSE hub "drops the oldest idle connection rather than refusing"               | It **refuses**, cleanly and before headers — `middleware/rateLimit.ts:156-168`, `routes/streamRoutes.ts:295`. The per-IP and per-event numbers in that table are also wrong: the code is 12 per client, 200 per event, 500 per process                                                                                                                                             |
 | §8                       | "fonts are bundled, self-hosted"                                                  | No font is shipped; `CLAUDE.md` §8 already corrected this. `font-src 'self'` is right, the note beside it is not                                                                                                                                                                                                                                                                   |
 | §14, "Fill the disk?"    | "no `statfs` or `checkDiskSpace` in `src/`"                                       | No longer: G3-06 / P4-10 added a process-wide upload concurrency cap and a `statfs`-based free-disk-space guard (`429 upload.busy`, `413 storage.boxFull`), reported without gating at `GET /api/ready`. See §5                                                                                                                                                                    |
@@ -2542,7 +2668,8 @@ broken.
   or infinite number for a numeric variable (`JOIN_CODE_LENGTH=6.5`) is now a type error, which
   stops the cross-field checks, so any other cross-field problem is named on the next boot.
 - **`PUBLIC_URL` is judged as written.** zod 4's `url` check trims its input and passes the
-  trimmed copy on, so the scheme check would have read a string nobody typed.
+  trimmed copy on, so the scheme check would have read a string nobody typed. A trailing
+  space or tab is refused for the same reason: the URL parser drops it without a word.
 - **Refusal wording.** An unknown word for a closed set is still `Expected 'off' | 'on'`, and
   no longer ends in `received '<what was typed>'`, which zod 3 appended. The messages
   `scripts/verify-image.sh` and the docs quote are written in this repository and did not move;
@@ -2587,18 +2714,40 @@ A token whose last character was cut in half by a chat app that truncates a link
 (`/g/<token>%E2%80`) cannot be decoded, and Express refuses it when it matches the address
 to a route: the link is never looked up. On the gallery's API that is one more malformed token,
 the single dead-link `404 gallery.notAvailable` above, byte for byte, from the gallery router
-(the invitation API does the same with its own refusal); anywhere else, the pages included, it
+(the invitation API does the same, `404 invitation.notFound`, from its own router; `invitationRoutes.test.ts` and `invitationUndecodablePath.test.ts` hold it); anywhere else, the pages included, it
 is the error handler's `400 request.invalid`, the same for every address and no oracle for a real
 token. It used to be a
 `500` whose log line carried Express's own message, `Failed to decode param '<the raw
 parameter>'` — the whole credential, in the error log, on a gallery, invitation or
-password-reset address. Both answer it by the class **and** the `status: 400` the router stamps, so a
-`URIError` of ours stays a bug, with nothing from the error in the log, and the error handler
+password-reset address. The error handler and both routers answer it by the class **and** the `status: 400` the router
+stamps, so a `URIError` of ours stays a bug (a 500 with its own line and stack in the log; the refusal itself
+logs nothing from the error), and the error handler
 sets the gallery's three headers when the address carries a credential. `malformedPath.test.ts` holds the answers and `malformedPathLogCanary.test.ts`
 reads every byte the real logger and the access log write for the canonical addresses
-`loggablePath` knows. It does not widen what `loggablePath` recognises: an address with a
-doubled slash or an encoded prefix (`//g/<token>`, `/%67/<token>`) is logged as it came at
-debug level, which is a gap in `loggablePath` that this paragraph does not close.
+`loggablePath` knows.
+
+**The same address spelled another way is redacted too.** `loggablePath` matches on the path
+after three normalisations, so `//g/<token>`, `/%67/<token>`, `/g/./<token>` and
+`/api/%69nvitations/<token>` are logged as `/g/:token` and `/api/invitations/:token`: doubled
+slashes are collapsed, a percent-escape of an unreserved character (a letter, a digit, `-._~`,
+RFC 3986 section 2.3) is replaced by the character, since a decoder, a proxy or a client
+library treats the two as one address, and dot segments are removed (the page routes are
+wildcards, so `/g/./<token>` reaches the page; a browser resolves the dot before it sends, `curl
+--path-as-is` does not). `..` is read both ways, kept and resolved, because resolved
+`/g/<token>/..` has no token left to find. Any other escape (`%2F`, `%20`) is left as written.
+A path with an escape cut in the middle (`%E0%A4%A`) cannot make the normalisation fail, because
+it decodes one escape at a time: the address in front of the break is read as usual and its
+token redacted. A path that carries no token is still logged as it came. The error handler
+sets the gallery's three headers on the refusal by the same test. `errorHandler.test.ts` holds
+what each spelling is logged as, and `loggablePathLogCanary.test.ts` reads every byte the real
+logger and an enabled access log write for the five credential addresses in eight spellings
+each.
+
+**What it does not cover.** A spelling that no router reads as the address: a backslash
+(`/g<token>`), `%2F` or `%5C` for a slash, a `;parameter` in a segment, a NUL. Express sends
+every one of them to the client fallback, never to a token handler, so they matter only behind
+a proxy that rewrites them into the address, and this repository configures none. A path like
+that, with a cut escape after the token, is logged at debug level as it came.
 
 **A link-preview bot learns nothing.** Messaging apps fetch a pasted URL to draw a preview.
 What they get at `/g/<token>` is the SPA shell — the album is loaded by the page's script —
@@ -2647,8 +2796,9 @@ is future work, and nothing here claims it is done.
 ## 17. The audit log
 
 Roadmap §10.8. Who changed which ceiling, and when, recorded by the application in a table that its
-own code cannot rewrite by accident. There is **no route** that reads it yet: the operator's view is
-G2-14 (`/api/site`) and the client's own is G2-16, and neither is described here until it exists.
+own code cannot rewrite by accident. The client's own view is `GET /api/client/audit` (§21); the
+operator's is `GET /api/site/audit` (§22), which is unfiltered, names the account behind an operator's or a
+member's act, and carries the one free-text detail the log holds, the operator's reason.
 
 **What a row holds.** An instant, the actor (`operator`, `member`, `system` or `integration`, with
 an account id for an operator or a member, and a constant label, never both, for a process or an
@@ -2656,8 +2806,10 @@ integration), an action, a subject (a type and an opaque id), the client it belo
 `details`, a JSON object. **Never** a photograph, a caption, a guest's name, an address, a slug, a
 filename or a token. That is enforced, not requested: each action declares in
 `src/domain/audit/auditAction.ts` the exact keys and kinds of its `details`, the vocabulary of a
-kind (`integer`, `boolean`, `instant`) has **no string member but an instant**, and
-`AuditEntry.create` refuses an undeclared key and a value of the wrong kind, naming where and never
+kind (`integer`, `boolean`, `instant`; the version of the terms of use, `termsVersion`: at most 32
+characters of a fixed alphabet, from the box's configuration and never from a request; and the one
+bounded `reason`, §22) has **no free-text member but that one**, and `AuditEntry.create` refuses an
+undeclared key and a value of the wrong kind, naming where and never
 what. There is deliberately **no `id` kind**: a slug, a join code and a token are strings of the same
 alphabet as an id, so a kind that admitted "an id" would admit them while promising otherwise; the
 first action that must name a second entity adds a kind typed to it. An account is named by its id,
@@ -2695,27 +2847,43 @@ table. `scripts/auditPruneScope.test.ts` fails if any other production code name
 `HttpUseCases`. The retention sweep calls it, so **with `RETENTION_SWEEP_INTERVAL_MINUTES=off`
 nothing prunes the audit log** (`npm run purge` does not yet).
 
-**Personal data.** None by construction (above). The one pointer to a person, `actor_user_id`, is an
-opaque id that becomes `NULL` when the account is deleted; there is nothing else to erase.
-`client_id` has no foreign key, so a deleted client's history outlives it.
+**Personal data.** None by construction, **with one exception** (G2-14). The pointer to a person,
+`actor_user_id`, is an opaque id that becomes `NULL` when the account is deleted. The exception is the
+operator's **reason** for a change of ceilings (§22): up to 200 characters of free text, refused if it holds
+an `@` but otherwise whatever the operator wrote, in a table whose triggers refuse every `UPDATE` and every
+`DELETE` outside retention. It can therefore name a person, it **cannot be erased on request** inside the
+retention window (365 days at least), and it is the operator's own words about their own act and not a
+client's data. The policy that keeps it harmless is the operator's: reasons about a client's size, capacity or
+abuse, never about a person, and never a name. A request to erase a reason that names someone is answered by
+the retention window, and by editing the operator's policy, not by the log. `client_id` has no foreign key, so
+a deleted client's history outlives it.
 
 **Write-ahead, and a known gap.** `setClientCeilings` builds and validates its entries, records them,
 and only then saves the client, so a ceiling cannot move without a line saying who moved it, and an
-entry the log refuses (an actor that is not an account) refuses the change. The two writes are not
+entry the log refuses (an actor that is not an account) refuses the change. `provisionClientOwner`
+(G2-18) does the same for `client.created`, which carries the whole snapshot of the ceilings a client
+starts with and nothing else (no name, no address). It is **not** write-ahead in the same sense: the
+entry names the client, so the client is saved first, and the entry is recorded before the invitation
+is issued. A log that cannot be written removes the client and sends no mail; an invitation that then
+fails removes the client but leaves its line, an intent that failed, visible, which is the lesser error
+for the reason below. The gap: if the log cannot be written and the removal fails too, an empty client
+with no line is left (no member, no event, no invitation) for `deleteEmptyClient` to remove. The two writes are not
 one transaction: if the save fails after the entry was recorded, the log holds a line for a change
 that did not happen, and the retry writes a second. That is the lesser error, and a visible one.
-Closing it needs a unit-of-work port that no use case has yet; G2-20 asks for the same atomicity for
-the acceptance of the terms.
+Closing it needs a unit-of-work port that no use case has yet. G2-20 did not wait for one: the entry that
+records the acceptance of the terms rides the `InvitationAcceptance` transaction instead (see
+"Invitations"), so that entry has no such gap.
 
 ## 18. The operator's overview
 
 Roadmap §10.4 and §10.6; paid plan P3-12 and D-06. **An operator sees shapes and sizes of a
 client's box, never what its guests made or typed.** `SiteOverview` is the read model the
-operator's console (G2-15) and API (G2-14) will present: three listings — every client with its
+operator's console (G2-15, §23) and API (G2-14) present: three listings — every client with its
 ceilings and what it is using, one client's events, every account — returned as rows declared in
-`src/domain/site/siteOverviewRows.ts`. There is **no route** that serves it yet; G2-14 mounts it
-behind `requireOperator` and carries the response-side sweep, and neither is described here until
-it exists.
+`src/domain/site/siteOverviewRows.ts`. The routes that serve it are `GET /api/site/clients`,
+`/clients/:clientId/events` and `/accounts` (API.md §1), behind `requireOperator` and the second factor,
+and the response-side sweep that checks what comes out of the **wire** is `siteRoutes.contentFree.test.ts`
+(§22).
 
 **What a row holds.** Ids, statuses, instants, counts and byte sizes, and exactly two pieces of
 free text: a client's **name** (`clients.name`, which the console must print to be usable) and an
@@ -2756,12 +2924,12 @@ adapters, because `LIMIT -1` is "no limit" in SQLite.
 **`canOperateSite` on `GET /api/auth/me`** is the account's authority over the box, from the same
 column and the same predicate `requireOperator` uses, read from storage on that request. It
 grants nothing, is not part of the login response, is not reported for a disabled account, and
-does not change with `SITE_ADMIN` (the console entry the SPA will offer needs it and
-`features.siteAdmin` both true). It is named tests in `authRoutes.test.ts`.
+does not change with `SITE_ADMIN` (the console entry the SPA offers needs it and
+`features.siteAdmin` both true, §23). It is named tests in `authRoutes.test.ts`.
 
 **What this does not defend against.** It is a property of this port, not a firewall: a route
-written in G2-14 that reads `EventRepository` instead of `SiteOverview` is not caught here, and is
-what that item's response sweep (`siteRoutes.contentFree.test.ts` in the paid plan, P3-13) is for. Support access to a
+that reads `EventRepository` instead of `SiteOverview` is not caught here, and is what the response sweep
+of the operator's routes (`siteRoutes.contentFree.test.ts`, §22) is for. Support access to a
 client's evening is §10.6 — time-boxed, announced to the client, audited — and a different item.
 Left out on purpose: an event's **expiry date**, which `PURGE_DEADLINE_SQL` computes with
 `json_extract` over `events.settings`. That column is the host's whole configuration blob and is
@@ -2769,12 +2937,15 @@ on the content list, because a field added to it later could carry text; reading
 taking it off the list for one number. The expiry arrives with a numeric source for the host's
 retention.
 
-**A cursor outlives nothing.** A page's `next` is the id of its last row, as in
-`ClientRepository.list`, and an id that names no row is an empty page. So if the operator deletes
-an account (or the retention purge deletes an event) that was the last row of the page they are
-looking at, the "next page" of that listing is empty and the rest of it is not shown until the
-listing is reloaded. A cursor that carries `(createdAt, id)` would survive; the wire cursor is
-G2-14's to design.
+**A cursor outlives nothing, and the wire says so** (G2-14). A page's `next` is the id of its last row, as
+in `ClientRepository.list`, and that id is what `after` carries on the wire (API.md §1); an id that names
+no row is an empty page. So if an account (or an event, once the retention purge deletes it) that was the
+last row of the page an operator is looking at is deleted, the "next page" of that listing is empty and the
+rest of it is not shown until the listing is reloaded. A cursor that carries `(createdAt, id)` would
+survive, and it is a change to the port and to both adapters; it was weighed and **not made** here. The
+listings are an operator's console over a handful of clients, an unknown cursor is an empty page and never
+the first page again (so nothing loops), and reloading is what the console does. It is written down so that
+the day a box has thousands of accounts, the decision is a decision.
 
 ## 19. The operator's second factor
 
@@ -2796,24 +2967,24 @@ every authenticator app implements by default; HMAC-SHA1 is not affected by the 
 the bare hash, and the code is six digits valid for thirty seconds and spent on first use, so the
 primitive is not the weak point. Ten recovery codes of 80 random bits are minted at enrolment.
 
-| Rule                                                                                                                                           | Held by                                                                                                                                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The engine yields the codes the RFCs publish                                                                                                   | `nodeTotpEngine.test.ts`: RFC 4226 Appendix D (counters 0 to 9) and RFC 6238 Appendix B (SHA-1, all six times, 8 and 6 digits)                                                                                     |
-| A code is accepted for a step within one of now, **and only if later than the last step spent** — judged on the matched step, not on the clock | `totp.test.ts` (`matchTotpStep`), `verifySecondFactor.test.ts` (a code, then the same code thirty seconds later, is refused)                                                                                       |
-| The step is spent by one conditional statement, so two requests with one code cannot both pass                                                 | the repository contract (`useStep`, run on the fake **and** SQLite), `verifySecondFactor.test.ts` (two simultaneous requests: one wins)                                                                            |
-| A recovery code works once, and is compared in constant time against every unspent digest                                                      | the repository contract (`useRecoveryCode`), `verifySecondFactor.test.ts`                                                                                                                                          |
-| The secret is encrypted at rest under a **dedicated** key, and a changed bit, a wrong key or a wrong version opens nothing                     | `aesGcmMfaVault.test.ts` and the vault contract (fake and AES), migration 011's `CHECK` (a clear secret has no dots), `env.test.ts` (the key is refused if it is a signing secret, too short, or an example value) |
-| Rotating `SESSION_SECRET` does not break an enrolled factor                                                                                    | `env.test.ts` (the key is independent), the vault derives its own key by HKDF                                                                                                                                      |
-| `REQUIRE_OPERATOR_2FA=true` without a valid key, or without `SITE_ADMIN=on`, **refuses to boot**, naming the variable and never the value      | `env.test.ts`                                                                                                                                                                                                      |
-| The half-finished sign-in is **not a session**                                                                                                 | `secondFactorRoutes.test.ts`: after a right password, `/api/auth/me` says unauthenticated and `/api/auth/password`, `/api/site/*` and enrolment answer 401                                                         |
-| It lives five minutes, five wrong codes, and is void if the credentials changed after the password was typed                                   | `secondFactorRoutes.test.ts`, `verifySecondFactor.test.ts`                                                                                                                                                         |
-| A distributed guesser is bounded: ten wrong attempts per account per quarter of an hour, from every address together                           | `secondFactorRoutes.test.ts` (ten wrong, then the right code is refused 429)                                                                                                                                       |
-| **A session that has not passed the factor reaches nothing under `/api/site`**, and a non-operator is told only `auth.forbidden`               | `secondFactorRoutes.test.ts` ("the operator gate"), `secondFactorGates.test.ts` (a stamp in the future, as text, or NaN is no stamp)                                                                               |
-| Enrolling ends every other session of the account, and asks the password again                                                                 | `secondFactorRoutes.test.ts` ("ends the sessions opened before it"; a wrong password enrols nothing)                                                                                                               |
-| The irreversible actions need a password and a fresh code, valid five minutes                                                                  | `secondFactorGates.test.ts` (`requireStepUp`: exactly five minutes, not one millisecond more), `secondFactorRoutes.test.ts` (and a code that signed in cannot be reused to step up)                                |
-| Removing a factor closes `/api/site` and ends every session                                                                                    | `secondFactorRoutes.test.ts`, `disableSecondFactor.test.ts`                                                                                                                                                        |
-| **Nothing secret is logged**: not the secret, the URI, the sealed text, the key, a code, a recovery code, the password or the address          | `secondFactorLogCanary.test.ts` runs the whole journey against a real logger, a real access log, the real engine, vault and digests, and reads every byte written                                                  |
-| Enrolment, removal, regeneration and the use of a recovery code are audited, with no secret in the entry                                       | `auditAction.test.ts`, the use-case tests, `secondFactorLogCanary.test.ts`                                                                                                                                         |
+| Rule                                                                                                                                                                                                                       | Held by                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The engine yields the codes the RFCs publish                                                                                                                                                                               | `nodeTotpEngine.test.ts`: RFC 4226 Appendix D (counters 0 to 9) and RFC 6238 Appendix B (SHA-1, all six times, 8 and 6 digits)                                                                                     |
+| A code is accepted for a step within one of now, **and only if later than the last step spent** — judged on the matched step, not on the clock                                                                             | `totp.test.ts` (`matchTotpStep`), `verifySecondFactor.test.ts` (a code, then the same code thirty seconds later, is refused)                                                                                       |
+| The step is spent by one conditional statement, so two requests with one code cannot both pass                                                                                                                             | the repository contract (`useStep`, run on the fake **and** SQLite), `verifySecondFactor.test.ts` (two simultaneous requests: one wins)                                                                            |
+| A recovery code works once, and is compared in constant time against every unspent digest                                                                                                                                  | the repository contract (`useRecoveryCode`), `verifySecondFactor.test.ts`                                                                                                                                          |
+| The secret is encrypted at rest under a **dedicated** key, and a changed bit, a wrong key or a wrong version opens nothing                                                                                                 | `aesGcmMfaVault.test.ts` and the vault contract (fake and AES), migration 011's `CHECK` (a clear secret has no dots), `env.test.ts` (the key is refused if it is a signing secret, too short, or an example value) |
+| Rotating `SESSION_SECRET` does not break an enrolled factor                                                                                                                                                                | `env.test.ts` (the key is independent), the vault derives its own key by HKDF                                                                                                                                      |
+| `REQUIRE_OPERATOR_2FA=true` without a valid key, or without `SITE_ADMIN=on`, **refuses to boot**, naming the variable and never the value                                                                                  | `env.test.ts`                                                                                                                                                                                                      |
+| The half-finished sign-in is **not a session**                                                                                                                                                                             | `secondFactorRoutes.test.ts`: after a right password, `/api/auth/me` says unauthenticated and `/api/auth/password`, `/api/site/*` and enrolment answer 401                                                         |
+| It lives five minutes, five wrong codes (counted as they are tried, in memory, so codes sent together share the five and a restart starts them again), and is void if the credentials changed after the password was typed | `secondFactorRoutes.test.ts` and `verifySecondFactor.test.ts` (ten wrong codes at once: four wrong, six over), `container.test.ts` (the wiring)                                                                    |
+| A distributed guesser is bounded: ten wrong attempts per account per quarter of an hour, from every address together                                                                                                       | `secondFactorRoutes.test.ts` (ten wrong, then the right code is refused 429)                                                                                                                                       |
+| **A session that has not passed the factor reaches nothing under `/api/site`**, and a non-operator is told only `auth.forbidden`                                                                                           | `secondFactorRoutes.test.ts` ("the operator gate"), `secondFactorGates.test.ts` (a stamp in the future, as text, or NaN is no stamp)                                                                               |
+| Enrolling ends every other session of the account, and asks the password again                                                                                                                                             | `secondFactorRoutes.test.ts` ("ends the sessions opened before it"; a wrong password enrols nothing)                                                                                                               |
+| The irreversible actions need a password and a fresh code, valid five minutes                                                                                                                                              | `secondFactorGates.test.ts` (`requireStepUp`: exactly five minutes, not one millisecond more), `secondFactorRoutes.test.ts` (and a code that signed in cannot be reused to step up)                                |
+| Removing a factor closes `/api/site` and ends every session                                                                                                                                                                | `secondFactorRoutes.test.ts`, `disableSecondFactor.test.ts`                                                                                                                                                        |
+| **Nothing secret is logged**: not the secret, the URI, the sealed text, the key, a code, a recovery code, the password or the address                                                                                      | `secondFactorLogCanary.test.ts` runs the whole journey against a real logger, a real access log, the real engine, vault and digests, and reads every byte written                                                  |
+| Enrolment, removal, regeneration and the use of a recovery code are audited, with no secret in the entry                                                                                                                   | `auditAction.test.ts`, the use-case tests, `secondFactorLogCanary.test.ts`                                                                                                                                         |
 
 **What the session carries.** `secondFactorAt` (when it passed the factor), `stepUpAt` (when it last
 confirmed) and, only between the password and the code, `pendingSecondFactor`. All three are written
@@ -2828,8 +2999,9 @@ password reset — raises the credentials epoch, and `enforceSessionAge` ends th
 - _The phone:_ a recovery code signs in, and also confirms a step-up, which is how the factor is
   removed and a new phone enrolled. Recovery codes need no key.
 - _The recovery codes as well:_ another operator resetting the factor with an audit line, or a
-  command-line break-glass, per the paid plan's P3-15. **Neither exists yet**: the operator API that
-  would carry the first is G2-14, and the second is not in this item. Until they land, an operator
+  command-line break-glass, per the paid plan's P3-15. **Neither exists yet**: the operator API (G2-14) has
+  no route that resets another operator's factor, because the plan's table for P3-13 lists none, and the
+  second is not in this item. Until they land, an operator
   who has lost both is locked out of the hosted instance's operator namespace by design, and the
   remedy is a manual one on the database (delete the row of `user_totp` — that, too, is audited
   nowhere, which is why the break-glass command is wanted).
@@ -2854,7 +3026,8 @@ and the vault refuses a version it holds no key for, but there is one key and on
 - _The operator's other acts are outside the gate._ `requireSecondFactor` guards `/api/site`. An
   operator is also exempt from `EVENT_CREATION=clientMembers` and from a client's ceilings
   (`createEvent`), and that exemption is reached with a session that has not passed the factor
-  during the window before it enrols. No operator route exists yet to widen it, and G2-14 decides.
+  during the window before it enrols. G2-14 adds routes under the gate and none that widens the exemption:
+  every `/api/site` route answers `403 auth.secondFactorRequired` to a session that has not passed the factor.
 - _Phishing:_ a six-digit code typed into a look-alike site is relayed. TOTP is not phishing-resistant;
   WebAuthn is the plan's P9-06 and the second factor an operator can be made to hold.
 - _A budget is a small denial of service:_ someone who knows an operator's password can spend the
@@ -2876,14 +3049,14 @@ sign in. Each of those is also a way to end up holding a client's account, and f
 The guard is six rules (the plan's numbering, which the tests and the code comments use), held where the
 use cases are, and not in a route that might forget them.
 
-| Rule | In one line                                                                                             | Held by                                                                                                                                                                                                                               |
-| ---- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1   | An operator's invitation into a client **with an event or a member** waits for one of its owners.       | `inviteToClientAsOperator` (writes `requires_approval`), `approveInvitation` (the owner's consent), `makeResolveInvitation` (judged again when the link is spent)                                                                     |
-| R2   | An operator's password reset is **mailed**, and nothing the operator receives holds a token or a link.  | `issuePasswordResetForAccount` and `operatorResetPlan`, under `OPERATOR_RESET_LINKS`                                                                                                                                                  |
-| R3   | Ownership of a client moves only by an owner's decision.                                                | Today, the one door there is: an owner invitation, which for a client with an event or a member an operator cannot make usable and a member cannot approve. The transfer itself (P9-02) is not built, and will have no operator route |
-| R4   | No operator action grants an event role, opens a session for another account, or impersonates a client. | An operator's use cases write client invitations only; an event invitation an operator wrote is never honoured (`makeResolveInvitation`); a reset changes nothing about the account until its holder uses the link                    |
-| R5   | Every action under R1 to R4 writes an audit line the client can read.                                   | Each use case below, **before** the act it records                                                                                                                                                                                    |
-| R6   | Inviting a moderator to an event stays the event owner's.                                               | `registerModerator`, unchanged: an operator is nobody in the event, and a client owner is no part of it either                                                                                                                        |
+| Rule | In one line                                                                                                                | Held by                                                                                                                                                                                                                               |
+| ---- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | An operator's invitation into a client **with an event, a member or another live invitation** waits for one of its owners. | `inviteToClientAsOperator` (writes `requires_approval`), `approveInvitation` (the owner's consent), `makeResolveInvitation` (judged again when the link is spent)                                                                     |
+| R2   | An operator's password reset is **mailed**, and nothing the operator receives holds a token or a link.                     | `issuePasswordResetForAccount` and `operatorResetPlan`, under `OPERATOR_RESET_LINKS`                                                                                                                                                  |
+| R3   | Ownership of a client moves only by an owner's decision.                                                                   | Today, the one door there is: an owner invitation, which for a client with an event or a member an operator cannot make usable and a member cannot approve. The transfer itself (P9-02) is not built, and will have no operator route |
+| R4   | No operator action grants an event role, opens a session for another account, or impersonates a client.                    | An operator's use cases write client invitations only; an event invitation an operator wrote is never honoured (`makeResolveInvitation`); a reset changes nothing about the account until its holder uses the link                    |
+| R5   | Every action under R1 to R4 writes an audit line the client can read.                                                      | Each use case below, **before** the act it records                                                                                                                                                                                    |
+| R6   | Inviting a moderator to an event stays the event owner's.                                                                  | `registerModerator`, unchanged: an operator is nobody in the event, and a client owner is no part of it either                                                                                                                        |
 
 The rules are one named spec, `src/application/usecases/clients/operatorGuard.test.ts`, which drives the
 real use cases over the in-memory fakes, one `describe` per rule. Each use case has its own file for the
@@ -2900,6 +3073,20 @@ finer cases (who may approve, what a refused log does, the races).
   window stays open for every client between its owner's sign-up and its first event, and for every
   client whose events retention has purged, and an operator could raise a member to owner, or sit beside
   the customer as a second owner, with nobody's say. It costs the provisioning flow nothing.
+- **And no other invitation waiting** (G2-14). `POST /api/site/clients` invites the client's first owner,
+  and that invitation waits for nobody: it is the operator's one free invitation into an empty client.
+  Before this clause the operator could write a second, to an address it controls, **before the customer had
+  accepted the first**, accept it, and so hold an "owner" of the client whose yes is the consent R1 and R2
+  are made of. The sequence was run against the routes by the review of this item: the second invitation
+  was usable, its account became an owner, the customer's own link then waited for that account to approve
+  it, and, with `copyLinkWithOwnerApproval`, the same account approved the operator's request for the
+  customer's password-reset link, which the operator then redeemed. **An empty client admits exactly one
+  live operator invitation** (`ClientRepository.countEvents`, `countMembers` and
+  `AccountTokenRepository.countLiveClientInvitations`, read together); a second waits, and nobody exists to
+  approve it until the first has been accepted. An address re-sent its own link is not a second invitation
+  (writing the new one revokes the old), and a revoked, spent or expired invitation counts for nothing.
+  Held by `operatorGuard.test.ts` (the domain's and the use cases'), `accountTokenRepositoryContract.ts`
+  (fake and SQLite) and `siteRoutes.guard.test.ts` over the wire.
 - **Approval.** An invitation into a client with an event or a member is written with `requires_approval`, so
   `findUsable` and the acceptance's spend refuse it until an owner of that client has approved it
   (`POST /api/client/invitations/:invitationId/approve`, API.md §6). Approving changes one column pair
@@ -2984,31 +3171,33 @@ reset.tooManyForAddress`.
   propagates. A line for an act that then failed (the mail did not go) is the lesser, visible error.
 - **One line per client of the account**, so that each owner finds it in their own log, and one with no
   client for an account that belongs to none.
-- **No word for an address, a link or a role.** The vocabulary of `auditAction.ts` has no string kind
-  but an instant, so these lines cannot carry them: `pendingApproval` and `linkShown` are the facts a
+- **No word for an address, a link or a role.** The vocabulary of `auditAction.ts` has no free-text
+  kind, so these lines cannot carry them: `pendingApproval` and `linkShown` are the facts a
   client's owner reads them for. The tests plant the address, the token and the link and sweep the log.
-- **The client reads them with G2-16** (`GET /api/client/audit`, which is not built). Until then the
-  lines are written and nothing over the wire reads them.
+- **The client reads them** with `GET /api/client/audit` (§21): an owner reads every line about their
+  client, with no account named.
 
 ### What it does not do
 
-- **The operator's routes are not here.** `POST /api/site/clients/:clientId/invitations` and
-  `POST /api/site/accounts/:userId/password-reset` are G2-14; the use cases are built, wired and
-  unreachable from the wire, and each re-reads the caller's site role itself. G2-14's response sweep
-  (that no `/api/site` answer carries a token or a link when a mailer delivers, and that the operator
-  gets a stranger's answer on every event route after any mutation) is the net under a route that
-  forgets a rule; this guard is the rule under a route that remembers.
+- **The operator's routes are the nets under this guard, not part of it.** `POST /api/site/clients/:clientId/invitations`
+  and `POST /api/site/accounts/:userId/password-reset` (G2-14, §22) call the use cases above, each of which
+  re-reads the caller's site role itself. The response sweeps of that item (that no `/api/site` answer
+  carries a token or a link when a mailer delivers, and that the operator and the accounts it invited get a
+  stranger's answer on every event route after any mutation) are the net under a route that forgets a
+  rule; this guard is the rule under a route that remembers.
 - **The break-glass command of D-16 (`eventslide reset-link --user <id> --reason <text>`) is not
   built.** On a box with no relay and `mailOnly`, the one way to recover an account is, as before this
   item, replacing `users.password_hash` by hand with a bcrypt hash the operator generated, which the
   audit log does not see. That is the gap the command is for, and it is its own change: it needs a
   composition-root entry and a notification mail to the account, in five languages.
-- **An owner cannot yet see what waits for them, or approve a reset.** The list of what waits
-  (`GET /api/client/…`, G2-16) and the route that approves a reset request are not built: an owner
-  knows an invitation's id only if told, and `approvePasswordReset` has no route. The invitation's
-  approval route exists because the plan names it, and so the guard is complete at the use-case level
-  and incomplete as a product until the owner's space lands. **`copyLinkWithOwnerApproval` is therefore
-  fail-closed and unusable end to end today**: a request is written and nobody can approve it.
+- **An owner can see what waits for an invitation, and is told of a reset request by the operator.** The list
+  of invitations that wait is `GET /api/client/invitations` (§21). The owner's approval of a reset request is
+  `POST /api/client/password-resets/:requestId/approve` (G2-14, API.md §6), so `copyLinkWithOwnerApproval` is
+  usable end to end: the operator's request answers an id, and the operator hands it to the owner by whatever
+  channel it already uses with them. **There is no list of pending reset requests for an owner to read**, as
+  there is for invitations: an owner is shown an invitation's address, and a reset request is a request about
+  somebody else's password, which an operator who wanted to surprise an owner would otherwise have put in front
+  of them unasked. The console does not list one either (G2-15, §23): it shows the request's state to the operator who made it, and nothing else.
 - **Disabling the last owner is not one of the six rules.** An operator can switch an account off
   (`disableAccount`). If that is the only owner of a client, nothing that waits for an owner can be
   approved, which is a lock and not an escalation: R1 and R2 fail closed. Who may disable whom, and the
@@ -3025,3 +3214,252 @@ reset.tooManyForAddress`.
   thing to break it.
 - **R3 has no use case to hold yet.** There is no ownership transfer to guard (P9-02); the rule is
   held at the only door that confers ownership today, an owner invitation, and is a named test there.
+
+## 21. The client's own space
+
+Roadmap §10.9, G2-16 / P3-17. What an account that belongs to a client reads about it: its limits
+(`GET /api/me/limits`), and, for an **owner**, the log of what was done on the client
+(`GET /api/client/audit`) and the invitations that wait for an approval
+(`GET /api/client/invitations`). All three exist only with `SITE_ADMIN=on`; off, none is mounted and each
+answers as a path nobody wrote (`siteAdminMode`-style, held by `clientSpaceRoutes.test.ts`), so a solo box
+exposes nothing here and its other answers are byte-for-byte what they were.
+
+**The audience is the client and nobody else's.** The rule is one sentence and it is held four ways:
+**client A never reads client B's limits, log or invitations.**
+
+- **No identifier the request supplies reaches a query unchecked.** `/api/me/limits` takes no parameter.
+  `/api/client/audit` and `/api/client/invitations` accept a `clientId` only so that an account in several
+  clients can say which, and `resolveOwnedClient` checks it against the **caller's own roster, read on this
+  request**, before anything is read. A client the caller is not in is `404 client.notFound`, the answer
+  for a client that does not exist, so the routes enumerate nobody.
+- **The scope is in the query, not after it.** `AuditLog.list` is always handed the client the roster
+  vouched for (the use case has no path to an unfiltered page), and `listAwaitingApproval` filters by
+  `client_id` in the statement. A contract case holds each of them against a second client's rows.
+- **Owner or nothing for the log and the approvals.** A member who is not an owner is told
+  `403 client.ownerRequired`; they are in the client and know it exists. They read the limits.
+- **Authority is read from storage per request** (CLAUDE.md §8), never from the session: an owner removed or
+  switched off loses these three routes on their next request.
+
+**What the log holds, and what it does not.** It holds the lines that carry the client's id: the
+operator's acts on the client (ceilings, a period renewal, an invitation), the owners' own approvals, and
+the reset lines, which are written once per client of the account. **Account-level lines are not in it
+today**: `disableAccount` and a member's own second-factor lines are written with no client, so an owner
+does not read them. `disableAccount` has no route yet; making it write one line per client, as the
+reset use case does, belongs with the route that mounts it (G2-14), and the plan's "every operator
+action on the client" is complete only then. `seq` and `next` are the box-wide counter, so an owner can
+see gaps between their own lines: they say that other lines were written, never what or for whom.
+The **details** an owner reads are checked again at the door (`readableDetails`): only numbers,
+switches, instants and objects of those, whatever an older row holds.
+
+**What a client's owner never learns from the log.** The audit presenter (`toClientAuditPageDto`) copies
+field by field and drops what identifies a person: the actor is its **kind** (`operator`, `member`,
+`system`, `integration`) and, for an integration, its constant label, never the account id; the id of an
+**account** subject is not copied either (an invitation's and the client's own are, because the owner matches
+them against their own list). The entries themselves already hold no address, slug, name, token or link: the
+allow-list in `auditAction.ts` has no free-text kind (an instant, and the box's own version of its terms, are the only strings). `clientSpaceRoutes.test.ts` plants the
+operator's and the owner's ids, their addresses and an event's name, slug, join code and a photograph's
+caption, and sweeps every answer for them. The one place an address does appear is
+`GET /api/client/invitations`, which shows an owner whom an operator wants to add to their account — that is
+the consent R1 asks of them, and it reaches owners of that client only.
+
+**What a limit says is what the box enforces.** `usage` is read the way the write paths read it: events in
+every status, the period counter that never goes down, and the admission byte sum (`clientTotalBytes`). The
+level of each meter (`ok`, `warning` from 90 per cent, `reached` at 100) is decided by one function
+(`ceilingLevel`, whole-number arithmetic, so the line is exactly 90 per cent with no rounding in the question), and
+the screens render the level they are given. The same session closes two findings of G2-05's review: the
+event the host reads (`GET /api/events/:slug`) answers `quotaBytes` as the quota the uploads are **actually**
+judged against (`Event.effectiveQuotaBytes`), and the join a guest reads answers `allowClips` from the
+host's switch **and** the client's plan (`Event.acceptsClips`, the rule `uploadClip` refuses on). Neither
+reads the clients table for an event with no client.
+
+**What this does not do.**
+
+- **It enforces nothing.** The banner and the suspension screen tell; the refusals are the write paths'
+  (`client.ceilingReached` 409, `client.storageFull` 413, `client.suspended` 403, §5). A client whose
+  limits could not be read still creates and moderates, and meets the server's refusal if a ceiling is in the way.
+- **Suspension is displayed here and applied where an event is served.** `suspended` reports `clients.suspended_at`;
+  what it refuses is §22 (`403 client.suspended` on a member's writes, the same 404 as an unknown event on the
+  public surfaces).
+- **There is no `links.upgrade`.** The call to action is "contact your operator": a link to the operator's
+  published contact address when there is one, words otherwise. An upgrade address belongs to the paid plan's
+  `UPGRADE_URL` (P3-18) and no box here publishes one.
+- **The operator reads none of this through it.** An operator who is also a member of a client reads that
+  client's space like any other member, which gives them nothing `/api/site` will not. Nothing here grants
+  an operator an event, and `siteOperatorScope.test.ts` sweeps the three routes in both modes.
+
+## 22. The operator's API
+
+Roadmap §10.2 to §10.8; free plan G2-14, paid plan P3-13. What an operator does to a client and its owner,
+and reads of the box, **without ever being shown or being given a way to reach what a client's guests made**.
+The routes are in API.md §1; this is the argument and the tests that hold it. It is mounted only with
+`SITE_ADMIN=on`, and with it off every path under `/api/site` is the same `404 route.notFound` as a path
+nobody wrote.
+
+**The order a request meets.** The session and the account's password-change gate (`403
+auth.passwordChangeRequired`), then CSRF, then `requireOperator` (an account that does not
+operate the box, a disabled operator included, is `403 auth.forbidden` and is told nothing about second
+factors), then `requireSecondFactor` (`403 auth.secondFactorRequired` where the box asks for one), then, **on
+every route that changes something, `requireStepUp`** (`403 auth.stepUpRequired`: five minutes, exactly), and
+only then the body is read. This is **stricter than the plan's table**, which names the irreversible acts
+(a ceiling, suspension, offboarding, deleting an account) and leaves opening, renaming, inviting and
+resetting without. A console that has to confirm once before a session of writes is the cheaper side of that
+trade, and a route that writes on a stolen session cookie is the dearer: opening a client sends a mail in the
+operator's name, and a reset is the most sensitive thing it can ask of the box.
+
+| Rule                                                                                                                                                                                                                    | Held by                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every route answers an anonymous caller 401, an ordinary account (an owner of a client included) 403, an operator who has not passed the factor 403, and a write with no fresh step-up 403 **without reading the body** | `siteRoutes.test.ts`: one table of every route, and a case that holds it equal to the route table (a route added without a row is red), with the same nine cases per write and seven per read (`SITE_ADMIN=off`, anonymous, ordinary account, switched-off operator, no factor, entitled; for a write, no step-up before the body, a lapsed one, and exactly five minutes); `siteOperatorScope.test.ts` (`OPERATOR_ROUTES`, in both modes, and the structural case that keeps every other router out of the namespace) |
+| **No answer of any route carries a photograph, a caption, a guest's name, an event's name, its slug or join code, a mission's prompt, an account's display name or hash, a client's contact address or a token**        | `siteRoutes.contentFree.test.ts`: a world planted with a distinctive string in every place content is kept, **every route the namespace mounts** called (the table is held equal to the route table, in both directions), refusals included, and every answer swept **by value** (no plant, however cased) and **by shape** (every string is an id, an instant, a closed set, a code, one of two labels, the operator's own reason, or a link where none was mailed; every key is declared)                            |
+| **Where a mailer delivers, no answer carries a token or a link**                                                                                                                                                        | the same file, with the tokens the mailer was actually handed; `siteRoutes.guard.test.ts` for invitations and resets                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **The operator, and an account it invited without an owner's approval, are told what a stranger is told by every event route, after every mutation**                                                                    | `siteRoutes.escalation.test.ts`: the client of a customer with an event, an account of the operator's own brought in while the client was empty (R1's one exception), then every mutation the operator can make, each followed by every event route of the box, compared route by route with an account that has no part in the client                                                                                                                                                                                 |
+| The reason for a change of ceilings is mandatory, bounded, never echoed and never shown to the client                                                                                                                   | `auditReason.test.ts`, `auditAction.test.ts` (one declaration carries it), `setClientCeilings.test.ts`, `siteRoutes.clients.test.ts`                                                                                                                                                                                                                                                                                                                                                                                   |
+| An operator's read model is scoped by the client in the path, and a cursor tells nothing about another client's event                                                                                                   | `siteRoutes.reads.test.ts`, `siteOverviewContract.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Nothing an operator types, in a body, a query or a path, reaches a log line                                                                                                                                             | `siteLogCanary.test.ts`: the namespace run as the operator against a real logger and a switched-on access log, with the canary values everywhere                                                                                                                                                                                                                                                                                                                                                                       |
+| Each of the nine ceilings reaches the use case on its own                                                                                                                                                               | `siteRoutes.clients.test.ts`: one case per key through `PUT` and `POST` (a handler that drops a key answers 200 and writes nothing)                                                                                                                                                                                                                                                                                                                                                                                    |
+| The owner's approval of a reset is the client's consent and no other's                                                                                                                                                  | `siteRoutes.guard.test.ts`, `approvePasswordReset.test.ts`, `operatorGuard.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+**The reason.** `audit/auditReason.ts` is the one place the log holds text a person typed: a sentence of at most
+200 characters, on one line, trimmed and NFC-normalised, with no control character, no line or paragraph
+separator, no invisible formatting character (a right-to-left override that reorders what a reader sees, a
+zero-width space) and **no `@`**. The `@` stops the slip (pasting the client's address into the box), not a
+determined writer: an operator who spells an address out has been trusted with a free text field and has
+chosen to misuse it, and the line that records it is theirs. `auditAction.test.ts` names the one declaration
+that may use the kind, `client.ceilingsChanged`, so a second is a decision in a diff to that test. The
+**client's owner is not shown it**: the client-readable view drops every string that is not an instant, so an
+internal note ("a bad payer") cannot reach the person it is about by accident; the operator's view checks the
+reason again at the door and drops one that is not canonical. On the hosted instance the policy is that only
+non-financial reasons are admitted (the size of an event, capacity, abuse), which is a rule about the
+operator's words and not one the route can check.
+
+**Why the route tests run over SQLite.** What this suite is about is what an operator **sees** after a route
+has changed something, and the operator's read model is a set of joins over six tables. A fake that kept its
+own copy of the world could pass while the real statement said something else, and the content sweep is only
+worth running against the statements that will run in production. `siteHarness.ts` is the whole server
+(`buildServer`), the real use cases built as `src/main/usecases.ts` builds them, and the real adapters on an
+in-memory database; the doubles are the clock, the mailer, the password hasher and the sign-in. Passing the
+second factor and confirming a step-up are stamps written into the session store, because
+`secondFactorRoutes.test.ts` drives the real flow. `container.test.ts` boots the real composition root and
+walks one journey (confirm, open a client, read it back, change a ceiling with a reason, read the log), which
+is what catches a use case left out of the bag the routes read.
+
+**Suspension (roadmap §10.7).** `suspendClient` writes one column and one audit line and nothing else; every surface
+that serves an event reads the client's standing **with the event** (`Event.clientSuspendedAt`, joined in the same
+query that finds it, never written back), so there is no second lookup to forget and no event status to restore.
+The rule has three halves, each with a mutation. **Public, anonymous and capability surfaces answer exactly what an
+unknown event answers**: the join, the guest surfaces, the wall and its feed, a published photograph by slug and a
+gallery link, a photograph's malformed id included (the ids are judged only after the answer is chosen), and an invitation to preview or accept, so a suspended client cannot be told from one that never existed by anyone who is not a member
+(`suspension.container.test.ts` compares each with an unknown slug over the real composition root). **Members keep
+their reads and lose their writes** with `403 client.suspended`, because the client is entitled to know why: the
+refusal is in the use cases (`requireWritable`, asked after the role by every host-side write), no longer a test on
+the verb in `requireRole`; a write route added later is held by a completeness case that names every non-GET route under
+an event as a host write or a guest write (`suspension.container.test.ts`), and creating an event and approving an
+operator's invitation or reset are refused in their use cases because no event route can see them. **A connection
+opened before the suspension does not outlive it**: the live feed re-reads the event at every heartbeat (plan item
+A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once. The moderation feed is the exception that follows from the second half: its members keep their reads, so only an event that is gone ends it.
+Resuming is the same column set back to null; a suspended client's guests reach their event again at once.
+
+**Accounts and the end of an engagement (G2-14 part 3).** Four more writes, each behind the same gate and a fresh step-up
+(§22 above): switch an account off and on, delete one, offboard a client. The rules each carries are held by a use case
+and a mutation.
+
+- **An operator's account is never switched off or deleted from here** (`403 account.operatorProtected`), another's or its
+  own: one that could would lock the box's operators out one after another, and one that could do it to itself would lock
+  the box. Taking an operator's authority away stays a change to the database.
+- **Deleting an account is the one irreversible act of the API**, and exactly **two use cases** may do it:
+  `deleteAccount` (an erasure request) and `finalizeOffboardedClients` (the sweep). `scripts/userDeletionScope.test.ts`
+  holds the allow-list and is exercised against a third file, so widening it is a decision and not a line nobody read.
+  Migration 014 indexes every foreign key that points at `users`, because deleting a row looks its children up.
+- **What an account holds decides whether it may go.** One that **owns an event** (`409 account.holdsEvents`),
+  **wrote media** (`409 account.holdsMedia`: the cascade would delete a photograph's row and leave its file on disk) or
+  **reviewed a photograph** (`409 account.holdsReviews`: the schema refuses a host review with no reviewer, so the delete
+  would abort) is refused, and so is **the only owner of a client that still has other members or an event**
+  (`409 account.lastClientOwner`: operator rule R1 makes every invitation into such a client wait for an owner, so nobody
+  could be added again). An album is somebody's. What an erasure does remove is the membership rows and the pointer: the
+  audit lines keep their place and lose their author, which is what `ON DELETE SET NULL` is for. **What it does not
+  erase**: the address is also in the account's live sessions (seven days at most) and in the invitation and reset links
+  written to it (until the expiry sweep); the API says so.
+- **The trail names the client.** An act on an account writes one line per client the account belongs to, carrying the
+  client's id, so an owner reads that a member's account was switched off, back on or deleted; an account that belongs to
+  none leaves one line with no client. The subject is the account's opaque id, a pseudonym once the account is gone.
+- **Offboarding reuses the sweep and invents no deletion.** `offboardClient` closes live events, archives drafts,
+  suspends the client and sets `clients.purge_after`; the purge that already existed deletes the albums, and only then
+  does `finalizeOffboardedClients` (run by `retentionSweeper` after the purge, by the `system` actor labelled
+  `retention-sweeper`) delete the accounts that were nothing but the client's and the client row. It **keeps** an account
+  that belongs to another client, owns an event, wrote media, has a part in any event, or is an operator, and only removes
+  it from this client. A client is never finalised while an event of its remains, so a purge that failed is retried before
+  anything else goes. `offboarding.container.test.ts` runs the whole of it over the real stack.
+- **A feed does not outlive its account.** The moderation stream re-reads the account's place in the event at every
+  heartbeat (plan item A-22), so an account switched off or deleted, or removed from the event, is told to wait and is ended
+  within one beat; the wall's public feed has no account and is re-checked with the question that opened it (`Event.servesPublicWall`: the lifecycle serves the wall and the client is not suspended), so an archived event ends it as a suspension does (HTTP-M-08).
+- **Not here:** erasing media a moderator wrote, or a moderator who has reviewed photographs (the account is refused
+  instead; the second needs a schema change to the review constraint), erasing the sessions and tokens that hold the
+  address, a self-service erasure (roadmap §5.2), and a retry order that keeps a client that fails to finalise from
+  holding up later ones in the batch of twenty.
+
+**What the routes do not do.**
+
+- **Not every use case re-reads the caller's role.** R1's and R2's do (`inviteToClientAsOperator`,
+  `issuePasswordResetForAccount`), because the rule is about operators. `provisionClientOwner`,
+  `renameClient` and `setClientCeilings` take their actor from the route and rely on the router's gate, as
+  every operator action did before this item. The gate is the router's by construction (`router.use`, above
+  every route), and the namespace sweep fails if another router declares a path in it.
+- **The window of an empty client is closed, and what is left of it.** R1 lets an operator write a usable
+  invitation into a client that holds nothing, which is how the first owner is invited, and since this item
+  it lets it write **one** (§20): a second waits, so the operator cannot bring in an account of its own beside
+  the customer and have it approve what follows. What stays is the first invitation itself: an operator who
+  opens a client **for an address it controls** has an owner it controls, which is a client of its own and
+  harms nobody's evening. The escalation sweep holds the rest: that account, and the operator, are strangers
+  to every event of the box.
+- **A relay that refused the mail is not a mailer that delivered.** Where the box can mail and the relay
+  refuses (`transient`, or any failure), `POST /api/site/clients` and `.../invitations` answer `delivery: link`
+  with the link, because the owner would otherwise never receive it, exactly as for a box with no relay
+  (G2-09). The operator then holds a link that opens a client's first account: **the limit ROADMAP §10.3
+  states for a box with no relay applies for the length of that failure** (the inviter could accept it first).
+  A reset has no such exception: a refused mail is `409 reset.mailNotSent` and still no link. Held by
+  `siteRoutes.clients.test.ts` and `siteRoutes.guard.test.ts`.
+- **A reset request is told to the owner by the operator**, not listed for them (§20).
+- **What is not here.** Handover of an event to another account. The screens that call these routes are §23 (G2-15).
+
+## 23. The operator's console
+
+Roadmap §10.4; free plan G2-15, paid plan P3-16. The screens the operator's API (§22) is for: the
+clients (`/admin/site`), one client (`/admin/site/clients/:clientId`), the accounts
+(`/admin/site/accounts`) and the log (`/admin/site/audit`), under one layout with a confirmation prompt.
+**Nothing in it is an authorisation.** Every request is judged by the gate of §22 on the server, and a
+client that skipped every check below would meet `403` on every read. What the console owes is the other
+two halves: to **offer** only what can work, and to **show** only what the operator is entitled to see.
+Audience: the maintainer, on a laptop. It is the one screen in the product built around what its reader
+must not see, and its introduction says so.
+
+| Rule                                                                                                                                                                                                                                                                                                                                                  | Held by                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The console prints the fields the API declares and nothing else**: a slug, a join code, an event's name, a caption, a display name or a contact address that rode along on an answer is not on the screen                                                                                                                                           | `ClientsPage.test.tsx`, `ClientPage.test.tsx`, `AccountsPage.test.tsx` and `AuditPage.test.tsx` each plant those strings in the answer and sweep the DOM; `operator-console.spec.ts` sweeps the real page for the slug, the join code and the name of a live event of a real client                                                                                                                                                                                                                                                                                                                                                                                                |
+| **No screen of the console asks for anything outside `/api/site`**: not an event, a photograph, a gallery, a wall, a guest, a mission, a moderator or the client's own space                                                                                                                                                                          | Every screen test asserts that every method of the fake `Api` that was called is the operator's own (`site*`), the session, the box's answer, the confirmation prompt, signing out or the menu's limits (`callsOutsideTheConsole`, an allowlist: a method nobody thought to forbid is still refused); `operator-console.spec.ts` records every request the browser makes while the operator navigates and asserts none goes to `/api/events` or `/api/gallery`                                                                                                                                                                                                                     |
+| **No photograph, video or canvas can be on a console screen**                                                                                                                                                                                                                                                                                         | Each screen test counts `img`, `video`, `picture`, `canvas` and `audio` in the page; `glassBackdrop.test.ts` walks the import graph of each page and refuses a `ground` claim whose subtree could render one; the ring-6 journey counts them in the running app                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **The console is offered on two flags, and on neither alone**: the route exists only where `features.siteAdmin` is true, and is shown only to an account that says `canOperateSite`; anybody else is answered the not-found screen                                                                                                                    | `siteConsole.router.test.tsx`: the account menu entry and the address, for an operator on a box with no console, an ordinary account on a box that has one, and a signed-out visitor; each asks the server for nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **A direct visit to the console's address is not "not found" while the box has not said it has one**                                                                                                                                                                                                                                                  | `siteConsole.router.test.tsx` and `aboutAnswered.test.tsx`: the route waits for `GET /api/about` on that address family only, and a failed answer is an answer, the strict one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **A write that needs a confirmation asks for it once, and is sent again once, on a confirmation and on nothing else**: a second refusal is the answer, a person who gives up sends nothing, two writes refused together share one prompt                                                                                                              | `StepUpProvider.test.tsx`; each write of each screen has a case where the server asks and the write goes through on the confirmation; `operator-console.spec.ts` shows the second write of a session opening no prompt                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **A session that has not passed a required second factor is shown what to do, not a screen of refusals**: sent to enrol, or asked to sign in again where the code is asked                                                                                                                                                                            | `siteConsole.router.test.tsx` ("the second factor, where the box requires one") and the second case of `operator-console.spec.ts` on a real box                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **A link the server hands back because no mail carried it is shown once, as text, and dropped when the box is closed**; where a mailer delivers there is no link on the screen because there is none in the answer                                                                                                                                    | `ClientsPage.test.tsx`, `ClientPage.test.tsx` and `AccountsPage.test.tsx`: the link appears for `delivery: link` and for a reset an owner approved, never for `mail`, and is gone after "Close"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **A change of ceilings sends what changed, with the reason, and nothing when nothing changed**; whether a figure or a reason is acceptable is the server's, and its sentence is what is shown                                                                                                                                                         | `ceilingsForm.test.ts` (the patch), `ClientPage.test.tsx` (the reason is sent as typed and a refusal keeps the form)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **A client being wound down (a purge date is set) is offered neither suspension nor its lifting**: ending an engagement is its own act, and the freeze that came with it is part of it                                                                                                                                                                | `ClientPage.test.tsx`, `siteLabels.test.ts` (winding down outranks the suspension that came with it)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **The acts that end or suspend are said in words before they are sent, and are not offered where the server would refuse them**: switching off an account says every session ends; deleting says it answers an erasure request and is final; ending an engagement says how many days and what happens, and the console states no bound for the window | `AccountsPage.test.tsx` (an operator's account is offered neither; each act that asks a question is declined and confirmed and names the account in it, every write is asked for a step-up, each refusal is the server's sentence and reads nothing again, and no other button fires while an act is running), `offboardCopy.test.ts` (no sentence about the window names a number, and every sentence that names the purge date says "at the latest", in all five languages), `ClientPage.test.tsx` (the days typed are the days sent, a window that is not whole days is named and not sent, the server's `client.graceInvalid` is shown, no form once the engagement is ending) |
+
+**What it does not do.**
+
+- **It reads one client by walking the listing.** There is no route that reads a single client, so
+  `/admin/site/clients/:clientId` reads `GET /api/site/clients` two hundred rows at a time until it meets the
+  id. A box run for a handful of clients reads one page; a box with thousands wants the route, and that is a
+  change to the operator's API and not to the screen.
+- **It has no screen for access requests, and none for what an operator may not see.** There is no route for
+  the first, and the second is §10.6: a time-boxed, announced, audited access that is a different item.
+- **It offers no act on an operator's account but a reset, and no second end to an ending engagement.**
+  The server refuses both (`account.operatorProtected`; an engagement that is ending keeps its first date),
+  and a button that can only fail is not offered. It restates none of the rules that decide whether an
+  account may be deleted (it owns an event, wrote media, reviewed a photograph, is a client's last owner):
+  those are the server's, and its sentence is what the operator reads.
+- **The prompt is not a defence against a stolen session cookie by itself.** The confirmation is judged by
+  the server (`requireStepUp`, five minutes, `stepUpAt` in the server-side session); the dialog only collects
+  it. A page that skipped the dialog would meet `403 auth.stepUpRequired` on every write.
+- **The console cannot tell a client that does not exist from one that was deleted.** Both are
+  "this client is not found", which is all the operator can be told (§22).

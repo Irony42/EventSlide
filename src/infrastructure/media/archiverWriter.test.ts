@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { albumEntryName, archiverWriter } from './archiverWriter'
+import { archiverWriter } from './archiverWriter'
 import type { ArchiveEntry } from '../../application/ports/archiveWriter'
 
 const bytesOf = (...values: number[]): AsyncIterable<Uint8Array> => ({
@@ -12,10 +12,9 @@ const bytesOf = (...values: number[]): AsyncIterable<Uint8Array> => ({
   },
 })
 
-const entry = (name: string, size = 3): ArchiveEntry => ({
+const entry = (name: string): ArchiveEntry => ({
   name,
   bytes: bytesOf(1, 2, 3),
-  byteSize: size,
   modifiedAt: new Date('2026-06-20T21:04:11.000Z'),
 })
 
@@ -103,7 +102,6 @@ describe('archiverWriter', () => {
     // like a complete album.
     const failing: ArchiveEntry = {
       name: 'broken.jpg',
-      byteSize: 3,
       modifiedAt: new Date('2026-06-20T21:04:11.000Z'),
       bytes: {
         // eslint-disable-next-line require-yield -- the point is that it throws
@@ -424,52 +422,5 @@ describe('archiverWriter, sources and a client that goes away', () => {
         ]),
       ).resolves.toBe('closed')
     })
-  })
-})
-
-describe('albumEntryName', () => {
-  it('sorts chronologically when extracted', () => {
-    // What a host actually wants when they open the folder.
-    const early = albumEntryName({
-      createdAt: new Date('2026-06-20T19:00:00.000Z'),
-      contentHashShort: 'aaaaaaaaaaaa',
-      index: 1,
-    })
-    const late = albumEntryName({
-      createdAt: new Date('2026-06-20T23:30:00.000Z'),
-      contentHashShort: 'bbbbbbbbbbbb',
-      index: 2,
-    })
-
-    expect([late, early].sort()).toEqual([early, late])
-  })
-
-  it('contains no character that needs escaping on any filesystem', () => {
-    const name = albumEntryName({
-      createdAt: new Date('2026-06-20T21:04:11.000Z'),
-      contentHashShort: 'abc123def456',
-      index: 7,
-    })
-
-    expect(name).toMatch(/^[A-Za-z0-9_-]+\.jpg$/)
-  })
-
-  it('distinguishes two photos taken in the same second', () => {
-    const at = new Date('2026-06-20T21:04:11.000Z')
-
-    const first = albumEntryName({ createdAt: at, contentHashShort: 'aaaaaaaaaaaa', index: 1 })
-    const second = albumEntryName({ createdAt: at, contentHashShort: 'bbbbbbbbbbbb', index: 2 })
-
-    expect(first).not.toBe(second)
-  })
-
-  it('is stable across exports, so a re-download overwrites rather than duplicating', () => {
-    const input = {
-      createdAt: new Date('2026-06-20T21:04:11.000Z'),
-      contentHashShort: 'abc123def456',
-      index: 3,
-    }
-
-    expect(albumEntryName(input)).toBe(albumEntryName(input))
   })
 })

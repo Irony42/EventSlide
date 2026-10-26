@@ -1,29 +1,26 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
-import { Dimensions } from '../../../domain/photos/dimensions'
 import type { Photo, PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import {
   asEventId,
   asGuestId,
   asMissionId,
+  asPhotoId,
   asUserId,
   type EventId,
   type MissionId,
+  type PhotoId,
 } from '../../../domain/shared/ids'
-import { ok, type Result } from '../../../domain/shared/result'
-import type { ContentHasher } from '../../ports/contentHasher'
-import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
-import type { LogContext, Logger } from '../../ports/logger'
+import { type Result } from '../../../domain/shared/result'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
-import type { PhotoAdmission, PhotoRefusal } from '../../ports/photoRepository'
+import type {
+  PhotoAdmission,
+  PhotoAdmissionLimits,
+  PhotoRefusal,
+} from '../../ports/photoRepository'
 import {
   MEDIA_VARIANTS,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-  type StoredObject,
-  type PhotoVariant,
 } from '../../ports/mediaStore'
 import { aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
@@ -35,13 +32,17 @@ import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
 import {
   makeUploadPhotos,
-  VARIANT_SPECS,
   type UploadFile,
   type UploadOutcome,
   type UploadPhotos,
   type UploadPhotosDeps,
   type UploadPhotosResult,
 } from './uploadPhotos'
+import { CapturingLogger } from '../../testing/capturingLogger'
+import { CountingClientRepository } from '../../testing/countingClientRepository'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { FakeContentHasher } from '../../testing/fakeContentHasher'
+import { FakeImageProcessor, tagBytes } from '../../testing/fakeImageProcessor'
 
 /**
  * Ingest is the highest-risk operation in the product: the only public write, it
@@ -50,225 +51,6 @@ import {
  */
 
 // ---------------------------------------------------------------- test doubles --
-
-/** A file's bytes are its tag, so every double can answer deterministically for it. */
-const tagBytes = (tag: string): Uint8Array =>
-  Uint8Array.from([...tag].map((character) => character.charCodeAt(0)))
-
-const readTag = (bytes: Uint8Array): string => String.fromCharCode(...bytes)
-
-const must = <T>(result: Result<T, DomainError>): T => {
-  if (!result.ok) throw new Error(`fixture rejected by the domain: ${result.error.code}`)
-  return result.value
-}
-
-/** Sums to exactly 1 MB per photo, so a quota expectation is arithmetic a reader can do. */
-const DEFAULT_BYTE_SIZES: Readonly<Record<PhotoVariant, number>> = {
-  original: 900_000,
-  display: 90_000,
-  thumb: 10_000,
-}
-
-interface ImageScript {
-  readonly width?: number
-  readonly height?: number
-  readonly probeError?: DomainError
-  readonly renderErrorAt?: PhotoVariant
-  readonly byteSizes?: Readonly<Record<PhotoVariant, number>>
-}
-
-/** Matched on the longest edge, so the double does not depend on object identity. */
-const variantFor = (spec: RenderSpec): PhotoVariant => {
-  const match = MEDIA_VARIANTS.find((variant) => VARIANT_SPECS[variant].maxWidth === spec.maxWidth)
-  if (match === undefined) throw new Error(`no variant renders at ${spec.maxWidth}px`)
-  return match
-}
-
-/**
- * A deterministic `ImageProcessor`.
- *
- * `calls` is the point of it: the port's contract is an *order* — read the header, then
- * decode — and the only way to prove ingest honours it is to show that a refused file
- * produced no render call at all.
- */
-class FakeImageProcessor implements ImageProcessor {
-  readonly calls: string[] = []
-
-  private readonly scripts = new Map<string, ImageScript>()
-
-  script(tag: string, script: ImageScript): this {
-    this.scripts.set(tag, script)
-    return this
-  }
-
-  /** The exact bytes `render` will produce, so a test can pre-compute a content hash. */
-  renderedBytes(tag: string, variant: PhotoVariant): Uint8Array {
-    return tagBytes(`${tag}/${variant}`)
-  }
-
-  async probe(bytes: Uint8Array): Promise<Result<ImageProbe, DomainError>> {
-    const tag = readTag(bytes)
-    this.calls.push(`probe:${tag}`)
-
-    const script = this.scripts.get(tag) ?? {}
-    if (script.probeError !== undefined) return { ok: false, error: script.probeError }
-
-    return ok({
-      format: 'jpeg',
-      dimensions: this.dimensionsOf(script),
-      hasAlpha: false,
-      exifOrientation: 6,
-      hasMetadata: true,
-      frames: 1,
-    })
-  }
-
-  async render(bytes: Uint8Array, spec: RenderSpec): Promise<Result<RenderedImage, DomainError>> {
-    const tag = readTag(bytes)
-    const variant = variantFor(spec)
-    this.calls.push(`render:${tag}:${variant}`)
-
-    const script = this.scripts.get(tag) ?? {}
-    if (script.renderErrorAt === variant) {
-      return { ok: false, error: DomainError.unexpected('image.renderFailed') }
-    }
-
-    const box = must(Dimensions.create(spec.maxWidth, spec.maxHeight))
-    return ok({
-      bytes: this.renderedBytes(tag, variant),
-      dimensions: this.dimensionsOf(script).scaleToFit(box),
-      byteSize: (script.byteSizes ?? DEFAULT_BYTE_SIZES)[variant],
-      format: spec.format,
-    })
-  }
-
-  private dimensionsOf(script: ImageScript): Dimensions {
-    return must(Dimensions.create(script.width ?? 4032, script.height ?? 3024))
-  }
-}
-
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  /** Successful writes remaining before the store starts refusing them. */
-  private budget = Number.POSITIVE_INFINITY
-
-  /** Simulates a disk filling up part-way through a request. */
-  failAfter(writes: number): this {
-    this.budget = writes
-    return this
-  }
-
-  /** Every variant currently held for one photo, in a stable order. */
-  variantsOf(eventId: EventId, hash: ContentHash): readonly MediaVariant[] {
-    return MEDIA_VARIANTS.filter((variant) => this.objects.has(this.key(eventId, hash, variant)))
-  }
-
-  get objectCount(): number {
-    return this.objects.size
-  }
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    if (this.budget <= 0) throw new Error('no space left on device')
-    this.budget -= 1
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : {
-            byteSize: bytes.length,
-            contentType: 'image/jpeg',
-            // Not a fact any of these tests depends on; the sweep is the only reader.
-            modifiedAt: new Date(0),
-          }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    if (bytes === undefined) return null
-    return (async function* () {
-      yield bytes
-    })()
-  }
-
-  async read(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  // Reconciliation only. A use case that started enumerating the store would fail
-  // loudly here rather than pass against a permissive stub.
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error(`listEvents is not part of photo ingest`)
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error(`list is not part of photo ingest`)
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
-}
-
-/** FNV-1a widened to 64 hex characters: deterministic, and a real `ContentHash`. */
-class FakeContentHasher implements ContentHasher {
-  private malformed = false
-
-  /** A broken adapter — the one hash failure that is not the guest's photo's fault. */
-  returnGarbage(): this {
-    this.malformed = true
-    return this
-  }
-
-  sha256Hex(bytes: Uint8Array): string {
-    if (this.malformed) return 'not-a-digest'
-
-    let state = 2166136261
-    let digest = ''
-    while (digest.length < 64) {
-      for (const byte of bytes) state = Math.imul(state ^ byte, 16777619) >>> 0
-      state = Math.imul(state ^ digest.length, 16777619) >>> 0
-      digest += state.toString(16).padStart(8, '0')
-    }
-    return digest.slice(0, 64)
-  }
-}
 
 /** A locked database: `SQLITE_BUSY` on the insert, after the media has been written. */
 class LockedPhotoRepository extends FakePhotoRepository {
@@ -318,27 +100,83 @@ class LostRacePhotoRepository extends FakePhotoRepository {
   }
 }
 
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
+/**
+ * Byte-identical photos of other guests, committed **after** this request's duplicate
+ * check and **before** its insert: the race `(event_id, content_hash)` being unique turns
+ * into a raise for the whole batch, exactly as it does in SQLite.
+ *
+ * One twin per insert, named `rival-1`, `rival-2`, …, so a test can make the retry itself
+ * lose a second race.
+ */
+class RivalCommitsBeforeInsertPhotoRepository extends FakePhotoRepository {
+  private readonly waiting: string[]
+  private committed = 0
 
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
+  constructor(...rivalHashes: readonly string[]) {
+    super()
+    this.waiting = [...rivalHashes]
   }
 
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
+  override async saveManyWithinLimits(
+    eventId: EventId,
+    photos: readonly Photo[],
+    limits: PhotoAdmissionLimits,
+  ): Promise<readonly PhotoAdmission[]> {
+    const next = this.waiting.shift()
+    if (next !== undefined) {
+      this.committed += 1
+      await this.save(aPhoto({ id: `rival-${this.committed}`, eventId, contentHash: next }))
+    }
+    return super.saveManyWithinLimits(eventId, photos, limits)
+  }
+}
+
+/**
+ * The same twin, committed while this request is still rendering its **second** file: the
+ * first file's media is on the disk, nothing of this request is committed, and the row that
+ * now names that media is somebody else's.
+ */
+class RivalCommitsMidRequestPhotoRepository extends FakePhotoRepository {
+  private lookups = 0
+
+  constructor(private readonly rivalHash: string) {
+    super()
   }
 
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
+  override async findByContentHash(eventId: EventId, hash: ContentHash): Promise<Photo | null> {
+    const found = await super.findByContentHash(eventId, hash)
+    this.lookups += 1
+    if (this.lookups === 2) {
+      await this.save(aPhoto({ id: 'rival-1', eventId, contentHash: this.rivalHash }))
+    }
+    return found
+  }
+}
+
+/** A database that stays locked: the insert raises, and so does every read after it. */
+class LockedForGoodPhotoRepository extends FakePhotoRepository {
+  private locked = false
+
+  override async saveManyWithinLimits(): Promise<readonly PhotoAdmission[]> {
+    this.locked = true
+    throw new Error('SQLITE_BUSY: database is locked')
   }
 
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
+  override async findByContentHash(eventId: EventId, hash: ContentHash): Promise<Photo | null> {
+    this.refuseWhenLocked()
+    return super.findByContentHash(eventId, hash)
   }
 
-  child(_bindings: LogContext): Logger {
-    return this
+  override async findIdsReferencing(
+    eventId: EventId,
+    hash: ContentHash,
+  ): Promise<readonly PhotoId[]> {
+    this.refuseWhenLocked()
+    return super.findIdsReferencing(eventId, hash)
+  }
+
+  private refuseWhenLocked(): void {
+    if (this.locked) throw new Error('SQLITE_BUSY: database is locked')
   }
 }
 
@@ -417,7 +255,7 @@ describe('uploadPhotos', () => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     missions = new FakeMissionRepository(photos)
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('photo ingest')
     images = new FakeImageProcessor()
     hasher = new FakeContentHasher()
     bus = new RecordingEventBus()
@@ -813,6 +651,137 @@ describe('uploadPhotos', () => {
     expect(media.objectCount).toBe(3)
   })
 
+  // ------------------------------------- the same photograph, from two phones at once --
+
+  /**
+   * Two guests send the same photograph from the same group chat. Media is addressed by
+   * content and `photos (event_id, content_hash)` is unique, so both write the same three
+   * files, one insert wins and the other raises. These are the tests that fail if the loser
+   * takes "its" files with it, because they are the winner's.
+   */
+  const identicalAtOnce = async (): Promise<
+    readonly [Result<UploadPhotosResult, DomainError>, Result<UploadPhotosResult, DomainError>]
+  > =>
+    Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: OTHER_GUEST, files: [aFile('sunset')] }),
+    ])
+
+  it('keeps the media of the row a concurrent identical upload committed', async () => {
+    seedEvent()
+
+    await identicalAtOnce()
+
+    const [row] = await storedPhotos()
+    expect(row === undefined ? [] : media.variantsOf(EVENT, row.contentHash)).toEqual(
+      MEDIA_VARIANTS,
+    )
+  })
+
+  it('answers the identical upload that lost the race with the photo that won, not an error', async () => {
+    seedEvent()
+
+    const results = await identicalAtOnce()
+
+    const [row] = await storedPhotos()
+    const loser = outcomesOf(results[1])[0]
+    expect(results.every((result) => result.ok)).toBe(true)
+    expect(loser).toMatchObject({ kind: 'duplicate', photoId: row?.id })
+  })
+
+  it('announces one upload, not two, when the same photograph arrives twice at once', async () => {
+    seedEvent()
+
+    await identicalAtOnce()
+
+    expect(bus.published.filter((event) => event.type === 'photo.uploaded')).toHaveLength(1)
+  })
+
+  it('stores the rest of the batch when one of its files lost the race to a twin', async () => {
+    seedEvent()
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    expect(kinds(result)).toEqual(['duplicate', 'stored'])
+    expect((await rival.list(EVENT)).items.map((photo) => photo.id).sort()).toEqual([
+      'photo-2',
+      'rival-1',
+    ])
+  })
+
+  it('names the twin, not a row that was never written, for a later file that repeated the loser', async () => {
+    seedEvent()
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('sunset'), aFile('cake')],
+    })
+
+    expect(outcomesOf(result)).toMatchObject([
+      { kind: 'duplicate', photoId: 'rival-1' },
+      { kind: 'duplicate', photoId: 'rival-1' },
+      { kind: 'stored' },
+    ])
+  })
+
+  it('keeps the twin media while storing the rest of the batch that lost a file to it', async () => {
+    seedEvent()
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    const twin = await rival.findById(EVENT, asPhotoId('rival-1'))
+    expect(twin === null ? [] : media.variantsOf(EVENT, twin.contentHash)).toEqual(MEDIA_VARIANTS)
+  })
+
+  it('keeps answering duplicate when a second twin is committed while the retry is being written', async () => {
+    seedEvent()
+    const rivals = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'), hashOf('cake'))
+
+    const result = await uploadInto(rivals)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake'), aFile('tea')],
+    })
+
+    expect(outcomesOf(result)).toMatchObject([
+      { kind: 'duplicate', photoId: 'rival-1' },
+      { kind: 'duplicate', photoId: 'rival-2' },
+      { kind: 'stored', photoId: 'photo-3' },
+    ])
+    // The outcome alone could not tell a stored photo from one reported and never written.
+    expect((await rivals.list(EVENT)).items.map((photo) => photo.id).sort()).toEqual([
+      'photo-3',
+      'rival-1',
+      'rival-2',
+    ])
+  })
+
+  it('announces and publishes only what was stored when a file of the batch lost to a twin', async () => {
+    seedEvent({ settings: { moderation: 'auto' } })
+    const rival = new RivalCommitsBeforeInsertPhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    expect(result.ok && result.value.published).toEqual(['photo-2'])
+    expect(bus.published.map((event) => event.type)).toEqual(['photo.uploaded', 'photo.moderated'])
+  })
+
   it('holds the per-guest photo limit when one guest uploads twice at the same moment', async () => {
     seedEvent({ settings: { maxPhotosPerGuest: 1 } })
 
@@ -891,6 +860,66 @@ describe('uploadPhotos', () => {
     await uploadInto(lost)({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
     expect(media.objectCount).toBe(3)
+  })
+
+  it('answers duplicate, not a refusal, for a turned-away photo whose bytes the album now holds', async () => {
+    seedEvent()
+    const lost = new LostRacePhotoRepository(hashOf('sunset'))
+
+    const result = await uploadInto(lost)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('sunset')],
+    })
+
+    expect(outcomesOf(result)).toMatchObject([
+      { kind: 'duplicate', photoId: 'winner' },
+      { kind: 'duplicate', photoId: 'winner' },
+    ])
+  })
+
+  it('does not tell a guest at their photo limit that the photograph they double-tapped was refused', async () => {
+    // The limit is decided before the unique index is reached, so the second tap is turned
+    // away for a photograph the first one just stored.
+    seedEvent({ settings: { maxPhotosPerGuest: 2 } })
+    photos.seed(aPhoto({ id: 'earlier', eventId: 'event-1' }))
+
+    const taps = await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+    ])
+
+    expect(taps.flatMap((tap) => kinds(tap)).sort()).toEqual(['duplicate', 'stored'])
+    expect(await photos.countByAuthor(EVENT, asGuestId('guest-1'))).toBe(2)
+  })
+
+  it('still refuses a photo the write turned away when no row holds its bytes', async () => {
+    seedEvent()
+    const full = new FullPhotoRepository(LIMIT_REFUSAL)
+
+    const result = await uploadInto(full)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset')],
+    })
+
+    expect(kinds(result)).toEqual(['refused'])
+  })
+
+  it('answers every file when the unlink of a turned-away photo fails after the batch committed', async () => {
+    // An unlink that throws here would leave the stored photo unannounced and answer a 500
+    // for a photograph that is in the album.
+    seedEvent({ quotaBytes: 1_500_000 })
+    media.failDeletes()
+
+    const results = await Promise.all([
+      uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] }),
+      uploadPhotos({ eventId: EVENT, author: OTHER_GUEST, files: [aFile('cake')] }),
+    ])
+
+    expect(results.flatMap((result) => kinds(result)).sort()).toEqual(['refused', 'stored'])
+    expect(bus.published.map((event) => event.type)).toEqual(['photo.uploaded'])
+    expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
   it('announces nothing for a photo the write turned away', async () => {
@@ -984,7 +1013,7 @@ describe('uploadPhotos', () => {
   it('removes the media this request wrote when a variant cannot be stored', async () => {
     seedEvent()
     // Four writes land: the first file entire, then one variant of the second.
-    media.failAfter(4)
+    media.failWritesAfter(4)
 
     const result = await uploadPhotos({
       eventId: EVENT,
@@ -998,7 +1027,7 @@ describe('uploadPhotos', () => {
 
   it('inserts no row when a media write fails, so no row can point at a missing file', async () => {
     seedEvent()
-    media.failAfter(0)
+    media.failWritesAfter(0)
 
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
@@ -1010,11 +1039,68 @@ describe('uploadPhotos', () => {
     const earlier = aPhoto({ id: 'earlier', eventId: 'event-1' })
     photos.seed(earlier)
     await media.put(EVENT, earlier.contentHash, 'display', tagBytes('earlier'))
-    media.failAfter(1)
+    media.failWritesAfter(1)
 
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
     expect(media.variantsOf(EVENT, earlier.contentHash)).toEqual(['display'])
+  })
+
+  it('never removes media a committed row names, however the request fails', async () => {
+    // The twin commits while this request renders its second file; that file's first
+    // write then fails, and the unwind runs with the first file's media on the disk.
+    seedEvent()
+    const rival = new RivalCommitsMidRequestPhotoRepository(hashOf('sunset'))
+    media.failWritesAfter(3)
+
+    const result = await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    const twin = await rival.findById(EVENT, asPhotoId('rival-1'))
+    expect(!result.ok && result.error.code).toBe('photo.mediaWriteFailed')
+    expect(twin === null ? [] : media.variantsOf(EVENT, twin.contentHash)).toEqual(MEDIA_VARIANTS)
+  })
+
+  it('still removes the media nothing names when it unwinds beside media something does', async () => {
+    seedEvent()
+    const rival = new RivalCommitsMidRequestPhotoRepository(hashOf('sunset'))
+    media.failWritesAfter(5)
+
+    await uploadInto(rival)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset'), aFile('cake')],
+    })
+
+    // The twin's three variants stay; the two written of the second file go.
+    expect(media.objectCount).toBe(3)
+  })
+
+  it('answers photo.saveFailed rather than throwing when the database stays locked for the lookups too', async () => {
+    seedEvent()
+    const locked = new LockedForGoodPhotoRepository()
+
+    const result = await uploadInto(locked)({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile('sunset')],
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.saveFailed')
+  })
+
+  it('leaves the media for the sweep when it cannot ask whether a row names it', async () => {
+    // A file a row names cannot be rebuilt; a file nothing names is swept. When the
+    // question cannot be asked, the cheap mistake is the one to make.
+    seedEvent()
+    const locked = new LockedForGoodPhotoRepository()
+
+    await uploadInto(locked)({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
+
+    expect(media.objectCount).toBe(3)
   })
 
   it('removes the media it wrote when the rows cannot be inserted', async () => {
@@ -1056,7 +1142,7 @@ describe('uploadPhotos', () => {
 
   it('logs the cause when it unwinds, so an operator can tell a full disk from a bug', async () => {
     seedEvent()
-    media.failAfter(0)
+    media.failWritesAfter(0)
 
     await uploadPhotos({ eventId: EVENT, author: GUEST, files: [aFile('sunset')] })
 
@@ -1079,7 +1165,7 @@ describe('uploadPhotos and the mission tag', () => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     missions = new FakeMissionRepository(photos)
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('photo ingest')
     images = new FakeImageProcessor()
     hasher = new FakeContentHasher()
     bus = new RecordingEventBus()
@@ -1183,10 +1269,9 @@ describe('uploadPhotos and the mission tag', () => {
   it('tells the operator about a tag it could not resolve, since that is a client bug', async () => {
     await send(asMissionId('mission-ghost'))
 
-    expect(logger.lines).toContainEqual({
-      level: 'warn',
-      message: 'an upload named a mission this event does not have; storing it untagged',
-    })
+    expect(logger.messages('warn')).toContain(
+      'an upload named a mission this event does not have; storing it untagged',
+    )
   })
 })
 
@@ -1208,18 +1293,6 @@ describe('uploadPhotos under a client’s ceilings', () => {
   let media: InMemoryMediaStore
   let images: FakeImageProcessor
   let logger: CapturingLogger
-
-  /** Counts the reads, so "an event with no client never asks" is a number. */
-  class CountingClientRepository extends FakeClientRepository {
-    contextReads = 0
-
-    override async contextForEvent(
-      ...args: Parameters<FakeClientRepository['contextForEvent']>
-    ): ReturnType<FakeClientRepository['contextForEvent']> {
-      this.contextReads += 1
-      return super.contextForEvent(...args)
-    }
-  }
 
   const buildWith = (photoRepo: FakePhotoRepository = photos): UploadPhotos =>
     makeUploadPhotos({
@@ -1246,7 +1319,7 @@ describe('uploadPhotos under a client’s ceilings', () => {
     clients = new CountingClientRepository()
     events = new FakeEventRepository({ clients })
     photos = new FakePhotoRepository().chargeClientBytesFrom(clients)
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('photo ingest')
     images = new FakeImageProcessor()
     logger = new CapturingLogger()
 
@@ -1317,7 +1390,7 @@ describe('uploadPhotos under a client’s ceilings', () => {
     photos.seed(aPhoto({ id: 'held-1', eventId: 'event-2', byteSize: 2 * MB }))
     // A disk that fails on its first write: a request that tried to store the photograph
     // would answer `photo.mediaWriteFailed`, not a named refusal.
-    media.failAfter(0)
+    media.failWritesAfter(0)
 
     const result = await send(EVENT, 'sunset')
 

@@ -1,38 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { MAX_ATTEMPTS } from '../../../domain/clips/clipFailure'
 import { asClipJobId, asEventId } from '../../../domain/shared/ids'
-import type { LogContext, Logger } from '../../ports/logger'
 import { AT, aClipJob, atPlus } from '../../testing/builders'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { makeRecoverClipJobs, type RecoverClipJobs } from './recoverClipJobs'
+import { CapturingLogger } from '../../testing/capturingLogger'
 
 const EVENT = asEventId('event-1')
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
-}
 
 describe('recoverClipJobs', () => {
   let clips: FakeClipJobRepository

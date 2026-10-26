@@ -12,6 +12,7 @@ import type {
 } from '../../domain/shared/ids'
 import type { StagedByteSource } from '../ports/clipJobRepository'
 import type { ClientEventSource } from './fakeClientRepository'
+import type { GuestPhotoSource } from './fakeGuestRepository'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
@@ -20,6 +21,7 @@ import type {
   PhotoRepository,
   PhotoStatusCounts,
 } from '../ports/photoRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `PhotoRepository`, behaving the way the SQLite adapter must.
@@ -34,15 +36,12 @@ import type {
  * 2. **`(eventId, contentHash)` is unique**, as `idx_photos_event_hash` makes it. A
  *    save that would duplicate rejects, so the "double-tapped Envoyer" path is
  *    exercised against a repository that behaves like the real one.
- * 3. **One total order: `createdAt` descending, then id ascending.** That is
- *    `idx_photos_event_status_created`. Without the id tie-break two projectors
- *    reading the same event can disagree about what comes next, which is 1.0's
- *    per-browser slideshow index in a new costume.
+ * 3. **One total order: `createdAt` descending, then id descending**, as the adapter's
+ *    `ORDER BY created_at DESC, id DESC` has it. Both keys run the same way, and the keyset
+ *    cursor is the same pair. Without the id tie-break two projectors reading the same
+ *    event can disagree about what comes next, which is 1.0's per-browser slideshow index
+ *    in a new costume.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 const newestFirst = (left: Photo, right: Photo): number =>
   right.createdAt.getTime() - left.createdAt.getTime() || compareIds(right.id, left.id)
@@ -54,7 +53,7 @@ interface Cursor {
 
 /**
  * `<epoch millis>:<photo id>` — opaque to the caller, and enough to resume a
- * `(createdAt DESC, id ASC)` scan without an offset. Offset paging would skip or
+ * `(createdAt DESC, id DESC)` scan without an offset. Offset paging would skip or
  * repeat a photo as guests keep uploading during a scroll.
  */
 const encodeCursor = (photo: Photo): string => `${photo.createdAt.getTime()}:${photo.id}`
@@ -67,10 +66,16 @@ const decodeCursor = (raw: string): Cursor | null => {
   return { createdAt, id: raw.slice(separator + 1) }
 }
 
+/**
+ * Strictly after the cursor in `createdAt DESC, id DESC` order: older, or the same instant
+ * with a **smaller** id — the SQLite adapter's `created_at < ? OR (created_at = ? AND id < ?)`.
+ * A tied photo whose id is larger than the cursor's sorts *before* it and was already
+ * served, so comparing the other way round repeats the first page's rows and skips the last.
+ */
 const isAfterCursor = (photo: Photo, cursor: Cursor): boolean => {
   const createdAt = photo.createdAt.getTime()
   if (createdAt !== cursor.createdAt) return createdAt < cursor.createdAt
-  return compareIds(photo.id, cursor.id) > 0
+  return compareIds(photo.id, cursor.id) < 0
 }
 
 const requirePositive = (limit: number, method: string): void => {
@@ -107,7 +112,7 @@ const insertInto = (rows: Map<string, Photo>, photo: Photo): void => {
   rows.set(key(photo.eventId, photo.id), photo)
 }
 
-export class FakePhotoRepository implements PhotoRepository {
+export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
   private readonly rows = new Map<string, Photo>()
 
   /**
@@ -318,7 +323,26 @@ export class FakePhotoRepository implements PhotoRepository {
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
+    return this.authoredBy(eventId, guestId)
+  }
+
+  /**
+   * How many rows of one event a guest authored, synchronously, whatever their status and
+   * whether a still or a clip — what `countByAuthor` answers and what `FakeGuestRepository`
+   * derives `photoCount` from. **Test infrastructure, not a port method.**
+   */
+  authoredBy(eventId: EventId, guestId: GuestId): number {
     return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
+  }
+
+  /**
+   * What `photos.author_guest_id … ON DELETE CASCADE` does when a guest is erased: their
+   * photographs go with them. `FakeGuestRepository.delete` calls it. **Test infrastructure.**
+   */
+  deleteAuthoredBy(eventId: EventId, guestId: GuestId): void {
+    for (const photo of this.forEvent(eventId)) {
+      if (this.matchesAuthor(photo, guestId)) this.rows.delete(key(photo.eventId, photo.id))
+    }
   }
 
   async save(photo: Photo): Promise<void> {
@@ -481,17 +505,5 @@ export class FakePhotoRepository implements PhotoRepository {
       changed.push(photoId)
     }
     return changed
-  }
-
-  /**
-   * A snapshot taken when iteration starts, not a live view: the album export runs for
-   * minutes on a four-thousand-photo wedding while guests keep uploading, and a
-   * writer-visible iterator would decide the archive's contents by timing.
-   */
-  async *streamForExport(eventId: EventId, statuses: readonly PhotoStatus[]): AsyncIterable<Photo> {
-    const snapshot = this.forEvent(eventId)
-      .filter((photo) => statuses.includes(photo.status))
-      .sort(newestFirst)
-    for (const photo of snapshot) yield photo
   }
 }

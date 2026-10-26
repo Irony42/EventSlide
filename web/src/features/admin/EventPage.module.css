@@ -103,3 +103,9 @@
     display: block;
   }
 }
+
+/* The end of the live window of a client's event, under the storage meter. */
+.liveWindow {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

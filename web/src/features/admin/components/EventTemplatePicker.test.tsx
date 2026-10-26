@@ -122,6 +122,18 @@ describe('EventTemplatePicker', () => {
     },
   )
 
+  it('discloses it as text in the option’s description, not as an announcement of its own', () => {
+    renderPicker()
+
+    // Reached with the option, as the description above says; a role would also announce
+    // it when the picker mounts, before anyone has chosen anything.
+    const warnings = screen.getAllByText(fr.admin.moderationAutoWarning)
+    expect(warnings.length).toBeGreaterThan(0)
+    for (const warning of warnings) {
+      expect(warning.closest('[role="alert"], [role="status"]')).toBeNull()
+    }
+  })
+
   it.each(['wedding', 'conference'] as const)('warns about nothing on %s', (key) => {
     renderPicker()
 

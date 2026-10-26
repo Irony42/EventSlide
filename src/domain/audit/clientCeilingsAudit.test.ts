@@ -4,10 +4,12 @@ import { ClientCeilings, type ClientCeilingsInput } from '../clients/clientCeili
 import type { DomainError } from '../shared/errors'
 import { asClientId } from '../shared/ids'
 import type { Result } from '../shared/result'
-import { describeCeilingsChange } from './clientCeilingsAudit'
+import { AuditEntry } from './auditEntry'
+import { describeCeilingsChange, describeClientCreation } from './clientCeilingsAudit'
 
 const AT = new Date('2026-06-20T21:00:00.000Z')
 const NEXT_DAY = new Date('2026-06-21T21:00:00.000Z')
+const REASON = 'Capacité du disque revue à la baisse'
 
 const must = <T>(result: Result<T, DomainError>): T => {
   if (!result.ok) throw new Error(`fixture rejected: ${result.error.code}`)
@@ -29,27 +31,28 @@ describe('describeCeilingsChange', () => {
   it('writes nothing when nothing changed, so a patch that restates the ceilings is not an act on the client', () => {
     const client = aClientWith({ maxEvents: 5, periodStartedAt: AT })
 
-    expect(describeCeilingsChange(client, client)).toEqual([])
+    expect(describeCeilingsChange(client, client, REASON)).toEqual([])
   })
 
   it('treats two equal instants held in different Date objects as unchanged', () => {
     const before = aClientWith({ periodStartedAt: AT })
     const after = aClientWith({ periodStartedAt: new Date(AT.getTime()) })
 
-    expect(describeCeilingsChange(before, after)).toEqual([])
+    expect(describeCeilingsChange(before, after, REASON)).toEqual([])
   })
 
   it('writes client.ceilingsChanged with a full before and after when a ceiling changed', () => {
     const before = aClientWith({ maxEvents: 5, maxRetentionDays: 90 })
     const after = aClientWith({ maxEvents: 6, maxRetentionDays: 90 })
 
-    const planned = describeCeilingsChange(before, after)
+    const planned = describeCeilingsChange(before, after, REASON)
 
     expect(planned).toHaveLength(1)
     expect(planned[0]?.action).toBe('client.ceilingsChanged')
     expect(planned[0]?.details).toEqual({
       before: expect.objectContaining({ maxEvents: 5, maxRetentionDays: 90 }),
       after: expect.objectContaining({ maxEvents: 6, maxRetentionDays: 90 }),
+      reason: REASON,
     })
   })
 
@@ -57,9 +60,10 @@ describe('describeCeilingsChange', () => {
     const before = aClientWith({ maxEvents: 5 })
     const after = aClientWith({ maxEvents: null })
 
-    expect(describeCeilingsChange(before, after)[0]?.details).toEqual({
+    expect(describeCeilingsChange(before, after, REASON)[0]?.details).toEqual({
       before: expect.objectContaining({ maxEvents: 5 }),
       after: expect.objectContaining({ maxEvents: null }),
+      reason: REASON,
     })
   })
 
@@ -67,7 +71,7 @@ describe('describeCeilingsChange', () => {
     const before = aClientWith({ clipsAllowed: true })
     const after = aClientWith({ clipsAllowed: false })
 
-    expect(describeCeilingsChange(before, after).map((entry) => entry.action)).toEqual([
+    expect(describeCeilingsChange(before, after, REASON).map((entry) => entry.action)).toEqual([
       'client.ceilingsChanged',
     ])
   })
@@ -76,9 +80,10 @@ describe('describeCeilingsChange', () => {
     const before = aClientWith({ periodStartedAt: null })
     const after = aClientWith({ periodStartedAt: AT })
 
-    expect(describeCeilingsChange(before, after)[0]?.details).toEqual({
+    expect(describeCeilingsChange(before, after, REASON)[0]?.details).toEqual({
       before: expect.objectContaining({ periodStartedAt: null }),
       after: expect.objectContaining({ periodStartedAt: '2026-06-20T21:00:00.000Z' }),
+      reason: REASON,
     })
   })
 
@@ -86,7 +91,7 @@ describe('describeCeilingsChange', () => {
     const before = aClientWith({ periodStartedAt: AT }, 4)
     const after = aClientWith({ periodStartedAt: NEXT_DAY }, 0)
 
-    const planned = describeCeilingsChange(before, after)
+    const planned = describeCeilingsChange(before, after, REASON)
 
     expect(planned.map((entry) => entry.action)).toEqual([
       'client.ceilingsChanged',
@@ -102,7 +107,7 @@ describe('describeCeilingsChange', () => {
     const before = aClientWith({ maxEvents: 5, periodStartedAt: AT }, 4)
     const after = aClientWith({ maxEvents: 6, periodStartedAt: AT }, 4)
 
-    expect(describeCeilingsChange(before, after).map((entry) => entry.action)).toEqual([
+    expect(describeCeilingsChange(before, after, REASON).map((entry) => entry.action)).toEqual([
       'client.ceilingsChanged',
     ])
   })
@@ -139,7 +144,7 @@ describe('describeCeilingsChange', () => {
   }
 
   it('writes all nine ceilings, each under its own name, on both sides', () => {
-    const planned = describeCeilingsChange(aClientWith(BEFORE), aClientWith(AFTER))
+    const planned = describeCeilingsChange(aClientWith(BEFORE), aClientWith(AFTER), REASON)
 
     expect(planned[0]?.details).toEqual({
       before: {
@@ -164,6 +169,7 @@ describe('describeCeilingsChange', () => {
         maxEventsPerPeriod: 17,
         periodStartedAt: '2026-06-21T21:00:00.000Z',
       },
+      reason: REASON,
     })
   })
 
@@ -172,7 +178,7 @@ describe('describeCeilingsChange', () => {
     (key) => {
       const changed = aClientWith({ ...BEFORE, [key]: (AFTER as Record<string, unknown>)[key] })
 
-      const details = describeCeilingsChange(aClientWith(BEFORE), changed)[0]?.details as {
+      const details = describeCeilingsChange(aClientWith(BEFORE), changed, REASON)[0]?.details as {
         before: Record<string, unknown>
         after: Record<string, unknown>
       }
@@ -188,7 +194,7 @@ describe('describeCeilingsChange', () => {
     const before = aClientWith({ periodStartedAt: AT }, 0)
     const after = aClientWith({ periodStartedAt: NEXT_DAY }, 0)
 
-    expect(describeCeilingsChange(before, after).map((entry) => entry.action)).toEqual([
+    expect(describeCeilingsChange(before, after, REASON).map((entry) => entry.action)).toEqual([
       'client.ceilingsChanged',
       'client.periodReset',
     ])
@@ -198,8 +204,8 @@ describe('describeCeilingsChange', () => {
     const none = aClientWith({ periodStartedAt: null }, 0)
     const some = aClientWith({ periodStartedAt: AT }, 3)
 
-    const started = describeCeilingsChange(none, some)[1]?.details
-    const cleared = describeCeilingsChange(some, none)[1]?.details
+    const started = describeCeilingsChange(none, some, REASON)[1]?.details
+    const cleared = describeCeilingsChange(some, none, REASON)[1]?.details
 
     expect(started).toEqual({
       before: { periodStartedAt: null, eventsCreatedInPeriod: 0 },
@@ -209,5 +215,61 @@ describe('describeCeilingsChange', () => {
       before: { periodStartedAt: '2026-06-20T21:00:00.000Z', eventsCreatedInPeriod: 3 },
       after: { periodStartedAt: null, eventsCreatedInPeriod: 0 },
     })
+  })
+})
+
+describe('describeClientCreation', () => {
+  it('writes client.created with the full snapshot of what the client starts with', () => {
+    const client = aClientWith({ maxEvents: 1, maxEventsPerPeriod: 6, periodStartedAt: AT })
+
+    const planned = describeClientCreation(client)
+
+    expect(planned.action).toBe('client.created')
+    expect(planned.details).toEqual({
+      ceilings: {
+        maxEvents: 1,
+        maxTotalBytes: null,
+        maxEventQuotaBytes: null,
+        maxRetentionDays: null,
+        clipsAllowed: true,
+        liveAllowed: true,
+        maxLiveDays: null,
+        maxEventsPerPeriod: 6,
+        periodStartedAt: '2026-06-20T21:00:00.000Z',
+      },
+    })
+  })
+
+  it('is written for a client with no ceiling at all too: that it was never limited is a fact about its first day', () => {
+    const planned = describeClientCreation(aClientWith({}))
+
+    expect(planned.details).toEqual({
+      ceilings: expect.objectContaining({ maxEvents: null, clipsAllowed: true, liveAllowed: true }),
+    })
+  })
+
+  it('is an entry the log accepts, for the client it is about', () => {
+    const client = aClientWith({ maxEvents: 2 })
+    const planned = describeClientCreation(client)
+
+    const entry = AuditEntry.create({
+      at: AT,
+      actor: { kind: 'system', label: 'provision-client-owner' },
+      action: planned.action,
+      subject: { type: 'client', id: client.id },
+      clientId: client.id,
+      details: planned.details,
+    })
+
+    expect(entry.ok).toBe(true)
+  })
+
+  it('carries nothing but the ceilings: no name, no address, no locale', () => {
+    const client = aClientWith({ maxEvents: 2 })
+
+    const text = JSON.stringify(describeClientCreation(client).details)
+
+    expect(text).not.toContain('Atelier Photo Camille')
+    expect(Object.keys(describeClientCreation(client).details)).toEqual(['ceilings'])
   })
 })

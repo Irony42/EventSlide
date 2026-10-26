@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { resetInstallState, watchForInstall } from '../../../lib/pwa/install'
-import { useInstallPrompt } from './useInstallPrompt'
+import type * as Install from '../../../lib/pwa/install'
 import type { BeforeInstallPromptEvent } from '../../../lib/pwa/install'
+import type * as Hook from './useInstallPrompt'
 
 /**
  * When the offer appears, and — mostly — when it does not.
@@ -33,18 +33,27 @@ const asIos = (): void => {
   Object.defineProperty(navigator, 'standalone', { value: false, configurable: true })
 }
 
+/**
+ * `install.ts` keeps what it captured in module state, as it must: the event fires once per
+ * document. A test therefore imports a fresh copy of it, and of the hook that reads it, so
+ * that nothing one test captured or installed is there for the next.
+ */
+let watchForInstall: typeof Install.watchForInstall
+let useInstallPrompt: typeof Hook.useInstallPrompt
+
 let stopWatching = (): void => {}
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear()
   Reflect.deleteProperty(navigator, 'standalone')
-  resetInstallState()
+  vi.resetModules()
+  ;({ watchForInstall } = await import('../../../lib/pwa/install'))
+  ;({ useInstallPrompt } = await import('./useInstallPrompt'))
   stopWatching = watchForInstall()
 })
 
 afterEach(() => {
   stopWatching()
-  resetInstallState()
   vi.restoreAllMocks()
   localStorage.clear()
   Reflect.deleteProperty(navigator, 'standalone')

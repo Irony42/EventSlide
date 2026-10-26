@@ -20,24 +20,6 @@ import type { SlideInterval } from './slideInterval'
 export const CROSSFADE_MS = 800
 
 /**
- * A 1.00 → 1.08 zoom over the whole slide: about one percent per second at the default
- * interval, which is enough for a still photo to feel alive and little enough that a
- * phone photo's detail survives being enlarged on a 1080p projector.
- */
-const SCALE_FROM = 1
-const SCALE_TO = 1.08
-
-export interface KenBurnsScale {
-  readonly from: number
-  readonly to: number
-}
-
-export interface KenBurnsMotion {
-  readonly durationMs: number
-  readonly scale: KenBurnsScale
-}
-
-/**
  * Slide duration plus the crossfade.
  *
  * The zoom has to outlast the slide by exactly the time the two photos overlap,
@@ -48,17 +30,3 @@ export interface KenBurnsMotion {
  * test.
  */
 export const kenBurnsDurationMs = (interval: SlideInterval): number => interval.ms + CROSSFADE_MS
-
-export const kenBurnsScale = (): KenBurnsScale => ({ from: SCALE_FROM, to: SCALE_TO })
-
-/**
- * What the wall renders under `prefers-reduced-motion`.
- *
- * A zero duration and a flat scale, so the display skips the animation entirely rather
- * than running a faster one: to someone who asked for no motion, a quicker zoom is
- * still a zoom. The photo is shown at its natural size for the whole interval.
- */
-export const kenBurnsDisabled = (): KenBurnsMotion => ({
-  durationMs: 0,
-  scale: { from: SCALE_FROM, to: SCALE_FROM },
-})

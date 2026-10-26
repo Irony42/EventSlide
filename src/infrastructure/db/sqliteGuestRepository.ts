@@ -129,6 +129,19 @@ const UPSERT_GUEST = `
 `
 
 /**
+ * Presence and nothing else, forward only. A column list of one is the point: this runs on every
+ * guest request, and the upsert above rewrites the revocation and the name from a stale read.
+ * The ISO text is fixed-width UTC, so `<` on it is chronological.
+ */
+const TOUCH_GUEST = `
+  UPDATE guests
+     SET last_seen_at = ?
+   WHERE event_id     = ?
+     AND id           = ?
+     AND last_seen_at < ?
+`
+
+/**
  * The host's "who is in the room right now", polled while the party runs, so it must
  * be served from `idx_guests_event_seen (event_id, last_seen_at DESC)` rather than by
  * walking the guest list. `>=` includes the boundary instant: a window is closed at
@@ -277,6 +290,13 @@ export class SqliteGuestRepository implements GuestRepository {
     if (written.changes === 0) {
       throw new Error(`guests.id ${props.id} is already held by a guest of another event`)
     }
+  }
+
+  async touch(eventId: EventId, guestId: GuestId, at: Date): Promise<void> {
+    const stamp = toIsoText(at)
+    this.db
+      .prepare<[string, string, string, string]>(TOUCH_GUEST)
+      .run(stamp, eventId, guestId, stamp)
   }
 
   async delete(eventId: EventId, guestId: GuestId): Promise<void> {

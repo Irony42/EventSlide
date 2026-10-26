@@ -10,6 +10,7 @@ import type {
   ClipJobRepository,
 } from '../ports/clipJobRepository'
 import type { ClientEventSource } from './fakeClientRepository'
+import { compareIds } from './ordering'
 
 /**
  * The other half of an event's byte total, seen from the queue's side.
@@ -273,13 +274,13 @@ export class FakeClipJobRepository implements ClipJobRepository {
   async claimNext(now: Date): Promise<ClipJob | null> {
     const due = [...this.rows.values()]
       .filter((job) => job.isDue(now))
-      // Oldest first, ties broken by id so two runs agree — the same total order the
-      // adapter's index gives.
+      // Oldest first, ties broken by id as bytes so two runs agree — the same total order the
+      // adapter's index gives (`ORDER BY not_before, created_at, id`, BINARY collation).
       .sort(
         (left, right) =>
           left.notBefore.getTime() - right.notBefore.getTime() ||
           left.createdAt.getTime() - right.createdAt.getTime() ||
-          left.id.localeCompare(right.id),
+          compareIds(left.id, right.id),
       )
 
     const next = due[0]

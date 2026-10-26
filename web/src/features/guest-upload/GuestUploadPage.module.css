@@ -69,7 +69,8 @@
 }
 
 /* A link, not a button: it navigates. Sized to the touch floor all the same. */
-.rejoin {
+.rejoin,
+.feedLink {
   display: inline-flex;
   align-items: center;
   min-height: var(--touch-min);

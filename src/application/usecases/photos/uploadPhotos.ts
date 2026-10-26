@@ -38,7 +38,9 @@ import { clientBytesOf, clientContextOf } from '../clients/clientContextOf'
  * 5. the limits re-checked inside the write transaction, because a total read here can
  *    be stale by the time the batch is inserted — that is what makes the quota hold
  *    when two guests upload at the same moment, and not merely when they take turns;
- * 6. every exit path after a write removes what this request wrote.
+ * 6. every exit path after a write removes what this request wrote — **and only what no
+ *    committed row names**, because media is addressed by content and a byte-identical
+ *    photo from another guest owns the same files.
  *
  * A batch is a partial success, not all-or-nothing: a guest who selected five photos
  * and one PDF gets five photos and one named refusal. Handing back a single opaque
@@ -184,7 +186,10 @@ const refusalError = (refusal: PhotoRefusal, requiredBytes: number): DomainError
 }
 
 /**
- * Restates the outcomes of the photos the write transaction turned away.
+ * Restates the outcomes of the photos the write transaction did not keep.
+ *
+ * Two ways to not be kept. `turnedAway`: a limit refused it. `lostTo`: a byte-identical
+ * photo was committed first, so the file is already in the album under the twin's id.
  *
  * A `duplicate` outcome is restated too, not only a `stored` one: it names a photo
  * earlier in this same request, and if that photo was never written there is nothing
@@ -193,9 +198,17 @@ const refusalError = (refusal: PhotoRefusal, requiredBytes: number): DomainError
 const settle = (
   outcomes: readonly UploadOutcome[],
   turnedAway: ReadonlyMap<PhotoId, DomainError>,
+  lostTo: ReadonlyMap<PhotoId, PhotoId>,
 ): readonly UploadOutcome[] =>
   outcomes.map((outcome) => {
     if (outcome.kind === 'refused') return outcome
+
+    // A photo that lost the race to a byte-identical twin is a duplicate of the twin, and
+    // so is every later file of this request that was a duplicate of *it*.
+    const twin = lostTo.get(outcome.photoId)
+    if (twin !== undefined) {
+      return { index: outcome.index, declaredName: outcome.declaredName, kind: 'duplicate', photoId: twin }
+    }
 
     const error = turnedAway.get(outcome.photoId)
     if (error === undefined) return outcome
@@ -316,8 +329,68 @@ export const makeUploadPhotos = ({
     const seen = new Map<string, PhotoId>()
     let addedBytes = 0
 
+    /**
+     * Take back one digest this request wrote — **unless a committed row names it.**
+     *
+     * Media is content-addressed and `photos (event_id, content_hash)` is unique, so two
+     * guests sending the same photo at the same moment both miss `findByContentHash`, both
+     * write the same three files, and one of them then loses the insert. Deleting "its"
+     * files at that point took the winner's slide with it: a row in the album, a tile on
+     * the wall, and nothing to serve under it. Every deletion this request makes goes
+     * through here, so the question is asked in one place.
+     *
+     * If the question cannot be asked — the same locked database that sent us here — the
+     * file stays. A leaked file is swept by `sweepOrphanedMedia`; a deleted file that a
+     * row names cannot be rebuilt by anything. For the same reason an unlink that fails
+     * is logged and not thrown: the refusal loop below runs after the batch has committed,
+     * and a throw there would leave the stored photos unannounced and the guest with a 500
+     * for photographs that are in the album.
+     */
+    const discardUnlessReferenced = async (hash: ContentHash): Promise<void> => {
+      try {
+        if ((await photos.findIdsReferencing(eventId, hash)).length > 0) return
+      } catch (cause) {
+        logger.warn('could not tell whether a row names this media; leaving it for the sweep', {
+          eventId,
+          cause: String(cause),
+        })
+        return
+      }
+
+      try {
+        await media.delete(eventId, hash)
+      } catch (cause) {
+        logger.warn('could not remove media this upload wrote; leaving it for the sweep', {
+          eventId,
+          cause: String(cause),
+        })
+      }
+    }
+
     const unwind = async (): Promise<void> => {
-      for (const hash of written) await media.delete(eventId, hash)
+      for (const hash of written) await discardUnlessReferenced(hash)
+    }
+
+    /**
+     * For each photo of a batch the insert did not keep: the row that now holds its digest.
+     *
+     * This request never commits one digest twice, so any row found is somebody else's.
+     * A lookup that fails is the same answer as no twin — the caller then reports a failed
+     * save, or a refusal, which is what an answer it cannot explain deserves.
+     */
+    const twinsCommittedFirst = async (
+      batch: readonly Photo[],
+    ): Promise<ReadonlyMap<PhotoId, PhotoId>> => {
+      const twins = new Map<PhotoId, PhotoId>()
+      try {
+        for (const photo of batch) {
+          const twin = await photos.findByContentHash(eventId, photo.contentHash)
+          if (twin !== null) twins.set(photo.id, twin.id)
+        }
+      } catch {
+        return new Map()
+      }
+      return twins
     }
 
     for (const [index, file] of files.entries()) {
@@ -463,21 +536,42 @@ export const makeUploadPhotos = ({
     // nothing can interleave, and refuses what no longer fits. So a photo can still be
     // turned away here, after its media has been written — which is why the unwinding
     // below is per photo rather than per request.
+    //
+    // **A raise is not necessarily a failure.** The insert is all-or-nothing, and
+    // `(event_id, content_hash)` is unique: a byte-identical photo committed since the
+    // duplicate check above makes it raise for the whole batch. Asking again tells the two
+    // apart without matching on a driver's message — a photo whose digest now has a row has
+    // lost to that row and is answered `duplicate`, exactly as `uploadClip` answers the
+    // same race, and the rest of the batch is written without it. A pass that raises drops
+    // at least one photo, so one pass per photo is all there can ever be; a raise with no
+    // twin behind it is a real failure.
+    let pending: readonly Photo[] = created
+    const lostTo = new Map<PhotoId, PhotoId>()
     let admissions: readonly PhotoAdmission[] = []
-    if (created.length > 0) {
+    for (let pass = 0; pass < created.length && pending.length > 0; pass += 1) {
       try {
-        admissions = await photos.saveManyWithinLimits(eventId, created, {
+        admissions = await photos.saveManyWithinLimits(eventId, pending, {
           quotaBytes,
           maxPhotosPerGuest: maxPerGuest,
           clientBytes,
         })
+        break
       } catch (cause) {
-        logger.error('photo insert failed; removing the media this upload wrote', {
+        const twins = await twinsCommittedFirst(pending)
+        if (twins.size === 0) {
+          logger.error('photo insert failed; removing the media this upload wrote', {
+            eventId,
+            cause: String(cause),
+          })
+          await unwind()
+          return err(DomainError.unexpected('photo.saveFailed'))
+        }
+
+        logger.info('an identical photo was committed first; answering with the one it made', {
           eventId,
-          cause: String(cause),
         })
-        await unwind()
-        return err(DomainError.unexpected('photo.saveFailed'))
+        for (const [photoId, twinId] of twins) lostTo.set(photoId, twinId)
+        pending = pending.filter((photo) => !twins.has(photo.id))
       }
     }
 
@@ -486,28 +580,40 @@ export const makeUploadPhotos = ({
       if (admission.refusal !== null) refusals.set(admission.photoId, admission.refusal)
     }
 
+    // A limit is decided before the unique index is reached, so the same race that raises
+    // above can also surface as a refusal: a guest double-tapping the same photograph at
+    // their limit has the second tap turned away for a photograph the album already holds.
+    // Telling them it was refused is telling them to retry a photo that is there, and an
+    // offline outbox drops a refused entry. A refused photo whose bytes now have a row is
+    // a duplicate of that row.
+    const twinsOfRefused = await twinsCommittedFirst(
+      pending.filter((photo) => refusals.has(photo.id)),
+    )
+
     const turnedAway = new Map<PhotoId, DomainError>()
     const admitted: Photo[] = []
-    for (const photo of created) {
+    for (const photo of pending) {
       const refusal = refusals.get(photo.id)
       if (refusal === undefined) {
         admitted.push(photo)
         continue
       }
-      turnedAway.set(photo.id, refusalError(refusal, photo.byteSize))
+
+      const twin = twinsOfRefused.get(photo.id)
+      if (twin === undefined) turnedAway.set(photo.id, refusalError(refusal, photo.byteSize))
+      else lostTo.set(photo.id, twin)
 
       // Its row was never written, so its media must not stay on the disk that the
       // quota exists to protect. Media is addressed by content, though, and the request
       // that beat this one to the quota may have been a byte-identical photo from
       // another guest — whose row now holds this hash. Deleting then would leave *their*
       // slide pointing at nothing, so the file goes only if nothing points at it.
-      if ((await photos.findByContentHash(eventId, photo.contentHash)) === null) {
-        // `storageHashes` rather than `contentHash`: this path only ever holds still
-        // photographs, where the two are the same one digest, but a delete that names
-        // the row rather than one of its fields does not have to be revisited the day it
-        // is reached with something that owns two.
-        for (const hash of photo.storageHashes) await media.delete(eventId, hash)
-      }
+      //
+      // `storageHashes` rather than `contentHash`: this path only ever holds still
+      // photographs, where the two are the same one digest, but a delete that names
+      // the row rather than one of its fields does not have to be revisited the day it
+      // is reached with something that owns two.
+      for (const hash of photo.storageHashes) await discardUnlessReferenced(hash)
     }
 
     // An auto-publish event records an `automatic` reviewer immediately, so the wall
@@ -531,6 +637,6 @@ export const makeUploadPhotos = ({
       bus.publish({ type: 'photo.moderated', eventId, photoId, status: 'published' })
     }
 
-    return ok({ outcomes: settle(outcomes, turnedAway), published })
+    return ok({ outcomes: settle(outcomes, turnedAway, lostTo), published })
   }
 }

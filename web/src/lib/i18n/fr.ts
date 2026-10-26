@@ -32,9 +32,12 @@
 import { formattersFor } from './formatters'
 import type { CuratedAccent } from '../../design-system/eventTheme'
 import type {
+  EventStatus,
   EventTemplateKey,
   NoticeAudience,
   NoticePublication,
+  ReactionKind,
+  SiteAuditEntryDto,
   ThemeFonts,
   ThemeFrame,
   ThemeMaterial,
@@ -55,11 +58,11 @@ export const fr = {
   app: {
     name: 'EventSlide',
     loading: 'Chargement…',
+    loadFailed: 'Chargement impossible',
     retry: 'Réessayer',
     cancel: 'Annuler',
     close: 'Fermer',
     save: 'Enregistrer',
-    back: 'Retour',
     confirm: 'Confirmer',
     /**
      * The accessible name of the language picker (roadmap 1.5).
@@ -85,14 +88,12 @@ export const fr = {
   },
 
   upload: {
-    title: 'Vos photos',
     intro: 'Ajoutez vos photos, elles apparaîtront sur l’écran après validation.',
     addPhotos: 'Ajouter des photos',
     takePhoto: 'Prendre une photo',
     captionLabel: 'Légende',
     captionHint: (max: number) => `${t.number(max)} caractères maximum. Facultatif.`,
     send: 'Envoyer',
-    sending: 'Envoi…',
     sendCount: (count: number) =>
       t.count(count, {
         one: 'Envoyer la photo',
@@ -104,7 +105,6 @@ export const fr = {
     itemDone: 'Envoyée',
     itemDuplicate: 'Déjà envoyée',
     itemFailed: 'Échec',
-    remove: 'Retirer',
     // The guest's own photos, whatever the host decided: being told a photo is waiting
     // beats wondering whether the upload worked.
     mine: 'Vos envois',
@@ -114,9 +114,7 @@ export const fr = {
     statusHidden: 'Retirée de l’écran',
     deleteOwn: 'Supprimer',
     deleteOwnConfirm: 'Supprimer cette photo ? Cette action est définitive.',
-    graceOver: 'Le délai pour supprimer vous-même cette photo est passé.',
     thanks: 'Merci, vos photos sont bien arrivées.',
-    sendMore: 'Envoyer d’autres photos',
 
     /* ---------- guest surface: features/join + features/guest-upload ---------- */
 
@@ -144,7 +142,7 @@ export const fr = {
     signedAs: (name: string) => `Vos photos apparaîtront sous le nom ${name}.`,
     signedAnonymous: 'Vos photos apparaîtront sans nom.',
     mineEmpty: 'Vous n’avez encore envoyé aucune photo.',
-    mineFailed: 'Vos envois n’ont pas pu être affichés. Réessayez.',
+    mineFailed: 'La liste de vos envois n’a pas pu être mise à jour. Réessayez.',
     mineAlt: 'Votre photo',
     deleteOwnNumbered: (position: number) => `Supprimer la photo ${position}`,
     notJoinedTitle: 'Rejoignez la galerie pour envoyer vos photos',
@@ -435,6 +433,27 @@ export const fr = {
     /** `clipDone` for an event that publishes on arrival, for `introImmediate`'s reason. */
     clipDoneImmediate: 'Vidéo envoyée. Elle passe à l’écran.',
 
+    /* ---- Added by guest reactions (a guest reacts to a photo of theirs on the wall). ---- */
+
+    /**
+     * The five reactions, as the words a screen reader says. The glyph on a button is
+     * decoration and colour is never the signal, so this is what tells a guest which
+     * button is which.
+     *
+     * One short word each, in the first person where a feeling is named: it is read
+     * between a photo and the next control, and a sentence there is a sentence too many.
+     */
+    reactionKinds: {
+      love: 'J’adore',
+      laugh: 'Haha',
+      wow: 'Waouh',
+      cheers: 'Santé',
+      clap: 'Bravo',
+    } satisfies Record<ReactionKind, string>,
+    /** The row's name. Numbered like `deleteOwnNumbered`, so two rows are never one label. */
+    reactionsGroup: (position: number) => `Réagir à la photo ${t.number(position)}`,
+    reactionsFailed: 'Les réactions n’ont pas pu être chargées.',
+
     /* -------------------------- end guest surface --------------------------- */
   },
 
@@ -578,11 +597,23 @@ export const fr = {
     videoUnplayable: 'Cette vidéo ne peut pas être lue ici. Seule l’image d’aperçu s’affiche.',
   },
 
+  /* The guest's view of the evening: the published photographs, with the reactions. */
+  feed: {
+    title: 'Les photos de la soirée',
+    link: 'Voir les photos de la soirée',
+    back: 'Envoyer vos photos',
+    refresh: 'Actualiser',
+    more: 'Voir plus de photos',
+    empty: 'Aucune photo n’est encore à l’écran.',
+    emptyHint: 'Les photos validées par les organisateurs apparaîtront ici.',
+    failed: 'Les photos n’ont pas pu être chargées. Réessayez.',
+    own: 'Votre photo',
+  },
+
   wall: {
     empty: 'Les premières photos vont bientôt arriver',
     emptyHint: 'Scannez le QR code pour envoyer les vôtres.',
     joinPrompt: 'Rejoignez la galerie',
-    reactions: 'Réactions',
     offline: 'Connexion perdue — nouvelle tentative en cours',
     paused: 'Diaporama en pause',
 
@@ -664,7 +695,6 @@ export const fr = {
   },
 
   admin: {
-    title: 'Administration',
     events: 'Vos évènements',
     newEvent: 'Nouvel évènement',
     eventName: 'Nom de l’évènement',
@@ -856,15 +886,16 @@ export const fr = {
      */
     retentionUnlimited: 'Conservation illimitée',
     moderators: 'Modérateurs',
-    inviteModerator: 'Inviter un modérateur',
 
     /* ---- Added by features/admin (auth, event management). ---- */
     loading: 'Chargement de vos évènements…',
-    loadFailed: 'Chargement impossible',
     eventLoading: 'Chargement de l’évènement…',
     eventsEmpty: 'Aucun évènement pour le moment.',
-    eventsEmptyHint:
-      'Créez votre premier évènement, puis imprimez son QR code pour le poser sur les tables.',
+    eventsEmptyHint: 'Trois étapes pour être prêt le jour J.',
+    emptyStepCreate: 'Créez l’évènement.',
+    emptyStepTest:
+      'Testez le mur sur le réseau du lieu, depuis un téléphone qui n’est pas le vôtre.',
+    emptyStepPrint: 'Imprimez le QR code et posez-le sur les tables.',
     create: 'Créer l’évènement',
     slugHint: 'Facultatif. Laissez vide pour la déduire du nom.',
     slugPreviewLabel: 'Adresse de la galerie',
@@ -1063,7 +1094,6 @@ export const fr = {
     email: 'Adresse e-mail',
     password: 'Mot de passe',
     submit: 'Se connecter',
-    submitting: 'Connexion…',
     logout: 'Se déconnecter',
     changePassword: 'Changer de mot de passe',
     currentPassword: 'Mot de passe actuel',
@@ -1071,7 +1101,6 @@ export const fr = {
     newPasswordHint: (min: number) =>
       `Au moins ${min} caractères. Une phrase est plus sûre qu’un mot.`,
     confirmPassword: 'Confirmer le nouveau mot de passe',
-    mustChangePassword: 'Choisissez un mot de passe avant de continuer.',
 
     /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Choisissez un mot de passe que vous n’utilisez pas ailleurs.',
@@ -1114,6 +1143,58 @@ export const fr = {
     recoveryCodesRegenerate: 'Générer de nouveaux codes de secours',
     secondFactorDisable: 'Désactiver la vérification',
     secondFactorDisabled: 'Vérification en deux étapes désactivée.',
+
+    /* ---- Added by G2-10: the invitation page, the reset by e-mail and the account menu. ---- */
+    invitationTitle: 'Invitation',
+    invitationToModerate: (name: string) =>
+      `Vous avez reçu une invitation à modérer l’évènement « ${name} ».`,
+    invitationToOwn: (name: string) =>
+      `Vous avez reçu une invitation à créer et gérer les évènements de « ${name} ».`,
+    invitationToJoin: (name: string) =>
+      `Vous avez reçu une invitation à rejoindre l’équipe de « ${name} ».`,
+    invitationExpires: (when: string) => `Valable jusqu’au ${when}.`,
+    invitationChoose:
+      'Choisissez votre nom et un mot de passe : votre compte est créé en validant ce formulaire.',
+    invitationName: 'Votre nom',
+    invitationNameHint: 'Il s’affiche dans la liste des personnes qui ont accès.',
+    invitationConfirmPassword: 'Confirmer le mot de passe',
+    invitationSubmit: 'Créer mon compte et accepter',
+    invitationAccepted: 'Invitation acceptée.',
+    invitationHaveAccount: 'Vous avez déjà un compte ?',
+    invitationSignedInAs: (email: string) => `Vous êtes connecté avec ${email}.`,
+    invitationAcceptAs: 'Accepter avec ce compte',
+    invitationUseAnother: 'Utiliser un autre compte',
+    /* ---- Added by G2-20: the terms of use an invitation's acceptance agrees to. ---- */
+    invitationAcceptTerms: (version: string) =>
+      `J’accepte les conditions d’utilisation (version ${version}), dont les clauses de sous-traitance.`,
+    invitationReadTerms: 'Lire les conditions d’utilisation',
+    /** The title of every dead link, invitation or reset: one sentence, whatever killed it. */
+    deadLinkTitle: 'Ce lien n’est pas valable',
+    forgotLink: 'Mot de passe oublié ?',
+    forgotTitle: 'Mot de passe oublié',
+    forgotIntro:
+      'Saisissez l’adresse e-mail de votre compte. Si un compte l’utilise, vous recevrez un lien pour choisir un nouveau mot de passe.',
+    forgotSubmit: 'Envoyer le lien',
+    forgotSentTitle: 'Consultez votre messagerie',
+    forgotSent:
+      'Si un compte utilise cette adresse, un message avec un lien vient d’être envoyé. Le lien est valable une heure et ne sert qu’une fois.',
+    forgotUnavailable:
+      'Ce serveur ne peut pas envoyer d’e-mail : le mot de passe ne peut pas y être réinitialisé de cette façon. Demandez à la personne qui l’administre.',
+    backToLogin: 'Retour à la connexion',
+    resetTitle: 'Nouveau mot de passe',
+    resetIntro:
+      'Choisissez un mot de passe que vous n’utilisez pas ailleurs. Vous serez déconnecté de tous vos appareils.',
+    resetSubmit: 'Changer le mot de passe',
+    resetDoneTitle: 'Mot de passe changé',
+    resetDone:
+      'Toutes vos sessions ont été fermées. Connectez-vous avec votre nouveau mot de passe.',
+    resetAskAgain: 'Demander un nouveau lien',
+    accountMenu: 'Compte',
+    accountSignedInAs: (email: string) => `Connecté en tant que ${email}`,
+    logoutEverywhere: 'Se déconnecter partout',
+    logoutEverywhereTitle: 'Se déconnecter partout ?',
+    logoutEverywhereHint:
+      'Votre session sera fermée sur tous vos appareils, celui-ci compris, et il faudra vous reconnecter. Utile si vous avez perdu un appareil ou utilisé un ordinateur partagé.',
   },
 
   /**
@@ -1124,6 +1205,43 @@ export const fr = {
    * a guest's phone.
    */
   errors: {
+    /* ---- Added by features/site: codes the operator’s console can receive. ---- */
+    'clientName.empty': 'Donnez un nom au client.',
+    'clientName.tooLong': 'Ce nom est trop long.',
+    'clientName.invalid': 'Ce nom contient un caractère qui n’est pas accepté.',
+    'clientCeilings.maxEventsInvalid': 'Ce nombre d’évènements n’est pas accepté.',
+    'clientCeilings.maxEventsPerPeriodInvalid':
+      'Ce nombre d’évènements par période n’est pas accepté.',
+    'clientCeilings.maxTotalBytesInvalid': 'Ce stockage total n’est pas accepté.',
+    'clientCeilings.maxEventQuotaBytesInvalid': 'Ce quota d’évènement n’est pas accepté.',
+    'clientCeilings.maxRetentionDaysInvalid':
+      'Cette durée de conservation n’est pas acceptée : de 1 à 3 650 jours.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'Cette durée de direct n’est pas acceptée : de 1 à 365 jours.',
+    'clientCeilings.periodStartedAtInvalid': 'Ce début de période n’est pas accepté.',
+    'clientCeilings.clipsAllowedInvalid': 'Ce réglage des vidéos n’est pas accepté.',
+    'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
+    'audit.reasonInvalid':
+      'Le motif doit tenir sur une ligne de 200 caractères au plus, sans adresse e-mail.',
+    'reset.mailerRequired':
+      'Cette instance n’envoie pas de courrier : aucun lien de réinitialisation ne peut être émis.',
+    'reset.mailNotSent': 'Le serveur de messagerie a refusé le message. Aucun lien n’a été émis.',
+    'reset.approverUnavailable':
+      'Ce compte n’appartient à aucun client, ou à plusieurs : aucun propriétaire ne peut approuver la demande.',
+    'reset.requestNotFound': 'Cette demande n’existe pas, ou n’a pas encore été approuvée.',
+    'reset.tooManyForAddress':
+      'Cette adresse a déjà reçu plusieurs réinitialisations. Réessayez dans une heure.',
+    'account.disabled': 'Ce compte est désactivé.',
+    'account.operatorProtected': 'Le compte d’un opérateur ne peut être ni désactivé ni supprimé.',
+    'account.holdsEvents': 'Ce compte possède un évènement : transférez-le ou purgez-le d’abord.',
+    'account.holdsMedia':
+      'Ce compte a déposé des photos ou des vidéos, dont les fichiers resteraient sur le disque.',
+    'account.holdsReviews': 'Ce compte a modéré des photos, dont les lignes portent son nom.',
+    'account.lastClientOwner':
+      'Ce compte est le seul propriétaire d’un client qui a encore des membres ou des évènements : ajoutez un propriétaire, ou mettez fin à l’engagement du client.',
+    'client.graceInvalid': 'Ce délai n’est pas accepté. Indiquez un nombre entier de jours.',
+    'client.offboarding':
+      'La fin d’engagement de ce client est en cours : sa suspension ne se lève pas.',
     unknown: 'Une erreur est survenue. Réessayez dans un instant.',
     network: 'Connexion interrompue. Vérifiez votre réseau puis réessayez.',
     'request.invalid': 'Les informations envoyées ne sont pas valides.',
@@ -1158,6 +1276,7 @@ export const fr = {
     'event.quotaAboveCeiling': 'Ce quota dépasse la limite que ce serveur autorise.',
     'event.creationNotAllowed': 'Votre compte ne peut pas créer d’évènement sur ce serveur.',
     'client.notFound': 'Ce compte client est introuvable.',
+    'client.ownerRequired': 'Seul un propriétaire du compte peut consulter cette page.',
     'client.ceilingReached': 'Votre compte a atteint le nombre d’évènements autorisé.',
     'client.storageFull': 'La galerie a atteint sa capacité. Prévenez l’organisateur.',
     'client.liveNotAllowed': 'Votre compte ne peut pas ouvrir d’évènement pour le moment.',
@@ -1169,7 +1288,6 @@ export const fr = {
     'event.immutable': 'Cet évènement est archivé et ne peut plus être modifié.',
     'event.illegalTransition': 'Ce changement d’état n’est pas possible.',
 
-    'guest.wrongEvent': 'Votre accès ne correspond pas à cette galerie.',
     'guest.revoked': 'Votre accès a été retiré par l’organisateur.',
     'guestToken.expired': 'Votre accès a expiré. Scannez à nouveau le QR code.',
     'guestToken.malformed': 'Votre accès n’est plus valide. Scannez à nouveau le QR code.',
@@ -1177,7 +1295,6 @@ export const fr = {
 
     'photo.notFound': 'Cette photo n’existe plus.',
     'photo.illegalTransition': 'Cette action n’est pas possible sur cette photo.',
-    'photo.tooManyForGuest': 'Vous avez atteint le nombre de photos autorisé.',
 
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',
@@ -1224,11 +1341,14 @@ export const fr = {
     'invitation.notFound':
       'Cette invitation n’est plus valable. Demandez-en une nouvelle à la personne qui vous l’a envoyée.',
     'invitation.signInRequired':
-      'Un compte utilise déjà cette adresse. Connectez-vous avec ce compte, puis rouvrez le lien.',
+      'Un compte utilise déjà l’adresse de cette invitation. Connectez-vous avec ce compte : vous reviendrez ici pour accepter.',
+    'terms.notAccepted': 'Pour continuer, cochez la case qui accepte les conditions d’utilisation.',
     'invitation.wrongAccount':
       'Cette invitation est destinée à une autre adresse e-mail que celle de ce compte.',
     'invitation.credentialsRequired':
       'Connectez-vous avec le compte invité, ou choisissez un nom et un mot de passe.',
+    'accountName.empty': 'Indiquez votre nom.',
+    'accountName.tooLong': 'Ce nom est trop long.',
 
     'displayName.tooLong': 'Prénom trop long.',
     // Not "six caractères": JOIN_CODE_LENGTH is configurable (6 à 10), so the one thing
@@ -1251,6 +1371,7 @@ export const fr = {
     'reaction.alreadyExists': 'Vous avez déjà réagi ainsi à cette photo.',
     'reaction.notPublished': 'Cette photo n’est pas encore à l’écran.',
     'reaction.notFound': 'Cette réaction n’existe plus.',
+    'reaction.ownPhoto': 'Vous ne pouvez pas réagir à votre propre photo.',
     'upload.noFiles': 'Aucune photo n’a été reçue. Sélectionnez-en une puis réessayez.',
     'upload.unexpectedField': 'Cet envoi n’a pas pu être lu. Réessayez.',
     // The page's CSRF cookie is gone or stale — a tab left open all evening, or a
@@ -1258,12 +1379,10 @@ export const fr = {
     'request.csrfMissing': 'Cette page a expiré. Rechargez-la puis réessayez.',
     'request.csrfMismatch': 'Cette page a expiré. Rechargez-la puis réessayez.',
 
-    /* ---- Codes the use cases actually answer with, which docs/API.md either names
-            differently or does not list. `event.photoLimitReached` is the important
-            one: the doc calls the per-guest cap `photo.tooManyForGuest`, the server
-            sends `event.photoLimitReached`, so the only refusal a host deliberately
-            configured reached the guest as the generic sentence. Both spellings are
-            kept until the contract picks one. ---- */
+    /* ---- Codes the use cases answer with that docs/API.md names only in passing or
+            does not list. `event.photoLimitReached` is the important one: it is the
+            per-guest cap, the only refusal a host deliberately configures, and without
+            its own sentence it reaches the guest as the generic one. ---- */
     'event.photoLimitReached': 'Vous avez atteint le nombre de photos autorisé.',
     'photo.pixelBudgetExceeded': 'Cette photo est trop grande. Réduisez-la puis réessayez.',
     'upload.rejected': 'Cet envoi n’a pas pu être lu. Réessayez.',
@@ -1368,7 +1487,6 @@ export const fr = {
    */
   ui: {
     dialogClose: 'Fermer la fenêtre',
-    notifications: 'Notifications',
     dismissNotification: 'Masquer cette notification',
     /**
      * The narrow space before the sign is French and not universal: English writes
@@ -1387,7 +1505,6 @@ export const fr = {
     notFoundTitle: 'Page introuvable',
     notFoundHint: 'Cette adresse n’existe pas. Vérifiez le lien ou revenez à l’accueil.',
     notFoundHome: 'Revenir à l’accueil',
-    comingSoon: 'Cet écran arrive bientôt.',
   },
 
   /* ======================================================================== */
@@ -1557,6 +1674,339 @@ export const fr = {
      * operator's own name, which is content and is never translated.
      */
     operatorHostedBy: 'Hébergé par',
+  },
+  /**
+   * The client's own space (roadmap §10.9; G2-16 / P3-17): the banner over a ceiling, the screen
+   * of a suspended account, and the page where an owner reads their limits, what waits for
+   * their approval and what the operator did on their account. Only on a box with `SITE_ADMIN=on`.
+   *
+   * **No name of a person or of a client is interpolated into a phrase here**: the client's name
+   * is content and is printed beside the sentence, never inside it.
+   */
+  clientSpace: {
+    bannerLabel: 'Limites de votre compte',
+    warningTitle: 'Vous approchez d’une limite de votre compte',
+    reachedTitle: 'Une limite de votre compte est atteinte',
+    eventsMeter: (used: number, max: number) => `Évènements : ${used} sur ${max}`,
+    eventsPerPeriodMeter: (used: number, max: number) =>
+      `Évènements créés sur la période : ${used} sur ${max}`,
+    storageMeter: (used: string, max: string) => `Stockage : ${used} sur ${max}`,
+    liveNotAllowed: 'L’ouverture de nouveaux évènements est suspendue sur votre compte.',
+    contactHint: 'Pour lever une limite, contactez votre opérateur.',
+    contactAction: 'Contacter l’opérateur',
+    suspendedTitle: 'Votre compte est suspendu',
+    suspendedBody:
+      'Vos albums restent consultables et exportables. Tant que la suspension dure, vous ne pouvez ni créer, ni ouvrir, ni modifier un évènement, et le public ne voit plus vos murs.',
+    spaceLink: 'Espace client',
+    spaceTitle: 'Espace client',
+    limitsTitle: 'Limites et usage',
+    noLimits: 'Votre opérateur n’a fixé aucune limite à votre compte.',
+    roleOwner: 'Propriétaire',
+    roleMember: 'Membre',
+    pendingTitle: 'En attente de votre accord',
+    pendingHint:
+      'Votre opérateur a invité ces personnes dans votre compte. Elles n’y entrent qu’avec l’accord d’un propriétaire.',
+    pendingEmpty: 'Rien n’attend votre accord.',
+    pendingValidUntil: (date: string) => `Valable jusqu’au ${date}`,
+    approve: 'Approuver',
+    approved: 'Invitation approuvée.',
+    auditTitle: 'Journal des actions',
+    auditHint:
+      'Tout ce que votre opérateur, le système ou votre équipe a fait sur votre compte, du plus récent au plus ancien.',
+    auditEmpty: 'Aucune action enregistrée pour le moment.',
+    auditMore: 'Voir les actions plus anciennes',
+    actorOperator: 'Opérateur',
+    actorMember: 'Votre équipe',
+    actorSystem: 'Système',
+    actorIntegration: 'Intégration',
+    actionCeilingsChanged: 'Vos limites ont été modifiées.',
+    actionPeriodReset: 'Votre période a été renouvelée.',
+    actionInvitationIssued: 'Une invitation a été émise.',
+    actionInvitationIssuedPending: 'Une invitation a été émise ; elle attend votre accord.',
+    actionInvitationApproved: 'Une invitation a été approuvée.',
+    actionResetRequested: 'Une réinitialisation de mot de passe a été demandée pour un membre.',
+    actionResetApproved: 'Une réinitialisation de mot de passe a été approuvée.',
+    actionResetMailed: 'Un lien de réinitialisation a été envoyé au membre.',
+    actionResetShown: 'Un lien de réinitialisation a été remis à l’opérateur.',
+    actionTermsAccepted:
+      'Une personne a accepté les conditions d’utilisation en acceptant une invitation.',
+    actionOther: 'Une action a été enregistrée.',
+    liveWindowEnd: (date: string) => `Le direct se termine le ${date}.`,
+  },
+
+  /* ---- Added by features/site: the operator’s console (G2-15 / P3-16). ---- */
+  site: {
+    menuLink: 'Console de l’opérateur',
+    consoleTitle: 'Console de l’opérateur',
+    consoleIntro:
+      'Vous voyez ici des formes et des tailles, jamais ce que vos clients ont fabriqué : aucune photo, aucun nom d’évènement.',
+    navLabel: 'Sections de la console',
+    navClients: 'Clients',
+    navAccounts: 'Comptes',
+    navAudit: 'Journal',
+    factorTitle: 'Vérification en deux étapes requise',
+    factorEnrol:
+      'Cette instance l’exige de l’opérateur et votre compte ne l’a pas encore activée. Activez-la, puis revenez ici.',
+    factorEnrolLink: 'Activer la vérification en deux étapes',
+    factorSignIn:
+      'Cette connexion n’a pas passé la vérification en deux étapes. Reconnectez-vous et saisissez le code de votre application.',
+    factorSignOut: 'Se reconnecter',
+    stepUpTitle: 'Confirmez votre identité',
+    stepUpIntro:
+      'Cette action change une instance partagée. Saisissez votre mot de passe, et le code de votre application si vous en avez une : la confirmation vaut cinq minutes.',
+    more: 'Voir la suite',
+
+    clientsTitle: 'Clients',
+    clientsHint:
+      'Un client, c’est un compte, ses évènements et ses limites. Vous lisez ses tailles, jamais ses contenus.',
+    newClient: 'Nouveau client',
+    clientsEmpty: 'Aucun client pour le moment.',
+    clientsEmptyHint:
+      'Ouvrez un client : son propriétaire reçoit une invitation et choisit lui-même son mot de passe.',
+    clientsTableLabel: 'Les clients de l’instance',
+    clientColumn: 'Client',
+    statusColumn: 'État',
+    eventsColumn: 'Évènements',
+    membersColumn: 'Membres',
+    storageColumn: 'Stockage',
+    createdColumn: 'Ouvert le',
+    statusActive: 'Actif',
+    statusSuspended: 'Suspendu',
+    statusOffboarding: 'Fin d’engagement',
+    eventsCell: (total: number, live: number) => `${t.number(total)} (${t.number(live)} en direct)`,
+    storageOf: (used: string, max: string) => `${used} sur ${max}`,
+    noCeiling: 'Sans limite',
+
+    newClientTitle: 'Ouvrir un client',
+    newClientIntro:
+      'Le client est ouvert sans membre ni évènement, et son propriétaire est invité par e-mail, ou par un lien à lui transmettre si l’instance n’envoie pas de courrier. Vous ne choisissez jamais son mot de passe.',
+    clientName: 'Nom du client',
+    ownerEmail: 'Adresse e-mail du propriétaire',
+    inviteLanguage: 'Langue de l’invitation',
+    defaultsHint:
+      'Les limites sont celles que cette instance donne par défaut à un nouveau client. Videz un champ pour ne fixer aucune limite.',
+    createClient: 'Ouvrir le client',
+    clientCreated: 'Client ouvert.',
+
+    invitationMailed: (email: string) => `Une invitation a été envoyée à ${email}.`,
+    invitationPending:
+      'L’invitation est écrite, mais elle ne s’ouvre qu’avec l’accord d’un propriétaire du client.',
+    invitationLinkTitle: 'Aucun e-mail n’est parti',
+    invitationLinkBody:
+      'Cette instance ne peut pas envoyer de courrier, ou le serveur de messagerie a refusé celui-ci. Ce lien est la seule copie : transmettez-le à son destinataire, puis fermez cet encadré.',
+    invitationLinkLabel: 'Lien d’invitation',
+    copyLink: 'Copier le lien',
+    linkCopied: 'Lien copié.',
+    invitationValidUntil: (date: string) => `Valable jusqu’au ${date}.`,
+
+    ceilingsLegend: 'Limites',
+    maxEvents: 'Évènements, au plus',
+    maxEventsPerPeriod: 'Évènements créés par période, au plus',
+    maxTotalGigabytes: 'Stockage total, en Go',
+    maxEventQuotaGigabytes: 'Quota d’un évènement, en Go',
+    maxRetentionDays: 'Conservation après la clôture, en jours, au plus',
+    maxLiveDays: 'Durée d’un direct, en jours, au plus',
+    clipsAllowed: 'Vidéos autorisées',
+    liveAllowed: 'Ouverture d’évènements autorisée',
+    renewPeriod: 'Renouveler la période maintenant',
+    renewPeriodHint: 'Remet à zéro le compteur d’évènements créés sur la période.',
+    emptyMeansNone: 'Vide : aucune limite.',
+    notANumber: 'Saisissez un nombre positif.',
+
+    allClients: 'Tous les clients',
+    memberCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} membre`,
+        other: `${t.number(count)} membres`,
+      }),
+    periodEvents: (count: number) => `Créés sur la période : ${t.number(count)}`,
+    suspendedSince: (date: string) => `Suspendu depuis le ${date}.`,
+    purgeOn: (date: string) => `Les albums seront purgés au plus tard le ${date}.`,
+    suspend: 'Suspendre',
+    suspendTitle: 'Suspendre ce client ?',
+    suspendBody:
+      'Les invités ne peuvent plus rejoindre ses évènements ni y envoyer de photos, le public ne voit plus ses écrans ni ses galeries, et ses membres ne peuvent plus rien modifier. Rien n’est supprimé et aucun compte n’est désactivé.',
+    suspended: 'Client suspendu.',
+    resume: 'Lever la suspension',
+    resumeTitle: 'Lever la suspension ?',
+    resumeBody:
+      'Les écrans et les galeries du client redeviennent visibles aussitôt, et ses invités peuvent de nouveau rejoindre et envoyer des photos.',
+    resumed: 'Suspension levée.',
+    rename: 'Renommer',
+    renameTitle: 'Nom du client',
+    renamed: 'Client renommé.',
+    ceilingsTitle: 'Limites',
+    ceilingsReason: 'Motif du changement',
+    ceilingsReasonHint:
+      'Une phrase sur une ligne, 200 caractères au plus, sans adresse e-mail. Elle est inscrite au journal de l’opérateur et le client ne la lit pas. Motifs non financiers seulement : taille d’un évènement, capacité, abus.',
+    ceilingsSave: 'Enregistrer les limites',
+    ceilingsSaved: 'Limites enregistrées.',
+    ceilingsUnchanged: 'Aucune limite n’a changé.',
+    inviteTitle: 'Inviter dans ce client',
+    inviteIntro:
+      'Une personne entre dans le compte du client, jamais dans un évènement. Si le client a déjà des évènements ou des membres, un propriétaire doit approuver l’invitation.',
+    inviteEmail: 'Adresse e-mail',
+    inviteRole: 'Rôle',
+    inviteSend: 'Inviter',
+    roleOwner: 'Propriétaire',
+    roleMember: 'Membre',
+    eventsTitle: 'Évènements',
+    eventsHint: 'Des formes et des tailles seulement : ni nom, ni adresse, ni photo.',
+    eventsEmpty: 'Ce client n’a aucun évènement.',
+    eventsTableLabel: 'Les évènements du client',
+    eventColumn: 'Évènement',
+    eventStatusColumn: 'État',
+    photosColumn: 'Photos',
+    usedColumn: 'Espace utilisé',
+    startsColumn: 'Début prévu',
+    eventLabel: (short: string) => `Évènement ${short}`,
+    eventStatuses: {
+      draft: 'Brouillon',
+      live: 'En direct',
+      closed: 'Clôturé',
+      archived: 'Archivé',
+    } satisfies Record<EventStatus, string>,
+    photoCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo`,
+        other: `${t.number(count)} photos`,
+      }),
+    auditLink: 'Voir le journal de ce client',
+
+    accountsTitle: 'Comptes',
+    accountsHint:
+      'Les adresses des personnes qui ont un compte sur cette instance, et rien d’autre : ni nom affiché, ni mot de passe.',
+    accountsEmpty: 'Aucun compte pour le moment.',
+    accountsTableLabel: 'Les comptes de l’instance',
+    addressColumn: 'Adresse',
+    roleColumn: 'Rôle sur l’instance',
+    accountStateColumn: 'État',
+    lastLoginColumn: 'Dernière connexion',
+    ownedColumn: 'Évènements possédés',
+    clientsColumn: 'Clients',
+    siteRoleOperator: 'Opérateur',
+    accountActive: 'Actif',
+    accountDisabled: 'Désactivé',
+    neverSignedIn: 'Jamais',
+    mustChange: 'Doit changer son mot de passe',
+    resetPassword: 'Réinitialiser le mot de passe',
+    resetTitle: 'Réinitialiser ce mot de passe ?',
+    resetBody:
+      'Un lien valable une heure part vers l’adresse du compte, et nulle part ailleurs : vous ne le voyez que sur une instance qui n’envoie pas de courrier.',
+    resetSent: 'Le lien a été envoyé à l’adresse du compte.',
+    resetPending: 'En attente d’un propriétaire',
+    resetPendingBody:
+      'Cette instance n’envoie pas de courrier. Un autre propriétaire du client doit approuver la demande avant que le lien vous soit remis.',
+    resetFetch: 'Récupérer le lien approuvé',
+    resetLinkTitle: 'Lien de réinitialisation',
+    resetLinkBody:
+      'Il ne sert qu’une fois. Transmettez-le au titulaire du compte, puis fermez cet encadré.',
+
+    auditTitle: 'Journal',
+    auditHint:
+      'Tout ce qui s’est fait sur l’instance, du plus récent au plus ancien. Le motif d’un changement de limites est la phrase de l’opérateur.',
+    auditEmpty: 'Aucune action enregistrée pour le moment.',
+    auditMore: 'Voir les actions plus anciennes',
+    auditFiltered: 'Journal d’un seul client.',
+    auditShowAll: 'Voir tout le journal',
+    auditReason: (reason: string) => `Motif : ${reason}`,
+    auditAccount: (short: string) => `compte ${short}`,
+    actors: {
+      operator: 'Opérateur',
+      member: 'Membre',
+      system: 'Système',
+      integration: 'Intégration',
+    } satisfies Record<SiteAuditEntryDto['actor']['kind'], string>,
+    actions: {
+      'client.created': 'Client ouvert.',
+      'client.renamed': 'Client renommé.',
+      'client.ceilingsChanged': 'Limites modifiées.',
+      'client.periodReset': 'Période renouvelée.',
+      'client.suspended': 'Client suspendu.',
+      'client.resumed': 'Suspension levée.',
+      'invitation.issued': 'Invitation émise.',
+      'invitation.approved': 'Invitation approuvée par un propriétaire.',
+      'account.resetRequested': 'Réinitialisation de mot de passe demandée.',
+      'account.resetApproved': 'Réinitialisation approuvée par un propriétaire.',
+      'account.resetIssued': 'Réinitialisation émise.',
+      'account.disabled': 'Compte désactivé.',
+      'client.offboarded': 'Fin d’engagement lancée.',
+      'client.finalized': 'Client supprimé à l’issue de la fin d’engagement.',
+      'account.enabled': 'Compte réactivé.',
+      'account.deleted': 'Compte supprimé.',
+      'account.termsAccepted': 'Conditions d’utilisation acceptées.',
+      'account.secondFactorEnrolled': 'Vérification en deux étapes activée.',
+      'account.secondFactorDisabled': 'Vérification en deux étapes désactivée.',
+      'account.recoveryCodesRegenerated': 'Codes de secours renouvelés.',
+      'account.recoveryCodeUsed': 'Un code de secours a servi.',
+    },
+    actionInvitationIssuedPending: 'Invitation émise ; elle attend l’accord d’un propriétaire.',
+    actionOther: 'Une action a été enregistrée.',
+    accountActionsColumn: 'Actions sur le compte',
+    disableAccount: 'Désactiver',
+    enableAccount: 'Réactiver',
+    deleteAccount: 'Supprimer',
+    disableTitle: (address: string) => `Désactiver le compte de ${address} ?`,
+    disableBody:
+      'Toutes ses sessions prennent fin à l’instant et la personne ne peut plus se connecter. Rien n’est supprimé : le réactiver lui rend l’accès, mais elle devra se reconnecter.',
+    accountDisabledDone: 'Compte désactivé.',
+    accountEnabledDone: 'Compte réactivé.',
+    deleteTitle: (address: string) => `Supprimer le compte de ${address} ?`,
+    deleteBody:
+      'C’est la réponse à une demande d’effacement. Le compte, ses appartenances, les invitations qui lui étaient adressées, son second facteur et les liens de partage qu’il a créés disparaissent. Les lignes du journal qu’il a écrites restent, sans son nom, et les invitations qu’il a émises aussi. Son adresse reste dans ses sessions en cours (sept jours au plus) et dans les liens déjà émis jusqu’à leur expiration. Cette action est définitive.',
+    accountDeletedDone: 'Compte supprimé.',
+    offboardTitle: 'Fin d’engagement',
+    offboardIntro:
+      'Les évènements en direct sont clôturés, les brouillons archivés, le client est suspendu, et ses albums sont purgés au plus tard à l’issue du délai que vous donnez : c’est le temps dont il dispose pour exporter ce qu’il veut garder (la rétention propre à un évènement ou les limites du client peuvent purger plus tôt). Puis les comptes qui n’appartenaient qu’à lui et ne tiennent rien d’autre sont supprimés, et le client avec eux.',
+    graceDays: 'Délai avant la purge, en jours',
+    graceDaysHint: 'Un nombre entier de jours : les limites sont celles du serveur.',
+    offboardAction: 'Mettre fin à l’engagement',
+    offboardConfirmTitle: 'Mettre fin à l’engagement de ce client ?',
+    offboardConfirmBody: (days: number) =>
+      t.count(days, {
+        one: `Dans ${t.number(days)} jour au plus tard, les albums de ce client seront purgés, puis le client sera supprimé avec les comptes qui ne lui appartenaient qu’à lui et ne tiennent rien d’autre. Sans possibilité de retour : ni la date ni la suspension ne pourront être changées. D’ici là, ses évènements en direct sont clôturés, ses brouillons archivés et le client suspendu.`,
+        other: `Dans ${t.number(days)} jours au plus tard, les albums de ce client seront purgés, puis le client sera supprimé avec les comptes qui ne lui appartenaient qu’à lui et ne tiennent rien d’autre. Sans possibilité de retour : ni la date ni la suspension ne pourront être changées. D’ici là, ses évènements en direct sont clôturés, ses brouillons archivés et le client suspendu.`,
+      }),
+    offboardedDone: 'Fin d’engagement lancée.',
+    offboardingRunning:
+      'Cet engagement prend fin : les albums seront purgés au plus tard à la date indiquée plus haut.',
+    daysNotWhole: 'Indiquez un nombre entier de jours.',
+  },
+
+  /**
+   * The name of each page in the browser tab (`PageTitle`, WCAG 2.4.2).
+   *
+   * One entry per address the router serves, and `pageTitles.test.tsx` mounts them all, so
+   * a page that ships without one fails there instead of in a tab strip. Short nouns
+   * rather than sentences — the tab truncates from the right and `PageTitle` appends the
+   * product name — and **never content**: an event's name, a caption or an invitation's
+   * token does not come through here, so a title can neither leak nor be translated wrongly.
+   */
+  titles: {
+    join: 'Rejoindre la galerie',
+    upload: 'Envoi de photos',
+    feed: 'Les photos de la soirée',
+    wall: 'Écran de la soirée',
+    gallery: 'Album partagé',
+    about: 'À propos',
+    notFound: 'Page introuvable',
+    login: 'Connexion',
+    forgotPassword: 'Mot de passe oublié',
+    resetPassword: 'Nouveau mot de passe',
+    invitation: 'Invitation',
+    changePassword: 'Changer de mot de passe',
+    security: 'Sécurité du compte',
+    dashboard: 'Vos évènements',
+    newEvent: 'Nouvel évènement',
+    event: 'Évènement',
+    moderation: 'Modération',
+    mobileModeration: 'Modération sur téléphone',
+    settings: 'Réglages de l’évènement',
+    clientSpace: 'Espace client',
+    site: 'Console de l’opérateur',
+    siteClient: 'Client',
+    siteAccounts: 'Comptes de l’instance',
+    siteAudit: 'Journal de l’instance',
   },
 } as const
 

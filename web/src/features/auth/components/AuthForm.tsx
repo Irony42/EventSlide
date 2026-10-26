@@ -1,11 +1,14 @@
 import type { FormEvent, ReactNode } from 'react'
 import { Button } from '../../../design-system/components/Button'
-import { StatusIcon } from '../../../design-system/components/StatusIcon'
+import { Notice } from '../../../design-system/components/Notice'
+import { AuthPage } from './AuthPage'
 import styles from './AuthForm.module.css'
 
 export interface AuthFormProps {
   readonly title: string
   readonly intro?: string
+  /** See {@link AuthPage}: for a form that appears in answer to something. */
+  readonly focusTitle?: boolean
   /**
    * The whole-form failure, already a sentence in the reader's language. `null` while
    * there is nothing to say.
@@ -29,6 +32,7 @@ export interface AuthFormProps {
 export function AuthForm({
   title,
   intro,
+  focusTitle = false,
   error,
   submitting,
   submitLabel,
@@ -42,10 +46,7 @@ export function AuthForm({
   }
 
   return (
-    <div className={styles['page']}>
-      <h1 className={styles['title']}>{title}</h1>
-      {intro === undefined ? null : <p className={styles['intro']}>{intro}</p>}
-
+    <AuthPage title={title} {...(intro === undefined ? {} : { intro })} focusTitle={focusTitle}>
       <form className={styles['form']} onSubmit={handleSubmit} noValidate>
         {children}
 
@@ -53,14 +54,15 @@ export function AuthForm({
           Mounted only when there is a failure: inserting a role="alert" node is what
           every current screen reader announces, and an always-present empty alert
           would make getByRole('alert') ambiguous for the rest of the page.
+
+          The form-level failure, not attached to a field: the server answers "one of
+          these two is wrong" and says no more, so pointing at the e-mail box would be a
+          guess the UI is not entitled to make.
         */}
         {error === null ? null : (
-          <p className={styles['alert']} role="alert">
-            <span className={styles['alertGlyph']}>
-              <StatusIcon tone="danger" />
-            </span>
+          <Notice tone="danger" role="alert" variant="boxed">
             {error}
-          </p>
+          </Notice>
         )}
 
         <div className={styles['actions']}>
@@ -70,6 +72,6 @@ export function AuthForm({
           {footer}
         </div>
       </form>
-    </div>
+    </AuthPage>
   )
 }

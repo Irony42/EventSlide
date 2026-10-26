@@ -5,13 +5,12 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Field } from '../../design-system/components/Field'
+import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
-import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { TextInput } from '../../design-system/components/TextInput'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { formatDateTime } from '../../lib/format'
-import { ApiError } from '../../lib/http'
-import { messageForCode, type UiText } from '../../lib/i18n/translations'
+import { messageForError } from '../../lib/i18n/translations'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { GalleryViewer } from './components/GalleryViewer'
 import { useGallery } from './hooks/useGallery'
@@ -35,9 +34,6 @@ import styles from './GalleryPage.module.css'
  */
 
 const Robots = () => <meta name="robots" content="noindex,nofollow" />
-
-const sentenceFor = (cause: unknown, text: UiText): string =>
-  cause instanceof ApiError ? messageForCode(cause.code, text) : text.errors.unknown
 
 export function GalleryPage() {
   const t = useTranslations()
@@ -72,7 +68,7 @@ export function GalleryPage() {
       // own password field already treats them.
       if (password.length > 0) void state.unlock(password)
     }
-    const failure = state.unlockFailure === null ? null : sentenceFor(state.unlockFailure, t)
+    const failure = state.unlockFailure === null ? null : messageForError(state.unlockFailure, t)
     return (
       <Card as="h1" title={t.gallery.lockedTitle} className={styles['card']}>
         <Robots />
@@ -111,10 +107,9 @@ export function GalleryPage() {
     return (
       <Card as="h1" title={t.gallery.title} className={styles['card']}>
         <Robots />
-        <p className={styles['error']} role="alert">
-          <StatusIcon tone="danger" />
-          {sentenceFor(state.failure, t)}
-        </p>
+        <Notice tone="danger" role="alert" variant="boxed">
+          {messageForError(state.failure, t)}
+        </Notice>
         <Button variant="secondary" onClick={state.retry}>
           {t.app.retry}
         </Button>
@@ -173,10 +168,9 @@ export function GalleryPage() {
       )}
 
       {state.failure === null ? null : (
-        <p className={styles['error']} role="alert">
-          <StatusIcon tone="danger" />
-          {sentenceFor(state.failure, t)}
-        </p>
+        <Notice tone="danger" role="alert" variant="boxed">
+          {messageForError(state.failure, t)}
+        </Notice>
       )}
 
       {state.hasMore ? (

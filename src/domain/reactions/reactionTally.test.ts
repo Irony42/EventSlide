@@ -3,9 +3,9 @@ import { asGuestId, asPhotoId, type GuestId, type PhotoId } from '../shared/ids'
 import type { ReactionKind } from './reactionKind'
 import {
   emptyCounts,
-  hasReacted,
+  checkTopLimit,
+  rankedPhotos,
   tally,
-  topPhotos,
   totalReactions,
   type ReactionCounts,
   type TallyEntry,
@@ -81,27 +81,7 @@ describe('totalReactions', () => {
   })
 })
 
-describe('hasReacted', () => {
-  const entries = [entry('love', alice), entry('clap', bob)]
-
-  it('is true when that guest already sent that kind', () => {
-    expect(hasReacted(entries, alice, 'love')).toBe(true)
-  })
-
-  it('is false for the same guest with a different kind', () => {
-    expect(hasReacted(entries, alice, 'clap')).toBe(false)
-  })
-
-  it('is false for a different guest with the same kind', () => {
-    expect(hasReacted(entries, bob, 'love')).toBe(false)
-  })
-
-  it('is false when nobody has reacted yet', () => {
-    expect(hasReacted([], alice, 'love')).toBe(false)
-  })
-})
-
-describe('topPhotos', () => {
+describe('rankedPhotos', () => {
   it('orders photos by total reactions, most first', () => {
     const byPhoto = mapOf([
       ['photo-quiet', countsWith({ love: 1 })],
@@ -109,9 +89,7 @@ describe('topPhotos', () => {
       ['photo-middle', countsWith({ wow: 3 })],
     ])
 
-    const result = topPhotos(byPhoto, 3)
-
-    expect(result.ok && result.value).toEqual([
+    expect(rankedPhotos(byPhoto)).toEqual([
       asPhotoId('photo-loud'),
       asPhotoId('photo-middle'),
       asPhotoId('photo-quiet'),
@@ -126,73 +104,56 @@ describe('topPhotos', () => {
       ids.map((id): readonly [string, ReactionCounts] => [id, countsWith({ love: 2 })]),
     )
 
-    const result = topPhotos(byPhoto, 3)
-
-    expect(result.ok && result.value).toEqual([
+    expect(rankedPhotos(byPhoto)).toEqual([
       asPhotoId('photo-a'),
       asPhotoId('photo-b'),
       asPhotoId('photo-c'),
     ])
   })
 
-  it('truncates to the requested number of photos', () => {
-    const byPhoto = mapOf([
-      ['photo-a', countsWith({ love: 1 })],
-      ['photo-b', countsWith({ love: 5 })],
-      ['photo-c', countsWith({ love: 3 })],
-    ])
+  it('ranks every photo there is, because the caller decides how many it keeps', () => {
+    const ids = Array.from({ length: 60 }, (_, index) => `photo-${String(index).padStart(2, '0')}`)
+    const byPhoto = mapOf(
+      ids.map((id, index): readonly [string, ReactionCounts] => [
+        id,
+        countsWith({ love: index + 1 }),
+      ]),
+    )
 
-    const result = topPhotos(byPhoto, 2)
-
-    expect(result.ok && result.value).toEqual([asPhotoId('photo-b'), asPhotoId('photo-c')])
-  })
-
-  it('returns a single photo for the smallest limit it accepts', () => {
-    const byPhoto = mapOf([
-      ['photo-a', countsWith({ love: 1 })],
-      ['photo-b', countsWith({ love: 5 })],
-    ])
-
-    const result = topPhotos(byPhoto, 1)
-
-    expect(result.ok && result.value).toEqual([asPhotoId('photo-b')])
-  })
-
-  it('returns every photo when the limit exceeds how many there are', () => {
-    const byPhoto = mapOf([['photo-a', countsWith({ love: 1 })]])
-
-    const result = topPhotos(byPhoto, 10)
-
-    expect(result.ok && result.value).toEqual([asPhotoId('photo-a')])
+    expect(rankedPhotos(byPhoto)).toEqual(ids.map((id) => asPhotoId(id)).reverse())
   })
 
   it('returns an empty ranking for an event nobody has reacted in', () => {
-    const result = topPhotos(mapOf([]), 3)
+    expect(rankedPhotos(mapOf([]))).toEqual([])
+  })
+})
 
-    expect(result.ok && result.value).toEqual([])
+describe('checkTopLimit', () => {
+  it('accepts the smallest limit it can', () => {
+    expect(checkTopLimit(1)).toEqual({ ok: true, value: 1 })
   })
 
   it('refuses a limit of zero', () => {
-    const result = topPhotos(mapOf([]), 0)
+    const result = checkTopLimit(0)
 
     expect(result.ok).toBe(false)
     expect(!result.ok && result.error.code).toBe('reaction.limitOutOfRange')
   })
 
   it('refuses a negative limit', () => {
-    const result = topPhotos(mapOf([]), -1)
+    const result = checkTopLimit(-1)
 
     expect(!result.ok && result.error.code).toBe('reaction.limitOutOfRange')
   })
 
   it('refuses a fractional limit', () => {
-    const result = topPhotos(mapOf([]), 2.5)
+    const result = checkTopLimit(2.5)
 
     expect(!result.ok && result.error.code).toBe('reaction.limitNotInteger')
   })
 
   it('reports a bad limit as invalid input rather than a conflict', () => {
-    const result = topPhotos(mapOf([]), Number.NaN)
+    const result = checkTopLimit(Number.NaN)
 
     expect(!result.ok && result.error.kind).toBe('invalid')
   })

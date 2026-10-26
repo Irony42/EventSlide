@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -21,6 +20,7 @@ import { totpStepAt } from '../domain/users/totp'
 import { nodeTotpEngine } from '../infrastructure/crypto/nodeTotpEngine'
 import { parseMessage, startSmtpSink, type SmtpSink } from '../infrastructure/mail/testing/smtpSink'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
+import { captureDescriptorOutputWhile } from '../infrastructure/logging/testing/captureOutput'
 
 /**
  * The one line of `SITE_ADMIN` that no other test reaches: the composition root handing
@@ -366,6 +366,7 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
     const changed = await usecases.setClientCeilings({
       clientId: created.value.id,
       ceilings: { maxEvents: 3 },
+      reason: 'Essai de câblage',
       actor: { kind: 'integration', label: 'test:wiring' },
     })
 
@@ -373,6 +374,129 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
     expect(db.prepare(`SELECT action, actor_kind, client_id FROM audit_log`).all()).toEqual([
       { action: 'client.ceilingsChanged', actor_kind: 'integration', client_id: created.value.id },
     ])
+  })
+
+  describe('NEW_CLIENT_* reaches provisionClientOwner (G2-18)', () => {
+    const provision = (booted: Container) =>
+      booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: 'proprietaire@example.org',
+        locale: 'fr',
+        createdBy: null,
+      })
+
+    const clientRow = (db: Container['db']) =>
+      db
+        .prepare(
+          `SELECT max_events, max_events_per_period, max_total_bytes, max_event_quota_bytes,
+                  max_retention_days, max_live_days, clips_allowed, period_started_at
+             FROM clients`,
+        )
+        .all()
+
+    it('starts the client with the configured ceilings in the real clients table, and writes them to the real audit_log', async () => {
+      const booted = await boot({
+        SITE_ADMIN: 'on',
+        NEW_CLIENT_MAX_EVENTS: '1',
+        NEW_CLIENT_MAX_EVENTS_PER_PERIOD: '6',
+        NEW_CLIENT_MAX_TOTAL_BYTES: '20000000000',
+        NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5000000000',
+        NEW_CLIENT_MAX_RETENTION_DAYS: '30',
+        NEW_CLIENT_MAX_LIVE_DAYS: '3',
+        NEW_CLIENT_CLIPS_ALLOWED: 'false',
+      })
+
+      const provisioned = await provision(booted)
+
+      expect(provisioned.ok).toBe(true)
+      expect(clientRow(booted.db)).toEqual([
+        {
+          max_events: 1,
+          max_events_per_period: 6,
+          max_total_bytes: 20_000_000_000,
+          max_event_quota_bytes: 5_000_000_000,
+          max_retention_days: 30,
+          max_live_days: 3,
+          clips_allowed: 0,
+          period_started_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/),
+        },
+      ])
+      const logged = booted.db
+        .prepare('SELECT action, actor_kind, details FROM audit_log')
+        .all() as {
+        action: string
+        actor_kind: string
+        details: string
+      }[]
+      expect(logged.map((row) => [row.action, row.actor_kind])).toEqual([
+        ['client.created', 'system'],
+        // The invitation's own line (G2-14), written once it exists.
+        ['invitation.issued', 'system'],
+      ])
+      expect(JSON.parse(logged[0]?.details ?? '{}')).toMatchObject({
+        ceilings: { maxEvents: 1, maxLiveDays: 3, clipsAllowed: false },
+      })
+    })
+
+    it('shows the same defaults to the operator, through the real session, gate and route', async () => {
+      const OPERATOR = 'operateur@example.org'
+      const PASSWORD = 'un-mot-de-passe-solide'
+      const booted = await boot({
+        SITE_ADMIN: 'on',
+        BOOTSTRAP_OWNER_EMAIL: OPERATOR,
+        BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+        NEW_CLIENT_MAX_EVENTS: '2',
+        NEW_CLIENT_MAX_LIVE_DAYS: '3',
+        NEW_CLIENT_CLIPS_ALLOWED: 'false',
+      })
+      // A bootstrapped owner must choose a new password before anything else; not what is under test.
+      booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+      const agent = request.agent(booted.app)
+      const first = await agent.get('/api/auth/me')
+      const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+        c.startsWith(`${CSRF_COOKIE}=`),
+      )
+      const csrf = decodeURIComponent(cookie?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
+      const login = await agent
+        .post('/api/auth/login')
+        .set(CSRF_HEADER, csrf)
+        .send({ email: OPERATOR, password: PASSWORD })
+      expect(login.status, JSON.stringify(login.body)).toBe(200)
+
+      const response = await agent.get('/api/site/client-defaults')
+
+      expect(response.status).toBe(200)
+      expect(response.body).toEqual({
+        ceilings: {
+          maxEvents: 2,
+          maxEventsPerPeriod: null,
+          maxTotalBytes: null,
+          maxEventQuotaBytes: null,
+          maxRetentionDays: null,
+          maxLiveDays: 3,
+          clipsAllowed: false,
+        },
+      })
+    })
+
+    it('starts the client with no ceiling on a box that set none, which is every self-hosted box', async () => {
+      const booted = await boot({})
+
+      await provision(booted)
+
+      expect(clientRow(booted.db)).toEqual([
+        {
+          max_events: null,
+          max_events_per_period: null,
+          max_total_bytes: null,
+          max_event_quota_bytes: null,
+          max_retention_days: null,
+          max_live_days: null,
+          clips_allowed: 1,
+          period_started_at: null,
+        },
+      ])
+    })
   })
 
   it('hands AUDIT_RETENTION_DAYS to the pruning use case, so the cutoff is that many days back', async () => {
@@ -608,6 +732,97 @@ describe('createContainer: a client’s ceilings reach every write path', () => 
 })
 
 /**
+ * `PUBLIC_URL` is spelled once by `loadConfig` and read in four places that each build a
+ * link from it: the QR on the projected wall (and, through the same presenter context, the
+ * host's event page and the shared gallery), the invitation and the password-reset mails.
+ * `env.test.ts` proves what `loadConfig` returns, but the ring-4 harness builds its own
+ * presenter context and never calls it, so nothing there can say whether the canonical value
+ * is the one that reaches a response. These boot the real container and read what a guest's
+ * phone and an invitee's mailbox are actually given.
+ *
+ * The reverse-proxied sub-path is in the value on purpose: a canonical form that lower-cased
+ * or dropped it would send every QR code of such a deployment somewhere else.
+ */
+describe('createContainer: PUBLIC_URL reaches the links in its canonical form', () => {
+  const TYPED = 'HTTPS://Photos.Example.com:443/EventSlide/'
+  const CANONICAL = 'https://photos.example.com/EventSlide'
+
+  const relays: SmtpSink[] = []
+  afterEach(async () => {
+    await Promise.all(relays.splice(0).map((relay) => relay.close()))
+  })
+
+  it('builds the wall’s join link, the QR a guest scans, from the canonical origin and the prefix', async () => {
+    const booted = await boot({ PUBLIC_URL: TYPED })
+    booted.db
+      .prepare(
+        `INSERT INTO users (id, email, password_hash, created_at, site_role)
+         VALUES ('user-host', 'user-host@example.test', 'hash:x', ?, 'none')`,
+      )
+      .run(new Date().toISOString())
+    const created = await booted.usecases.createEvent({
+      ownerId: asUserId('user-host'),
+      name: 'Camille & Sacha',
+    })
+    if (!created.ok) throw new Error(`fixture rejected: ${created.error.code}`)
+    const opened = await booted.usecases.changeEventStatus({
+      eventId: created.value.id,
+      actorId: asUserId('user-host'),
+      status: 'live',
+    })
+    if (!opened.ok) throw new Error(`fixture rejected: ${opened.error.code}`)
+    const row = booted.db
+      .prepare<[], { readonly join_code: string }>('SELECT join_code FROM events')
+      .get()
+    if (row === undefined) throw new Error('fixture: no event row')
+
+    const wall = await request(booted.app).get(`/api/events/${created.value.slug}/wall`)
+
+    expect(wall.status).toBe(200)
+    expect(wall.body.joinUrl).toBe(`${CANONICAL}/join/${row.join_code}`)
+  })
+
+  it('builds the invitation link, the one a host passes on when the box has no relay, the same way', async () => {
+    const booted = await boot({ PUBLIC_URL: TYPED })
+
+    const provisioned = await booted.usecases.provisionClientOwner({
+      clientName: 'Camille et Sacha',
+      ownerEmail: 'camille@example.org',
+      locale: 'fr',
+      createdBy: null,
+    })
+
+    const invitation = provisioned.ok ? provisioned.value.invitation : null
+    const link = invitation !== null && 'link' in invitation ? invitation.link : ''
+    expect(link).toMatch(/^https:\/\/photos\.example\.com\/EventSlide\/invite\/[A-Za-z0-9_-]{43}$/)
+  })
+
+  it('builds the link of a password-reset mail the same way, as the relay received it', async () => {
+    const relay = await startSmtpSink()
+    relays.push(relay)
+    const booted = await boot({
+      SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+      MAIL_FROM: 'no-reply@photos.example.org',
+      PUBLIC_URL: TYPED,
+      BOOTSTRAP_OWNER_EMAIL: 'hote@example.org',
+      BOOTSTRAP_OWNER_PASSWORD: 'un-mot-de-passe-solide',
+    })
+
+    const requested = await booted.usecases.requestPasswordReset({
+      email: 'hote@example.org',
+      locale: 'en',
+    })
+    if (!requested.ok) throw new Error(`fixture rejected: ${requested.error.code}`)
+    await requested.value.completion
+    await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+
+    const text = parseMessage(relay.messages[0]?.raw ?? '').text ?? ''
+    expect(text).toContain(`${CANONICAL}/password/reset/`)
+    expect(text).not.toContain('Photos.Example.com')
+  })
+})
+
+/**
  * Outgoing mail (G2-07 / P3-08): the composition root choosing the mailer.
  *
  * `env.test.ts` proves `SMTP_URL` parses and `smtpMailer.test.ts` proves the adapter speaks
@@ -709,27 +924,9 @@ describe('createContainer: outgoing mail', () => {
    */
   it('logs the relay by host and port at boot, and never its URL or its password', async () => {
     const PASSWORD = 'PASSWORD-CANARY-9e41'
-    const written: string[] = []
-    const record = (...args: unknown[]): number => {
-      const text = Buffer.isBuffer(args[1]) ? args[1].toString('utf8') : String(args[1])
-      if (args[0] === 1) written.push(text)
-      return Buffer.byteLength(text)
-    }
-    const asyncWrite = vi.spyOn(fs, 'write').mockImplementation(((...args: unknown[]) => {
-      const size = record(...args)
-      const callback = args[args.length - 1]
-      if (typeof callback === 'function') {
-        ;(callback as (error: Error | null, written: number) => void)(null, size)
-      }
-    }) as unknown as typeof fs.write)
-    const syncWrite = vi
-      .spyOn(fs, 'writeSync')
-      .mockImplementation(((...args: unknown[]) =>
-        record(...args)) as unknown as typeof fs.writeSync)
-
-    try {
-      // Production, because that is the posture that writes JSON to fd 1; development
-      // would hand the line to `pino-pretty` in a worker thread, below this capture.
+    // Production, because that is the posture that writes JSON to fd 1; development would hand
+    // the line to `pino-pretty` in a worker thread, below this capture.
+    const output = await captureDescriptorOutputWhile(async () => {
       await boot({
         NODE_ENV: 'production',
         LOG_LEVEL: 'info',
@@ -740,14 +937,8 @@ describe('createContainer: outgoing mail', () => {
         SMTP_URL: `smtps://camille:${PASSWORD}@mail.example.com:2465`,
         MAIL_FROM: 'no-reply@photos.example.org',
       })
-      // sonic-boom batches the current tick and flushes on the next one.
-      await new Promise((resolve) => setImmediate(resolve))
-    } finally {
-      asyncWrite.mockRestore()
-      syncWrite.mockRestore()
-    }
+    })
 
-    const output = written.join('')
     expect(output).toContain('outgoing mail goes through an SMTP relay')
     expect(output).toContain('mail.example.com')
     expect(output).toContain('2465')
@@ -1327,6 +1518,25 @@ describe('createContainer: the operator’s second factor', () => {
     expect(inside.status).toBe(404)
   })
 
+  it('ends a half-finished sign-in at the fifth wrong code, even when the wrong codes arrive together', async () => {
+    // The count is a port the container builds (`signInAttempts`), and the one place a ring-4 test
+    // cannot see whether the line that hands it to the use case is there.
+    const { app } = await bootHosted()
+    const { secret } = await enrol(app)
+    const returning = await browser(app)
+    await returning.signIn()
+
+    const together = await Promise.all(
+      Array.from({ length: 8 }, () => returning.post('/api/auth/login/2fa', { code: '000000' })),
+    )
+    const answers = together.map((response) => response.body.error?.code)
+    const right = await returning.post('/api/auth/login/2fa', { code: codeFor(secret, 1) })
+
+    expect(answers.filter((code) => code === 'auth.invalidSecondFactor')).toHaveLength(4)
+    expect(answers.filter((code) => code === 'auth.secondFactorExpired')).toHaveLength(4)
+    expect(right.body.error.code).toBe('auth.secondFactorExpired')
+  })
+
   it('refuses a code that has been used, on a fresh sign-in', async () => {
     const { app } = await bootHosted()
     const { secret } = await enrol(app)
@@ -1522,6 +1732,128 @@ describe('createContainer: an invitation', () => {
     expect(
       booted.db.prepare('SELECT role FROM client_members WHERE user_id = ?').all(account?.id),
     ).toEqual([{ role: 'owner' }])
+  })
+
+  describe('with the terms of use (G2-20)', () => {
+    const termsAccepted = (booted: Container) =>
+      booted.db
+        .prepare(
+          "SELECT actor_user_id, actor_kind, subject_type, subject_id, client_id, details FROM audit_log WHERE action = 'account.termsAccepted'",
+        )
+        .all() as Record<string, unknown>[]
+
+    const bootAsking = async (): Promise<{ booted: Container; token: string }> => {
+      const relay = await startSmtpSink()
+      relays.push(relay)
+      const booted = await boot({
+        SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+        MAIL_FROM: 'no-reply@photos.example.org',
+        PUBLIC_URL: 'https://photos.example.org',
+        LEGAL_TERMS_URL: 'https://photos.example.org/legal/cgu',
+        LEGAL_TERMS_VERSION: '2027-01',
+      })
+      await booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: OWNER,
+        locale: 'fr',
+        createdBy: null,
+      })
+      await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+      return { booted, token: tokenIn(relay) }
+    }
+
+    it('is wired from the configuration: the preview names the terms and an acceptance without the tick is refused', async () => {
+      const { booted, token } = await bootAsking()
+
+      const preview = await booted.usecases.previewInvitation({ token })
+      const refused = await booted.usecases.acceptInvitation({
+        token,
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+      })
+
+      expect(preview.ok && preview.value.terms).toEqual({
+        url: 'https://photos.example.org/legal/cgu',
+        version: '2027-01',
+      })
+      expect(!refused.ok && refused.error.code).toBe('terms.notAccepted')
+      expect(accountRow(booted)).toBeUndefined()
+      expect(termsAccepted(booted)).toEqual([])
+    })
+
+    it('records the version in the real log, as the account that accepted, filed under the client it joined', async () => {
+      const { booted, token } = await bootAsking()
+
+      const accepted = await booted.usecases.acceptInvitation({
+        token,
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+        termsAccepted: true,
+      })
+
+      expect(accepted.ok).toBe(true)
+      const account = accountRow(booted)
+      const clientId = (
+        booted.db
+          .prepare('SELECT client_id FROM client_members WHERE user_id = ?')
+          .get(account?.id) as {
+          client_id: string
+        }
+      ).client_id
+      expect(termsAccepted(booted)).toEqual([
+        {
+          actor_user_id: account?.id,
+          actor_kind: 'member',
+          subject_type: 'account',
+          subject_id: account?.id,
+          client_id: clientId,
+          details: JSON.stringify({ version: '2027-01' }),
+        },
+      ])
+    })
+
+    it('asks for nothing on a box that set neither setting, and writes no entry', async () => {
+      const { booted, relay } = await bootWithRelay()
+      await booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: OWNER,
+        locale: 'fr',
+        createdBy: null,
+      })
+      await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+
+      const accepted = await booted.usecases.acceptInvitation({
+        token: tokenIn(relay),
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+      })
+
+      expect(accepted.ok).toBe(true)
+      expect(termsAccepted(booted)).toEqual([])
+    })
+
+    it('asks for nothing on a box that set the address only, which is the footer link', async () => {
+      const relay = await startSmtpSink()
+      relays.push(relay)
+      const booted = await boot({
+        SMTP_URL: `smtp://127.0.0.1:${relay.port}`,
+        MAIL_FROM: 'no-reply@photos.example.org',
+        PUBLIC_URL: 'https://photos.example.org',
+        LEGAL_TERMS_URL: 'https://photos.example.org/legal/cgu',
+      })
+      await booted.usecases.provisionClientOwner({
+        clientName: 'Camille et Sacha',
+        ownerEmail: OWNER,
+        locale: 'fr',
+        createdBy: null,
+      })
+      await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
+
+      const accepted = await booted.usecases.acceptInvitation({
+        token: tokenIn(relay),
+        credentials: { password: PASSWORD, displayName: 'Camille' },
+      })
+
+      expect(accepted.ok).toBe(true)
+      expect(termsAccepted(booted)).toEqual([])
+    })
   })
 
   it('signs the new account in with the password it chose, and refuses the link a second time', async () => {
@@ -1819,10 +2151,142 @@ describe('createContainer: the operator guard', () => {
       .prepare('SELECT action, details FROM audit_log WHERE client_id = ? ORDER BY seq')
       .all(clientId) as { action: string; details: string }[]
     expect(lines.map((line) => line.action)).toEqual([
+      // The client's first two lines, written by `provisionClientOwner` (G2-18, G2-14): its
+      // ceilings, and the owner's invitation; then the operator's own invitation into it, waiting.
+      'client.created',
+      'invitation.issued',
       'invitation.issued',
       'invitation.approved',
       'account.resetRequested',
     ])
     expect(JSON.stringify(lines)).not.toMatch(/example\.org|\/invite\/|\/password\/reset\//)
+  })
+})
+
+/**
+ * The operator's namespace, end to end, through the **real** container (G2-14 / P3-13): the real
+ * session, gate and step-up, the real use cases and the real SQLite adapters, including the
+ * read model, which no other test reaches through the composition root.
+ *
+ * `siteRoutes.*.test.ts` hold every rule at ring 4 over a harness that wires the use cases
+ * itself; what only this boot can break is **the wiring**: a use case left out of the bag the
+ * routes read, `SqliteSiteOverview` never given to the listings, a step-up the real session does
+ * not carry. One journey, in the order an operator lives it: confirm, open a client, read it
+ * back, change a ceiling with a reason, read the log.
+ */
+describe('createContainer: the operator’s API is wired end to end (G2-14)', () => {
+  const OPERATOR = 'operateur@example.org'
+  const PASSWORD = 'un-mot-de-passe-solide'
+
+  const signedInOperator = async (booted: Container) => {
+    // A bootstrapped owner must choose a new password before anything else; not what is under test.
+    booted.db.prepare('UPDATE users SET must_change_password = 0').run()
+    const agent = request.agent(booted.app)
+    const first = await agent.get('/api/auth/me')
+    const cookie = (first.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    let csrf = decodeURIComponent(cookie?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
+    const login = await agent
+      .post('/api/auth/login')
+      .set(CSRF_HEADER, csrf)
+      .send({ email: OPERATOR, password: PASSWORD })
+    expect(login.status, JSON.stringify(login.body)).toBe(200)
+    // The login rotates the token: the one that follows it is the one to echo.
+    const rotated = (login.headers['set-cookie'] as unknown as string[] | undefined)?.find((c) =>
+      c.startsWith(`${CSRF_COOKIE}=`),
+    )
+    csrf = decodeURIComponent(rotated?.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? csrf)
+    return { agent, csrf }
+  }
+
+  it('opens a client, reads it back through the real read model, and logs a ceiling change with its reason', async () => {
+    const booted = await boot({
+      SITE_ADMIN: 'on',
+      BOOTSTRAP_OWNER_EMAIL: OPERATOR,
+      BOOTSTRAP_OWNER_PASSWORD: PASSWORD,
+    })
+    const { agent, csrf } = await signedInOperator(booted)
+
+    // A write before any confirmation is refused, and says why.
+    const unconfirmed = await agent
+      .post('/api/site/clients')
+      .set(CSRF_HEADER, csrf)
+      .send({ clientName: 'Atelier Lumière', ownerEmail: 'proprietaire@example.org' })
+    expect([unconfirmed.status, unconfirmed.body.error.code]).toEqual([403, 'auth.stepUpRequired'])
+
+    const confirmed = await agent
+      .post('/api/auth/step-up')
+      .set(CSRF_HEADER, csrf)
+      .send({ password: PASSWORD })
+    expect(confirmed.status, JSON.stringify(confirmed.body)).toBeLessThan(300)
+
+    const opened = await agent
+      .post('/api/site/clients')
+      .set(CSRF_HEADER, csrf)
+      .send({ clientName: 'Atelier Lumière', ownerEmail: 'proprietaire@example.org' })
+    expect(opened.status, JSON.stringify(opened.body)).toBe(201)
+    // No relay on this box: the operator is handed the link to pass on.
+    expect(opened.body.invitation.delivery).toBe('link')
+
+    const listed = await agent.get('/api/site/clients')
+    expect(listed.body.items).toHaveLength(1)
+    expect(listed.body.items[0]).toMatchObject({
+      id: opened.body.clientId,
+      name: 'Atelier Lumière',
+      usage: { eventCount: 0, memberCount: 0, usedBytes: 0 },
+    })
+
+    const changed = await agent
+      .put(`/api/site/clients/${opened.body.clientId as string}/ceilings`)
+      .set(CSRF_HEADER, csrf)
+      .send({ ceilings: { maxEvents: 3 }, reason: 'Forfait mis à jour' })
+    expect(changed.status, JSON.stringify(changed.body)).toBe(200)
+
+    const refused = await agent
+      .put(`/api/site/clients/${opened.body.clientId as string}/ceilings`)
+      .set(CSRF_HEADER, csrf)
+      .send({ ceilings: { maxEvents: 4 } })
+    expect([refused.status, refused.body.error.code]).toEqual([400, 'request.invalid'])
+
+    // The rest of the namespace, through the same bag: every route reaches a use case that exists.
+    const clientPath = `/api/site/clients/${opened.body.clientId as string}`
+    const renamed = await agent
+      .patch(clientPath)
+      .set(CSRF_HEADER, csrf)
+      .send({ name: 'Atelier Lumière, rebaptisé' })
+    expect(renamed.status, JSON.stringify(renamed.body)).toBe(204)
+
+    const events = await agent.get(`${clientPath}/events`)
+    expect([events.status, events.body]).toEqual([200, { items: [], next: null }])
+
+    const accounts = await agent.get('/api/site/accounts')
+    expect(accounts.body.items.map((row: { email: string }) => row.email)).toEqual([OPERATOR])
+
+    // The customer's invitation is still waiting, so a second one waits too (R1).
+    const invited = await agent
+      .post(`${clientPath}/invitations`)
+      .set(CSRF_HEADER, csrf)
+      .send({ email: 'collegue@example.org', role: 'member' })
+    expect(invited.status, JSON.stringify(invited.body)).toBe(201)
+    expect(invited.body.invitation.pendingApproval).toBe(true)
+
+    // No relay and the default mode: a reset is refused, by the real use case.
+    const accountId = accounts.body.items[0].id as string
+    const asked = await agent
+      .post(`/api/site/accounts/${accountId}/password-reset`)
+      .set(CSRF_HEADER, csrf)
+      .send({})
+    expect([asked.status, asked.body.error.code]).toEqual([409, 'reset.mailerRequired'])
+
+    const log = await agent.get('/api/site/audit')
+    expect(log.body.items.map((entry: { action: string }) => entry.action)).toEqual([
+      'invitation.issued',
+      'client.renamed',
+      'client.ceilingsChanged',
+      'invitation.issued',
+      'client.created',
+    ])
+    expect(log.body.items[2].details.reason).toBe('Forfait mis à jour')
   })
 })

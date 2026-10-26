@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
+import { Event } from '../../../domain/events/event'
 import { AT, aUser, anAccountToken, anEvent, atPlus } from '../../testing/builders'
 import {
   CLIENT_ID,
@@ -45,6 +46,7 @@ describe('previewInvitation', () => {
           role: 'moderator',
           targetName: 'Mariage de Camille',
           expiresAt: world.tokens.all.find((record) => record.id === id)?.expiresAt,
+          terms: null,
         },
       })
     })
@@ -74,6 +76,7 @@ describe('previewInvitation', () => {
         'kind',
         'role',
         'targetName',
+        'terms',
       ])
       expect(JSON.stringify(result)).not.toContain(NEWCOMER)
       expect(JSON.stringify(result)).not.toContain(HOST_ID)
@@ -240,6 +243,43 @@ describe('previewInvitation', () => {
   })
 
   // ----------------------------------------------- the inviter's authority --
+
+  describe('a suspended client opens no invitation (roadmap §10.7, G2-14)', () => {
+    const NOT_FOUND = {
+      ok: false,
+      error: expect.objectContaining({ kind: 'notFound', code: 'invitation.notFound' }),
+    }
+
+    const freezeTheClient = async (): Promise<void> => {
+      const client = await world.clients.findById(asClientId(CLIENT_ID))
+      if (client === null) throw new Error('fixture')
+      await world.clients.save(client.suspend(AT))
+    }
+
+    it('answers invitation.notFound for an invitation into the client, and opens it again once resumed', async () => {
+      const { token } = await world.invite({ to: 'client-owner' })
+      await freezeTheClient()
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+
+      const client = await world.clients.findById(asClientId(CLIENT_ID))
+      if (client === null) throw new Error('fixture')
+      await world.clients.save(client.reinstate())
+      expect((await preview({ token })).ok).toBe(true)
+    })
+
+    it('answers invitation.notFound for a moderator invitation to one of its events, whatever the status of the event', async () => {
+      const { token } = await world.invite()
+      await world.events.save(
+        Event.restore({
+          ...anEvent({ id: EVENT_ID, ownerId: HOST_ID, status: 'archived' }).toProps(),
+          clientSuspendedAt: AT,
+        }),
+      )
+
+      expect(await preview({ token })).toMatchObject(NOT_FOUND)
+    })
+  })
 
   describe('the authority of whoever wrote an invitation to an event', () => {
     it('is read now, not when the link was written: an owner who was removed no longer invites', async () => {
@@ -425,6 +465,61 @@ describe('previewInvitation', () => {
       const { token } = await world.invite({ to: 'client-owner', createdBy: null })
 
       expect((await preview({ token })).ok).toBe(true)
+    })
+  })
+
+  // ------------------------------------------------------- the terms of use --
+
+  describe('the terms of use (G2-20)', () => {
+    const TERMS = { url: 'https://hosted.example.org/legal/cgu', version: '2027-01' }
+
+    const previewWith = (terms: typeof TERMS | null | undefined): PreviewInvitation =>
+      makePreviewInvitation({
+        tokens: world.tokens,
+        secrets: world.secrets,
+        events: world.events,
+        clients: world.clients,
+        memberships: world.memberships,
+        users: world.users,
+        clock: world.clock,
+        ...(terms === undefined ? {} : { terms }),
+      })
+
+    it('tells the page which terms accepting agrees to, so it can ask for them', async () => {
+      const { token } = await world.invite()
+
+      const result = await previewWith(TERMS)({ token })
+
+      expect(result.ok && result.value.terms).toEqual(TERMS)
+    })
+
+    it.each([
+      ['given as null', null],
+      ['not given at all', undefined],
+    ])('says there are none on a box whose terms are %s', async (_what, terms) => {
+      const { token } = await world.invite()
+
+      const result = await previewWith(terms)({ token })
+
+      expect(result.ok && result.value.terms).toBeNull()
+    })
+
+    it('says it for an invitation to a client as for one to an event', async () => {
+      const { token } = await world.invite({ to: 'client-owner' })
+
+      const result = await previewWith(TERMS)({ token })
+
+      expect(result.ok && result.value.terms).toEqual(TERMS)
+    })
+
+    it('says nothing of them for a link that is dead, which stays the one dead-link answer', async () => {
+      const { token } = await world.invite({ consumedAt: atPlus(-1) })
+
+      const result = await previewWith(TERMS)({ token })
+
+      expect(result.ok).toBe(false)
+      expect(!result.ok && result.error.code).toBe('invitation.notFound')
+      expect(JSON.stringify(result)).not.toContain(TERMS.version)
     })
   })
 })

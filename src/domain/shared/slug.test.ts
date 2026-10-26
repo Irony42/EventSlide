@@ -256,16 +256,6 @@ describe('Slug.fromNameWithRandomSuffix', () => {
   })
 })
 
-describe('Slug.isReserved', () => {
-  it('is true for a word that would collide with a route', () => {
-    expect(Slug.isReserved('moderation')).toBe(true)
-  })
-
-  it('is false for an ordinary event slug', () => {
-    expect(Slug.isReserved('camille-et-sacha')).toBe(false)
-  })
-})
-
 describe('a Slug instance', () => {
   it('equals another slug with the same value', () => {
     const one = Slug.create('mariage')

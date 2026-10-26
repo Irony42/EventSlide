@@ -7,6 +7,7 @@ import type {
   ClientPage,
   ClientRepository,
 } from '../ports/clientRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `ClientRepository`.
@@ -19,10 +20,6 @@ import type {
  * way one database does; a test that wants a link without an event repository makes it by
  * hand, the way the adapter's own contract test writes a real `events` row.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 /** Newest first, and a tie breaks on id **descending**, as the adapter's `ORDER BY … id DESC`. */
 const newestFirst = (left: Client, right: Client): number =>
@@ -226,6 +223,27 @@ export class FakeClientRepository implements ClientRepository, ClientEventSource
   async countMembers(clientId: ClientId): Promise<number> {
     return [...this.memberships.values()].filter((membership) => membership.clientId === clientId)
       .length
+  }
+
+  async memberIds(clientId: ClientId): Promise<readonly UserId[]> {
+    return [...this.memberships.values()]
+      .filter((membership) => membership.clientId === clientId)
+      .map((membership) => membership.userId)
+      .sort(compareIds)
+  }
+
+  async listDueForFinalization(now: Date, limit: number): Promise<readonly ClientId[]> {
+    return [...this.clients.values()]
+      .filter(
+        (client) => client.purgeAfter !== null && client.purgeAfter.getTime() <= now.getTime(),
+      )
+      .filter((client) => this.eventsOf(client.id).length === 0)
+      .sort(
+        (a, b) =>
+          (a.purgeAfter?.getTime() ?? 0) - (b.purgeAfter?.getTime() ?? 0) || compareIds(a.id, b.id),
+      )
+      .slice(0, limit)
+      .map((client) => client.id)
   }
 
   /**

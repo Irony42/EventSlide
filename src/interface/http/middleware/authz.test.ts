@@ -1,7 +1,9 @@
+import { Router } from 'express'
 import request from 'supertest'
 import { describe, expect, it, vi } from 'vitest'
 import {
   ABSOLUTE_SESSION_LIFETIME_MS,
+  deferToHostSurface,
   GUEST_COOKIE,
   PASSWORD_CHANGE_EXEMPT,
   PASSWORD_CHANGE_REQUIRED_CODE,
@@ -19,7 +21,8 @@ import { signedInAs, signInByAddress } from '../testing/signIn'
 import { anEvent, aGuest, aUser, AT } from '../../../application/testing/builders'
 import { CallLog } from '../../../application/testing/callLog'
 import { ok } from '../../../domain/shared/result'
-import { asEventId, asUserId } from '../../../domain/shared/ids'
+import { Event } from '../../../domain/events/event'
+import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { HttpDeps, SessionPayload } from '../types'
 
 const WEDDING = 'wedding-id'
@@ -87,6 +90,11 @@ const buildSubject = (): Harness =>
         res.json({ slug: req.context.event?.slug.value, role: req.context.role })
       })
 
+      // Every verb on one path: what the middleware lets a member of a suspended client through to.
+      app.all('/events/:eventSlug/anything', requireRole('moderator', deps), (_req, res) => {
+        res.status(204).end()
+      })
+
       app.get('/events/:eventSlug/manage', requireRole('owner', deps), (req, res) => {
         res.json({ role: req.context.role })
       })
@@ -95,9 +103,28 @@ const buildSubject = (): Harness =>
         res.json({ guestId: req.context.guest?.guest.id })
       })
 
+      // A path two principals share: the guest router in front, the host's behind it. What the
+      // answer says is which of the two was reached.
+      const guestRouter = Router()
+      guestRouter.delete('/events/:eventSlug/shared', deferToHostSurface(deps), (_req, res) => {
+        res.json({ answeredBy: 'guest' })
+      })
+      app.use(guestRouter)
+      app.delete('/events/:eventSlug/shared', (_req, res) => {
+        res.json({ answeredBy: 'host' })
+      })
+
       app.get('/events/:eventSlug/wall', resolvePublicEvent(deps), (req, res) => {
         res.json({ name: req.context.event?.name.value })
       })
+      // The one public route that is also a host's: members read through a suspension.
+      app.get(
+        '/events/:eventSlug/media',
+        resolvePublicEvent(deps, { suspended: 'visible' }),
+        (req, res) => {
+          res.json({ name: req.context.event?.name.value })
+        },
+      )
 
       // The shape every operator-only route of §10.2 onwards will have. There is no such
       // route in the product yet — the console, the clients and the invitations are their
@@ -513,6 +540,57 @@ describe('requireRole', () => {
     expect(response.body.error.code).toBe('event.notFound')
   })
 
+  describe('for the event of a suspended client (G2-14, roadmap §10.7)', () => {
+    const WRITES = ['post', 'put', 'patch', 'delete'] as const
+
+    const frozen = (): Harness => {
+      const subject = harness()
+      seedWedding(subject)
+      subject.events.seed(
+        Event.restore({
+          ...anEvent({ id: WEDDING, slug: 'mariage', ownerId: HOST, joinCode: 'H7K2QM' }).toProps(),
+          clientSuspendedAt: AT,
+        }),
+      )
+      return subject
+    }
+
+    it('lets a member read, whatever the verb that reads', async () => {
+      const agent = await signedIn(frozen(), 'host')
+
+      expect((await agent.get('/events/mariage/anything')).status).toBe(204)
+      expect((await agent.head('/events/mariage/anything')).status).toBe(204)
+    })
+
+    // Not the middleware's rule any more: it used to test the verb, and every host-side write use
+    // case asks `requireWritable` itself (`suspendedClientWrites.test.ts`), swept over every
+    // non-GET route by `suspension.container.test.ts`. What is held here is that the member is
+    // let through to the use case, which is where the answer comes from.
+    it.each(WRITES)(
+      'lets a member through to the use case, which refuses the %s, rather than refusing by verb',
+      async (verb) => {
+        const agent = await signedIn(frozen(), 'host')
+
+        const response = await agent[verb]('/events/mariage/anything')
+
+        expect(response.status).toBe(204)
+      },
+    )
+
+    it.each([...WRITES, 'get'] as const)(
+      'tells a signed-in stranger the 404 an unknown event gets, whatever the verb (%s)',
+      async (verb) => {
+        const agent = await signedIn(frozen(), 'other')
+
+        const suspended = await agent[verb]('/events/mariage/anything')
+        const unknown = await agent[verb]('/events/un-mariage-inconnu/anything')
+
+        expect([suspended.status, suspended.body]).toEqual([404, unknown.body])
+        expect(suspended.body.error.code).toBe('event.notFound')
+      },
+    )
+  })
+
   it('answers 404 for an event that does not exist', async () => {
     const subject = harness()
     seedWedding(subject)
@@ -782,6 +860,78 @@ describe('requireGuest', () => {
     expect(response.body.guestId).toBe('guest-1')
   })
 
+  /**
+   * The count the host reads ("N guests here") is `lastSeenAt` inside a five-minute window.
+   * It was written by the join and by nothing after: the middleware kept its own copy of
+   * `authenticateGuest`, dropped the stamp, and the console counted guests who had *joined*
+   * recently, not guests who were still uploading.
+   */
+  it('records the guest as seen, so the host count says who is still here', async () => {
+    const subject = harness()
+    seedGuest(subject)
+    const token = subject.issueGuestToken(WEDDING, 'guest-1')
+    subject.clock.advance(60 * 60 * 1000)
+
+    await request(subject.app)
+      .get('/events/mariage/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+    const stored = await subject.guests.findById(asEventId(WEDDING), asGuestId('guest-1'))
+    expect(stored?.lastSeenAt).toEqual(subject.clock.now())
+  })
+
+  it('does not record the guest as seen when the request is refused', async () => {
+    const subject = harness()
+    seedGuest(subject)
+    const token = subject.issueGuestToken(GALA, 'guest-1')
+    subject.clock.advance(60 * 60 * 1000)
+
+    await request(subject.app)
+      .get('/events/mariage/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+    const stored = await subject.guests.findById(asEventId(WEDDING), asGuestId('guest-1'))
+    expect(stored?.lastSeenAt).toEqual(AT)
+  })
+
+  it.each(['closed', 'archived'] as const)(
+    'still identifies a guest of a %s event: who they are does not depend on the party',
+    async (status) => {
+      const subject = harness()
+      seedGuest(subject)
+      subject.events.seed(anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM', status }))
+      const token = subject.issueGuestToken(WEDDING, 'guest-1')
+
+      const response = await request(subject.app)
+        .get('/events/mariage/upload')
+        .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+      expect(response.status).toBe(200)
+    },
+  )
+
+  it('answers a guest of a suspended client exactly as it answers an event that does not exist', async () => {
+    const subject = harness()
+    seedGuest(subject)
+    subject.events.seed(
+      Event.restore({
+        ...anEvent({ id: WEDDING, slug: 'mariage', joinCode: 'H7K2QM' }).toProps(),
+        clientSuspendedAt: AT,
+      }),
+    )
+    const token = subject.issueGuestToken(WEDDING, 'guest-1')
+
+    const suspended = await request(subject.app)
+      .get('/events/mariage/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+    const unknown = await request(subject.app)
+      .get('/events/no-such-event/upload')
+      .set('Cookie', `${GUEST_COOKIE}=${token}`)
+
+    expect([suspended.status, suspended.body]).toEqual([404, unknown.body])
+    expect(suspended.body.error.code).toBe('event.notFound')
+  })
+
   it('refuses a token issued for another event', async () => {
     // The cross-event attack: a guest at one wedding pointing their own cookie at
     // another event's upload endpoint.
@@ -793,8 +943,8 @@ describe('requireGuest', () => {
       .get('/events/mariage/upload')
       .set('Cookie', `${GUEST_COOKIE}=${token}`)
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.wrongEvent')
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it('answers 401 with no cookie at all', async () => {
@@ -888,6 +1038,89 @@ describe('requireGuest', () => {
   })
 })
 
+/**
+ * `deferToHostSurface`: which router answers a path two principals share (HTTP-M-02).
+ *
+ * Membership first, then the cookie. Walked here at the middleware, with a stand-in for each
+ * router, because the one thing that matters is which of the two was reached: the same
+ * sentence at the route level is in `guestRoutes.test.ts`, behind the real `requireRole`.
+ */
+describe('deferToHostSurface', () => {
+  const COOKIE = `${GUEST_COOKIE}=any-value-the-guest-router-would-verify`
+  const SHARED = '/events/mariage/shared'
+
+  const answeredBy = async (
+    subject: Harness,
+    options: { readonly as?: 'host' | 'other'; readonly cookie?: boolean; readonly path?: string },
+  ): Promise<string> => {
+    const agent =
+      options.as === undefined ? request.agent(subject.app) : await signedIn(subject, options.as)
+    const call = agent.delete(options.path ?? SHARED)
+    const response = await (options.cookie === true ? call.set('Cookie', COOKIE) : call)
+    return String((response.body as { answeredBy?: unknown }).answeredBy ?? response.status)
+  }
+
+  const wedding = (): Harness => {
+    const subject = harness()
+    seedWedding(subject)
+    return subject
+  }
+
+  it('hands a caller with no cookie to the host router, which refuses it', async () => {
+    expect(await answeredBy(wedding(), {})).toBe('host')
+  })
+
+  it('keeps a caller with a cookie and no session on the guest router', async () => {
+    expect(await answeredBy(wedding(), { cookie: true })).toBe('guest')
+  })
+
+  it('hands a moderator of the event to the host router, with a cookie or without one', async () => {
+    // The browser a host moderates from may also have scanned their own QR code.
+    expect(await answeredBy(wedding(), { as: 'host' })).toBe('host')
+    expect(await answeredBy(wedding(), { as: 'host', cookie: true })).toBe('host')
+  })
+
+  it('keeps an account whose role is at another event on the guest router when it holds a cookie', async () => {
+    // `OTHER_HOST` owns the gala: no role here, so a guest at this wedding who happens to have an account.
+    expect(await answeredBy(wedding(), { as: 'other', cookie: true })).toBe('guest')
+  })
+
+  it('keeps a moderator whose account was switched off on the guest router when it holds a cookie', async () => {
+    // `roleFor` is null for a disabled account, the one read every request makes: a switched-off
+    // moderator has no authority here, only the cookie they also hold.
+    const subject = wedding()
+    const agent = await signedIn(subject, 'host')
+    await subject.users.save(aUser({ id: HOST, email: 'host@example.com' }).disable(AT))
+
+    const response = await agent.delete(SHARED).set('Cookie', COOKIE)
+
+    expect((response.body as { answeredBy?: unknown }).answeredBy).toBe('guest')
+  })
+
+  it.each([
+    ['an event that does not exist', '/events/inconnu/shared'],
+    ['a slug the domain would never have stored', '/events/Not_A_Slug/shared'],
+  ])('leaves a signed-in caller with a cookie on the guest router for %s', async (_what, path) => {
+    // Nothing to read a role from, so the cookie decides, and the guest router answers (its own
+    // `requireGuest` says what it thinks of the event).
+    expect(await answeredBy(wedding(), { as: 'host', cookie: true, path })).toBe('guest')
+  })
+
+  it('forwards a repository failure instead of leaving the request hanging', async () => {
+    const subject = wedding()
+    const agent = await signedIn(subject, 'host')
+    Object.assign(subject.events, {
+      findBySlug: async () => {
+        throw new Error('database is locked')
+      },
+    })
+
+    const response = await agent.delete(SHARED).set('Cookie', COOKIE)
+
+    expect(response.status).toBe(500)
+  })
+})
+
 describe('resolvePublicEvent', () => {
   it('serves a live event with no credential at all', async () => {
     const subject = harness()
@@ -922,6 +1155,48 @@ describe('resolvePublicEvent', () => {
   it('answers 404 for an unknown slug', async () => {
     await request(harness().app).get('/events/nope/wall').expect(404)
   })
+
+  describe('for an event whose client is suspended (G2-14, roadmap §10.7)', () => {
+    const seedSuspendedEvent = (
+      subject: ReturnType<typeof harness>,
+      status: 'live' | 'archived' = 'live',
+    ): void => {
+      subject.events.seed(
+        Event.restore({
+          ...anEvent({ slug: 'mariage', status }).toProps(),
+          clientSuspendedAt: AT,
+        }),
+      )
+    }
+
+    it('answers 404 exactly as it does for an event that does not exist', async () => {
+      // `Event.servesPublicWall`: the lifecycle serves it and the client is not suspended. The
+      // wall's use case refuses it a second time, so this is the only place the middleware
+      // gate on its own can be seen.
+      const subject = harness()
+      seedSuspendedEvent(subject)
+
+      const suspended = await request(subject.app).get('/events/mariage/wall')
+      const unknown = await request(subject.app).get('/events/nope/wall')
+
+      expect(suspended.status).toBe(404)
+      expect(suspended.body).toEqual(unknown.body)
+    })
+
+    it('lets the event through to a route that judges the viewer itself, when asked to', async () => {
+      const subject = harness()
+      seedSuspendedEvent(subject)
+
+      await request(subject.app).get('/events/mariage/media').expect(200)
+    })
+
+    it('still refuses an archived event on that route: members read through a suspension, not an archive', async () => {
+      const subject = harness()
+      seedSuspendedEvent(subject, 'archived')
+
+      await request(subject.app).get('/events/mariage/media').expect(404)
+    })
+  })
 })
 
 /**
@@ -938,9 +1213,10 @@ describe('resolvePublicEvent', () => {
  * answering could not be swept this way; one that cannot be reached without the
  * question being asked first can.
  *
- * Only one `SITE_ADMIN` mode: `OPERATOR_ROUTES` in `siteOperatorScope.test.ts` is empty
- * today, so there is nothing under `/api/site` for this sweep to find in either mode.
- * Extend it the way that file extends across both modes once P3-13 mounts the first one.
+ * Only one `SITE_ADMIN` mode: this harness mounts no `/api/site`, so the one route there
+ * (`GET /api/site/client-defaults`, `OPERATOR_ROUTES` in `siteOperatorScope.test.ts`) is not
+ * requested by this sweep. `siteClientDefaults.test.ts` holds that route to this gate by hand;
+ * extend this sweep the way that file extends across both modes once P3-13 mounts more.
  */
 describe('requirePasswordCurrent: mustChangePassword enforced server-side (P3-03)', () => {
   /**

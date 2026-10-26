@@ -9,7 +9,7 @@
  * operator controls (`SOURCE_CODE_URL`), and the only one that can describe a deployment
  * built from somewhere other than upstream.
  *
- * This is a **second copy** of `resolveSourceUrl` in `src/infrastructure/config/env.ts`:
+ * This is a **second copy** of `resolveSourceUrl` in `src/infrastructure/config/load.ts`:
  * the web app may not import the server, and a config file is not worth a package of its
  * own. `scripts/aboutBuildInfo.test.ts` compares the two over every shape of input, so the
  * copy cannot drift. Plain TypeScript with no Node imports, which is what lets that test
@@ -18,7 +18,7 @@
 
 const UPSTREAM_REPOSITORY = 'https://github.com/Irony42/EventSlide'
 
-/** The same shape `SOURCE_REF` is held to at boot. See `sourceRef` in `env.ts`. */
+/** The same shape `SOURCE_REF` is held to at boot. See `sourceRef` in `config/linkFields.ts`. */
 const SOURCE_REF = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/
 
 /**

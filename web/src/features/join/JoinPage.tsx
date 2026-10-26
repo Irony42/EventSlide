@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { Field } from '../../design-system/components/Field'
+import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { Stack } from '../../design-system/components/Stack'
-import { StatusIcon } from '../../design-system/components/StatusIcon'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { useJoin } from './hooks/useJoin'
@@ -122,11 +122,16 @@ export function JoinPage() {
     return (
       <Card as="h1" title={t.join.welcome(event.name)} className={styles['card']}>
         <form className={styles['form']} onSubmit={handleSubmit} noValidate>
+          {/*
+            The failure that belongs to the whole step rather than to one field: a name
+            could not be recorded, or the connection dropped after the code had already
+            resolved. A code that was refused is reported on the code field instead,
+            where the correction has to happen.
+          */}
           {error === null ? null : (
-            <p className={styles['error']} role="alert">
-              <StatusIcon tone="danger" />
+            <Notice tone="danger" role="alert" variant="boxed">
               {error}
-            </p>
+            </Notice>
           )}
           {nameField}
           {actions}

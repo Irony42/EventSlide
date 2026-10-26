@@ -1,6 +1,7 @@
-import type { Guest } from '../../domain/guests/guest'
+import { Guest } from '../../domain/guests/guest'
 import type { EventId, GuestId } from '../../domain/shared/ids'
 import type { GuestRepository } from '../ports/guestRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `GuestRepository`.
@@ -10,16 +11,23 @@ import type { GuestRepository } from '../ports/guestRepository'
  * resolve at the next. `findById(guestId)` does not exist in the port, and this key is
  * what makes the equivalent mistake fail a test rather than pass one.
  *
- * `photoCount` is stored here as given, which is the one place this double is
- * knowingly more generous than the schema: `guests` has no such column, so the adapter
- * derives the number from `photos.author_guest_id`. A fixture may therefore set a
- * count the adapter would recompute — the shared contract asserts nothing about it,
- * and a rule about the per-guest limit belongs against `countByAuthor`.
+ * `photoCount` is derived, never stored, exactly as in the adapter: `guests` has no such
+ * column, and the number is a count of `photos.author_guest_id` within the guest's own
+ * event. The fake is handed the photo fake (`new FakeGuestRepository(photos)`) to count in,
+ * as `FakeEventRepository` is handed its neighbours; with none, no photo is known and every
+ * count is 0. A count a saved guest carries is discarded, as `save` discards it on the way to
+ * the table; a fixture that `seed`s one is refused, because a number the fake would not return
+ * is a broken fixture.
  */
 
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
+/**
+ * The photographs a guest took, which is the one thing `photoCount` is derived from, and
+ * which go when the guest does (`ON DELETE CASCADE`). `FakePhotoRepository` holds them.
+ */
+export interface GuestPhotoSource {
+  authoredBy(eventId: EventId, guestId: GuestId): number
+  deleteAuthoredBy(eventId: EventId, guestId: GuestId): void
+}
 
 /**
  * Most recently seen first, ties broken by id — `idx_guests_event_seen`. The host's
@@ -33,13 +41,29 @@ const key = (eventId: EventId, guestId: GuestId): string => `${eventId}:${guestI
 export class FakeGuestRepository implements GuestRepository {
   private readonly rows = new Map<string, Guest>()
 
+  constructor(private readonly photos?: GuestPhotoSource) {}
+
+  /** The guest as the adapter reads it: with the count derived from the photos, not carried. */
+  private read(guest: Guest): Guest {
+    const photoCount = this.photos?.authoredBy(guest.eventId, guest.id) ?? 0
+    return Guest.restore({ ...guest.toProps(), photoCount })
+  }
+
   seed(...guests: readonly Guest[]): this {
-    for (const guest of guests) this.rows.set(key(guest.eventId, guest.id), guest)
+    for (const guest of guests) {
+      if (guest.photoCount !== 0) {
+        throw new Error(
+          `seed(${guest.id}): photoCount is derived from the photos, not stored; seed photos into the photo fake handed to this repository instead`,
+        )
+      }
+      this.rows.set(key(guest.eventId, guest.id), guest)
+    }
     return this
   }
 
   async findById(eventId: EventId, guestId: GuestId): Promise<Guest | null> {
-    return this.rows.get(key(eventId, guestId)) ?? null
+    const stored = this.rows.get(key(eventId, guestId))
+    return stored === undefined ? null : this.read(stored)
   }
 
   /**
@@ -68,6 +92,7 @@ export class FakeGuestRepository implements GuestRepository {
     return [...this.rows.values()]
       .filter((guest) => guest.eventId === eventId)
       .sort(mostRecentlySeenFirst)
+      .map((guest) => this.read(guest))
   }
 
   /**
@@ -90,8 +115,15 @@ export class FakeGuestRepository implements GuestRepository {
     this.rows.set(key(guest.eventId, guest.id), guest)
   }
 
-  /** Idempotent: deleting an already-deleted guest is not an error. */
+  async touch(eventId: EventId, guestId: GuestId, at: Date): Promise<void> {
+    const stored = this.rows.get(key(eventId, guestId))
+    // `Guest.touch` never moves backwards, which is the adapter's `last_seen_at < ?`.
+    if (stored !== undefined) this.rows.set(key(eventId, guestId), stored.touch(at))
+  }
+
+  /** Idempotent: deleting an already-deleted guest is not an error. Their photos go with them. */
   async delete(eventId: EventId, guestId: GuestId): Promise<void> {
     this.rows.delete(key(eventId, guestId))
+    this.photos?.deleteAuthoredBy(eventId, guestId)
   }
 }

@@ -9,6 +9,7 @@ import { purgeDeadline } from '../../domain/clients/purgeDeadline'
 import type {
   EventOwnerGrant,
   EventRepository,
+  EventCounts,
   EventSummary,
   PurgePolicy,
 } from '../ports/eventRepository'
@@ -16,6 +17,7 @@ import type { GuestRepository } from '../ports/guestRepository'
 import type { PhotoRepository } from '../ports/photoRepository'
 import type { MembershipRepository, UserRepository } from '../ports/userRepository'
 import type { FakeClientRepository } from './fakeClientRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `EventRepository`.
@@ -27,10 +29,6 @@ import type { FakeClientRepository } from './fakeClientRepository'
  * where every guest silently uploaded to a default event. A double that accepted a
  * duplicate would let a use case ship without the collision retry it needs.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 const newestFirst = (left: Event, right: Event): number =>
   right.createdAt.getTime() - left.createdAt.getTime() || compareIds(left.id, right.id)
@@ -127,16 +125,42 @@ export class FakeEventRepository implements EventRepository {
     return this.links.clients
   }
 
+  /**
+   * The event as a lookup returns it: with its client's suspension read from the linked clients
+   * fake **now**, as the SQLite lookups read it from the client's row, so a test that suspends a
+   * client sees the next request answer as a suspended one. An event with no client, or a fake
+   * with no clients linked, is returned as it was stored.
+   */
+  private withClientStanding(event: Event | undefined): Event | null {
+    if (event === undefined) return null
+    const clientId = event.clientId
+    if (clientId === null || this.links.clients === undefined) return event
+    const suspendedAt = this.links.clients.peek(clientId)?.suspendedAt ?? null
+    return Event.restore({ ...event.toProps(), clientSuspendedAt: suspendedAt })
+  }
+
+  async listByClient(clientId: ClientId): Promise<readonly Event[]> {
+    return [...this.rows.values()]
+      .filter((event) => event.clientId === clientId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.id, b.id))
+      .flatMap((event) => {
+        const standing = this.withClientStanding(event)
+        return standing === null ? [] : [standing]
+      })
+  }
+
   async findById(id: EventId): Promise<Event | null> {
-    return this.rows.get(id) ?? null
+    return this.withClientStanding(this.rows.get(id))
   }
 
   async findBySlug(slug: Slug): Promise<Event | null> {
-    return [...this.rows.values()].find((event) => event.slug.equals(slug)) ?? null
+    return this.withClientStanding([...this.rows.values()].find((event) => event.slug.equals(slug)))
   }
 
   async findByJoinCode(code: JoinCode): Promise<Event | null> {
-    return [...this.rows.values()].find((event) => event.joinCode.equals(code)) ?? null
+    return this.withClientStanding(
+      [...this.rows.values()].find((event) => event.joinCode.equals(code)),
+    )
   }
 
   /**
@@ -161,21 +185,31 @@ export class FakeEventRepository implements EventRepository {
     return Promise.all(visible.map((event) => this.summarise(event)))
   }
 
-  private async summarise(event: Event): Promise<EventSummary> {
-    const counts = await this.links.photos?.countsByStatus(event.id)
-    const guests = await this.links.guests?.list(event.id)
+  /** One event's counts, from the photo and guest fakes it was given; zeros for what it was not. */
+  async countsOf(id: EventId): Promise<EventCounts> {
+    // Like the table: an event the repository does not hold has no rows to count, whatever the
+    // photo and guest fakes were seeded with.
+    if (!this.rows.has(id)) return { photoCount: 0, pendingCount: 0, guestCount: 0, usedBytes: 0 }
+    const counts = await this.links.photos?.countsByStatus(id)
+    const guests = await this.links.guests?.list(id)
     return {
-      id: event.id,
-      slug: event.slug.value,
-      name: event.name.value,
-      status: event.status,
       photoCount:
         counts === undefined
           ? 0
           : counts.pending + counts.published + counts.rejected + counts.hidden,
       pendingCount: counts?.pending ?? 0,
       guestCount: guests?.length ?? 0,
-      usedBytes: (await this.links.photos?.totalBytes(event.id)) ?? 0,
+      usedBytes: (await this.links.photos?.totalBytes(id)) ?? 0,
+    }
+  }
+
+  private async summarise(event: Event): Promise<EventSummary> {
+    return {
+      id: event.id,
+      slug: event.slug.value,
+      name: event.name.value,
+      status: event.status,
+      ...(await this.countsOf(event.id)),
       createdAt: event.createdAt,
     }
   }

@@ -86,6 +86,18 @@ describe('GuestUploadPage', () => {
     expect(screen.getByText(fr.upload.signedAs('Léa'))).toBeVisible()
   })
 
+  it('leads to the photographs of the evening, which have a page of their own', () => {
+    // Not a section of this screen: a list that grows all evening would push the controls
+    // that live under the thumb off the bottom of the phone.
+    havingJoined()
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('link', { name: fr.feed.link })).toHaveAttribute(
+      'href',
+      `/e/${SLUG}/photos`,
+    )
+  })
+
   it('says it is fetching the guest’s own photos', () => {
     havingJoined()
     const api = fakeApi({
@@ -531,6 +543,37 @@ describe('sending a video', () => {
     // queue depth is decided, so an instant retry spends the bytes for nothing.
     expect(screen.queryByRole('button', { name: fr.upload.clipSend })).toBeNull()
     expect(screen.queryByRole('button', { name: fr.app.retry })).toBeNull()
+  })
+
+  it('announces a refused recording as an alert, which is the only thing that interrupts', async () => {
+    havingJoined({ allowClips: true })
+    renderUpload(fakeApi())
+
+    await userEvent.upload(
+      screen.getByLabelText(fr.upload.addClip),
+      aClipFile('longue.mp4', 90_000_000),
+    )
+
+    const refusal = await screen.findByText(fr.upload.clipTooLarge(80))
+    expect(refusal.closest('[role="alert"]')).not.toBeNull()
+  })
+
+  it('announces a wait in turn, as a status, and not as an alert over what the guest is doing', async () => {
+    havingJoined({ allowClips: true })
+    renderUpload(
+      fakeApi({
+        uploadClip: vi.fn(() =>
+          Promise.reject(new ApiError(429, 'clip.queueFull', { retryAfterSeconds: 30 })),
+        ),
+      }),
+    )
+
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    const wait = await screen.findByText(fr.upload.clipQueueFullRetry(30))
+    expect(wait.closest('[role="status"]')).not.toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('shows the transcode as its own state rather than stopping at 100%', async () => {

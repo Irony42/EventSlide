@@ -1,9 +1,21 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig, loadMaintenanceConfig, resolveSourceUrl } from './env'
+import { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { OPERATOR_NAME_MAX_LENGTH } from '../../domain/privacy/privacyNotice'
 import { Password } from '../../domain/users/password'
+
+/**
+ * The source of the configuration module as one string (every file of this folder but the tests): the
+ * schema is in several files now, and what a test reading it means is "the module says this".
+ */
+const configSource = (): string =>
+  readdirSync(__dirname)
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+    .sort()
+    .map((name) => readFileSync(join(__dirname, name), 'utf8'))
+    .join('\n')
 
 /**
  * Ring 3. `loadConfig` takes its source as a parameter, so every case here is a plain
@@ -137,7 +149,6 @@ describe('loadConfig', () => {
           maxStreamsTotal: 500,
           maxSubscribersPerEvent: 200,
         },
-        guests: { selfDeleteGraceMs: 900_000 },
         retention: { sweepIntervalMs: 3_600_000, capNoticeDays: 30 },
         schedule: { sweepIntervalMs: 300_000 },
         rateLimits: {
@@ -145,6 +156,7 @@ describe('loadConfig', () => {
           joinPerMinute: 20,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          guestWritePerMinute: 300,
           galleryPerMinute: 120,
           galleryMediaPerMinute: 3000,
           galleryUnlockPerClient: 10,
@@ -167,6 +179,8 @@ describe('loadConfig', () => {
           supportUrl: null,
           reportUrl: null,
         },
+        // Neither the address nor the version: an invitation asks for no terms (G2-20).
+        termsOfUse: null,
         events: {
           slugSuffix: 'none',
           allowCustomSlugs: true,
@@ -178,6 +192,16 @@ describe('loadConfig', () => {
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
         audit: { retentionDays: 1095 },
+        // No ceiling for a client, and clips allowed: a box that sets none of them is unchanged.
+        newClientCeilings: {
+          maxEvents: null,
+          maxEventsPerPeriod: null,
+          maxTotalBytes: null,
+          maxEventQuotaBytes: null,
+          maxRetentionDays: null,
+          maxLiveDays: null,
+          clipsAllowed: true,
+        },
         // Nobody has set a key, and nobody is required to hold a second factor.
         mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
       })
@@ -237,10 +261,38 @@ describe('loadConfig', () => {
       expect(config.publicUrl).toBe('https://photos.example.com')
     })
 
-    it('converts the guest self-delete grace period from seconds to milliseconds', () => {
-      const config = loadConfig({ ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '60' })
+    describe('GUEST_SELF_DELETE_GRACE_SECONDS, deprecated and read by nothing', () => {
+      // The grace is a setting of each event. The key was validated, mapped into the config and
+      // read by no one, so it is kept parsing (a box that sets it boots as it did), warned about,
+      // and listed under Deprecated in the 3.0.0 entry; docs/UPGRADING.md says why it is not just
+      // gone: a documented setting is removed in a major, after a deprecation.
+      it('still boots with it, and no longer carries it in the configuration', () => {
+        const config = loadConfig({ ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '60' })
 
-      expect(config.guests.selfDeleteGraceMs).toBe(60_000)
+        expect(config).not.toHaveProperty('guests')
+      })
+
+      it('says at boot that it does nothing, in every environment', () => {
+        for (const env of [
+          { ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '60' },
+          aProductionEnv({ TRUST_PROXY_HOPS: '1', GUEST_SELF_DELETE_GRACE_SECONDS: '60' }),
+        ]) {
+          const { warnings } = loadConfig(env)
+
+          expect(warnings).toHaveLength(1)
+          expect(warnings[0]).toContain('GUEST_SELF_DELETE_GRACE_SECONDS is deprecated')
+        }
+      })
+
+      it('says nothing when it is not set', () => {
+        expect(loadConfig({ ...DEV }).warnings).toEqual([])
+      })
+
+      it('still refuses a value it always refused, so a box does not start booting with a typo', () => {
+        expect(() => loadConfig({ ...DEV, GUEST_SELF_DELETE_GRACE_SECONDS: '86401' })).toThrow(
+          ConfigError,
+        )
+      })
     })
 
     it('turns on the Secure cookie flag in production without being told to', () => {
@@ -295,11 +347,11 @@ describe('loadConfig', () => {
         DEFAULT_EVENT_QUOTA_BYTES: '3333',
         MAX_CONCURRENT_UPLOAD_REQUESTS: '8',
         MIN_FREE_DISK_BYTES: '4444',
-        GUEST_SELF_DELETE_GRACE_SECONDS: '61',
         UPLOAD_RATE_LIMIT_PER_MINUTE: '101',
         JOIN_RATE_LIMIT_PER_MINUTE: '102',
         LOGIN_RATE_LIMIT_PER_MINUTE: '103',
         REACTION_RATE_LIMIT_PER_MINUTE: '104',
+        GUEST_WRITE_RATE_LIMIT_PER_MINUTE: '110',
         GALLERY_RATE_LIMIT_PER_MINUTE: '105',
         GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '106',
         GALLERY_UNLOCK_ATTEMPTS_PER_CLIENT: '107',
@@ -336,12 +388,12 @@ describe('loadConfig', () => {
           maxStreamsTotal: 110,
           maxSubscribersPerEvent: 111,
         },
-        guests: { selfDeleteGraceMs: 61_000 },
         rateLimits: {
           uploadPerMinute: 101,
           joinPerMinute: 102,
           loginPerMinute: 103,
           reactionPerMinute: 104,
+          guestWritePerMinute: 110,
           galleryPerMinute: 105,
           galleryMediaPerMinute: 106,
           galleryUnlockPerClient: 107,
@@ -539,8 +591,6 @@ describe('loadConfig', () => {
     it.each([
       ['a host that only starts with localhost', 'http://localhost.example.com'],
       ['a host that merely continues the word', 'http://localhostx:4300'],
-      ['a localhost user name in front of another host', 'http://localhost@photos.example.com'],
-      ['a localhost user name, in capitals', 'HTTP://localhost:4300@photos.example.com'],
       ['a loopback address, which was never exempt', 'http://127.0.0.1:4300'],
       ['an IPv6 loopback address, which was never exempt', 'http://[::1]:4300'],
       ['a .localhost name, which was never exempt', 'http://app.localhost:4300'],
@@ -549,6 +599,20 @@ describe('loadConfig', () => {
       const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
 
       expect(issues).toEqual([expect.stringContaining('PUBLIC_URL must use https in production')])
+    })
+
+    it.each([
+      ['a localhost user name in front of another host', 'http://localhost@photos.example.com'],
+      ['a localhost user name, in capitals', 'HTTP://localhost:4300@photos.example.com'],
+    ])('does not extend the localhost exemption to %s either', (_name, url) => {
+      // These carry a user name, so the credentials rule refuses them as well and the list
+      // is longer than one: the https rule must still be in it, because the host is not
+      // localhost and a refusal for the credentials alone would be the wrong reason.
+      const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: url }))
+
+      expect(issues).toContainEqual(
+        expect.stringContaining('PUBLIC_URL must use https in production'),
+      )
     })
 
     it('accepts an explicitly disabled E2E_HOOKS in production, since only enabling it is the hazard', () => {
@@ -721,6 +785,7 @@ describe('loadConfig', () => {
       ['JOIN_RATE_LIMIT_PER_MINUTE', '601'],
       ['LOGIN_RATE_LIMIT_PER_MINUTE', '601'],
       ['REACTION_RATE_LIMIT_PER_MINUTE', '601'],
+      ['GUEST_WRITE_RATE_LIMIT_PER_MINUTE', '6001'],
       ['MAX_CONCURRENT_UPLOAD_REQUESTS', '1001'],
       ['MAX_QUEUED_CLIPS', '501'],
       ['MAX_QUEUED_CLIPS_PER_EVENT', '501'],
@@ -819,6 +884,367 @@ describe('loadConfig', () => {
       const config = loadConfig({ ...DEV, MAX_EVENT_QUOTA_BYTES: '' })
 
       expect(config.uploads.maxEventQuotaBytes).toBeNull()
+    })
+  })
+
+  /**
+   * The ceilings a new client starts with (G2-18 / roadmap §10.5): seven optional variables,
+   * parsed at boot and refused, naming the variable, when they do not fit.
+   *
+   * The posture is the one `MAX_EVENT_QUOTA_BYTES` has, and it is the whole point: **a box
+   * that sets none of them is unchanged**, and one that sets them with `SITE_ADMIN=off` does
+   * not boot, because there is no way to create a client for them to apply to.
+   */
+  describe('NEW_CLIENT_*, the ceilings a new client starts with (G2-18)', () => {
+    /** Every numeric variable: its field in the config, and the bounds of its `CHECK`. */
+    const NUMERIC = [
+      ['NEW_CLIENT_MAX_EVENTS', 'maxEvents', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_EVENTS_PER_PERIOD', 'maxEventsPerPeriod', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_TOTAL_BYTES', 'maxTotalBytes', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_EVENT_QUOTA_BYTES', 'maxEventQuotaBytes', 1, Number.MAX_SAFE_INTEGER],
+      ['NEW_CLIENT_MAX_RETENTION_DAYS', 'maxRetentionDays', 1, 3650],
+      ['NEW_CLIENT_MAX_LIVE_DAYS', 'maxLiveDays', 1, 365],
+    ] as const
+
+    /** Every variable of the family, which is what `SITE_ADMIN=off` refuses. */
+    const ALL = [...NUMERIC.map(([name]) => name), 'NEW_CLIENT_CLIPS_ALLOWED'] as const
+
+    /** A box that has an operator, which is the only kind that may set any of them. */
+    const hosted = (overrides: Source = {}): Source =>
+      aProductionEnv({ SITE_ADMIN: 'on', ...overrides })
+
+    const UNLIMITED = {
+      maxEvents: null,
+      maxEventsPerPeriod: null,
+      maxTotalBytes: null,
+      maxEventQuotaBytes: null,
+      maxRetentionDays: null,
+      maxLiveDays: null,
+      clipsAllowed: true,
+    }
+
+    it('is no ceiling at all on a box that never mentions them, so a self-hosted box is unchanged', () => {
+      expect(loadConfig({ ...DEV }).newClientCeilings).toEqual(UNLIMITED)
+      expect(loadConfig(aProductionEnv()).newClientCeilings).toEqual(UNLIMITED)
+      expect(loadConfig(hosted()).newClientCeilings).toEqual(UNLIMITED)
+    })
+
+    it('is what the domain calls unlimited, so the two cannot drift apart', () => {
+      // `liveAllowed` and `periodStartedAt` have no variable: a new client is always allowed
+      // to open, and its period starts when it is provisioned.
+      expect(ClientCeilings.unlimited().toProps()).toMatchObject(UNLIMITED)
+    })
+
+    it.each(NUMERIC)('carries %s as the number it was given', (name, field) => {
+      const config = loadConfig(hosted({ [name]: '12' }))
+
+      expect(config.newClientCeilings).toEqual({ ...UNLIMITED, [field]: 12 })
+    })
+
+    it.each(NUMERIC)(
+      'accepts %s at both ends of its range, and nothing past either',
+      (name, field, min, max) => {
+        expect(loadConfig(hosted({ [name]: String(min) })).newClientCeilings).toMatchObject({
+          [field]: min,
+        })
+        expect(loadConfig(hosted({ [name]: String(max) })).newClientCeilings).toMatchObject({
+          [field]: max,
+        })
+        expect(refusalIssues(hosted({ [name]: String(min - 1) })).join('\n')).toContain(`${name}: `)
+        // `max + 1` is not representable for the byte counts, so the first value past a safe
+        // integer stands for it there; for the day counts it is simply the next integer.
+        const past = max === Number.MAX_SAFE_INTEGER ? '9007199254740993' : String(max + 1)
+        expect(refusalIssues(hosted({ [name]: past })).join('\n')).toContain(`${name}: `)
+      },
+    )
+
+    it('accepts every variable at the edge of its range together, and the domain accepts what they produce', () => {
+      const config = loadConfig(
+        hosted({
+          NEW_CLIENT_MAX_EVENTS: '1',
+          NEW_CLIENT_MAX_EVENTS_PER_PERIOD: String(Number.MAX_SAFE_INTEGER),
+          NEW_CLIENT_MAX_TOTAL_BYTES: '1',
+          NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '1',
+          NEW_CLIENT_MAX_RETENTION_DAYS: '3650',
+          NEW_CLIENT_MAX_LIVE_DAYS: '365',
+          NEW_CLIENT_CLIPS_ALLOWED: 'false',
+        }),
+      )
+
+      // The refusal at boot and the refusal of `ClientCeilings.create` are one rule, or a
+      // default that boots would fail on the first client an operator provisions.
+      expect(ClientCeilings.create(config.newClientCeilings).ok).toBe(true)
+    })
+
+    it.each(ALL)(
+      'reads a blank %s as absent, so an empty compose variable is no ceiling of zero',
+      (name) => {
+        expect(loadConfig(hosted({ [name]: '' })).newClientCeilings).toEqual(UNLIMITED)
+        // Blank is absent for the mode check too: a compose file that passes every variable
+        // empty must not stop a box that has no operator.
+        expect(loadConfig({ ...DEV, [name]: '' }).newClientCeilings).toEqual(UNLIMITED)
+      },
+    )
+
+    it.each([
+      ['0', false],
+      ['false', false],
+      ['1', true],
+      ['true', true],
+    ])('reads NEW_CLIENT_CLIPS_ALLOWED=%s as clipsAllowed %s', (given, expected) => {
+      const config = loadConfig(hosted({ NEW_CLIENT_CLIPS_ALLOWED: given }))
+
+      expect(config.newClientCeilings.clipsAllowed).toBe(expected)
+    })
+
+    it.each(['yes', 'no', 'on', 'off', 'TRUE', 'False', '2', '-1', 'allowed', ' true'])(
+      'refuses NEW_CLIENT_CLIPS_ALLOWED=%j rather than guess which way it was meant',
+      (given) => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_CLIPS_ALLOWED: given }))
+
+        expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_CLIPS_ALLOWED: '))).toBe(true)
+      },
+    )
+
+    describe.each(NUMERIC)('%s, hostile values', (name) => {
+      it.each([
+        '0',
+        '-1',
+        '1.5',
+        '0.5',
+        'abc',
+        'one',
+        'NaN',
+        'Infinity',
+        '-Infinity',
+        '1e999',
+        ' ',
+        '1 2',
+        '12abc',
+        '9007199254740993',
+        '99999999999999999999',
+      ])('refuses %j, naming the variable', (given) => {
+        const issues = refusalIssues(hosted({ [name]: given }))
+
+        expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
+      })
+
+      it('names itself in the message too, so a log line read without its prefix still says which', () => {
+        const issue =
+          refusalIssues(hosted({ [name]: 'abc' })).find((line) => line.startsWith(`${name}: `)) ??
+          ''
+
+        expect(issue.slice(name.length + 2)).toContain(name)
+      })
+    })
+
+    describe('with SITE_ADMIN off, which is its default', () => {
+      it.each(ALL)('refuses %s, naming it and the setting that would allow it', (name) => {
+        // `1` is a valid value for every variable of the family: the refusal is that the
+        // variable is set at all, whatever it says.
+        const issues = refusalIssues({ ...DEV, [name]: '1' })
+        const issue = issues.find((line) => line.startsWith(`${name}: `)) ?? ''
+
+        expect(issue).toContain('SITE_ADMIN=on')
+      })
+
+      it.each(ALL)('refuses %s beside an explicit SITE_ADMIN=off, in production too', (name) => {
+        const issues = refusalIssues(aProductionEnv({ SITE_ADMIN: 'off', [name]: '1' }))
+
+        expect(issues.some((line) => line.startsWith(`${name}: `))).toBe(true)
+      })
+
+      it('refuses a permissive value as much as a restrictive one: setting it is the error', () => {
+        const issues = refusalIssues({ ...DEV, NEW_CLIENT_CLIPS_ALLOWED: 'true' })
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_CLIPS_ALLOWED: '))).toBe(true)
+      })
+
+      it('lists every variable that is set, instead of stopping at the first', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          NEW_CLIENT_MAX_EVENTS: '1',
+          NEW_CLIENT_MAX_LIVE_DAYS: '3',
+          NEW_CLIENT_CLIPS_ALLOWED: 'false',
+        })
+
+        const named = ALL.filter((name) => issues.some((line) => line.startsWith(`${name}: `)))
+        expect(named).toEqual([
+          'NEW_CLIENT_MAX_EVENTS',
+          'NEW_CLIENT_MAX_LIVE_DAYS',
+          'NEW_CLIENT_CLIPS_ALLOWED',
+        ])
+      })
+
+      it('refuses every NEW_CLIENT_ key the schema declares, and the list this file keeps is that schema’s', () => {
+        // The refusal reads the family by its prefix so that a key added later is covered
+        // without anybody remembering to extend a list. This holds the other half: the
+        // family this file lists is the family the schema has, so a new variable that
+        // arrives with no test of its own still meets the mode check.
+        const declared = [...configSource().matchAll(/^ {6}(NEW_CLIENT_[A-Z0-9_]+):/gm)].map(
+          (match) => match[1] ?? '',
+        )
+
+        expect(declared.length).toBeGreaterThan(0)
+        expect([...declared].sort()).toEqual([...ALL].sort())
+        for (const name of declared) {
+          expect(
+            refusalIssues({ ...DEV, [name]: '1' }).some((line) => line.startsWith(`${name}: `)),
+            name,
+          ).toBe(true)
+        }
+      })
+
+      it('is refused by a maintenance command too, since db:migrate loads the same configuration', () => {
+        expect(() =>
+          loadMaintenanceConfig({ NODE_ENV: 'production', NEW_CLIENT_MAX_EVENTS: '1' }),
+        ).toThrow(ConfigError)
+      })
+    })
+
+    describe('a name this version does not read', () => {
+      // A misspelt ceiling is not a setting, and a schema drops a key it does not declare without
+      // a word: the box would boot with no ceiling at all for every new client.
+      it.each([
+        'NEW_CLIENT_MAX_EVENT',
+        'NEW_CLIENT_MAX_EVENTS_PER_YEAR',
+        'NEW_CLIENT_CLIP_ALLOWED',
+        'NEW_CLIENT_MAX_LIVE_DAY',
+        'NEW_CLIENT_',
+      ])('refuses %s, naming it and the seven it may have meant, with SITE_ADMIN on', (name) => {
+        const issues = refusalIssues(hosted({ [name]: '3' }))
+        const issue = issues.find((line) => line.startsWith(`${name}: `)) ?? ''
+
+        for (const known of ALL) expect(issue, known).toContain(known)
+      })
+
+      it('refuses it with SITE_ADMIN off too, and in a maintenance command', () => {
+        expect(
+          refusalIssues({ ...DEV, NEW_CLIENT_MAX_EVENT: '3' }).some((line) =>
+            line.startsWith('NEW_CLIENT_MAX_EVENT: '),
+          ),
+        ).toBe(true)
+        expect(() =>
+          loadMaintenanceConfig({ NODE_ENV: 'production', NEW_CLIENT_MAX_EVENT: '3' }),
+        ).toThrow(ConfigError)
+      })
+
+      it('refuses it even when its value is empty: the name is the mistake', () => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_MAX_EVENT: '' }))
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_EVENT: '))).toBe(true)
+      })
+
+      it('never prints the value it was given', () => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_MAX_EVENT: 'a-pasted-secret-value' }))
+
+        expect(JSON.stringify(issues)).not.toContain('a-pasted-secret-value')
+      })
+
+      it('is listed beside the other problems, so one restart shows them all', () => {
+        const issues = refusalIssues(
+          hosted({ NEW_CLIENT_MAX_EVENT: '3', NEW_CLIENT_MAX_LIVE_DAYS: '366' }),
+        )
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_EVENT: '))).toBe(true)
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_LIVE_DAYS: '))).toBe(true)
+      })
+
+      it('leaves alone a name that merely contains the prefix, which is nobody’s ceiling', () => {
+        const config = loadConfig(
+          hosted({ MY_NEW_CLIENT_MAX_EVENTS: '3', OLD_CLIENT_MAX_EVENTS: '3', new_client_x: '3' }),
+        )
+
+        expect(config.newClientCeilings).toEqual(UNLIMITED)
+      })
+    })
+
+    describe('how a number is read', () => {
+      it('reads exponent notation as the sibling MAX_EVENT_QUOTA_BYTES does, so 5e9 is five billion', () => {
+        const config = loadConfig(hosted({ NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5e9' }))
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(5_000_000_000)
+      })
+
+      it('accepts a per-event default above the total, which the total simply binds first', () => {
+        const config = loadConfig(
+          hosted({
+            NEW_CLIENT_MAX_TOTAL_BYTES: '1000000000',
+            NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5000000000',
+          }),
+        )
+
+        expect(config.newClientCeilings).toMatchObject({
+          maxTotalBytes: 1_000_000_000,
+          maxEventQuotaBytes: 5_000_000_000,
+        })
+      })
+    })
+
+    describe('against the box-wide ceiling, MAX_EVENT_QUOTA_BYTES', () => {
+      const BOX = '5000000000'
+
+      it('accepts a default equal to the box-wide ceiling: it is the most a client could ever have', () => {
+        const config = loadConfig(
+          hosted({ MAX_EVENT_QUOTA_BYTES: BOX, NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: BOX }),
+        )
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(5_000_000_000)
+      })
+
+      it('accepts a default below it', () => {
+        const config = loadConfig(
+          hosted({ MAX_EVENT_QUOTA_BYTES: BOX, NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '1000000000' }),
+        )
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(1_000_000_000)
+      })
+
+      it('refuses a default one byte above it, naming both variables', () => {
+        const issues = refusalIssues(
+          hosted({ MAX_EVENT_QUOTA_BYTES: BOX, NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '5000000001' }),
+        )
+        const issue =
+          issues.find((line) => line.startsWith('NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: ')) ?? ''
+
+        expect(issue).toContain('MAX_EVENT_QUOTA_BYTES')
+        expect(issue).toContain('5000000001')
+        expect(issue).toContain(BOX)
+      })
+
+      it('compares nothing when the box has no ceiling, which is every self-hosted box', () => {
+        const config = loadConfig(hosted({ NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '900000000000' }))
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(900_000_000_000)
+      })
+
+      it('lets a default sit below DEFAULT_EVENT_QUOTA_BYTES: a new event is lowered to it, not refused', () => {
+        // The reverse of the rule `MAX_EVENT_QUOTA_BYTES` is held to, on purpose: that ceiling
+        // refuses a request, and `createEvent` clamps an event's default quota to a client's.
+        const config = loadConfig(
+          hosted({
+            DEFAULT_EVENT_QUOTA_BYTES: '5000000000',
+            NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '1000000000',
+          }),
+        )
+
+        expect(config.newClientCeilings.maxEventQuotaBytes).toBe(1_000_000_000)
+      })
+
+      it('is listed beside every other problem, not instead of them', () => {
+        const issues = refusalIssues(
+          hosted({
+            MAX_EVENT_QUOTA_BYTES: BOX,
+            NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '9000000000',
+            NEW_CLIENT_MAX_LIVE_DAYS: '366',
+          }),
+        )
+
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_EVENT_QUOTA_BYTES: '))).toBe(
+          true,
+        )
+        expect(issues.some((line) => line.startsWith('NEW_CLIENT_MAX_LIVE_DAYS: '))).toBe(true)
+      })
     })
   })
 
@@ -1614,6 +2040,96 @@ describe('loadConfig', () => {
       expect(operator.termsUrl).toBeNull()
       expect(operator.privacyUrl).toBeNull()
     })
+
+    /**
+     * G2-20: `LEGAL_TERMS_URL` and `LEGAL_TERMS_VERSION` together make accepting an invitation
+     * ask for the terms. Either one alone must leave a self-hosted box exactly as it was.
+     */
+    describe('the terms of use (LEGAL_TERMS_VERSION)', () => {
+      const URL = 'https://hosted.example.org/legal/cgu'
+
+      it('are off by default: a box that sets neither asks nobody for anything', () => {
+        expect(loadConfig({ ...DEV }).termsOfUse).toBeNull()
+        expect(loadConfig(aProductionEnv()).termsOfUse).toBeNull()
+      })
+
+      it('are off when only the address is set, which is the footer link and nothing more', () => {
+        const config = loadConfig({ ...DEV, LEGAL_TERMS_URL: URL })
+
+        expect(config.termsOfUse).toBeNull()
+        expect(config.operator.termsUrl).toBe(URL)
+      })
+
+      it('are on with the address and the version together', () => {
+        expect(
+          loadConfig({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: '2027-01' }),
+        ).toMatchObject({
+          termsOfUse: { url: URL, version: '2027-01' },
+        })
+      })
+
+      it('carry the address in its canonical form and the version trimmed', () => {
+        const config = loadConfig({
+          ...DEV,
+          LEGAL_TERMS_URL: '  HTTPS://Hosted.Example.ORG/legal/cgu  ',
+          LEGAL_TERMS_VERSION: '  2027-01  ',
+        })
+
+        expect(config.termsOfUse).toEqual({ url: URL, version: '2027-01' })
+      })
+
+      it('read a blank version as absent, which is what a dangling compose variable renders', () => {
+        const config = loadConfig({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: '' })
+
+        expect(config.termsOfUse).toBeNull()
+      })
+
+      it('read a blank pair as absent', () => {
+        const config = loadConfig({ ...DEV, LEGAL_TERMS_URL: '', LEGAL_TERMS_VERSION: '' })
+
+        expect(config.termsOfUse).toBeNull()
+      })
+
+      it('refuse a version with no address, since it would look configured and ask for nothing', () => {
+        const issues = refusalIssues({ ...DEV, LEGAL_TERMS_VERSION: '2027-01' })
+
+        const issue = issues.find((candidate) => candidate.startsWith('LEGAL_TERMS_VERSION: '))
+        expect(issue).toContain('LEGAL_TERMS_URL')
+      })
+
+      it.each([
+        ['a sentence', 'les nouvelles conditions'],
+        ['an address', 'camille@example.org'],
+        ['a path', '2027/01'],
+        ['a leading hyphen', '-2027'],
+        ['more than 32 characters', 'v'.repeat(33)],
+      ])('refuse a version that is %s, and never echo what was typed', (_what, value) => {
+        const issues = refusalIssues({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: value })
+
+        const issue = issues.find((candidate) => candidate.startsWith('LEGAL_TERMS_VERSION: '))
+        expect(issue).toBeDefined()
+        expect(issue).not.toContain(value)
+      })
+
+      it('accept the longest version, which is 32 characters', () => {
+        const version = 'v'.repeat(32)
+
+        expect(
+          loadConfig({ ...DEV, LEGAL_TERMS_URL: URL, LEGAL_TERMS_VERSION: version }).termsOfUse,
+        ).toEqual({ url: URL, version })
+      })
+
+      it('are refused beside a refused address in one boot, so both are named at once', () => {
+        const issues = refusalIssues({
+          ...DEV,
+          LEGAL_TERMS_URL: 'http://hosted.example.org/cgu',
+          LEGAL_TERMS_VERSION: 'les nouvelles conditions',
+        })
+
+        expect(issues.some((issue) => issue.startsWith('LEGAL_TERMS_URL: '))).toBe(true)
+        expect(issues.some((issue) => issue.startsWith('LEGAL_TERMS_VERSION: '))).toBe(true)
+      })
+    })
   })
 
   /**
@@ -2365,6 +2881,384 @@ describe('loadConfig', () => {
         expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
       },
     )
+  })
+
+  /**
+   * `PUBLIC_URL` is the address that goes into every join link, QR code and mail, so what
+   * `loadConfig` hands on is what a guest's phone is sent to: refused when it cannot be
+   * what an operator meant, and otherwise the parsed URL's own spelling, not the typed one.
+   */
+  describe('the public origin (PUBLIC_URL)', () => {
+    const A_PASSWORD = 'HUNTER2-canary-pw'
+
+    /** What the boot prints, in full: the one thing that must never repeat the value. */
+    const refusalText = (source: Source): string => {
+      try {
+        loadConfig(source)
+      } catch (error) {
+        return error instanceof ConfigError ? error.message : String(error)
+      }
+      throw new Error('loadConfig accepted a configuration that the test expected it to refuse')
+    }
+
+    describe('what a reverse proxy relies on, kept as it was', () => {
+      it.each([
+        ['no path', 'https://photos.example.com', 'https://photos.example.com'],
+        ['a bare trailing slash', 'https://photos.example.com/', 'https://photos.example.com'],
+        ['several trailing slashes', 'https://photos.example.com///', 'https://photos.example.com'],
+        ['a path prefix', 'https://example.com/eventslide', 'https://example.com/eventslide'],
+        [
+          'a path prefix and a slash',
+          'https://example.com/eventslide/',
+          'https://example.com/eventslide',
+        ],
+        [
+          'a path prefix and slashes',
+          'https://example.com/eventslide//',
+          'https://example.com/eventslide',
+        ],
+        ['a deeper prefix', 'https://example.com/apps/photos/', 'https://example.com/apps/photos'],
+        [
+          'a prefix whose case matters',
+          'https://example.com/EventSlide/',
+          'https://example.com/EventSlide',
+        ],
+      ])(
+        'accepts %s, so a join link is never //join/ and never leaves its prefix',
+        (_name, typed, expected) => {
+          expect(loadConfig(aProductionEnv({ PUBLIC_URL: typed })).publicUrl).toBe(expected)
+          expect(loadConfig({ ...DEV, PUBLIC_URL: typed }).publicUrl).toBe(expected)
+        },
+      )
+    })
+
+    describe('the canonical form', () => {
+      it.each([
+        [
+          'an uppercase scheme and host',
+          'HTTPS://Photos.Example.com',
+          'https://photos.example.com',
+        ],
+        ['the default https port', 'https://photos.example.com:443', 'https://photos.example.com'],
+        [
+          'the default port and a slash',
+          'https://photos.example.com:443/',
+          'https://photos.example.com',
+        ],
+        ['the default http port, on localhost', 'http://localhost:80', 'http://localhost'],
+        [
+          'a port that is not the default',
+          'https://photos.example.com:8443',
+          'https://photos.example.com:8443',
+        ],
+        [
+          'a prefix, whose case is the proxy’s and stays as typed',
+          'HTTPS://PHOTOS.example.com/EventSlide/',
+          'https://photos.example.com/EventSlide',
+        ],
+        [
+          'a space in a prefix, spelled as a browser would send it',
+          'https://example.com/my event/',
+          'https://example.com/my%20event',
+        ],
+        [
+          'dot segments in a prefix, resolved as a browser would',
+          'https://example.com/a/../b/',
+          'https://example.com/b',
+        ],
+        [
+          'an internationalised host, as a phone resolves it',
+          'https://bücher.example',
+          'https://xn--bcher-kva.example',
+        ],
+      ])('hands on %s as its parsed spelling, not as typed', (_name, typed, expected) => {
+        const config = loadConfig(aProductionEnv({ PUBLIC_URL: typed }))
+
+        expect(config.publicUrl).toBe(expected)
+      })
+    })
+
+    describe('whitespace', () => {
+      const REFUSED =
+        /^PUBLIC_URL: PUBLIC_URL must not contain a tab or a line break, nor end with /
+
+      it.each([
+        ['a space', 'https://photos.example.com '],
+        ['a tab', 'https://photos.example.com\t'],
+        ['a newline', 'https://photos.example.com\n'],
+        ['a carriage return', 'https://photos.example.com\r'],
+        ['a space after a slash', 'https://photos.example.com/ '],
+        ['a space after a path prefix', 'https://example.com/eventslide '],
+        ['several spaces', 'https://photos.example.com   '],
+        ['a control character', 'https://photos.example.com' + String.fromCharCode(0x1f)],
+        [
+          'a zero-width space after a prefix, which the parser keeps and a proxy would not route',
+          'https://photos.example.com/eventslide' + String.fromCharCode(0x200b),
+        ],
+      ])('refuses %s at the end, naming the variable, in production', (_name, typed) => {
+        // `URL.canParse` strips it and the scheme check only reads the front, so this
+        // used to boot and the join link carried the character. #52 closed the leading
+        // twin of this case.
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))
+
+        expect(issues).toEqual([expect.stringMatching(REFUSED)])
+      })
+
+      it.each([
+        ['a tab inside the host', 'https://photos.exam' + String.fromCharCode(9) + 'ple.com'],
+        [
+          'a newline inside a prefix',
+          'https://photos.example.com/ev' + String.fromCharCode(10) + 'ent',
+        ],
+        ['a tab inside the port', 'https://photos.example.com:4' + String.fromCharCode(9) + '43'],
+        ['a tab before the slash', 'https://photos.example.com' + String.fromCharCode(9) + '/'],
+      ])(
+        'refuses %s, which the URL parser deletes and would leave an address nobody typed',
+        (_name, typed) => {
+          const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))
+
+          expect(issues).toEqual([expect.stringMatching(REFUSED)])
+        },
+      )
+
+      it('refuses it outside production too, where a QR code is just as wrong', () => {
+        const issues = refusalIssues({ ...DEV, PUBLIC_URL: 'https://photos.example.com ' })
+
+        expect(issues).toEqual([expect.stringMatching(REFUSED)])
+      })
+
+      it('names the space and the plain http beside each other when both are wrong', () => {
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: 'http://photos.example.com ' }))
+
+        expect(issues).toHaveLength(2)
+        expect(issues).toContainEqual(expect.stringMatching(REFUSED))
+        expect(issues).toContainEqual(
+          expect.stringContaining('PUBLIC_URL must use https in production'),
+        )
+      })
+    })
+
+    describe('credentials', () => {
+      it.each([
+        ['a user name and a password', 'https://camille:secret@photos.example.com'],
+        ['a user name alone', 'https://camille@photos.example.com'],
+        ['a password alone', 'https://:secret@photos.example.com'],
+        ['credentials and a prefix', 'https://camille:secret@photos.example.com/eventslide/'],
+        [
+          'credentials on localhost, which production exempts from https',
+          'http://camille:secret@localhost',
+        ],
+        ['credentials on localhost with a port', 'http://camille:secret@localhost:4300'],
+        ['an uppercase scheme', 'HTTPS://camille:secret@photos.example.com'],
+      ])('refuses %s, naming the variable, in production', (_name, typed) => {
+        const issues = refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))
+
+        expect(issues).toEqual([
+          expect.stringMatching(
+            /^PUBLIC_URL: PUBLIC_URL must not contain a user name or a password/,
+          ),
+        ])
+      })
+
+      it('refuses them outside production too', () => {
+        const issues = refusalIssues({ ...DEV, PUBLIC_URL: 'http://camille:secret@localhost:5173' })
+
+        expect(issues).toEqual([
+          expect.stringMatching(
+            /^PUBLIC_URL: PUBLIC_URL must not contain a user name or a password/,
+          ),
+        ])
+      })
+
+      it('never repeats a refused PUBLIC_URL, because it may still carry the password it was refused with', () => {
+        // The boot prints its problems to a terminal, and what prints there is kept.
+        const refused = [
+          `https://camille:${A_PASSWORD}@photos.example.com`,
+          `https://camille:${A_PASSWORD}@photos.example.com/eventslide/`,
+          `http://camille:${A_PASSWORD}@localhost:4300`,
+          `http://camille:${A_PASSWORD}@photos.example.com`,
+          `HTTPS://:${A_PASSWORD}@photos.example.com`,
+          `https://camille:${A_PASSWORD}@photos.example.com `,
+          `https://camille:${A_PASSWORD}@`,
+        ]
+
+        for (const value of refused) {
+          for (const source of [
+            aProductionEnv({ PUBLIC_URL: value }),
+            { ...DEV, PUBLIC_URL: value },
+          ]) {
+            const message = refusalText(source)
+
+            expect(message, value).toContain('PUBLIC_URL')
+            expect(message).not.toContain(A_PASSWORD)
+            expect(message).not.toContain('camille')
+          }
+        }
+      })
+    })
+
+    describe('a query string or a fragment', () => {
+      // Every link is built by appending a path to PUBLIC_URL (join link and QR, invitation,
+      // password reset, shared gallery, wall response), so `https://photos.example.com/?ref=x`
+      // used to give `https://photos.example.com/?ref=x/join/ABC123`: a QR code that opens the
+      // wrong page, and no error anywhere. It is read from the text as typed, never from
+      // `url.search` / `url.hash`, which are both `''` for a bare `?` and a bare `#`.
+      const REFUSED = /^PUBLIC_URL: PUBLIC_URL must not contain a query string or a fragment/
+
+      it.each([
+        ['a query string', 'https://photos.example.com/?ref=x'],
+        ['a query string straight after the host', 'https://photos.example.com?ref=x'],
+        ['a bare question mark', 'https://photos.example.com?'],
+        ['a bare question mark after a slash', 'https://photos.example.com/?'],
+        ['a query string after a path prefix', 'https://example.com/eventslide/?ref=x'],
+        ['a bare question mark after a path prefix', 'https://example.com/eventslide?'],
+        ['a bare question mark after a path prefix and a slash', 'https://example.com/photos/?'],
+        ['a fragment', 'https://photos.example.com/#frag'],
+        ['a fragment straight after the host', 'https://photos.example.com#frag'],
+        ['a bare hash', 'https://photos.example.com#'],
+        ['a bare hash after a slash', 'https://photos.example.com/#'],
+        ['a fragment after a path prefix', 'https://example.com/eventslide/#frag'],
+        ['a bare hash after a path prefix', 'https://example.com/eventslide#'],
+        ['a query string and a fragment', 'https://photos.example.com/?a=1#top'],
+        ['a fragment that holds a question mark', 'https://photos.example.com/#/route?x=1'],
+        ['a query string that holds a slash', 'https://photos.example.com/?next=/join/ABC123'],
+        ['a fragment that is a route', 'https://photos.example.com/#/route'],
+        ['an uppercase scheme', 'HTTPS://photos.example.com/?ref=x'],
+        ['a port', 'https://photos.example.com:8443/?ref=x'],
+        ['localhost, which production exempts from https', 'http://localhost:4300/?ref=x'],
+      ])('refuses %s, naming the variable, in production and outside it', (_name, typed) => {
+        expect(refusalIssues(aProductionEnv({ PUBLIC_URL: typed }))).toEqual([
+          expect.stringMatching(REFUSED),
+        ])
+        expect(refusalIssues({ ...DEV, PUBLIC_URL: typed })).toEqual([
+          expect.stringMatching(REFUSED),
+        ])
+      })
+
+      it('tells the operator how to keep a ? or a # that belongs in a path prefix', () => {
+        const [issue] = refusalIssues({ ...DEV, PUBLIC_URL: 'https://photos.example.com/?x' })
+
+        expect(issue).toContain('%3F')
+        expect(issue).toContain('%23')
+      })
+
+      it('refuses them in a maintenance command too, which parses the same address', () => {
+        try {
+          loadMaintenanceConfig({ PUBLIC_URL: 'https://photos.example.com/#frag' })
+        } catch (error) {
+          expect(error instanceof ConfigError ? error.issues : []).toEqual([
+            expect.stringMatching(REFUSED),
+          ])
+          return
+        }
+        throw new Error('loadMaintenanceConfig accepted a PUBLIC_URL with a fragment')
+      })
+
+      describe('what is not one: a ? or a # percent-encoded in the path', () => {
+        // `%3F` and `%23` are characters of a path segment, not the start of a query or a
+        // fragment: the join link stays under its prefix, which is the one thing a proxy
+        // routes on. They stay accepted, and the parser keeps them as typed.
+        it.each([
+          ['an encoded question mark', 'https://example.com/what%3Fever', '/what%3Fever'],
+          ['a lower-case encoded question mark', 'https://example.com/what%3fever', '/what%3fever'],
+          ['an encoded hash', 'https://example.com/room%2342/', '/room%2342'],
+          ['a lower-case encoded hash', 'https://example.com/room%2342', '/room%2342'],
+          ['both, in two segments', 'https://example.com/a%3Fb/c%23d/', '/a%3Fb/c%23d'],
+          [
+            'an encoded question mark ending the prefix',
+            'https://example.com/eventslide%3F',
+            '/eventslide%3F',
+          ],
+        ])('accepts %s, and a join link built on it stays in the path', (_name, typed, path) => {
+          for (const source of [
+            aProductionEnv({ PUBLIC_URL: typed }),
+            { ...DEV, PUBLIC_URL: typed },
+          ]) {
+            const { publicUrl } = loadConfig(source)
+            const joinLink = new URL(`${publicUrl}/join/ABC123`)
+
+            expect(publicUrl).toBe(`https://example.com${path}`)
+            expect(joinLink.pathname).toBe(`${path}/join/ABC123`)
+            expect(joinLink.search).toBe('')
+            expect(joinLink.hash).toBe('')
+          }
+        })
+
+        it('still refuses the same address once the ? or the # is written out', () => {
+          expect(
+            refusalIssues(aProductionEnv({ PUBLIC_URL: 'https://example.com/what%3Fever?x' })),
+          ).toEqual([expect.stringMatching(REFUSED)])
+          expect(
+            refusalIssues(aProductionEnv({ PUBLIC_URL: 'https://example.com/room%2342#x' })),
+          ).toEqual([expect.stringMatching(REFUSED)])
+        })
+      })
+
+      it('names it beside the other problems when the value has more than one', () => {
+        // Every boot problem at once, as everywhere else in this file: the operator does not
+        // learn about a second mistake only after fixing the first and restarting.
+        const plainHttp = refusalIssues(
+          aProductionEnv({ PUBLIC_URL: 'http://photos.example.com/?x=1' }),
+        )
+        expect(plainHttp).toHaveLength(2)
+        expect(plainHttp).toContainEqual(expect.stringMatching(REFUSED))
+        expect(plainHttp).toContainEqual(
+          expect.stringContaining('PUBLIC_URL must use https in production'),
+        )
+
+        const trailingSpace = refusalIssues({
+          ...DEV,
+          PUBLIC_URL: 'https://photos.example.com/?x ',
+        })
+        expect(trailingSpace).toHaveLength(2)
+        expect(trailingSpace).toContainEqual(expect.stringMatching(REFUSED))
+        expect(trailingSpace).toContainEqual(
+          expect.stringMatching(/^PUBLIC_URL: PUBLIC_URL must not contain a tab or a line break/),
+        )
+
+        const credentials = refusalIssues({
+          ...DEV,
+          PUBLIC_URL: 'https://camille:secret@photos.example.com/#frag',
+        })
+        expect(credentials).toHaveLength(2)
+        expect(credentials).toContainEqual(expect.stringMatching(REFUSED))
+        expect(credentials).toContainEqual(
+          expect.stringMatching(
+            /^PUBLIC_URL: PUBLIC_URL must not contain a user name or a password/,
+          ),
+        )
+      })
+
+      it('names it beside a problem in another variable, in one refusal', () => {
+        const issues = refusalIssues(
+          aProductionEnv({ PUBLIC_URL: 'https://photos.example.com/?x=1', E2E_HOOKS: '1' }),
+        )
+
+        expect(issues.map((issue) => issue.split(':')[0]).sort()).toEqual([
+          'E2E_HOOKS',
+          'PUBLIC_URL',
+        ])
+      })
+
+      it('never repeats what was typed, because a query string is where a token gets pasted', () => {
+        for (const value of [
+          `https://photos.example.com/?key=${A_PASSWORD}`,
+          `https://photos.example.com/#${A_PASSWORD}`,
+          `https://photos.example.com/eventslide?${A_PASSWORD}`,
+          `https://camille:${A_PASSWORD}@photos.example.com/?x`,
+        ]) {
+          for (const source of [
+            aProductionEnv({ PUBLIC_URL: value }),
+            { ...DEV, PUBLIC_URL: value },
+          ]) {
+            const message = refusalText(source)
+
+            expect(message, value).toContain('PUBLIC_URL')
+            expect(message).not.toContain(A_PASSWORD)
+          }
+        }
+      })
+    })
   })
 
   describe('config warnings', () => {

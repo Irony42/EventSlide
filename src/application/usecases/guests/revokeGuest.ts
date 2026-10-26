@@ -1,11 +1,12 @@
-import { canModerate } from '../../../domain/events/eventRole'
 import type { Guest } from '../../../domain/guests/guest'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
+import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * A host cutting off a guest who is uploading things that do not belong on the wall.
@@ -29,6 +30,7 @@ export interface RevokeGuestInput {
 }
 
 export interface RevokeGuestDeps {
+  readonly events: EventRepository
   readonly guests: GuestRepository
   readonly memberships: MembershipRepository
   readonly clock: Clock
@@ -37,15 +39,16 @@ export interface RevokeGuestDeps {
 export type RevokeGuest = (input: RevokeGuestInput) => Promise<Result<Guest, DomainError>>
 
 export const makeRevokeGuest =
-  ({ guests, memberships, clock }: RevokeGuestDeps): RevokeGuest =>
+  ({ events, guests, memberships, clock }: RevokeGuestDeps): RevokeGuest =>
   async ({ eventId, actorId, guestId }) => {
-    const role = await memberships.roleFor(eventId, actorId)
-    // A caller with no part in this event is answered exactly as one asking about an
-    // event that does not exist: 403 would confirm the event is real and make this an
-    // enumeration oracle for other people's weddings. `canModerate` is asked rather
-    // than the qualifying roles being listed, so a role added later is refused by
-    // default instead of silently inheriting moderation.
-    if (role === null || !canModerate(role)) return err(DomainError.notFound('event.notFound'))
+    const event = await events.findById(eventId)
+    if (event === null) return err(DomainError.notFound('event.notFound'))
+
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'moderate')
+    if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     const guest = await guests.findById(eventId, guestId)
     if (guest === null) return err(DomainError.notFound('guest.notFound'))

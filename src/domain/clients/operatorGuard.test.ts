@@ -9,17 +9,26 @@ import {
 } from './operatorGuard'
 
 describe('R1: an operator invitation into a client with an event or a member waits for an owner', () => {
+  const NOTHING = { eventCount: 0, memberCount: 0, otherLiveInvitationCount: 0 }
+
   it('needs no approval for a client that holds nothing, the case the operator handles alone', () => {
-    expect(operatorInvitationNeedsApproval({ eventCount: 0, memberCount: 0 })).toBe(false)
+    expect(operatorInvitationNeedsApproval(NOTHING)).toBe(false)
   })
 
   it('needs approval from the first event, whatever its status', () => {
-    expect(operatorInvitationNeedsApproval({ eventCount: 1, memberCount: 0 })).toBe(true)
-    expect(operatorInvitationNeedsApproval({ eventCount: 40, memberCount: 3 })).toBe(true)
+    expect(operatorInvitationNeedsApproval({ ...NOTHING, eventCount: 1 })).toBe(true)
+    expect(operatorInvitationNeedsApproval({ ...NOTHING, eventCount: 40, memberCount: 3 })).toBe(
+      true,
+    )
   })
 
   it('needs approval from the first member, before there is any event to take', () => {
-    expect(operatorInvitationNeedsApproval({ eventCount: 0, memberCount: 1 })).toBe(true)
+    expect(operatorInvitationNeedsApproval({ ...NOTHING, memberCount: 1 })).toBe(true)
+  })
+
+  it('needs approval as soon as another invitation into the client is waiting, so an empty client admits exactly one', () => {
+    expect(operatorInvitationNeedsApproval({ ...NOTHING, otherLiveInvitationCount: 1 })).toBe(true)
+    expect(operatorInvitationNeedsApproval({ ...NOTHING, otherLiveInvitationCount: 5 })).toBe(true)
   })
 })
 

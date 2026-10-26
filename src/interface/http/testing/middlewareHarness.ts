@@ -13,7 +13,9 @@ import { FakeSecondFactorRepository } from '../../../application/testing/fakeSec
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
 import { AT } from '../../../application/testing/builders'
+import { makeAuthenticateGuest } from '../../../application/usecases/guests/authenticateGuest'
 import { asEventId, asGuestId } from '../../../domain/shared/ids'
+import type { GuestTokenService } from '../../../application/ports/guestTokenService'
 import { createHmacGuestTokenService } from '../../../infrastructure/crypto/hmacGuestTokenService'
 import { silentLogger } from '../../../infrastructure/logging/pinoLogger'
 import type { Logger } from '../../../application/ports/logger'
@@ -48,6 +50,16 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // product a solo install runs. A test about the operator's namespace passes
   // `{ siteAdmin: true }` through `config`, the same way it would any other setting.
   siteAdmin: false,
+  // No ceiling for a new client, as on a box that set no `NEW_CLIENT_*`.
+  newClientCeilings: {
+    maxEvents: null,
+    maxEventsPerPeriod: null,
+    maxTotalBytes: null,
+    maxEventQuotaBytes: null,
+    maxRetentionDays: null,
+    maxLiveDays: null,
+    clipsAllowed: true,
+  },
   // Off, as on a box that never set a key: no enrolment is offered and nothing is required of an
   // operator. A test about the second factor passes `secondFactor` through `config`.
   secondFactor: { available: false, requiredForOperators: false },
@@ -71,6 +83,7 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     joinPerMinute: 20,
     loginPerMinute: 10,
     reactionPerMinute: 30,
+    guestWritePerMinute: 300,
     galleryPerMinute: 60,
     galleryMediaPerMinute: 600,
     galleryUnlockPerClient: 10,
@@ -107,6 +120,8 @@ export interface TestWorld {
    */
   readonly clients: FakeClientRepository
   readonly guests: FakeGuestRepository
+  /** The real HMAC service, for a use case a test builds over this world. Not on `deps`: no route reads it. */
+  readonly guestTokens: GuestTokenService
   readonly memberships: FakeMembershipRepository
   /** Accounts, for the one thing the HTTP layer asks them: who operates the box. */
   readonly users: FakeUserRepository
@@ -167,11 +182,16 @@ export const buildTestWorld = (
     logger,
     bus,
     events,
-    guests,
     memberships,
     users,
     secondFactors,
-    guestTokens,
+    authenticateGuest: makeAuthenticateGuest({
+      events,
+      guests,
+      tokens: guestTokens,
+      clock,
+      logger,
+    }),
     mailer: options.mailer ?? { canDeliver: false },
     diskSpaceChecker,
     config: testHttpConfig(config),
@@ -182,6 +202,7 @@ export const buildTestWorld = (
     events,
     clients,
     guests,
+    guestTokens,
     diskSpaceChecker,
     memberships,
     users,
@@ -226,6 +247,8 @@ export interface HarnessOptions {
   readonly users?: FakeUserRepository
   /** Whether the box can mail. Defaults to no relay, like a box that never set SMTP_URL. */
   readonly mailer?: HttpDeps['mailer']
+  /** A logger the test reads back. Defaults to a silent one. */
+  readonly logger?: Logger
 }
 
 /**
@@ -250,10 +273,12 @@ export const buildHarness = ({
   withSession = true,
   users,
   mailer,
+  logger: suppliedLogger,
 }: HarnessOptions): Harness => {
   const world = buildTestWorld(config, {
     ...(users === undefined ? {} : { users }),
     ...(mailer === undefined ? {} : { mailer }),
+    ...(suppliedLogger === undefined ? {} : { logger: suppliedLogger }),
   })
   const { deps } = world
   const httpConfig = deps.config

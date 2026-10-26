@@ -1,0 +1,28 @@
+/**
+ * The host container is 78 rem wide, which a three-field form must not span: an input
+ * the width of a laptop screen is unreadable and reads as a broken layout. The
+ * single-column token is reused for its role rather than a new width being invented.
+ */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: var(--container-guest);
+  margin-inline: auto;
+  padding-block: var(--space-6);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.intro {
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}

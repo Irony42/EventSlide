@@ -10,6 +10,7 @@ import { makeSetClientCeilings, type SetClientCeilings } from './setClientCeilin
 const CLIENT = asClientId('client-1')
 const OPERATOR = { kind: 'operator', userId: asUserId('user-operator') } as const
 const LATER = atPlus(7 * 86_400_000)
+const REASON = 'Capacité du disque revue à la baisse'
 
 describe('setClientCeilings', () => {
   let clients: FakeClientRepository
@@ -32,7 +33,7 @@ describe('setClientCeilings', () => {
   })
 
   const change = (ceilings: Parameters<SetClientCeilings>[0]['ceilings']) =>
-    setClientCeilings({ clientId: CLIENT, ceilings, actor: OPERATOR })
+    setClientCeilings({ clientId: CLIENT, ceilings, reason: REASON, actor: OPERATOR })
 
   it('applies the ceiling it was given and stores it', async () => {
     const result = await change({ maxTotalBytes: 1_000 })
@@ -59,6 +60,7 @@ describe('setClientCeilings', () => {
     const result = await setClientCeilings({
       clientId: asClientId('ghost'),
       ceilings: { maxEvents: 1 },
+      reason: REASON,
       actor: OPERATOR,
     })
 
@@ -93,6 +95,73 @@ describe('setClientCeilings', () => {
     expect((await clients.findById(CLIENT))?.eventsCreatedInPeriod).toBe(0)
   })
 
+  // ------------------------------------------------------------ the mandatory reason --
+
+  describe('the reason (decided 2026-10-23)', () => {
+    const withReason = (reason: string) =>
+      setClientCeilings({ clientId: CLIENT, ceilings: { maxEvents: 6 }, reason, actor: OPERATOR })
+
+    it.each([
+      ['an empty string', ''],
+      ['blanks only', '   '],
+    ])(
+      'refuses %s, and changes nothing: an act with no stated why is not recorded as one',
+      async (_label, reason) => {
+        const result = await withReason(reason)
+
+        expect(!result.ok && result.error.code).toBe('audit.reasonInvalid')
+        expect((await clients.findById(CLIENT))?.ceilings.maxEvents).toBe(5)
+        expect(audit.all()).toEqual([])
+      },
+    )
+
+    it('refuses a reason that holds an address or runs over the bound, with nothing written or saved', async () => {
+      for (const reason of ['voir marie@example.test', 'a'.repeat(201)]) {
+        const result = await withReason(reason)
+
+        expect(!result.ok && result.error.code).toBe('audit.reasonInvalid')
+      }
+      expect((await clients.findById(CLIENT))?.ceilings.maxEvents).toBe(5)
+      expect(audit.all()).toEqual([])
+    })
+
+    it('refuses a missing reason even for a patch that would change nothing, because the rule is about the act', async () => {
+      const result = await setClientCeilings({
+        clientId: CLIENT,
+        ceilings: { maxEvents: 5 },
+        reason: '',
+        actor: OPERATOR,
+      })
+
+      expect(!result.ok && result.error.code).toBe('audit.reasonInvalid')
+    })
+
+    it('judges the reason before it reads the client, so a bad one is a 400 whether or not the client exists', async () => {
+      const result = await setClientCeilings({
+        clientId: asClientId('ghost'),
+        ceilings: { maxEvents: 1 },
+        reason: '',
+        actor: OPERATOR,
+      })
+
+      expect(!result.ok && result.error.code).toBe('audit.reasonInvalid')
+    })
+
+    it('writes the reason as the operator typed it, trimmed, in the client.ceilingsChanged entry and in no other', async () => {
+      await setClientCeilings({
+        clientId: CLIENT,
+        ceilings: { maxEvents: 6, periodStartedAt: atPlus(86_400_000) },
+        reason: '  Demande du client, ticket 42  ',
+        actor: OPERATOR,
+      })
+
+      const [changed, periodReset] = audit.all()
+      expect(changed?.details).toMatchObject({ reason: 'Demande du client, ticket 42' })
+      expect(periodReset?.action).toBe('client.periodReset')
+      expect(periodReset?.details).not.toHaveProperty('reason')
+    })
+  })
+
   // ------------------------------------------------------------------ the audit --
 
   describe('the audit trail (roadmap 10.8)', () => {
@@ -118,6 +187,7 @@ describe('setClientCeilings', () => {
               maxRetentionDays: 90,
               periodStartedAt: '2026-06-20T21:00:00.000Z',
             }),
+            reason: REASON,
           },
         },
       ])
@@ -149,6 +219,7 @@ describe('setClientCeilings', () => {
       await setClientCeilings({
         clientId: asClientId('ghost'),
         ceilings: { maxEvents: 1 },
+        reason: REASON,
         actor: OPERATOR,
       })
 
@@ -184,6 +255,7 @@ describe('setClientCeilings', () => {
       await setClientCeilings({
         clientId: CLIENT,
         ceilings: { maxEvents: 6 },
+        reason: REASON,
         actor: { kind: 'integration', label: 'cloud:stripe-webhook' },
       })
 
@@ -198,6 +270,7 @@ describe('setClientCeilings', () => {
       const result = await setClientCeilings({
         clientId: CLIENT,
         ceilings: { maxEvents: 6 },
+        reason: REASON,
         actor: { kind: 'operator' },
       })
 
@@ -215,7 +288,7 @@ describe('setClientCeilings', () => {
       const failing = makeSetClientCeilings({ clients, audit: broken, clock })
 
       await expect(
-        failing({ clientId: CLIENT, ceilings: { maxEvents: 6 }, actor: OPERATOR }),
+        failing({ clientId: CLIENT, ceilings: { maxEvents: 6 }, reason: REASON, actor: OPERATOR }),
       ).rejects.toThrow('disk full')
     })
 
@@ -228,7 +301,7 @@ describe('setClientCeilings', () => {
       const failing = makeSetClientCeilings({ clients, audit: broken, clock })
 
       await expect(
-        failing({ clientId: CLIENT, ceilings: { maxEvents: 6 }, actor: OPERATOR }),
+        failing({ clientId: CLIENT, ceilings: { maxEvents: 6 }, reason: REASON, actor: OPERATOR }),
       ).rejects.toThrow('disk full')
 
       expect((await clients.findById(CLIENT))?.ceilings.maxEvents).toBe(5)
@@ -238,7 +311,12 @@ describe('setClientCeilings', () => {
       const ghost = { kind: 'operator', userId: asUserId('ghost') } as const
 
       await expect(
-        setClientCeilings({ clientId: CLIENT, ceilings: { maxEvents: 7 }, actor: ghost }),
+        setClientCeilings({
+          clientId: CLIENT,
+          ceilings: { maxEvents: 7 },
+          reason: REASON,
+          actor: ghost,
+        }),
       ).rejects.toThrow()
 
       expect((await clients.findById(CLIENT))?.ceilings.maxEvents).toBe(5)
@@ -265,8 +343,18 @@ describe('setClientCeilings', () => {
       }
       const guarded = makeSetClientCeilings({ clients, audit: counting, clock })
 
-      await guarded({ clientId: asClientId('ghost'), ceilings: {}, actor: OPERATOR })
-      await guarded({ clientId: CLIENT, ceilings: { maxEvents: -1 }, actor: OPERATOR })
+      await guarded({
+        clientId: asClientId('ghost'),
+        ceilings: {},
+        reason: REASON,
+        actor: OPERATOR,
+      })
+      await guarded({
+        clientId: CLIENT,
+        ceilings: { maxEvents: -1 },
+        reason: REASON,
+        actor: OPERATOR,
+      })
 
       expect(written).toBe(0)
     })

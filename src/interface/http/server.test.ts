@@ -6,9 +6,14 @@ import { brotliCompressSync, gzipSync } from 'node:zlib'
 import request from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { AT, aGuest, anEvent, aUser } from '../../application/testing/builders'
+import { CapturingLogger } from '../../application/testing/capturingLogger'
 import { DomainError } from '../../domain/shared/errors'
+import {
+  makeListModerators,
+  type ListModerators,
+} from '../../application/usecases/events/listModerators'
 import { asEventId, asUserId } from '../../domain/shared/ids'
-import { err } from '../../domain/shared/result'
+import { err, ok } from '../../domain/shared/result'
 import { GUEST_COOKIE } from './middleware/authz'
 import { CSRF_COOKIE, CSRF_HEADER } from './middleware/csrf'
 import {
@@ -209,7 +214,7 @@ describe('buildServer: liveness and readiness', () => {
         database: 'ok',
         media: 'ok',
         video: 'ok',
-        disk: { sufficient: true, freeBytes: 10_000_000_000 },
+        disk: { sufficient: true },
       },
     })
   })
@@ -227,7 +232,7 @@ describe('buildServer: liveness and readiness', () => {
       database: 'unavailable',
       media: 'ok',
       video: 'ok',
-      disk: { sufficient: true, freeBytes: 10_000_000_000 },
+      disk: { sufficient: true },
     })
   })
 
@@ -244,7 +249,7 @@ describe('buildServer: liveness and readiness', () => {
       database: 'ok',
       media: 'unavailable',
       video: 'ok',
-      disk: { sufficient: true, freeBytes: 10_000_000_000 },
+      disk: { sufficient: true },
     })
   })
 
@@ -257,7 +262,78 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(200)
-    expect(response.body.checks.disk).toEqual({ sufficient: false, freeBytes: 1_000 })
+    expect(response.body.checks.disk).toEqual({ sufficient: false })
+  })
+
+  describe("the exact free bytes are the operator's, not the public's (HTTP-L-12)", () => {
+    // `GET /api/ready` is unauthenticated: the exact free bytes of the disk the albums live on let an
+    // anonymous caller watch an event fill the box. The route says sufficient or not; the margin is a log line.
+    const FREE = 42_949_672_960
+
+    const probed = async (
+      status: { readonly sufficient: boolean; readonly freeBytes: number | null },
+      break_?: (subject: ReturnType<typeof buildServerHarness>) => void,
+    ) => {
+      const logger = new CapturingLogger()
+      const subject = buildServerHarness({ logger })
+      subject.health.diskSpace = async () => status
+      break_?.(subject)
+      const response = await request(subject.app).get('/api/ready')
+      return { response, logger }
+    }
+
+    it('keeps the number out of a 200, whatever it is', async () => {
+      const { response } = await probed({ sufficient: true, freeBytes: FREE })
+
+      expect(response.status).toBe(200)
+      expect(JSON.stringify(response.body)).not.toContain('freeBytes')
+      expect(JSON.stringify(response.body)).not.toContain(String(FREE))
+    })
+
+    it('keeps the number out of a 503 as well', async () => {
+      const { response, logger } = await probed(
+        { sufficient: true, freeBytes: FREE },
+        (subject) => {
+          subject.health.databaseReady = async () => false
+        },
+      )
+
+      expect(response.status).toBe(503)
+      expect(JSON.stringify(response.body)).not.toContain('freeBytes')
+      expect(JSON.stringify(response.body)).not.toContain(String(FREE))
+      // Every probe logs it, the failing ones included: a box that cannot reach its database is
+      // still a box whose margin the operator wants to know.
+      expect(logger.find('readiness: free disk space')?.context).toEqual({
+        sufficient: true,
+        freeBytes: FREE,
+      })
+    })
+
+    it('writes the number to the log at debug while there is room', async () => {
+      const { logger } = await probed({ sufficient: true, freeBytes: FREE })
+
+      const line = logger.find('readiness: free disk space')
+      expect([line?.level, line?.context]).toEqual(['debug', { sufficient: true, freeBytes: FREE }])
+    })
+
+    it('writes it as a warning the moment the margin is too thin, which is the line an operator wants', async () => {
+      const { response, logger } = await probed({ sufficient: false, freeBytes: 1_000 })
+
+      expect(response.body.checks.disk).toEqual({ sufficient: false })
+      const line = logger.find('readiness: free disk space')
+      expect([line?.level, line?.context]).toEqual([
+        'warn',
+        { sufficient: false, freeBytes: 1_000 },
+      ])
+    })
+
+    it('warns for a disk that could not be read, with a null where the number would be', async () => {
+      // The case with no number at all, which is the one an operator most needs to hear about.
+      const { logger } = await probed({ sufficient: false, freeBytes: null })
+
+      const line = logger.find('readiness: free disk space')
+      expect([line?.level, line?.context]).toEqual(['warn', { sufficient: false, freeBytes: null }])
+    })
   })
 
   it('answers disk unreadable rather than throwing when the probe itself rejects', async () => {
@@ -269,7 +345,20 @@ describe('buildServer: liveness and readiness', () => {
     const response = await request(subject.app).get('/api/ready')
 
     expect(response.status).toBe(200)
-    expect(response.body.checks.disk).toEqual({ sufficient: false, freeBytes: null })
+    expect(response.body.checks.disk).toEqual({ sufficient: false })
+  })
+
+  it('warns, with no number, when the probe itself rejects', async () => {
+    const logger = new CapturingLogger()
+    const subject = buildServerHarness({ logger })
+    subject.health.diskSpace = async () => {
+      throw new Error('ENOENT')
+    }
+
+    await request(subject.app).get('/api/ready')
+
+    const line = logger.find('readiness: free disk space')
+    expect([line?.level, line?.context]).toEqual(['warn', { sufficient: false, freeBytes: null }])
   })
 
   it('answers with service.notReady rather than a 500 when a dependency is down', async () => {
@@ -412,6 +501,7 @@ describe('buildServer: which client a rate limit is counting', () => {
           uploadPerMinute: 12,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
@@ -463,6 +553,7 @@ describe('buildServer: which client a rate limit is counting', () => {
           uploadPerMinute: 1,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,
@@ -944,6 +1035,38 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     },
   )
 
+  it.each([
+    ['an invitation', '/invite/' + 'Q'.repeat(43)],
+    ['a password reset', '/password/reset/' + 'Q'.repeat(43)],
+    ['an invitation, in capitals, which Express routes the same', '/INVITE/' + 'Q'.repeat(43)],
+    ['a reset, in capitals', '/Password/Reset/' + 'Q'.repeat(43)],
+    ['an invitation with a trailing slash', '/invite/' + 'Q'.repeat(43) + '/'],
+  ])(
+    'serves the page of %s with no referrer, no index and no cache, like the gallery',
+    async (_name, path) => {
+      // The token is in this address (G2-10), so the page carries what the gallery's does:
+      // `no-store`, not the shell's `no-cache`, and nothing that lets it be indexed.
+      const response = await request(withClient().app).get(path)
+
+      expect(response.status).toBe(200)
+      expect(response.text).toContain(SPA_MARKER)
+      expect(response.get('cache-control')).toBe('no-store')
+      expect(response.get('x-robots-tag')).toBe('noindex, nofollow')
+      expect(response.get('referrer-policy')).toBe('no-referrer')
+    },
+  )
+
+  it.each(['/password/forgot', '/login', '/invite' + 'x'])(
+    'leaves %s, which carries no token, an ordinary client route',
+    async (path) => {
+      const response = await request(withClient().app).get(path)
+
+      expect(response.status).toBe(200)
+      expect(response.get('cache-control')).toBe('no-cache')
+      expect(response.get('x-robots-tag')).toBeUndefined()
+    },
+  )
+
   it('never caches index.html when it is requested by name', async () => {
     // `express.static` serves this one, not the fallback, so it needs its own header.
     const response = await request(withClient().app).get('/index.html')
@@ -968,5 +1091,88 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     const response = await request(withClient().app).get(`/${HASHED_ASSET}`)
 
     expect(response.get('cache-control')).not.toContain('immutable')
+  })
+})
+
+describe('buildServer: Cache-Control defaults to no-store under /api (HTTP-M-15)', () => {
+  /**
+   * "Every principal-scoped read in this API says so explicitly" was false for five host reads, among them the
+   * moderators' **e-mail addresses**: each route had to remember the header, and the next would forget. The
+   * default is `server.ts`'s; a route that wants caching says so over it (the media route, the streams).
+   */
+  const OWNER = '11111111-1111-4111-8111-111111111111'
+
+  it('marks an answer nobody wrote a route for', async () => {
+    const response = await request(buildServerHarness().app).get('/api/nope')
+
+    expect(response.status).toBe(404)
+    expect(response.get('cache-control')).toBe('no-store')
+  })
+
+  it('marks the answers given before any router runs, whatever the method: a probe, a refused body, a refused write', async () => {
+    // The default sits ahead of the probes, the body parser, the session and the CSRF gate. Mounted
+    // after any of them, the answer that gate gives (a 400 for a body the parser refuses, a 403 for a
+    // write without its token) went out with no header, and so did the probes.
+    const subject = buildServerHarness()
+    const agent = request.agent(subject.app)
+    const token = csrfTokenFrom((await agent.get(ANY_GET)).headers)
+
+    const answers = {
+      health: await agent.get('/api/health'),
+      malformedBody: await agent
+        .post('/api/auth/login')
+        .set(CSRF_HEADER, token)
+        .set('Content-Type', 'application/json')
+        .send('{not json'),
+      writeWithoutToken: await agent.post('/api/join').send({}),
+      patchWithoutToken: await agent.patch('/api/events/mariage/caption').send({}),
+    }
+
+    expect(answers.malformedBody.status).toBe(400)
+    expect(answers.writeWithoutToken.status).toBe(403)
+    expect(
+      Object.fromEntries(
+        Object.entries(answers).map(([name, response]) => [name, response.get('cache-control')]),
+      ),
+    ).toEqual({
+      health: 'no-store',
+      malformedBody: 'no-store',
+      writeWithoutToken: 'no-store',
+      patchWithoutToken: 'no-store',
+    })
+  })
+
+  it('marks the host reads that set no header of their own: the event list and the moderators with their addresses', async () => {
+    // The moderators come from the real use case, over the harness's own memberships.
+    const listing: { current?: ListModerators } = {}
+    const subject = buildServerHarness({
+      usecases: {
+        authenticateUser: signInByAddress({ 'host@example.test': OWNER }),
+        listEventsForHost: async () => ok([]),
+        listModerators: async (input) => {
+          if (listing.current === undefined) throw new Error('listModerators was not built yet')
+          return listing.current(input)
+        },
+      },
+    })
+    listing.current = makeListModerators({ memberships: subject.memberships })
+    subject.users.seed(aUser({ id: OWNER, email: 'host@example.test' }))
+    subject.events.seed(anEvent({ id: 'evt-1', slug: 'mariage', ownerId: OWNER, status: 'live' }))
+    subject.memberships.seed({
+      eventId: asEventId('evt-1'),
+      userId: asUserId(OWNER),
+      role: 'owner',
+      grantedAt: AT,
+    })
+    const { agent } = await signedInAs(subject.app, 'host@example.test')
+
+    const events = await agent.get('/api/events')
+    const moderators = await agent.get('/api/events/mariage/moderators')
+
+    expect(events.status).toBe(200)
+    expect(events.get('cache-control')).toBe('no-store')
+    expect(moderators.status).toBe(200)
+    expect(JSON.stringify(moderators.body)).toContain('host@example.test')
+    expect(moderators.get('cache-control')).toBe('no-store')
   })
 })

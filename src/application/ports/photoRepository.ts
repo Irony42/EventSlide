@@ -148,7 +148,14 @@ export interface PhotoRepository {
    */
   listReferencedDigests(eventId: EventId): Promise<ReadonlySet<string>>
 
-  /** Newest first, with ties broken by id so two clients agree on the order. */
+  /**
+   * Newest first, with ties broken by **descending** id so two clients agree on the order.
+   *
+   * The cursor resumes inside a run of equal timestamps, which is routine: a multi-file
+   * upload stamps every file of the batch with one `createdAt`. An implementation pages
+   * through such a run without repeating or skipping a photo, at any limit; the contract
+   * suite holds the SQLite adapter and the fake to it.
+   */
   list(eventId: EventId, query?: PhotoQuery): Promise<PhotoPage>
 
   /**
@@ -195,7 +202,11 @@ export interface PhotoRepository {
    * everywhere else in ingest — five photos and one refusal, not one opaque failure.
    *
    * Insert only. A photo id that already exists raises, because ingest mints a fresh id
-   * per file and a collision there is a bug, not an update. 1.0 fired one insert per
+   * per file and a collision there is a bug, not an update. So does a content hash the
+   * event already holds, **for the whole batch**: the use case treats that raise as the
+   * lost half of a race between two identical uploads, asks `findByContentHash` again and
+   * answers the photos that now have a twin as duplicates. An adapter that swallowed it
+   * (`ON CONFLICT DO NOTHING`) would report a photo stored that no row names. 1.0 fired one insert per
    * file through `Promise.all` with no transaction, so a failure part-way left some rows
    * committed and some not; anything that raises here leaves the batch entirely unwritten.
    */
@@ -218,17 +229,4 @@ export interface PhotoRepository {
     status: PhotoStatus,
     review: PhotoReview,
   ): Promise<readonly PhotoId[]>
-
-  /**
-   * Streams the album, one row at a time. Materialising a four-thousand-photo album into an
-   * array before writing the archive is how a self-hosted box runs out of memory.
-   *
-   * **Do not read it at the pace of a client.** The row stream keeps one statement
-   * iterating across every `await` of its consumer, and while a statement is iterating the
-   * connection refuses every write, for every event on the box. The album downloads no
-   * longer use it: the archive writer asks for an entry only when it is about to write it,
-   * so a slow download would hold the statement for as long as it lasts, and both read in
-   * pages of `list` instead. Nothing calls this today.
-   */
-  streamForExport(eventId: EventId, statuses: readonly PhotoStatus[]): AsyncIterable<Photo>
 }

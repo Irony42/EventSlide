@@ -152,7 +152,7 @@ export const passwordResetMail = ({
  * and logs what it is configured to; docs/SECURITY.md §2 says to treat this path as secret
  * there. It is the same decision the shared gallery's `/g/:token` made.
  *
- * `publicUrl` is the configured origin without a trailing slash (`env.ts` strips it), so
+ * `publicUrl` is the configured origin without a trailing slash (the config loader strips it), so
  * this only joins.
  */
 export const passwordResetLink = (publicUrl: string, token: string): string =>

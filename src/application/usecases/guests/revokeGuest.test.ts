@@ -1,40 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { EventRole } from '../../../domain/events/eventRole'
-import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
-import { err, ok, type Result } from '../../../domain/shared/result'
-import type { GuestTokenClaims, GuestTokenService } from '../../ports/guestTokenService'
 import { AT, aGuest, anEvent, atPlus } from '../../testing/builders'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
+import { silentLogger } from '../../testing/capturingLogger'
 import { makeAuthenticateGuest } from './authenticateGuest'
 import { makeRevokeGuest, type RevokeGuestInput } from './revokeGuest'
-
-/**
- * A readable token, as in `authenticateGuest.test.ts`, minus the age check — expiry is
- * that file's subject. It exists here because the two use cases are composed in the
- * last test: a revocation that did not actually stop the next request from the phone is
- * the failure this whole use case exists to prevent.
- */
-class FakeGuestTokenService implements GuestTokenService {
-  issue({ eventId, guestId, issuedAt }: GuestTokenClaims): string {
-    return `token|${eventId}|${guestId}|${issuedAt.getTime()}`
-  }
-
-  verify(token: string): Result<GuestTokenClaims, DomainError> {
-    const [prefix, eventId, guestId, issuedAt] = token.split('|')
-    if (prefix !== 'token' || eventId === undefined || guestId === undefined) {
-      return err(DomainError.unauthenticated('guestToken.malformed'))
-    }
-    return ok({
-      eventId: asEventId(eventId),
-      guestId: asGuestId(guestId),
-      issuedAt: new Date(Number(issuedAt)),
-    })
-  }
-}
+import { FakeGuestTokenService } from '../../testing/fakeGuestTokenService'
 
 const WEDDING = asEventId('event-1')
 const GALA = asEventId('event-2')
@@ -45,16 +20,22 @@ const GALA_HOST = asUserId('user-2')
 const WEDDING_SLUG = 'camille-et-sacha'
 
 describe('revokeGuest', () => {
+  let eventRepo: FakeEventRepository
   let guests: FakeGuestRepository
   let memberships: FakeMembershipRepository
   let clock: FakeClock
 
-  const revoke = (input: RevokeGuestInput) => makeRevokeGuest({ guests, memberships, clock })(input)
+  const revoke = (input: RevokeGuestInput) =>
+    makeRevokeGuest({ events: eventRepo, guests, memberships, clock })(input)
 
   const revokeLea = (actorId = HOST, eventId = WEDDING) =>
     revoke({ eventId, actorId, guestId: LEA })
 
   beforeEach(() => {
+    eventRepo = new FakeEventRepository().seed(
+      anEvent({ id: WEDDING, slug: WEDDING_SLUG, joinCode: 'H0K2QM' }),
+      anEvent({ id: GALA, slug: 'gala-nova', joinCode: 'R40T9W' }),
+    )
     guests = new FakeGuestRepository().seed(aGuest({ id: LEA, eventId: WEDDING }))
     memberships = new FakeMembershipRepository().seed(
       { eventId: WEDDING, userId: HOST, role: 'owner', grantedAt: AT },
@@ -175,7 +156,13 @@ describe('revokeGuest', () => {
       anEvent({ id: WEDDING, slug: WEDDING_SLUG, joinCode: 'H0K2QM' }),
     )
     const tokens = new FakeGuestTokenService()
-    const authenticate = makeAuthenticateGuest({ events, guests, tokens, clock })
+    const authenticate = makeAuthenticateGuest({
+      events,
+      guests,
+      tokens,
+      clock,
+      logger: silentLogger(),
+    })
     const token = tokens.issue({ eventId: WEDDING, guestId: LEA, issuedAt: AT })
     expect((await authenticate({ token, eventSlug: WEDDING_SLUG })).ok).toBe(true)
 

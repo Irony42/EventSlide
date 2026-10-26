@@ -6,6 +6,7 @@ import {
   asEventId,
   asUserId,
   type AccountTokenId,
+  type ClientId,
   type UserId,
 } from '../../domain/shared/ids'
 import {
@@ -200,6 +201,27 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
     return row === undefined ? null : toToken(row)
   }
 
+  async listAwaitingApproval(
+    clientId: ClientId,
+    now: Date,
+    limit: number,
+  ): Promise<readonly AccountToken[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1) {
+      throw new RangeError('limit must be a positive integer')
+    }
+    return this.db
+      .prepare<[string, string, number], AccountTokenRow>(
+        `SELECT ${COLUMNS} FROM account_tokens
+          WHERE purpose = 'invitation' AND client_id = ? AND requires_approval = 1
+            AND approved_at IS NULL AND consumed_at IS NULL AND revoked_at IS NULL
+            AND expires_at > ?
+          ORDER BY created_at DESC, id DESC
+          LIMIT ?`,
+      )
+      .all(clientId, toIsoText(now), limit)
+      .map(toToken)
+  }
+
   async consume(id: AccountTokenId, now: Date): Promise<boolean> {
     const at = toIsoText(now)
     const result = this.db
@@ -248,6 +270,21 @@ export class SqliteAccountTokenRepository implements AccountTokenRepository {
       .run(at, email.value, purpose, at)
 
     return result.changes
+  }
+
+  async countLiveClientInvitations(
+    clientId: ClientId,
+    now: Date,
+    except: EmailAddress,
+  ): Promise<number> {
+    const row = this.db
+      .prepare<[string, string, string], { n: number }>(
+        `SELECT COUNT(*) AS n FROM account_tokens
+          WHERE purpose = 'invitation' AND client_id = ? AND email <> ?
+            AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at > ?`,
+      )
+      .get(clientId, except.value, toIsoText(now))
+    return row?.n ?? 0
   }
 
   async revokeOutstandingInvitations(

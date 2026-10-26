@@ -3,6 +3,7 @@ import type { ReactionKind } from '../../domain/reactions/reactionKind'
 import { tally, type ReactionCounts, type TallyEntry } from '../../domain/reactions/reactionTally'
 import type { EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 import type { ReactionRepository } from '../ports/reactionRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `ReactionRepository`.
@@ -20,10 +21,6 @@ import type { ReactionRepository } from '../ports/reactionRepository'
  * Counting goes through the domain's own `tally`, so the fake cannot disagree with the
  * arithmetic the wall renders.
  */
-
-/** Code-unit order, not locale order: an id sort must not depend on the host's ICU. */
-const compareIds = (left: string, right: string): number =>
-  Number(left > right) - Number(left < right)
 
 const newestFirst = (left: Reaction, right: Reaction): number =>
   right.createdAt.getTime() - left.createdAt.getTime() || compareIds(left.id, right.id)
@@ -103,7 +100,7 @@ export class FakeReactionRepository implements ReactionRepository {
 
   /**
    * Only photos that carry at least one reaction appear, because a `GROUP BY` produces
-   * no row for a photo nobody reacted to — and `topPhotos` must not rank a silent
+   * no row for a photo nobody reacted to — and `rankedPhotos` must not rank a silent
    * photo above nothing.
    */
   async countsForEvent(eventId: EventId): Promise<ReadonlyMap<PhotoId, ReactionCounts>> {

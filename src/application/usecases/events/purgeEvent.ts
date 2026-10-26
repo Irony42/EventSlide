@@ -1,10 +1,10 @@
-import { canDeleteEvent } from '../../../domain/events/eventRole'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
  * Delete an event and everything it ever held. Not undoable.
@@ -32,13 +32,11 @@ export const makePurgeEvent =
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
-    const role = await memberships.roleFor(eventId, actorId)
-    // `notFound` rather than `forbidden` for a caller with no part in the event, so
-    // this cannot be used to discover that the event exists.
-    if (role === null) return err(DomainError.notFound('event.notFound'))
-    if (!canDeleteEvent(role)) {
-      return err(DomainError.forbidden('auth.forbidden', { required: 'owner' }))
-    }
+    const allowed = await requireEventRole(memberships, eventId, actorId, 'delete')
+    if (!allowed.ok) return allowed
+
+    const writable = requireWritable(event)
+    if (!writable.ok) return writable
 
     // Media first, row second, and the order is the whole point. The row is the only
     // record that this event's bytes exist: delete it first and a failure here leaves

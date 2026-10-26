@@ -1,3 +1,4 @@
+import type { NewClientDefaults } from '../../domain/clients/newClientCeilings'
 import type { Event } from '../../domain/events/event'
 import type { EventRole } from '../../domain/events/eventRole'
 import type { Guest } from '../../domain/guests/guest'
@@ -6,13 +7,12 @@ import type { Clock } from '../../application/ports/clock'
 import type { Logger } from '../../application/ports/logger'
 import type { EventBus } from '../../application/ports/eventBus'
 import type { EventRepository } from '../../application/ports/eventRepository'
-import type { GuestRepository } from '../../application/ports/guestRepository'
 import type {
   AuthState,
   MembershipRepository,
   UserRepository,
 } from '../../application/ports/userRepository'
-import type { GuestTokenService } from '../../application/ports/guestTokenService'
+import type { AuthenticateGuest } from '../../application/usecases/guests/authenticateGuest'
 import type { Mailer } from '../../application/ports/mailer'
 import type { SecondFactorRepository } from '../../application/ports/secondFactorRepository'
 import type { AccessLogOptions } from './middleware/accessLog'
@@ -71,7 +71,6 @@ export interface HttpDeps {
   readonly logger: Logger
   readonly bus: EventBus
   readonly events: EventRepository
-  readonly guests: GuestRepository
   readonly memberships: MembershipRepository
   /**
    * Two methods, deliberately: what the caller may do on the box, and everything else
@@ -90,7 +89,11 @@ export interface HttpDeps {
    * reader, it reads `confirmedAt` and nothing else, and a second reader is a review blocker.
    */
   readonly secondFactors: Pick<SecondFactorRepository, 'find'>
-  readonly guestTokens: GuestTokenService
+  /**
+   * What `requireGuest` asks about a device token: the one implementation of "which guest of
+   * which event is this, and may they be here", which also stamps the guest as seen.
+   */
+  readonly authenticateGuest: AuthenticateGuest
   /**
    * One fact about the mailer: whether it can deliver. It is what `/api/about` publishes as
    * `features.forgotPassword`, and it is the same fact `requestPasswordReset` answers
@@ -127,6 +130,14 @@ export interface HttpConfig {
    * nothing to anybody who is not the operator. It decides how much surface exists.
    */
   readonly siteAdmin: boolean
+  /**
+   * What `provisionClientOwner` gives a client whose operator named no ceiling (`NEW_CLIENT_*`,
+   * G2-18). Read by one route, `GET /api/site/client-defaults`, which shows it to the operator's
+   * console as the form's starting values; the use case holds its own copy from the same
+   * configuration, so what the form shows is what a blank form provisions. No ceiling at all
+   * on a box that set none.
+   */
+  readonly newClientCeilings: NewClientDefaults
   /**
    * The operator's second factor (G2-13 / P3-15). Read by `buildServer` and the authorization
    * middleware, and by nothing that can be talked into widening it: turning `requiredForOperators`
@@ -191,6 +202,8 @@ export interface HttpConfig {
     readonly joinPerMinute: number
     readonly loginPerMinute: number
     readonly reactionPerMinute: number
+    /** Every other guest-token write, per client **and** event, one bucket (HTTP-H-01). */
+    readonly guestWritePerMinute: number
     /** The shared gallery's pages, per client (roadmap §4.1). */
     readonly galleryPerMinute: number
     /** Its bytes: thumbnails, downloads, the archive. Per client. */
@@ -303,6 +316,4 @@ export interface PendingSecondFactor {
   readonly mustChangePassword: boolean
   /** When the password was verified: the clock of the five minutes, and of the credentials check. */
   readonly startedAt: number
-  /** Wrong codes so far; at the limit the sign-in is thrown away and the password is asked again. */
-  failures: number
 }

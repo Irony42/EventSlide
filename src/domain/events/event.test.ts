@@ -317,6 +317,20 @@ describe('Event capabilities', () => {
     expect(anEvent({ status: 'archived' }).servesWall()).toBe(false)
   })
 
+  it('serves the public wall only while the lifecycle serves it and its client is not suspended', () => {
+    // The one definition both the opening of a public request and every beat of an open stream ask.
+    const suspended = (status: 'live' | 'closed' | 'archived'): Event =>
+      Event.restore({ ...anEvent({ status }).toProps(), clientSuspendedAt: new Date(0) })
+
+    expect(anEvent({ status: 'live' }).servesPublicWall()).toBe(true)
+    expect(anEvent({ status: 'closed' }).servesPublicWall()).toBe(true)
+    expect(anEvent({ status: 'archived' }).servesPublicWall()).toBe(false)
+    expect(anEvent({ status: 'draft' }).servesPublicWall()).toBe(false)
+    expect(suspended('live').servesPublicWall()).toBe(false)
+    // Suspension does not change the lifecycle's own answer.
+    expect(suspended('live').servesWall()).toBe(true)
+  })
+
   it('allows moderation until the event is archived', () => {
     expect(anEvent({ status: 'closed' }).allowsModeration()).toBe(true)
     expect(anEvent({ status: 'archived' }).allowsModeration()).toBe(false)
@@ -1197,5 +1211,51 @@ describe('Event.effectiveQuotaBytes', () => {
     const ceilings = unwrap(ClientCeilings.create({ maxEventQuotaBytes: 9_000 }))
 
     expect(anEvent({ quotaBytes: 5_000 }).effectiveQuotaBytes(ceilings)).toBe(5_000)
+  })
+})
+
+describe('Event.acceptsClips', () => {
+  const noClips = unwrap(ClientCeilings.create({ clipsAllowed: false }))
+  const withEvents = EventSettings.default()
+  const hostAllows = unwrap(withEvents.with({ allowClips: true }))
+  const hostForbids = unwrap(withEvents.with({ allowClips: false }))
+
+  it('follows the host’s switch for an event with no client', () => {
+    expect(anEvent({ settings: hostAllows }).acceptsClips(null)).toBe(true)
+    expect(anEvent({ settings: hostForbids }).acceptsClips(null)).toBe(false)
+  })
+
+  it('is refused when the client’s plan has no clips, whatever the host’s switch says', () => {
+    // The downgrade case: the event was created with video on and the plan lost it since.
+    expect(anEvent({ settings: hostAllows }).acceptsClips(noClips)).toBe(false)
+  })
+
+  it('needs the host’s switch even when the client’s plan allows clips', () => {
+    expect(anEvent({ settings: hostForbids }).acceptsClips(ClientCeilings.unlimited())).toBe(false)
+    expect(anEvent({ settings: hostAllows }).acceptsClips(ClientCeilings.unlimited())).toBe(true)
+  })
+})
+
+describe('Event.liveWindowEnd', () => {
+  const threeDays = unwrap(ClientCeilings.create({ maxLiveDays: 3 }))
+
+  it('is the first opening plus max_live_days, the instant the sweep acts on', () => {
+    const event = anEvent({ status: 'live', openedAt: WENT_LIVE_AT })
+
+    expect(event.liveWindowEnd(threeDays)).toEqual(new Date('2026-06-23T18:00:00.000Z'))
+  })
+
+  it('is nothing for an event with no client', () => {
+    expect(anEvent({ status: 'live', openedAt: WENT_LIVE_AT }).liveWindowEnd(null)).toBeNull()
+  })
+
+  it('is nothing for a client with no live window', () => {
+    const event = anEvent({ status: 'live', openedAt: WENT_LIVE_AT })
+
+    expect(event.liveWindowEnd(ClientCeilings.unlimited())).toBeNull()
+  })
+
+  it('is nothing for an event that has never opened, because its window has not started', () => {
+    expect(anEvent({ status: 'draft', openedAt: null }).liveWindowEnd(threeDays)).toBeNull()
   })
 })

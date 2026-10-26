@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { FakeClock } from '../../application/testing/fakeClock'
 import { closeDatabase, openDatabase, type Db } from './connection'
 import { MigrationError, migrate, status, type Migration } from './migrator'
 import { migrations } from './migrations'
@@ -159,6 +160,38 @@ describe('migrator', () => {
     closeDatabase(db)
   })
 
+  it('stamps each migration with the instant the clock gave it', () => {
+    const db = freshDb()
+    const clock = new FakeClock(new Date('2031-04-05T06:07:08.000Z'))
+    const list: Migration[] = [
+      { id: 1, name: 'one', sql: `SELECT 1` },
+      { id: 2, name: 'two', sql: `SELECT 1` },
+    ]
+
+    migrate(db, [list[0]!], clock)
+    clock.advance(1_000)
+    migrate(db, list, clock)
+
+    expect(status(db, list).applied.map((row) => row.appliedAt)).toEqual([
+      '2031-04-05T06:07:08.000Z',
+      '2031-04-05T06:07:09.000Z',
+    ])
+    closeDatabase(db)
+  })
+
+  it('stamps with the real clock when it is given none', () => {
+    const db = freshDb()
+    const list: Migration[] = [{ id: 1, name: 'one', sql: `SELECT 1` }]
+    const before = Date.now()
+
+    migrate(db, list)
+
+    const stamped = Date.parse(status(db, list).applied[0]?.appliedAt ?? '')
+    expect(stamped).toBeGreaterThanOrEqual(before)
+    expect(stamped).toBeLessThanOrEqual(Date.now())
+    closeDatabase(db)
+  })
+
   it('reports applied and pending separately', () => {
     const db = freshDb()
     const list: Migration[] = [
@@ -235,6 +268,68 @@ describe('the real schema', () => {
         'idx_users_email',
       ]),
     )
+    closeDatabase(db)
+  })
+
+  /**
+   * Foreign keys whose parent table no product code path deletes a row from, so that nothing
+   * ever looks their children up by the key. **Empty since migration 014**: `users` was the one
+   * entry, on the ground that an account is switched off and kept, and the operator now deletes one
+   * (`deleteAccount`) and the sweep deletes a finalised client's (`finalizeOffboardedClients`), so every
+   * foreign key that points at `users` is indexed. A parent goes back in here only with a sentence that
+   * a test holds true, as `scripts/userDeletionScope.test.ts` did for this one.
+   */
+  const PARENTS_NEVER_DELETED = new Map<string, string>([])
+
+  /** Every foreign key of the migrated schema, with the plan of the lookup a delete of its parent makes. */
+  const foreignKeys = (db: Db): { child: string; column: string; parent: string; plan: string }[] =>
+    tableNames(db).flatMap((table) =>
+      (
+        db.prepare(`PRAGMA foreign_key_list(${table})`).all() as { from: string; table: string }[]
+      ).map((key) => ({
+        child: table,
+        column: key.from,
+        parent: key.table,
+        // What SQLite runs against the child when the parent row goes: an equality lookup on
+        // the key column, whatever the ON DELETE action is.
+        plan: (
+          db
+            .prepare(`EXPLAIN QUERY PLAN SELECT rowid FROM ${table} WHERE ${key.from} = ?`)
+            .all('any') as { detail: string }[]
+        )
+          .map((row) => row.detail)
+          .join(' | '),
+      })),
+    )
+
+  const isSearchedByKey = (key: { column: string; plan: string }): boolean =>
+    new RegExp(`^SEARCH \\S+ USING (COVERING )?INDEX \\S+ \\(${key.column}=\\?\\)`).test(key.plan)
+
+  it('looks the children of a deleted row up through an index that leads with the key', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    // Purging an event deletes its guests, and each guest then costs one lookup per child
+    // table: an index that leads with another column makes that lookup a scan of the table
+    // across every event (320 ms for one event on a box of 30; migration 013).
+    const scanned = foreignKeys(db)
+      .filter((key) => !PARENTS_NEVER_DELETED.has(key.parent) && !isSearchedByKey(key))
+      .map((key) => `${key.child}.${key.column} -> ${key.parent}: ${key.plan}`)
+
+    expect(scanned).toEqual([])
+    closeDatabase(db)
+  })
+
+  it('keeps no parent on the never-deleted list once every one of its children is indexed', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const keys = foreignKeys(db)
+    const stale = [...PARENTS_NEVER_DELETED.keys()].filter(
+      (parent) => !keys.some((key) => key.parent === parent && !isSearchedByKey(key)),
+    )
+
+    expect(stale, 'remove these from PARENTS_NEVER_DELETED').toEqual([])
     closeDatabase(db)
   })
 
@@ -2735,6 +2830,166 @@ describe('migration 012, the client an invitation is for', () => {
     expect(
       db.prepare(`SELECT id, purpose, client_id, client_role FROM account_tokens`).all(),
     ).toEqual([{ id: 'old', purpose: 'passwordReset', client_id: null, client_role: null }])
+    closeDatabase(db)
+  })
+})
+
+describe('migration 013, the indexes a deleted parent row is looked up through', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+  const LATER = '2026-06-20T22:00:00.000Z'
+
+  const count = (db: Db, table: string): number =>
+    (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n
+
+  /**
+   * An album as 012 alone could hold it, with something in every table a guest, a mission
+   * or an event owns: two guests, so that deleting one shows the other's rows survive.
+   */
+  const seedPre013 = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'live',
+                    '{"moderation":"manual"}', 1000, '${AT}')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO event_missions (id, event_id, prompt, scope, created_at)
+            VALUES ('m1', 'e1', 'Les mariés qui dansent', 'guest', '${AT}')`,
+    ).run()
+    for (const [guest, photoFill, clipFill] of [
+      ['g1', 'a', 'c'],
+      ['g2', 'b', 'd'],
+    ] as const) {
+      db.prepare(
+        `INSERT INTO guests (id, event_id, joined_at, last_seen_at)
+              VALUES ('${guest}', 'e1', '${AT}', '${AT}')`,
+      ).run()
+      db.prepare(
+        `INSERT INTO photos (id, event_id, author_guest_id, mission_id, status, content_hash,
+                             width, height, byte_size, created_at)
+              VALUES ('p-${guest}', 'e1', '${guest}', 'm1', 'published',
+                      '${photoFill.repeat(64)}', 1200, 800, 90000, '${AT}')`,
+      ).run()
+      db.prepare(
+        `INSERT INTO reactions (id, event_id, photo_id, guest_id, kind, created_at)
+              VALUES ('r-${guest}', 'e1', 'p-${guest}', '${guest}', 'love', '${AT}')`,
+      ).run()
+      db.prepare(
+        `INSERT INTO clip_jobs (id, event_id, photo_id, author_guest_id, status, source_hash,
+                                source_byte_size, created_at, updated_at, not_before)
+              VALUES ('j-${guest}', 'e1', 'clip-${guest}', '${guest}', 'queued', '${clipFill.repeat(64)}',
+                      5000, '${AT}', '${AT}', '${AT}')`,
+      ).run()
+    }
+    db.prepare(
+      `INSERT INTO account_tokens (id, purpose, token_digest, email, event_id, event_role,
+                                   delivery, created_at, expires_at)
+            VALUES ('t1', 'invitation', '${'d'.repeat(64)}', 'nouveau@example.test', 'e1',
+                    'moderator', 'link', '${AT}', '${LATER}')`,
+    ).run()
+  }
+
+  const upgraded = (): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= 12),
+    )
+    seedPre013(db)
+    migrate(db, migrations)
+    return db
+  }
+
+  it('creates one index per lookup, partial where the column can be NULL', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+
+    const indexed = (table: string): Record<string, { partial: boolean; column: string }> =>
+      Object.fromEntries(
+        (db.prepare(`PRAGMA index_list(${table})`).all() as { name: string; partial: number }[])
+          .filter((index) => index.name.startsWith('idx_'))
+          .map((index) => [
+            index.name,
+            {
+              partial: index.partial === 1,
+              column: (
+                db.prepare(`PRAGMA index_info(${index.name})`).all() as { name: string }[]
+              )[0]?.name as string,
+            },
+          ]),
+      )
+
+    expect(indexed('photos')).toMatchObject({
+      idx_photos_author_guest: { partial: true, column: 'author_guest_id' },
+      idx_photos_mission: { partial: true, column: 'mission_id' },
+    })
+    expect(indexed('reactions')).toMatchObject({
+      idx_reactions_guest: { partial: false, column: 'guest_id' },
+    })
+    expect(indexed('clip_jobs')).toMatchObject({
+      idx_clip_jobs_author_guest: { partial: true, column: 'author_guest_id' },
+    })
+    expect(indexed('account_tokens')).toMatchObject({
+      idx_account_tokens_event: { partial: true, column: 'event_id' },
+    })
+    closeDatabase(db)
+  })
+
+  it('builds them over an album that already exists, and loses none of it', () => {
+    const db = upgraded()
+
+    expect(
+      ['guests', 'photos', 'reactions', 'clip_jobs', 'event_missions', 'account_tokens'].map(
+        (table) => [table, count(db, table)],
+      ),
+    ).toEqual([
+      ['guests', 2],
+      ['photos', 2],
+      ['reactions', 2],
+      ['clip_jobs', 2],
+      ['event_missions', 1],
+      ['account_tokens', 1],
+    ])
+    closeDatabase(db)
+  })
+
+  it('still takes a deleted guest’s photographs, reactions and clip jobs with them, and nobody else’s', () => {
+    const db = upgraded()
+
+    db.prepare(`DELETE FROM guests WHERE id = 'g1'`).run()
+
+    expect(db.prepare(`SELECT id FROM photos`).all()).toEqual([{ id: 'p-g2' }])
+    expect(db.prepare(`SELECT id FROM reactions`).all()).toEqual([{ id: 'r-g2' }])
+    expect(db.prepare(`SELECT id FROM clip_jobs`).all()).toEqual([{ id: 'j-g2' }])
+    closeDatabase(db)
+  })
+
+  it('still unfiles the photographs of a deleted mission, and keeps them', () => {
+    const db = upgraded()
+
+    db.prepare(`DELETE FROM event_missions WHERE id = 'm1'`).run()
+
+    expect(db.prepare(`SELECT id, mission_id FROM photos ORDER BY id`).all()).toEqual([
+      { id: 'p-g1', mission_id: null },
+      { id: 'p-g2', mission_id: null },
+    ])
+    closeDatabase(db)
+  })
+
+  it('still takes everything an event owns, invitations to it included, when it is purged', () => {
+    const db = upgraded()
+
+    db.prepare(`DELETE FROM events WHERE id = 'e1'`).run()
+
+    expect(
+      ['guests', 'photos', 'reactions', 'clip_jobs', 'event_missions', 'account_tokens'].map(
+        (table) => count(db, table),
+      ),
+    ).toEqual([0, 0, 0, 0, 0, 0])
     closeDatabase(db)
   })
 })

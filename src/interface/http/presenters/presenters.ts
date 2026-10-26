@@ -2,14 +2,27 @@ import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { Guest } from '../../../domain/guests/guest'
+import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
 import type { User } from '../../../domain/users/user'
-import type { EventSummary } from '../../../application/ports/eventRepository'
+import type { EventCounts, EventSummary } from '../../../application/ports/eventRepository'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { EventThemeProps } from '../../../domain/events/eventTheme'
+import type { AuditPage } from '../../../application/ports/auditLog'
+import type { ClientLimits } from '../../../application/usecases/clients/getClientLimits'
+import type { PendingInvitation } from '../../../application/usecases/clients/listPendingInvitations'
+import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
+  CeilingMeterDto,
+  CeilingsDto,
+  ClientAuditEntryDto,
+  ClientAuditPageDto,
+  ClientLimitsDto,
+  ClientUsageDto,
+  ClipJobDto,
+  CurrentUserDto,
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
@@ -18,15 +31,61 @@ import type {
   GalleryPageDto,
   GalleryPhotoDto,
   GuestDto,
+  GuestMissionDto,
   GuestPhotoDto,
+  InvitationAcceptedDto,
+  InvitationIssuedDto,
+  InvitationPreviewDto,
+  JoinTargetDto,
+  MissionDto,
   ModerationPhotoDto,
+  ModerationQueueItemDto,
+  ModeratorDto,
+  MyLimitsDto,
+  PendingInvitationDto,
+  PendingInvitationsDto,
   PrivacyNoticeDto,
   PrivacyNoticeStateDto,
   PublicEventDto,
+  ReactionsResponseDto,
+  RecoveryCodesDto,
+  RenamedGuestDto,
+  SecondFactorRequiredDto,
+  SecondFactorStatusDto,
+  SessionResponseDto,
   SessionUserDto,
   ShareLinkCreatedDto,
   ShareLinkDto,
+  TopPhotoDto,
+  TotpEnrolmentDto,
+  UploadOutcomeDto,
+  UploadResponseDto,
+  WallItemDto,
+  WallMissionDto,
+  WallResponseDto,
 } from './dto'
+import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
+import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
+import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
+import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
+import type { UserPrincipal } from '../types'
+import type { TotpEnrolment } from '../../../application/usecases/auth/enrollTotp'
+import type {
+  UploadOutcome,
+  UploadPhotosResult,
+} from '../../../application/usecases/photos/uploadPhotos'
+import type { PhotoReactionsView } from '../../../application/usecases/reactions/getPhotoReactions'
+import type {
+  WallMissionStanding,
+  WallPlaylistView,
+} from '../../../application/usecases/slideshow/getWallPlaylist'
+import type { PhotoId } from '../../../domain/shared/ids'
+import type { MembershipWithUser } from '../../../application/ports/userRepository'
+import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
+import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
+import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
+import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
+import type { MissionSummary } from '../../../application/usecases/missions/listMissions'
 import type { CreatedShareLink } from '../../../application/usecases/gallery/createShareLink'
 import type { ArchiveGrant, MediaGrant } from '../../../application/usecases/gallery/galleryAccess'
 import type { ShareLinkView } from '../../../application/usecases/gallery/getShareLink'
@@ -179,18 +238,23 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
  * as what happens to *their* photo, which is the one framing in which a guest is entitled
  * to them.
  */
-export const toPublicEventDto = (event: Event, context: PresenterContext): PublicEventDto => ({
+export const toPublicEventDto = (
+  event: Event,
+  context: PresenterContext,
+  /** `Event.acceptsClips`: the host's switch **and** the client's plan. */
+  clipsAccepted: boolean,
+): PublicEventDto => ({
   slug: event.slug.value,
   name: event.name.value,
   allowCaptions: event.settings.allowCaptions,
   allowReactions: event.settings.allowReactions,
   maxUploadBytes: context.uploadLimits.maxBytes,
   maxFilesPerUpload: context.uploadLimits.maxFiles,
-  // The host's decision **and** the box's capability. A guest is being told whether they
-  // may send a video here, which is a different question from the one
-  // `EventSettingsDto.allowClips` answers for the host — that one is their own switch,
-  // and it stays exactly as they set it whatever this deployment can do.
-  allowClips: event.settings.allowClips && context.clipLimits.supported,
+  // The host's decision, the client's plan **and** the box's capability. A guest is being told
+  // whether they may send a video here, which is a different question from the one
+  // `EventSettingsDto.allowClips` answers for the host — that one is their own switch, and it
+  // stays exactly as they set it whatever this deployment or their plan can do.
+  allowClips: clipsAccepted && context.clipLimits.supported,
   maxClipBytes: context.clipLimits.maxBytes,
   maxClipSeconds: context.clipLimits.maxSeconds,
   // Unlike the switches above, this is not a permission: it is what the host's event
@@ -238,16 +302,13 @@ export const toEventSummaryDto = (summary: EventSummary): EventSummaryDto => ({
 export interface EventDtoInput {
   readonly event: Event
   readonly role: EventRole
-  readonly counts: {
-    readonly photoCount: number
-    readonly pendingCount: number
-    readonly guestCount: number
-    readonly usedBytes: number
-  }
+  readonly counts: EventCounts
+  /** What the event's client makes of its quota and its live window (`getEventView`). */
+  readonly limits: EventLimits
 }
 
 export const toEventDto = (
-  { event, role, counts }: EventDtoInput,
+  { event, role, counts, limits }: EventDtoInput,
   context: PresenterContext,
 ): EventDto => ({
   id: event.id,
@@ -261,7 +322,8 @@ export const toEventDto = (
   createdAt: iso(event.createdAt),
   joinCode: event.joinCode.value,
   joinUrl: joinUrl(context.publicUrl, event.joinCode.value),
-  quotaBytes: event.quotaBytes,
+  quotaBytes: limits.quotaBytes,
+  ...(limits.liveWindowEnd === null ? {} : { liveWindowEnd: iso(limits.liveWindowEnd) }),
   settings: toEventSettingsDto(event.settings),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),
@@ -322,6 +384,21 @@ export const toGuestDto = (guest: Guest): GuestDto => ({
   revoked: guest.isRevoked(),
 })
 
+/** The one field list of the join lookup, so a field cannot reach the wire by accident. */
+export const toJoinTargetDto = (target: JoinTarget): JoinTargetDto => ({
+  slug: target.slug,
+  name: target.name,
+  acceptsGuests: target.acceptsGuests,
+  allowCaptions: target.allowCaptions,
+  allowReactions: target.allowReactions,
+})
+
+/** A guest's own row after a rename: their id and the name as stored, nothing of the rest. */
+export const toRenamedGuestDto = (guest: Guest): RenamedGuestDto => ({
+  guestId: guest.id,
+  displayName: guest.label(),
+})
+
 export const toSessionUserDto = (user: User): SessionUserDto => ({
   userId: user.id,
   email: user.email.value,
@@ -329,15 +406,7 @@ export const toSessionUserDto = (user: User): SessionUserDto => ({
   mustChangePassword: user.mustChangePassword,
 })
 
-// ------------------------------------------- moderation routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that five route modules being written against this file at the same time merge
-// cleanly. Type-only, so nothing is added to the bundle.
-import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
-import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
-import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
-import type { ClipJobDto, ModerationQueueItemDto, TopPhotoDto } from './dto'
+// ------------------------------------------- moderation routes --
 
 export interface ModerationQueueItemDtoInput {
   readonly row: ModerationQueueRow
@@ -354,8 +423,8 @@ export interface ModerationQueueItemDtoInput {
  * the console rendered as "par undefined".
  *
  * The image URLs are still derived from the id and the slug, by the same builder the
- * wall and the printed card use, so the grid renders without a second read. `hasCaption`
- * does not cross: the row carries the caption itself, and a client can see for itself
+ * wall and the printed card use, so the grid renders without a second read. There is no
+ * "has a caption" flag: the row carries the caption itself, and a client can see for itself
  * whether there is one.
  */
 export const toModerationQueueItemDto = ({
@@ -420,22 +489,7 @@ export const toTopPhotoDto = ({ photo, slug, counts, total }: TopPhotoDtoInput):
   total,
 })
 
-// ------------------------------------------------ auth routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that several route modules being written against this file at the same time merge
-// cleanly. Type-only, so nothing is added to the bundle.
-import type { AuthenticatedUser } from '../../../application/usecases/auth/authenticateUser'
-import type { UserPrincipal } from '../types'
-import type { TotpEnrolment } from '../../../application/usecases/auth/enrollTotp'
-import type {
-  CurrentUserDto,
-  RecoveryCodesDto,
-  SecondFactorRequiredDto,
-  SecondFactorStatusDto,
-  SessionResponseDto,
-  TotpEnrolmentDto,
-} from './dto'
+// ------------------------------------------------ auth routes --
 
 /**
  * What a successful login answers with.
@@ -523,17 +577,7 @@ export const toRecoveryCodesDto = (codes: readonly string[]): RecoveryCodesDto =
   recoveryCodes: [...codes],
 })
 
-// ----------------------------------------------- guest routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that route modules being written against this file at the same time merge cleanly.
-// Type-only, so nothing is added to the bundle.
-import type {
-  UploadOutcome,
-  UploadPhotosResult,
-} from '../../../application/usecases/photos/uploadPhotos'
-import type { PhotoReactionsView } from '../../../application/usecases/reactions/getPhotoReactions'
-import type { ReactionsResponseDto, UploadOutcomeDto, UploadResponseDto } from './dto'
+// ----------------------------------------------- guest routes --
 
 /**
  * One file's fate.
@@ -583,14 +627,7 @@ export const toReactionsDto = (view: PhotoReactionsView): ReactionsResponseDto =
   mine: view.mine,
 })
 
-// ---------------------------------------------- public routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that route modules being written against this file at the same time merge cleanly.
-// Type-only, so nothing is added to the bundle.
-import type { WallPlaylistView } from '../../../application/usecases/slideshow/getWallPlaylist'
-import type { PhotoId } from '../../../domain/shared/ids'
-import type { WallItemDto, WallResponseDto } from './dto'
+// ---------------------------------------------- public routes --
 
 /**
  * One slide.
@@ -686,16 +723,7 @@ export const toWallResponseDto = (
   }
 }
 
-// ------------------------------------------------ event routes (additive) --
-
-// Imported here rather than folded into the statement list at the top of the file, so
-// that route modules being written against this file at the same time merge cleanly.
-// Type-only, so nothing is added to the bundle.
-import type { MembershipWithUser } from '../../../application/ports/userRepository'
-import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
-import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
-import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
-import type { ModeratorDto } from './dto'
+// ------------------------------------------------ event routes --
 
 /**
  * One membership, for the host's "who has the console" list.
@@ -713,59 +741,21 @@ export const toModeratorDto = (membership: MembershipWithUser): ModeratorDto => 
   grantedAt: iso(membership.grantedAt),
 })
 
-/**
- * The answer to an invitation (docs/API.md, `POST /api/events/:slug/moderators`): that it was
- * written, and until when it works — and, **only when no mail went out**, the link for the
- * inviter to pass on.
- *
- * What is deliberately absent, and was the whole of the 2.x answer: whether an account was
- * created, and its id. They said whether the address was already on the box, to whoever typed
- * it. The answer is now the same for an address that has an account and one that has not, and
- * `link` is a fact about the box and its relay, never about the address.
- */
-export interface InvitationIssuedDto {
-  readonly status: 'invited'
-  readonly expiresAt: string
-  readonly link?: string
-}
-
 export const toInvitationIssuedDto = (issued: IssuedInvitation): InvitationIssuedDto => ({
   status: 'invited',
   expiresAt: iso(issued.expiresAt),
   ...(issued.delivery === 'link' ? { link: issued.link } : {}),
 })
 
-/**
- * What a link would do, for the page that asks its holder to accept: the purpose, the target's
- * name and when it ends. Nothing about the inviter, the address, or whether the address has an
- * account (`previewInvitation` says why).
- */
-export interface InvitationPreviewDto {
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly expiresAt: string
-}
-
 export const toInvitationPreviewDto = (preview: InvitationPreview): InvitationPreviewDto => ({
   kind: preview.kind,
   role: preview.role,
   targetName: preview.targetName,
   expiresAt: iso(preview.expiresAt),
+  ...(preview.terms === null
+    ? {}
+    : { terms: { url: preview.terms.url, version: preview.terms.version } }),
 })
-
-/**
- * What was accepted and where the person lands: for an event its slug, which the page opens.
- * **No address and no account id**: the person who accepted has them, and a response that
- * carried the address would tell whoever holds a link whose mailbox it was.
- */
-export interface InvitationAcceptedDto {
-  readonly status: 'accepted'
-  readonly kind: 'event' | 'client'
-  readonly role: 'moderator' | 'owner' | 'member'
-  readonly targetName: string
-  readonly eventSlug: string | null
-}
 
 export const toInvitationAcceptedDto = (accepted: AcceptedInvitation): InvitationAcceptedDto => ({
   status: 'accepted',
@@ -776,14 +766,6 @@ export const toInvitationAcceptedDto = (accepted: AcceptedInvitation): Invitatio
 })
 
 // --------------------------------------------------------------- missions --
-
-// Imported here rather than folded into the statement list at the top of the file, for
-// the same reason the event-route presenters below are: route modules written against
-// this file at the same time then merge cleanly. Type-only, so nothing reaches the bundle.
-import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
-import type { MissionSummary } from '../../../application/usecases/missions/listMissions'
-import type { WallMissionStanding } from '../../../application/usecases/slideshow/getWallPlaylist'
-import type { GuestMissionDto, MissionDto, WallMissionDto } from './dto'
 
 /**
  * The host's row: the prompt, and the three numbers a host at a laptop mid-evening
@@ -903,3 +885,103 @@ export const toGalleryPageDto = (page: GalleryPage): GalleryPageDto => ({
   items: page.items.map(toGalleryPhotoDto),
   nextCursor: page.nextCursor,
 })
+
+// ----------------------------------------------------------------- client space --
+
+export const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto => ({
+  maxEvents: ceilings.maxEvents,
+  maxTotalBytes: ceilings.maxTotalBytes,
+  maxEventQuotaBytes: ceilings.maxEventQuotaBytes,
+  maxRetentionDays: ceilings.maxRetentionDays,
+  clipsAllowed: ceilings.clipsAllowed,
+  liveAllowed: ceilings.liveAllowed,
+  maxLiveDays: ceilings.maxLiveDays,
+  maxEventsPerPeriod: ceilings.maxEventsPerPeriod,
+  periodStartedAt: isoOrNull(ceilings.periodStartedAt),
+})
+
+const toClientUsageDto = (usage: ClientLimits['usage']): ClientUsageDto => ({
+  events: usage.events,
+  eventsCreatedInPeriod: usage.eventsCreatedInPeriod,
+  usedBytes: usage.usedBytes,
+})
+
+const toCeilingMeterDto = (meter: ClientLimits['meters'][number]): CeilingMeterDto => ({
+  kind: meter.kind,
+  used: meter.used,
+  max: meter.max,
+  level: meter.level,
+})
+
+export const toClientLimitsDto = (limits: ClientLimits): ClientLimitsDto => ({
+  id: limits.clientId,
+  name: limits.name,
+  role: limits.role,
+  suspended: limits.suspended,
+  ceilings: toCeilingsDto(limits.ceilings),
+  usage: toClientUsageDto(limits.usage),
+  meters: limits.meters.map(toCeilingMeterDto),
+})
+
+export const toMyLimitsDto = (limits: readonly ClientLimits[]): MyLimitsDto => ({
+  clients: limits.map(toClientLimitsDto),
+})
+
+/**
+ * The log of a client as its owner may read it: field by field, never a spread of the record.
+ *
+ * What is left out is the point. The actor's account id is not copied, so an owner is told that
+ * "the operator" did something and never which operator; an account subject's id is not copied
+ * either. `details` is passed through whole, because the action's allow-list (`auditAction.ts`)
+ * already admits nothing but numbers, switches and instants.
+ */
+const INSTANT_TEXT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+
+/**
+ * What of an entry's `details` an owner may read: numbers, switches, instants and objects of
+ * those. The allow-list refuses anything else when an entry is **written**, but a row is read
+ * back as it was stored (`AuditRecord` is deliberately looser, so last year's history stays
+ * readable), so the owner's door checks again: a string that is not an instant, or an array, is
+ * dropped here and never reaches a client, whatever an older allow-list let into the row.
+ */
+const readableDetails = (details: AuditPage['items'][number]['details']): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(details).flatMap(([key, value]): [string, unknown][] => {
+      if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+        return [[key, value]]
+      }
+      if (typeof value === 'string') return INSTANT_TEXT.test(value) ? [[key, value]] : []
+      return typeof value === 'object' && !Array.isArray(value)
+        ? [[key, readableDetails(value)]]
+        : []
+    }),
+  )
+
+const toClientAuditEntryDto = (record: AuditPage['items'][number]): ClientAuditEntryDto => ({
+  seq: record.seq,
+  at: iso(record.at),
+  action: record.action,
+  actor: { kind: record.actor.kind, label: record.actor.label },
+  subject:
+    record.subject.type === 'account'
+      ? { type: record.subject.type }
+      : { type: record.subject.type, id: record.subject.id },
+  details: readableDetails(record.details),
+})
+
+export const toClientAuditPageDto = (page: AuditPage): ClientAuditPageDto => ({
+  items: page.items.map(toClientAuditEntryDto),
+  next: page.next,
+})
+
+const toPendingInvitationDto = (invitation: PendingInvitation): PendingInvitationDto => ({
+  id: invitation.id,
+  email: invitation.email,
+  role: invitation.role,
+  createdAt: iso(invitation.createdAt),
+  expiresAt: iso(invitation.expiresAt),
+})
+
+export const toPendingInvitationsDto = (
+  invitations: readonly PendingInvitation[],
+): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })

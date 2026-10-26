@@ -1,5 +1,5 @@
-import { createHmac } from 'node:crypto'
 import { expect, test } from '@playwright/test'
+import { base32, currentStep, HOSTED, totp } from '../fixtures/operatorFactor'
 import { OWNER_SETTLED_PASSWORD, startTestApp, type TestApp } from '../fixtures/startTestApp'
 
 /**
@@ -7,8 +7,8 @@ import { OWNER_SETTLED_PASSWORD, startTestApp, type TestApp } from '../fixtures/
  * P3-15, ring 6): a real server process, a real SQLite file, the real session store, the real
  * bcrypt and the real AES-256-GCM vault, configured the way the hosted instance is.
  *
- * **The authenticator here is not the product's.** `totp` below is RFC 6238 written out from
- * the RFC in this file, with its own base32 decoder, so the claim being tested is the one that
+ * **The authenticator here is not the product's.** `totp` (in `fixtures/operatorFactor.ts`) is RFC 6238 written out from
+ * the RFC, with its own base32 decoder, so the claim being tested is the one that
  * matters to an operator — "the code my app shows is a code this server accepts" — and not
  * "the product agrees with itself". `nodeTotpEngine.test.ts` holds the production engine to the
  * RFC's vectors; this holds the whole stack to an engine that shares no line with it.
@@ -23,41 +23,6 @@ type Json = Record<string, unknown>
 
 /** The `error.code` of a failure body, or `undefined`. */
 const codeOf = (body: Json | null): unknown => (body?.['error'] as Json | undefined)?.['code']
-
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-
-const base32 = (text: string): Buffer => {
-  let bits = ''
-  for (const character of text.replace(/=+$/, '')) {
-    bits += ALPHABET.indexOf(character).toString(2).padStart(5, '0')
-  }
-  const bytes: number[] = []
-  for (let at = 0; at + 8 <= bits.length; at += 8) bytes.push(parseInt(bits.slice(at, at + 8), 2))
-  return Buffer.from(bytes)
-}
-
-/** RFC 6238 with HMAC-SHA1, thirty seconds, six digits, from the RFC's own text. */
-const totp = (secret: Buffer, step: number): string => {
-  const counter = Buffer.alloc(8)
-  counter.writeBigUInt64BE(BigInt(step))
-  const mac = createHmac('sha1', secret).update(counter).digest()
-  const offset = (mac[mac.length - 1] ?? 0) & 0x0f
-  const binary =
-    (((mac[offset] ?? 0) & 0x7f) << 24) |
-    ((mac[offset + 1] ?? 0) << 16) |
-    ((mac[offset + 2] ?? 0) << 8) |
-    (mac[offset + 3] ?? 0)
-  return String(binary % 1_000_000).padStart(6, '0')
-}
-
-const currentStep = (): number => Math.floor(Date.now() / 1000 / 30)
-
-const MFA_KEY = Buffer.alloc(32, 7).toString('base64')
-const HOSTED = {
-  SITE_ADMIN: 'on',
-  REQUIRE_OPERATOR_2FA: 'true',
-  MFA_ENCRYPTION_KEY: MFA_KEY,
-}
 
 /** A browser's worth of cookies and the CSRF token, talking to the server over `fetch`. */
 const aBrowser = async (app: TestApp) => {

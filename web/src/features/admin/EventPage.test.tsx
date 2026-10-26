@@ -3,9 +3,11 @@ import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, Route, Routes } from 'react-router-dom'
 import { EventPage } from './EventPage'
+import styles from './EventPage.module.css'
 import { ApiError } from '../../lib/http'
-import { formatBytes } from '../../lib/format'
+import { formatBytes, formatDateTime } from '../../lib/format'
 import { fr } from '../../lib/i18n/fr'
+import { classesOf, cls } from '../../testing/classesOf'
 import {
   anAbout,
   anEventDto,
@@ -76,6 +78,22 @@ describe('EventPage', () => {
     expect(screen.getByText(fr.admin.qrScanPrompt)).toBeVisible()
   })
 
+  it('keeps the printed page to the QR card: the other two columns are for the screen only', async () => {
+    const { container } = renderPage(fakeApi())
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+
+    // The card for the tables is what the host prints; the join code's controls and the guest
+    // list have nothing to say on paper, and `screenOnly` is what hides them there.
+    const columns = [...container.querySelectorAll('div')].filter((element) =>
+      classesOf(element).includes(cls(styles, 'column')),
+    )
+    expect(columns.map((column) => classesOf(column).includes(cls(styles, 'screenOnly')))).toEqual([
+      true,
+      false,
+      true,
+    ])
+  })
+
   it('links to the wall, the moderation console, the settings and the album', async () => {
     renderPage(fakeApi())
 
@@ -121,6 +139,41 @@ describe('EventPage', () => {
         ),
       ),
     ).toBeVisible()
+  })
+
+  it('draws the meter against the quota the box holds the event to, not the one it was stored with', async () => {
+    // G2-05's review, finding 4: the server now answers `quotaBytes` as the effective quota, and
+    // the meter is drawn against exactly that number.
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ usedBytes: 1_000, quotaBytes: 2_000 })),
+    })
+
+    renderPage(api)
+
+    const bar = await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
+    expect(bar).toHaveAttribute('aria-valuemax', '2000')
+  })
+
+  it('says when the live window of a client’s event closes, and says nothing when it has none', async () => {
+    const closing = '2026-06-23T18:00:00.000Z'
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ liveWindowEnd: closing })),
+    })
+
+    renderPage(api)
+
+    expect(
+      await screen.findByText(
+        fr.clientSpace.liveWindowEnd(formatDateTime(closing, 'fr') ?? closing),
+      ),
+    ).toBeVisible()
+  })
+
+  it('has no live window line for an event that has none', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }))
+
+    await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
+    expect(screen.queryByText(/Le direct se termine/)).toBeNull()
   })
 
   it('asks before changing the join code, and says the connected guests stay connected', async () => {
@@ -190,7 +243,11 @@ describe('EventPage', () => {
     renderPage(api)
 
     expect(await screen.findByRole('heading', { name: fr.admin.shareLink })).toBeVisible()
-    expect(api.shareLink).toHaveBeenCalledWith('camille-et-sacha', expect.any(AbortSignal))
+    // The heading is there from the panel's first render, and the read is an effect that runs
+    // after that commit: waiting for the heading is not waiting for the call.
+    await waitFor(() =>
+      expect(api.shareLink).toHaveBeenCalledWith('camille-et-sacha', expect.any(AbortSignal)),
+    )
   })
 
   it('hides the owner-only controls from a moderator', async () => {

@@ -319,6 +319,43 @@ describe('Client lifecycle', () => {
     expect(suspendedAgain.suspendedAt).toBe(AT)
   })
 
+  describe('offboarding (G2-14 part 3)', () => {
+    const DEADLINE = new Date(AT.getTime() + 30 * 86_400_000)
+
+    it('freezes the client and dates its purge', () => {
+      const offboarded = must(Client.create(aNewClient(), ID, AT)).offboard(AT, DEADLINE)
+
+      expect(offboarded.isSuspended()).toBe(true)
+      expect(offboarded.suspendedAt).toBe(AT)
+      expect(offboarded.purgeAfter).toBe(DEADLINE)
+      expect(offboarded.isOffboarding()).toBe(true)
+    })
+
+    it('is not offboarding until it is asked to be', () => {
+      expect(must(Client.create(aNewClient(), ID, AT)).isOffboarding()).toBe(false)
+    })
+
+    it('keeps the instant of an earlier suspension, and does not freeze again', () => {
+      const earlier = new Date(AT.getTime() - 5_000)
+      const offboarded = must(Client.create(aNewClient(), ID, AT))
+        .suspend(earlier)
+        .offboard(AT, DEADLINE)
+
+      expect(offboarded.suspendedAt).toBe(earlier)
+    })
+
+    it('keeps its first deadline: asking again does not push the purge back', () => {
+      const first = must(Client.create(aNewClient(), ID, AT)).offboard(AT, DEADLINE)
+
+      const again = first.offboard(
+        new Date(AT.getTime() + 1_000),
+        new Date(DEADLINE.getTime() + 86_400_000),
+      )
+
+      expect(again.purgeAfter).toBe(DEADLINE)
+    })
+  })
+
   it('reinstates a suspended client', () => {
     const client = must(Client.create(aNewClient(), ID, AT)).suspend(AT)
 

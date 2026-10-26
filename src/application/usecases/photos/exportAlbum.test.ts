@@ -1,22 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asEventId, type EventId } from '../../../domain/shared/ids'
+import { asEventId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
-import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
-import type { LogContext, Logger } from '../../ports/logger'
 import {
   MEDIA_VARIANTS,
-  type MediaMetadata,
-  type MediaStore,
-  type MediaVariant,
-  type StoredObject,
   type PhotoVariant,
 } from '../../ports/mediaStore'
-import { anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
+import { aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
+import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
+import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { FakeArchiveWriter } from '../../testing/fakeArchiveWriter'
 
 /** One byte per unit of length, so a test can tell the variants apart by size. */
 const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
@@ -25,155 +22,8 @@ const BYTES_PER_VARIANT: Readonly<Record<PhotoVariant, number>> = {
   thumb: 1,
 }
 
-class InMemoryMediaStore implements MediaStore {
-  private readonly objects = new Map<string, Uint8Array>()
-
-  private readonly unreadable = new Set<string>()
-
-  /** Models the retention purge removing a file while a host is downloading. */
-  vanishAfterStat(eventId: EventId, hash: ContentHash): this {
-    for (const variant of MEDIA_VARIANTS) this.unreadable.add(this.key(eventId, hash, variant))
-    return this
-  }
-
-  private key(eventId: EventId, hash: ContentHash, variant: MediaVariant): string {
-    return `${eventId}|${hash.value}|${variant}`
-  }
-
-  async put(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-    bytes: Uint8Array,
-  ): Promise<void> {
-    this.objects.set(this.key(eventId, hash, variant), bytes)
-  }
-
-  async exists(eventId: EventId, hash: ContentHash, variant: MediaVariant): Promise<boolean> {
-    return this.objects.has(this.key(eventId, hash, variant))
-  }
-
-  async stat(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<MediaMetadata | null> {
-    const bytes = this.objects.get(this.key(eventId, hash, variant))
-    return bytes === undefined ? null : {
-            byteSize: bytes.length,
-            contentType: 'image/jpeg',
-            // Not a fact any of these tests depends on; the sweep is the only reader.
-            modifiedAt: new Date(0),
-          }
-  }
-
-  async openRead(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<AsyncIterable<Uint8Array> | null> {
-    const key = this.key(eventId, hash, variant)
-    const bytes = this.objects.get(key)
-    if (bytes === undefined || this.unreadable.has(key)) return null
-    return (async function* () {
-      yield bytes
-    })()
-  }
-
-  async read(
-    eventId: EventId,
-    hash: ContentHash,
-    variant: MediaVariant,
-  ): Promise<Uint8Array | null> {
-    return this.objects.get(this.key(eventId, hash, variant)) ?? null
-  }
-
-  async delete(eventId: EventId, hash: ContentHash): Promise<void> {
-    for (const variant of MEDIA_VARIANTS) this.objects.delete(this.key(eventId, hash, variant))
-  }
-
-  async deleteEvent(eventId: EventId): Promise<void> {
-    for (const key of [...this.objects.keys()]) {
-      if (key.startsWith(`${eventId}|`)) this.objects.delete(key)
-    }
-  }
-
-  // Reconciliation only. A use case that started enumerating the store would fail
-  // loudly here rather than pass against a permissive stub.
-  async listEvents(): Promise<readonly EventId[]> {
-    throw new Error(`listEvents is not part of an album export`)
-  }
-
-  async list(): Promise<readonly StoredObject[]> {
-    throw new Error(`list is not part of an album export`)
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
-}
-
-interface RecordedEntry {
-  readonly name: string
-  readonly byteSize: number
-  readonly modifiedAt: Date
-  /** Bytes actually pulled from the store, so a test can prove which variant it got. */
-  readonly bytesRead: number
-}
-
-/**
- * Records what it was asked to archive and emits one chunk per entry, so a test can
- * assert on the album's contents without a real ZIP.
- */
-class FakeArchiveWriter implements ArchiveWriter {
-  readonly entries: RecordedEntry[] = []
-
-  stream(entries: AsyncIterable<ArchiveEntry>): AsyncIterable<Uint8Array> {
-    const recorded = this.entries
-    return (async function* () {
-      for await (const entry of entries) {
-        let bytesRead = 0
-        for await (const chunk of entry.bytes) bytesRead += chunk.length
-
-        recorded.push({
-          name: entry.name,
-          byteSize: entry.byteSize,
-          modifiedAt: entry.modifiedAt,
-          bytesRead,
-        })
-        yield Uint8Array.of(recorded.length)
-      }
-    })()
-  }
-}
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
-}
+/** A clip's two files. Distinct sizes, so a test can tell the transcode from the poster by length. */
+const BYTES_PER_CLIP_FILE = { video: 20, poster: 2 } as const
 
 const EVENT = asEventId('event-1')
 
@@ -188,7 +38,7 @@ describe('exportAlbum', () => {
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
-    media = new InMemoryMediaStore()
+    media = new InMemoryMediaStore().forbidEnumeration('an album export')
     archive = new FakeArchiveWriter()
     logger = new CapturingLogger()
     events.seed(
@@ -211,6 +61,15 @@ describe('exportAlbum', () => {
       )
     }
     return photo.contentHash
+  }
+
+  /** A published clip with both of its files on the disk, which is what a finished transcode leaves. */
+  const seedClip = async (input: PhotoInput): Promise<ContentHash> => {
+    const clip = aClip({ eventId: 'event-1', ...input })
+    photos.seed(clip)
+    await media.put(clip.eventId, clip.contentHash, 'video', new Uint8Array(BYTES_PER_CLIP_FILE.video))
+    await media.put(clip.eventId, clip.hashFor('poster'), 'poster', new Uint8Array(BYTES_PER_CLIP_FILE.poster))
+    return clip.contentHash
   }
 
   /** Consumes the archive, as the HTTP layer piping it to the response would. */
@@ -265,7 +124,6 @@ describe('exportAlbum', () => {
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries.map((entry) => entry.byteSize)).toEqual([BYTES_PER_VARIANT.original])
     expect(archive.entries.map((entry) => entry.bytesRead)).toEqual([BYTES_PER_VARIANT.original])
   })
 
@@ -275,6 +133,67 @@ describe('exportAlbum', () => {
     await drain(await exportAlbum({ eventId: EVENT }))
 
     expect(archive.entries.map((entry) => entry.modifiedAt)).toEqual([atPlus(5_000)])
+  })
+
+  // ---------------------------------------------------------------- clips --
+
+  /**
+   * A clip has no `original` (`mediaVariant.ts`): the file the host keeps is its transcode.
+   * The album used to ask every row for an `original`, so every clip was skipped with a
+   * warning and a host who exported and then purged lost their videos.
+   */
+  it('archives a clip, as its transcode, named for what it is', async () => {
+    const hash = await seedClip({ id: 'c1', status: 'published' })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(namesInArchive()).toEqual([`camille-et-sacha/0001-${hash.short}.mp4`])
+  })
+
+  it('archives the clip transcode itself, not its poster', async () => {
+    await seedClip({ id: 'c1', status: 'published' })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(archive.entries.map((entry) => entry.bytesRead)).toEqual([BYTES_PER_CLIP_FILE.video])
+  })
+
+  it('does not warn that it skipped a clip that is there', async () => {
+    await seedClip({ id: 'c1', status: 'published' })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(logger.lines).toEqual([])
+  })
+
+  it('carries photographs and clips in one album, numbered together', async () => {
+    const photo = await seedPhoto({ id: 'p1', status: 'published', createdAt: atPlus(1_000) })
+    const clip = await seedClip({ id: 'c1', status: 'published', createdAt: atPlus(0) })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(namesInArchive()).toEqual([
+      `camille-et-sacha/0001-${photo.short}.jpg`,
+      `camille-et-sacha/0002-${clip.short}.mp4`,
+    ])
+  })
+
+  it('keeps a hidden clip, as it keeps a hidden photograph, and leaves a rejected one out', async () => {
+    const hidden = await seedClip({ id: 'c-hidden', status: 'hidden', createdAt: atPlus(1_000) })
+    await seedClip({ id: 'c-rejected', status: 'rejected', createdAt: atPlus(0) })
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(namesInArchive()).toEqual([`camille-et-sacha/0001-${hidden.short}.mp4`])
+  })
+
+  it('skips a clip whose transcode is gone, and says so', async () => {
+    photos.seed(aClip({ id: 'c-orphan', eventId: 'event-1', status: 'published' }))
+
+    await drain(await exportAlbum({ eventId: EVENT }))
+
+    expect(archive.entries).toEqual([])
+    expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
   it('emits the archive as chunks rather than one buffer', async () => {
@@ -307,14 +226,14 @@ describe('exportAlbum', () => {
     expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
   })
 
-  it('skips a file that disappears between the size check and the open', async () => {
-    const hash = await seedPhoto({ id: 'purged', status: 'published' })
-    media.vanishAfterStat(EVENT, hash)
+  it('names the row it skipped, because that is the only trace the operator has to it', async () => {
+    photos.seed(aPhoto({ id: 'orphan', eventId: 'event-1', status: 'published' }))
 
     await drain(await exportAlbum({ eventId: EVENT }))
 
-    expect(archive.entries).toEqual([])
-    expect(logger.lines.map((line) => line.level)).toEqual(['warn'])
+    expect(logger.lines.map((line) => line.context)).toEqual([
+      { eventId: EVENT, photoId: 'orphan' },
+    ])
   })
 
   it('numbers the entries continuously even when a photo is skipped', async () => {

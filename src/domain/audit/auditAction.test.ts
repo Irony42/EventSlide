@@ -43,19 +43,41 @@ describe('AUDIT_ACTIONS', () => {
 
   // ---------------------------------------------------- the content-free rule --
 
-  it('declares no detail that can carry text a person typed: only numbers, switches and instants', () => {
-    const allowed = new Set(['integer', 'boolean', 'instant'])
+  it('declares no detail that can carry text a person typed: only numbers, switches, instants and the name of a document', () => {
+    // `termsVersion` is the one string kind: at most 32 characters of a fixed alphabet, written
+    // from the box's configuration and never from a request (`auditDetails.ts` says why).
+    const allowed = new Set(['integer', 'boolean', 'instant', 'termsVersion'])
 
     for (const action of ACTIONS) {
       const kinds = Object.values(AUDIT_ACTIONS[action].details).flatMap(leafKinds)
-      for (const kind of kinds) expect(allowed.has(kind), `${action}: ${kind}`).toBe(true)
+      for (const kind of kinds) {
+        if (kind === 'reason') continue // the one exception, held by the test below
+        expect(allowed.has(kind), `${action}: ${kind}`).toBe(true)
+      }
     }
   })
 
+  it('lets exactly one declaration carry the free-text reason: client.ceilingsChanged, under the key reason', () => {
+    // The decision of 2026-10-23: a change of ceilings carries a mandatory reason, and it is the
+    // one field of the log a person types. A second declaration using the kind is a new decision,
+    // made in a diff that edits this test, and not a key that rode along.
+    const carrying = ACTIONS.filter((action) =>
+      Object.values(AUDIT_ACTIONS[action].details).some((kind) =>
+        leafKinds(kind).includes('reason'),
+      ),
+    )
+    expect(carrying).toEqual(['client.ceilingsChanged'])
+
+    const details: DetailFields = AUDIT_ACTIONS['client.ceilingsChanged'].details
+    expect(details['reason']).toEqual({ type: 'reason' })
+    expect(Object.keys(details).filter((key) => details[key]?.type === 'reason')).toEqual([
+      'reason',
+    ])
+  })
+
   it('declares no detail named like content a person wrote: a caption, a name, an address, a slug, a token', () => {
-    // A free-text note on a change (G2-18's `reason`) is the one planned exception, and
-    // arriving here with its own kind and its own bound is the point at which this list is
-    // widened on purpose. It is not a word to be slipped into an existing declaration.
+    // `reason` is not in this list because it is the one declared exception (G2-14), with its own
+    // kind and its own bound, held by the test above; every other free-text name stays out.
     const content = [
       'caption',
       'photo',
@@ -91,11 +113,29 @@ describe('AUDIT_ACTIONS', () => {
     expect(declared.type === 'object' && Object.keys(declared.fields).sort()).toEqual(ceilingKeys)
   })
 
+  it('holds the snapshot of client.created to the same keys, so a client is never opened with a ceiling the log does not name', () => {
+    const declared = AUDIT_ACTIONS['client.created'].details.ceilings
+    const ceilingKeys = Object.keys(ClientCeilings.unlimited().toProps()).sort()
+
+    expect(declared.type).toBe('object')
+    expect(declared.type === 'object' && Object.keys(declared.fields).sort()).toEqual(ceilingKeys)
+    expect(declared).toEqual(AUDIT_ACTIONS['client.ceilingsChanged'].details.before)
+  })
+
   it('declares the same snapshot before and after, so the two sides are always comparable', () => {
     for (const action of ACTIONS) {
       const details: DetailFields = AUDIT_ACTIONS[action].details
       expect(details['before'], action).toEqual(details['after'])
     }
+  })
+})
+
+describe('account.termsAccepted', () => {
+  it('is about an account and says the version of the terms, and nothing else', () => {
+    expect(AUDIT_ACTIONS['account.termsAccepted']).toEqual({
+      subject: 'account',
+      details: { version: { type: 'termsVersion' } },
+    })
   })
 })
 

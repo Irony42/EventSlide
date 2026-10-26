@@ -98,6 +98,18 @@ describe('EventSettingsPage', () => {
     expect(screen.getByText(fr.admin.moderationAutoWarning)).toBeVisible()
   })
 
+  it('lets the live region it sits in announce the warning, with no role of its own', async () => {
+    renderPage(fakeApi())
+    await userEvent.click(await screen.findByLabelText(fr.admin.moderationAuto))
+
+    const warning = screen.getByText(fr.admin.moderationAutoWarning)
+
+    // One announcement, by the region the page mounted once: a role on the warning as
+    // well would say it twice.
+    expect(warning.closest('[aria-live="polite"]')).not.toBeNull()
+    expect(warning.closest('[role="alert"], [role="status"]')).toBeNull()
+  })
+
   it('takes the warning away again when the host goes back to validating each photo', async () => {
     renderPage(fakeApi())
 
@@ -541,7 +553,9 @@ describe('EventSettingsPage', () => {
       await userEvent.click(await screen.findByRole('button', { name: fr.admin.scheduleSave }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.scheduleInPast'])
-      expect(getEvent.mock.calls.length).toBeGreaterThan(1)
+      // The sentence and the re-read are one update, but the read is an effect that runs after
+      // the commit that shows the sentence, so the second read is waited for.
+      await waitFor(() => expect(getEvent.mock.calls.length).toBeGreaterThan(1))
     })
 
     it('re-reads the event when the host comes back to the tab', async () => {
@@ -571,6 +585,22 @@ describe('EventSettingsPage', () => {
       await waitFor(() => expect(pending.settle(anEventDto())).toBe(true))
     })
 
+    it('says a refresh that failed as a status, and keeps the form it already had', async () => {
+      // The page keeps the answer it had rather than blanking, and says so instead of
+      // pretending it is current. It is polite: the host is reading, not waiting on it.
+      const getEvent = vi.fn(async () => anEventDto())
+      renderPage(fakeApi({ getEvent }))
+      await screen.findByRole('heading', { name: fr.admin.schedule })
+      getEvent.mockRejectedValueOnce(ApiError.network())
+
+      fireEvent(window, new Event('focus'))
+
+      const note = await screen.findByText(fr.errors.network)
+      expect(note.closest('[role="status"]')).not.toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.getByRole('heading', { name: fr.admin.schedule })).toBeVisible()
+    })
+
     it('keeps what the host has typed when a background refresh changes nothing', async () => {
       // The revalidation above must not be a way to lose an edit in progress. The draft
       // is compared by value, so it is reset only when the server's answer really moved.
@@ -593,6 +623,23 @@ describe('EventSettingsPage', () => {
       renderPage(api)
 
       expect(await screen.findByText(/n’a pas pu s’appliquer/)).toBeVisible()
+    })
+
+    it('says it politely, as a status the host reads in turn rather than an alert that interrupts', async () => {
+      // Nothing has failed that the host must act on now: the fields below are empty
+      // because of the sweep, and saving anything clears the note.
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            anEventDto({ scheduleDiscardedAt: '2026-06-21T02:00:00.000Z' }),
+          ),
+        }),
+      )
+
+      const note = await screen.findByText(/n’a pas pu s’appliquer/)
+
+      expect(note.closest('[role="status"]')).not.toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
     })
 
     it('says nothing of the sort when no schedule was ever thrown away', async () => {

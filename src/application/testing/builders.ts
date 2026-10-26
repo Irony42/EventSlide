@@ -779,6 +779,7 @@ export const anAuditEntry = (input: AuditEntryInput = {}): AuditEntry => {
       details: pick(input.details, {
         before: aCeilingsSnapshot({ maxEvents: 5 }),
         after: aCeilingsSnapshot({ maxEvents: 6 }),
+        reason: 'Demande du client',
       }),
     }),
     'anAuditEntry',

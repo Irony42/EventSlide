@@ -9,7 +9,7 @@ import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { PASSWORD_MIN_LENGTH } from '../auth/passwordPolicy'
-import { LoadFailure, Pending } from './components/AsyncState'
+import { Async } from '../../design-system/components/Async'
 import { SelectField } from './components/SelectField'
 import { useShareLink } from './hooks/useEventData'
 import { useCreateShareLink, useRevokeShareLink } from './hooks/useEventActions'
@@ -43,7 +43,8 @@ const DEFAULT_LIFETIME = 30
 export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
   const t = useTranslations()
   const { locale } = useLocale()
-  const { data, loading, error, reload } = useShareLink(slug)
+  const shareLink = useShareLink(slug)
+  const { reload } = shareLink
   const create = useCreateShareLink()
   const revoke = useRevokeShareLink()
   const toast = useToast()
@@ -54,13 +55,13 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
   const [created, setCreated] = useState<ShareLinkCreated | null>(null)
   const [confirming, setConfirming] = useState(false)
 
-  const link = data?.link ?? null
+  const link = shareLink.data?.link ?? null
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setCreateFailure(null)
-    // Not trimmed, for the reason the moderator invitation gives: a passphrase's spaces
-    // are part of it, and the one the host reads out must be the one that was stored.
+    // Not trimmed: a passphrase's spaces are part of it, and the one the host passes on
+    // must be the one that was stored.
     void create.run('create', slug, { expiresInDays: lifetime, password }).then((result) => {
       if (!result.ok) {
         setCreateFailure(result.message)
@@ -99,27 +100,26 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
 
   return (
     <Card as="h2" title={t.admin.shareLink} subtitle={t.admin.shareLinkHint}>
-      {loading ? <Pending label={t.app.loading} /> : null}
-      {!loading && error !== null ? <LoadFailure message={error} onRetry={reload} as="h3" /> : null}
-
-      {!loading && error === null ? (
-        <div className={styles['status']} role="status">
-          {link === null ? (
-            <p className={styles['none']}>{t.admin.shareLinkNone}</p>
-          ) : (
-            <>
-              <p className={link.available ? styles['open'] : styles['closed']}>
-                {link.available
-                  ? t.admin.shareLinkActive(until ?? link.expiresAt)
-                  : t.admin.shareLinkUnavailable}
-              </p>
-              <Badge tone={link.hasPassword ? 'accent' : 'neutral'}>
-                {link.hasPassword ? t.admin.shareLinkProtected : t.admin.shareLinkUnprotected}
-              </Badge>
-            </>
-          )}
-        </div>
-      ) : null}
+      <Async state={shareLink} as="h3">
+        {() => (
+          <div className={styles['status']} role="status">
+            {link === null ? (
+              <p className={styles['none']}>{t.admin.shareLinkNone}</p>
+            ) : (
+              <>
+                <p className={link.available ? styles['open'] : styles['closed']}>
+                  {link.available
+                    ? t.admin.shareLinkActive(until ?? link.expiresAt)
+                    : t.admin.shareLinkUnavailable}
+                </p>
+                <Badge tone={link.hasPassword ? 'accent' : 'neutral'}>
+                  {link.hasPassword ? t.admin.shareLinkProtected : t.admin.shareLinkUnprotected}
+                </Badge>
+              </>
+            )}
+          </div>
+        )}
+      </Async>
 
       {created === null ? null : (
         <div className={styles['created']}>

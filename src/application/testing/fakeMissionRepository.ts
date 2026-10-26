@@ -4,6 +4,7 @@ import type { MissionPrompt } from '../../domain/missions/missionPrompt'
 import type { Photo } from '../../domain/photos/photo'
 import type { EventId, GuestId, MissionId } from '../../domain/shared/ids'
 import type { MissionRepository, MissionWithProgress } from '../ports/missionRepository'
+import { compareIds } from './ordering'
 
 /**
  * In-memory `MissionRepository`, behaving the way the SQLite adapter must.
@@ -39,8 +40,7 @@ const key = (eventId: EventId, missionId: MissionId): string => `${eventId}:${mi
 
 /** Creation order, then id, exactly as `idx_event_missions_event` orders the real list. */
 const inHostOrder = (left: Mission, right: Mission): number =>
-  left.createdAt.getTime() - right.createdAt.getTime() ||
-  Number(left.id > right.id) - Number(left.id < right.id)
+  left.createdAt.getTime() - right.createdAt.getTime() || compareIds(left.id, right.id)
 
 export class FakeMissionRepository implements MissionRepository {
   private readonly rows = new Map<string, Mission>()

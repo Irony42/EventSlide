@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { cx } from '../classNames'
 import styles from './IconButton.module.css'
 
 export type IconButtonVariant = 'ghost' | 'solid' | 'danger'
@@ -31,9 +32,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   },
   ref,
 ) {
-  const classes = [styles['iconButton'], styles[variant], styles[size], className]
-    .filter(Boolean)
-    .join(' ')
+  const classes = cx(styles['iconButton'], styles[variant], styles[size], className)
 
   return (
     <button {...rest} ref={ref} type={type} className={classes} aria-label={ariaLabel}>

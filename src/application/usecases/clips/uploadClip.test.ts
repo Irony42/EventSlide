@@ -3,7 +3,6 @@ import { MAX_ATTEMPTS } from '../../../domain/clips/clipFailure'
 import type { PhotoAuthor } from '../../../domain/photos/photo'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
-import type { LogContext, Logger } from '../../ports/logger'
 import type { TranscodeSpec } from '../../ports/videoTranscoder'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import { aClient, anEvent, aPhoto, type EventInput } from '../../testing/builders'
@@ -18,6 +17,8 @@ import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { SequentialIdGenerator } from '../../testing/sequentialIdGenerator'
 import { makeUploadClip, type UploadClip } from './uploadClip'
+import { CapturingLogger } from '../../testing/capturingLogger'
+import { CountingClientRepository } from '../../testing/countingClientRepository'
 
 /**
  * Staging a clip. The rules this protects are the ones that decide what a guest standing
@@ -42,30 +43,6 @@ const hasher: ContentHasher = {
     }
     return digest.slice(0, 64)
   },
-}
-
-class CapturingLogger implements Logger {
-  readonly lines: { level: string; message: string }[] = []
-
-  debug(message: string): void {
-    this.lines.push({ level: 'debug', message })
-  }
-
-  info(message: string): void {
-    this.lines.push({ level: 'info', message })
-  }
-
-  warn(message: string): void {
-    this.lines.push({ level: 'warn', message })
-  }
-
-  error(message: string): void {
-    this.lines.push({ level: 'error', message })
-  }
-
-  child(_bindings: LogContext): Logger {
-    return this
-  }
 }
 
 const aClipFile = (seed = 'one', byteSize = 4_000_000): Uint8Array =>
@@ -837,18 +814,6 @@ describe('uploadClip under a client’s ceilings', () => {
   const EVENT_2_ID = asEventId('event-2')
   const EVENT_3 = asEventId('event-3')
   const EVENT_4 = asEventId('event-4')
-
-  /** Counts the reads, so "an event with no client never asks" is a number. */
-  class CountingClientRepository extends FakeClientRepository {
-    contextReads = 0
-
-    override async contextForEvent(
-      ...args: Parameters<FakeClientRepository['contextForEvent']>
-    ): ReturnType<FakeClientRepository['contextForEvent']> {
-      this.contextReads += 1
-      return super.contextForEvent(...args)
-    }
-  }
 
   let clients: CountingClientRepository
   let events: FakeEventRepository

@@ -1,4 +1,5 @@
 import { useLayoutEffect, type ReactNode } from 'react'
+import { cx } from '../design-system/classNames'
 import { glassSurfaceProps, type GlassBackdrop } from '../design-system/glass'
 import { useLocale } from '../lib/i18n/useTranslations'
 import { useInteractionBudget } from './useInteractionBudget'
@@ -30,7 +31,7 @@ export interface AppShellProps {
    */
   readonly footer?: ReactNode
   readonly children: ReactNode
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /**
@@ -62,7 +63,7 @@ export function AppShell({
   className,
 }: AppShellProps) {
   const { locale, text } = useLocale()
-  const classes = [styles['main'], styles[surface], className].filter(Boolean).join(' ')
+  const classes = cx(styles['main'], styles[surface], className)
 
   /**
    * What this machine has turned out to be able to afford — roadmap 11.3.
