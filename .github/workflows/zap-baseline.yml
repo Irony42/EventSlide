@@ -1,0 +1,245 @@
+# A passive OWASP ZAP baseline scan of the running, production-configured server (roadmap G7-03).
+#
+# WHAT IT IS. The built app is started on a throwaway database with `NODE_ENV=production`, one
+# demo event is seeded, and ZAP's baseline scan (zaproxy/action-baseline) spiders it and runs its
+# **passive** rules over every response it saw: the headers, the cookies, the CSP, the cache
+# directives, what the JSON answers say. It never sends an attack payload, never fills a form and
+# never signs in. docs/TESTING.md (the ZAP baseline section) states what that covers and what it
+# does not; the short version is that an unauthenticated passive scan reads what a stranger's
+# browser is handed, and says nothing about authorisation, injection or the host console.
+#
+# WHEN IT RUNS. On a manual dispatch, on every `v*` tag (so a release has a report from the build
+# it ships), weekly (ZAP's rules and add-ons move under a fixed tree, so a clean release can turn
+# amber by itself), and on a pull request that touches this file or `.zap/` and nothing else. It is
+# not part of ci.yml and is not a required check: a scanner that goes amber because ZAP published
+# a rule must not stop an unrelated pull request.
+#
+# WHAT FAILS IT. `fail_action: true`: any alert ZAP rates WARN or FAIL that `.zap/rules.tsv` has not
+# said is intended. The rules file starts with no exception; read the header of that file before
+# adding one.
+#
+# WHAT IT NEVER DOES. `allow_issue_writing: false`: the action's default is to open and update a
+# GitHub issue per scan, which needs `issues: write` and files noise nobody asked for. The report is
+# an artifact of the run instead, and the token below can read the code and nothing else.
+#
+# PINNING. Every action is pinned to a full commit SHA with its release in a comment, and the
+# token is empty by default and granted per job (scripts/workflowPinning.test.ts, when #152 lands).
+# `actions/checkout` and `actions/upload-artifact` are the same commits release.yml uses: one
+# action is one commit across the repository.
+
+name: ZAP baseline
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+  schedule:
+    # Wednesday, a different slot from image-scan.yml's Monday, so the two do not queue together.
+    - cron: '41 4 * * 3'
+  pull_request:
+    # Only the files that define the scan: a pull request that changes the product does not pay for
+    # it (ten minutes of a runner, and a ZAP image pull), and the weekly run and every release tag
+    # cover the product.
+    paths:
+      - '.github/workflows/zap-baseline.yml'
+      - '.zap/**'
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A newer push to a pull request supersedes the scan of the older one. A tag and a scheduled run
+  # are never superseded: nothing else shares their ref, and a release's scan is the one to keep.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  zap:
+    name: ZAP baseline (passive)
+    runs-on: ubuntu-latest
+    # A warm run is about eight minutes: install and build (two), pulling ZAP's image and starting
+    # it (three), the spider and the passive rules (one to three). The bound is for a slow image
+    # pull, not for a scan that is expected to take that long.
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        # `pipefail`, which the default `bash -e` does not set.
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        # As in ci.yml, and for the reason written there: `ffmpeg-static` and `ffprobe-static`
+        # fetch a ~220 MB binary from a third-party host during `npm ci`, outside the npm cache,
+        # so a bad minute on that host fails a job that has nothing to do with video. A second
+        # attempt costs seconds when the first one worked and does not hide a broken lockfile,
+        # which fails both times. The whole tree is needed, devDependencies included: the build
+        # and the seed below run on `tsc`, `vite` and `tsx`.
+        run: npm ci || npm ci
+
+      - name: Build
+        run: npm run build
+
+      # The server's whole configuration is this one file, written once and handed to both the
+      # seed and the server with `--env-file`, so the two cannot disagree about the database.
+      #
+      # Production, because that is what the posture under test is: `NODE_ENV` is left to say
+      # `production` explicitly (it is also the default), which is what turns on the strict CSP
+      # (no `'unsafe-inline'` in `script-src`), HSTS, `upgrade-insecure-requests` and the Secure
+      # cookies. `E2E_HOOKS` is absent on purpose: boot refuses it in production.
+      #
+      # `PUBLIC_URL` is `http://localhost`, not `http://127.0.0.1`: production refuses plain http for
+      # every host but the literal name `localhost` (src/infrastructure/config/linkFields.ts), and
+      # a scan of anything else would need TLS in front of the server. The two secrets are drawn
+      # fresh each run, so a report never carries a value that could be replayed against a box.
+      # `SITE_ADMIN=on` is what the maintainer's hosted instance runs (docs/adr/0007), so the
+      # operator's namespace is mounted for the scan to find the gate in front of it.
+      - name: Write the throwaway server configuration
+        run: |
+          data="$RUNNER_TEMP/zap-data"
+          mkdir -p "$data"
+          session_secret="$(openssl rand -hex 32)"
+          guest_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$session_secret"
+          echo "::add-mask::$guest_secret"
+          cat > "$RUNNER_TEMP/zap-server.env" <<EOF
+          NODE_ENV=production
+          PORT=4300
+          PUBLIC_URL=http://localhost:4300
+          SESSION_SECRET=$session_secret
+          GUEST_TOKEN_SECRET=$guest_secret
+          DATABASE_PATH=$data/eventslide.sqlite
+          MEDIA_ROOT=$data/media
+          SITE_ADMIN=on
+          LOG_LEVEL=warn
+          EOF
+
+      # Through the real use cases (scripts/seedDemo.ts), before the server starts: the script
+      # refuses a database that already holds an account, and it creates the demo owner and one
+      # live event, `camille-et-sacha`, with six published photographs and their reactions. That is
+      # what gives the scan a join page, a wall and a media route with something behind them.
+      - name: Seed one live event
+        run: npx tsx --env-file="$RUNNER_TEMP/zap-server.env" scripts/seedDemo.ts
+
+      - name: Start the built server
+        run: |
+          nohup node --enable-source-maps --env-file="$RUNNER_TEMP/zap-server.env" dist/server/main/index.js \
+            > "$RUNNER_TEMP/zap-server.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/zap-server.pid"
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail --output /dev/null http://localhost:4300/api/ready; then
+              echo "ready after $attempt attempt(s)"
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/zap-server.pid")" 2>/dev/null; then
+              echo "::error::the server exited before it was ready"
+              cat "$RUNNER_TEMP/zap-server.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::the server was not ready after 60 seconds"
+          cat "$RUNNER_TEMP/zap-server.log"
+          exit 1
+
+      # The spider follows links, and this is a single-page app: every page of it is the same
+      # `index.html` with no link in it, so left alone the scan would see the shell, its bundle
+      # and nothing the guest, the wall or the API answers. ZAP's spider also reads `/sitemap.xml`
+      # (its `parseSitemapXml` option is on by default), so the pages worth scanning are written
+      # into one, inside the build output of this run only. Nothing here is committed, and the
+      # product serves no sitemap of its own: without this file `/sitemap.xml` is the shell.
+      #
+      # What is listed: the shell on the three public surfaces (guest, wall, about) and on the two
+      # token pages, which are served with their own headers (`no-store`, `noindex`); the probes;
+      # the public JSON a stranger can read (about, the join lookup, the wall); one photograph's
+      # two renditions through the media route; and two routes that must refuse a stranger
+      # (`/api/events`, `/api/site/overview`), so the answer they give is scanned too. The event
+      # stream is left out: an SSE response never ends, and a spider waits for it.
+      - name: List the pages the spider cannot discover
+        run: |
+          slug=camille-et-sacha
+          curl --silent --show-error --fail "http://localhost:4300/api/events/$slug/wall" \
+            --output "$RUNNER_TEMP/zap-wall.json"
+          node - <<'JS'
+          const { readFileSync, writeFileSync } = require('node:fs')
+          const base = 'http://localhost:4300'
+          const wall = JSON.parse(readFileSync(process.env.RUNNER_TEMP + '/zap-wall.json', 'utf8'))
+          const slug = wall.event.slug
+          const code = wall.joinCode
+          const photo = wall.items[0]
+          if (!code || !photo) throw new Error('the seeded wall has no join code or no photograph')
+          const paths = [
+            '/about',
+            '/join/' + code,
+            '/e/' + slug + '/display',
+            '/e/' + slug + '/upload',
+            '/g/zap-baseline',
+            '/invite/zap-baseline',
+            '/api/health',
+            '/api/ready',
+            '/api/about',
+            '/api/join/' + code,
+            '/api/events/' + slug + '/wall',
+            photo.thumbUrl,
+            photo.displayUrl,
+            '/api/events',
+            '/api/site/overview',
+          ]
+          const urls = paths.map((path) => '  <url><loc>' + base + path + '</loc></url>')
+          const sitemap =
+            '<?xml version="1.0" encoding="UTF-8"?>\n' +
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+            urls.join('\n') +
+            '\n</urlset>\n'
+          writeFileSync('dist/client/sitemap.xml', sitemap)
+          console.log(paths.join('\n'))
+          JS
+
+      # The scan itself. The action runs ZAP in a container with `--network host` and mounts the
+      # workspace at /zap/wrk, so `localhost` is the runner's own loopback, where the server is.
+      #
+      # `-T 10`: ten minutes at most for ZAP to start and for the passive rules to finish. No `-j`
+      # (the browser-driven spider): it would be one more thing to start in the container, the
+      # policy's `upgrade-insecure-requests` would send its sub-requests to https on a plain-http
+      # port, and the event stream would hold it open. No `-a` either: the alpha rules are the ones
+      # ZAP itself says are not ready to fail a build on.
+      #
+      # The image is the action's default, ZAP's `stable` tag, on purpose: a scanner that is
+      # pinned stops learning, and the weekly run exists to say when a new rule has something to
+      # report. The action is what is pinned.
+      #
+      # The reports (HTML, JSON and Markdown) are uploaded by the action itself, as one artifact
+      # of this run, whatever the verdict.
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: 'http://localhost:4300'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-T 10'
+          allow_issue_writing: false
+          fail_action: true
+          artifact_name: zap-baseline-report
+
+      - name: Stop the server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/zap-server.pid")" 2>/dev/null || true
+
+      # What a person needs to tell a scan of a broken server from a scan of a good one: the
+      # server's own log, and the list of pages the spider was given.
+      - name: Keep the server's log and the page list
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zap-baseline-server
+          path: |
+            ${{ runner.temp }}/zap-server.log
+            dist/client/sitemap.xml
+          retention-days: 7

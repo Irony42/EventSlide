@@ -1,0 +1,41 @@
+# The rules file of the ZAP baseline scan (.github/workflows/zap-baseline.yml, roadmap G7-03).
+#
+# It decides what a passive alert means to the build. Every alert ZAP raises is a WARN by default,
+# and the workflow runs with `fail_action: true`, so a WARN or a FAIL that this file does not
+# mention fails the job. The file therefore starts with NO exception: the first finding of a scan
+# is a thing to read, and only a finding that is shown to be the intended behaviour of the product
+# is added here.
+#
+# Format: one rule per line, TAB-separated (a space is not a separator):
+#
+#   <rule id>  <IGNORE|INFO|WARN|FAIL>  (<rule name>)  <optional message, shown in the log>
+#
+# The id and the name are in the scan's log and in its report (the artifact `zap-baseline-report`).
+# A line starting with `#` is a comment, and so is nothing else.
+#
+# What an IGNORE owes, before it is merged:
+#
+#   1. A comment block above it saying WHY the behaviour is intended, in a sentence a reviewer who
+#      has not seen the scan can check, with the section of docs/SECURITY.md (or the ADR) that
+#      states it. "ZAP is wrong" is not a reason; "this cookie is read by the page's own script,
+#      docs/SECURITY.md section 7" is.
+#   2. The route it was seen on, when the rule is intended there and nowhere else. An IGNORE covers
+#      every URL. The format scopes a rule to a route with `<rule id>  OUTOFSCOPE  <url regex>`,
+#      which is what to prefer when only one route is the exception; see the note below on when
+#      such a line is applied at all.
+#   3. It never silences a finding to turn the job green. A real finding stays a WARN, the job stays
+#      red, and the finding is written up where the maintainer reads it (a pull request, an issue,
+#      docs/SECURITY.md section 12 "Accepted risks" if it is accepted).
+#
+# How the action reads this file, because it is not obvious and it is the reason the file can look
+# inert: zaproxy/action-baseline hands the file to ZAP (`-c`) only when it holds at least one
+# IGNORE line. A file of comments, or one that only moves a rule to FAIL or INFO or scopes it with
+# OUTOFSCOPE, is never passed, and its lines are silently not applied. The day the first IGNORE is
+# added the whole file starts to apply, every other line included. So after any edit, read the scan's
+# log: an IGNORE, an INFO or an OUTOFSCOPE that did what it says shows as such in the summary.
+#
+# Example (a comment, not a rule):
+#
+#   # Why: the CSRF token's cookie is read by the page's own script to be echoed in a header
+#   # (the double-submit pattern), so it cannot be HttpOnly. docs/SECURITY.md section 7.
+#   10010	IGNORE	(Cookie No HttpOnly Flag)	the CSRF cookie is script-readable on purpose
