@@ -620,6 +620,50 @@ describe('the console’s accounts: deleting one', () => {
     },
   )
 
+  it('shows the newest refusal and takes the earlier one off the screen', async () => {
+    // A refusal stays until it is dismissed, because one of them carries a thing to do. That
+    // is what made two refused deletes in a row read as two problems, the first about an
+    // account the operator has already moved on from.
+    const siteDeleteAccount = vi
+      .fn<Api['siteDeleteAccount']>()
+      .mockRejectedValueOnce(new ApiError(409, 'account.holdsEvents'))
+      .mockRejectedValueOnce(new ApiError(409, 'account.holdsReviews'))
+    const second = aSiteAccount({ id: 'user-second', email: 'moderatrice@example.com' })
+    open(withAccounts([aSiteAccount(), second], { siteDeleteAccount }))
+    await screen.findByRole('table')
+
+    await userEvent.click(screen.getAllByRole('button', { name: fr.site.deleteAccount })[0]!)
+    await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
+    expect(await screen.findByText(fr.errors['account.holdsEvents'])).toBeVisible()
+
+    await userEvent.click(screen.getAllByRole('button', { name: fr.site.deleteAccount })[1]!)
+    await confirmDialog(fr.site.deleteTitle('moderatrice@example.com'), fr.site.deleteAccount)
+
+    expect(await screen.findByText(fr.errors['account.holdsReviews'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['account.holdsEvents'])).toBeNull()
+  })
+
+  it('shows the newest refusal of a switch-off over an earlier refusal of a deletion', async () => {
+    // The same rule across the four acts the page offers, because the toast is shared.
+    const siteDeleteAccount = vi
+      .fn<Api['siteDeleteAccount']>()
+      .mockRejectedValue(new ApiError(409, 'account.holdsEvents'))
+    const siteDisableAccount = vi
+      .fn<Api['siteDisableAccount']>()
+      .mockRejectedValue(new ApiError(403, 'account.operatorProtected'))
+    open(withAccounts([aSiteAccount()], { siteDeleteAccount, siteDisableAccount }))
+    await screen.findByRole('table')
+
+    await press(fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
+    expect(await screen.findByText(fr.errors['account.holdsEvents'])).toBeVisible()
+    await press(fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
+
+    expect(await screen.findByText(fr.errors['account.operatorProtected'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['account.holdsEvents'])).toBeNull()
+  })
+
   it('asks the operator to confirm themselves when the server says so, and deletes on that confirmation', async () => {
     const siteDeleteAccount = vi
       .fn<Api['siteDeleteAccount']>()
