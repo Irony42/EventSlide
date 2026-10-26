@@ -475,6 +475,28 @@ starting `<?php`, an SVG with an inline `<script>`, a valid JPEG with HTML appen
 because a test that asserts on a MIME string re-creates the 1.0 defect it exists to
 prevent.
 
+### A passive scan of the running server (ZAP baseline, G7-03)
+
+Every ring above runs code the repository wrote; none reads what a stranger's browser is
+handed by the **built server in its production configuration** — the headers, the cookies,
+the CSP, the cache directives, what a public JSON route says. `.github/workflows/zap-baseline.yml`
+does. It builds the app, seeds the demo event on a throwaway database, starts the server with
+`NODE_ENV=production` and `SITE_ADMIN=on`, and runs OWASP ZAP's baseline scan against it. The
+guest, wall and about pages and the public API routes are handed to ZAP's spider through a
+`sitemap.xml` written into that run's build output, because the web app is one `index.html`
+with no link in it. **It covers** ZAP's passive rules over unauthenticated responses, and
+nothing more: no payload is sent, no form is filled and nothing is signed in, so the host
+console, the moderation routes and the operator's namespace are seen only as the `401` they
+give a stranger, the DOM the app builds in a browser is not scanned (no browser spider), and
+authorization and tenant isolation stay with the named tests above. It runs on demand, on
+every `v*` tag, weekly (ZAP's rules move under a fixed tree) and on a pull request that
+changes the workflow or `.zap/` only; it is not a required check. A WARN or a FAIL fails the
+job unless `.zap/rules.tsv` says the behaviour is intended, with the reason and the section of
+`docs/SECURITY.md` that states it: the file starts with no exception, and a real finding is
+never ignored to turn the job green. No GitHub issue is opened. The report (HTML, JSON and
+Markdown) is the artifact `zap-baseline-report` of the run, and `zap-baseline-server` holds
+the server's log and the page list, for a scan that went wrong rather than amber.
+
 ---
 
 ## 9. End to end
