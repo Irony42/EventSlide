@@ -85,3 +85,34 @@ updates:
       # the day it closes.
       - dependency-name: 'typescript'
         versions: ['>=7']
+
+  # The actions the workflows use, which are pinned by commit SHA (scripts/workflowPinning.test.ts).
+  # A pin that nothing updates is a pin that rots, and Dependabot is what moves one: it reads the
+  # `# vX.Y.Z` comment after the SHA, bumps both, and the pull request shows what changed in the
+  # action. Grouped, minor and patch only, because there are about a dozen of them and a bump of
+  # one is rarely worth a pull request of its own; a major is opened alone, as for npm.
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    groups:
+      actions:
+        applies-to: version-updates
+        update-types: ['minor', 'patch']
+
+  # The base image of the Dockerfile, which is pinned by digest. A new digest of the same tag
+  # is a new Debian and a new Node patch, and it is how the image gets the fixes of the
+  # distribution it is built on: the pull request builds the image and runs
+  # scripts/verify-image.sh like any other, and merging it is a reason to cut a corrective
+  # release (docs/SECURITY.md, "A critical vulnerability in what decodes a guest's file").
+  #
+  # `node` is held at the major the runtime is (24, as in CI, `engines.node` and the `@types/node`
+  # pin above). A new major of the base image is a decision that moves all of those together,
+  # not a weekly pull request.
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    ignore:
+      - dependency-name: 'node'
+        update-types: ['version-update:semver-major']
