@@ -578,6 +578,9 @@ export const en: UiText = {
     photoByAnonymous: 'Photo sent by a guest',
     errorTitle: 'The photos could not be loaded',
     errorHint: 'Trying again. Check the venue network if the screen stays empty.',
+    notServedTitle: 'This gallery is not on display',
+    notServedHint:
+      'It is not open, or it has been archived. If it opens, the screen will pick up by itself.',
     dismissJoinCard: 'Hide the code reminder',
     shortcuts: 'Keyboard shortcuts',
     shortcutsHint:

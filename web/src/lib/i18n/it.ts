@@ -599,6 +599,9 @@ export const it: UiText = {
     photoByAnonymous: 'Foto inviata da un invitato',
     errorTitle: 'Non è stato possibile caricare le foto',
     errorHint: 'Nuovo tentativo in corso. Controlli la rete della sala se lo schermo resta vuoto.',
+    notServedTitle: 'Questa galleria non è visualizzata',
+    notServedHint:
+      'Non è aperta oppure è stata archiviata. Se si apre, lo schermo riprenderà da solo.',
     dismissJoinCard: 'Nascondi il promemoria del codice',
     shortcuts: 'Scorciatoie da tastiera',
     shortcutsHint:

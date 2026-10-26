@@ -3732,6 +3732,14 @@ the stream with a `retry:` of a minute, and frees its slot. A closed event still
 wall, so closing one ends nothing. The moderation stream asks only that the event still exists
 and the account still holds a role in it.
 
+**How the projected wall learns that.** A browser's `EventSource` reports no status, so an ended
+stream looks like a dropped network. The wall therefore reads `GET /api/events/:slug/wall` once
+whenever a stream that was delivering is lost: the answer `404 event.notFound` clears the wall to
+"this gallery is not on display" (and it keeps asking every ten seconds, so a draft that is opened
+or a client that is resumed brings the photos back by itself); no answer, a `5xx` or any other
+refusal is an outage, and the wall keeps cycling the photos it holds with its "connection lost"
+notice. A `404` that does not carry that code, such as a proxy's own page, is the second kind.
+
 A slot is returned the moment the connection closes, so a client that reloads gets it
 straight back. The client key is the one every other limiter uses, IPv6 collapsed to its
 /56 subnet.
