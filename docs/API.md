@@ -3739,6 +3739,8 @@ whenever a stream that was delivering is lost: the answer `404 event.notFound` c
 or a client that is resumed brings the photos back by itself); no answer, a `5xx` or any other
 refusal is an outage, and the wall keeps cycling the photos it holds with its "connection lost"
 notice. A `404` that does not carry that code, such as a proxy's own page, is the second kind.
+A wall that holds photos and has no live stream also reads the wall every 30 seconds, for the
+outages the stream cannot report: a stream refused for good never delivered, so it never reports a loss.
 
 A slot is returned the moment the connection closes, so a client that reloads gets it
 straight back. The client key is the one every other limiter uses, IPv6 collapsed to its

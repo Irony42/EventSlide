@@ -580,7 +580,7 @@ export const en: UiText = {
     errorHint: 'Trying again. Check the venue network if the screen stays empty.',
     notServedTitle: 'This gallery is not on display',
     notServedHint:
-      'It is not open, or it has been archived. If it opens, the screen will pick up by itself.',
+      'It is not open, or it has been archived. If it opens, the screen will resume by itself.',
     dismissJoinCard: 'Hide the code reminder',
     shortcuts: 'Keyboard shortcuts',
     shortcutsHint:

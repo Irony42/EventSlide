@@ -600,7 +600,7 @@ export const es: UiText = {
     errorTitle: 'No se han podido cargar las fotos',
     errorHint: 'Se está reintentando. Revise la red del local si la pantalla sigue vacía.',
     notServedTitle: 'Esta galería no se muestra',
-    notServedHint: 'No está abierta o se ha archivado. Si se abre, la pantalla seguirá sola.',
+    notServedHint: 'No está abierta o se ha archivado. Si se abre, la pantalla se reanudará sola.',
     dismissJoinCard: 'Ocultar el aviso del código',
     shortcuts: 'Atajos de teclado',
     shortcutsHint:

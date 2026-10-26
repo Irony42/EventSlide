@@ -57,6 +57,19 @@ const RETRY_DELAY_MS = 10_000
 const NOT_SERVED_CODE = 'event.notFound'
 
 /**
+ * How often a wall whose stream is down reads the playlist anyway.
+ *
+ * The safety net under the stream's own report of a loss. That report is one shot per outage,
+ * and there are ways to be down without making it: a stream refused for good (the per-client cap,
+ * a proxy that blocks event streams) never delivered, and one that reconnects into a 404 after the
+ * wall was read a moment earlier has no second drop to report. Without this the room would keep an
+ * archived album, and never see a new photograph, until somebody reloaded the page. Half a
+ * minute: a wall that has lost its stream is already a degraded room, and this is one small read
+ * per projector, not one per signal.
+ */
+const STREAM_DOWN_REFRESH_MS = 30_000
+
+/**
  * Whether a failed read is the server saying the event is no longer served — and nothing else.
  *
  * The code decides, not the status. A reverse proxy in the middle of a deploy also answers 404,
@@ -64,7 +77,7 @@ const NOT_SERVED_CODE = 'event.notFound'
  * would be the opposite mistake to the one this exists for: no answer, a refusal that is not
  * about the event, and a transport failure all leave the room its photos.
  */
-export const isNotServed = (cause: Error | null): boolean =>
+const isNotServed = (cause: Error | null): boolean =>
   cause instanceof ApiError && cause.code === NOT_SERVED_CODE
 
 /**
@@ -187,7 +200,9 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
  *    server ended because the event is gone looks exactly like a network that dropped, and
  *    nothing else would ever re-read the wall of a projector whose feed has gone quiet. When a
  *    stream that was delivering is lost, the wall is read once: a 404 settles it, anything
- *    else is the outage it looks like, and the read's own failure re-arms the retry below.
+ *    else is the outage it looks like, and the read's own failure re-arms the retry below. A
+ *    wall that holds photos and has no stream also re-reads on a slow timer, for the outages the
+ *    stream cannot report (see `STREAM_DOWN_REFRESH_MS`).
  */
 export const useWallPlaylist = (slug: string): WallPlaylistState => {
   const api = useApi()
@@ -280,6 +295,14 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
   }, [state.error, refresh])
 
   const notServed = isNotServed(state.error)
+
+  const holdsPlaylist = state.wall !== null
+
+  useEffect(() => {
+    if (slug === '' || connected || !holdsPlaylist) return
+    const timer = window.setInterval(refresh, STREAM_DOWN_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [slug, connected, holdsPlaylist, refresh])
 
   return {
     wall: state.wall,

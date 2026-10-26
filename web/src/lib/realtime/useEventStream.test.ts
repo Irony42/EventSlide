@@ -401,6 +401,26 @@ describe('useEventStream', () => {
     expect(second).toHaveBeenCalledWith<[StreamSignal]>({ type: 'photo.uploaded' })
   })
 
+  it('keeps the connection when only onDrop changes identity, and calls the newest one', () => {
+    // A page that passes an inline arrow gets a new one every render. Rebuilding the stream
+    // for it would lose Last-Event-ID, and calling the first one would act on stale state.
+    const first = vi.fn()
+    const second = vi.fn()
+    const { rerender } = renderHook(
+      (onDrop: () => void) => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }),
+      { initialProps: first },
+    )
+    const stream = latest()
+    act(() => stream.emitOpen())
+
+    rerender(second)
+    act(() => stream.emitDrop())
+
+    expect(FakeEventSource.instances).toHaveLength(1)
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
   describe('telling the page that a connection it had was lost', () => {
     it('says so once when an open connection drops', () => {
       // The page cannot see why: an `EventSource` reports no status, so a stream the

@@ -1389,6 +1389,41 @@ describe('WallPage', () => {
       expect(failure).not.toHaveTextContent(fr.wall.notServedTitle)
     })
 
+    it('stops showing the album when the stream never opens and the event is gone', async () => {
+      // A feed refused for good (the per-client cap, a proxy that blocks event streams) never
+      // delivers, so it never reports a loss. The wall was read once, before the archive, and
+      // would keep the album until somebody reloaded it.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const wall = photosThen(() => Promise.reject(theEventIsGone()))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
+    })
+
+    it('reads nothing on a timer while the stream is delivering', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const wall = vi.fn(async () => aPopulatedWall())
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      // The server's heartbeat keeps the silence watchdog from reading this as a dead pipe.
+      for (let beat = 0; beat < 3; beat += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(20_000)
+          theStream().dispatchEvent(new MessageEvent('ping', { data: '{}' }))
+        })
+      }
+
+      expect(wall).toHaveBeenCalledTimes(1)
+    })
+
     it('comes back by itself when the event is served again', async () => {
       // A draft wall set up before the party, a suspension the operator lifts: nobody walks
       // over to the projector, so the page keeps asking.

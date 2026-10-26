@@ -626,7 +626,7 @@ export const de: UiText = {
       'Es wird erneut versucht. Prüfen Sie das Netz vor Ort, wenn der Bildschirm leer bleibt.',
     notServedTitle: 'Diese Galerie wird nicht angezeigt',
     notServedHint:
-      'Sie ist nicht geöffnet oder wurde archiviert. Wird sie geöffnet, setzt der Bildschirm von selbst wieder ein.',
+      'Sie ist nicht geöffnet oder wurde archiviert. Wird sie geöffnet, zeigt der Bildschirm die Fotos von selbst wieder an.',
     dismissJoinCard: 'Code-Hinweis ausblenden',
     shortcuts: 'Tastenkürzel',
     shortcutsHint:
