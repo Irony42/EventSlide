@@ -32,8 +32,8 @@ interface Line {
   readonly raw: string
 }
 
-const fail = (line: Line | undefined, message: string): never => {
-  throw new Error(`workflow YAML, line ${line?.number ?? 'end'}: ${message}`)
+const fail = (line: Line, message: string): never => {
+  throw new Error(`workflow YAML, line ${line.number}: ${message}`)
 }
 
 const isItem = (text: string): boolean => /^-( |$)/.test(text)
@@ -72,8 +72,8 @@ const unquote = (text: string, line: Line): string => {
   return first === "'" ? inside.replaceAll("''", "'") : inside.replaceAll('\\"', '"')
 }
 
+/** Both callers hand it a non-empty value: an empty one is the caller's `null`. */
 const scalar = (text: string, line: Line): YamlValue => {
-  if (text === '') return null
   if (/^[&*!]/.test(text)) return fail(line, `anchors, aliases and tags are not supported: ${text}`)
   if (text.startsWith('>')) return fail(line, 'folded block scalars (>) are not supported')
   if (text.startsWith('|')) return fail(line, `only a plain | block scalar is supported: ${text}`)
@@ -202,7 +202,8 @@ export const parseWorkflow = (source: string): YamlMap => {
   const first = lines[0]
   if (first === undefined) return {}
   const top = mapping(first.indent)
-  if (cursor < lines.length) fail(lines[cursor], 'unexpected indentation')
+  const leftover = lines[cursor]
+  if (leftover !== undefined) fail(leftover, 'unexpected indentation')
   return top
 }
 

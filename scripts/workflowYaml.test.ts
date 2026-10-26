@@ -20,6 +20,15 @@ describe('parseWorkflow, on the shapes the workflows are written in', () => {
     })
   })
 
+  it('reads a key with nothing after it on the last line as null', () => {
+    expect(parseWorkflow('a: 1\nb:')).toEqual({ a: '1', b: null })
+  })
+
+  it('reads a bare dash as an empty item, first or last', () => {
+    expect(parseWorkflow('list:\n  -\n  - a')).toEqual({ list: [null, 'a'] })
+    expect(parseWorkflow('list:\n  - a\n  -')).toEqual({ list: ['a', null] })
+  })
+
   it('reads every scalar as a string, quotes and comments removed', () => {
     const parsed = parseWorkflow(
       [
