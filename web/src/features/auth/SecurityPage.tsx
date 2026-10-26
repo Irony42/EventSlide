@@ -11,7 +11,7 @@ import type { SecondFactorProof, TotpEnrolmentDto } from '../../lib/api/dto'
 import { ApiError } from '../../lib/http'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
-import { messageForError } from '../../lib/i18n/translations'
+import { messageForPasswordError } from '../../lib/i18n/translations'
 import styles from './SecurityPage.module.css'
 
 /**
@@ -34,7 +34,8 @@ const useAction = () => {
       try {
         return { value: await action() }
       } catch (cause) {
-        setError(messageForError(cause, t))
+        // Every credential this page asks for is the password: the address is the session's.
+        setError(messageForPasswordError(cause, t))
         onRefused?.(cause instanceof ApiError ? cause.code : undefined)
         return null
       } finally {

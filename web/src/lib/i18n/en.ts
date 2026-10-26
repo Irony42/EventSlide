@@ -887,6 +887,7 @@ export const en: UiText = {
 
     changePasswordIntro: 'Choose a password you do not use anywhere else.',
     passwordSaved: 'Password saved.',
+    passwordIncorrect: 'Wrong password.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Two-step verification',

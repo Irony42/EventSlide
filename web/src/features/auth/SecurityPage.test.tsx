@@ -80,9 +80,9 @@ describe('SecurityPage', () => {
 
       await start('mauvais')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        fr.errors['auth.invalidCredentials'],
-      )
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(fr.auth.passwordIncorrect)
+      expect(alert).not.toHaveTextContent(fr.errors['auth.invalidCredentials'])
       expect(screen.queryByRole('img', { name: fr.auth.setupQrLabel })).toBeNull()
     })
 

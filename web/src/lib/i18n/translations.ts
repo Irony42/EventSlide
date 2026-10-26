@@ -124,6 +124,20 @@ export const messageForCode = (code: string | undefined, text: UiText): string =
 }
 
 /**
+ * The same, for a prompt that asks for a password and nothing else: changing it, confirming
+ * oneself, setting up the second factor.
+ *
+ * `auth.invalidCredentials` is one sentence for the sign-in form on purpose: it names the address
+ * as well, so that a wrong address and a wrong password cannot be told apart. These prompts have
+ * no address field (the person is signed in already), so the same sentence reads as a refusal of
+ * something they were never asked for. Here the refusal can only be the password.
+ */
+export const messageForPasswordError = (cause: unknown, text: UiText): string =>
+  cause instanceof ApiError && cause.code === 'auth.invalidCredentials'
+    ? text.auth.passwordIncorrect
+    : messageForError(cause, text)
+
+/**
  * A thrown value turned into a sentence a person can read, in the language they are reading.
  *
  * An `ApiError` carries the server's stable code and nothing else, so its sentence is

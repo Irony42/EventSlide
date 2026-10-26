@@ -1105,6 +1105,10 @@ export const fr = {
     /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Choisissez un mot de passe que vous n’utilisez pas ailleurs.',
     passwordSaved: 'Mot de passe enregistré.',
+    // The refusal of a prompt that asks for the password and nothing else (change it, confirm
+    // oneself, set up the second factor): the address is already known there, so naming it
+    // would make a wrong password read as a wrong account.
+    passwordIncorrect: 'Mot de passe incorrect.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Vérification en deux étapes',

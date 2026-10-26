@@ -926,6 +926,7 @@ export const es: UiText = {
 
     changePasswordIntro: 'Elija una contraseña que no use en ningún otro sitio.',
     passwordSaved: 'Contraseña guardada.',
+    passwordIncorrect: 'La contraseña no es correcta.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Verificación en dos pasos',

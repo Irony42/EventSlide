@@ -109,6 +109,9 @@ describe('ChangePasswordPage', () => {
       confirmation: 'une-phrase-de-passe-solide',
     })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['auth.invalidCredentials'])
+    const alert = await screen.findByRole('alert')
+    // A form with no address field: the sentence must not talk about one.
+    expect(alert).toHaveTextContent(fr.auth.passwordIncorrect)
+    expect(alert).not.toHaveTextContent(fr.errors['auth.invalidCredentials'])
   })
 })

@@ -7,6 +7,7 @@ import {
   TRANSLATIONS,
   messageForCode,
   messageForError,
+  messageForPasswordError,
   withFrenchFallback,
   type UiText,
 } from './translations'
@@ -172,6 +173,37 @@ describe('messageForCode', () => {
     expect(messageForCode(undefined, text)).toBe(text.errors.unknown)
     expect(messageForCode('constructor', text)).toBe(text.errors.unknown)
   })
+})
+
+describe('messageForPasswordError', () => {
+  it.each(SUPPORTED_LOCALES)(
+    'says the password is wrong, and names no address, for a refused credential, in %s',
+    (locale) => {
+      // A prompt that asks for the password and nothing else: the address is not a field there.
+      const text = TRANSLATIONS[locale]
+      const refused = new ApiError(401, 'auth.invalidCredentials')
+
+      expect(messageForPasswordError(refused, text)).toBe(text.auth.passwordIncorrect)
+      expect(messageForPasswordError(refused, text)).not.toBe(messageForError(refused, text))
+    },
+  )
+
+  it.each(SUPPORTED_LOCALES)(
+    'answers every other failure as messageForError does, in %s',
+    (locale) => {
+      const text = TRANSLATIONS[locale]
+
+      for (const cause of [
+        new ApiError(404, 'event.notFound'),
+        new ApiError(500, 'event.somethingNew'),
+        new ApiError(401, 'auth.invalidSecondFactor'),
+        new Error('database is locked'),
+        null,
+      ]) {
+        expect(messageForPasswordError(cause, text)).toBe(messageForError(cause, text))
+      }
+    },
+  )
 })
 
 describe('messageForError', () => {
