@@ -484,18 +484,26 @@ does. It builds the app, seeds the demo event on a throwaway database, starts th
 `NODE_ENV=production` and `SITE_ADMIN=on`, and runs OWASP ZAP's baseline scan against it. The
 guest, wall and about pages and the public API routes are handed to ZAP's spider through a
 `sitemap.xml` written into that run's build output, because the web app is one `index.html`
-with no link in it. **It covers** ZAP's passive rules over unauthenticated responses, and
-nothing more: no payload is sent, no form is filled and nothing is signed in, so the host
-console, the moderation routes and the operator's namespace are seen only as the `401` they
-give a stranger, the DOM the app builds in a browser is not scanned (no browser spider), and
-authorization and tenant isolation stay with the named tests above. It runs on demand, on
-every `v*` tag, weekly (ZAP's rules move under a fixed tree) and on a pull request that
-changes the workflow or `.zap/` only; it is not a required check. A WARN or a FAIL fails the
-job unless `.zap/rules.tsv` says the behaviour is intended, with the reason and the section of
-`docs/SECURITY.md` that states it: the file starts with no exception, and a real finding is
-never ignored to turn the job green. No GitHub issue is opened. The report (HTML, JSON and
-Markdown) is the artifact `zap-baseline-report` of the run, and `zap-baseline-server` holds
-the server's log and the page list, for a scan that went wrong rather than amber.
+with no link in it, and the run fails if the server's access log shows that ZAP did not
+request them. **It covers** ZAP's passive rules over unauthenticated responses, and nothing
+more: no attack payload is sent and nothing is signed in. So the host console (`/admin/**` is
+the same page as every other) and the moderation routes are not requested at all, the
+operator's namespace and the host's event list are asked once each and answer a stranger
+`401`, the guest, gallery and session cookies are never issued, the DOM the app builds in a
+browser is not scanned (no browser spider), and authorization and tenant isolation stay with
+the named tests above. The scan runs over plain http, where ZAP's rules for HSTS, the Secure
+flag and mixed content do nothing and report PASS: the workflow asserts the production
+headers itself, with `curl`, before it scans. It runs on demand, on every `v*` tag pushed by a
+person, weekly (ZAP's rules move under a fixed tree), and on any pull request that touches the
+workflow or `.zap/`; it is not a required check. A WARN or a FAIL fails the job unless
+`.zap/rules.tsv` says the behaviour is intended, with the reason and the section of
+`docs/SECURITY.md` that states it: the file started with no exception, each line it holds
+says why, and a real finding is never ignored to turn the job green, so while one is open the
+job is red. The run's summary lists every alert with what the rules file makes of it. Nothing
+opens a GitHub issue: a red run is seen on the Actions tab, and GitHub mails whoever last
+edited the cron line. The report (HTML, JSON and Markdown) is the artifact
+`zap-baseline-report-<attempt>` of the run, and `zap-baseline-server-<attempt>` holds the
+server's log and the page list, for a scan that went wrong rather than amber.
 
 ---
 
