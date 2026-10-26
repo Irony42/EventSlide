@@ -1,10 +1,11 @@
 # The rules file of the ZAP baseline scan (.github/workflows/zap-baseline.yml, roadmap G7-03).
 #
-# It decides what a passive alert means to the build. Every alert ZAP raises is a WARN by default,
-# and the workflow runs with `fail_action: true`, so a WARN or a FAIL that this file does not
-# mention fails the job. The file therefore starts with NO exception: the first finding of a scan
-# is a thing to read, and only a finding that is shown to be the intended behaviour of the product
-# is added here.
+# It decides what a passive alert means to the build. Every alert ZAP raises is a WARN by default
+# (informational ones included, in the mode ZAP's baseline runs in), and the workflow runs with
+# `fail_action: true`, so a WARN or a FAIL that this file does not mention fails the job. The file
+# started with NO exception: the first finding of a scan is a thing to read, and only a finding
+# that is shown to be the intended behaviour of the product is added here. The ones below are what
+# the first scan showed.
 #
 # Format: one rule per line, TAB-separated (a space is not a separator):
 #
@@ -34,8 +35,53 @@
 # added the whole file starts to apply, every other line included. So after any edit, read the scan's
 # log: an IGNORE, an INFO or an OUTOFSCOPE that did what it says shows as such in the summary.
 #
-# Example (a comment, not a rule):
+# ---------------------------------------------------------------------------------------------
+# The exceptions. Each is something the first scan (ZAP 2.17.0, run 40398368412) showed and that
+# is the intended behaviour of the product. In the mode ZAP's baseline runs in, an informational
+# alert counts as a WARN too, so the four informational ones below have to be said once.
 #
-#   # Why: the CSRF token's cookie is read by the page's own script to be echoed in a header
-#   # (the double-submit pattern), so it cannot be HttpOnly. docs/SECURITY.md section 7.
-#   10010	IGNORE	(Cookie No HttpOnly Flag)	the CSRF cookie is script-readable on purpose
+# Two findings of that scan are NOT here, on purpose, because they are not intended:
+#   10055  CSP: style-src unsafe-inline   known and documented as a defect, docs/SECURITY.md
+#                                         section 8 and the corrections table of section 14.7
+#   90004  Cross-Origin-Embedder-Policy   `crossOriginEmbedderPolicy: false` in
+#                                         src/interface/http/middleware/securityHeaders.ts, with
+#                                         no reason written anywhere
+# They stay WARN, and the job stays red, until the product changes or the maintainer accepts the
+# risk in docs/SECURITY.md section 12 and a line is added here that says so.
+# ---------------------------------------------------------------------------------------------
+
+# 10010, Cookie No HttpOnly Flag. The only cookie an anonymous request is given is `es_csrf`, the
+# double-submit CSRF value, which the page's own script has to read to send it back in the
+# `X-CSRF-Token` header; on its own it is not a credential. docs/SECURITY.md "Cookie flags"
+# (section 2) says `es_csrf` is not HttpOnly and section 7 says why, and csrf.test.ts asserts it
+# ("Deliberately not HttpOnly"). The session, guest, gallery and trusted-device cookies are HttpOnly,
+# which the ring 4 tests of their routes hold. This scan never signs in or joins, so it cannot see
+# those, and an IGNORE cannot be scoped to one cookie: it silences the rule for every cookie this
+# scan reaches, and that is the price of this line.
+10010	IGNORE	(Cookie No HttpOnly Flag)	es_csrf is script-readable on purpose, docs/SECURITY.md sections 2 and 7
+
+# 10027, Information Disclosure - Suspicious Comments. Informational. It greps comments for words
+# such as BUG, DB, WHERE or TODO, and what it matched is prose: the comments Vite leaves in the
+# shipped index.html (why the page is served in French, why it is not cached), the comment of
+# favicon.svg, and a string inside the minified bundle. None holds a credential, an address or an
+# internal path. The price of this line is that a real secret left in a comment would not be
+# raised here either; that is a code-review matter, and nothing of the kind is in the files above.
+10027	IGNORE	(Information Disclosure - Suspicious Comments)	prose comments of the shipped HTML and SVG, no secret
+
+# 10049, Storable but Non-Cacheable Content. Informational. index.html is `no-cache` on purpose: a
+# guest who scans the QR code after a deploy must never be given a page that references assets which
+# no longer exist (`mountClient`, src/interface/http/server.ts). Static files carry express's own
+# `max-age=0`. Everything under /api is `no-store` by default (`noStoreByDefault`, same file), which
+# this rule would not see in any case, as it only speaks of what may be stored.
+10049	IGNORE	(Storable but Non-Cacheable Content)	index.html is no-cache by design, src/interface/http/server.ts
+
+# 10109, Modern Web Application. Informational, and a statement about the app rather than a finding:
+# the web app is a single-page app (one index.html, scripts, no links), ZAP says so and advises its
+# browser-driven spider. This scan gives its ordinary spider the pages instead, through the sitemap
+# the workflow writes, for the reasons written beside `cmd_options` there.
+10109	IGNORE	(Modern Web Application)	a single-page app by design, the workflow feeds the spider a sitemap
+
+# 10112, Session Management Response Identified. Informational: ZAP recognising `es_csrf` as a
+# session token, a hint meant for its authenticated scans, which this one is not. Whether the
+# cookie's flags are right is what 10010 above and docs/SECURITY.md section 7 are about.
+10112	IGNORE	(Session Management Response Identified)	ZAP noticing es_csrf, a hint for authenticated scans

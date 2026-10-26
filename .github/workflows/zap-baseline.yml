@@ -15,8 +15,9 @@
 # a rule must not stop an unrelated pull request.
 #
 # WHAT FAILS IT. `fail_action: true`: any alert ZAP rates WARN or FAIL that `.zap/rules.tsv` has not
-# said is intended. The rules file starts with no exception; read the header of that file before
-# adding one.
+# said is intended, informational ones included. The rules file holds only what the first scan
+# proved to be the product's intended behaviour, each with its reason; read the header of that file
+# before adding one, and never add one to turn the job green.
 #
 # WHAT IT NEVER DOES. `allow_issue_writing: false`: the action's default is to open and update a
 # GitHub issue per scan, which needs `issues: write` and files noise nobody asked for. The report is
@@ -101,7 +102,10 @@ jobs:
       # a scan of anything else would need TLS in front of the server. The two secrets are drawn
       # fresh each run, so a report never carries a value that could be replayed against a box.
       # `SITE_ADMIN=on` is what the maintainer's hosted instance runs (docs/adr/0007), so the
-      # operator's namespace is mounted for the scan to find the gate in front of it.
+      # operator's namespace is mounted for the scan to find the gate in front of it. `LOG_LEVEL` is
+      # the default, `info`, because at that level the access log writes one line per request (the
+      # route's pattern and the status, never the address itself), and that log is what shows
+      # which routes the scan actually reached.
       - name: Write the throwaway server configuration
         run: |
           data="$RUNNER_TEMP/zap-data"
@@ -119,7 +123,7 @@ jobs:
           DATABASE_PATH=$data/eventslide.sqlite
           MEDIA_ROOT=$data/media
           SITE_ADMIN=on
-          LOG_LEVEL=warn
+          LOG_LEVEL=info
           EOF
 
       # Through the real use cases (scripts/seedDemo.ts), before the server starts: the script
@@ -233,7 +237,8 @@ jobs:
         run: kill "$(cat "$RUNNER_TEMP/zap-server.pid")" 2>/dev/null || true
 
       # What a person needs to tell a scan of a broken server from a scan of a good one: the
-      # server's own log, and the list of pages the spider was given.
+      # server's own log, whose access lines say which routes the scan reached, and the list of
+      # pages the spider was given.
       - name: Keep the server's log and the page list
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
