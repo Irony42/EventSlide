@@ -75,7 +75,8 @@ export function AccountsPage() {
    *
    * One at a time, though. Each is pinned, so two refused acts in a row used to leave two
    * sentences up, the first about an account the operator has already moved on from; the
-   * newest replaces the one before it.
+   * newest replaces the one before it. An act that goes through leaves an earlier refusal alone: it
+   * is about something else, and it may be the instruction the operator is acting on.
    */
   const lastRefusal = useRef<string | null>(null)
   const refuse = (message: string): void => {

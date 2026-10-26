@@ -69,6 +69,8 @@ export interface ConfirmPasswordResetState {
   readonly submit: (password: string) => Promise<ConfirmResetOutcome>
   readonly submitting: boolean
   readonly error: string | null
+  /** For a page that stops the next attempt itself: the old verdict is about a password that has gone. */
+  readonly clearError: () => void
 }
 
 export const useConfirmPasswordReset = (token: string): ConfirmPasswordResetState => {
@@ -76,6 +78,7 @@ export const useConfirmPasswordReset = (token: string): ConfirmPasswordResetStat
   const t = useTranslations()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const clearError = useCallback(() => setError(null), [])
 
   const submit = useCallback(
     async (password: string): Promise<ConfirmResetOutcome> => {
@@ -100,5 +103,5 @@ export const useConfirmPasswordReset = (token: string): ConfirmPasswordResetStat
     [api, t, token],
   )
 
-  return { submit, submitting, error }
+  return { submit, submitting, error, clearError }
 }

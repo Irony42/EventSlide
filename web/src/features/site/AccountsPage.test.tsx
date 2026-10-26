@@ -643,25 +643,35 @@ describe('the console’s accounts: deleting one', () => {
     expect(screen.queryByText(fr.errors['account.holdsEvents'])).toBeNull()
   })
 
-  it('shows the newest refusal of a switch-off over an earlier refusal of a deletion', async () => {
-    // The same rule across the four acts the page offers, because the toast is shared.
-    const siteDeleteAccount = vi
-      .fn<Api['siteDeleteAccount']>()
-      .mockRejectedValue(new ApiError(409, 'account.holdsEvents'))
+  it('keeps one refusal on screen across three refused acts, whichever act they were', async () => {
+    // The same rule across the acts the page offers, because the toast is shared: a reset, a
+    // switch-off and a deletion, refused in turn.
+    const siteResetPassword = vi
+      .fn<Api['siteResetPassword']>()
+      .mockRejectedValue(new ApiError(409, 'reset.mailerRequired'))
     const siteDisableAccount = vi
       .fn<Api['siteDisableAccount']>()
       .mockRejectedValue(new ApiError(403, 'account.operatorProtected'))
-    open(withAccounts([aSiteAccount()], { siteDeleteAccount, siteDisableAccount }))
+    const siteDeleteAccount = vi
+      .fn<Api['siteDeleteAccount']>()
+      .mockRejectedValue(new ApiError(409, 'account.holdsEvents'))
+    open(
+      withAccounts([aSiteAccount()], { siteResetPassword, siteDisableAccount, siteDeleteAccount }),
+    )
     await screen.findByRole('table')
+
+    await pressReset()
+    expect(await screen.findByText(fr.errors['reset.mailerRequired'])).toBeVisible()
+
+    await press(fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
+    expect(await screen.findByText(fr.errors['account.operatorProtected'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['reset.mailerRequired'])).toBeNull()
 
     await press(fr.site.deleteAccount)
     await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
     expect(await screen.findByText(fr.errors['account.holdsEvents'])).toBeVisible()
-    await press(fr.site.disableAccount)
-    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
-
-    expect(await screen.findByText(fr.errors['account.operatorProtected'])).toBeVisible()
-    expect(screen.queryByText(fr.errors['account.holdsEvents'])).toBeNull()
+    expect(screen.queryByText(fr.errors['account.operatorProtected'])).toBeNull()
   })
 
   it('asks the operator to confirm themselves when the server says so, and deletes on that confirmation', async () => {

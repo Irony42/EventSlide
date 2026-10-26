@@ -175,6 +175,40 @@ describe('AcceptInvitationPage: creating the account', () => {
     expect(api.acceptInvitation).not.toHaveBeenCalled()
   })
 
+  it('replaces the server’s refusal with the mismatch it finds on the next attempt', async () => {
+    const accept = vi
+      .fn<Api['acceptInvitation']>()
+      .mockRejectedValue(new ApiError(400, 'password.tooCommon'))
+    renderInvitation(fakeApi({ acceptInvitation: accept }))
+    await fillIn('Camille', 'password1234', 'password1234')
+    await submit()
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['password.tooCommon'])
+
+    await userEvent.clear(screen.getByLabelText(fr.auth.invitationConfirmPassword))
+    await userEvent.type(screen.getByLabelText(fr.auth.invitationConfirmPassword), 'autre')
+    await submit()
+
+    expect(await screen.findByText(fr.errors['password.mismatch'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['password.tooCommon'])).toBeNull()
+    expect(accept).toHaveBeenCalledTimes(1)
+  })
+
+  it('replaces the server’s refusal with the empty-box sentence on the next attempt', async () => {
+    const accept = vi
+      .fn<Api['acceptInvitation']>()
+      .mockRejectedValue(new ApiError(400, 'password.tooCommon'))
+    renderInvitation(fakeApi({ acceptInvitation: accept }))
+    await fillIn('Camille', 'password1234', 'password1234')
+    await submit()
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['password.tooCommon'])
+
+    await userEvent.clear(screen.getByLabelText(fr.auth.invitationName))
+    await submit()
+
+    expect(screen.queryByText(fr.errors['password.tooCommon'])).toBeNull()
+    expect(accept).toHaveBeenCalledTimes(1)
+  })
+
   it('clears the mismatch as soon as the second box is touched', async () => {
     renderInvitation(fakeApi())
     await fillIn('Camille', CHOSEN_PASSWORD, 'autre')
