@@ -83,13 +83,25 @@ describe('the product version', () => {
     expect(code).not.toMatch(/process\.cwd\(\)/)
   })
 
-  it('is the tag of the image compose.yaml builds', () => {
-    // `image: eventslide:<version>` is a name a human reads in `docker images`. It cannot
-    // be derived from package.json, so it is held to it instead: bumping one and not the
-    // other fails here rather than shipping a 3.0.0 build labelled 2.1.0.
-    const tag = /^\s*image:\s*eventslide:(\S+)\s*$/m.exec(read('compose.yaml'))?.[1]
+  it('is the tag of the image compose.yaml pulls', () => {
+    // `image: ghcr.io/irony42/eventslide:<version>` is the release a checkout runs: the tag a
+    // `git checkout` chooses and the image `docker compose pull` fetches are the same thing
+    // only while this is held to package.json. It cannot be derived from it, so bumping one
+    // and not the other fails here rather than pulling a 2.1.0 image into a 3.0.0 checkout.
+    // The comment after it is release-please's marker (release-please-config.json), which
+    // moves the number with the release when it is switched on.
+    const tag = /^ {4}image:\s*ghcr\.io\/irony42\/eventslide:(\S+)(?:\s+#.*)?$/m.exec(
+      read('compose.yaml'),
+    )?.[1]
 
     expect(tag, 'the eventslide image tag in compose.yaml').toBeDefined()
+    expect(tag).toBe(packageVersion())
+  })
+
+  it('is the tag of the image compose.build.yaml builds, under a name that is not the published one', () => {
+    const tag = /^ {4}image:\s*eventslide:(\S+)(?:\s+#.*)?$/m.exec(read('compose.build.yaml'))?.[1]
+
+    expect(tag, 'the eventslide image tag in compose.build.yaml').toBeDefined()
     expect(tag).toBe(packageVersion())
   })
 })

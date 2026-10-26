@@ -7,7 +7,17 @@
 # going to install a C++ toolchain.
 
 # ----------------------------------------------------------------------- deps --
-FROM node:24-bookworm-slim AS deps
+# The base image is pinned by digest, and the tag in front of it is only for the human.
+#
+# docs/IMAGE-SOURCES.md promises the Debian source of the exact base a published image was
+# built on, and a floating tag cannot name one: `node:24-bookworm-slim` is a different image
+# every week. The digest is also what Dependabot (`docker`, in .github/dependabot.yml) moves,
+# so a new base arrives as a pull request that CI builds and checks, instead of silently in
+# the next unrelated release. Both stages below carry the same digest on purpose:
+# `scripts/imageSources.test.ts` fails if one is bumped without the other, because the
+# toolchain that built the native modules would then be a different Debian from the one that
+# runs them.
+FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS deps
 WORKDIR /app
 
 # A build toolchain, in the stage that is thrown away.
@@ -59,7 +69,7 @@ WORKDIR /app
 RUN npm prune --omit=dev
 
 # --------------------------------------------------------------------- runtime --
-FROM node:24-bookworm-slim AS runtime
+FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS runtime
 WORKDIR /app
 
 # Declared on the runtime stage, not `deps` or `build`, so it describes only the image
