@@ -496,6 +496,9 @@ Read these before you upgrade, and back up with the version you run now.
   refused unread as `401 auth.secondFactorExpired`, and the password is asked again. Typing one code
   at a time changes nothing. The count is kept in memory, like the sign-in limits: a restart of the
   box starts it again.
+- **Every response asks the browser for cross-origin isolation** (#226): `Cross-Origin-Embedder-Policy:
+require-corp` joins the opener and resource policies that were already sent. The app embeds nothing
+  from another origin, so nothing changes on a page; a cross-origin image or frame added later would be refused.
 - **A stolen session no longer survives a password change** (#125): the credentials epoch ends
   every session minted before it.
 - **Guessing a password is slowed per account, without locking anyone out** (#128), and the
