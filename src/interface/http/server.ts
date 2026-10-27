@@ -2,6 +2,7 @@ import cookieParser from 'cookie-parser'
 import express, { type Express, type RequestHandler } from 'express'
 import session from 'express-session'
 import type { Store } from 'express-session'
+import { isContentHashedAsset } from './clientCache'
 import { accessLog } from './middleware/accessLog'
 import { errorHandler, requestContext } from './middleware/errorHandler'
 import { issueCsrfToken, requireCsrfToken } from './middleware/csrf'
@@ -369,9 +370,9 @@ const TOKEN_PAGES = ['/invite', '/invite/*splat', '/password/reset', '/password/
 /**
  * Serves the built web app.
  *
- * Assets are content-hashed by Vite, so they can be cached for a year; `index.html`
- * must never be, or a guest scanning the QR code after a deploy gets a page referencing
- * assets that no longer exist.
+ * Assets are content-hashed by Vite (`clientCache.ts` says which names), so they can be
+ * cached for a year; `index.html` must never be, or a guest scanning the QR code after a
+ * deploy gets a page referencing assets that no longer exist.
  */
 const mountClient = (app: Express, clientDir: string, isProduction: boolean): void => {
   app.use(
@@ -389,7 +390,7 @@ const mountClient = (app: Express, clientDir: string, isProduction: boolean): vo
           res.setHeader('Cache-Control', 'no-cache')
           return
         }
-        if (isProduction && /\.[0-9a-f]{8,}\./.test(path)) {
+        if (isProduction && isContentHashedAsset(clientDir, path)) {
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
         }
       },
