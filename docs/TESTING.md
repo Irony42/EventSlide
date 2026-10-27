@@ -362,7 +362,7 @@ it('moderation works', async () => {
     quotaBytes: 5_000_000 /* …9 more fields… */,
   })
   const spy = vi.spyOn(photos, 'save') // mechanics
-  await request(app) // act 1
+  await request(harness.app) // act 1
     .post('/api/events/mariage/photos')
     .set('Cookie', `${GUEST_COOKIE}=${harness.issueGuestToken(event.id, GUEST)}`)
     .attach('photos', jpeg)
@@ -371,7 +371,7 @@ it('moderation works', async () => {
     .send({ decision: 'publish' })
   expect(res.status).toBe(200)
   expect(spy).toHaveBeenCalled()
-  expect(await photos.list(event.id)).toHaveLength(1)
+  expect(photos.ofEvent(event.id)).toHaveLength(1)
   expect(res.body.message).toBe('Photo publiée') // French UI copy
 })
 ```

@@ -86,8 +86,8 @@ export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
 - `requireRole` resolves the event from `:eventSlug` and the caller's role in it
   **before** the body is read, and parks both on `req.context`. A handler never repeats
   the lookup and never reads `req.context.event` itself: `withModerator`, `withGuest` and
-  `withPublicEvent` hand it the narrowed scope (`eventId`, `slug`, `actor`, or the event
-  and guest), and `hostScopeOf(req)` / `userOf(req)` do the same for a route that is not
+  `withPublicEvent` hand it the narrowed scope (`withModerator`: `{ eventId, slug, actor }`;
+  `withGuest`: `{ event, guest }`; `withPublicEvent`: the `Event`), and `hostScopeOf(req)` / `userOf(req)` do the same for a route that is not
   one of those. A route mounted without its middleware answers one opaque
   `500 server.unexpected`, not a `TypeError` and not a quiet 401.
 - The wrappers are `asyncHandler` plus that narrowing. `asyncHandler` forwards a rejection
@@ -191,7 +191,7 @@ export interface ModerationPhotoDto {
   readonly authorName: string | null
   readonly byteSize: number
   readonly createdAt: string
-  // …and the media facet (kind, duration) a clip adds
+  // …and the media facet a clip adds (`kind`, `videoUrl`, `durationMs`)
 }
 
 export const toModerationPhotoDto = ({
@@ -229,8 +229,10 @@ Ring 4 sits next to the route (`routes/moderationRoutes.test.ts` is the model to
 body parser, session, request context, the session-age cap and `attachUser` mounted in the
 order `server.ts` mounts them, your routes wired where you say, and the error handler
 last. It returns the app plus the fakes behind it (`events`, `memberships`, `guests`,
-`users`, `bus`, `clock`, `issueGuestToken`). `signInAs` is the route a test mounts to sign
-a session in without a login. The use cases are the **real** ones, built over the in-memory
+`users`, `bus`, `clock`, `issueGuestToken`, and the rest of the test world). `signInAs` is the
+handler a test mounts on a route of its own to sign a session in without a login. It mounts
+cookies too, but **not** `requirePasswordCurrent` or the CSRF gate: what depends on those is
+the server harness's job. The use cases are the **real** ones, built over the in-memory
 fakes: a stub would let every cross-event assertion pass while the product leaked.
 `testing/serverHarness.ts` (`buildServerHarness`) drives the real `buildServer()` instead,
 for what depends on the mount order.
@@ -243,7 +245,27 @@ import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import { AT, anEvent, aPhoto } from '../../../application/testing/builders'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
+import { makeModeratePhoto } from '../../../application/usecases/moderation/moderatePhoto'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
+import type { PresenterContext } from '../presenters/presenters'
+import { notWiredUseCases } from '../testing/serverHarness'
+import type { HttpDeps } from '../types'
+import type { HttpUseCases } from '../useCases'
+
+const PRESENTER: PresenterContext = {
+  publicUrl: 'http://localhost:4300',
+  uploadLimits: { maxBytes: 25_000_000, maxFiles: 20 },
+  clipLimits: { maxBytes: 80_000_000, maxSeconds: 15, supported: true },
+}
+
+// The real use case this route calls, over the fakes; every other member is `notWired`.
+const usecasesFor = (
+  { events, memberships, bus, clock }: HttpDeps,
+  photos: FakePhotoRepository,
+): HttpUseCases => ({
+  ...notWiredUseCases(),
+  moderatePhoto: makeModeratePhoto({ events, photos, memberships, bus, clock }),
+})
 
 const WEDDING = 'wedding-id'
 const MODERATOR = 'moderator-id'
@@ -261,8 +283,8 @@ beforeEach(() => {
         signInAs({ userId: MODERATOR, email: 'mod@example.test' }),
       )
       app.post(
-        '/sign-in/stranger',
-        signInAs({ userId: 'stranger-id', email: 's@example.test' }),
+        '/sign-in/gala',
+        signInAs({ userId: 'gala-owner-id', email: 'gala@example.test' }),
       )
       app.use(
         '/api',
@@ -281,10 +303,20 @@ beforeEach(() => {
     role: 'moderator',
     grantedAt: AT,
   })
+  // A second event on the same box, so the wrong-tenant case is a real member of another one.
+  harness.events.seed(
+    anEvent({ id: 'gala-id', slug: 'gala', ownerId: 'gala-owner-id' }),
+  )
+  harness.memberships.seed({
+    eventId: asEventId('gala-id'),
+    userId: asUserId('gala-owner-id'),
+    role: 'owner',
+    grantedAt: AT,
+  })
   photos.seed(aPhoto({ id: PHOTO, eventId: WEDDING, status: 'pending' }))
 })
 
-const signedIn = async (who: 'moderator' | 'stranger' = 'moderator') => {
+const signedIn = async (who: 'moderator' | 'gala' = 'moderator') => {
   const agent = request.agent(harness.app)
   await agent.post(`/sign-in/${who}`).expect(204)
   return agent
@@ -313,9 +345,9 @@ describe('PATCH /api/events/:eventSlug/photos/:photoId/status', () => {
     expect(response.body.error.code).toBe('auth.required')
   })
 
-  it('answers 404, never 403, for a signed-in account with no role in the event', async () => {
+  it('answers 404, never 403, for a host of another event', async () => {
     const response = await (
-      await signedIn('stranger')
+      await signedIn('gala')
     )
       .patch(`/api/events/mariage/photos/${PHOTO}/status`)
       .send({ decision: 'publish' })
@@ -352,22 +384,27 @@ answers an error (`testing/serverHarness.ts` has `notWiredUseCases()` for the wh
 `PRESENTER` is the `PresenterContext` the DTOs take.
 
 **Every** mutating route ships with these five: happy, unauthenticated,
-wrong-tenant, wrong-role, invalid-payload. The wrong-tenant case is the one that
+wrong-tenant, wrong-role, invalid-payload. On this moderator route the wrong-role case is the
+guest token (above); the `403 auth.forbidden` case needs an owner-only route
+(`eventRoutes.test.ts` has one). The wrong-tenant case is the one that
 catches real incidents, and what it expects is a **404**: a member of another event, or of none, is
 never told the event exists (`requireRole`). A guest's token on a host route is a 401 (it is not a
 session), and a moderator on an owner's route is a `403 auth.forbidden`.
 
 ## Special cases
 
-**Uploads** — `multer` writes to a temp dir with a byte limit; the use case then
-validates magic bytes, re-encodes with `sharp` (rotate → strip metadata → resize),
-verifies the result, and only then inserts. On any failure the temp file is removed.
-Never move a client-named file into the media root.
+**Uploads** — photos go through `multer` into a bounded in-memory storage
+(`boundedMemoryStorage` in `guestRoutes.ts`: a per-request byte ceiling, so the heap a request
+may hold is a number somebody calculated); clips go to a temp dir on disk
+(`clipRoutes.ts`, `clipUploadTempDir`), and the file is removed on every exit path. The use
+case then validates magic bytes, re-encodes with `sharp` (rotate → strip metadata →
+resize), verifies the result, and only then inserts. Never move a client-named file into
+the media root.
 
 **Media delivery** — served by a controller, never `express.static`, so event scoping
 and authorization apply to every byte. Use `ETag` + `Cache-Control: private,
-max-age=31536000, immutable` (content-addressed names make that safe) and stream with
-`res.sendFile` under an explicit root.
+max-age=31536000, immutable` (content-addressed names make that safe) and stream through
+`streamOrAbandon` (`pipeline`, never `pipe`) over the `MediaStore` port.
 
 **SSE** — `src/interface/http/routes/streamRoutes.ts`. Requirements: `flushHeaders()`
 immediately, `X-Accel-Buffering: no`, a heartbeat comment frame every 15 s, `id:` on
