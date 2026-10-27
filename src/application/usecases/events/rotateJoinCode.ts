@@ -1,11 +1,11 @@
 import type { Event } from '../../../domain/events/event'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
-import { JoinCode } from '../../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
+import { allocateJoinCode } from './allocateJoinCode'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
@@ -17,9 +17,6 @@ import { requireEventRole, requireWritable } from '../shared/eventRole'
  * Owner only. A moderator who could rotate the code could invalidate the cards on every
  * table mid-reception.
  */
-
-/** Same bound and same reason as `createEvent`: a stuck generator must fail, not spin. */
-const MAX_JOIN_CODE_ATTEMPTS = 5
 
 export interface RotateJoinCodeInput {
   readonly eventId: EventId
@@ -41,28 +38,6 @@ export interface RotateJoinCodeDeps {
 }
 
 export type RotateJoinCode = (input: RotateJoinCodeInput) => Promise<Result<Event, DomainError>>
-
-/**
- * A code no other event on the box holds.
- *
- * `/join/:code` resolves without knowing the event, so the code is unique across all
- * of them and the unique index would make `save` throw instead of returning a
- * `Result`. Asking first turns a collision into a retry.
- */
-const allocateJoinCode = async (
-  events: EventRepository,
-  ids: IdGenerator,
-  length: number,
-): Promise<Result<JoinCode, DomainError>> => {
-  for (let attempt = 0; attempt < MAX_JOIN_CODE_ATTEMPTS; attempt += 1) {
-    const candidate = JoinCode.fromBytes(ids.bytes(length), length)
-    if (!candidate.ok) return candidate
-    if (!(await events.joinCodeTaken(candidate.value))) return ok(candidate.value)
-  }
-  return err(
-    DomainError.unexpected('event.joinCodeExhausted', { attempts: MAX_JOIN_CODE_ATTEMPTS }),
-  )
-}
 
 export const makeRotateJoinCode =
   ({ events, memberships, ids, bus, joinCodeLength }: RotateJoinCodeDeps): RotateJoinCode =>

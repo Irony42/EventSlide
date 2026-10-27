@@ -6,7 +6,6 @@ import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import { eventTemplateSettings, type EventTemplateKey } from '../../../domain/events/eventTemplate'
 import { DomainError } from '../../../domain/shared/errors'
 import type { ClientId, UserId } from '../../../domain/shared/ids'
-import { JoinCode } from '../../../domain/shared/joinCode'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { Slug, type SlugSuffixMode } from '../../../domain/shared/slug'
 import { canOperateSite } from '../../../domain/users/siteRole'
@@ -14,19 +13,14 @@ import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
+import { allocateJoinCode } from './allocateJoinCode'
 import type { UserRepository } from '../../ports/userRepository'
 
 /**
- * Five, because 32^6 is at least a billion codes (more, if `JOIN_CODE_LENGTH` is
- * configured above its six-character floor): a working generator does not collide five
- * times in a row, so a sixth attempt would only be there to hide a generator stuck on
- * a constant — which must surface as a failure instead of spinning forever. The same
- * bound and the same reasoning cover the random slug suffix below: six characters from
- * a 32-letter alphabet is the same size of haystack.
+ * How many random slug suffixes are tried before giving up: five, for the same reason as the join
+ * code (six characters from a 32-letter alphabet is the same size of haystack). Its own constant, so
+ * either bound can move without the other.
  */
-const MAX_JOIN_CODE_ATTEMPTS = 5
-
-/** See {@link MAX_JOIN_CODE_ATTEMPTS}. Its own constant, so either bound can move without the other. */
 const MAX_SLUG_ATTEMPTS = 5
 
 /**
@@ -135,32 +129,6 @@ export interface CreateEventDeps {
 }
 
 export type CreateEvent = (input: CreateEventInput) => Promise<Result<Event, DomainError>>
-
-/**
- * A free join code, or the reason there is none.
- *
- * The code space is shared by every event on the box, because `/join/:code` resolves
- * without knowing which event it belongs to. A collision would send a guest to the
- * wrong party — 1.0's worst defect, in a new shape — so the unique index refuses it and
- * `save` would throw rather than return a `Result`. Asking the repository first turns
- * that into an ordinary retry.
- */
-const allocateJoinCode = async (
-  events: EventRepository,
-  ids: IdGenerator,
-  length: number,
-): Promise<Result<JoinCode, DomainError>> => {
-  for (let attempt = 0; attempt < MAX_JOIN_CODE_ATTEMPTS; attempt += 1) {
-    const candidate = JoinCode.fromBytes(ids.bytes(length), length)
-    if (!candidate.ok) return candidate
-    if (!(await events.joinCodeTaken(candidate.value))) return ok(candidate.value)
-  }
-  // `unexpected`, not `conflict`: nothing about the host's input collided, and there is
-  // nothing for them to change and retry. It is the box that is broken.
-  return err(
-    DomainError.unexpected('event.joinCodeExhausted', { attempts: MAX_JOIN_CODE_ATTEMPTS }),
-  )
-}
 
 /**
  * The slug this event is saved under — a host's own choice, or derived from the name,
