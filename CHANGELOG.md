@@ -489,6 +489,10 @@ Read these before you upgrade, and back up with the version you run now.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.
+- **The web app's files are cached for a year, as intended** (#224). The rule that marks a content-hashed
+  file `immutable` looked for a name Vite never produces, so every script and stylesheet was
+  revalidated at each page load; it now matches the names the build emits. `index.html`, the service
+  worker and the manifest are still revalidated.
 
 ### Security
 
