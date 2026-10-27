@@ -6,7 +6,7 @@ import type {
 import { ClipJob, type ClipJobProps } from '../../domain/clips/clipJob'
 import { isClipJobStatus, type ClipJobStatus } from '../../domain/clips/clipJobStatus'
 import { admitsAnotherClip } from '../../domain/clips/clipQueue'
-import { fitsInQuota, remainingQuota } from '../../domain/events/quota'
+import { storageRefusalFor } from '../../domain/events/admission'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
 import type { PhotoAuthor } from '../../domain/photos/photo'
@@ -370,29 +370,19 @@ export class SqliteClipJobRepository implements ClipJobRepository {
           return { refusal: { reason: 'queueFull', depth, maxDepth: limits.maxQueuedClips } }
         }
 
+        // The event's quota, then the client's ceiling: the domain's decision, shared with the fake.
         const usedBytes = used.get({ eventId: job.eventId })?.value ?? 0
-        if (usedBytes + job.sourceByteSize > limits.quotaBytes) {
-          return {
-            refusal: {
-              reason: 'quotaExceeded',
-              remaining: Math.max(0, limits.quotaBytes - usedBytes),
-            },
-          }
-        }
-
-        // After the event's own quota, as in `saveManyWithinLimits`: an event is refused by
-        // whichever ceiling it reaches first, and its own is the one a host can act on.
-        if (clientBytes !== null && clientUsed !== null) {
-          const clientUsedBytes = clientUsed.get({ clientId: clientBytes.clientId })?.value ?? 0
-          if (!fitsInQuota(clientBytes.maxBytes, clientUsedBytes, job.sourceByteSize)) {
-            return {
-              refusal: {
-                reason: 'clientStorageFull',
-                remaining: remainingQuota(clientBytes.maxBytes, clientUsedBytes),
+        const refusal = storageRefusalFor(
+          job.sourceByteSize,
+          { quotaBytes: limits.quotaBytes, usedBytes },
+          clientBytes === null || clientUsed === null
+            ? null
+            : {
+                maxBytes: clientBytes.maxBytes,
+                usedBytes: clientUsed.get({ clientId: clientBytes.clientId })?.value ?? 0,
               },
-            }
-          }
-        }
+        )
+        if (refusal !== null) return { refusal }
 
         insert.run(toBindings(job))
         return { refusal: null }
