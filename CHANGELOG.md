@@ -23,7 +23,8 @@ In an entry:
 ## [3.0.0] - 2026-10-27
 
 Everything merged to `main` after 2.1.0: pull request #104 on, and three older ones that were
-merged after it (#52, #93 and #94), plus this release's own preparation. The work before it
+merged after it (#52, #93 and #94), plus this release's own preparation and the 2026-10-27 merge
+train (#241). The work before it
 is in the 2.1.0 entry, the last release under the GPL-3.0. This is a major release: it changes
 the licence, and it breaks things for an existing installation, which `### BREAKING` lists.
 [docs/UPGRADING.md](docs/UPGRADING.md#upgrading-to-30) says in which order to do what.
@@ -302,6 +303,9 @@ Read these before you upgrade, and back up with the version you run now.
   `v3.0.0` is tagged and the release workflow has finished, so before that `docker compose up` on a
   checkout of `main` ends in "manifest unknown".
   [docs/UPGRADING.md](docs/UPGRADING.md#building-the-image-yourself) says how.
+- **`GET /api/events/:slug/photos/mine` carries a new field, `acceptingUploads`** (#229): the upload
+  rule's own answer, `false` for a closed event. The change is additive; a client that rejects unknown
+  fields should accept it.
 - **A guest can no longer react to their own photograph** (#195):
   `POST /api/events/:slug/photos/:id/reactions` answers `403 reaction.ownPhoto` for a photograph the
   calling guest authored, where it took the reaction. A photograph still waiting is still
@@ -537,8 +541,7 @@ changes to check before upgrading`). Every reaction still floats a heart on the 
   client the host belongs to has reached its events limit (total or per period), the button is disabled and
   the sentence sits beside it.
 - **A guest of a closed event is told so, instead of being offered the upload form** (F18, #229).
-  `GET /api/events/:slug/photos/mine` now carries `acceptingUploads` (the upload rule's own answer); the
-  upload screen shows "this gallery no longer accepts photos" and no picker when it is `false`, and keeps
+  The upload screen shows "this gallery no longer accepts photos" and no picker when it is `false`, and keeps
   the guest's own photos listed. Before, the form stayed and the refusal came after the send.
 - **`/password/forgot` on a box with no mail relay says so** (F20, #230). The sign-in page already hid the link,
   but the address still served a form whose every answer was a refusal; it now shows "this server cannot
@@ -593,10 +596,6 @@ require-corp` joins the opener and resource policies that were already sent. The
 - **A critical advisory leaves the production dependencies** (#93): `proxy-addr`
   (GHSA-jqcg-44mw-7w3h, IP spoofing through an IPv4-mapped IPv6 trust subnet), which Express 5 pulls at
   2.0.8. It was not reachable here, because `TRUST_PROXY_HOPS` is a hop count and never a subnet.
-- **The event or client name in an invitation e-mail no longer carries invisible characters** (#234).
-  The mail was the one place a typed name kept bidi overrides and zero-width characters, and a bidi
-  override reverses the rest of the line the recipient reads. It goes through the same single-line
-  pipeline as every other typed name.
 - **A security fix of `multer` leaves the production dependencies** (#214): 2.5.0, which parses every
   upload, lists GHSA-q7qp-rjg7-q26m as a security fix; 2.4.0 was the version before. It also accepts a
   form field of exactly `limits.fieldSize` bytes, which 2.4.0 refused.
@@ -609,6 +608,9 @@ require-corp` joins the opener and resource policies that were already sent. The
   entry (#124); this entry and "Upgrading to 3.0" (#129, completed in #186); the ports catalogue, which lists
   all 32 ports (#174); the endpoint recipe, rewritten from the real files, with the route counts of
   `docs/API.md` corrected (#240).
+- The invitation e-mail folds the event or client name through the same single-line pipeline as every
+  typed name (#234). Defence in depth: the names it receives were already cleaned by `EventName` and
+  `ClientName`, so no change is visible.
 - Tests that change nothing in the product: a flaky shared-gallery-link test (#149), the repository contract of keyset
   paging over photographs that share a timestamp (#161), the contract suites of the media store and
   the event bus (#165), the architecture lint's `process.env` ban in every spelling (#166), an end-to-end
