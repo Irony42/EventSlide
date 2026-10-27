@@ -414,7 +414,7 @@ export const guestRoutes = ({
               canDelete: canGuestDelete(event, photo, guest, now),
             }),
           ),
-          // The upload rule's own answer (`Event.acceptsUploads`: status and suspension), so the
+          // The upload rule's own answer (`Event.acceptsUploads`; in practice the status, a suspended client's guests never get here), so the
           // screen can say the evening is over instead of offering a form the server will refuse.
           acceptingUploads: event.acceptsUploads(),
         }

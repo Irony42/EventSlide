@@ -1382,7 +1382,7 @@ from it.
 
 The guest's own photos, **whatever the host decided** — being told a photo is awaiting
 moderation beats wondering whether the upload worked. `acceptingUploads` is the upload rule's own
-answer (`false` once the event is closed, archived or its client suspended), so the upload screen can say
+answer (`false` once the event is closed or archived; a suspended client's guests are answered `404` before this), so the upload screen can say
 the evening is over instead of offering a form the server would refuse with `409 event.notAcceptingUploads`.
 
 ```json

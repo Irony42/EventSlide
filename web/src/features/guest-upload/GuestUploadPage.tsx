@@ -315,11 +315,14 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
       >
         {/* Above the queue: it is the answer to "did my photos go?", and a guest who
             reads it stops pressing "Envoyer" again. */}
-        <OfflineNotice
-          waiting={outbox.waiting}
-          draining={outbox.draining}
-          onSendNow={outbox.drain}
-        />
+        {/* Not once the evening is over: "will be sent" would be a promise the box refuses. */}
+        {mine.acceptingUploads ? (
+          <OfflineNotice
+            waiting={outbox.waiting}
+            draining={outbox.draining}
+            onSendNow={outbox.drain}
+          />
+        ) : null}
         <UploadQueue items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
         {/*
           The notice, in the place the picker will be, until this device has read the one
@@ -330,7 +333,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           // The host closed the evening (or archived it, or its account is suspended): there is
           // nothing left to send, so none of the controls is offered, and the sentence is the one the
           // server would have refused an upload with. What the guest sent stays listed above.
-          <Notice tone="warning" variant="boxed">
+          <Notice tone="warning" variant="boxed" role="status">
             {t.errors['event.notAcceptingUploads']}
           </Notice>
         ) : notice.state !== null && gated ? (
