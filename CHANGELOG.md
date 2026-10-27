@@ -489,6 +489,10 @@ Read these before you upgrade, and back up with the version you run now.
 - **Password prompts say "wrong password", not "wrong address or password"** (F02). Changing the password,
   confirming oneself (step-up) and setting up the second factor have no address field, yet a refused password
   read like a sign-in refusal. The sign-in form keeps its deliberately neutral sentence.
+- **The new-event button is disabled, with the reason, at the events ceiling** (F19). The form used to
+  stay usable at "3 of 3" and the refusal appeared under the template list, below the fold. When every
+  client the host belongs to has reached its events limit (total or per period), the button is disabled and
+  the sentence sits beside it.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.
