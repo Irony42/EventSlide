@@ -581,6 +581,14 @@ describe('ClientCeilings.settingsRefusal', () => {
     ).toBeNull()
   })
 
+  it('does not lock out a save of a client without clips whose clips are already off', () => {
+    // The form sends every field on every save: `allowClips: false` over `false`, or no mention.
+    const off = { retentionDays: null, allowClips: false }
+
+    expect(noClips.settingsRefusal(off, { allowClips: false })).toBeNull()
+    expect(noClips.settingsRefusal(off, {})).toBeNull()
+  })
+
   it('lets a client with clips switch them on', () => {
     expect(ClientCeilings.unlimited().settingsRefusal(CURRENT, { allowClips: true })).toBeNull()
   })

@@ -289,7 +289,7 @@ export class ClientCeilings {
   /**
    * Whether an event may be **given** this retention, as opposed to having it clamped.
    *
-   * `updateEventSettings` refuses where `createEvent` clamps, for the reason
+   * `settingsRefusal` (an edit) refuses where `settingsPatchFor` (creation) clamps, for the reason
    * {@link ClientCeilings.clampRetention} gives for `null`: creation has no value the host
    * chose to override, so reducing it is what an unopinionated request means; an edit does,
    * and silently shortening what a host just typed would tell them they got what they asked
