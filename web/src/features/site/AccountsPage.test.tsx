@@ -620,6 +620,60 @@ describe('the console’s accounts: deleting one', () => {
     },
   )
 
+  it('shows the newest refusal and takes the earlier one off the screen', async () => {
+    // A refusal stays until it is dismissed, because one of them carries a thing to do. That
+    // is what made two refused deletes in a row read as two problems, the first about an
+    // account the operator has already moved on from.
+    const siteDeleteAccount = vi
+      .fn<Api['siteDeleteAccount']>()
+      .mockRejectedValueOnce(new ApiError(409, 'account.holdsEvents'))
+      .mockRejectedValueOnce(new ApiError(409, 'account.holdsReviews'))
+    const second = aSiteAccount({ id: 'user-second', email: 'moderatrice@example.com' })
+    open(withAccounts([aSiteAccount(), second], { siteDeleteAccount }))
+    await screen.findByRole('table')
+
+    await userEvent.click(screen.getAllByRole('button', { name: fr.site.deleteAccount })[0]!)
+    await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
+    expect(await screen.findByText(fr.errors['account.holdsEvents'])).toBeVisible()
+
+    await userEvent.click(screen.getAllByRole('button', { name: fr.site.deleteAccount })[1]!)
+    await confirmDialog(fr.site.deleteTitle('moderatrice@example.com'), fr.site.deleteAccount)
+
+    expect(await screen.findByText(fr.errors['account.holdsReviews'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['account.holdsEvents'])).toBeNull()
+  })
+
+  it('keeps one refusal on screen across three refused acts, whichever act they were', async () => {
+    // The same rule across the acts the page offers, because the toast is shared: a reset, a
+    // switch-off and a deletion, refused in turn.
+    const siteResetPassword = vi
+      .fn<Api['siteResetPassword']>()
+      .mockRejectedValue(new ApiError(409, 'reset.mailerRequired'))
+    const siteDisableAccount = vi
+      .fn<Api['siteDisableAccount']>()
+      .mockRejectedValue(new ApiError(403, 'account.operatorProtected'))
+    const siteDeleteAccount = vi
+      .fn<Api['siteDeleteAccount']>()
+      .mockRejectedValue(new ApiError(409, 'account.holdsEvents'))
+    open(
+      withAccounts([aSiteAccount()], { siteResetPassword, siteDisableAccount, siteDeleteAccount }),
+    )
+    await screen.findByRole('table')
+
+    await pressReset()
+    expect(await screen.findByText(fr.errors['reset.mailerRequired'])).toBeVisible()
+
+    await press(fr.site.disableAccount)
+    await confirmDialog(fr.site.disableTitle(ADDRESS), fr.site.disableAccount)
+    expect(await screen.findByText(fr.errors['account.operatorProtected'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['reset.mailerRequired'])).toBeNull()
+
+    await press(fr.site.deleteAccount)
+    await confirmDialog(fr.site.deleteTitle(ADDRESS), fr.site.deleteAccount)
+    expect(await screen.findByText(fr.errors['account.holdsEvents'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['account.operatorProtected'])).toBeNull()
+  })
+
   it('asks the operator to confirm themselves when the server says so, and deletes on that confirmation', async () => {
     const siteDeleteAccount = vi
       .fn<Api['siteDeleteAccount']>()

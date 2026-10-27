@@ -14,7 +14,7 @@ import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
  */
 export function ChangePasswordPage() {
   const t = useTranslations()
-  const { submit, submitting, error } = useChangePassword()
+  const { submit, submitting, error, clearError } = useChangePassword()
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -29,6 +29,10 @@ export function ChangePasswordPage() {
     // judgement, and duplicating it would mean two rulebooks with the weaker one
     // deciding.
     if (next !== confirmation) {
+      // The server's sentence answered the attempt before this one, about a password that
+      // may no longer be in the box. The newest finding replaces it rather than sitting
+      // beside it.
+      clearError()
       setMismatch(true)
       return
     }
