@@ -685,6 +685,30 @@ describe('buildServer: security headers on a real response', () => {
     expect(directive(csp(response.headers), 'script-src')).toBe("script-src 'self'")
   })
 
+  it('allows no inline style in production: not a <style> element and not a style attribute', async () => {
+    // The built bundle is CSS files, and React sets the handful of computed values the wall
+    // needs (`--slide-duration`, a tilt, a progress width) through the CSSOM, which `style-src`
+    // does not govern. `'unsafe-inline'` here only ever admitted a `<style>` element or an HTML
+    // `style=""` that an injected piece of markup brought along, which is what ZAP rule 10055
+    // reports. Nothing inline is named in `style-src-attr`/`style-src-elem` either, so both
+    // fall back to this one.
+    const response = await request(buildServerHarness({ config: { isProduction: true } }).app).get(
+      '/api/health',
+    )
+    const policy = csp(response.headers)
+
+    expect(directive(policy, 'style-src')).toBe("style-src 'self'")
+    expect(policy).not.toMatch(/style-src-(attr|elem)/)
+    expect(policy).not.toContain('unsafe-inline')
+  })
+
+  it("allows Vite's injected <style> elements outside production only", async () => {
+    // The dev server swaps CSS in as `<style>` elements for hot reload, as it does the script.
+    const response = await request(buildServerHarness().app).get('/api/health')
+
+    expect(directive(csp(response.headers), 'style-src')).toBe("style-src 'self' 'unsafe-inline'")
+  })
+
   it("allows Vite's inline dev client outside production only", async () => {
     const response = await request(buildServerHarness().app).get('/api/health')
 
