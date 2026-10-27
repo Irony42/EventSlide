@@ -729,6 +729,32 @@ describe('buildServer: security headers on a real response', () => {
     expect(directive(csp(response.headers), 'connect-src')).toBe("connect-src 'self'")
   })
 
+  it.each([
+    ['development', false],
+    ['production', true],
+  ])(
+    'asks the browser to load nothing cross-origin without its consent (COEP), in %s',
+    async (_name, isProduction) => {
+      // Nothing here embeds a cross-origin resource: no CDN, no remote image, font or frame, and
+      // every photo, poster and clip is a same-origin `/api` URL, so `require-corp` costs nothing
+      // today and refuses the day one is added without saying so. It was `false` with no reason
+      // written down; OWASP ZAP's passive scan (rule 90004) is what asked. docs/SECURITY.md has the
+      // evidence it rests on.
+      const response = await request(buildServerHarness({ config: { isProduction } }).app).get(
+        '/api/health',
+      )
+
+      expect(response.get('cross-origin-embedder-policy')).toBe('require-corp')
+    },
+  )
+
+  it('keeps the other two isolation headers beside it', async () => {
+    const response = await request(buildServerHarness().app).get('/api/health')
+
+    expect(response.get('cross-origin-opener-policy')).toBe('same-origin')
+    expect(response.get('cross-origin-resource-policy')).toBe('same-origin')
+  })
+
   it('refuses to be framed, so a projector left unattended cannot be clickjacked', async () => {
     const response = await request(buildServerHarness().app).get('/api/health')
 
@@ -967,6 +993,7 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     await writeFile(join(clientDir, 'index.html'), `<!doctype html>${SPA_MARKER}`, 'utf8')
     await writeFile(join(clientDir, HASHED_ASSET), 'console.log(1)\n', 'utf8')
     await writeFile(join(clientDir, 'favicon.svg'), '<svg/>\n', 'utf8')
+    await writeFile(join(clientDir, 'sw.js'), 'self.skipWaiting()\n', 'utf8')
     await mkdir(join(clientDir, '.hidden'), { recursive: true })
     await writeFile(join(clientDir, '.hidden', 'secret.txt'), HIDDEN_FILE_CONTENT, 'utf8')
   })
@@ -1090,6 +1117,21 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
       expect(response.get('x-robots-tag')).toBeUndefined()
     },
   )
+
+  it.each([
+    ['the shell of a client route', '/admin/events/evt-1/moderation'],
+    ['a file served from the client directory', '/favicon.svg'],
+    ['a hashed asset', `/${HASHED_ASSET}`],
+    ['the service worker script', '/sw.js'],
+    ['the shared gallery page shell', '/g/abc'],
+    ['an invitation page shell', '/invite/abc'],
+  ])('sends COEP with %s, so the document and its worker agree', async (_label, path) => {
+    // The worker's script is a file of this directory, and it carries the policy like the page.
+    const response = await request(withClient(true).app).get(path)
+
+    expect(response.status).toBe(200)
+    expect(response.get('cross-origin-embedder-policy')).toBe('require-corp')
+  })
 
   it('never caches index.html when it is requested by name', async () => {
     // `express.static` serves this one, not the fallback, so it needs its own header.
