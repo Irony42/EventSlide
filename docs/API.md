@@ -2438,7 +2438,7 @@ cross-cutting codes in §1:
 | `invitation.tooManyForAddress` | 429    | An address already written to five times in the last hour, by anybody                                                               |
 | `membership.notFound`          | 404    | Revoking a membership that is not there                                                                                             |
 | `membership.lastOwner`         | 409    | Revoking the only remaining owner                                                                                                   |
-| `event.joinCodeExhausted`      | 500    | Rotation could not find a free code — a bug, not a client error                                                                     |
+| `event.joinCodeExhausted`      | 500    | Creating an event or rotating its join code could not find a free code — a bug, not a client error                                  |
 | `event.slugExhausted`          | 500    | `EVENT_SLUG_SUFFIX=random` could not find a free suffix — likewise                                                                  |
 | `event.mediaPurgeFailed`       | 500    | A purge that could not remove the bytes; rows are left alone                                                                        |
 
