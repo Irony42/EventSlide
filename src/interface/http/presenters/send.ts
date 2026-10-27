@@ -22,8 +22,7 @@ import type { Result } from '../../../domain/shared/result'
  *   a correct answer about a temporary state, for which the kind that carries the code maps to 500;
  * - `202` for a password-reset request (`authRoutes.ts`): the same empty answer for every
  *   address, by design;
- * - the unmatched `/api` path's `404` (`server.ts`) and a wall stream's body-less `404`
- *   (`streamRoutes.ts`), which answer before or beside any use case.
+ * - the unmatched `/api` path's `404` (`server.ts`), which answers before any use case.
  */
 const STATUS_BY_KIND: Readonly<Record<DomainErrorKind, number>> = {
   invalid: 400,

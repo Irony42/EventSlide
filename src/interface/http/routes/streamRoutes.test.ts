@@ -933,9 +933,9 @@ describe('openStream', () => {
 describe('streamHandler', () => {
   it('fails closed when no middleware resolved the event', async () => {
     // Unreachable behind `resolvePublicEvent` or `requireRole`, and that is why it is
-    // asserted: a route that ever loses its authorization decision must answer 404
-    // rather than dereference an absent event, which a `!` would turn into a
-    // `TypeError` on a projector at 22:00 answered as a 500 after the fact.
+    // asserted: a route that ever loses its authorization decision is a wiring bug and
+    // answers the one opaque 500 every scope helper answers (`middleware/scope.ts`), not a
+    // 404 with no body and not a `TypeError` on a projector at 22:00.
     const subject = buildHarness({
       routes: (app, deps) => {
         app.get('/events/:eventSlug/unguarded-stream', streamHandler(deps))
@@ -944,7 +944,8 @@ describe('streamHandler', () => {
 
     const response = await supertest(subject.app).get('/events/mariage/unguarded-stream')
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
     expect(subject.bus.subscriberCount()).toBe(0)
   })
 })

@@ -6,6 +6,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import { Slug } from '../../../domain/shared/slug'
 import { asUserId } from '../../../domain/shared/ids'
 import { INACTIVE_AUTH_STATE, type AuthState } from '../../../application/ports/userRepository'
+import { asyncHandler } from './asyncHandler'
 import { sendError } from '../presenters/send'
 import type { GuestPrincipal, HttpDeps, SessionPayload, UserPrincipal } from '../types'
 
@@ -88,46 +89,43 @@ export const ABSOLUTE_SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
  * nothing at all to an anonymous request: the wall, the join page and a guest's upload
  * carry no `userId`, and ageing a session nobody signed into would only churn rows.
  */
-export const enforceSessionAge =
-  (deps: HttpDeps): RequestHandler =>
-  (req, _res, next) => {
-    void (async () => {
-      const session = (req.session ?? {}) as SessionPayload
-      if (typeof session.userId !== 'string') {
-        next()
-        return
-      }
-
-      const issuedAt = session.issuedAt
-      const now = deps.clock.now().getTime()
-      // A stamp in the future is expired, not fresh — the same rule the guest token takes
-      // on a negative age, and for a stronger reason here: the server wrote this value, so
-      // a session claiming to start later than now is a box whose clock moved (an appliance
-      // with no RTC, corrected by NTP after boot), and the skew would be added to the cap.
-      const withinCap =
-        typeof issuedAt === 'number' &&
-        Number.isFinite(issuedAt) &&
-        issuedAt <= now &&
-        now - issuedAt < ABSOLUTE_SESSION_LIFETIME_MS
-
-      if (
-        withinCap &&
-        !(await issuedBeforeCredentialsChanged(
-          deps,
-          req,
-          session.userId,
-          // The id's own age, which a renewal resets and the cap above deliberately does not.
-          typeof session.renewedAt === 'number' ? session.renewedAt : issuedAt,
-        ))
-      ) {
-        next()
-        return
-      }
-
-      await discardSession(req)
+export const enforceSessionAge = (deps: HttpDeps): RequestHandler =>
+  asyncHandler(async (req, _res, next) => {
+    const session = (req.session ?? {}) as SessionPayload
+    if (typeof session.userId !== 'string') {
       next()
-    })().catch(next)
-  }
+      return
+    }
+
+    const issuedAt = session.issuedAt
+    const now = deps.clock.now().getTime()
+    // A stamp in the future is expired, not fresh — the same rule the guest token takes
+    // on a negative age, and for a stronger reason here: the server wrote this value, so
+    // a session claiming to start later than now is a box whose clock moved (an appliance
+    // with no RTC, corrected by NTP after boot), and the skew would be added to the cap.
+    const withinCap =
+      typeof issuedAt === 'number' &&
+      Number.isFinite(issuedAt) &&
+      issuedAt <= now &&
+      now - issuedAt < ABSOLUTE_SESSION_LIFETIME_MS
+
+    if (
+      withinCap &&
+      !(await issuedBeforeCredentialsChanged(
+        deps,
+        req,
+        session.userId,
+        // The id's own age, which a renewal resets and the cap above deliberately does not.
+        typeof session.renewedAt === 'number' ? session.renewedAt : issuedAt,
+      ))
+    ) {
+      next()
+      return
+    }
+
+    await discardSession(req)
+    next()
+  })
 
 /**
  * Whether the account changed its credentials after this session was issued. When it did
@@ -247,25 +245,22 @@ export const resolveAuthState = async (
  * form rather than left on a console where everything fails. The login then refuses
  * them with the same `auth.invalidCredentials` an unknown address gets.
  */
-export const requireUser =
-  (deps: HttpDeps): RequestHandler =>
-  (req, res, next) => {
-    void (async () => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+export const requireUser = (deps: HttpDeps): RequestHandler =>
+  asyncHandler(async (req, res, next) => {
+    const user = req.context.user
+    if (!user) {
+      sendError(res, DomainError.unauthenticated('auth.required'))
+      return
+    }
 
-      const state = await resolveAuthState(deps, req)
-      if (!state.active) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+    const state = await resolveAuthState(deps, req)
+    if (!state.active) {
+      sendError(res, DomainError.unauthenticated('auth.required'))
+      return
+    }
 
-      next()
-    })().catch(next)
-  }
+    next()
+  })
 
 /** The code {@link requirePasswordCurrent} refuses with. Exported so the sweep in
  * `authz.test.ts` can assert against the same literal rather than a copy of it. */
@@ -358,29 +353,26 @@ const isExemptFromPasswordGate = (req: Request): boolean =>
  *    would still say `false` for an account flagged after it signed in, and would still
  *    say `true` for one that cleared the flag from a different tab.
  */
-export const requirePasswordCurrent =
-  (deps: HttpDeps): RequestHandler =>
-  (req, res, next) => {
-    void (async () => {
-      if (req.context.user === undefined) {
-        next()
-        return
-      }
-
-      const state = await resolveAuthState(deps, req)
-      if (!state.active) {
-        next()
-        return
-      }
-
-      if (state.mustChangePassword && !isExemptFromPasswordGate(req)) {
-        sendError(res, DomainError.forbidden(PASSWORD_CHANGE_REQUIRED_CODE))
-        return
-      }
-
+export const requirePasswordCurrent = (deps: HttpDeps): RequestHandler =>
+  asyncHandler(async (req, res, next) => {
+    if (req.context.user === undefined) {
       next()
-    })().catch(next)
-  }
+      return
+    }
+
+    const state = await resolveAuthState(deps, req)
+    if (!state.active) {
+      next()
+      return
+    }
+
+    if (state.mustChangePassword && !isExemptFromPasswordGate(req)) {
+      sendError(res, DomainError.forbidden(PASSWORD_CHANGE_REQUIRED_CODE))
+      return
+    }
+
+    next()
+  })
 
 /**
  * Resolves `:eventSlug` and the caller's role in it, then checks the requirement.
@@ -402,54 +394,51 @@ export const requirePasswordCurrent =
  * question for themselves, `registerModerator` among them, and a rule written in this
  * middleware would have been a rule those sixteen did not have.
  */
-export const requireRole =
-  (required: EventRole, deps: HttpDeps): RequestHandler =>
-  (req, res, next) => {
-    void (async () => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+export const requireRole = (required: EventRole, deps: HttpDeps): RequestHandler =>
+  asyncHandler(async (req, res, next) => {
+    const user = req.context.user
+    if (!user) {
+      sendError(res, DomainError.unauthenticated('auth.required'))
+      return
+    }
 
-      const slug = Slug.create(req.params['eventSlug'])
-      if (!slug.ok) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
+    const slug = Slug.create(req.params['eventSlug'])
+    if (!slug.ok) {
+      sendError(res, DomainError.notFound('event.notFound'))
+      return
+    }
 
-      const event = await deps.events.findBySlug(slug.value)
-      if (!event) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
+    const event = await deps.events.findBySlug(slug.value)
+    if (!event) {
+      sendError(res, DomainError.notFound('event.notFound'))
+      return
+    }
 
-      const role = await deps.memberships.roleFor(event.id, user.userId)
-      if (role === null) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
+    const role = await deps.memberships.roleFor(event.id, user.userId)
+    if (role === null) {
+      sendError(res, DomainError.notFound('event.notFound'))
+      return
+    }
 
-      const permitted = required === 'owner' ? canManageEvent(role) : canModerate(role)
-      if (!permitted) {
-        // The caller is genuinely in scope for this event but lacks the role, so 403 is
-        // honest here and reveals nothing they did not already know.
-        sendError(res, DomainError.forbidden('auth.forbidden', { required }))
-        return
-      }
+    const permitted = required === 'owner' ? canManageEvent(role) : canModerate(role)
+    if (!permitted) {
+      // The caller is genuinely in scope for this event but lacks the role, so 403 is
+      // honest here and reveals nothing they did not already know.
+      sendError(res, DomainError.forbidden('auth.forbidden', { required }))
+      return
+    }
 
-      // A suspended client's members read and may not write (roadmap §10.7; G2-14), and that
-      // is **not asked here**: it used to be a test on the verb, which made it a rule no use case
-      // knew. `requireWritable` (usecases/shared/eventRole.ts) is asked by every host-side
-      // write use case, after the role, and `suspension.container.test.ts` sweeps every
-      // non-GET route of a frozen event. What stays here is the order that makes it safe to
-      // say: the stranger has already been answered `404` above, and the member lacking the
-      // role `403 auth.forbidden`, before any use case is reached.
-      req.context.event = event
-      req.context.role = role
-      next()
-    })().catch(next)
-  }
+    // A suspended client's members read and may not write (roadmap §10.7; G2-14), and that
+    // is **not asked here**: it used to be a test on the verb, which made it a rule no use case
+    // knew. `requireWritable` (usecases/shared/eventRole.ts) is asked by every host-side
+    // write use case, after the role, and `suspension.container.test.ts` sweeps every
+    // non-GET route of a frozen event. What stays here is the order that makes it safe to
+    // say: the stranger has already been answered `404` above, and the member lacking the
+    // role `403 auth.forbidden`, before any use case is reached.
+    req.context.event = event
+    req.context.role = role
+    next()
+  })
 
 /**
  * The box, not an event: "does this account operate this instance?"
@@ -471,25 +460,22 @@ export const requireRole =
  * disabled and one whose row is gone are told the same thing, which is what
  * `siteRoleFor` already collapses them into.
  */
-export const requireOperator =
-  (deps: HttpDeps): RequestHandler =>
-  (req, res, next) => {
-    void (async () => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+export const requireOperator = (deps: HttpDeps): RequestHandler =>
+  asyncHandler(async (req, res, next) => {
+    const user = req.context.user
+    if (!user) {
+      sendError(res, DomainError.unauthenticated('auth.required'))
+      return
+    }
 
-      const siteRole = await deps.users.siteRoleFor(user.userId)
-      if (!canOperateSite(siteRole)) {
-        sendError(res, DomainError.forbidden('auth.forbidden', { required: 'operator' }))
-        return
-      }
+    const siteRole = await deps.users.siteRoleFor(user.userId)
+    if (!canOperateSite(siteRole)) {
+      sendError(res, DomainError.forbidden('auth.forbidden', { required: 'operator' }))
+      return
+    }
 
-      next()
-    })().catch(next)
-  }
+    next()
+  })
 
 /** The code {@link requireSecondFactor} refuses with. Exported for the tests that assert it. */
 export const SECOND_FACTOR_REQUIRED_CODE = 'auth.secondFactorRequired'
@@ -581,32 +567,31 @@ export const requireStepUp =
  * rename) know that they need `acceptsUploads()`. Putting the lifecycle check here would either block reads that should work,
  * or duplicate a rule the use case has to enforce anyway.
  */
-export const requireGuest =
-  ({ authenticateGuest }: Pick<HttpDeps, 'authenticateGuest'>): RequestHandler =>
-  (req, res, next) => {
-    void (async () => {
-      const token = guestTokenOf(req)
-      if (token === undefined) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+export const requireGuest = ({
+  authenticateGuest,
+}: Pick<HttpDeps, 'authenticateGuest'>): RequestHandler =>
+  asyncHandler(async (req, res, next) => {
+    const token = guestTokenOf(req)
+    if (token === undefined) {
+      sendError(res, DomainError.unauthenticated('auth.required'))
+      return
+    }
 
-      const authenticated = await authenticateGuest({
-        token,
-        eventSlug: req.params['eventSlug'],
-      })
-      if (!authenticated.ok) {
-        sendError(res, authenticated.error)
-        return
-      }
+    const authenticated = await authenticateGuest({
+      token,
+      eventSlug: req.params['eventSlug'],
+    })
+    if (!authenticated.ok) {
+      sendError(res, authenticated.error)
+      return
+    }
 
-      const { guest, event } = authenticated.value
-      const principal: GuestPrincipal = { kind: 'guest', guest, eventId: event.id }
-      req.context.guest = principal
-      req.context.event = event
-      next()
-    })().catch(next)
-  }
+    const { guest, event } = authenticated.value
+    const principal: GuestPrincipal = { kind: 'guest', guest, eventId: event.id }
+    req.context.guest = principal
+    req.context.event = event
+    next()
+  })
 
 export const GUEST_COOKIE = 'es_guest'
 
@@ -645,60 +630,56 @@ export const guestTokenOf = (req: Request): string | undefined => {
  * `/api` router gets a chance to match. The role is read the way `requireRole` reads it, from
  * `deps.memberships.roleFor`, and only for a request that carries a session.
  */
-export const deferToHostSurface =
-  (deps: Pick<HttpDeps, 'events' | 'memberships'>): RequestHandler =>
-  (req, _res, next) => {
-    void (async () => {
-      const user = req.context.user
-      const slug = Slug.create(req.params['eventSlug'])
-      if (user !== undefined && slug.ok) {
-        const event = await deps.events.findBySlug(slug.value)
-        const role = event === null ? null : await deps.memberships.roleFor(event.id, user.userId)
-        if (role !== null && canModerate(role)) {
-          next('router')
-          return
-        }
-      }
-
-      if (guestTokenOf(req) === undefined) {
+export const deferToHostSurface = (
+  deps: Pick<HttpDeps, 'events' | 'memberships'>,
+): RequestHandler =>
+  asyncHandler(async (req, _res, next) => {
+    const user = req.context.user
+    const slug = Slug.create(req.params['eventSlug'])
+    if (user !== undefined && slug.ok) {
+      const event = await deps.events.findBySlug(slug.value)
+      const role = event === null ? null : await deps.memberships.roleFor(event.id, user.userId)
+      if (role !== null && canModerate(role)) {
         next('router')
         return
       }
-      next()
-    })().catch(next)
-  }
+    }
+
+    if (guestTokenOf(req) === undefined) {
+      next('router')
+      return
+    }
+    next()
+  })
 
 /**
  * Resolves the event for a public route (the wall, the join lookup) without requiring
  * any principal. Still refuses an event that does not serve its wall, so the public
  * read path cannot reach a draft or archived event at all.
  */
-export const resolvePublicEvent =
-  (
-    deps: HttpDeps,
-    options: { readonly suspended: 'hidden' | 'visible' } = { suspended: 'hidden' },
-  ): RequestHandler =>
-  (req, res, next) => {
-    void (async () => {
-      const slug = Slug.create(req.params['eventSlug'])
-      if (!slug.ok) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
-      const event = await deps.events.findBySlug(slug.value)
-      // A suspended client's wall is the same 404 as an event that does not exist (G2-14). The one
-      // route that is also a host's (the media of a photograph, which a moderation grid reads)
-      // asks for `visible` and judges the viewer itself, because members may still read.
-      // `servesPublicWall` is the one definition, asked again at every beat of an open stream. A
-      // member may read through a suspension, so that route asks for the lifecycle alone.
-      const served =
-        event !== null &&
-        (options.suspended === 'visible' ? event.servesWall() : event.servesPublicWall())
-      if (!event || !served) {
-        sendError(res, DomainError.notFound('event.notFound'))
-        return
-      }
-      req.context.event = event
-      next()
-    })().catch(next)
-  }
+export const resolvePublicEvent = (
+  deps: HttpDeps,
+  options: { readonly suspended: 'hidden' | 'visible' } = { suspended: 'hidden' },
+): RequestHandler =>
+  asyncHandler(async (req, res, next) => {
+    const slug = Slug.create(req.params['eventSlug'])
+    if (!slug.ok) {
+      sendError(res, DomainError.notFound('event.notFound'))
+      return
+    }
+    const event = await deps.events.findBySlug(slug.value)
+    // A suspended client's wall is the same 404 as an event that does not exist (G2-14). The one
+    // route that is also a host's (the media of a photograph, which a moderation grid reads)
+    // asks for `visible` and judges the viewer itself, because members may still read.
+    // `servesPublicWall` is the one definition, asked again at every beat of an open stream. A
+    // member may read through a suspension, so that route asks for the lifecycle alone.
+    const served =
+      event !== null &&
+      (options.suspended === 'visible' ? event.servesWall() : event.servesPublicWall())
+    if (!event || !served) {
+      sendError(res, DomainError.notFound('event.notFound'))
+      return
+    }
+    req.context.event = event
+    next()
+  })

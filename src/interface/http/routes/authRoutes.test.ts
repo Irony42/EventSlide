@@ -694,11 +694,13 @@ describe('POST /api/auth/password', () => {
     expect(response.body.userId).toBe(HOST_ID)
   })
 
-  it('answers 401 when the principal is gone by the time the handler runs', async () => {
-    // Unreachable through `requireUser`, which is exactly the point: the guard is what
+  it('answers the one wiring 500 when the principal is gone by the time the handler runs', async () => {
+    // Unreachable through `requireUser`, which is exactly the point: `userOf` is what
     // keeps a later middleware that clears the principal from turning this into a
     // password change for nobody, and `strict` forbids the non-null assertion that
-    // would hide the question. Driven by a principal the request yields only once.
+    // would hide the question. It is a wiring bug and answers like every other one
+    // (`middleware/scope.ts`), not a 401 that a signed-in caller would read as "sign in
+    // again". Driven by a principal the request yields only once.
     const subject = harness({
       before: (req, _res, next) => {
         const reads = [req.context.user]
@@ -711,8 +713,8 @@ describe('POST /api/auth/password', () => {
 
     const response = await agent.post('/api/auth/password').send(change)
 
-    expect(response.status).toBe(401)
-    expect(response.body.error.code).toBe('auth.required')
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
   })
 
   it('answers 401 without a session', async () => {

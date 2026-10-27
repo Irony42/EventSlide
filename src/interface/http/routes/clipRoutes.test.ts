@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { Express } from 'express'
 import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clipRoutes, clipUploadTempDir, withGuestClip } from './clipRoutes'
+import { clipRoutes, clipUploadTempDir } from './clipRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
@@ -694,28 +694,5 @@ describe('GET /api/events/:eventSlug/clips/:clipJobId', () => {
       .set('Cookie', cookie(subject.token))
 
     expect(response.body.failureCode).toBe('clip.noVideoStream')
-  })
-})
-
-describe('withGuestClip', () => {
-  it('fails closed when the authorization middleware did not run', async () => {
-    // Unreachable behind `requireGuest`, and that is the point: a route that ever lost
-    // its authorization decision must answer 401 rather than dereference an absent
-    // principal and become a `TypeError` on a guest's phone mid-upload.
-    const harness = buildHarness({
-      routes: (app) => {
-        app.get(
-          '/unguarded',
-          withGuestClip(async (_scope, _req, res) => {
-            res.status(200).json({ reached: true })
-          }),
-        )
-      },
-    })
-
-    const response = await request(harness.app).get('/unguarded')
-
-    expect(response.status).toBe(401)
-    expect(response.body.error.code).toBe('auth.required')
   })
 })

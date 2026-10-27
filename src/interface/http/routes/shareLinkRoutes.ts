@@ -5,7 +5,7 @@ import { toShareLinkCreatedDto, toShareLinkDto } from '../presenters/presenters'
 import type { ShareLinkResponseDto } from '../presenters/dto'
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import { shareLinkBody } from '../schemas/requestSchemas'
-import { hostScope } from './eventRoutes'
+import { hostScopeOf } from '../middleware/scope'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
 /**
@@ -34,7 +34,7 @@ export const shareLinkRoutes = ({ deps, usecases, presenter }: ShareLinkRouteDep
     '/events/:eventSlug/share-link',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
 
       const result = await usecases.getShareLink({
         eventId: scope.event.id,
@@ -53,7 +53,7 @@ export const shareLinkRoutes = ({ deps, usecases, presenter }: ShareLinkRouteDep
     '/events/:eventSlug/share-link',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const body = shareLinkBody.parse(req.body)
 
       const result = await usecases.createShareLink({
@@ -74,7 +74,7 @@ export const shareLinkRoutes = ({ deps, usecases, presenter }: ShareLinkRouteDep
     '/events/:eventSlug/share-link',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
 
       const result = await usecases.revokeShareLink({
         eventId: scope.event.id,

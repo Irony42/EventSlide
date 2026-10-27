@@ -1,7 +1,6 @@
-import { Router, type Request, type RequestHandler, type Response } from 'express'
-import type { Event } from '../../../domain/events/event'
-import { DomainError } from '../../../domain/shared/errors'
+import { Router } from 'express'
 import { asyncHandler } from '../middleware/asyncHandler'
+import { withPublicEvent } from '../middleware/scope'
 import { GUEST_COOKIE, resolvePublicEvent } from '../middleware/authz'
 import { joinLimiter } from '../middleware/rateLimit'
 import {
@@ -10,7 +9,7 @@ import {
   toPublicEventDto,
   toWallResponseDto,
 } from '../presenters/presenters'
-import { sendError, sendJson, sendResult } from '../presenters/send'
+import { sendJson, sendResult } from '../presenters/send'
 import { joinBody, joinCodeParams, wallQuery } from '../schemas/requestSchemas'
 import type { JoinResponseDto } from '../presenters/dto'
 import type { HttpUseCases, RouteDeps } from '../useCases'
@@ -55,27 +54,6 @@ export interface PublicRouteDeps extends Omit<RouteDeps, 'usecases'> {
  * would sign a guest out while the party is still going.
  */
 const GUEST_COOKIE_MAX_AGE_MS = 36 * 60 * 60 * 1000
-
-type PublicEventHandler = (event: Event, req: Request, res: Response) => Promise<void>
-
-/**
- * `asyncHandler` plus the one narrowing `resolvePublicEvent` leaves behind.
- *
- * The 404 is unreachable behind that middleware, which is the point: a route that ever
- * loses its authorization decision must fail closed rather than dereference an absent
- * event. A `!` here would turn that wiring bug into a `TypeError` on a projector at
- * 22:00, answered as a 500 after the fact. Exported so the guard can be exercised
- * without a route in front of it.
- */
-export const withPublicEvent = (handler: PublicEventHandler): RequestHandler =>
-  asyncHandler(async (req, res) => {
-    const event = req.context.event
-    if (event === undefined) {
-      sendError(res, DomainError.notFound('event.notFound'))
-      return
-    }
-    await handler(event, req, res)
-  })
 
 export const publicRoutes = ({ deps, usecases, presenter }: PublicRouteDeps): Router => {
   const router = Router()
