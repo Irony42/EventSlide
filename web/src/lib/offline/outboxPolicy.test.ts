@@ -131,7 +131,7 @@ describe('MAX_ATTEMPTS', () => {
 describe('isTerminal', () => {
   it('gives up on bytes the server looked at and refused', () => {
     expect(isTerminal('image.unsupportedFormat')).toBe(true)
-    expect(isTerminal('image.tooManyPixels')).toBe(true)
+    expect(isTerminal('photo.pixelBudgetExceeded')).toBe(true)
     expect(isTerminal('upload.tooLarge')).toBe(true)
   })
 

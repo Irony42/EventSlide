@@ -146,7 +146,6 @@ const DOCUMENTED_CODES: readonly string[] = [
 
   'image.unsupportedFormat',
   'image.corrupt',
-  'image.tooManyPixels',
   'image.animated',
   'image.renderFailed',
 

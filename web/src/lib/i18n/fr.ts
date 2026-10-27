@@ -1304,7 +1304,6 @@ export const fr = {
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'Cette photo semble abîmée. Essayez-en une autre.',
-    'image.tooManyPixels': 'Cette photo est trop grande. Réduisez-la puis réessayez.',
     'image.animated': 'Les images animées ne sont pas acceptées.',
     'image.renderFailed': 'Cette photo n’a pas pu être traitée. Essayez-en une autre.',
     'upload.tooLarge': 'Cette photo dépasse la taille maximale.',

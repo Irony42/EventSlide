@@ -440,7 +440,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
     const subject = buildSubject()
     subject.upload.succeedsWith(
       stored(0, PENDING),
-      refused(1, DomainError.quotaExceeded('image.tooManyPixels')),
+      refused(1, DomainError.quotaExceeded('photo.pixelBudgetExceeded')),
       stored(2, PUBLISHED),
     )
 
@@ -454,7 +454,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
     expect(response.status).toBe(201)
     expect(response.body.results).toEqual([
       { index: 0, status: 'accepted', photoId: PENDING },
-      { index: 1, status: 'rejected', code: 'image.tooManyPixels' },
+      { index: 1, status: 'rejected', code: 'photo.pixelBudgetExceeded' },
       { index: 2, status: 'accepted', photoId: PUBLISHED },
     ])
   })

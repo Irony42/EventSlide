@@ -335,7 +335,6 @@ export const es: UiText = {
     'image.unsupportedFormat':
       'Este archivo no es una foto. Formatos aceptados: JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'Esta foto parece dañada. Pruebe con otra.',
-    'image.tooManyPixels': 'Esta foto es demasiado grande. Redúzcala e inténtelo de nuevo.',
     'image.animated': 'No se aceptan imágenes animadas.',
     'image.renderFailed': 'Esta foto no se ha podido procesar. Pruebe con otra.',
     'upload.tooLarge': 'Esta foto supera el tamaño máximo.',
