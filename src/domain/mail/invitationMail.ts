@@ -2,6 +2,7 @@ import type { ClientLocale } from '../clients/clientLocale'
 import type { ClientRole } from '../clients/clientRole'
 import type { EmailAddress } from '../users/emailAddress'
 import type { OutgoingMail } from './outgoingMail'
+import { toSingleLine } from '../shared/plainText'
 
 /**
  * The message that carries an invitation link (docs/ROADMAP.md §10.3; free plan G2-09, paid
@@ -142,9 +143,6 @@ const TEMPLATES: Readonly<Record<ClientLocale, Template>> = {
   },
 }
 
-/** A name on one line: any run of whitespace or control characters becomes one space. */
-const flatten = (name: string): string => name.replace(/[\s\p{Cc}]+/gu, ' ').trim()
-
 const offerFor = (target: InvitationMailTarget): Offer => {
   if (target.kind === 'event') return 'moderateEvent'
   return target.role === 'owner' ? 'manageClient' : 'joinClient'
@@ -158,7 +156,7 @@ export const invitationMail = ({
   lifetimeDays,
 }: InvitationMailInput): OutgoingMail => {
   const template = TEMPLATES[locale]
-  const offer = template.offer[offerFor(target)](flatten(target.name))
+  const offer = template.offer[offerFor(target)](toSingleLine(target.name))
 
   const before = [template.greeting, '', offer, '', template.open(lifetimeDays)].join('\n')
   const after = [template.ignore, '', 'EventSlide'].join('\n')
