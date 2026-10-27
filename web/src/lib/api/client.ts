@@ -17,7 +17,7 @@ import type {
   GalleryPage,
   GuestListResponse,
   GuestMissionListResponse,
-  GuestPhotoDto,
+  MyPhotosDto,
   InvitationAcceptedDto,
   InvitationPreviewDto,
   JoinResponse,
@@ -328,7 +328,7 @@ export const createApi = (transport: Transport) => ({
   acknowledgePrivacyNotice: (slug: string, revision: string): Promise<PrivacyNoticeState> =>
     transport.post(`/api/events/${encode(slug)}/privacy-notice/acknowledgement`, { revision }),
 
-  myPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly GuestPhotoDto[] }> =>
+  myPhotos: (slug: string, signal?: AbortSignal): Promise<MyPhotosDto> =>
     transport.get(`/api/events/${encode(slug)}/photos/mine`, undefined, signal),
 
   deleteMyPhoto: (slug: string, photoId: string): Promise<void> =>

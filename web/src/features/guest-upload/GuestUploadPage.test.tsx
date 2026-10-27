@@ -449,6 +449,32 @@ describe('GuestUploadPage', () => {
   })
 })
 
+describe('an event that no longer takes photos', () => {
+  const closed = (photos: readonly GuestPhotoDto[] = []): Api =>
+    fakeApi({ myPhotos: vi.fn(async () => ({ items: photos, acceptingUploads: false })) })
+
+  it('says the gallery takes no more photos, and offers no way to pick one', async () => {
+    renderUpload(closed())
+
+    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(screen.queryByLabelText(fr.upload.addPhotos)).toBeNull()
+  })
+
+  it('keeps showing the guest their own photos, which are what they come back for', async () => {
+    renderUpload(closed([aGuestPhoto({ id: 'mine-1' })]))
+
+    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(screen.getAllByRole('img').length).toBeGreaterThan(0)
+  })
+
+  it('offers the picker as before while the event takes photos, and on a server that does not say', async () => {
+    renderUpload(fakeApi())
+
+    expect(await screen.findByLabelText(fr.upload.addPhotos)).toBeInTheDocument()
+    expect(screen.queryByText(fr.errors['event.notAcceptingUploads'])).toBeNull()
+  })
+})
+
 describe('sending a video', () => {
   beforeEach(() => {
     sessionStorage.clear()

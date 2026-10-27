@@ -710,6 +710,28 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
     ])
   })
 
+  it('says whether the event still takes photos, so the upload screen can say it is over', async () => {
+    const live = buildSubject()
+    const liveResponse = await request(live.app)
+      .get(`${BASE}/photos/mine`)
+      .set('Cookie', cookie(live.token))
+    expect(liveResponse.body.acceptingUploads).toBe(true)
+
+    const ended = buildSubject()
+    ended.harness.events.seed(
+      anEvent({ id: 'ended-id', slug: 'termine', joinCode: 'C10SED', status: 'closed' }),
+    )
+    ended.harness.guests.seed(aGuest({ id: GUEST, eventId: 'ended-id', displayName: 'Léa' }))
+
+    const endedResponse = await request(ended.app)
+      .get('/api/events/termine/photos/mine')
+      .set('Cookie', cookie(ended.harness.issueGuestToken('ended-id', GUEST)))
+
+    // The guest's own photos stay readable after the close; only the answer to "can I send more" changes.
+    expect(endedResponse.status).toBe(200)
+    expect(endedResponse.body.acceptingUploads).toBe(false)
+  })
+
   it('carries the thumb url and the caption, and never a storage path', async () => {
     const subject = buildSubject()
 

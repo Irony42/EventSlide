@@ -305,6 +305,16 @@ export interface UploadResponse {
   readonly results: readonly UploadOutcome[]
 }
 
+/**
+ * `GET /api/events/:slug/photos/mine`: the guest's own photos, and whether the event still takes
+ * more. `acceptingUploads` is absent from a server build that predates it, which reads as `true`:
+ * the screen then behaves as it always did and the server's refusal stays the backstop.
+ */
+export interface MyPhotosDto {
+  readonly items: readonly GuestPhotoDto[]
+  readonly acceptingUploads?: boolean
+}
+
 export interface GuestPhotoDto {
   readonly id: string
   readonly status: PhotoStatus
