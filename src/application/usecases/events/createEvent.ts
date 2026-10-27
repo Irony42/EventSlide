@@ -287,29 +287,6 @@ const resolveClient = async (
     : ok(NO_CLIENT)
 }
 
-/**
- * What a client's ceilings change in the settings an event is created with — reductions,
- * never refusals, because an event being **created** has no value the host chose to override:
- *
- * - `retentionDays` is clamped to `max_retention_days`, and "keep for ever" (`null`, which is
- *   the default and what no template turns off) becomes the ceiling itself. This is where
- *   the infinite-retention default of `eventSettings.ts` is settled for a client's events.
- * - `allowClips` is switched off when the client may not have clips. The host reads it back
- *   in the settings, and `uploadClip` refuses either way — this keeps what the page says and
- *   what the box does in step.
- *
- * A patch rather than a new settings object, so it travels in the one `with` that validates
- * the language as well; and empty when nothing changes, so an event with no client — or a
- * client with no ceiling — gets the very settings the template produced.
- */
-const ceilingsPatch = (settings: EventSettings, ceilings: ClientCeilings): EventSettingsPatch => {
-  const retentionDays = ceilings.clampRetention(settings.retentionDays)
-  return {
-    ...(retentionDays === settings.retentionDays ? {} : { retentionDays }),
-    ...(!ceilings.clipsAllowed && settings.allowClips ? { allowClips: false } : {}),
-  }
-}
-
 export const makeCreateEvent =
   ({
     events,
@@ -369,7 +346,7 @@ export const makeCreateEvent =
     // comes back untouched.
     const patch: EventSettingsPatch = {
       ...(input.wallLanguage === undefined ? {} : { wallLanguage: input.wallLanguage }),
-      ...ceilingsPatch(preset, resolved.value.ceilings),
+      ...resolved.value.ceilings.settingsPatchFor(preset),
     }
     const settings = Object.keys(patch).length === 0 ? ok(preset) : preset.with(patch)
     if (!settings.ok) return settings

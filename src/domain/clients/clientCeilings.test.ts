@@ -524,3 +524,98 @@ describe('ClientCeilings.lowersRetentionCapFrom', () => {
     expect(withCap(null).lowersRetentionCapFrom(withCap(null))).toBe(false)
   })
 })
+
+describe('ClientCeilings.settingsRefusal', () => {
+  const capped = must(ClientCeilings.create({ maxRetentionDays: 30 }))
+  const noClips = must(ClientCeilings.create({ clipsAllowed: false }))
+  const CURRENT = { retentionDays: 30, allowClips: false }
+
+  it('refuses a retention above the ceiling, naming the ceiling', () => {
+    const refusal = capped.settingsRefusal(CURRENT, { retentionDays: 31 })
+
+    expect([refusal?.kind, refusal?.code, refusal?.details]).toEqual([
+      'invalid',
+      'client.retentionAboveCeiling',
+      { maxDays: 30 },
+    ])
+  })
+
+  it('refuses "keep forever" once a ceiling exists, when it is a change', () => {
+    expect(capped.settingsRefusal(CURRENT, { retentionDays: null })?.code).toBe(
+      'client.retentionAboveCeiling',
+    )
+  })
+
+  it('admits a retention at the ceiling', () => {
+    expect(capped.settingsRefusal(CURRENT, { retentionDays: 30 })).toBeNull()
+  })
+
+  it('asks nothing of a retention the save leaves as it was, whatever the ceiling now says', () => {
+    // The form sends every field on every save: an operator lowering the ceiling must not lock the
+    // host out of switching moderation.
+    expect(
+      capped.settingsRefusal({ retentionDays: 90, allowClips: false }, { retentionDays: 90 }),
+    ).toBeNull()
+  })
+
+  it('asks nothing of a patch that does not mention retention', () => {
+    expect(capped.settingsRefusal({ retentionDays: 90, allowClips: false }, {})).toBeNull()
+  })
+
+  it('has no opinion on retention without a ceiling', () => {
+    expect(ClientCeilings.unlimited().settingsRefusal(CURRENT, { retentionDays: null })).toBeNull()
+  })
+
+  it('refuses switching clips on for a client with none', () => {
+    expect(noClips.settingsRefusal(CURRENT, { allowClips: true })?.code).toBe(
+      'client.clipsNotAllowed',
+    )
+  })
+
+  it('does not refuse clips that were already on, nor switching them off', () => {
+    expect(
+      noClips.settingsRefusal({ retentionDays: null, allowClips: true }, { allowClips: true }),
+    ).toBeNull()
+    expect(
+      noClips.settingsRefusal({ retentionDays: null, allowClips: true }, { allowClips: false }),
+    ).toBeNull()
+  })
+
+  it('lets a client with clips switch them on', () => {
+    expect(ClientCeilings.unlimited().settingsRefusal(CURRENT, { allowClips: true })).toBeNull()
+  })
+})
+
+describe('ClientCeilings.settingsPatchFor', () => {
+  it('shortens a retention above the ceiling and turns "forever" into the ceiling', () => {
+    const capped = must(ClientCeilings.create({ maxRetentionDays: 30 }))
+
+    expect(capped.settingsPatchFor({ retentionDays: 90, allowClips: true })).toEqual({
+      retentionDays: 30,
+    })
+    expect(capped.settingsPatchFor({ retentionDays: null, allowClips: true })).toEqual({
+      retentionDays: 30,
+    })
+  })
+
+  it('leaves a retention under the ceiling alone', () => {
+    const capped = must(ClientCeilings.create({ maxRetentionDays: 30 }))
+
+    expect(capped.settingsPatchFor({ retentionDays: 7, allowClips: true })).toEqual({})
+  })
+
+  it('switches clips off for a client without them, and only when they were on', () => {
+    const noClips = must(ClientCeilings.create({ clipsAllowed: false }))
+
+    expect(noClips.settingsPatchFor({ retentionDays: null, allowClips: true })).toEqual({
+      allowClips: false,
+    })
+    expect(noClips.settingsPatchFor({ retentionDays: null, allowClips: false })).toEqual({})
+  })
+
+  it('changes nothing for a client with no ceiling', () => {
+    expect(
+      ClientCeilings.unlimited().settingsPatchFor({ retentionDays: null, allowClips: true }),
+    ).toEqual({})
+  })
+})

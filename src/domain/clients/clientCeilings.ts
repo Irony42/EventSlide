@@ -300,6 +300,67 @@ export class ClientCeilings {
   }
 
   /**
+   * Why an **edit** of an event's settings is refused under these ceilings, or `null`.
+   *
+   * Asked only of what the save **changes**, not of the fields the patch mentions: the settings
+   * form sends every field on every save, so a rule that asked about a mentioned field would lock
+   * a host out of switching moderation at the party because the operator had lowered a ceiling
+   * since they chose their retention. A value the host did not change is not a value they are
+   * asking for — the purge already honours the lower number, and `uploadClip` already refuses a
+   * clip.
+   *
+   * **Refused, where creation reduces** ({@link ClientCeilings.settingsPatchFor}): an edit has a
+   * value the host chose, and silently shortening what they typed would tell them they got what
+   * they asked for. Both are `invalid`, so the form can say which field.
+   */
+  settingsRefusal(
+    current: { readonly retentionDays: number | null; readonly allowClips: boolean },
+    patch: { readonly retentionDays?: number | null; readonly allowClips?: boolean },
+  ): DomainError | null {
+    const cap = this.props.maxRetentionDays
+    const retention = patch.retentionDays
+    if (
+      cap !== null &&
+      retention !== undefined &&
+      retention !== current.retentionDays &&
+      !this.admitsRetention(retention)
+    ) {
+      return DomainError.invalid('client.retentionAboveCeiling', { maxDays: cap })
+    }
+    if (patch.allowClips === true && !current.allowClips && !this.clipsAllowed) {
+      return DomainError.invalid('client.clipsNotAllowed')
+    }
+    return null
+  }
+
+  /**
+   * What these ceilings change in the settings an event is **created** with — reductions, never
+   * refusals, because an event being created has no value the host chose to override:
+   *
+   * - `retentionDays` is clamped to the ceiling, and "keep for ever" (`null`, the default, which
+   *   no template turns off) becomes the ceiling itself: this is where the infinite-retention
+   *   default is settled for a client's events.
+   * - `allowClips` is switched off when the client may not have clips, so what the page says and
+   *   what the box does (`uploadClip` refuses either way) stay in step.
+   *
+   * A patch, so it travels in the one `with` that validates the rest of the settings; empty when
+   * nothing changes, so an event with no ceiling gets the very settings the template produced.
+   */
+  settingsPatchFor(settings: {
+    readonly retentionDays: number | null
+    readonly allowClips: boolean
+  }): {
+    retentionDays?: number | null
+    allowClips?: false
+  } {
+    const retentionDays = this.clampRetention(settings.retentionDays)
+    return {
+      ...(retentionDays === settings.retentionDays ? {} : { retentionDays }),
+      ...(!this.clipsAllowed && settings.allowClips ? { allowClips: false as const } : {}),
+    }
+  }
+
+  /**
    * Whether these ceilings give less retention than `before` did: a bound where there was
    * none, or a smaller one. Raising the bound, removing it and leaving it alone are all
    * `false`.
