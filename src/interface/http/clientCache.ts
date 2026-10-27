@@ -26,7 +26,12 @@ import { relative, resolve, sep } from 'node:path'
  *
  * A Vite upgrade that changes the naming turns this rule off without anyone noticing — every
  * chunk goes back to being revalidated at each page load, over venue Wi-Fi — which is why
- * `clientCache.test.ts` is fed the build's own names.
+ * `clientCache.test.ts` is fed the build's own names, and reads the real `dist/client/assets`
+ * when a build exists.
+ *
+ * One standing assumption: nothing is placed in `web/public/assets/`. Vite copies `public/`
+ * verbatim, so a file there with an eight-character tail would be promoted though a person
+ * named it.
  */
 const CONTENT_HASHED_ASSET = /^assets\/[^/]+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+(?:\.map)?$/
 

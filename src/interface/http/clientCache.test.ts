@@ -1,6 +1,7 @@
+import { existsSync, readdirSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import request from 'supertest'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { isContentHashedAsset } from './clientCache'
@@ -17,10 +18,11 @@ import { buildServerHarness } from './testing/serverHarness'
  * (`assets/app.0a1b2c3d.js`) that no build produces. OWASP ZAP's passive scan is what
  * showed `max-age=0` on every chunk of the real build.
  *
- * The names below are the build's own, copied from `dist/client/` after `npm run build`
- * (Vite 8, whose default is `assets/[name]-[hash][extname]` with eight base64url
- * characters), and not invented to suit the pattern. If a Vite upgrade changes the
- * naming, this is the file that has to say so.
+ * The names below are the build's own, copied from the `dist/client/` of a Vite 8 build
+ * (whose default is `assets/[name]-[hash][extname]` with eight base64url characters), and
+ * not invented to suit the pattern. They are constants, so a Vite upgrade that renames the
+ * output cannot turn them red by itself: the last block of this file reads the real build
+ * when there is one, and that is the half that notices.
  */
 
 /** Emitted by the build under `assets/`, named after their own content. */
@@ -133,8 +135,9 @@ describe('buildServer: the Cache-Control of the built client, by name', () => {
     expect(response.get('cache-control')).toBe('public, max-age=31536000, immutable')
   })
 
-  // `index.html` is answered `no-cache` by its own branch; the others fall to the static
-  // default, `public, max-age=0`. Both are revalidation, and that is the claim.
+  // The static default is `public, max-age=0` and the shell's own branch says `no-cache`;
+  // both are revalidation, and that is the claim here. (`no-cache` for the shell is pinned
+  // in `server.test.ts`, which asserts it exactly.)
   it.each(REVALIDATED)('revalidates %s in production', async (name) => {
     const response = await serve(true).get(`/${name}`)
 
@@ -157,5 +160,33 @@ describe('buildServer: the Cache-Control of the built client, by name', () => {
 
       expect(response.get('cache-control'), path).toBe('no-cache')
     }
+  })
+})
+
+/**
+ * The names above are constants, so they cannot see a build that stops emitting them. This
+ * reads the real `dist/client/assets` and holds that **every** file the build put there is
+ * one the rule promotes — the failure this file exists for is the rule quietly matching
+ * nothing. It runs wherever a build is present (a developer's second `npm run verify`, an
+ * image build); on a tree with no `dist/` it is skipped, not green.
+ */
+const BUILT_ASSETS = resolve(__dirname, '..', '..', '..', 'dist', 'client', 'assets')
+
+describe.skipIf(!existsSync(BUILT_ASSETS))('the build in dist/client, when there is one', () => {
+  const root = resolve(BUILT_ASSETS, '..')
+
+  it('names every file under assets/ in the way the rule accepts', () => {
+    const names = readdirSync(BUILT_ASSETS)
+    const refused = names.filter((name) => !isContentHashedAsset(root, join(BUILT_ASSETS, name)))
+
+    expect(names.length).toBeGreaterThan(0)
+    expect(refused).toEqual([])
+  })
+
+  it('leaves what sits beside assets/ revalidated', () => {
+    const beside = readdirSync(root).filter((name) => name !== 'assets' && !name.startsWith('.'))
+    const promoted = beside.filter((name) => isContentHashedAsset(root, join(root, name)))
+
+    expect(promoted).toEqual([])
   })
 })
