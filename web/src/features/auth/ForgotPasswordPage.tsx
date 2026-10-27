@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
+import { useAbout, useAboutAnswered } from '../../app/useAbout'
 import { useLocale } from '../../lib/i18n/useTranslations'
 import { AuthActions, AuthPage } from './components/AuthPage'
 import { AuthForm } from './components/AuthForm'
@@ -43,6 +44,12 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [malformed, setMalformed] = useState(false)
   const [sent, setSent] = useState(false)
+  // A box that has said it cannot send mail is told so, here, instead of being handed a form whose
+  // every answer is a refusal. Only once it has said: before that the context holds the build's own
+  // default, and acting on a guess would flash "not available" at every box that can send.
+  const { features } = useAbout()
+  const aboutAnswered = useAboutAnswered()
+  const cannotSendMail = aboutAnswered && !features.forgotPassword
 
   const handleSubmit = () => {
     if (!LOOKS_LIKE_AN_ADDRESS.test(email.trim())) {
@@ -54,6 +61,16 @@ export function ForgotPasswordPage() {
     void submit(email.trim(), locale).then((taken) => {
       if (taken) setSent(true)
     })
+  }
+
+  if (cannotSendMail) {
+    return (
+      <AuthPage title={t.auth.forgotTitle} intro={t.auth.forgotUnavailable} focusTitle>
+        <AuthActions>
+          <Link to="/login">{t.auth.backToLogin}</Link>
+        </AuthActions>
+      </AuthPage>
+    )
   }
 
   if (sent) {
