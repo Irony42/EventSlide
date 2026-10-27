@@ -148,7 +148,7 @@ jobs:
       # lockfile depends on the mirror; every later one installs from the cache.
       - name: Restore the browser's system packages
         id: apt-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ~/apt-archives
           key: apt-debs-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('package-lock.json') }}
@@ -176,7 +176,7 @@ jobs:
 
       - name: Keep the browser's system packages
         if: steps.apt-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/apt-archives
           key: apt-debs-${{ runner.os }}-${{ matrix.project }}-${{ hashFiles('package-lock.json') }}
