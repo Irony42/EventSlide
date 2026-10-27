@@ -784,6 +784,7 @@ export const de: UiText = {
     settingsSaved: 'Einstellungen gespeichert.',
     settingsReadOnly:
       'Diese Veranstaltung ist archiviert: Die Einstellungen können nicht mehr geändert werden.',
+    settingsOwnerOnly: 'Nur der Eigentümer der Veranstaltung kann ihre Einstellungen ändern.',
     retentionHint: 'Die Fotos werden nach dieser Frist ab dem Ende der Veranstaltung gelöscht.',
     selfDeleteGrace: 'Löschfrist',
     selfDeleteGraceHint: 'Innerhalb dieser Frist kann ein Gast sein Foto selbst löschen.',

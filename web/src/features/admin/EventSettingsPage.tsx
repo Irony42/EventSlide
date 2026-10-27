@@ -202,7 +202,12 @@ export function EventSettingsPage() {
     return <LoadFailure message={error ?? t.errors.unknown} onRetry={reload} as="h1" />
   }
 
-  const readOnly = !isMutable(event.status)
+  // Two reasons a form cannot be saved, and the person is told which: the event is archived, or the
+  // viewer is a moderator, for whom the server refuses every settings route (`403`, owner only). A
+  // form whose every save fails is worse than none, so the controls are there to read and not to press.
+  const archived = !isMutable(event.status)
+  const ownerOnly = event.role !== 'owner'
+  const readOnly = archived || ownerOnly
   const settings = draft
 
   const update = (patch: Partial<EventSettingsDto>) => setDraft({ ...settings, ...patch })
@@ -275,7 +280,11 @@ export function EventSettingsPage() {
         <Link to={`/admin/events/${event.slug}`}>{event.name}</Link>
       </p>
 
-      {readOnly ? <p className={styles['notice']}>{t.admin.settingsReadOnly}</p> : null}
+      {readOnly ? (
+        <p className={styles['notice']}>
+          {archived ? t.admin.settingsReadOnly : t.admin.settingsOwnerOnly}
+        </p>
+      ) : null}
 
       {/*
         A refresh that failed while the host was reading. The page keeps the answer it

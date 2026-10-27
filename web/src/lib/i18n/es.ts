@@ -770,6 +770,7 @@ export const es: UiText = {
     codeRotated: 'El código de acceso ha cambiado. El anterior ya no funciona.',
     settingsSaved: 'Ajustes guardados.',
     settingsReadOnly: 'Este evento está archivado: sus ajustes ya no se pueden modificar.',
+    settingsOwnerOnly: 'Solo el propietario del evento puede modificar sus ajustes.',
     retentionHint: 'Las fotos se eliminan pasado ese plazo desde el cierre del evento.',
     selfDeleteGrace: 'Plazo de eliminación',
     selfDeleteGraceHint: 'Durante ese plazo, un invitado puede retirar su propia foto.',

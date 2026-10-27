@@ -500,6 +500,9 @@ Read these before you upgrade, and back up with the version you run now.
 - **`/password/forgot` on a box with no mail relay says so** (F20). The sign-in page already hid the link,
   but the address still served a form whose every answer was a refusal; it now shows "this server cannot
   send e-mail" once `/api/about` has said so, and the form is unchanged on a box that can.
+- **A moderator is shown an event's settings read-only, with the reason** (F15). The form was fully
+  editable and every save answered "you do not have the rights for this action". The controls are now
+  disabled under "only the event's owner can change its settings", in the five languages.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.
