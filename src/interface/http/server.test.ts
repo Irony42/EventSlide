@@ -705,6 +705,32 @@ describe('buildServer: security headers on a real response', () => {
     expect(directive(csp(response.headers), 'connect-src')).toBe("connect-src 'self'")
   })
 
+  it.each([
+    ['development', false],
+    ['production', true],
+  ])(
+    'asks the browser to load nothing cross-origin without its consent (COEP), in %s',
+    async (_name, isProduction) => {
+      // Nothing here embeds a cross-origin resource: no CDN, no remote image, font or frame, and
+      // every photo, poster and clip is a same-origin `/api` URL, so `require-corp` costs nothing
+      // today and refuses the day one is added without saying so. It was `false` with no reason
+      // written down; OWASP ZAP's passive scan (rule 90004) is what asked. docs/SECURITY.md has the
+      // evidence it rests on.
+      const response = await request(buildServerHarness({ config: { isProduction } }).app).get(
+        '/api/health',
+      )
+
+      expect(response.get('cross-origin-embedder-policy')).toBe('require-corp')
+    },
+  )
+
+  it('keeps the other two isolation headers beside it', async () => {
+    const response = await request(buildServerHarness().app).get('/api/health')
+
+    expect(response.get('cross-origin-opener-policy')).toBe('same-origin')
+    expect(response.get('cross-origin-resource-policy')).toBe('same-origin')
+  })
+
   it('refuses to be framed, so a projector left unattended cannot be clickjacked', async () => {
     const response = await request(buildServerHarness().app).get('/api/health')
 
@@ -1066,6 +1092,19 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
       expect(response.get('x-robots-tag')).toBeUndefined()
     },
   )
+
+  it.each([
+    ['the shell of a client route', '/admin/events/evt-1/moderation'],
+    ['a file served from the client directory', '/favicon.svg'],
+    ['a hashed asset', `/${HASHED_ASSET}`],
+  ])('sends COEP with %s, because a document and its worker both need it', async (_label, path) => {
+    // A page under `require-corp` can only be controlled by a service worker whose own script
+    // came with the policy, and the worker is a file of this directory.
+    const response = await request(withClient(true).app).get(path)
+
+    expect(response.status).toBe(200)
+    expect(response.get('cross-origin-embedder-policy')).toBe('require-corp')
+  })
 
   it('never caches index.html when it is requested by name', async () => {
     // `express.static` serves this one, not the fallback, so it needs its own header.
