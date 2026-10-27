@@ -21,7 +21,7 @@ jobs:
     name: Lint, typecheck, unit and integration tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: quality
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The image build runs `npm ci` and `npm run build` inside itself; nothing here
       # needs Node on the runner.
@@ -125,7 +125,7 @@ jobs:
             chromium-client-members,
           ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -228,7 +228,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: quality
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Both sides of the comparison have to be checked out in turn.
           fetch-depth: 0
@@ -419,7 +419,7 @@ jobs:
       # there and never appear on main's first-parent chain, so pinning the head instead
       # would check history main never sees, and would turn every branch cut before the
       # relicence red — they predate the boundary file — for a state main will never be in.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # `git merge-base --is-ancestor` and `git rev-list <boundary>..HEAD` need the
           # boundary commit, which can be arbitrarily far back. A shallow checkout would
