@@ -81,6 +81,11 @@ describe('EventSettingsPage', () => {
       expect(screen.getByLabelText(fr.admin.moderationManual)).toBeDisabled()
       expect(screen.getByLabelText(fr.admin.allowCaptions)).toBeDisabled()
       expect(screen.getByRole('button', { name: fr.app.save })).toBeDisabled()
+      // Every control of the page, the schedule form's included, and not a sample of them: each is a
+      // save the server refuses a moderator.
+      const controls = [...document.querySelectorAll('input, select, textarea, button')]
+      expect(controls.length).toBeGreaterThan(10)
+      for (const control of controls) expect(control).toBeDisabled()
       // Not the archived sentence: the reason is the role, and the event is live.
       expect(screen.queryByText(fr.admin.settingsReadOnly)).toBeNull()
     })
