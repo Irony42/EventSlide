@@ -31,6 +31,12 @@ describe('storageRefusalFor', () => {
     expect(storageRefusalFor(100, EVENT, null)).toBeNull()
   })
 
+  it('answers nothing left, never a negative, once usage is past the client ceiling too', () => {
+    expect(
+      storageRefusalFor(1, { quotaBytes: 10_000, usedBytes: 0 }, { maxBytes: 100, usedBytes: 250 }),
+    ).toEqual({ reason: 'clientStorageFull', remaining: 0 })
+  })
+
   it('answers nothing left, never a negative, once usage is past the quota', () => {
     expect(storageRefusalFor(1, { quotaBytes: 100, usedBytes: 250 }, null)).toEqual({
       reason: 'quotaExceeded',
@@ -66,6 +72,22 @@ describe('photoRefusalFor', () => {
       reason: 'photoLimitReached',
       already: 3,
     })
+  })
+
+  it('tells a guest past the cap how many they hold, not what the cap is', () => {
+    expect(photoRefusalFor(photo(5), 3, EVENT, null)).toEqual({
+      reason: 'photoLimitReached',
+      already: 5,
+    })
+  })
+
+  it('reaches the client ceiling when the cap and the event quota both allow', () => {
+    expect(photoRefusalFor(photo(0, 101), 3, { quotaBytes: 10_000, usedBytes: 0 }, CLIENT)).toEqual(
+      {
+        reason: 'clientStorageFull',
+        remaining: 100,
+      },
+    )
   })
 
   it('falls through to the byte ceilings, the event first', () => {

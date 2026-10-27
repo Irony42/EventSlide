@@ -1,3 +1,4 @@
+import type { PhotoCapRefusal, StorageRefusal } from '../../domain/events/admission'
 import type { Photo, PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
@@ -84,16 +85,13 @@ export interface PhotoAdmissionLimits {
  * decision — so the caller reports the state that actually refused it rather than the
  * stale one it read before rendering.
  */
-export type PhotoRefusal =
-  /** `remaining` is what the event's quota still had room for, in bytes. */
-  | { readonly reason: 'quotaExceeded'; readonly remaining: number }
-  /**
-   * The client's `max_total_bytes` over all its events is reached; `remaining` is what it
-   * still had room for at the moment of the decision.
-   */
-  | { readonly reason: 'clientStorageFull'; readonly remaining: number }
-  /** `already` is how many photos the author held when the cap refused this one. */
-  | { readonly reason: 'photoLimitReached'; readonly already: number }
+/**
+ * Why one photo was refused: the author's cap, the event's quota or the client's ceiling
+ * (`remaining` is what was left at the moment of the decision, `already` what the author
+ * held). The decision and these shapes belong to `domain/events/admission`; the repository
+ * only brings the sums.
+ */
+export type PhotoRefusal = PhotoCapRefusal | StorageRefusal
 
 /** One verdict per submitted photo, in the order submitted. */
 export interface PhotoAdmission {
