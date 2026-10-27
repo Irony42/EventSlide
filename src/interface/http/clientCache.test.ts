@@ -89,9 +89,9 @@ describe('isContentHashedAsset: which files of the built client may be cached fo
     // a folder called `assets` must not make the files in its root look like the build's.
     const underAssets = join(tmpdir(), 'assets')
 
-    expect(
-      isContentHashedAsset(underAssets, join(underAssets, 'third-party-licenses.txt')),
-    ).toBe(false)
+    expect(isContentHashedAsset(underAssets, join(underAssets, 'third-party-licenses.txt'))).toBe(
+      false,
+    )
     expect(isContentHashedAsset(underAssets, join(underAssets, 'index-Bm0-ak5a.js'))).toBe(false)
     expect(
       isContentHashedAsset(underAssets, join(underAssets, 'assets', 'index-Bm0-ak5a.js')),
@@ -99,9 +99,9 @@ describe('isContentHashedAsset: which files of the built client may be cached fo
   })
 
   it('refuses a file outside the client directory', () => {
-    expect(isContentHashedAsset(CLIENT_DIR, join(CLIENT_DIR, '..', 'assets', 'index-Bm0-ak5a.js'))).toBe(
-      false,
-    )
+    expect(
+      isContentHashedAsset(CLIENT_DIR, join(CLIENT_DIR, '..', 'assets', 'index-Bm0-ak5a.js')),
+    ).toBe(false)
   })
 })
 
