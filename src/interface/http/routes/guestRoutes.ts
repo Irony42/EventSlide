@@ -1,11 +1,11 @@
-import { Router, type Request, type RequestHandler, type Response } from 'express'
+import { Router, type Request, type RequestHandler } from 'express'
 import multer from 'multer'
 import type { Event } from '../../../domain/events/event'
 import type { Guest } from '../../../domain/guests/guest'
 import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { asGuestId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
-import { asyncHandler } from '../middleware/asyncHandler'
+import { withGuest } from '../middleware/scope'
 import { deferToHostSurface, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
 import {
@@ -231,33 +231,6 @@ const boundedMemoryStorage = (maxBytesPerRequest: number): multer.StorageEngine 
     },
   }
 }
-
-/** Both are populated by `requireGuest`. Narrowed once, in {@link withGuest}. */
-interface GuestScope {
-  readonly event: Event
-  readonly guest: Guest
-}
-
-type GuestHandler = (scope: GuestScope, req: Request, res: Response) => Promise<void>
-
-/**
- * `asyncHandler` plus the one narrowing every handler here would otherwise repeat.
- *
- * The 401 is unreachable behind `requireGuest` — it means the middleware did not run,
- * which is a wiring bug. It fails closed rather than asserting non-null: a `!` here
- * would turn that bug into a `TypeError` on a guest's phone mid-upload, and Express
- * would answer 500 after the fact. Exported so its guard can be exercised without a
- * route in front of it.
- */
-export const withGuest = (handler: GuestHandler): RequestHandler =>
-  asyncHandler(async (req, res) => {
-    const { event, guest } = req.context
-    if (event === undefined || guest === undefined) {
-      sendError(res, DomainError.unauthenticated('auth.required'))
-      return
-    }
-    await handler({ event, guest: guest.guest }, req, res)
-  })
 
 const actorFor = (guest: Guest): PhotoActor => ({ kind: 'guest', guestId: guest.id })
 

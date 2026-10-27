@@ -8,6 +8,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { guestTokenOf, requireRole, resolvePublicEvent } from '../middleware/authz'
+import { publicEventOf } from '../middleware/scope'
 import { contentRange, parseByteRange, unsatisfiedRange } from '../presenters/byteRange'
 import { errorBody, sendError } from '../presenters/send'
 import { photoVariantParams } from '../schemas/requestSchemas'
@@ -173,13 +174,7 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
     // event through and the viewer decides below (G2-14).
     resolvePublicEvent(deps, { suspended: 'visible' }),
     asyncHandler(async (req, res) => {
-      const event = req.context.event
-      if (!event) {
-        // `resolvePublicEvent` always populates it. This keeps the type honest without a
-        // non-null assertion, which is banned here because the one case where `!` would
-        // be wrong is a route that forgot its authorization decision.
-        return sendError(res, DomainError.notFound('event.notFound'))
-      }
+      const event = publicEventOf(req)
 
       // Who turned up, in the use case's vocabulary (HTTP-H-02): the one answer to "who is this" for
       // a route with a public caller. It also answers the public and a guest as for an event that is
@@ -254,8 +249,7 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
     '/events/:eventSlug/album.zip',
     requireRole('moderator', deps),
     asyncHandler(async (req, res) => {
-      const event = req.context.event
-      if (!event) return sendError(res, DomainError.notFound('event.notFound'))
+      const event = publicEventOf(req)
 
       // Nothing is written to the response until the use case has answered: once
       // `Content-Disposition: attachment` is on the wire the client is saving a file, and

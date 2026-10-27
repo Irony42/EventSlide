@@ -1,14 +1,12 @@
-import { Router, type Request, type RequestHandler, type Response } from 'express'
+import { Router, type Request, type RequestHandler } from 'express'
 import { rm } from 'node:fs/promises'
 import { readFile } from 'node:fs/promises'
 import multer from 'multer'
 import { join, resolve } from 'node:path'
-import type { Event } from '../../../domain/events/event'
-import type { Guest } from '../../../domain/guests/guest'
 import { DomainError } from '../../../domain/shared/errors'
 import { asClipJobId } from '../../../domain/shared/ids'
-import { asyncHandler } from '../middleware/asyncHandler'
 import { requireGuest } from '../middleware/authz'
+import { withGuest } from '../middleware/scope'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
 import { uploadConcurrencyLimiter, uploadLimiter } from '../middleware/rateLimit'
 import { toClipJobDto } from '../presenters/presenters'
@@ -71,48 +69,20 @@ const CLIP_FIELD = 'clip'
 /** A ceiling on text parts, for the reason `guestRoutes` has one: the parser, not zod. */
 const MAX_TEXT_FIELDS = 4
 
-/** Both are populated by `requireGuest`. Narrowed once, here. */
-interface GuestScope {
-  readonly event: Event
-  readonly guest: Guest
-}
-
-type GuestHandler = (scope: GuestScope, req: Request, res: Response) => Promise<void>
-
 /**
- * `asyncHandler`, the `requireGuest` narrowing, and the cleanup — for **both** routes.
- *
- * **The `finally` is the point.** Disk storage means every exit path owns a file — the
- * happy one, the refusal, the thrown error — and "cleanup on every exit path" is exactly
- * what 1.0 leaked. There is no path out of a handler here that does not unlink, and the
- * read route shares the wrapper rather than repeating the narrowing: one guard, one
- * place, and no second spelling of "the middleware did not run".
- *
- * The 401 is unreachable behind `requireGuest` — it means the middleware did not run,
- * which is a wiring bug. It fails closed rather than asserting non-null: a `!` here would
- * turn that bug into a `TypeError` on a guest's phone mid-upload. Exported so the guard
- * can be exercised without a route in front of it, as `guestRoutes.withGuest` is.
+ * Removes the temp file multer wrote, on **every** exit path of a clip handler: the happy
+ * one, the refusal, the thrown error. Disk storage means every exit owns a file, and
+ * "cleanup on every exit path" is exactly what 1.0 leaked. `withGuest` runs this in its
+ * `finally`, and the read route shares it rather than repeating the narrowing.
  */
-export const withGuestClip = (handler: GuestHandler): RequestHandler =>
-  asyncHandler(async (req, res) => {
-    const file = req.file
-    try {
-      const { event, guest } = req.context
-      if (event === undefined || guest === undefined) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
-      await handler({ event, guest: guest.guest }, req, res)
-    } finally {
-      if (file !== undefined) {
-        await rm(file.path, { force: true }).catch(() => {
-          // A leaked temp file is removed at the next boot, when the composition root
-          // empties MEDIA_ROOT/.uploads; failing a guest's clip over the cleanup would
-          // be worse.
-        })
-      }
-    }
+const removeUploadedFile = async (req: Request): Promise<void> => {
+  if (req.file === undefined) return
+  await rm(req.file.path, { force: true }).catch(() => {
+    // A leaked temp file is removed at the next boot, when the composition root empties
+    // MEDIA_ROOT/.uploads; failing a guest's clip over the cleanup would be worse.
   })
+}
+const clipGuest = { cleanup: removeUploadedFile }
 
 export const clipRoutes = ({
   deps,
@@ -166,7 +136,7 @@ export const clipRoutes = ({
     diskSpaceGuard,
     requireGuest(deps),
     uploads.single(CLIP_FIELD),
-    withGuestClip(async ({ event, guest }, req, res) => {
+    withGuest(async ({ event, guest }, req, res) => {
       const file = req.file
       if (file === undefined) {
         // Absent when the request was not multipart at all, which to a guest is the same
@@ -219,7 +189,7 @@ export const clipRoutes = ({
         // 202: accepted, and nothing exists yet that a moderator could act on.
         sendJson(response, toClipJobDto(value), 202)
       })
-    }),
+    }, clipGuest),
   )
 
   /**
@@ -234,7 +204,7 @@ export const clipRoutes = ({
   router.get(
     '/events/:eventSlug/clips/:clipJobId',
     requireGuest(deps),
-    withGuestClip(async ({ event, guest }, req, res) => {
+    withGuest(async ({ event, guest }, req, res) => {
       const params = clipJobParams.parse(req.params)
 
       const result = await usecases.getClipJob({
@@ -247,7 +217,7 @@ export const clipRoutes = ({
         response.setHeader('Cache-Control', 'no-store')
         sendJson(response, toClipJobDto(view))
       })
-    }),
+    }, clipGuest),
   )
 
   return router

@@ -168,6 +168,8 @@ generic fallback sentence to a guest, which is why the lists are kept in step.
 | `route.notFound`              | 404    | No such `/api` endpoint — answered in the API's own error shape                  |
 | `server.unexpected`           | 500    | A bug. `details.requestId` matches the `X-Request-Id` header                     |
 
+The one `server.unexpected` with an empty `details` is the answer for a route mounted without its authorization middleware (a wiring bug the server's own routes cannot reach): the error handler stamps `requestId` only into the failures it did not expect.
+
 ### Principals
 
 | Principal            | Credential                                                                        | Established by         |

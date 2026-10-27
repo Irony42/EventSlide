@@ -1,9 +1,7 @@
-import { Router, type Request, type RequestHandler, type Response } from 'express'
-import type { PhotoActor } from '../../../domain/photos/photo'
-import { DomainError } from '../../../domain/shared/errors'
-import { asPhotoId, type EventId } from '../../../domain/shared/ids'
-import { asyncHandler } from '../middleware/asyncHandler'
+import { Router, type Response } from 'express'
+import { asPhotoId } from '../../../domain/shared/ids'
 import { requireRole } from '../middleware/authz'
+import { withModerator } from '../middleware/scope'
 import type {
   BulkModerationResponseDto,
   ModerationQueuePageDto,
@@ -40,49 +38,6 @@ import type { RouteDeps } from '../useCases'
  * the domain and the use cases; this file parses, hands the decision over, and shapes
  * the answer. That split is what let those rules acquire tests at all.
  */
-
-export interface ModeratorScope {
-  readonly eventId: EventId
-  /**
-   * The event's canonical slug, taken from the resolved event rather than from the
-   * path, so the media links in a response cannot differ from the ones the wall and
-   * the printed card use.
-   */
-  readonly slug: string
-  readonly actor: PhotoActor
-}
-
-type ModeratorHandler = (scope: ModeratorScope, req: Request, res: Response) => Promise<void>
-
-/**
- * `asyncHandler` plus the one narrowing every handler here would otherwise repeat.
- *
- * `requireRole` populates the principal and the event before any handler runs, so the
- * guard is unreachable in production: reaching it means a route was mounted without an
- * authorization decision. It fails loudly rather than asserting non-null — a `!` would
- * turn that wiring bug into a `TypeError` mid-event, and a route quietly addressing an
- * event of `undefined` is the 1.0 failure mode this layer exists to prevent. The
- * `unexpected` kind is what has the error handler log it against the request id and
- * answer an opaque 500. Exported so its guard can be exercised without a route in
- * front of it.
- */
-export const withModerator = (handler: ModeratorHandler): RequestHandler =>
-  asyncHandler(async (req, res) => {
-    const { user, event } = req.context
-    if (user === undefined || event === undefined) {
-      throw DomainError.unexpected('server.unexpected')
-    }
-
-    await handler(
-      {
-        eventId: event.id,
-        slug: event.slug.value,
-        actor: { kind: 'host', userId: user.userId },
-      },
-      req,
-      res,
-    )
-  })
 
 /**
  * Moderation reads are never stored.
