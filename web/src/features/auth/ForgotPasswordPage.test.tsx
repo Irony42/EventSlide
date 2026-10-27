@@ -73,6 +73,28 @@ describe('ForgotPasswordPage before the box has said what it can do', () => {
   })
 })
 
+describe('ForgotPasswordPage when the box could not be asked', () => {
+  it.each([
+    ['the request fails', () => Promise.reject(new Error('offline'))],
+    ['the answer is empty', () => Promise.resolve(null as never)],
+  ])(
+    'keeps the form when %s, since the build’s guess is not the box’s word',
+    async (_name, about) => {
+      const api = fakeApi({ about: vi.fn(about) })
+      renderWithProviders(
+        <Routes>
+          <Route path="/password/forgot" element={<ForgotPasswordPage />} />
+        </Routes>,
+        { api, route: '/password/forgot' },
+      )
+
+      await waitFor(() => expect(api.about).toHaveBeenCalled())
+      expect(await screen.findByLabelText(fr.auth.email)).toBeVisible()
+      expect(screen.queryByText(fr.auth.forgotUnavailable)).toBeNull()
+    },
+  )
+})
+
 describe('ForgotPasswordPage', () => {
   it('sends the address and the language of the page, which is the language of the mail', async () => {
     const api = fakeApi()

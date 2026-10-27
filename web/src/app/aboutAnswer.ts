@@ -149,6 +149,22 @@ const trustedOperator = (operator: unknown): AboutOperator | undefined => {
  * right kind of thing, and what is not stays what the build knew — never a blank
  * `version` on `/about` and never an exception thrown from inside a promise callback.
  */
+/**
+ * Whether the answer really carried the box's own word on its features: an object with a
+ * `features` object that says, as a boolean, whether the box can send mail. `laidOver` fills what
+ * is missing from the build's guess, which is right for a footer and wrong for a screen that would
+ * take a way in away on the strength of a flag nobody sent.
+ */
+export const saidItsFeatures = (answer: unknown): boolean => {
+  if (typeof answer !== 'object' || answer === null) return false
+  const features: unknown = Reflect.get(answer, 'features')
+  return (
+    typeof features === 'object' &&
+    features !== null &&
+    typeof Reflect.get(features, 'forgotPassword') === 'boolean'
+  )
+}
+
 export const laidOver = (answer: unknown): About => {
   if (typeof answer !== 'object' || answer === null) return BUILD_ABOUT
 

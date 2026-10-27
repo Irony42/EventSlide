@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
-import { useAbout, useAboutAnswered } from '../../app/useAbout'
+import { useAbout, useAboutHeard } from '../../app/useAbout'
 import { useLocale } from '../../lib/i18n/useTranslations'
 import { AuthActions, AuthPage } from './components/AuthPage'
 import { AuthForm } from './components/AuthForm'
@@ -34,9 +34,10 @@ const LOOKS_LIKE_AN_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * all of them. (A string that cannot be an address never leaves the page, see above.) Anything this page did differently by address would turn a
  * form open to the whole internet into a way to list who has an account here.
  *
- * Not gated on `features.forgotPassword`: that flag is the sign-in page's reason to *offer* the
- * link, but a bookmark or an old mail can still land here, and the server is the judge of
- * whether the box can mail — a `404 feature.unavailable` is answered in a sentence of its own.
+ * Gated on `features.forgotPassword` only once the box has really said it cannot send mail (a bookmark
+ * or an old mail can land here): it then answers with the sentence and no form. Until it has said,
+ * and when its answer never comes, the form stays, and the server remains the judge of whether the
+ * box can mail — a `404 feature.unavailable` is answered in a sentence of its own.
  */
 export function ForgotPasswordPage() {
   const { locale, text: t } = useLocale()
@@ -45,11 +46,12 @@ export function ForgotPasswordPage() {
   const [malformed, setMalformed] = useState(false)
   const [sent, setSent] = useState(false)
   // A box that has said it cannot send mail is told so, here, instead of being handed a form whose
-  // every answer is a refusal. Only once it has said: before that the context holds the build's own
-  // default, and acting on a guess would flash "not available" at every box that can send.
+  // every answer is a refusal. Only once it has *said* so: before that, and for good when the
+  // request failed or came back unreadable, the context holds the build's own default, and acting
+  // on a guess would take the only way back in away from a host on a box that can send mail.
   const { features } = useAbout()
-  const aboutAnswered = useAboutAnswered()
-  const cannotSendMail = aboutAnswered && !features.forgotPassword
+  const heard = useAboutHeard()
+  const cannotSendMail = heard && !features.forgotPassword
 
   const handleSubmit = () => {
     if (!LOOKS_LIKE_AN_ADDRESS.test(email.trim())) {
