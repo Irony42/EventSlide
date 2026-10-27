@@ -400,4 +400,88 @@ describe('useEventStream', () => {
     expect(FakeEventSource.instances).toHaveLength(1)
     expect(second).toHaveBeenCalledWith<[StreamSignal]>({ type: 'photo.uploaded' })
   })
+
+  it('keeps the connection when only onDrop changes identity, and calls the newest one', () => {
+    // A page that passes an inline arrow gets a new one every render. Rebuilding the stream
+    // for it would lose Last-Event-ID, and calling the first one would act on stale state.
+    const first = vi.fn()
+    const second = vi.fn()
+    const { rerender } = renderHook(
+      (onDrop: () => void) => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }),
+      { initialProps: first },
+    )
+    const stream = latest()
+    act(() => stream.emitOpen())
+
+    rerender(second)
+    act(() => stream.emitDrop())
+
+    expect(FakeEventSource.instances).toHaveLength(1)
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  describe('telling the page that a connection it had was lost', () => {
+    it('says so once when an open connection drops', () => {
+      // The page cannot see why: an `EventSource` reports no status, so a stream the
+      // server ended because the event is no longer served looks exactly like a venue
+      // network dropping. What it can do is ask, and this is the moment it is asked.
+      const onDrop = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }))
+      act(() => latest().emitOpen())
+
+      act(() => latest().emitDrop())
+
+      expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not say it again for every failed retry of the same outage', () => {
+      // The browser retries by itself, and each failed retry is one more `error`. One
+      // read of the wall per outage is a question; one per retry is a flood against a
+      // server that is the thing that is down.
+      const onDrop = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }))
+      act(() => latest().emitOpen())
+
+      act(() => latest().emitDrop())
+      act(() => latest().emitDrop())
+      act(() => latest().emitRefusal())
+
+      expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+
+    it('says nothing for a connection that never opened', () => {
+      // A refused first attempt is not a loss: the page has not had the stream, and its
+      // own first read already asks the question.
+      const onDrop = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }))
+
+      act(() => latest().emitRefusal())
+
+      expect(onDrop).not.toHaveBeenCalled()
+    })
+
+    it('says so again for a second outage after the connection came back', () => {
+      const onDrop = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }))
+      act(() => latest().emitOpen())
+      act(() => latest().emitDrop())
+
+      act(() => latest().emitOpen())
+      act(() => latest().emitDrop())
+
+      expect(onDrop).toHaveBeenCalledTimes(2)
+    })
+
+    it('says so when the watchdog closes a connection that went silent', () => {
+      vi.useFakeTimers()
+      const onDrop = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }))
+      act(() => latest().emitOpen())
+
+      act(() => void vi.advanceTimersByTime(45_000))
+
+      expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+  })
 })
