@@ -14,34 +14,40 @@ That is what makes every route testable with supertest and zero open ports.
 
 ## 1. Schema — parse at the boundary
 
+Every schema lives in `src/interface/http/schemas/requestSchemas.ts` (the operator's in
+`siteSchemas.ts`, the client space's in `clientSchemas.ts`). The one a decision on a photo
+takes:
+
 ```ts
-// src/interface/http/schemas/photoSchemas.ts
-import { z } from 'zod'
+// src/interface/http/schemas/requestSchemas.ts
+const moderationDecision = z.enum(MODERATION_DECISIONS) // from the domain, not retyped
 
-export const moderatePhotoParams = z.object({
-  eventSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}$/),
-  photoId: z.guid(),
+export const photoParams = z.object({ eventSlug: slug, photoId: uuid })
+
+export const moderationDecisionBody = z.strictObject({
+  decision: moderationDecision,
 })
 
-export const moderatePhotoBody = z.strictObject({
-  status: z.enum(['published', 'rejected', 'hidden']),
-})
-
-export const listPhotosQuery = z.strictObject({
-  status: z.enum(['pending', 'published', 'rejected', 'hidden']).optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(60),
-  cursor: z.string().optional(),
+export const photoListQuery = z.strictObject({
+  status: photoStatusFilter.default('all'),
+  limit: pageLimit, // z.coerce.number().int().min(1).max(200).default(60)
+  cursor: z.string().max(512).optional(),
 })
 ```
 
 - Every route parses `params`, `query`, and `body` it reads. Anything unparsed is
-  untrusted input reaching a use case.
+  untrusted input reaching a use case. A route with no parameter at all still parses the
+  empty schema, so that sending one is a `400`.
 - `z.strictObject` for every body and query, so an extra key is a `400` and not a field the sender
   believes took effect; a params schema is a plain `z.object`, because the route pattern owns its keys.
   (zod 4 keeps `.strict()` only as a legacy method.)
+- A vocabulary the domain owns (reaction kinds, moderation decisions, photo and event
+  statuses, served variants) is `z.enum(<DOMAIN_CONSTANT>)`, never a retyped literal array:
+  a value the domain gains is then accepted at the boundary or a test says so.
 - `z.guid()` for an id, not `z.uuid()`: zod 4's `z.uuid()` demands an RFC 9562 version, which would
-  narrow what the API accepts (see `requestSchemas.ts`).
+  narrow what the API accepts (see the `uuid` constant in `requestSchemas.ts`).
 - `z.coerce` for query numbers — they arrive as strings.
+- A bound two schemas share (an e-mail, a page size) is one constant at the top of the file.
 - Schemas define **shape**, never business rules. "The event must not be archived" is
   a domain rule, not `z.refine`.
 
@@ -49,31 +55,24 @@ export const listPhotosQuery = z.strictObject({
 
 ```ts
 // src/interface/http/routes/moderationRoutes.ts
-import { Router } from 'express'
-import { moderatePhotoBody, moderatePhotoParams } from '../schemas/photoSchemas'
-import { requireRole } from '../middleware/authz'
-import { asyncHandler } from '../middleware/asyncHandler'
-import { sendResult, sendNoContent } from '../presenters/send'
-import type { HttpDeps } from '../types'
-
-export const moderationRoutes = ({ usecases }: HttpDeps): Router => {
+export const moderationRoutes = ({ deps, usecases }: RouteDeps): Router => {
   const router = Router()
 
   router.patch(
     '/events/:eventSlug/photos/:photoId/status',
-    requireRole('moderator'),
-    asyncHandler(async (req, res) => {
-      const params = moderatePhotoParams.parse(req.params)
-      const body = moderatePhotoBody.parse(req.body)
+    requireRole('moderator', deps),
+    withModerator(async ({ eventId, actor }, req, res) => {
+      const params = photoParams.parse(req.params)
+      const body = moderationDecisionBody.parse(req.body)
 
       const result = await usecases.moderatePhoto({
-        eventSlug: params.eventSlug,
-        photoId: params.photoId,
-        actor: req.actor, // set by authn middleware, typed in types.ts
-        status: body.status,
+        eventId,
+        photoId: asPhotoId(params.photoId),
+        decision: body.decision, // the host's verb (`publish`), never the resulting state
+        actor,
       })
 
-      return sendResult(res, result, sendNoContent)
+      sendResultNoContent(res, result)
     }),
   )
 
@@ -81,22 +80,37 @@ export const moderationRoutes = ({ usecases }: HttpDeps): Router => {
 }
 ```
 
-- `asyncHandler` forwards rejections to the error middleware. Never write a bare
-  `async` Express handler — an unhandled rejection crashes the process.
-- `requireRole` handles authorization **before** the body is even read.
-- `sendResult` maps `Result` to a status code in one place (see step 4).
+- A route module takes `RouteDeps` (`deps`, `usecases`, `presenter`, from `useCases.ts`)
+  and returns a `Router`; the use cases are the ones `src/main/usecases.ts` built, so a
+  test hands the route a stub for any of them.
+- `requireRole` resolves the event from `:eventSlug` and the caller's role in it
+  **before** the body is read, and parks both on `req.context`. A handler never repeats
+  the lookup and never reads `req.context.event` itself: `withModerator`, `withGuest` and
+  `withPublicEvent` hand it the narrowed scope (`eventId`, `slug`, `actor`, or the event
+  and guest), and `hostScopeOf(req)` / `userOf(req)` do the same for a route that is not
+  one of those. A route mounted without its middleware answers one opaque
+  `500 server.unexpected`, not a `TypeError` and not a quiet 401.
+- The wrappers are `asyncHandler` plus that narrowing. `asyncHandler` forwards a rejection
+  to the error middleware; a handler that is not wrapped is a review blocker, because it
+  hides which handlers are async.
+- `sendResult` / `sendResultNoContent` map a `Result` to a status in one place (step 4).
 - The controller never touches a repository, `fs`, or `sharp`.
 
 ## 3. Authorization — declare it, per route
 
-| Middleware                 | Grants                                                                 |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `requireRole('owner')`     | event owner only                                                       |
-| `requireRole('moderator')` | owner or moderator of **that** event                                   |
-| `requireGuest()`           | a valid HMAC device token scoped to **that** event                     |
-| `requireGuestOwnsPhoto()`  | guest token + photo authored by that token, inside the grace window    |
-| `requireOperator(deps)`    | the account that operates the **box** — never anything inside an event |
-| _(none)_                   | genuinely public — join lookup, health                                 |
+| Middleware                       | Grants                                                                           |
+| -------------------------------- | -------------------------------------------------------------------------------- |
+| `requireRole('owner', deps)`     | event owner only                                                                 |
+| `requireRole('moderator', deps)` | owner or moderator of **that** event                                             |
+| `requireUser(deps)`              | any signed-in account that is still switched on, for a route that names no event |
+| `requireGuest(deps)`             | a valid HMAC device token scoped to **that** event, and a guest not revoked      |
+| `resolvePublicEvent(deps)`       | no identity: the event in the path, if it serves its wall                        |
+| `requireOperator(deps)`          | the account that operates the **box** — never anything inside an event           |
+| _(none)_                         | genuinely public — join lookup, health                                           |
+
+A guest may only touch their own photo, inside the grace window: that is not a
+middleware, it is `Photo.deletionVerdict` in the domain, which `deletePhoto` acts on and
+the guest's DTO reads, so there is no `requireGuestOwnsPhoto` to reach for.
 
 There is no ambient "logged in means allowed". `requireRole` resolves the event from
 `:eventSlug` and checks membership **of that event**. A route with no explicit
@@ -165,91 +179,166 @@ logs those with a `requestId` and returns the code only.
 ## 5. Presenter — never serialise an entity directly
 
 ```ts
-// src/interface/http/presenters/photoPresenter.ts
-export interface PhotoDto {
+// src/interface/http/presenters/presenters.ts  (the shape is declared in presenters/dto.ts)
+export interface ModerationPhotoDto {
   readonly id: string
   readonly status: PhotoStatus
-  readonly caption: string | null
-  readonly authorName: string | null
+  readonly thumbUrl: string
+  readonly displayUrl: string
   readonly width: number
   readonly height: number
+  readonly caption: string | null
+  readonly authorName: string | null
+  readonly byteSize: number
   readonly createdAt: string
-  readonly thumbnailUrl: string
-  readonly fullUrl: string
+  // …and the media facet (kind, duration) a clip adds
 }
 
-export const toPhotoDto = (photo: Photo, event: Event): PhotoDto => ({/* … */})
+export const toModerationPhotoDto = ({
+  photo,
+  slug,
+  authorName,
+}: ModerationPhotoDtoInput) => ({
+  id: photo.id,
+  status: photo.status,
+  thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT[photo.kind]),
+  // …
+})
 ```
 
-The wire format is a **contract**. Returning the entity means every internal field
-rename becomes a breaking API change, and every internal field becomes a leak. Note
-what is absent: storage keys, absolute paths, uploader IP, raw EXIF.
+Every wire shape is declared in `presenters/dto.ts` and mirrored by hand in
+`web/src/lib/api/dto.ts`; `presenters/dtoContract.test.ts` fails when the two disagree.
+The wire format is a **contract**. Returning the entity means every internal field rename
+becomes a breaking API change, and every internal field becomes a leak. Note what is
+absent: storage keys, absolute paths, uploader IP, raw EXIF.
 
 ## 6. Register and document
 
-- Mount in `src/interface/http/server.ts` under `/api`.
+- A new use case is a member of `HttpUseCases` (`useCases.ts`), built in `src/main/usecases.ts`,
+  and listed in `notWiredUseCases` (`testing/serverHarness.ts`).
+- Mount the router in `src/interface/http/server.ts` under `/api`, as the others are
+  (`app.use('/api', moderationRoutes(routeDeps))`).
 - Add the route to [docs/API.md](../../../docs/API.md) — method, path, auth, request,
   response, error codes. Kept by hand; an undocumented endpoint is an incomplete one.
 - If the frontend calls it, add the typed function in `web/src/lib/api/`.
 
-## 7. Contract test — supertest, real server, fake adapters
+## 7. Contract test — supertest, real routes, fake adapters
+
+Ring 4 sits next to the route (`routes/moderationRoutes.test.ts` is the model to copy).
+`testing/middlewareHarness.ts` gives `buildHarness({ routes })`: an Express app with the
+body parser, session, request context, the session-age cap and `attachUser` mounted in the
+order `server.ts` mounts them, your routes wired where you say, and the error handler
+last. It returns the app plus the fakes behind it (`events`, `memberships`, `guests`,
+`users`, `bus`, `clock`, `issueGuestToken`). `signInAs` is the route a test mounts to sign
+a session in without a login. The use cases are the **real** ones, built over the in-memory
+fakes: a stub would let every cross-event assertion pass while the product leaked.
+`testing/serverHarness.ts` (`buildServerHarness`) drives the real `buildServer()` instead,
+for what depends on the mount order.
 
 ```ts
-import { beforeEach, describe, expect, it } from 'vitest'
 import request from 'supertest'
-import { buildTestServer, loginAs, joinAsGuest } from '../testing/httpHarness'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { moderationRoutes } from './moderationRoutes'
+import { GUEST_COOKIE } from '../middleware/authz'
+import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
+import { AT, anEvent, aPhoto } from '../../../application/testing/builders'
+import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
+import { asEventId, asUserId } from '../../../domain/shared/ids'
 
-describe('PATCH /api/events/:slug/photos/:id/status', () => {
-  let harness: Awaited<ReturnType<typeof buildTestServer>>
+const WEDDING = 'wedding-id'
+const MODERATOR = 'moderator-id'
+const PHOTO = '22222222-2222-4222-8222-222222222222' // photoParams parses :photoId as an id
 
-  beforeEach(async () => {
-    harness = await buildTestServer()
+let harness: Harness
+let photos: FakePhotoRepository
+
+beforeEach(() => {
+  photos = new FakePhotoRepository()
+  harness = buildHarness({
+    routes: (app, deps) => {
+      app.post(
+        '/sign-in/moderator',
+        signInAs({ userId: MODERATOR, email: 'mod@example.test' }),
+      )
+      app.post(
+        '/sign-in/stranger',
+        signInAs({ userId: 'stranger-id', email: 's@example.test' }),
+      )
+      app.use(
+        '/api',
+        moderationRoutes({
+          deps,
+          usecases: usecasesFor(deps, photos),
+          presenter: PRESENTER,
+        }),
+      )
+    },
   })
+  harness.events.seed(anEvent({ id: WEDDING, slug: 'mariage', ownerId: 'owner-id' }))
+  harness.memberships.seed({
+    eventId: asEventId(WEDDING),
+    userId: asUserId(MODERATOR),
+    role: 'moderator',
+    grantedAt: AT,
+  })
+  photos.seed(aPhoto({ id: PHOTO, eventId: WEDDING, status: 'pending' }))
+})
 
+const signedIn = async (who: 'moderator' | 'stranger' = 'moderator') => {
+  const agent = request.agent(harness.app)
+  await agent.post(`/sign-in/${who}`).expect(204)
+  return agent
+}
+
+describe('PATCH /api/events/:eventSlug/photos/:photoId/status', () => {
   it('publishes a pending photo for a moderator of the event', async () => {
-    const agent = await loginAs(harness, 'moderator@wedding')
-
-    const response = await agent
-      .patch('/api/events/wedding/photos/photo-1/status')
-      .send({ status: 'published' })
+    const response = await (
+      await signedIn()
+    )
+      .patch(`/api/events/mariage/photos/${PHOTO}/status`)
+      .send({ decision: 'publish' })
 
     expect(response.status).toBe(204)
     expect(harness.bus.published).toContainEqual(
-      expect.objectContaining({ type: 'photo.published' }),
+      expect.objectContaining({ type: 'photo.moderated', status: 'published' }),
     )
   })
 
   it('answers 401 without a session', async () => {
     const response = await request(harness.app)
-      .patch('/api/events/wedding/photos/photo-1/status')
-      .send({ status: 'published' })
+      .patch(`/api/events/mariage/photos/${PHOTO}/status`)
+      .send({ decision: 'publish' })
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
+  it('answers 404, never 403, for a signed-in account with no role in the event', async () => {
+    const response = await (
+      await signedIn('stranger')
+    )
+      .patch(`/api/events/mariage/photos/${PHOTO}/status`)
+      .send({ decision: 'publish' })
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
+  })
+
+  it('refuses a guest device token: what the room sees is the host alone', async () => {
+    const response = await request(harness.app)
+      .patch(`/api/events/mariage/photos/${PHOTO}/status`)
+      .set('Cookie', `${GUEST_COOKIE}=${harness.issueGuestToken(WEDDING, 'guest-1')}`)
+      .send({ decision: 'publish' })
 
     expect(response.status).toBe(401)
   })
 
-  it('answers 403 for a moderator of a different event', async () => {
-    const agent = await loginAs(harness, 'moderator@birthday')
-    const response = await agent
-      .patch('/api/events/wedding/photos/photo-1/status')
-      .send({ status: 'published' })
-
-    expect(response.status).toBe(403)
-  })
-
-  it('answers 403 for a guest token, which may never moderate', async () => {
-    const agent = await joinAsGuest(harness, 'wedding')
-    const response = await agent
-      .patch('/api/events/wedding/photos/photo-1/status')
-      .send({ status: 'published' })
-
-    expect(response.status).toBe(403)
-  })
-
-  it('answers 400 for a status outside the enum', async () => {
-    const agent = await loginAs(harness, 'moderator@wedding')
-    const response = await agent
-      .patch('/api/events/wedding/photos/photo-1/status')
-      .send({ status: 'deleted-forever' })
+  it('answers 400 for the resulting state instead of the verb', async () => {
+    const response = await (
+      await signedIn()
+    )
+      .patch(`/api/events/mariage/photos/${PHOTO}/status`)
+      .send({ decision: 'published' })
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')
@@ -257,9 +346,16 @@ describe('PATCH /api/events/:slug/photos/:id/status', () => {
 })
 ```
 
+`usecasesFor` and `PRESENTER` are the file's own: `usecasesFor` builds the real use cases
+over the fakes and fills every other member of `HttpUseCases` with a `notWired` stub that
+answers an error (`testing/serverHarness.ts` has `notWiredUseCases()` for the whole set), and
+`PRESENTER` is the `PresenterContext` the DTOs take.
+
 **Every** mutating route ships with these five: happy, unauthenticated,
 wrong-tenant, wrong-role, invalid-payload. The wrong-tenant case is the one that
-catches real incidents.
+catches real incidents, and what it expects is a **404**: a member of another event, or of none, is
+never told the event exists (`requireRole`). A guest's token on a host route is a 401 (it is not a
+session), and a moderator on an owner's route is a `403 auth.forbidden`.
 
 ## Special cases
 

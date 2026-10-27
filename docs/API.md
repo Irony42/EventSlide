@@ -3810,8 +3810,9 @@ papered over: §1 says this document is the specification and one side is a bug,
 bug needs a name and a line number.
 
 Every route that exists is documented, and every route documented exists — verified in
-both directions: **37 routes in code, 37 `###` headings in §1–8, no discrepancy either
-way**. Nothing here is a missing endpoint. The audit found ten divergences; six have
+both directions: **90 distinct routes in code (91 registrations: the guest's and the host's
+`DELETE …/photos/:photoId` share a path), 87 route headings in §1–8 (three of them cover two
+routes), no discrepancy either way**. Nothing here is a missing endpoint. The audit found ten divergences; six have
 since been fixed and removed, and these four are the places where the code and the intent
 above are not yet the same thing. Items marked **doc corrected above** have been fixed in
 this file. The rest are code defects — rewriting a specification to agree with a bug is
@@ -3852,7 +3853,7 @@ honoured the pair under `E2E_HOOKS=1`, which described a design that is not ther
 states that the server reads neither and points here. What remains is the accepting
 itself, plus two things that follow it:
 
-- `HttpConfig.e2eHooks` (`types.ts:75`, set from `container.ts:162`) is plumbed through
+- `HttpConfig.e2eHooks` (declared in `types.ts`, set by the composition root in `main/container.ts`) is plumbed through
   the HTTP layer and **read by no handler**. `publicRoutes.test.ts` exercises both states
   of the flag precisely to pin that it changes no answer.
 - The rationale the flag was given does not hold on the side that does read the hooks.

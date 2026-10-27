@@ -361,21 +361,23 @@ it('moderation works', async () => {
     status: 'live',
     quotaBytes: 5_000_000 /* …9 more fields… */,
   })
-  const spy = vi.spyOn(harness.photos, 'save') // mechanics
-  const guest = await joinAsGuest(harness, 'mariage') // act 1
-  await guest.post('/api/events/mariage/photos').attach('photos', jpeg) // act 2
-  const res = await moderator
-    .patch('/api/events/mariage/photos/p1/status')
-    .send({ status: 'published' }) // act 3
+  const spy = vi.spyOn(photos, 'save') // mechanics
+  await request(app) // act 1
+    .post('/api/events/mariage/photos')
+    .set('Cookie', `${GUEST_COOKIE}=${harness.issueGuestToken(event.id, GUEST)}`)
+    .attach('photos', jpeg)
+  const res = await moderator // act 2
+    .patch(`/api/events/mariage/photos/${PHOTO}/status`)
+    .send({ decision: 'publish' })
   expect(res.status).toBe(200)
   expect(spy).toHaveBeenCalled()
-  expect(await harness.photos.list(event.id)).toHaveLength(1)
+  expect(await photos.list(event.id)).toHaveLength(1)
   expect(res.body.message).toBe('Photo publiée') // French UI copy
 })
 ```
 
 Five distinct failures of diagnosis: the name says nothing, so a red run tells you only
-that "moderation" is broken; three acts mean the failure could be in any of them; the
+that "moderation" is broken; two acts mean the failure could be in either of them; the
 spy is green even if nothing was stored; `200` contradicts the documented `204`, so the
 test pins the wrong contract; and the message assertion breaks on a copy edit in
 `web/src/lib/i18n/` that changed no behaviour at all.
