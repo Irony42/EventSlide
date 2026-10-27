@@ -211,7 +211,7 @@ describe('useUploadQueue', () => {
   })
 
   it('offers no retry for a photo the server judged one file at a time', async () => {
-    const api = fakeApi({ uploadPhotos: vi.fn(async () => refused('image.tooManyPixels')) })
+    const api = fakeApi({ uploadPhotos: vi.fn(async () => refused('photo.pixelBudgetExceeded')) })
     const { result } = mount(api)
 
     act(() => result.current.add([aPhotoFile('bombe.png')]))
@@ -219,7 +219,7 @@ describe('useUploadQueue', () => {
 
     await waitFor(() => expect(result.current.items[0]?.state).toBe('failed'))
     expect(result.current.items[0]?.retryable).toBe(false)
-    expect(result.current.items[0]?.error).toBe(fr.errors['image.tooManyPixels'])
+    expect(result.current.items[0]?.error).toBe(fr.errors['photo.pixelBudgetExceeded'])
   })
 
   it('treats a photo already in the event as reassurance, not as an error', async () => {

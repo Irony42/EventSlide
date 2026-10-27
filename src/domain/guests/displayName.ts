@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { toSingleLine } from '../shared/plainText'
 
 /**
  * The name a guest signs their photos with, shown under the photo on the wall.
@@ -17,29 +18,11 @@ import { err, ok, type Result } from '../shared/result'
 const MIN_LENGTH = 1
 const MAX_LENGTH = 40
 
-/** A name is one line; whatever a paste dragged in is folded back to single spaces. */
-const LINE_BREAKS = /[\t\n\r\f\v]+/g
-
-/**
- * The invisible categories, addressed by Unicode property rather than by a hand-typed
- * range, exactly as `photos/caption.ts` does and for the same reasons: a single
- * bidirectional override (`Cf`) flips the rest of the projector line, and zero-width
- * characters let two guests hold names that look identical but are not.
- */
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu
-
-const normalise = (raw: string): string =>
-  raw
-    .replace(LINE_BREAKS, ' ')
-    .replace(INVISIBLE, '')
-    .replace(/\s{2,}/gu, ' ')
-    .trim()
-
 export class DisplayName {
   private constructor(readonly value: string) {}
 
   static create(raw: string): Result<DisplayName, DomainError> {
-    const cleaned = normalise(raw)
+    const cleaned = toSingleLine(raw)
 
     if (cleaned.length < MIN_LENGTH) return err(DomainError.invalid('displayName.empty'))
     if (cleaned.length > MAX_LENGTH) {
@@ -55,7 +38,7 @@ export class DisplayName {
    */
   static createOptional(raw: string | null | undefined): Result<DisplayName | null, DomainError> {
     if (raw === null || raw === undefined) return ok(null)
-    if (normalise(raw).length < MIN_LENGTH) return ok(null)
+    if (toSingleLine(raw).length < MIN_LENGTH) return ok(null)
     return DisplayName.create(raw)
   }
 

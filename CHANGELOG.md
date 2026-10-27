@@ -196,6 +196,8 @@ Read these before you upgrade, and back up with the version you run now.
 
 ### Behaviour changes to check before upgrading
 
+- **An oversized photo is refused once, as `photo.pixelBudgetExceeded`** (#239): the per-file rejection code in the `results` of `POST /api/events/:slug/photos` was `image.tooManyPixels`; both are 413 with the same wording, so a guest sees no change, but an API client matching the old code needs the new one. An oversized animated image now answers 400 `image.animated`.
+
 - **New migrations run at the first boot**, with any earlier one your database has not seen:
   008 (clients, and `events.client_id` and `events.opened_at`), 009 (the audit log), 010
   (account tokens, and the `credentials_changed_at` and `email_verified_at` columns of
@@ -486,6 +488,23 @@ Read these before you upgrade, and back up with the version you run now.
   forms, the server's verdict on one attempt ("too common") stayed on screen beside the browser's own sentence
   about the next ("the two passwords do not match"); on the operator's accounts page, two refused acts left two
   pinned refusals up. The newest finding is the only one shown.
+- **Password prompts say "wrong password", not "wrong address or password"** (F02). Changing the password,
+  confirming oneself (step-up) and setting up the second factor have no address field, yet a refused password
+  read like a sign-in refusal. The sign-in form keeps its deliberately neutral sentence.
+- **The new-event button is disabled, with the reason, at the events ceiling** (F19). The form used to
+  stay usable at "3 of 3" and the refusal appeared under the template list, below the fold. When every
+  client the host belongs to has reached its events limit (total or per period), the button is disabled and
+  the sentence sits beside it.
+- **A guest of a closed event is told so, instead of being offered the upload form** (F18).
+  `GET /api/events/:slug/photos/mine` now carries `acceptingUploads` (the upload rule's own answer); the
+  upload screen shows "this gallery no longer accepts photos" and no picker when it is `false`, and keeps
+  the guest's own photos listed. Before, the form stayed and the refusal came after the send.
+- **`/password/forgot` on a box with no mail relay says so** (F20). The sign-in page already hid the link,
+  but the address still served a form whose every answer was a refusal; it now shows "this server cannot
+  send e-mail" once `/api/about` has said so, and the form is unchanged on a box that can.
+- **A moderator is shown an event's settings read-only, with the reason** (F15). The form was fully
+  editable and every save answered "you do not have the rights for this action". The controls are now
+  disabled under "only the event's owner can change its settings", in the five languages.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.

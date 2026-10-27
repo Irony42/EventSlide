@@ -12,6 +12,7 @@ import {
   resolveAuthState,
 } from '../middleware/authz'
 import { rotateCsrfToken } from '../middleware/csrf'
+import { userOf } from '../middleware/scope'
 import {
   loginLimiter,
   passwordResetLimiter,
@@ -522,13 +523,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     '/auth/password',
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        // `requireUser` always populates it; this keeps the type honest without the
-        // non-null assertion the strict settings forbid.
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
 
       const body = changePasswordBody.parse(req.body)
 
@@ -633,11 +628,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     // nothing a caller could point at another account.
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
 
       const result = await usecases.revokeOtherSessions({ userId: user.userId })
       if (!result.ok) {
@@ -663,11 +654,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
     secondFactorBudget,
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
       const body = enrollSecondFactorBody.parse(req.body)
       // The secret is in this response, twice. Never stored by anything between here and the
       // person.
@@ -688,11 +675,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
     secondFactorBudget,
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
       const body = confirmSecondFactorBody.parse(req.body)
       res.setHeader('Cache-Control', 'no-store')
 
@@ -719,11 +702,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
     secondFactorBudget,
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
       const body = stepUpBody.parse(req.body)
       res.setHeader('Cache-Control', 'no-store')
 
@@ -760,11 +739,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     requireUser(deps),
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
       res.setHeader('Cache-Control', 'no-store')
 
       const result = await usecases.regenerateRecoveryCodes({ userId: user.userId })
@@ -781,11 +756,7 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
     requireUser(deps),
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
 
       const result = await usecases.disableSecondFactor({ userId: user.userId })
       if (!result.ok) {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { NewEventPage } from './NewEventPage'
@@ -254,6 +254,64 @@ describe('NewEventPage: a client’s limits', () => {
     const banner = await screen.findByRole('region', { name: fr.clientSpace.bannerLabel })
     expect(banner).toHaveTextContent(fr.clientSpace.eventsMeter(9, 10))
     expect(screen.getByLabelText(fr.admin.eventName)).toBeVisible()
+  })
+
+  it('disables the create button at the events ceiling, and says why beside it', async () => {
+    const limits = aClientLimits({
+      meters: [{ kind: 'events', used: 10, max: 10, level: 'reached' }],
+    })
+
+    renderPage(onBox([limits]))
+
+    // The form is drawn before the limits arrive, so the button is first enabled.
+    const button = screen.getByRole('button', { name: fr.admin.create })
+    await waitFor(() => expect(button).toBeDisabled())
+    expect(button).toHaveAccessibleDescription(fr.errors['client.ceilingReached'])
+  })
+
+  it('disables it at the per-period ceiling too', async () => {
+    const limits = aClientLimits({
+      meters: [{ kind: 'eventsPerPeriod', used: 3, max: 3, level: 'reached' }],
+    })
+
+    renderPage(onBox([limits]))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: fr.admin.create })).toBeDisabled(),
+    )
+  })
+
+  it('leaves the button alone when only the storage ceiling is reached, or an events ceiling is merely close', async () => {
+    renderPage(
+      onBox([
+        aClientLimits({
+          meters: [
+            { kind: 'storage', used: 10, max: 10, level: 'reached' },
+            { kind: 'events', used: 9, max: 10, level: 'warning' },
+          ],
+        }),
+      ]),
+    )
+
+    // The banner is what says the limits have arrived.
+    await screen.findByRole('region', { name: fr.clientSpace.bannerLabel })
+    expect(screen.getByRole('button', { name: fr.admin.create })).toBeEnabled()
+    expect(screen.queryByText(fr.errors['client.ceilingReached'])).toBeNull()
+  })
+
+  it('keeps the button for a host who belongs to a second client that can still create', async () => {
+    renderPage(
+      onBox([
+        aClientLimits({
+          id: 'full',
+          meters: [{ kind: 'events', used: 4, max: 4, level: 'reached' }],
+        }),
+        aClientLimits({ id: 'roomy', meters: [{ kind: 'events', used: 1, max: 4, level: 'ok' }] }),
+      ]),
+    )
+
+    await screen.findByRole('region', { name: fr.clientSpace.bannerLabel })
+    expect(screen.getByRole('button', { name: fr.admin.create })).toBeEnabled()
   })
 
   it('offers no form to a suspended account, and says why', async () => {

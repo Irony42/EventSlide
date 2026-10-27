@@ -1,15 +1,9 @@
-import { Router, type Request, type Response } from 'express'
+import { Router } from 'express'
 import type { ClientCeilingsInput } from '../../../domain/clients/clientCeilings'
-import { DomainError } from '../../../domain/shared/errors'
-import {
-  asAccountTokenId,
-  asClientId,
-  asEventId,
-  asUserId,
-  type UserId,
-} from '../../../domain/shared/ids'
+import { asAccountTokenId, asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireOperator, requireSecondFactor, requireStepUp } from '../middleware/authz'
+import { userOf } from '../middleware/scope'
 import { toClientDefaultsDto } from '../presenters/clientDefaultsPresenter'
 import {
   toClientCeilingsChangedDto,
@@ -21,7 +15,7 @@ import {
   toSiteClientPageDto,
   toSiteEventPageDto,
 } from '../presenters/siteOverviewPresenter'
-import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
+import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   accountIdParams,
   type CeilingsBody,
@@ -72,7 +66,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * What this router may **not** do is reach into anybody's event. `requireOperator` grants
  * the box, never an evening — see `middleware/authz.ts` — and a handler here that read a
  * photograph or a moderation queue would be §10.6's support access without its time-box,
- * its announcement or its audit trail. It reads no `EventRepository`: it is handed nine use
+ * its announcement or its audit trail. It reads no `EventRepository`: it is handed fifteen use
  * cases (`SiteRouteDeps`), and the ones it calls take a client's id, an account's id and a read
  * model that has no content in it.
  *
@@ -85,7 +79,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  */
 
 /**
- * What the operator's router is handed: the gates' own dependencies, and **the eleven use cases it
+ * What the operator's router is handed: the gates' own dependencies, and **the fifteen use cases it
  * calls and no others**. It is not given the whole bag, so a handler that reached for
  * `getEventBySlug`, a moderation queue or a photograph would not compile; `deps` is there for
  * `requireOperator` and its siblings, and no handler here reads `deps.events`.
@@ -109,16 +103,6 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'inviteToClientAsOperator'
     | 'issuePasswordResetForAccount'
   >
-}
-
-/** The operator behind the request. `requireOperator` always populates it. */
-const operatorOf = (req: Request, res: Response): UserId | null => {
-  const user = req.context.user
-  if (user === undefined) {
-    sendError(res, DomainError.unauthenticated('auth.required'))
-    return null
-  }
-  return user.userId
 }
 
 /**
@@ -249,8 +233,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/clients',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const body = provisionClientBody.parse(req.body)
 
       const result = await usecases.provisionClientOwner({
@@ -273,8 +256,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/clients/:clientId',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
       const body = renameClientBody.parse(req.body)
 
@@ -297,8 +279,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/clients/:clientId/ceilings',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
       const body = setCeilingsBody.parse(req.body)
 
@@ -326,8 +307,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/clients/:clientId/suspend',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
 
       const result = await usecases.suspendClient({
@@ -344,8 +324,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/clients/:clientId/resume',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
 
       const result = await usecases.resumeClient({
@@ -367,8 +346,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/clients/:clientId/offboard',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
       const body = offboardClientBody.parse(req.body)
 
@@ -392,8 +370,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/clients/:clientId/invitations',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = clientIdParams.parse(req.params)
       const body = operatorInvitationBody.parse(req.body)
 
@@ -424,8 +401,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/accounts/:userId/password-reset',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = accountIdParams.parse(req.params)
       const body = operatorPasswordResetBody.parse(req.body)
 
@@ -452,8 +428,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/accounts/:userId/disable',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = accountIdParams.parse(req.params)
 
       const result = await usecases.disableAccount({
@@ -470,8 +445,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/accounts/:userId/enable',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = accountIdParams.parse(req.params)
 
       const result = await usecases.enableAccount({
@@ -493,8 +467,7 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
     '/accounts/:userId',
     requireStepUp(deps),
     asyncHandler(async (req, res) => {
-      const operator = operatorOf(req, res)
-      if (operator === null) return
+      const operator = userOf(req).userId
       const params = accountIdParams.parse(req.params)
 
       const result = await usecases.deleteAccount({

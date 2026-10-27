@@ -30,6 +30,23 @@ export const bannerLevel = (limits: ClientLimitsDto): BannerLevel | null => {
   return noticeable.length > 0 ? 'warning' : null
 }
 
+/**
+ * Whether a host can be sure the server will refuse to create an event for them: **every** client
+ * they belong to is at its events ceiling (total or per period). One client with room left is
+ * enough to leave the button alone: this screen does not know which client the event will be
+ * attributed to (it sends none, and the server decides), so it only blocks what no client could
+ * accept. Only the two event ceilings count: storage refuses uploads, not a new draft, and a
+ * warning is not a refusal. The level is the server's (`ceilingLevel`), never recomputed here.
+ */
+export const eventCreationBlocked = (clients: readonly ClientLimitsDto[]): boolean =>
+  clients.length > 0 &&
+  clients.every((client) =>
+    client.meters.some(
+      (meter) =>
+        (meter.kind === 'events' || meter.kind === 'eventsPerPeriod') && meter.level === 'reached',
+    ),
+  )
+
 /** Where a client who has hit a limit is sent: the operator's own contact address, or nowhere. */
 export interface ContactAction {
   readonly href: string

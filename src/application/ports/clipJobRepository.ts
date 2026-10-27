@@ -1,3 +1,4 @@
+import type { StorageRefusal } from '../../domain/events/admission'
 import type { ClipJob } from '../../domain/clips/clipJob'
 import type { ContentHash } from '../../domain/photos/contentHash'
 import type { ClipJobId, EventId, PhotoId } from '../../domain/shared/ids'
@@ -102,9 +103,7 @@ export interface ClipAdmissionLimits {
  * naming the right ceiling only because this type does.
  */
 export type ClipRefusal =
-  | { readonly reason: 'quotaExceeded'; readonly remaining: number }
-  /** The client's `max_total_bytes` over all its events is reached. See `PhotoRefusal`. */
-  | { readonly reason: 'clientStorageFull'; readonly remaining: number }
+  | StorageRefusal
   | { readonly reason: 'queueFull'; readonly depth: number; readonly maxDepth: number }
 
 export interface ClipAdmission {

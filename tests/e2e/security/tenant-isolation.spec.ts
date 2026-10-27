@@ -210,7 +210,7 @@ test.describe('upload hardening', () => {
     })
 
     const body = await response.json()
-    expect(body.results[0]).toMatchObject({ status: 'rejected', code: 'image.tooManyPixels' })
+    expect(body.results[0]).toMatchObject({ status: 'rejected', code: 'photo.pixelBudgetExceeded' })
 
     await context.dispose()
   })

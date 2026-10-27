@@ -1,4 +1,4 @@
-import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from '../../domain/events/quota'
+import { photoRefusalFor } from '../../domain/events/admission'
 import { Photo, type PhotoReview } from '../../domain/photos/photo'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import type { ContentHash } from '../../domain/photos/contentHash'
@@ -419,38 +419,18 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
       const author = photo.author
       const guestId = author.kind === 'guest' ? author.guestId : null
 
-      if (guestId !== null) {
-        const already = alreadyBy(guestId)
-        if (!allowsAnotherPhoto(limits.maxPhotosPerGuest, already)) {
-          verdicts.push({ photoId: photo.id, refusal: { reason: 'photoLimitReached', already } })
-          continue
-        }
-      }
-
-      if (!fitsInQuota(limits.quotaBytes, usedBytes, photo.byteSize)) {
-        verdicts.push({
-          photoId: photo.id,
-          refusal: {
-            reason: 'quotaExceeded',
-            remaining: remainingQuota(limits.quotaBytes, usedBytes),
-          },
-        })
-        continue
-      }
-
-      // After the event's own quota, as in the adapter: the client's ceiling is the one a
-      // host can do less about, so the event's is named first when both are reached.
-      if (
-        clientBytes !== null &&
-        !fitsInQuota(clientBytes.maxBytes, clientUsedBytes, photo.byteSize)
-      ) {
-        verdicts.push({
-          photoId: photo.id,
-          refusal: {
-            reason: 'clientStorageFull',
-            remaining: remainingQuota(clientBytes.maxBytes, clientUsedBytes),
-          },
-        })
+      // The decision is the domain's, shared with the adapter: the author's cap, then the
+      // event's quota, then the client's ceiling. This loop only brings the sums.
+      const refusal = photoRefusalFor(
+        { byteSize: photo.byteSize, heldByAuthor: guestId === null ? null : alreadyBy(guestId) },
+        limits.maxPhotosPerGuest,
+        { quotaBytes: limits.quotaBytes, usedBytes },
+        clientBytes === null
+          ? null
+          : { maxBytes: clientBytes.maxBytes, usedBytes: clientUsedBytes },
+      )
+      if (refusal !== null) {
+        verdicts.push({ photoId: photo.id, refusal })
         continue
       }
 

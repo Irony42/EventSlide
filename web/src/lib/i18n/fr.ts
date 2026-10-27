@@ -919,6 +919,8 @@ export const fr = {
     codeRotated: 'Le code d’accès a été changé. L’ancien ne fonctionne plus.',
     settingsSaved: 'Réglages enregistrés.',
     settingsReadOnly: 'Cet évènement est archivé : ses réglages ne peuvent plus être modifiés.',
+    // What a moderator is shown in place of a form every save of which the server would refuse.
+    settingsOwnerOnly: 'Seul le propriétaire de l’évènement peut modifier ses réglages.',
     retentionHint: 'Les photos sont supprimées ce délai après la clôture de l’évènement.',
     selfDeleteGrace: 'Délai de suppression',
     selfDeleteGraceHint: 'Pendant ce délai, un invité peut retirer lui-même sa photo.',
@@ -1110,6 +1112,10 @@ export const fr = {
     /* ---- Added by features/auth. ---- */
     changePasswordIntro: 'Choisissez un mot de passe que vous n’utilisez pas ailleurs.',
     passwordSaved: 'Mot de passe enregistré.',
+    // The refusal of a prompt that asks for the password and nothing else (change it, confirm
+    // oneself, set up the second factor): the address is already known there, so naming it
+    // would make a wrong password read as a wrong account.
+    passwordIncorrect: 'Mot de passe incorrect.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Vérification en deux étapes',
@@ -1304,7 +1310,6 @@ export const fr = {
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'Cette photo semble abîmée. Essayez-en une autre.',
-    'image.tooManyPixels': 'Cette photo est trop grande. Réduisez-la puis réessayez.',
     'image.animated': 'Les images animées ne sont pas acceptées.',
     'image.renderFailed': 'Cette photo n’a pas pu être traitée. Essayez-en une autre.',
     'upload.tooLarge': 'Cette photo dépasse la taille maximale.',

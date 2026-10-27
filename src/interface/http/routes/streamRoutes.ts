@@ -5,6 +5,7 @@ import type { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { requireRole, resolvePublicEvent } from '../middleware/authz'
+import { publicEventOf } from '../middleware/scope'
 import { STREAM_RETRY_AFTER_SECONDS, streamConnectionLimiter } from '../middleware/rateLimit'
 import { errorBody } from '../presenters/send'
 import type { HttpDeps } from '../types'
@@ -364,11 +365,10 @@ const RETRY_AFTER_SECONDS = String(STREAM_RETRY_AFTER_SECONDS)
  * difference is the authorization decision mounted ahead of it — writing it twice is how
  * the two would drift.
  *
- * The 404 is unreachable behind `resolvePublicEvent` or `requireRole`, which is the
- * point: a route that ever loses its authorization decision must fail closed rather than
- * dereference an absent event. A `!` here would turn that wiring bug into a `TypeError`
- * on a projector at 22:00, answered as a 500 after the fact. Exported so the guard can
- * be exercised without a route in front of it, as `publicRoutes.withPublicEvent` is.
+ * An absent event is unreachable behind `resolvePublicEvent` or `requireRole`: a route that
+ * ever loses its authorization decision gets the one wiring answer of `middleware/scope.ts`
+ * (an opaque 500), like every other route. Exported so the guard can be exercised without
+ * a route in front of it.
  *
  * The `503` is the other half: a stream that cannot be opened is refused as a request,
  * not accepted as a connection that carries nothing. `503` rather than the `500` the
@@ -378,11 +378,7 @@ const RETRY_AFTER_SECONDS = String(STREAM_RETRY_AFTER_SECONDS)
 export const streamHandler =
   (deps: HttpDeps, channel: 'wall' | 'moderation' = 'wall'): RequestHandler =>
   (req, res) => {
-    const event = req.context.event
-    if (event === undefined) {
-      res.status(404).end()
-      return
-    }
+    const event = publicEventOf(req)
 
     const opened = openStream({
       deps,

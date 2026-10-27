@@ -109,7 +109,7 @@ test('a host who forgot their password asks for a link, chooses a new one with i
   }
 })
 
-test('a box with no mail relay offers no way to ask, and says so if asked anyway', async ({
+test('a box with no mail relay offers no way to ask, and says so if the page is opened anyway', async ({
   app,
   browser,
 }) => {
@@ -137,11 +137,12 @@ test('a box with no mail relay offers no way to ask, and says so if asked anyway
     )
     await expect(page.getByRole('link', { name: fr.auth.forgotLink })).toHaveCount(0)
 
-    // A bookmark or an old mail can still land on the page: the server is the judge.
+    // A bookmark or an old mail can still land on the page: it says the box cannot send mail, once
+    // the box has said so itself, and offers no form whose every answer would be a refusal.
     await page.goto(app.url('/password/forgot'))
-    await page.getByLabel(fr.auth.email).fill('quelqu-un@example.org')
-    await page.getByRole('button', { name: fr.auth.forgotSubmit }).click()
-    await expect(page.getByRole('alert')).toContainText(fr.auth.forgotUnavailable)
+    await expect(page.getByText(fr.auth.forgotUnavailable)).toBeVisible()
+    await expect(page.getByLabel(fr.auth.email)).toHaveCount(0)
+    await expect(page.getByRole('button', { name: fr.auth.forgotSubmit })).toHaveCount(0)
   } finally {
     await context.close()
   }

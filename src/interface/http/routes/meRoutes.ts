@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireUser } from '../middleware/authz'
+import { userOf } from '../middleware/scope'
 import { toMyLimitsDto } from '../presenters/presenters'
-import { sendError, sendJson, sendResult } from '../presenters/send'
+import { sendJson, sendResult } from '../presenters/send'
 import { myLimitsQuery } from '../schemas/clientSchemas'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
@@ -31,13 +31,7 @@ export const meRoutes = ({ deps, usecases }: MeRouteDeps): Router => {
     '/me/limits',
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        // `requireUser` always populates it; this keeps the type honest without the
-        // non-null assertion the strict settings forbid.
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
       myLimitsQuery.parse(req.query)
 
       const result = await usecases.getClientLimits({ userId: user.userId })

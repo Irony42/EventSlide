@@ -5,7 +5,7 @@ import { requireRole } from '../middleware/authz'
 import { toMissionDto } from '../presenters/presenters'
 import { sendJson, sendNoContent, sendResult } from '../presenters/send'
 import { missionBody, missionParams } from '../schemas/requestSchemas'
-import { hostScope } from './eventRoutes'
+import { hostScopeOf } from '../middleware/scope'
 import type { MissionDto, MissionListResponseDto } from '../presenters/dto'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
@@ -65,7 +65,7 @@ export const missionRoutes = ({ deps, usecases }: MissionRouteDeps): Router => {
     '/events/:eventSlug/missions',
     requireRole('moderator', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
 
       const result = await usecases.listMissions({
         // The event `requireRole` already resolved, never an id re-derived from the path.
@@ -84,7 +84,7 @@ export const missionRoutes = ({ deps, usecases }: MissionRouteDeps): Router => {
     '/events/:eventSlug/missions',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const body = missionBody.parse(req.body)
 
       const result = await usecases.createMission({
@@ -112,7 +112,7 @@ export const missionRoutes = ({ deps, usecases }: MissionRouteDeps): Router => {
     '/events/:eventSlug/missions/:missionId',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const params = missionParams.parse(req.params)
       const body = missionBody.parse(req.body)
 
@@ -147,7 +147,7 @@ export const missionRoutes = ({ deps, usecases }: MissionRouteDeps): Router => {
     '/events/:eventSlug/missions/:missionId',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const params = missionParams.parse(req.params)
 
       const result = await usecases.deleteMission({

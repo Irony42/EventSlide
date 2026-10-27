@@ -17,6 +17,7 @@ import {
   aPhoto,
   type PhotoInput,
 } from '../../../application/testing/builders'
+import { Event } from '../../../domain/events/event'
 import type { Photo } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
@@ -635,5 +636,78 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant — a clip', () => {
 
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('photo.mediaMissing')
+  })
+})
+
+/**
+ * A suspended client's members still read their own photographs; everybody else is told the event
+ * is not there (roadmap 10.7, G2-14; HTTP-M-17). Written as the two mutants the sweep killed only
+ * outside this ring: the route's `{ suspended: 'visible' }` option, and the viewer's refusal of the
+ * public and of guests. A freeze that locked an owner out of the album on the morning after the
+ * event is the failure these cases exist for.
+ */
+describe('GET /events/:eventSlug/photos/:photoId/:variant: an event whose client is suspended', () => {
+  const FROZEN = 'frozen-id'
+  const FROZEN_PHOTO = '77777777-8888-4999-8aaa-bbbbbbbbbbbb'
+  const FROZEN_PENDING = '66666666-7777-4888-8999-aaaaaaaaaaaa'
+  let world: World
+
+  beforeEach(async () => {
+    world = await buildWorld()
+    const frozen = anEvent({ id: FROZEN, slug: 'gele', ownerId: HOST, joinCode: 'C5D6EF' })
+    world.events.seed(Event.restore({ ...frozen.toProps(), clientSuspendedAt: AT }))
+    world.memberships.seed({
+      eventId: asEventId(FROZEN),
+      userId: asUserId(HOST),
+      role: 'moderator',
+      grantedAt: AT,
+    })
+    world.guests.seed(aGuest({ id: 'frozen-guest', eventId: FROZEN }))
+    await seedPhoto(world, { id: FROZEN_PHOTO, eventId: FROZEN, status: 'published' })
+    await seedPhoto(world, {
+      id: FROZEN_PENDING,
+      eventId: FROZEN,
+      author: { kind: 'guest', id: 'frozen-guest' },
+    })
+  })
+
+  it('answers the public as it would for an event that does not exist, even for a published photo', async () => {
+    const response = await getJson(world, mediaPath(FROZEN_PHOTO, 'thumb', 'gele'))
+
+    expect(response.status).toBe(404)
+    // The same code as an event that does not exist, so a frozen slug is not told apart from an unknown one.
+    expect(response.body.error.code).toBe('event.notFound')
+  })
+
+  it('answers a guest of the event the same, even for their own photograph', async () => {
+    const response = await getJson(world, mediaPath(FROZEN_PENDING, 'thumb', 'gele')).set(
+      'Cookie',
+      asGuestOf(world, FROZEN, 'frozen-guest'),
+    )
+
+    expect(response.status).toBe(404)
+    // The same code as an event that does not exist, so a frozen slug is not told apart from an unknown one.
+    expect(response.body.error.code).toBe('event.notFound')
+  })
+
+  it('still serves a moderator of the event the bytes of its photographs', async () => {
+    const agent = await signedIn(world, 'host')
+
+    const response = await agent.get(mediaPath(FROZEN_PHOTO, 'thumb', 'gele')).responseType('blob')
+
+    expect(response.status).toBe(200)
+    expect([...response.body]).toEqual([...JPEG])
+  })
+
+  it('still honours a Range from a moderator of the event', async () => {
+    const agent = await signedIn(world, 'host')
+
+    const response = await agent
+      .get(mediaPath(FROZEN_PHOTO, 'thumb', 'gele'))
+      .set('Range', 'bytes=0-1')
+      .responseType('blob')
+
+    expect(response.status).toBe(206)
+    expect(response.headers['content-range']).toBe('bytes 0-1/3')
   })
 })

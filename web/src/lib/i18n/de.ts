@@ -354,8 +354,6 @@ export const de: UiText = {
     'image.unsupportedFormat':
       'Diese Datei ist kein Foto. Zulässige Formate: JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'Dieses Foto scheint beschädigt zu sein. Versuchen Sie es mit einem anderen.',
-    'image.tooManyPixels':
-      'Dieses Foto ist zu groß. Verkleinern Sie es und versuchen Sie es erneut.',
     'image.animated': 'Animierte Bilder werden nicht angenommen.',
     'image.renderFailed':
       'Dieses Foto konnte nicht verarbeitet werden. Versuchen Sie es mit einem anderen.',
@@ -784,6 +782,7 @@ export const de: UiText = {
     settingsSaved: 'Einstellungen gespeichert.',
     settingsReadOnly:
       'Diese Veranstaltung ist archiviert: Die Einstellungen können nicht mehr geändert werden.',
+    settingsOwnerOnly: 'Nur der Eigentümer der Veranstaltung kann ihre Einstellungen ändern.',
     retentionHint: 'Die Fotos werden nach dieser Frist ab dem Ende der Veranstaltung gelöscht.',
     selfDeleteGrace: 'Löschfrist',
     selfDeleteGraceHint: 'Innerhalb dieser Frist kann ein Gast sein Foto selbst löschen.',
@@ -943,6 +942,7 @@ export const de: UiText = {
 
     changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
     passwordSaved: 'Passwort gespeichert.',
+    passwordIncorrect: 'Das Passwort ist falsch.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Bestätigung in zwei Schritten',

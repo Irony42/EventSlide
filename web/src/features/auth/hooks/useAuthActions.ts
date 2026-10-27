@@ -4,7 +4,7 @@ import { useApi } from '../../../app/useApi'
 import type { SecondFactorProof } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { messageForError } from '../../../lib/i18n/translations'
+import { messageForError, messageForPasswordError } from '../../../lib/i18n/translations'
 
 /**
  * The write actions of the auth surface, as view-state.
@@ -164,8 +164,9 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
       } catch (cause) {
         // Every rule about what makes a password acceptable lives on the server, and
         // its code is what picks the sentence — length, reuse, and "too common" all
-        // arrive here the same way.
-        setError(messageForError(cause, t))
+        // arrive here the same way. The one exception is the current password: this form has no
+        // address field, so a refusal of it is worded as the password's, not the sign-in's.
+        setError(messageForPasswordError(cause, t))
         return false
       } finally {
         setSubmitting(false)

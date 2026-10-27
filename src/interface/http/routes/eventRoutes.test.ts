@@ -1,7 +1,6 @@
 import type { Express } from 'express'
 import request, { type Agent, type Test } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { Logger } from '../../../application/ports/logger'
 import { mailFailure, type Mailer } from '../../../application/ports/mailer'
 import { err } from '../../../domain/shared/result'
 import { makeIssueInvitation } from '../../../application/usecases/auth/issueInvitation'
@@ -49,9 +48,9 @@ import { Event } from '../../../domain/events/event'
 import { Slug } from '../../../domain/shared/slug'
 import { eventCreationLimiter } from '../middleware/rateLimit'
 import { buildHarness, signInAs } from '../testing/middlewareHarness'
-import type { HttpDeps, RequestContext } from '../types'
+import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
-import { currentUser, eventRoutes, hostScope } from './eventRoutes'
+import { eventRoutes } from './eventRoutes'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
 /**
@@ -2139,42 +2138,5 @@ describe('the host event routes', () => {
       expect(response.status).toBe(404)
       expect(response.body.error.code).toBe('membership.notFound')
     })
-  })
-})
-
-/**
- * Enough of a `Logger` to build a `RequestContext`. The interface layer may not reach
- * into `src/infrastructure`, so the real pino logger is out of bounds here.
- */
-const silent: Logger = {
-  debug: () => undefined,
-  info: () => undefined,
-  warn: () => undefined,
-  error: () => undefined,
-  child: () => silent,
-}
-
-describe('the guards in front of every handler', () => {
-  const bare: RequestContext = { requestId: 'req-1', logger: silent }
-
-  it('fails loudly when a route is mounted without requireUser', () => {
-    // Never a fallback principal. A mis-wired route has to break rather than quietly
-    // serve an anonymous caller, which is how 1.0 let one session reach every party.
-    expect(() => currentUser(bare)).toThrow(/mis-wired/)
-  })
-
-  it('fails loudly when a route is mounted without requireRole', () => {
-    // A principal, but no resolved event: the handler would otherwise have to pick an
-    // event id itself, which is the one thing it must never do.
-    const signedInOnly: RequestContext = {
-      ...bare,
-      user: {
-        kind: 'user',
-        userId: asUserId(OWNER),
-        email: 'hote@example.test',
-      },
-    }
-
-    expect(() => hostScope(signedInOnly)).toThrow(/mis-wired/)
   })
 })

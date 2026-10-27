@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { toSingleLine } from '../shared/plainText'
 
 /**
  * The title a host types: "Camille & Sacha".
@@ -9,24 +10,13 @@ import { err, ok, type Result } from '../shared/result'
  * what stays legible across a 1080p header from the back of a room; two is the shortest
  * thing a host can tell apart in a dashboard listing several events.
  *
- * The sanitisation mirrors photos/caption.ts and is duplicated rather than shared: a
- * title and a caption answer to different surfaces with different limits, and folding
- * them into one "clean some text" helper would hide which rule the host actually hit.
+ * The sanitisation is `toSingleLine`, shared with every other typed line of text: the
+ * pipeline (and its `INVISIBLE` class) is one rule, and a second copy fails silently. What
+ * stays here is this name's own: its length bounds and its need for a letter or digit.
  */
 
 const MIN_LENGTH = 2
 const MAX_LENGTH = 80
-
-/** A title is one line: three pasted newlines must not push the wall header around. */
-const LINE_BREAKS = /[\t\n\r\f\v]+/g
-
-/**
- * Everything invisible, by Unicode general category rather than a hand-listed range —
- * photos/caption.ts documents what each category covers. `Cf` is the one that earns its
- * place here: `U+202E` alone renders the rest of the title right-to-left on the wall,
- * and the zero-width joiners pad a name past its visible length.
- */
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu
 
 /**
  * At least one letter or digit, in any script.
@@ -43,11 +33,7 @@ export class EventName {
   static create(raw: unknown): Result<EventName, DomainError> {
     if (typeof raw !== 'string') return err(DomainError.invalid('eventName.invalid'))
 
-    const cleaned = raw
-      .replace(LINE_BREAKS, ' ')
-      .replace(INVISIBLE, '')
-      .replace(/\s{2,}/gu, ' ')
-      .trim()
+    const cleaned = toSingleLine(raw)
 
     if (cleaned.length === 0) return err(DomainError.invalid('eventName.empty'))
     if (cleaned.length < MIN_LENGTH) {

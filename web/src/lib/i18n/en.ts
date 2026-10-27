@@ -322,7 +322,6 @@ export const en: UiText = {
 
     'image.unsupportedFormat': 'This file is not a photo. Accepted formats: JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'This photo looks damaged. Try another one.',
-    'image.tooManyPixels': 'This photo is too large. Make it smaller, then try again.',
     'image.animated': 'Animated images are not accepted.',
     'image.renderFailed': 'This photo could not be processed. Try another one.',
     'upload.tooLarge': 'This photo is over the maximum size.',
@@ -735,6 +734,7 @@ export const en: UiText = {
     codeRotated: 'The access code has been changed. The old one no longer works.',
     settingsSaved: 'Settings saved.',
     settingsReadOnly: 'This event is archived: its settings can no longer be changed.',
+    settingsOwnerOnly: 'Only the event’s owner can change its settings.',
     retentionHint: 'The photos are deleted this long after the event is closed.',
     selfDeleteGrace: 'Deletion window',
     selfDeleteGraceHint: 'During this window, a guest can delete their own photo.',
@@ -890,6 +890,7 @@ export const en: UiText = {
 
     changePasswordIntro: 'Choose a password you do not use anywhere else.',
     passwordSaved: 'Password saved.',
+    passwordIncorrect: 'Wrong password.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Two-step verification',

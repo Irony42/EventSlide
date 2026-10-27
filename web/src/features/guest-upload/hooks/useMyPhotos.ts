@@ -19,6 +19,12 @@ import type { GuestPhotoDto } from '../../../lib/api/dto'
 
 export interface MyPhotosState {
   readonly photos: readonly GuestPhotoDto[]
+  /**
+   * Whether the event still takes photos, as the server last said. `true` until it says
+   * otherwise, and for a server that does not say: the form is the default and the server's own
+   * refusal stays the backstop.
+   */
+  readonly acceptingUploads: boolean
   readonly loading: boolean
   /**
    * A sentence in the guest's current language, ready to render. `null` when nothing
@@ -46,6 +52,7 @@ type Failure = { readonly kind: 'load' } | { readonly kind: 'action'; readonly c
 
 interface Loaded {
   readonly photos: readonly GuestPhotoDto[]
+  readonly acceptingUploads: boolean
   readonly loading: boolean
   readonly failure: Failure | null
 }
@@ -55,6 +62,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   const api = useApi()
   const [state, setState] = useState<Loaded>({
     photos: [],
+    acceptingUploads: true,
     loading: true,
     failure: null,
   })
@@ -76,7 +84,14 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
     api.myPhotos(slug, controller.signal).then(
       (response) => {
-        if (current) setState({ photos: response.items, loading: false, failure: null })
+        if (current) {
+          setState({
+            photos: response.items,
+            acceptingUploads: response.acceptingUploads ?? true,
+            loading: false,
+            failure: null,
+          })
+        }
       },
       (cause: unknown) => {
         if (!current) return
@@ -135,5 +150,12 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     return state.failure.code === null ? t.errors.unknown : messageForCode(state.failure.code, t)
   }, [state.failure, t])
 
-  return { photos: state.photos, loading: state.loading, error, refresh, remove }
+  return {
+    photos: state.photos,
+    acceptingUploads: state.acceptingUploads,
+    loading: state.loading,
+    error,
+    refresh,
+    remove,
+  }
 }

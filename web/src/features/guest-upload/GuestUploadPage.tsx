@@ -10,6 +10,7 @@ import { ClipComposer } from './components/ClipComposer'
 import { InstallCard } from './components/InstallCard'
 import { MissionChecklist } from './components/MissionChecklist'
 import { MyPhotos } from './components/MyPhotos'
+import { Notice } from '../../design-system/components/Notice'
 import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { PrivacyNoticeCard, PrivacyNoticeDialog } from './components/PrivacyNotice'
@@ -314,18 +315,28 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
       >
         {/* Above the queue: it is the answer to "did my photos go?", and a guest who
             reads it stops pressing "Envoyer" again. */}
-        <OfflineNotice
-          waiting={outbox.waiting}
-          draining={outbox.draining}
-          onSendNow={outbox.drain}
-        />
+        {/* Not once the evening is over: "will be sent" would be a promise the box refuses. */}
+        {mine.acceptingUploads ? (
+          <OfflineNotice
+            waiting={outbox.waiting}
+            draining={outbox.draining}
+            onSendNow={outbox.drain}
+          />
+        ) : null}
         <UploadQueue items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
         {/*
           The notice, in the place the picker will be, until this device has read the one
           in force. Everything below it picks or sends a new photo, so all of it waits;
           the queue above does not, because what it holds was already chosen.
         */}
-        {notice.state !== null && gated ? (
+        {!mine.acceptingUploads ? (
+          // The host closed the evening (or archived it, or its account is suspended): there is
+          // nothing left to send, so none of the controls is offered, and the sentence is the one the
+          // server would have refused an upload with. What the guest sent stays listed above.
+          <Notice tone="warning" variant="boxed" role="status">
+            {t.errors['event.notAcceptingUploads']}
+          </Notice>
+        ) : notice.state !== null && gated ? (
           <PrivacyNoticeCard
             ref={noticeCard}
             state={notice.state}

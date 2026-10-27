@@ -78,6 +78,17 @@ describe('buildPlaylist', () => {
     expect(result.ok && result.value.items).toEqual(['early-id', 'later-id'])
   })
 
+  it('breaks a tie by code unit, not by locale, so two machines agree on B and a', () => {
+    const sameTick = '2024-06-01T20:00:00.000Z'
+
+    const result = buildPlaylist([candidate('a', sameTick), candidate('B', sameTick)], {
+      windowSize: 10,
+      freshFirst: true,
+    })
+
+    expect(result.ok && result.value.items).toEqual(['B', 'a'])
+  })
+
   it('gives two projectors the same revision from the same photos in a different order', () => {
     expect(built(EVENING).revision).toBe(built([...EVENING].reverse()).revision)
   })

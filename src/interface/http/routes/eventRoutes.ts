@@ -6,6 +6,7 @@ import { asClientId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole, requireUser } from '../middleware/authz'
+import { hostScopeOf, userOf } from '../middleware/scope'
 import { INVITATIONS_PER_ACCOUNT_PER_HOUR, invitationIssueLimiter } from '../middleware/rateLimit'
 import {
   toEventDto,
@@ -28,7 +29,6 @@ import {
   renameEventBody,
   updateSettingsBody,
 } from '../schemas/requestSchemas'
-import type { RequestContext, UserPrincipal } from '../types'
 import type { RouteDeps } from '../useCases'
 
 /**
@@ -99,7 +99,7 @@ export const eventRoutes = ({
     '/events',
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = currentUser(req.context)
+      const user = userOf(req)
 
       const result = await usecases.listEventsForHost({ userId: user.userId })
 
@@ -118,7 +118,7 @@ export const eventRoutes = ({
     // limiter to key on (P4-09 / D-14: 20 creations per account per hour, by default).
     creationLimiter,
     asyncHandler(async (req, res) => {
-      const user = currentUser(req.context)
+      const user = userOf(req)
       const body = createEventBody.parse(req.body)
 
       const result = await usecases.createEvent({
@@ -162,7 +162,7 @@ export const eventRoutes = ({
     '/events/:eventSlug',
     requireRole('moderator', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const params = eventSlugParams.parse(req.params)
 
       const result = await usecases.getEventBySlug({ slug: params.eventSlug })
@@ -175,7 +175,7 @@ export const eventRoutes = ({
     '/events/:eventSlug',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const body = renameEventBody.parse(req.body)
 
       const result = await usecases.renameEvent({
@@ -192,7 +192,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/settings',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const body = updateSettingsBody.parse(req.body)
 
       const result = await usecases.updateEventSettings({
@@ -236,7 +236,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/status',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const body = eventStatusBody.parse(req.body)
 
       // Which transitions are legal is `Event.transitionTo`'s table, not a check here:
@@ -255,7 +255,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/schedule',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const body = eventScheduleBody.parse(req.body)
 
       // Parsed into `Date` here and nowhere else: the schema has already established
@@ -277,7 +277,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/join-code',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
 
       // The emergency lever: a join link is circulating outside the venue. The old
       // code stops working immediately, and the response carries the new one so the
@@ -295,7 +295,7 @@ export const eventRoutes = ({
     '/events/:eventSlug',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
 
       // An entire album, and not undoable. Media first and rows second is the use
       // case's order, and it matters: the row is the only record that the bytes exist.
@@ -314,7 +314,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/guests',
     requireRole('moderator', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       // This endpoint takes no parameter, and the empty schema is parsed anyway so that
       // sending one is a 400 rather than a silent no-op. It used to accept
       // `activeWithinMinutes` and discard it — `listGuests` owns what "at the party"
@@ -343,7 +343,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/guests/:guestId/revoke',
     requireRole('moderator', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const params = guestParams.parse(req.params)
 
       const result = await usecases.revokeGuest({
@@ -364,7 +364,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/moderators',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
 
       const result = await usecases.listModerators({
         eventId: scope.event.id,
@@ -390,7 +390,7 @@ export const eventRoutes = ({
     // body is read: a refused caller costs a counter and nothing else.
     inviteLimiter,
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const body = moderatorInvitationBody.parse(req.body)
 
       const result = await usecases.registerModerator({
@@ -416,7 +416,7 @@ export const eventRoutes = ({
     '/events/:eventSlug/moderators/:userId',
     requireRole('owner', deps),
     asyncHandler(async (req, res) => {
-      const scope = hostScope(req.context)
+      const scope = hostScopeOf(req)
       const params = moderatorParams.parse(req.params)
 
       // The last owner is refused by the use case, not here: an event left unowned has
@@ -433,45 +433,3 @@ export const eventRoutes = ({
 
   return router
 }
-
-/**
- * What `requireUser` established.
- *
- * Takes the context rather than the whole request, and is exported, so the mis-wiring
- * guard below can have a named test — the same reason `streamRoutes.ts` exports
- * `openStream`. No handler here reads a principal any other way.
- */
-export const currentUser = (context: RequestContext): UserPrincipal => {
-  const user = context.user
-  if (user === undefined) throw misWired('no principal on the request')
-  return user
-}
-
-interface HostScope {
-  readonly user: UserPrincipal
-  /** Resolved from the slug by `requireRole`, so no handler repeats the lookup. */
-  readonly event: Event
-  readonly role: EventRole
-}
-
-/** What `requireRole` resolved: the caller, the event in the path, and their role in it. */
-export const hostScope = (context: RequestContext): HostScope => {
-  const user = currentUser(context)
-  const { event, role } = context
-  if (event === undefined || role === undefined) throw misWired('no resolved event on the request')
-  return { user, event, role }
-}
-
-/**
- * Unreachable by construction: every route above sits behind `requireUser` or
- * `requireRole`, which answer 401 or 404 themselves and populate what these read.
- *
- * A plain `Error` rather than a `DomainError`, and deliberately not a fallback value: a
- * route mounted without its authorization middleware is a wiring bug, and it must
- * surface as one — the error handler logs it against the request id and answers an
- * opaque 500. Inventing an anonymous principal instead would turn a mis-wiring into a
- * silent authorization hole, which is the 1.0 failure mode this layer exists to
- * prevent. (`!` is unavailable here, and would hide the same thing.)
- */
-const misWired = (what: string): Error =>
-  new Error(`eventRoutes: ${what}; authorization middleware is mis-wired`)

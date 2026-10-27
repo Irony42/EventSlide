@@ -1,0 +1,103 @@
+# The rules file of the ZAP baseline scan (.github/workflows/zap-baseline.yml, roadmap G7-03).
+#
+# It decides what a passive alert means to the build. Every alert ZAP raises is a WARN by default
+# (informational ones included, in the mode ZAP's baseline runs in), and the workflow runs with
+# `fail_action: true`, so a WARN or a FAIL that this file does not mention fails the job. The file
+# started with NO exception: the first finding of a scan is a thing to read, and only a finding
+# that is shown to be the intended behaviour of the product is added here. The ones below are what
+# the first scan showed.
+#
+# Format: one rule per line, TAB-separated (a space is not a separator):
+#
+#   <rule id>  <IGNORE|INFO|WARN|FAIL>  (<rule name>)  <optional message, shown in the log>
+#
+# The first three fields are required: a line with fewer than two tabs makes ZAP stop with exit
+# code 3 and no report, which the action reports as "failed to scan the target". The id and the
+# name are in the scan's log and in its report (the artifact `zap-baseline-report-<attempt>`).
+# A line starting with `#` is a comment, and so is nothing else.
+#
+# IGNORE removes the alert from the log's verdict. INFO keeps it in the log and in the run's
+# summary and does not fail the job: use it for what is not a finding today but should stay in
+# front of a reader, because its matches could change.
+#
+# What an IGNORE or an INFO owes, before it is merged:
+#
+#   1. A comment block above it saying WHY the behaviour is intended, in a sentence a reviewer who
+#      has not seen the scan can check, with the section of docs/SECURITY.md (or the ADR) that
+#      states it. "ZAP is wrong" is not a reason; "this cookie is read by the page's own script,
+#      docs/SECURITY.md section 7" is.
+#   2. The route it was seen on, when the rule is intended there and nowhere else. An IGNORE covers
+#      every URL, and so does everything else on this page. The format scopes a rule to a route with
+#      `<rule id>  OUTOFSCOPE  <url regex>`, which is what to prefer when only one route is the
+#      exception; see the note below on when such a line is applied at all.
+#   3. It never silences a finding to turn the job green. A real finding stays a WARN, the job stays
+#      red, and the finding is written up where the maintainer reads it (a pull request, an issue,
+#      docs/SECURITY.md section 12 "Accepted risks" if it is accepted).
+#
+# How the action reads this file, because it is not obvious and it is the reason the file can look
+# inert: zaproxy/action-baseline hands the file to ZAP (`-c`) only when it holds at least one
+# IGNORE line. A file of comments, or one that only moves a rule to FAIL or INFO or scopes it with
+# OUTOFSCOPE, is never passed, and its lines are silently not applied. The day the first IGNORE is
+# added the whole file starts to apply, every other line included. So after any edit, read the scan's
+# log: an IGNORE, an INFO or an OUTOFSCOPE that did what it says shows as such in the summary.
+#
+# ---------------------------------------------------------------------------------------------
+# The exceptions. Each is something the first scan (ZAP 2.17.0, run 40398368412) showed and that
+# is the intended behaviour of the product, or a plain false positive. In the mode ZAP's baseline
+# runs in, an informational alert counts as a WARN too, so the four informational ones below have
+# to be said once.
+#
+# Two findings of that scan are NOT here, on purpose, because they are not intended:
+#   10055  CSP: style-src unsafe-inline   known and documented as a defect, docs/SECURITY.md
+#                                         section 8 and the corrections table of section 14.7
+#   90004  Cross-Origin-Embedder-Policy   `crossOriginEmbedderPolicy: false` in
+#                                         src/interface/http/middleware/securityHeaders.ts, with
+#                                         no reason written anywhere
+# They stay WARN, and the job stays red, until the product changes or the maintainer accepts the
+# risk in docs/SECURITY.md section 12 and a line is added here that says so.
+# ---------------------------------------------------------------------------------------------
+
+# 10010, Cookie No HttpOnly Flag. The only cookie an anonymous request is given is `es_csrf`, the
+# double-submit CSRF value, which the page's own script has to read to send it back in the
+# `X-CSRF-Token` header; on its own it is not a credential. docs/SECURITY.md "Cookie flags"
+# (section 2) says `es_csrf` is not HttpOnly and section 7 says why, and csrf.test.ts asserts it
+# ("Deliberately not HttpOnly").
+#
+# What this line costs. This scan never signs in or joins, so it cannot see the other cookies, and
+# an IGNORE cannot be scoped to one cookie: it silences the rule for every cookie this scan
+# reaches. Of those other cookies, the HttpOnly flag of `es_guest` (publicRoutes.test.ts), of
+# `es_gallery` (galleryRoutes.test.ts) and of `es_device` (authRoutes.trustedDevice.test.ts) is
+# asserted by a ring 4 test. That of `es_session`, the host's session, is asserted by none against
+# the real server: authRoutes.test.ts asserts it on the cookie a logout clears, and nothing on the
+# one a sign-in sets (server.ts, `httpOnly: true`). So with this line nothing guards it. It was
+# found by the review of the pull request that added this scan, and is not fixed there.
+10010	IGNORE	(Cookie No HttpOnly Flag)	es_csrf is script-readable on purpose, docs/SECURITY.md sections 2 and 7
+
+# 10027, Information Disclosure - Suspicious Comments. Informational. It greps comments for words
+# such as BUG, DB, WHERE or TODO. What the first scan matched, read in its report, is prose: the
+# comment Vite leaves in the shipped index.html about why the page stays French (a static file
+# served to every request), the comment of favicon.svg, and a string inside the minified bundle.
+# None held a credential, an address or an internal path. That is true of those matches only, and
+# the report lists the first ten of them, so this is INFO and not IGNORE: a comment that starts to
+# say more stays in front of a reader, and does not fail the job.
+10027	INFO	(Information Disclosure - Suspicious Comments)	prose comments of the shipped HTML and SVG at the first scan, read them
+
+# 10049, Storable but Non-Cacheable Content. Informational. index.html is `no-cache` on purpose: a
+# guest who scans the QR code after a deploy must never be given a page that references assets which
+# no longer exist (`mountClient`, src/interface/http/server.ts). Static files carry express's own
+# `max-age=0`. Everything under /api is `no-store` by default (`noStoreByDefault`, same file).
+# This id is the rule, not one alert: it also raises "Storable and Cacheable Content" and
+# "Non-Storable Content", so a public route that regressed to a cacheable answer would be raised
+# under it. That is why this is INFO and not IGNORE.
+10049	INFO	(Storable but Non-Cacheable Content)	index.html is no-cache by design, src/interface/http/server.ts
+
+# 10109, Modern Web Application. Informational, and a statement about the app rather than a finding:
+# the web app is a single-page app (one index.html, scripts, no links), ZAP says so and advises its
+# browser-driven spider. This scan gives its ordinary spider the pages instead, through the sitemap
+# the workflow writes, for the reasons written beside `cmd_options` there.
+10109	IGNORE	(Modern Web Application)	a single-page app by design, the workflow feeds the spider a sitemap
+
+# 10112, Session Management Response Identified. Informational: ZAP recognising `es_csrf` as a
+# session token, a hint meant for its authenticated scans, which this one is not. Whether the
+# cookie's flags are right is what 10010 above and docs/SECURITY.md section 7 are about.
+10112	IGNORE	(Session Management Response Identified)	ZAP noticing es_csrf, a hint for authenticated scans

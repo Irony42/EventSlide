@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { Express } from 'express'
 import request from 'supertest'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clipRoutes, clipUploadTempDir, withGuestClip } from './clipRoutes'
+import { clipRoutes, clipUploadTempDir } from './clipRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
@@ -282,6 +282,21 @@ describe('POST /api/events/:eventSlug/clips', () => {
       .post(`${BASE}/clips`)
       .set('Cookie', cookie(subject.token))
       .attach('clip', Buffer.from('%PDF-1.7 not a clip at all'), 'invoice.pdf')
+
+    expect(response.status).toBe(400)
+    expect(await readdir(subject.tempDir)).toEqual([])
+  })
+
+  it('leaves no temp file behind when the handler throws before it reads the file', async () => {
+    // The wrapper's own backstop: a caption over the bound is refused by the schema, ahead
+    // of the line that removes the file, so only the `finally` of `withGuest` is left to do it.
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .post(`${BASE}/clips`)
+      .set('Cookie', cookie(subject.token))
+      .field('caption', 'x'.repeat(1_001))
+      .attach('clip', aClipBody(), 'IMG_4021.MOV')
 
     expect(response.status).toBe(400)
     expect(await readdir(subject.tempDir)).toEqual([])
@@ -694,28 +709,5 @@ describe('GET /api/events/:eventSlug/clips/:clipJobId', () => {
       .set('Cookie', cookie(subject.token))
 
     expect(response.body.failureCode).toBe('clip.noVideoStream')
-  })
-})
-
-describe('withGuestClip', () => {
-  it('fails closed when the authorization middleware did not run', async () => {
-    // Unreachable behind `requireGuest`, and that is the point: a route that ever lost
-    // its authorization decision must answer 401 rather than dereference an absent
-    // principal and become a `TypeError` on a guest's phone mid-upload.
-    const harness = buildHarness({
-      routes: (app) => {
-        app.get(
-          '/unguarded',
-          withGuestClip(async (_scope, _req, res) => {
-            res.status(200).json({ reached: true })
-          }),
-        )
-      },
-    })
-
-    const response = await request(harness.app).get('/unguarded')
-
-    expect(response.status).toBe(401)
-    expect(response.body.error.code).toBe('auth.required')
   })
 })

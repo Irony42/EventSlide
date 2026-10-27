@@ -1,8 +1,8 @@
 import type { Express } from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { guestRoutes, withGuest } from './guestRoutes'
-import { GUEST_COOKIE, requireRole, resolvePublicEvent } from '../middleware/authz'
+import { guestRoutes } from './guestRoutes'
+import { GUEST_COOKIE, requireRole } from '../middleware/authz'
 import { sendNoContent } from '../presenters/send'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
@@ -440,7 +440,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
     const subject = buildSubject()
     subject.upload.succeedsWith(
       stored(0, PENDING),
-      refused(1, DomainError.quotaExceeded('image.tooManyPixels')),
+      refused(1, DomainError.quotaExceeded('photo.pixelBudgetExceeded')),
       stored(2, PUBLISHED),
     )
 
@@ -454,7 +454,7 @@ describe('POST /api/events/:eventSlug/photos', () => {
     expect(response.status).toBe(201)
     expect(response.body.results).toEqual([
       { index: 0, status: 'accepted', photoId: PENDING },
-      { index: 1, status: 'rejected', code: 'image.tooManyPixels' },
+      { index: 1, status: 'rejected', code: 'photo.pixelBudgetExceeded' },
       { index: 2, status: 'accepted', photoId: PUBLISHED },
     ])
   })
@@ -708,6 +708,28 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       'published',
       'rejected',
     ])
+  })
+
+  it('says whether the event still takes photos, so the upload screen can say it is over', async () => {
+    const live = buildSubject()
+    const liveResponse = await request(live.app)
+      .get(`${BASE}/photos/mine`)
+      .set('Cookie', cookie(live.token))
+    expect(liveResponse.body.acceptingUploads).toBe(true)
+
+    const ended = buildSubject()
+    ended.harness.events.seed(
+      anEvent({ id: 'ended-id', slug: 'termine', joinCode: 'C10SED', status: 'closed' }),
+    )
+    ended.harness.guests.seed(aGuest({ id: GUEST, eventId: 'ended-id', displayName: 'Léa' }))
+
+    const endedResponse = await request(ended.app)
+      .get('/api/events/termine/photos/mine')
+      .set('Cookie', cookie(ended.harness.issueGuestToken('ended-id', GUEST)))
+
+    // The guest's own photos stay readable after the close; only the answer to "can I send more" changes.
+    expect(endedResponse.status).toBe(200)
+    expect(endedResponse.body.acceptingUploads).toBe(false)
   })
 
   it('carries the thumb url and the caption, and never a storage path', async () => {
@@ -1771,54 +1793,6 @@ describe('the boundary refuses a malformed request', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')
-  })
-})
-
-// -------------------------------------------------------------- withGuest --
-
-/**
- * The narrowing every handler here relies on.
- *
- * Unreachable behind `requireGuest`, which is the point: if the middleware is ever
- * dropped from a route, the route must fail closed rather than dereference an absent
- * principal and answer 500 after the fact.
- */
-describe('withGuest', () => {
-  const guarded = (): Harness =>
-    buildHarness({
-      routes: (app, deps) => {
-        app.get(
-          '/bare',
-          withGuest(async (_scope, _req, res) => {
-            sendNoContent(res)
-          }),
-        )
-        // The event resolved but no guest principal: what a public route leaves behind.
-        app.get(
-          '/events/:eventSlug/half',
-          resolvePublicEvent(deps),
-          withGuest(async (_scope, _req, res) => {
-            sendNoContent(res)
-          }),
-        )
-      },
-    })
-
-  it('answers 401 when no authorization middleware ran at all', async () => {
-    const response = await request(guarded().app).get('/bare')
-
-    expect(response.status).toBe(401)
-    expect(response.body.error.code).toBe('auth.required')
-  })
-
-  it('answers 401 when the event resolved but no guest did', async () => {
-    const subject = guarded()
-    subject.events.seed(anEvent({ slug: 'mariage' }))
-
-    const response = await request(subject.app).get('/events/mariage/half')
-
-    expect(response.status).toBe(401)
-    expect(response.body.error.code).toBe('auth.required')
   })
 })
 

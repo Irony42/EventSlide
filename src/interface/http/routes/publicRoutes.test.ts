@@ -1,9 +1,8 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { publicRoutes, withPublicEvent } from './publicRoutes'
-import { GUEST_COOKIE, resolvePublicEvent } from '../middleware/authz'
+import { publicRoutes } from './publicRoutes'
+import { GUEST_COOKIE } from '../middleware/authz'
 import { toWallResponseDto, type PresenterContext } from '../presenters/presenters'
-import { sendJson, sendNoContent } from '../presenters/send'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
 import type { HttpConfig } from '../types'
 import { makeJoinEvent } from '../../../application/usecases/guests/joinEvent'
@@ -1004,56 +1003,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')
-  })
-})
-
-// -------------------------------------------------------- withPublicEvent --
-
-/**
- * The narrowing the wall handler relies on.
- *
- * Unreachable behind `resolvePublicEvent`, which is the point: if the authorization
- * middleware is ever dropped from a public route, the route must fail closed with the
- * same 404 every other absent event gets, rather than dereference nothing and answer
- * 500 after the fact.
- */
-describe('withPublicEvent', () => {
-  const guarded = (): Harness =>
-    buildHarness({
-      routes: (app, deps) => {
-        app.get(
-          '/bare',
-          withPublicEvent(async (_event, _req, res) => {
-            sendNoContent(res)
-          }),
-        )
-        // The event the middleware resolved, echoed back so the test can assert the
-        // handler was handed that event and not merely reached.
-        app.get(
-          '/events/:eventSlug/resolved',
-          resolvePublicEvent(deps),
-          withPublicEvent(async (event, _req, res) => {
-            sendJson(res, { slug: event.slug.value })
-          }),
-        )
-      },
-    })
-
-  it('answers 404 when no authorization middleware ran at all', async () => {
-    const response = await request(guarded().app).get('/bare')
-
-    expect(response.status).toBe(404)
-    expect(response.body.error.code).toBe('event.notFound')
-  })
-
-  it('hands the resolved event to the handler', async () => {
-    const subject = guarded()
-    subject.events.seed(anEvent({ id: WEDDING, slug: 'mariage', status: 'live' }))
-
-    const response = await request(subject.app).get('/events/mariage/resolved')
-
-    expect(response.status).toBe(200)
-    expect(response.body).toEqual({ slug: 'mariage' })
   })
 })
 

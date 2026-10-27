@@ -1,10 +1,10 @@
 import { Router } from 'express'
 import { asAccountTokenId, asClientId } from '../../../domain/shared/ids'
-import { DomainError } from '../../../domain/shared/errors'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireUser } from '../middleware/authz'
+import { userOf } from '../middleware/scope'
 import { toClientAuditPageDto, toPendingInvitationsDto } from '../presenters/presenters'
-import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
+import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   approveInvitationParams,
   approvePasswordResetParams,
@@ -59,13 +59,7 @@ export const clientRoutes = ({ deps, usecases }: ClientRouteDeps): Router => {
     '/client/invitations/:invitationId/approve',
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        // `requireUser` always populates it; this keeps the type honest without the
-        // non-null assertion the strict settings forbid.
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
 
       const params = approveInvitationParams.parse(req.params)
 
@@ -96,11 +90,7 @@ export const clientRoutes = ({ deps, usecases }: ClientRouteDeps): Router => {
     '/client/password-resets/:requestId/approve',
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
 
       const params = approvePasswordResetParams.parse(req.params)
 
@@ -124,11 +114,7 @@ export const clientRoutes = ({ deps, usecases }: ClientRouteDeps): Router => {
     '/client/audit',
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
       const query = clientAuditQuery.parse(req.query)
 
       const result = await usecases.listClientAudit({
@@ -153,11 +139,7 @@ export const clientRoutes = ({ deps, usecases }: ClientRouteDeps): Router => {
     '/client/invitations',
     requireUser(deps),
     asyncHandler(async (req, res) => {
-      const user = req.context.user
-      if (!user) {
-        sendError(res, DomainError.unauthenticated('auth.required'))
-        return
-      }
+      const user = userOf(req)
       const query = pendingInvitationsQuery.parse(req.query)
 
       const result = await usecases.listPendingInvitations({

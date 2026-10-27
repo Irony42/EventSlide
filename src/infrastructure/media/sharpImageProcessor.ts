@@ -47,23 +47,25 @@ import { detectImageFormat, identifySuspicious } from './magicBytes'
  * told their photo was broken when it was too large. Raising `MAX_IMAGE_PIXELS` above
  * 268 MP had no effect at all.
  *
- * So the probe reads the header with **no** `sharp` limit and the application's budget
- * decides. **Do not "fix" this back.** Switching a real defence off is only safe
+ * So the probe reads the header with **no** `sharp` limit and **reports the dimensions**; the
+ * budget is the use case's to apply (`uploadPhotos`, which refuses with
+ * `photo.pixelBudgetExceeded` before it renders anything). The budget used to be applied here
+ * too, with a second code, `image.tooManyPixels`, which the use case's own check could therefore
+ * never reach. **Do not "fix" this back.** Switching a real defence off is only safe
  * because what replaces it is strictly stricter, and it is, on every path:
  *
  * - `metadata()` reads the header and nothing else. No bitmap is allocated for a
  *   400 MP declaration — the whole payload is a 65-byte `IHDR`.
  * - Nothing is decoded between the header and the verdict. `Dimensions.create` bounds
- *   each side to 60 000 px and `exceedsPixelBudget` applies `maxPixels`, both from the
- *   declared numbers, before any `toBuffer` or `resize` exists.
+ *   each side to 60 000 px, and the use case applies `maxPixels` to the declared numbers,
+ *   before any `toBuffer` or `resize` exists.
  * - The transcode is a second `sharp` instance and it really does decode, so it keeps a
  *   limit — `maxPixels`, the same budget, rather than `sharp`'s unrelated default.
  *   Tying it to the configured value is what stops the defect reappearing one step
  *   later as `image.renderFailed` for an operator who raises the budget past 268 MP.
  *
- * A genuinely corrupt header still throws (`pngload_buffer: end of stream`), so
- * `image.corrupt` and `image.tooManyPixels` stay distinguishable — the guest is told
- * which of the two happened, and the operator's log says the same.
+ * A genuinely corrupt header still throws (`pngload_buffer: end of stream`), so a broken file
+ * is still `image.corrupt` and a large one is not mistaken for it.
  */
 
 export interface SharpImageProcessorOptions {
@@ -122,8 +124,8 @@ export const createSharpImageProcessor = ({
       try {
         // Header only — sharp reads the metadata without decoding pixel data.
         //
-        // `limitInputPixels: false` hands the pixel decision to gate two below instead
-        // of letting sharp's own 268 MP default throw here, where it would surface as
+        // `limitInputPixels: false` leaves the pixel decision to the use case instead of
+        // letting sharp's own 268 MP default throw here, where it would surface as
         // `image.corrupt` and bypass the configured budget entirely. See the note at
         // the top of this file before changing it: nothing is allocated for a header,
         // and the budget is applied before anything is decoded.
@@ -143,17 +145,6 @@ export const createSharpImageProcessor = ({
 
       const dimensions = Dimensions.create(width, height)
       if (!dimensions.ok) return dimensions
-
-      // Gate two: the pixel budget, from the header, before any decode. This is the
-      // decompression-bomb control.
-      if (dimensions.value.exceedsPixelBudget(maxPixels)) {
-        return err(
-          DomainError.quotaExceeded('image.tooManyPixels', {
-            pixels: dimensions.value.pixels,
-            max: maxPixels,
-          }),
-        )
-      }
 
       const frames = metadata.pages ?? 1
       if (frames > maxFrames) {
@@ -182,7 +173,7 @@ export const createSharpImageProcessor = ({
     ): Promise<Result<RenderedImage, DomainError>> => {
       try {
         // Unlike `probe`, this instance genuinely decodes, so it keeps a hard ceiling.
-        // It is the configured budget rather than sharp's default: `probe` has already
+        // It is the configured budget rather than sharp's default: the use case has already
         // refused anything above `maxPixels` from the header, so this can only ever
         // fire as a backstop, and pinning it to the same number means raising the
         // budget cannot turn a too-large image into `image.renderFailed`.
