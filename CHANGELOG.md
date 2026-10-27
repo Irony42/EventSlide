@@ -479,6 +479,9 @@ Read these before you upgrade, and back up with the version you run now.
   forms, the server's verdict on one attempt ("too common") stayed on screen beside the browser's own sentence
   about the next ("the two passwords do not match"); on the operator's accounts page, two refused acts left two
   pinned refusals up. The newest finding is the only one shown.
+- **Password prompts say "wrong password", not "wrong address or password"** (F02). Changing the password,
+  confirming oneself (step-up) and setting up the second factor have no address field, yet a refused password
+  read like a sign-in refusal. The sign-in form keeps its deliberately neutral sentence.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.
