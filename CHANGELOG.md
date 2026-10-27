@@ -20,7 +20,7 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
-## [3.0.0] - 2026-10-02
+## [3.0.0] - 2026-10-27
 
 Everything merged to `main` after 2.1.0: pull request #104 on, and three older ones that were
 merged after it (#52, #93 and #94), plus this release's own preparation. The work before it
@@ -293,6 +293,22 @@ Read these before you upgrade, and back up with the version you run now.
   `{ "sufficient": true }`, without `freeBytes`, in the 200 and the 503 alike; each probe writes the number to the
   log as `readiness: free disk space`, as a warning when the margin is too thin or could not be read. A
   monitor that read `freeBytes` from the body should read the log, or alert on `sufficient`.
+- **`compose.yaml` pulls the image of the release and builds nothing** (#152). Up to 2.1.0,
+  `docker compose up -d --build` built the image on your machine. `compose.yaml` of 3.0.0 names
+  `ghcr.io/irony42/eventslide:3.0.0`, so `docker compose pull` fetches it, and a copy you modified
+  now runs the published image, not your changes. `compose.build.yaml` builds the checkout
+  (`docker compose -f compose.yaml -f compose.build.yaml up -d --build`, under the local name
+  `eventslide:3.0.0`); give both files to every later command. The image does not exist until
+  `v3.0.0` is tagged and the release workflow has finished, so before that `docker compose up` on a
+  checkout of `main` ends in "manifest unknown".
+  [docs/UPGRADING.md](docs/UPGRADING.md#building-the-image-yourself) says how.
+- **A guest can no longer react to their own photograph** (#195):
+  `POST /api/events/:slug/photos/:id/reactions` answers `403 reaction.ownPhoto` for a photograph the
+  calling guest authored, where it took the reaction. A photograph still waiting is still
+  `409 reaction.notPublished`, and the refusal comes before the duplicate check and the budget. A
+  photograph the host took has no guest author and stays open, and withdrawing a reaction is never
+  refused, so one given before the rule can still be taken back. The rule is about the guest the
+  token names: a guest who clears their cookies is a new guest.
 - **Three boot warnings, never refusals** (#109, #120): production with no `PUBLIC_URL`,
   production with a secure cookie and `TRUST_PROXY_HOPS=0`, and, in production, `MAIL_FROM` set
   without `SMTP_URL`. A fourth, in every environment, is for the deprecated setting below (#172).
@@ -311,6 +327,16 @@ Read these before you upgrade, and back up with the version you run now.
 - **A guest can react to their published photos** (#188) when the host has reactions on: five
   buttons under each photo in "my photos", one tap to react, a second to take it back, and the heart
   reaches the wall live. Reacting to the rest of the room comes with the guest feed.
+- **A guest sees the photographs of the evening and reacts to other people's** (#195): a page,
+  "Les photos de la soirée", at `/e/:slug/photos`, linked from the upload screen. It reads the wall's
+  own public read (published photographs only, newest first, the wall's window of the newest 200),
+  shows twelve at a time with "Voir plus", and, when the host has reactions on, puts the five reaction
+  buttons under every photograph that is not the guest's own (see the refusal in `### Behaviour
+changes to check before upgrading`). Every reaction still floats a heart on the projector. The
+  reaction bar left the upload screen, which a list that grows all evening would push off the phone.
+  A published photograph now appears on every guest's phone, which the wording of the privacy notice
+  does not say in so many words; whether it should is a decision about the notice's revision, and
+  nothing changed there.
 - **A guest can rename themself, and a phone can check a join code before joining** (#190):
   `PATCH /api/events/:slug/guests/:guestId` changes the name a guest's photos are signed with, their
   own and nobody else's, and `GET /api/join/:code` says which event a code names, with the same
@@ -439,6 +465,21 @@ Read these before you upgrade, and back up with the version you run now.
   `RETENTION_CAP_NOTICE_DAYS`, which only matters to a box with clients (#121). A test now fails when
   the configuration module reads a key that `.env.example` does not document; its first run found
   `LOGIN_RATE_LIMIT_PER_MINUTE` and `REACTION_RATE_LIMIT_PER_MINUTE`.
+- **A signed, scanned image of every release, from a pipeline that publishes only when asked**
+  (#152): `ghcr.io/irony42/eventslide`, for `linux/amd64` and `linux/arm64`. `release.yml` runs only
+  on a pushed `v*` tag or a manual run, never on a push, a pull request or a schedule, so merging
+  publishes nothing; a manual run with `publish` unchecked is a rehearsal that pushes nothing. The tag
+  has to be `vX.Y.Z` or `vX.Y.Z-rc.N`, equal to the version in `package.json`, and on `main`. A final
+  tag gets `X.Y.Z`, `X.Y` and `X`, a release candidate only its own tag, and there is no `latest`. The
+  image is built and checked (`scripts/verify-image.sh`), scanned (it fails on a critical
+  vulnerability that has a fix), signed keyless with cosign by digest, with its SBOM attached as a
+  signed attestation, and the GitHub release carries the digest, the SBOM and the list of Debian
+  source packages. `image-scan.yml` re-scans the latest release every Monday and opens one issue per
+  new critical finding that has a fix. The base image is pinned by digest in the `Dockerfile`.
+  [docs/IMAGE-SOURCES.md](docs/IMAGE-SOURCES.md) says what the image carries, offers the source of
+  its GPL and LGPL parts and shows how to check the signature; `docs/SECURITY.md` states a
+  best-effort goal of seven days for a corrective release on a critical CVE in ffmpeg, libvips, Node
+  or openssl, and no commitment. release-please is configured and off.
 
 ### Fixed
 
@@ -488,21 +529,21 @@ Read these before you upgrade, and back up with the version you run now.
   forms, the server's verdict on one attempt ("too common") stayed on screen beside the browser's own sentence
   about the next ("the two passwords do not match"); on the operator's accounts page, two refused acts left two
   pinned refusals up. The newest finding is the only one shown.
-- **Password prompts say "wrong password", not "wrong address or password"** (F02). Changing the password,
+- **Password prompts say "wrong password", not "wrong address or password"** (F02, #225). Changing the password,
   confirming oneself (step-up) and setting up the second factor have no address field, yet a refused password
   read like a sign-in refusal. The sign-in form keeps its deliberately neutral sentence.
-- **The new-event button is disabled, with the reason, at the events ceiling** (F19). The form used to
+- **The new-event button is disabled, with the reason, at the events ceiling** (F19, #227). The form used to
   stay usable at "3 of 3" and the refusal appeared under the template list, below the fold. When every
   client the host belongs to has reached its events limit (total or per period), the button is disabled and
   the sentence sits beside it.
-- **A guest of a closed event is told so, instead of being offered the upload form** (F18).
+- **A guest of a closed event is told so, instead of being offered the upload form** (F18, #229).
   `GET /api/events/:slug/photos/mine` now carries `acceptingUploads` (the upload rule's own answer); the
   upload screen shows "this gallery no longer accepts photos" and no picker when it is `false`, and keeps
   the guest's own photos listed. Before, the form stayed and the refusal came after the send.
-- **`/password/forgot` on a box with no mail relay says so** (F20). The sign-in page already hid the link,
+- **`/password/forgot` on a box with no mail relay says so** (F20, #230). The sign-in page already hid the link,
   but the address still served a form whose every answer was a refusal; it now shows "this server cannot
   send e-mail" once `/api/about` has said so, and the form is unchanged on a box that can.
-- **A moderator is shown an event's settings read-only, with the reason** (F15). The form was fully
+- **A moderator is shown an event's settings read-only, with the reason** (F15, #231). The form was fully
   editable and every save answered "you do not have the rights for this action". The controls are now
   disabled under "only the event's owner can change its settings", in the five languages.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
@@ -512,6 +553,10 @@ Read these before you upgrade, and back up with the version you run now.
   file `immutable` looked for a name Vite never produces, so every script and stylesheet was
   revalidated at each page load; it now matches the names the build emits. `index.html`, the service
   worker and the manifest are still revalidated.
+- **A sign-in, invitation or reset page puts the keyboard on its heading as it appears** (#204). The
+  heading took the focus a tick after the screen was visible, so for that tick the form was usable with
+  the focus on nothing, and a box focused in it lost the focus when the heading took it. The
+  focus now moves in the commit that shows the screen.
 
 ### Security
 
@@ -548,23 +593,51 @@ require-corp` joins the opener and resource policies that were already sent. The
 - **A critical advisory leaves the production dependencies** (#93): `proxy-addr`
   (GHSA-jqcg-44mw-7w3h, IP spoofing through an IPv4-mapped IPv6 trust subnet), which Express 5 pulls at
   2.0.8. It was not reachable here, because `TRUST_PROXY_HOPS` is a hop count and never a subnet.
+- **The event or client name in an invitation e-mail no longer carries invisible characters** (#234).
+  The mail was the one place a typed name kept bidi overrides and zero-width characters, and a bidi
+  override reverses the rest of the line the recipient reads. It goes through the same single-line
+  pipeline as every other typed name.
+- **A security fix of `multer` leaves the production dependencies** (#214): 2.5.0, which parses every
+  upload, lists GHSA-q7qp-rjg7-q26m as a security fix; 2.4.0 was the version before. It also accepts a
+  form field of exactly `limits.fieldSize` bytes, which 2.4.0 refused.
 
 ### Documentation, tests and dependencies
 
 - The upgrade policy for self-hosters, `docs/UPGRADING.md`, and the CHANGELOG conventions it
   relies on, held by tests (#127); ADR 0007 on the licence and the maintainer's own use (#111)
   and ADR 0009 on what an operator cannot grant itself (#148); the licensing FAQ and the 2.1.0
-  entry (#124); this entry and "Upgrading to 3.0" (#129); the ports catalogue, which lists all 32
-  ports (#174).
+  entry (#124); this entry and "Upgrading to 3.0" (#129, completed in #186); the ports catalogue, which lists
+  all 32 ports (#174); the endpoint recipe, rewritten from the real files, with the route counts of
+  `docs/API.md` corrected (#240).
 - Tests that change nothing in the product: a flaky shared-gallery-link test (#149), the repository contract of keyset
   paging over photographs that share a timestamp (#161), the contract suites of the media store and
   the event bus (#165), the architecture lint's `process.env` ban in every spelling (#166), an end-to-end
-  server that takes no configuration from the shell (#176), rules found by a mutation sweep (#177) and
-  one logger double (#178).
+  server that takes no configuration from the shell (#176), rules found by a mutation sweep (#177), one logger double (#178), shared fakes instead of local
+  copies of the same doubles (#203), a guest repository fake that derives the photo count as SQLite
+  does (#210), one cookie-jar client for the end-to-end fixtures (#209), and a name for each guard
+  that a mutation sweep of the HTTP layer found nothing pinning (#233).
 - Refactors and deletions with no change of behaviour: code nothing called (#155, #180), one guarded
   job and one repeater for the background sweeps (#171), shared helpers in the web app (#179), and
   `env.ts` split into the pieces of its schema (#182): the settings are declared in
   `src/infrastructure/config/` now.
+- Refactors of the domain and application layers, with no change of behaviour: one
+  `requireEventRole` for the authorisation prelude that twenty-one use cases copied (#183); the
+  suspended-client write freeze, which `requireRole` applied by HTTP verb, asked by every host write
+  use case instead, with the same `403 client.suspended` (#198); and the admission decision of an
+  upload (#232), `allocateJoinCode` (#235), `compareIds` (#236) and what a client's ceilings make of
+  an event's settings (#237), each written once.
+- Refactors of the HTTP layer, with no change of behaviour: `renameEvent`, `listModerators` and
+  `revokeModerator` built in the composition root (#199); an event's answer reads that event's
+  counts and limits through `getEventView`, not the host's whole dashboard (#201); each vocabulary
+  and bound of the schemas written once (#202); the invitation DTOs in `dto.ts`, so the wire-contract
+  test reads them (#205); and one scope helper that answers a route mounted without its
+  authorisation middleware (#238), whose only visible difference is that unreachable case, now one
+  `500 server.unexpected`.
+- Refactors of the infrastructure and the web app, with no change of behaviour: the session store
+  and the migrator read time from a `Clock` (#206), the crypto primitives (#207) and the media object
+  layout (#208) written once, a `Notice` primitive in place of seventeen hand-written glyph-and-
+  sentence lines, with a few pixels of difference (#184), and one read hook in `lib` and one
+  loading, failed and empty switch in the design system (#189).
 - Dead code and stale documents in the web app, and the tests that keep them out (#211): three
   client methods and fourteen sentences of the copy table that nothing used, a test seam in
   production code, the focus ring drawn four times over and two unused design tokens; the
@@ -572,12 +645,18 @@ require-corp` joins the opener and resource policies that were already sent. The
   exist. The address preview of the new-event form agrees with what the form sends when the
   address box holds only a space.
 - Continuous integration: the end-to-end job is bounded and retries a hung browser download (#140),
-  and `apt` waits for the runner's own lock (#142).
+  and `apt` waits for the runner's own lock (#142); an OWASP ZAP passive baseline scan of the running
+  server, on demand, on a `v*` tag and every Wednesday, whose alerts `.zap/rules.tsv` judges, and which never
+  files an issue (#212); and Dependabot watches the GitHub
+  Actions and the base image of the `Dockerfile` as well (#152).
 - Dependencies: Express 4.22 to 5.3 (#93, see `### BREAKING`), zod 3.25 to 4.6 (#52, #154), archiver 7
   to 8 (#94: it is ESM-only, so the server loads it with a dynamic import; the ZIPs are unchanged),
   vite 8.3.5 (#106, #136), ip-address 10.7.4 (#112, #151), the production group (#137:
   express-rate-limit 8.7.1, nodemailer 10.1.7, pino 10.4.0, react and react-dom 19.3.1, sharp 0.35.5)
-  and the development group (#116, #138).
+  and the development group (#116, #138); then multer 2.5.0 (see `### Security`) and nodemailer 10.2.1
+  (#214), typescript-eslint 8.72.0 (#216) and `@types/bcrypt` 6 (#219), and the actions the
+  workflows use: docker/login-action 4.7.0 (#217), upload-artifact 7 (#218), checkout 7 (#220),
+  setup-node 7 (#221) and cache 6 (#222).
 
 ## [2.1.0] - 2026-10-02
 
