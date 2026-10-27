@@ -89,6 +89,12 @@ describe('orderQueue', () => {
     },
   )
 
+  it('breaks a tie by code unit, not by locale, so two machines agree on B and a', () => {
+    const items = [anItem('a', '2025-06-14T20:00:00Z'), anItem('B', '2025-06-14T20:00:00Z')]
+
+    expect(ids(orderQueue(items, 'oldestFirst'))).toEqual(['B', 'a'])
+  })
+
   it('keeps a same-instant tie in id order when the rows already arrived that way', () => {
     const sameInstant = '2025-06-14T20:00:00Z'
     const alreadyAscending = [anItem('photo-a', sameInstant), anItem('photo-b', sameInstant)]

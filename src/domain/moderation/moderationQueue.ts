@@ -1,3 +1,4 @@
+import { compareIds } from '../shared/ordering'
 import { canTransition, type PhotoStatus } from '../photos/photoStatus'
 import { DomainError } from '../shared/errors'
 import type { PhotoId } from '../shared/ids'
@@ -86,7 +87,7 @@ export const orderQueue = <T extends QueueItem>(
   return [...items].sort((left, right) => {
     const byArrival = left.createdAt.getTime() - right.createdAt.getTime()
     if (byArrival !== 0) return byArrival * direction
-    return left.id < right.id ? -1 : 1
+    return compareIds(left.id, right.id)
   })
 }
 
