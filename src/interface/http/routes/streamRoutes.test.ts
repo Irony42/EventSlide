@@ -855,6 +855,16 @@ describe('openStream', () => {
     expect(world.bus.listenerErrors).toEqual([])
   })
 
+  it('does not hold the process open for its heartbeat, so a graceful shutdown can finish (HTTP-L-14)', () => {
+    const setInterval = vi.spyOn(globalThis, 'setInterval')
+
+    open()
+
+    const heartbeat = setInterval.mock.results[0]?.value as { hasRef(): boolean } | undefined
+    expect(heartbeat?.hasRef()).toBe(false)
+    setInterval.mockRestore()
+  })
+
   it('stops the heartbeat once the client has disconnected', () => {
     // An eight-hour run with a projector that reconnects every few minutes would
     // otherwise accumulate one interval per connection.
