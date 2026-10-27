@@ -21,11 +21,15 @@ export const securityHeaders = (isProduction: boolean): RequestHandler =>
         // Vite injects its dev client and HMR runtime inline. In production the bundle
         // is served as files, so no inline script is needed at all.
         scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
-        // CSS Modules compile to files. `'unsafe-inline'` is needed even in production
-        // for the handful of computed custom properties the wall sets on an element
-        // (the Ken Burns duration, a progress width) — a nonce cannot cover a style
-        // attribute, and the alternative is a stylesheet regenerated per photo.
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        // CSS Modules compile to files, so nothing inline is needed in production. The few
+        // computed values the wall sets on an element (the Ken Burns duration, a progress
+        // width, a tilt) are React `style={{}}` props, which React applies through the CSSOM
+        // (`style.setProperty`): `style-src` does not govern that, only a `<style>` element
+        // and an HTML `style=""` attribute, and nothing here emits either. This line used to say
+        // `'unsafe-inline'` was "needed even in production"; it was not, and it is what OWASP
+        // ZAP rule 10055 reports. Vite's dev server injects CSS as `<style>` elements, so
+        // development keeps it, as it does for `script-src`.
+        styleSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'"],
         // `data:` for the inline QR code and favicon; `blob:` for the local previews
         // the upload queue creates before sending.
         imgSrc: ["'self'", 'data:', 'blob:'],
