@@ -627,6 +627,11 @@ export const fr = {
     photoByAnonymous: 'Photo envoyée par un invité',
     errorTitle: 'Les photos n’ont pas pu être chargées',
     errorHint: 'Nouvelle tentative en cours. Vérifiez le réseau du lieu si l’écran reste vide.',
+    // The event is not served to the room: not open yet, archived, or its client suspended. The
+    // server answered, so the venue's network is fine and neither line sends a host to look at it.
+    notServedTitle: 'Cette galerie n’est pas affichée',
+    notServedHint:
+      'Elle n’est pas ouverte, ou elle a été archivée. Si elle s’ouvre, l’écran reprendra tout seul.',
     dismissJoinCard: 'Masquer le rappel du code',
     shortcuts: 'Raccourcis clavier',
     shortcutsHint:

@@ -475,6 +475,13 @@ Read these before you upgrade, and back up with the version you run now.
 - **A moderator who had to change their password was sent back to the form after saving it** (#168).
   The app kept the old answer; the host app also asks for the session and for `GET /api/about` once
   per page load instead of up to three and eight times.
+- **The projected wall stops showing an album the server no longer serves** (#213). A wall that was
+  already open kept cycling its photos after the host archived the event or the operator suspended the
+  client, behind a small "connection lost" notice, because it took the server's `404` for a network drop.
+  A lost live feed now makes the wall read once, and the answer `404 event.notFound` clears it to "this
+  gallery is not on display"; a real network drop still keeps the photos and the notice. The wall of a draft,
+  archived or suspended event no longer tells the host to check the venue's network, in the five languages,
+  and it comes back by itself if the event is served again. A wall with no live feed re-reads every 30 seconds.
 - **A newer error replaces a stale one** (#223). On the change-password, reset-password and accept-invitation
   forms, the server's verdict on one attempt ("too common") stayed on screen beside the browser's own sentence
   about the next ("the two passwords do not match"); on the operator's accounts page, two refused acts left two
