@@ -33,8 +33,9 @@ export const bannerLevel = (limits: ClientLimitsDto): BannerLevel | null => {
 /**
  * Whether a host can be sure the server will refuse to create an event for them: **every** client
  * they belong to is at its events ceiling (total or per period). One client with room left is
- * enough to leave the button alone, since the server, not this screen, picks which client the event
- * goes to. Only the two event ceilings count: storage refuses uploads, not a new draft, and a
+ * enough to leave the button alone: this screen does not know which client the event will be
+ * attributed to (it sends none, and the server decides), so it only blocks what no client could
+ * accept. Only the two event ceilings count: storage refuses uploads, not a new draft, and a
  * warning is not a refusal. The level is the server's (`ceilingLevel`), never recomputed here.
  */
 export const eventCreationBlocked = (clients: readonly ClientLimitsDto[]): boolean =>
