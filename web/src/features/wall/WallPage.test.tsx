@@ -75,6 +75,14 @@ const streamOpens = async (): Promise<void> => {
   })
 }
 
+/** The browser reports an error on the connection: the network dropped, or the server ended it. */
+const streamDrops = async (): Promise<void> => {
+  const stream = theStream()
+  await act(async () => {
+    stream.dispatchEvent(new Event('error'))
+  })
+}
+
 const streamSignals = async (type: string): Promise<void> => {
   const stream = theStream()
   await act(async () => {
@@ -289,12 +297,12 @@ describe('WallPage', () => {
   })
 
   it('says what to do next when the first load fails, instead of going black', async () => {
-    const api = fakeApi({ wall: vi.fn(() => Promise.reject(new ApiError(404, 'event.notFound'))) })
+    const api = fakeApi({ wall: vi.fn(() => Promise.reject(new ApiError(500, 'unknown'))) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
 
     const failure = await screen.findByRole('alert')
 
-    expect(failure).toHaveTextContent(fr.errors['event.notFound'])
+    expect(failure).toHaveTextContent(fr.errors.unknown)
     expect(failure).toHaveTextContent(fr.wall.errorHint)
   })
 
@@ -1245,6 +1253,196 @@ describe('WallPage', () => {
       await streamSignals('mission.changed')
 
       expect(await screen.findByText(fr.wall.missionGuests(3))).toBeVisible()
+    })
+  })
+
+  describe('WallPage when the event stops being served', () => {
+    /**
+     * The room is looking at an album the host has just archived, or whose client the operator
+     * has just suspended. The server ends the live feed and answers the wall with the 404 an
+     * unknown event gets (docs/API.md, "What a suspended client is told"). The page has to
+     * learn that from the answer, because an `EventSource` cannot say why it dropped.
+     */
+    const theEventIsGone = (): ApiError => new ApiError(404, 'event.notFound')
+
+    /** Answers the first read with photographs, then every later one with `after`. */
+    const photosThen = (after: () => Promise<WallResponse>) => {
+      let call = 0
+      return vi.fn(async (): Promise<WallResponse> => {
+        call += 1
+        return call === 1 ? aPopulatedWall() : after()
+      })
+    }
+
+    it('stops showing the album once the server says the event is gone, after the stream drops', async () => {
+      const wall = photosThen(() => Promise.reject(theEventIsGone()))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      await streamDrops()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
+      expect(wall).toHaveBeenCalledTimes(2)
+    })
+
+    it('stops showing the album when a refetch after a signal says the event is gone', async () => {
+      const wall = photosThen(() => Promise.reject(theEventIsGone()))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      await streamSignals('event.statusChanged')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
+    })
+
+    it('keeps cycling its photos and says the connection is lost when the network drops', async () => {
+      // The other branch, and the one the room needs every evening: no answer is not "gone".
+      const wall = photosThen(() => Promise.reject(ApiError.network()))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      await streamDrops()
+
+      await waitFor(() => expect(wall).toHaveBeenCalledTimes(2))
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+      expect(screen.getByText(fr.wall.offline)).toBeVisible()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('keeps its photos for a 404 that is not the server saying the event is gone', async () => {
+      // A reverse proxy in the middle of a deploy answers an HTML page, which the transport
+      // turns into \`unknown\`. Blanking a live party's projector for that would be the
+      // opposite mistake.
+      const wall = photosThen(() => Promise.reject(new ApiError(404, 'unknown')))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      await streamDrops()
+
+      await waitFor(() => expect(wall).toHaveBeenCalledTimes(2))
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('keeps its photos for a server error, which says nothing about the event', async () => {
+      const wall = photosThen(() => Promise.reject(new ApiError(503, 'service.notReady')))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      await streamDrops()
+
+      await waitFor(() => expect(wall).toHaveBeenCalledTimes(2))
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+    })
+
+    it('asks nothing of the server when the stream was never open, beyond its own first read', async () => {
+      const wall = vi.fn(async () => aPopulatedWall())
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await streamDrops()
+
+      expect(wall).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not tell a room whose event is not served to check its network', async () => {
+      // The page's first read of a draft, archived or suspended event. The server answered,
+      // so the network is fine, and "Connexion perdue" over "check the venue's network"
+      // sent a host looking at the wrong thing.
+      const api = fakeApi({ wall: vi.fn(() => Promise.reject(theEventIsGone())) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      const notice = await screen.findByRole('alert')
+
+      expect(notice).toHaveTextContent(fr.wall.notServedTitle)
+      expect(notice).toHaveTextContent(fr.wall.notServedHint)
+      expect(notice).not.toHaveTextContent(fr.wall.errorTitle)
+      expect(notice).not.toHaveTextContent(fr.wall.errorHint)
+      expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
+    })
+
+    it('does not say the connection is lost over an album that is gone', async () => {
+      const wall = photosThen(() => Promise.reject(theEventIsGone()))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+      await streamDrops()
+      await screen.findByRole('alert')
+
+      expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
+    })
+
+    it('still sends a host to the network for a failure that is not the event being gone', async () => {
+      const api = fakeApi({ wall: vi.fn(() => Promise.reject(ApiError.network())) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      const failure = await screen.findByRole('alert')
+
+      expect(failure).toHaveTextContent(fr.wall.errorHint)
+      expect(failure).not.toHaveTextContent(fr.wall.notServedTitle)
+    })
+
+    it('stops showing the album when the stream never opens and the event is gone', async () => {
+      // A feed refused for good (the per-client cap, a proxy that blocks event streams) never
+      // delivers, so it never reports a loss. The wall was read once, before the archive, and
+      // would keep the album until somebody reloaded it.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const wall = photosThen(() => Promise.reject(theEventIsGone()))
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000)
+      })
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
+    })
+
+    it('reads nothing on a timer while the stream is delivering', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const wall = vi.fn(async () => aPopulatedWall())
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      // The server's heartbeat keeps the silence watchdog from reading this as a dead pipe.
+      for (let beat = 0; beat < 3; beat += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(20_000)
+          theStream().dispatchEvent(new MessageEvent('ping', { data: '{}' }))
+        })
+      }
+
+      expect(wall).toHaveBeenCalledTimes(1)
+    })
+
+    it('comes back by itself when the event is served again', async () => {
+      // A draft wall set up before the party, a suspension the operator lifts: nobody walks
+      // over to the projector, so the page keeps asking.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      let served = false
+      const wall = vi.fn(async (): Promise<WallResponse> => {
+        if (!served) throw theEventIsGone()
+        return aPopulatedWall()
+      })
+      renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
+      await screen.findByRole('alert')
+
+      served = true
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000)
+      })
+
+      expect(await screen.findByTestId('wall-slide')).toBeVisible()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
 })
