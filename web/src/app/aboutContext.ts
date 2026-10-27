@@ -26,3 +26,15 @@ export const AboutContext = createContext<About>(BUILD_ABOUT)
  * no provider above it has nothing to wait for.
  */
 export const AboutAnsweredContext = createContext<boolean>(true)
+
+/**
+ * Whether the server has **really said** what it can do: an answer arrived and was one this build
+ * can read. A request that failed, a proxy's empty page and a build that has not asked yet are all
+ * `false`, because in each of them the value in {@link AboutContext} is the build's own guess.
+ *
+ * For the one reader that must not act on the guess in the *refusing* direction: a screen that
+ * would take a way in away from somebody (the forgotten-password page) on the strength of
+ * "this box cannot send mail" must have heard the box say it. The default is `false`: a component
+ * rendered with no provider has heard nothing.
+ */
+export const AboutHeardContext = createContext<boolean>(false)

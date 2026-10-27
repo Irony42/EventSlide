@@ -956,10 +956,24 @@ describe('the pages a link opens', () => {
     expect(screen.getByRole('combobox', { name: fr.app.language })).toBeVisible()
   })
 
-  it('serves the forgotten-password form with no session', async () => {
-    at('/password/forgot')
+  it('serves the forgotten-password form with no session, on a box that can send mail', async () => {
+    const api = fakeApi({
+      about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword: true } })),
+    })
+    renderWithProviders(<AppRoutes />, { api, route: '/password/forgot' })
 
     expect(await screen.findByRole('heading', { name: fr.auth.forgotTitle })).toBeVisible()
+    expect(await screen.findByLabelText(fr.auth.email)).toBeVisible()
+  })
+
+  it('says a box with no mail relay cannot reset a password, on the same address', async () => {
+    const api = fakeApi({
+      about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword: false } })),
+    })
+    renderWithProviders(<AppRoutes />, { api, route: '/password/forgot' })
+
+    expect(await screen.findByText(fr.auth.forgotUnavailable)).toBeVisible()
+    expect(screen.queryByLabelText(fr.auth.email)).toBeNull()
   })
 
   it('serves the reset form for the token in the path, with no session', async () => {

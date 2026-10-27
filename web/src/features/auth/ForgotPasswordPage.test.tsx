@@ -6,9 +6,15 @@ import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { ApiError } from '../../lib/http'
 import { de } from '../../lib/i18n/de'
 import { fr } from '../../lib/i18n/fr'
-import { fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import { anAbout, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { Locale } from '../../lib/i18n/locale'
+
+/** A box that can send mail, which is where this form means anything. */
+const withMail = (api: Api): Api => ({
+  ...api,
+  about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword: true } })),
+})
 
 const renderForgot = (api: Api, locale?: Locale) =>
   renderWithProviders(
@@ -16,13 +22,78 @@ const renderForgot = (api: Api, locale?: Locale) =>
       <Route path="/password/forgot" element={<ForgotPasswordPage />} />
       <Route path="/login" element={<p>Connexion</p>} />
     </Routes>,
-    { api, route: '/password/forgot', ...(locale === undefined ? {} : { locale }) },
+    { api: withMail(api), route: '/password/forgot', ...(locale === undefined ? {} : { locale }) },
   )
 
 const ask = async (address: string) => {
   await userEvent.type(screen.getByLabelText(fr.auth.email), address)
   await userEvent.click(screen.getByRole('button', { name: fr.auth.forgotSubmit }))
 }
+
+describe('ForgotPasswordPage on a box with no mail relay', () => {
+  const renderWithoutMail = () => {
+    const api = fakeApi({
+      about: vi.fn(async () => anAbout({ features: { siteAdmin: false, forgotPassword: false } })),
+    })
+    renderWithProviders(
+      <Routes>
+        <Route path="/password/forgot" element={<ForgotPasswordPage />} />
+        <Route path="/login" element={<p>Connexion</p>} />
+      </Routes>,
+      { api, route: '/password/forgot' },
+    )
+    return api
+  }
+
+  it('says the reset is not available here, instead of offering a form that cannot work', async () => {
+    const api = renderWithoutMail()
+
+    expect(await screen.findByText(fr.auth.forgotUnavailable)).toBeVisible()
+    expect(screen.queryByLabelText(fr.auth.email)).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.auth.forgotSubmit })).toBeNull()
+    expect(screen.getByRole('link', { name: fr.auth.backToLogin })).toBeVisible()
+    expect(api.requestPasswordReset).not.toHaveBeenCalled()
+  })
+})
+
+describe('ForgotPasswordPage before the box has said what it can do', () => {
+  it('shows the form rather than a verdict drawn from the build’s own guess', async () => {
+    // Until /api/about answers, the context holds a default that says no mail: acting on it would
+    // turn every page load on a box that can send mail into "not available" for a moment.
+    const api = fakeApi({ about: vi.fn(() => new Promise<never>(() => {})) })
+    renderWithProviders(
+      <Routes>
+        <Route path="/password/forgot" element={<ForgotPasswordPage />} />
+      </Routes>,
+      { api, route: '/password/forgot' },
+    )
+
+    expect(screen.getByLabelText(fr.auth.email)).toBeVisible()
+    expect(screen.queryByText(fr.auth.forgotUnavailable)).toBeNull()
+  })
+})
+
+describe('ForgotPasswordPage when the box could not be asked', () => {
+  it.each([
+    ['the request fails', () => Promise.reject(new Error('offline'))],
+    ['the answer is empty', () => Promise.resolve(null as never)],
+  ])(
+    'keeps the form when %s, since the build’s guess is not the box’s word',
+    async (_name, about) => {
+      const api = fakeApi({ about: vi.fn(about) })
+      renderWithProviders(
+        <Routes>
+          <Route path="/password/forgot" element={<ForgotPasswordPage />} />
+        </Routes>,
+        { api, route: '/password/forgot' },
+      )
+
+      await waitFor(() => expect(api.about).toHaveBeenCalled())
+      expect(await screen.findByLabelText(fr.auth.email)).toBeVisible()
+      expect(screen.queryByText(fr.auth.forgotUnavailable)).toBeNull()
+    },
+  )
+})
 
 describe('ForgotPasswordPage', () => {
   it('sends the address and the language of the page, which is the language of the mail', async () => {

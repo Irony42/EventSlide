@@ -1,7 +1,7 @@
 import { useCallback, type ReactNode } from 'react'
 import { useLoader } from '../lib/useLoader'
-import { AboutAnsweredContext, AboutContext } from './aboutContext'
-import { BUILD_ABOUT, laidOver } from './aboutAnswer'
+import { AboutAnsweredContext, AboutContext, AboutHeardContext } from './aboutContext'
+import { BUILD_ABOUT, laidOver, saidItsFeatures } from './aboutAnswer'
 import { useApi } from './useApi'
 
 /**
@@ -20,14 +20,24 @@ import { useApi } from './useApi'
  */
 export function AboutProvider({ children }: { readonly children: ReactNode }) {
   const api = useApi()
-  const load = useCallback(async (signal: AbortSignal) => laidOver(await api.about(signal)), [api])
+  const load = useCallback(
+    async (signal: AbortSignal) => {
+      const answer = await api.about(signal)
+      return { about: laidOver(answer), heard: saidItsFeatures(answer) }
+    },
+    [api],
+  )
   // A failure leaves the build's own answer and nobody is told; it is still an answer for the one
   // reader that waits (below), and `loading` is false once the request has settled either way.
   const { data, loading } = useLoader(load)
 
   return (
-    <AboutContext.Provider value={data ?? BUILD_ABOUT}>
-      <AboutAnsweredContext.Provider value={!loading}>{children}</AboutAnsweredContext.Provider>
+    <AboutContext.Provider value={data?.about ?? BUILD_ABOUT}>
+      <AboutAnsweredContext.Provider value={!loading}>
+        <AboutHeardContext.Provider value={data?.heard === true}>
+          {children}
+        </AboutHeardContext.Provider>
+      </AboutAnsweredContext.Provider>
     </AboutContext.Provider>
   )
 }
