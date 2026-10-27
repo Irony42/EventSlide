@@ -904,6 +904,7 @@ export const it: UiText = {
     confirmPassword: 'Conferma la nuova password',
     changePasswordIntro: 'Scelga una password che non usa altrove.',
     passwordSaved: 'Password salvata.',
+    passwordIncorrect: 'La password non è corretta.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Verifica in due passaggi',

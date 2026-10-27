@@ -943,6 +943,7 @@ export const de: UiText = {
 
     changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
     passwordSaved: 'Passwort gespeichert.',
+    passwordIncorrect: 'Das Passwort ist falsch.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Bestätigung in zwei Schritten',

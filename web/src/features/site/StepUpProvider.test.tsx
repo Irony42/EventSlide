@@ -189,6 +189,23 @@ describe('a write of the operator’s console that needs a confirmation', () => 
     expect(screen.queryByText(fr.auth.stepUpDone)).toBeNull()
   })
 
+  it('says the password is wrong, not the address or the password, when the prompt refuses it', async () => {
+    // The prompt has no address field: it is the person already signed in confirming themselves.
+    const save = aWrite(stepUpRequired(), 'saved')
+    const stepUp = vi
+      .fn<Api['stepUp']>()
+      .mockRejectedValue(new ApiError(401, 'auth.invalidCredentials'))
+    mount([{ label: 'save', action: save }], { stepUp })
+
+    await userEvent.click(screen.getByRole('button', { name: 'save' }))
+    await confirmWith('000000')
+
+    const alert = await within(await prompt()).findByRole('alert')
+    expect(alert).toHaveTextContent(fr.auth.passwordIncorrect)
+    expect(alert).not.toHaveTextContent(fr.errors['auth.invalidCredentials'])
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the prompt open on a wrong code, with the server’s sentence, and sends nothing', async () => {
     const save = aWrite(stepUpRequired(), 'saved')
     const stepUp = vi
