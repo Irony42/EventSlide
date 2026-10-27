@@ -24,7 +24,7 @@ import { toSingleLine } from '../shared/plainText'
  *
  * What it does name is the **target**: the event, or the client's space. That is content a
  * person typed (CLAUDE.md §6) and is printed as written, in whatever language it was written
- * in, only with its whitespace flattened so a name cannot lay out the message.
+ * in, only folded to one line (`toSingleLine`: invisible characters removed, spaces collapsed) so a name cannot lay out the message.
  *
  * Pure: a function of its arguments. The lifetime it quotes is passed in, so the message can
  * never promise longer than the token lives.
