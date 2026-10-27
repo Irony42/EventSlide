@@ -1,17 +1,16 @@
 /**
  * Code-unit order, not locale order: an id sort must not depend on the host's ICU.
  *
- * SQLite orders a `TEXT` id by its bytes (`BINARY` collation), so a fake that stands in for
- * one has to as well. `localeCompare` would put `a` before `B` where the database puts `B`
- * first, and would answer differently on a machine with another locale, which is a test that
- * passes here and fails in CI.
+ * The domain's total orders (the playlist, the moderation queue, the reaction ranking) break a
+ * tie on an id with it, so two machines holding the same rows agree on their order. It is also
+ * what the test fakes use to stand in for SQLite, which orders a `TEXT` id by its bytes
+ * (`BINARY` collation): `localeCompare` would put `a` before `B` where the database puts `B`
+ * first, and a test that passes here would fail in CI on another locale.
  *
  * It compares UTF-16 code units, which is the byte order for the ASCII ids this application mints
  * (UUIDs, slugs, digests) and differs from UTF-8 only above U+E000, where no id goes.
  *
- * Every fake that breaks a tie on an id uses this one function, in the direction its adapter's
- * `ORDER BY` states, and so do the domain's own total orders (the playlist, the moderation queue,
- * the reaction ranking): the tie direction is written at the call site, beside the sort it mirrors.
+ * The tie direction is written at each call site, beside the sort it mirrors.
  */
 export const compareIds = (left: string, right: string): number =>
   Number(left > right) - Number(left < right)

@@ -1,9 +1,9 @@
+import { compareIds } from '../shared/ordering'
 import { canTransition, type PhotoStatus } from '../photos/photoStatus'
 import { DomainError } from '../shared/errors'
 import type { PhotoId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
 import { targetStatusFor, type ModerationDecision } from './moderationDecision'
-import { compareIds } from '../shared/ordering'
 
 /**
  * The moderation queue: ordering, paging, focus and batch rules as pure functions.

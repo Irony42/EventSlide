@@ -111,6 +111,14 @@ describe('rankedPhotos', () => {
     ])
   })
 
+  it('breaks a tie by code unit, not by locale, so two machines agree on B and a', () => {
+    const byPhoto = mapOf(
+      ['a', 'B'].map((id): readonly [string, ReactionCounts] => [id, countsWith({ love: 2 })]),
+    )
+
+    expect(rankedPhotos(byPhoto)).toEqual([asPhotoId('B'), asPhotoId('a')])
+  })
+
   it('ranks every photo there is, because the caller decides how many it keeps', () => {
     const ids = Array.from({ length: 60 }, (_, index) => `photo-${String(index).padStart(2, '0')}`)
     const byPhoto = mapOf(

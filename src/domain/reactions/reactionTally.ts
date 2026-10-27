@@ -1,8 +1,8 @@
+import { compareIds } from '../shared/ordering'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { GuestId, PhotoId } from '../shared/ids'
 import { REACTION_KINDS, type ReactionKind } from './reactionKind'
-import { compareIds } from '../shared/ordering'
 
 /**
  * Aggregation over reactions, shared by the wall and by "photo of the night".
