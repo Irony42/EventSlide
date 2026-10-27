@@ -2179,7 +2179,46 @@ Stated plainly: a threat model that claims to cover everything covers nothing.
 | Fix or mitigation plan | targeted within 30 days of confirmation, published as an advisory with the affected versions                                 |
 | Please do not          | test against a live event you do not own, exfiltrate other people's photos to prove a point, or load-test someone's instance |
 | Scope                  | this repository. Reports about the operator's reverse proxy, OS, or network belong to that operator                          |
-| Supported versions     | `2.0.x` only. `1.x` is unpatched (see Status, above) — upgrade rather than report                                            |
+| Supported versions     | the latest release only: there is no maintenance branch (docs/UPGRADING.md). `1.x` is unpatched (see Status)                 |
+| Critical decoder CVE   | best effort, aiming at a corrective release within seven days of a fix: no commitment (see below)                            |
+
+### A critical vulnerability in what decodes a guest's file
+
+Four things in the image read bytes that a stranger chose, or sit on the network: **ffmpeg**
+(a guest's clip, threat T9, §4.1), **libvips** (a guest's photograph, through `sharp`, §14.3),
+**Node.js** and **openssl** (every request). None of them is EventSlide's code, and a fix for
+one comes from Debian (ffmpeg, openssl, the base image) or from npm (libvips, inside `sharp`),
+not from this repository. [docs/IMAGE-SOURCES.md](IMAGE-SOURCES.md) lists what the image
+carries.
+
+- **The goal, and it is a goal.** When one of them has a vulnerability rated critical and a
+  fixed version exists, the maintainer **aims** to publish a corrective release of the image, a
+  patch release built on the fixed package, **within seven days** of the fix being available.
+- **Best effort, with no commitment.** This is one person with a day job and no on-call
+  rota. The goal can be missed, a day or a week, and nothing is owed or compensated when it is.
+  The issue or the advisory says so when it happens, and why. No deadline is promised for a
+  deployment of that release either: yours is when you pull it ([docs/UPGRADING.md](UPGRADING.md)).
+- **Only the latest release** gets one. There is no maintenance branch for an older minor.
+- **How the maintainer finds out.** The release is scanned and a critical vulnerability with a
+  fix stops it. The latest release is scanned again every week, and each such finding opens an
+  issue labelled `image-scan` (`.github/workflows/image-scan.yml`). Dependabot opens a pull
+  request when the base image has a new digest. A GitHub advisory or a report as §13 says
+  reaches the same place. None of this is monitored round the clock.
+- **What you can do while you wait.** The decoders only receive what a guest uploads, so the
+  measure is to stop uploads: answer `503` at your reverse proxy on `POST /api/events/:slug/photos`
+  and `POST /api/events/:slug/clips`, or close the events that are open. With Caddy, in front of
+  the `reverse_proxy` line, as an example:
+
+  ```
+  @uploads {
+    method POST
+    path_regexp ^/api/events/[^/]+/(photos|clips)$
+  }
+  respond @uploads 503
+  ```
+
+  The maintainer's own instance (§16) does the same, and also closes new requests for an
+  account **(planned: the runbook of that instance, not written yet)**.
 
 ## 14. Advisory audit, 2026-09-18
 

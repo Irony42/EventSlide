@@ -482,6 +482,10 @@ Read these before you upgrade, and back up with the version you run now.
   gallery is not on display"; a real network drop still keeps the photos and the notice. The wall of a draft,
   archived or suspended event no longer tells the host to check the venue's network, in the five languages,
   and it comes back by itself if the event is served again. A wall with no live feed re-reads every 30 seconds.
+- **A newer error replaces a stale one** (#223). On the change-password, reset-password and accept-invitation
+  forms, the server's verdict on one attempt ("too common") stayed on screen beside the browser's own sentence
+  about the next ("the two passwords do not match"); on the operator's accounts page, two refused acts left two
+  pinned refusals up. The newest finding is the only one shown.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.

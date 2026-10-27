@@ -94,6 +94,42 @@ describe('ResetPasswordPage', () => {
     expect(confirm).toHaveBeenCalledTimes(2)
   })
 
+  it('replaces the server’s verdict with the mismatch it finds on the next attempt', async () => {
+    // The verdict was about a password that is no longer in the box; beside the new sentence it
+    // says two things are wrong when one is.
+    const confirm = vi
+      .fn<Api['confirmPasswordReset']>()
+      .mockRejectedValue(new ApiError(400, 'password.tooCommon'))
+    renderReset(fakeApi({ confirmPasswordReset: confirm }))
+    await choose('password1234', 'password1234')
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['password.tooCommon'])
+
+    await userEvent.clear(screen.getByLabelText(fr.auth.confirmPassword))
+    await userEvent.type(screen.getByLabelText(fr.auth.confirmPassword), 'autre')
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.resetSubmit }))
+
+    expect(await screen.findByText(fr.errors['password.mismatch'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['password.tooCommon'])).toBeNull()
+    expect(confirm).toHaveBeenCalledTimes(1)
+  })
+
+  it('replaces the server’s verdict with the empty-box sentence on the next attempt', async () => {
+    const confirm = vi
+      .fn<Api['confirmPasswordReset']>()
+      .mockRejectedValue(new ApiError(400, 'password.tooCommon'))
+    renderReset(fakeApi({ confirmPasswordReset: confirm }))
+    await choose('password1234', 'password1234')
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['password.tooCommon'])
+
+    await userEvent.clear(screen.getByLabelText(fr.auth.newPassword))
+    await userEvent.clear(screen.getByLabelText(fr.auth.confirmPassword))
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.resetSubmit }))
+
+    expect(await screen.findByText(fr.errors['password.tooShort'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['password.tooCommon'])).toBeNull()
+    expect(confirm).toHaveBeenCalledTimes(1)
+  })
+
   it('sends nothing for an empty password, and says so on the box', async () => {
     // The server's schema refuses an empty string with the generic request.invalid; the policy
     // that has a sentence for it never sees it.

@@ -1,0 +1,60 @@
+name: Release PR
+
+# **Off until the maintainer turns it on.** It runs only when someone presses "Run workflow",
+# not on a push to main, so merging a pull request opens nothing and this file changes
+# nothing about how releases are made today: by hand, a tag `vX.Y.Z` on the commit that bumped
+# package.json and wrote the CHANGELOG entry (docs/UPGRADING.md), which starts release.yml.
+#
+# What release-please would do, once enabled: read the Conventional Commits since the last
+# release, open one pull request that bumps package.json, the lockfile and the image tag in
+# compose.yaml and compose.build.yaml, and writes the CHANGELOG entry; and, when that pull
+# request is merged and this workflow runs again, create the tag and the GitHub release. The
+# last step below then starts release.yml for that tag, because a tag created with the
+# workflow token starts no workflow of its own.
+#
+# To turn it on, in this order:
+#
+#   1. Tag `v3.0.0` by hand, so that release-please has a release to measure from. The
+#      manifest (.release-please-manifest.json) already says 3.0.0.
+#   2. Rewrite the paragraph at the top of CHANGELOG.md that says it is written by hand, and
+#      decide whether release-please's format (`## [3.0.1](compare) (date)`, which
+#      scripts/changelogPolicy.ts already accepts) replaces the hand-written one.
+#   3. Settings > Actions > General > "Allow GitHub Actions to create and approve pull
+#      requests". A pull request opened with the workflow token does not start ci.yml, so
+#      branch protection that requires those checks will block it: push an empty commit to
+#      its branch, or give the action a token of your own (`token:` below).
+#   4. Add `push: { branches: [main] }` under `on:` to make it automatic, or leave it as it
+#      is and run it when you want a release.
+#
+# Until step 4 this is a button, and it does nothing the maintainer has not pressed.
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  release-please:
+    name: Open or update the release pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      # The labels release-please puts on its pull request are issue labels.
+      issues: write
+      # To start release.yml by hand-off: see the last step.
+      actions: write
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Start the release workflow for the tag that was just created
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main --field tag="$TAG" --field publish=true
