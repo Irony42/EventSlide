@@ -479,6 +479,10 @@ Read these before you upgrade, and back up with the version you run now.
   forms, the server's verdict on one attempt ("too common") stayed on screen beside the browser's own sentence
   about the next ("the two passwords do not match"); on the operator's accounts page, two refused acts left two
   pinned refusals up. The newest finding is the only one shown.
+- **A guest of a closed event is told so, instead of being offered the upload form** (F18).
+  `GET /api/events/:slug/photos/mine` now carries `acceptingUploads` (the upload rule's own answer); the
+  upload screen shows "this gallery no longer accepts photos" and no picker when it is `false`, and keeps
+  the guest's own photos listed. Before, the form stayed and the refusal came after the send.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.
