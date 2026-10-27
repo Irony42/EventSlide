@@ -3,6 +3,7 @@ import { DomainError } from '../shared/errors'
 import type { PhotoId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
 import { targetStatusFor, type ModerationDecision } from './moderationDecision'
+import { compareIds } from '../shared/ordering'
 
 /**
  * The moderation queue: ordering, paging, focus and batch rules as pure functions.
@@ -86,7 +87,7 @@ export const orderQueue = <T extends QueueItem>(
   return [...items].sort((left, right) => {
     const byArrival = left.createdAt.getTime() - right.createdAt.getTime()
     if (byArrival !== 0) return byArrival * direction
-    return left.id < right.id ? -1 : 1
+    return compareIds(left.id, right.id)
   })
 }
 

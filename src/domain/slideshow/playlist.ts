@@ -1,6 +1,7 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { PhotoId } from '../shared/ids'
+import { compareIds } from '../shared/ordering'
 
 /**
  * What the projector shows.
@@ -62,13 +63,12 @@ const ID_SEPARATOR = 0
  * them, and a burst of uploads from one table lands inside the same tick; two
  * projectors sorting that burst differently would hold the same photos in a different
  * order and drift apart, which is the defect this module exists to prevent. Photo ids
- * are unique, so returning only -1 or 1 is total here: there is no pair for which both
- * orders could be claimed.
+ * are unique, so the id comparison is total here.
  */
 const byNewestThenId = (a: PlaylistCandidate, b: PlaylistCandidate): number => {
   const byRecency = b.createdAt.getTime() - a.createdAt.getTime()
   if (byRecency !== 0) return byRecency
-  return a.id < b.id ? -1 : 1
+  return compareIds(a.id, b.id)
 }
 
 const mix = (hash: number, codeUnit: number): number => Math.imul(hash ^ codeUnit, FNV_PRIME) >>> 0

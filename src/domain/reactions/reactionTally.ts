@@ -2,6 +2,7 @@ import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import type { GuestId, PhotoId } from '../shared/ids'
 import { REACTION_KINDS, type ReactionKind } from './reactionKind'
+import { compareIds } from '../shared/ordering'
 
 /**
  * Aggregation over reactions, shared by the wall and by "photo of the night".
@@ -52,10 +53,6 @@ interface RankedPhoto {
   readonly photoId: PhotoId
   readonly total: number
 }
-
-/** Code-unit order, not locale order: a ranking must not depend on the host's ICU. */
-const compareIds = (left: PhotoId, right: PhotoId): number =>
-  Number(left > right) - Number(left < right)
 
 /**
  * Total descending, then id ascending. The tie-break is not cosmetic: without it the
