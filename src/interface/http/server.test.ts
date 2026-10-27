@@ -969,6 +969,7 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     await writeFile(join(clientDir, 'index.html'), `<!doctype html>${SPA_MARKER}`, 'utf8')
     await writeFile(join(clientDir, HASHED_ASSET), 'console.log(1)\n', 'utf8')
     await writeFile(join(clientDir, 'favicon.svg'), '<svg/>\n', 'utf8')
+    await writeFile(join(clientDir, 'sw.js'), 'self.skipWaiting()\n', 'utf8')
     await mkdir(join(clientDir, '.hidden'), { recursive: true })
     await writeFile(join(clientDir, '.hidden', 'secret.txt'), HIDDEN_FILE_CONTENT, 'utf8')
   })
@@ -1097,9 +1098,11 @@ describe('buildServer: the API 404 in front of the SPA fallback', () => {
     ['the shell of a client route', '/admin/events/evt-1/moderation'],
     ['a file served from the client directory', '/favicon.svg'],
     ['a hashed asset', `/${HASHED_ASSET}`],
-  ])('sends COEP with %s, because a document and its worker both need it', async (_label, path) => {
-    // A page under `require-corp` can only be controlled by a service worker whose own script
-    // came with the policy, and the worker is a file of this directory.
+    ['the service worker script', '/sw.js'],
+    ['the shared gallery page shell', '/g/abc'],
+    ['an invitation page shell', '/invite/abc'],
+  ])('sends COEP with %s, so the document and its worker agree', async (_label, path) => {
+    // The worker's script is a file of this directory, and it carries the policy like the page.
     const response = await request(withClient(true).app).get(path)
 
     expect(response.status).toBe(200)

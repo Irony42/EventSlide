@@ -1509,8 +1509,8 @@ cross-origin resource only if that resource opts in, and this app loads none: no
 and every image, poster frame and clip is a same-origin `/api` URL, a `blob:` preview or a
 `data:` QR code. A same-origin load is never refused, so the header costs nothing today and
 makes a later cross-origin image, font or frame fail loudly instead of quietly. It is sent on
-the shell, on every file of the client directory (a page under `require-corp` can only be
-controlled by a service worker whose own script carries it, and `sw.js` is one of them) and
+the shell, on every file of the client directory (`sw.js` is one of them: the worker's own script
+carries the policy as well, so that nothing about the worker differs from the page it serves) and
 on the API. `credentialless` was the looser alternative and was not needed. Checked in a real
 Chromium on a production-mode build with the seeded demo event: `crossOriginIsolated` is
 `true`; the wall's photographs, a `blob:` image (the guest's upload preview), a `blob:` video, a
@@ -1518,7 +1518,9 @@ Chromium on a production-mode build with the seeded demo event: `crossOriginIsol
 checked there:** the service worker (`web/sw/`), because that browser pane registered no
 worker even with the header off; the offline end-to-end project in CI is its check, and a
 registration that fails under this header would show as `the upload worker could not be
-registered` in the console.
+registered` in the console. The standing regression checks are the `chromium-offline`
+project (it waits for the worker to control the page) and the end-to-end journeys, which fail
+on a broken image.
 
 **The explicit consequences**, also hard constraints in [../AGENTS.md](../AGENTS.md):
 
