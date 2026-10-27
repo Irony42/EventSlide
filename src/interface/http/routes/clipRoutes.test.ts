@@ -287,6 +287,21 @@ describe('POST /api/events/:eventSlug/clips', () => {
     expect(await readdir(subject.tempDir)).toEqual([])
   })
 
+  it('leaves no temp file behind when the handler throws before it reads the file', async () => {
+    // The wrapper's own backstop: a caption over the bound is refused by the schema, ahead
+    // of the line that removes the file, so only the `finally` of `withGuest` is left to do it.
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .post(`${BASE}/clips`)
+      .set('Cookie', cookie(subject.token))
+      .field('caption', 'x'.repeat(1_001))
+      .attach('clip', aClipBody(), 'IMG_4021.MOV')
+
+    expect(response.status).toBe(400)
+    expect(await readdir(subject.tempDir)).toEqual([])
+  })
+
   it('refuses a file that is not a video, from its signature', async () => {
     const subject = buildSubject()
 

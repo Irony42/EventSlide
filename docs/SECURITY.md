@@ -604,10 +604,10 @@ route.
 
 The mechanical half of that is `siteOperatorScope.test.ts`, and it is worth knowing
 exactly what it does and does not do, because this paragraph previously credited
-`eventRoutes.test.ts` with a sweep it has never had. (The two tests there named "a route
-mounted without an authorization decision fails loudly" assert
-`expect(() => currentUser(bare)).toThrow(/mis-wired/)` — `RequestContext` helpers, which
-fire only if a handler _calls_ one. A handler that answers directly, or reads `req.params`
+`eventRoutes.test.ts` with a sweep it has never had. (The tests in `middleware/scope.test.ts`
+named for "every missing piece" assert that a route mounted without an authorization
+decision answers one opaque `500 server.unexpected` — helpers, which fire only if a handler
+_calls_ one. A handler that answers directly, or reads `req.params`
 itself, is caught by neither.) What the sweep does: it reads every route off the assembled
 server's own layer stack, drives each one as a signed-in account that is a member of no
 event, and requires a 4xx. A route mounted with no authorization decision answers that

@@ -58,7 +58,17 @@ describe('the scope helpers', () => {
     ]) {
       expect(missing).toThrowError(expect.objectContaining({ kind: 'unexpected' }))
     }
-    expect(errors.length).toBeGreaterThan(0)
+    // What was missing is the only record of it: the client's body is opaque.
+    expect(errors).toEqual([
+      { missing: 'user', requestId: 'req-1' },
+      { missing: 'user', requestId: 'req-1' },
+      { missing: 'event', requestId: 'req-1' },
+      { missing: 'event', requestId: 'req-1' },
+      { missing: 'guest', requestId: 'req-1' },
+      { missing: 'user', requestId: 'req-1' },
+      { missing: 'event', requestId: 'req-1' },
+      { missing: 'event', requestId: 'req-1' },
+    ])
   })
 
   it('hands back what the middleware resolved', () => {
@@ -161,6 +171,56 @@ describe('the wrappers in front of a handler', () => {
     await agent.post('/sign-in')
 
     expect((await agent.get('/events/mariage/ok')).status).toBe(204)
+  })
+
+  it('runs the cleanup of withGuest even when no guest was resolved, and after a success', async () => {
+    // The clip route's temp file is owned from the moment multer wrote it: a route mounted
+    // without requireGuest must still not leave it behind.
+    const ran: string[] = []
+    const subject = buildHarness({
+      routes: (app) => {
+        const cleanup = async (): Promise<void> => void ran.push('cleaned')
+        app.get(
+          '/unguarded',
+          withGuest(async () => undefined, { cleanup }),
+        )
+        app.get(
+          '/ok',
+          (req, _res, next) => {
+            req.context.event = anEvent({ slug: 'mariage', status: 'live' })
+            req.context.guest = { kind: 'guest', guest: aGuest({}), eventId: req.context.event.id }
+            next()
+          },
+          withGuest(async (_scope, _req, res) => sendNoContent(res), { cleanup }),
+        )
+      },
+    })
+
+    expect((await request(subject.app).get('/unguarded')).status).toBe(500)
+    expect(ran).toEqual(['cleaned'])
+    expect((await request(subject.app).get('/ok')).status).toBe(204)
+    expect(ran).toEqual(['cleaned', 'cleaned'])
+  })
+
+  it('answers 500 for a signed-in caller with no resolved event, through withModerator', async () => {
+    // A session is not authorization: without the event there is nothing to be a moderator
+    // *of*, so the handler must not run at all.
+    const subject = buildHarness({
+      routes: (app) => {
+        app.post('/sign-in', signInAs({ userId: OWNER, email: 'hote@example.test' }))
+        app.get(
+          '/signed-in-only',
+          withModerator(async (_scope, _req, res) => sendNoContent(res)),
+        )
+      },
+    })
+    const agent = request.agent(subject.app)
+    await agent.post('/sign-in')
+
+    const response = await agent.get('/signed-in-only')
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('server.unexpected')
   })
 
   it('runs the cleanup of withGuest on every exit, including a throw', async () => {

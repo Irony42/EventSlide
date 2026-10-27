@@ -28,7 +28,9 @@ import { asyncHandler } from './asyncHandler'
  * a `!`, which the strict settings forbid and which would turn the same bug into a
  * `TypeError` on a guest's phone mid-upload.
  *
- * What was missing goes to the log, never to the client; the body carries no details at
+ * What was missing goes to the log, never to the client (the error handler logs the failure
+ * once more as 'request failed', which is intended: that line is the request's, this one says
+ * why); the body carries no details at
  * all, which is also how a test tells this deliberate refusal from a dereference of
  * `undefined` (the error handler stamps a `requestId` into anything it did not expect).
  */
