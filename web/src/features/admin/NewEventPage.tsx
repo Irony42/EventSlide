@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
@@ -7,6 +7,7 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { slugify } from '../../lib/slugify'
+import { eventCreationBlocked } from './ceilingLevels'
 import { CeilingBanner } from './components/CeilingBanner'
 import { EventTemplatePicker } from './components/EventTemplatePicker'
 import { SuspensionScreen } from './components/SuspensionScreen'
@@ -22,6 +23,10 @@ export function NewEventPage() {
   const create = useCreateEvent()
   const { clients, contact } = useClientLimits()
   const suspended = clients.some((client) => client.suspended)
+  // The refusal is a `409` after the fact and its sentence used to appear under the template list,
+  // below the fold. Said here, before the press, and the button stays out of reach until it could work.
+  const blocked = eventCreationBlocked(clients)
+  const blockedReason = useId()
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -150,8 +155,20 @@ export function NewEventPage() {
               </Notice>
             )}
 
+            {blocked ? (
+              <Notice tone="warning" variant="boxed">
+                <span id={blockedReason}>{t.errors['client.ceilingReached']}</span>
+              </Notice>
+            ) : null}
+
             <div className={styles['actions']}>
-              <Button type="submit" variant="primary" loading={create.busy}>
+              <Button
+                type="submit"
+                variant="primary"
+                loading={create.busy}
+                disabled={blocked}
+                {...(blocked ? { 'aria-describedby': blockedReason } : {})}
+              >
                 {t.admin.create}
               </Button>
               <Link to="/admin">{t.app.cancel}</Link>
