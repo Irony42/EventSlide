@@ -206,7 +206,7 @@ export function EventSettingsPage() {
   // viewer is a moderator, for whom the server refuses every settings route (`403`, owner only). A
   // form whose every save fails is worse than none, so the controls are there to read and not to press.
   const archived = !isMutable(event.status)
-  const ownerOnly = !archived && event.role !== 'owner'
+  const ownerOnly = event.role !== 'owner'
   const readOnly = archived || ownerOnly
   const settings = draft
 
