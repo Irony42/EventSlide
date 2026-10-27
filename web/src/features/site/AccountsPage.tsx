@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useApi } from '../../app/useApi'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -70,9 +70,18 @@ export function AccountsPage() {
   const erase = useOperatorAction(useCallback((id: string) => api.siteDeleteAccount(id), [api]))
   const busy = reset.busy || disable.busy || enable.busy || erase.busy
 
-  /** A refusal stays on screen until it is dismissed: one of them carries a thing to do. */
+  /**
+   * A refusal stays on screen until it is dismissed: one of them carries a thing to do.
+   *
+   * One at a time, though. Each is pinned, so two refused acts in a row used to leave two
+   * sentences up, the first about an account the operator has already moved on from; the
+   * newest replaces the one before it. An act that goes through leaves an earlier refusal alone: it
+   * is about something else, and it may be the instruction the operator is acting on.
+   */
+  const lastRefusal = useRef<string | null>(null)
   const refuse = (message: string): void => {
-    toast.show(message, { tone: 'danger', durationMs: 0 })
+    if (lastRefusal.current !== null) toast.dismiss(lastRefusal.current)
+    lastRefusal.current = toast.show(message, { tone: 'danger', durationMs: 0 })
   }
 
   /** What an act on the account came to: said, and the listing read again where it changed. */

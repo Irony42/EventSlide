@@ -31,7 +31,7 @@ import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 export function ResetPasswordPage() {
   const { token = '' } = useParams()
   const { text: t } = useLocale()
-  const { submit, submitting, error } = useConfirmPasswordReset(token)
+  const { submit, submitting, error, clearError } = useConfirmPasswordReset(token)
 
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -44,6 +44,10 @@ export function ResetPasswordPage() {
     // accident, and on a box with no relay a mistyped password is a locked account. An empty box
     // is not sent: the server's schema refuses an empty string with the generic
     // `request.invalid`, before the policy that has a sentence for it ever sees it.
+    //
+    // Either way the server's verdict on the attempt before is forgotten first: it was about a
+    // password that may no longer be in the box, and the newest finding replaces it.
+    clearError()
     if (password === '') {
       setBlank(true)
       return
