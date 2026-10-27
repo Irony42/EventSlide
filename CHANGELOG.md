@@ -496,6 +496,9 @@ Read these before you upgrade, and back up with the version you run now.
   refused unread as `401 auth.secondFactorExpired`, and the password is asked again. Typing one code
   at a time changes nothing. The count is kept in memory, like the sign-in limits: a restart of the
   box starts it again.
+- **The production policy no longer admits inline styles** (NNN): `style-src` is `'self'` alone, where it also
+  allowed `'unsafe-inline'`, so a style injected into a page is refused. Nothing in the app used one; the
+  development server keeps the looser value for Vite.
 - **A stolen session no longer survives a password change** (#125): the credentials epoch ends
   every session minted before it.
 - **Guessing a password is slowed per account, without locking anyone out** (#128), and the
