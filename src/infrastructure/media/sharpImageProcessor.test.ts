@@ -211,19 +211,6 @@ describe('sharpImageProcessor', () => {
       expect(result.ok && result.value.dimensions.pixels).toBe(400_000_000)
     })
 
-    it('still renders nothing above the budget, as a backstop behind the use case', async () => {
-      const strict = createSharpImageProcessor({ maxPixels: 1_000 })
-
-      const result = await strict.render(await jpeg(100, 100), {
-        maxWidth: 480,
-        maxHeight: 480,
-        quality: 80,
-        format: 'jpeg',
-      })
-
-      expect(!result.ok && result.error.code).toBe('image.renderFailed')
-    })
-
     it('still calls a broken header corrupt, so too-large and broken stay distinguishable', async () => {
       // The other half of the pair above. Disabling sharp's pixel limit must not
       // collapse the two refusals into one: a file that really will not parse has to
@@ -434,7 +421,7 @@ describe('sharpImageProcessor', () => {
     it('keeps a decode ceiling of its own, since this step really does decode', async () => {
       // `probe` hands its pixel decision to the application, which is safe only while
       // nothing is decoded before the verdict. This step decodes, so it keeps a hard
-      // limit — the configured budget, which `probe` has already applied, making this a
+      // limit — the configured budget, which the use case has already applied, making this a
       // backstop that can only fire if someone calls `render` without probing first.
       //
       // The code alone proves nothing here: this fixture's `IDAT` is deliberately
