@@ -186,6 +186,10 @@ export function AcceptInvitationPage() {
     // not sent: the server's schema refuses an empty string before its own rules see it, with
     // the generic `request.invalid`, which says nothing about which box. Everything else —
     // length, "too common", how long a name may be — is the server's.
+    //
+    // The server's refusal of the attempt before is forgotten first, so the newest finding replaces
+    // it instead of sitting beside it.
+    setRefusal(null)
     const missing = { name: displayName.trim() === '', password: password === '' }
     setBlank(missing)
     if (missing.name || missing.password) return
@@ -197,7 +201,6 @@ export function AcceptInvitationPage() {
     // The terms last, so the first thing wrong with the form is the first thing said.
     const ticked = tick()
     if (ticked === null) return
-    setRefusal(null)
     void accepting.submit({ kind: 'newAccount', displayName, password, ...ticked }).then(settle)
   }
 

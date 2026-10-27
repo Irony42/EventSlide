@@ -475,6 +475,10 @@ Read these before you upgrade, and back up with the version you run now.
 - **A moderator who had to change their password was sent back to the form after saving it** (#168).
   The app kept the old answer; the host app also asks for the session and for `GET /api/about` once
   per page load instead of up to three and eight times.
+- **A newer error replaces a stale one** (#223). On the change-password, reset-password and accept-invitation
+  forms, the server's verdict on one attempt ("too common") stayed on screen beside the browser's own sentence
+  about the next ("the two passwords do not match"); on the operator's accounts page, two refused acts left two
+  pinned refusals up. The newest finding is the only one shown.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.
