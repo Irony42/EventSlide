@@ -493,6 +493,10 @@ Read these before you upgrade, and back up with the version you run now.
   stay usable at "3 of 3" and the refusal appeared under the template list, below the fold. When every
   client the host belongs to has reached its events limit (total or per period), the button is disabled and
   the sentence sits beside it.
+- **A guest of a closed event is told so, instead of being offered the upload form** (F18).
+  `GET /api/events/:slug/photos/mine` now carries `acceptingUploads` (the upload rule's own answer); the
+  upload screen shows "this gallery no longer accepts photos" and no picker when it is `false`, and keeps
+  the guest's own photos listed. Before, the form stayed and the refusal came after the send.
 - **Every page names itself in the browser tab** (#163), in the five languages: three tabs of one
   event were all "EventSlide". The client space's loaders no longer say they are loading your
   events, and the gallery viewer no longer reads a caption twice to a screen reader.

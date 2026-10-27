@@ -449,6 +449,65 @@ describe('GuestUploadPage', () => {
   })
 })
 
+describe('an event that no longer takes photos', () => {
+  const closed = (photos: readonly GuestPhotoDto[] = []): Api =>
+    fakeApi({ myPhotos: vi.fn(async () => ({ items: photos, acceptingUploads: false })) })
+
+  it('says the gallery takes no more photos, and offers no way to pick one', async () => {
+    renderUpload(closed())
+
+    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(screen.queryByLabelText(fr.upload.addPhotos)).toBeNull()
+  })
+
+  it('keeps showing the guest their own photos, which are what they come back for', async () => {
+    renderUpload(closed([aGuestPhoto({ id: 'mine-1' })]))
+
+    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(screen.getAllByRole('img').length).toBeGreaterThan(0)
+  })
+
+  it('makes no promise about photos held for the network once the event is closed', async () => {
+    havingJoined()
+    let reads = 0
+    const api = fakeApi({
+      myPhotos: vi.fn(async () => {
+        reads += 1
+        return { items: [], acceptingUploads: reads === 1 }
+      }),
+      uploadPhotos: vi.fn(async () => {
+        throw ApiError.network()
+      }),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(screen.queryByTestId('offline-notice')).not.toBeInTheDocument()
+  })
+
+  it('says it while a privacy notice is still unread, since nothing could be sent anyway', async () => {
+    const unread = aPrivacyNoticeState({ acknowledgement: 'none' })
+    havingJoined({}, unread)
+    renderUpload(
+      fakeApi({
+        privacyNotice: vi.fn(async () => unread),
+        myPhotos: vi.fn(async () => ({ items: [], acceptingUploads: false })),
+      }),
+    )
+
+    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+  })
+
+  it('offers the picker as before while the event takes photos, and on a server that does not say', async () => {
+    renderUpload(fakeApi())
+
+    expect(await screen.findByLabelText(fr.upload.addPhotos)).toBeInTheDocument()
+    expect(screen.queryByText(fr.errors['event.notAcceptingUploads'])).toBeNull()
+  })
+})
+
 describe('sending a video', () => {
   beforeEach(() => {
     sessionStorage.clear()

@@ -297,6 +297,12 @@ export interface UploadResponseDto {
   readonly results: readonly UploadOutcomeDto[]
 }
 
+/** `GET /events/:slug/photos/mine`: the guest's own photos, and whether the event still takes more. */
+export interface MyPhotosDto {
+  readonly items: readonly GuestPhotoDto[]
+  readonly acceptingUploads: boolean
+}
+
 export interface GuestPhotoDto {
   readonly id: string
   readonly status: PhotoStatus
