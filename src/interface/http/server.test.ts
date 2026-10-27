@@ -50,7 +50,7 @@ import { signedInAs, signInByAddress } from './testing/signIn'
 
 /** A marker only the built web app could contain, so "did the SPA answer" is decidable. */
 const SPA_MARKER = '<div id="root" data-built-by="vite"></div>'
-const HASHED_ASSET = 'assets/app.0a1b2c3d.js'
+const HASHED_ASSET = 'assets/index-Bm0-ak5a.js'
 /** What sits inside a dot-directory of the client folder, and must never be served. */
 const HIDDEN_FILE_CONTENT = 'a file nobody asked to publish\n'
 
