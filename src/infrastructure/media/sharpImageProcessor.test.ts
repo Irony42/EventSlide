@@ -188,32 +188,27 @@ describe('sharpImageProcessor', () => {
       expect(!result.ok && result.error.code).toBe('image.corrupt')
     })
 
-    it('rejects an image over the pixel budget before decoding it', async () => {
-      // The decompression-bomb control: judged from the header, so the megapixels are
-      // never materialised. A 60000x60000 PNG is a few hundred kilobytes on the wire
-      // and several gigabytes once decoded.
+    it('reports the size of an image over the pixel budget, and leaves the refusal to the use case', async () => {
+      // The budget is applied by `uploadPhotos`, from these dimensions, before anything is
+      // rendered. The probe's own job is to hand them over: a refusal here would be a second
+      // code for the same rule, which the use case's check could never reach.
       const strict = createSharpImageProcessor({ maxPixels: 1_000 })
 
       const result = await strict.probe(await jpeg(100, 100))
 
-      expect(!result.ok && result.error.code).toBe('image.tooManyPixels')
-      expect(!result.ok && result.error.kind).toBe('quotaExceeded')
-      expect(!result.ok && result.error.details['pixels']).toBe(10_000)
+      expect(result.ok && result.value.dimensions.pixels).toBe(10_000)
     })
 
-    it('refuses a pixel bomb larger than sharp can even report on as too many pixels', async () => {
-      // The attack this gate exists for, and the case it used to miss. sharp's own
+    it('reports a pixel bomb larger than sharp can even report on, instead of calling it corrupt', async () => {
+      // The attack the budget exists for, and the case it used to miss. sharp's own
       // `limitInputPixels` default is 268 402 689 px, and `metadata()` throws above it
       // rather than returning a header — so a 20 000 × 20 000 PNG was reported as
-      // `image.corrupt` and the configured budget was never consulted. Still refused,
-      // but for the wrong reason: the guest was told their photo was broken when it
-      // was too large, and the documented control was dead code above 268 MP.
+      // `image.corrupt` and the configured budget was never consulted: the guest was told
+      // their photo was broken when it was too large. The header is read with no limit, so
+      // the use case sees 400 000 000 pixels and refuses them for what they are.
       const result = await processor.probe(pixelBombPng(20_000))
 
-      expect(!result.ok && result.error.code).toBe('image.tooManyPixels')
-      expect(!result.ok && result.error.kind).toBe('quotaExceeded')
-      expect(!result.ok && result.error.details['pixels']).toBe(400_000_000)
-      expect(!result.ok && result.error.details['max']).toBe(50_000_000)
+      expect(result.ok && result.value.dimensions.pixels).toBe(400_000_000)
     })
 
     it('still calls a broken header corrupt, so too-large and broken stay distinguishable', async () => {
@@ -426,7 +421,7 @@ describe('sharpImageProcessor', () => {
     it('keeps a decode ceiling of its own, since this step really does decode', async () => {
       // `probe` hands its pixel decision to the application, which is safe only while
       // nothing is decoded before the verdict. This step decodes, so it keeps a hard
-      // limit — the configured budget, which `probe` has already applied, making this a
+      // limit — the configured budget, which the use case has already applied, making this a
       // backstop that can only fire if someone calls `render` without probing first.
       //
       // The code alone proves nothing here: this fixture's `IDAT` is deliberately

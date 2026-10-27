@@ -159,7 +159,6 @@ const TERMINAL_CODES: ReadonlySet<string> = new Set([
   // The server looked at these bytes and will not take them.
   'image.unsupportedFormat',
   'image.corrupt',
-  'image.tooManyPixels',
   'image.animated',
   'image.renderFailed',
   'photo.pixelBudgetExceeded',

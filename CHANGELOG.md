@@ -196,6 +196,8 @@ Read these before you upgrade, and back up with the version you run now.
 
 ### Behaviour changes to check before upgrading
 
+- **An oversized photo is refused once, as `photo.pixelBudgetExceeded`** (#239): the per-file rejection code in the `results` of `POST /api/events/:slug/photos` was `image.tooManyPixels`; both are 413 with the same wording, so a guest sees no change, but an API client matching the old code needs the new one. An oversized animated image now answers 400 `image.animated`.
+
 - **New migrations run at the first boot**, with any earlier one your database has not seen:
   008 (clients, and `events.client_id` and `events.opened_at`), 009 (the audit log), 010
   (account tokens, and the `credentials_changed_at` and `email_verified_at` columns of

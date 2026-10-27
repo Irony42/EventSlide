@@ -1308,7 +1308,7 @@ rather than handed one opaque error for the batch:
   "results": [
     { "index": 0, "status": "accepted", "photoId": "…" },
     { "index": 1, "status": "duplicate", "photoId": "…" },
-    { "index": 2, "status": "rejected", "code": "image.tooManyPixels" }
+    { "index": 2, "status": "rejected", "code": "photo.pixelBudgetExceeded" }
   ]
 }
 ```
@@ -1326,8 +1326,7 @@ status. These are the ones a guest can provoke:
 | `image.corrupt`             | The header will not decode                                                                         |
 | `image.animated`            | An animated image; the wall is stills                                                              |
 | `image.renderFailed`        | `sharp` could not re-encode it                                                                     |
-| `image.tooManyPixels`       | Refused by the processor's own pixel ceiling                                                       |
-| `photo.pixelBudgetExceeded` | Refused by the configured budget, from the header alone                                            |
+| `photo.pixelBudgetExceeded` | Over the pixel budget (`MAX_IMAGE_PIXELS`), judged from the header alone, before any decode        |
 | `event.quotaExceeded`       | This file would overrun the event's byte quota                                                     |
 | `client.storageFull`        | This file would take the host's events past the account's total (`max_total_bytes`, roadmap §10.5) |
 
