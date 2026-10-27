@@ -13,12 +13,12 @@ import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
-import { allocateJoinCode } from './allocateJoinCode'
 import type { UserRepository } from '../../ports/userRepository'
+import { allocateJoinCode } from './allocateJoinCode'
 
 /**
  * How many random slug suffixes are tried before giving up: five, for the same reason as the join
- * code (six characters from a 32-letter alphabet is the same size of haystack). Its own constant, so
+ * code (six characters from a 32-letter alphabet is the same size of haystack; see allocateJoinCode.ts). Its own constant, so
  * either bound can move without the other.
  */
 const MAX_SLUG_ATTEMPTS = 5

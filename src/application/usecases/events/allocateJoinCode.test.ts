@@ -18,7 +18,23 @@ class ScriptedTaken extends FakeEventRepository {
   }
 }
 
+/** A generator that hands back fewer bytes than were asked for, as a broken source would. */
+class ShortGenerator extends SequentialIdGenerator {
+  override bytes(): Uint8Array {
+    return new Uint8Array(2)
+  }
+}
+
 describe('allocateJoinCode', () => {
+  it('refuses a generator that returns the wrong number of bytes, before asking about any code', async () => {
+    const events = new ScriptedTaken(0)
+
+    const result = await allocateJoinCode(events, new ShortGenerator(), 6)
+
+    expect(!result.ok && result.error.code).toBe('joinCode.wrongEntropyLength')
+    expect(events.asked).toEqual([])
+  })
+
   it('answers the first code when it is free, asking once', async () => {
     const events = new ScriptedTaken(0)
 

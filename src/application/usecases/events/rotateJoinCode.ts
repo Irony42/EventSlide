@@ -5,9 +5,9 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
-import { allocateJoinCode } from './allocateJoinCode'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
+import { allocateJoinCode } from './allocateJoinCode'
 
 /**
  * The emergency lever: a join link is circulating outside the venue, or a printed card
