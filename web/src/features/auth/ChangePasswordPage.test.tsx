@@ -97,6 +97,26 @@ describe('ChangePasswordPage', () => {
     expect(screen.queryByText(DASHBOARD)).toBeNull()
   })
 
+  it('replaces the server’s verdict with the mismatch it finds on the next attempt', async () => {
+    // The server called the first password too common; the host types another one but
+    // mistypes its confirmation. Two sentences side by side, one of them about a password
+    // that is no longer in the box, say two things are wrong when one is.
+    const api = fakeApi({
+      changePassword: vi.fn(() => Promise.reject(new ApiError(400, 'password.tooCommon'))),
+    })
+    renderPage(api)
+    await fill({ current: 'actuel', next: 'motdepasse123', confirmation: 'motdepasse123' })
+    expect(await screen.findByText(fr.errors['password.tooCommon'])).toBeVisible()
+
+    await userEvent.clear(screen.getByLabelText(fr.auth.newPassword))
+    await userEvent.type(screen.getByLabelText(fr.auth.newPassword), 'une-phrase-de-passe-solide')
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(await screen.findByText(fr.errors['password.mismatch'])).toBeVisible()
+    expect(screen.queryByText(fr.errors['password.tooCommon'])).toBeNull()
+    expect(api.changePassword).toHaveBeenCalledTimes(1)
+  })
+
   it('says the current password was wrong rather than silently failing', async () => {
     const api = fakeApi({
       changePassword: vi.fn(() => Promise.reject(new ApiError(401, 'auth.invalidCredentials'))),

@@ -27,6 +27,12 @@ export interface AuthActionState<T> {
    * starts.
    */
   readonly error: string | null
+  /**
+   * Forgets the sentence, for a page that stops an attempt itself and has its own thing to say.
+   * The sentence is about the attempt that was sent; a page that refuses the next one before
+   * it leaves the browser would otherwise show the old verdict beside the new refusal.
+   */
+  readonly clearError: () => void
 }
 
 /**
@@ -142,6 +148,7 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
   const forgetSession = useForgetSession()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const clearError = useCallback(() => setError(null), [])
 
   const submit = useCallback(
     async ({ currentPassword, newPassword }: PasswordChange) => {
@@ -168,7 +175,7 @@ export const useChangePassword = (): AuthActionState<PasswordChange> => {
     [api, forgetSession, t],
   )
 
-  return { submit, submitting, error }
+  return { submit, submitting, error, clearError }
 }
 
 /** What a way out came to. A refusal carries its sentence, because the caller is a menu with a toast. */
