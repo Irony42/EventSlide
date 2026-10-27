@@ -2,7 +2,7 @@ import type { ClipJob } from '../../domain/clips/clipJob'
 import { blocksReupload, holdsStagedBytes } from '../../domain/clips/clipJobStatus'
 import { admitsAnotherClip } from '../../domain/clips/clipQueue'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import { fitsInQuota, remainingQuota } from '../../domain/events/quota'
+import { storageRefusalFor } from '../../domain/events/admission'
 import type { ClipJobId, EventId, PhotoId } from '../../domain/shared/ids'
 import type {
   ClipAdmission,
@@ -233,28 +233,20 @@ export class FakeClipJobRepository implements ClipJobRepository {
       return { refusal: { reason: 'queueFull', depth, maxDepth: limits.maxQueuedClips } }
     }
 
-    const used = photoBytes + this.stagedBytesNow(job.eventId)
-    if (used + job.sourceByteSize > limits.quotaBytes) {
-      return {
-        refusal: { reason: 'quotaExceeded', remaining: Math.max(0, limits.quotaBytes - used) },
-      }
-    }
-
-    // After the event's own quota, as in the adapter: its own ceiling is the one a host can
-    // act on, so it is named first when both are reached.
-    if (clientBytes !== null) {
-      const clientUsedBytes =
-        clientPhotoBytes +
-        clientEvents.reduce((total, eventId) => total + this.stagedBytesNow(eventId), 0)
-      if (!fitsInQuota(clientBytes.maxBytes, clientUsedBytes, job.sourceByteSize)) {
-        return {
-          refusal: {
-            reason: 'clientStorageFull',
-            remaining: remainingQuota(clientBytes.maxBytes, clientUsedBytes),
+    // The event's quota, then the client's ceiling: the domain's decision, shared with the adapter.
+    const refusal = storageRefusalFor(
+      job.sourceByteSize,
+      { quotaBytes: limits.quotaBytes, usedBytes: photoBytes + this.stagedBytesNow(job.eventId) },
+      clientBytes === null
+        ? null
+        : {
+            maxBytes: clientBytes.maxBytes,
+            usedBytes:
+              clientPhotoBytes +
+              clientEvents.reduce((total, eventId) => total + this.stagedBytesNow(eventId), 0),
           },
-        }
-      }
-    }
+    )
+    if (refusal !== null) return { refusal }
 
     // Raises on a duplicate source, as the index does. See `insertOrUpdate`: the caller
     // has to tell that apart from a failure, and the port says so.
