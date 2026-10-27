@@ -51,7 +51,14 @@ export const securityHeaders = (isProduction: boolean): RequestHandler =>
 
     // The wall is on a projector and the guest surface is on a phone; neither embeds
     // anything cross-origin, so the strictest isolation costs nothing.
-    crossOriginEmbedderPolicy: false,
+    //
+    // `require-corp` rather than `credentialless`: the page loads no cross-origin resource at
+    // all (every image, poster and clip is a same-origin `/api` URL, a `blob:` preview or a
+    // `data:` QR code, and a same-origin load is never refused), so the stricter value is free
+    // and the looser one would only be a way of saying a remote image is welcome. Adding a
+    // cross-origin image, font or frame now fails loudly in the console, which is the point; the
+    // CSP above already forbids it. docs/SECURITY.md lists what was checked.
+    crossOriginEmbedderPolicy: { policy: 'require-corp' },
     crossOriginOpenerPolicy: { policy: 'same-origin' },
     crossOriginResourcePolicy: { policy: 'same-origin' },
 
