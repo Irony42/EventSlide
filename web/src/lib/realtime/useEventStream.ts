@@ -110,6 +110,17 @@ export interface UseEventStreamOptions {
   readonly url: string | null
   /** Called with each invalidation signal. Refetch here; do not read a payload. */
   readonly onSignal: (signal: StreamSignal) => void
+  /**
+   * Called once each time a connection that was delivering is lost — the browser reports an
+   * error on it, or the watchdog finds it silent. Not for a connection that never opened,
+   * and not for each failed retry of the same outage.
+   *
+   * The reason is not available, and that is the point of having it: an `EventSource`
+   * reports no status, so a stream the server ended because the event is no longer served is
+   * indistinguishable here from a venue network dropping. A page that has something to
+   * gain from telling the two apart asks the server itself, and this is when.
+   */
+  readonly onDrop?: () => void
   readonly enabled?: boolean
 }
 
@@ -121,6 +132,7 @@ export interface EventStreamState {
 export const useEventStream = ({
   url,
   onSignal,
+  onDrop,
   enabled = true,
 }: UseEventStreamOptions): EventStreamState => {
   const [open, setOpen] = useState(false)
@@ -132,15 +144,20 @@ export const useEventStream = ({
    * losing `Last-Event-ID` every time a photo arrives.
    */
   const listener = useRef(onSignal)
+  const dropped = useRef(onDrop)
   useEffect(() => {
     listener.current = onSignal
-  }, [onSignal])
+    dropped.current = onDrop
+  }, [onSignal, onDrop])
 
   useEffect(() => {
     if (!enabled || url === null) return
 
     let disposed = false
     let attempt = 0
+    // Whether the last thing this effect knew about the connection was that it delivers, so a
+    // loss is reported once per outage rather than once per failed retry of it.
+    let delivering = false
     let source: EventSource | null = null
     let timer: ReturnType<typeof setTimeout> | undefined
     let watchdog: ReturnType<typeof setTimeout> | undefined
@@ -149,6 +166,12 @@ export const useEventStream = ({
       if (watchdog === undefined) return
       clearTimeout(watchdog)
       watchdog = undefined
+    }
+
+    const lost = () => {
+      if (!delivering) return
+      delivering = false
+      dropped.current?.()
     }
 
     const connect = () => {
@@ -170,6 +193,7 @@ export const useEventStream = ({
           // be refusing to talk to us for this to be honest quiet, so treat it as a
           // connection the browser has not noticed is dead.
           setOpen(false)
+          lost()
           stream.close()
           scheduleReconnect()
         }, SILENCE_TIMEOUT_MS)
@@ -177,6 +201,7 @@ export const useEventStream = ({
 
       stream.addEventListener('open', () => {
         attempt = 0
+        delivering = true
         setOpen(true)
         heard()
       })
@@ -194,6 +219,7 @@ export const useEventStream = ({
 
       stream.addEventListener('error', () => {
         setOpen(false)
+        lost()
         /**
          * While the browser leaves the connection in CONNECTING it is retrying by
          * itself, and it is the only party that can resend `Last-Event-ID` — so the

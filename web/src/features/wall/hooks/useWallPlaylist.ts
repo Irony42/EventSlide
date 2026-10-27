@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '../../../app/useApi'
-import { asError, isAbortError } from '../../../lib/http'
+import { ApiError, asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 
@@ -9,7 +9,17 @@ export interface WallPlaylistState {
   readonly wall: WallResponse | null
   readonly loading: boolean
   readonly error: Error | null
-  /** The stream is not delivering. The photos already loaded keep playing. */
+  /**
+   * The server answered that the event is not served to the room: not open, archived, or its
+   * client suspended. There is no playlist then, whatever the page held before, and the
+   * network is fine.
+   */
+  readonly notServed: boolean
+  /**
+   * The stream is not delivering, and the server has not said why. The photos already loaded
+   * keep playing. Never true while `notServed` is: the venue's network is not the problem
+   * then, and a notice that says it is sends a host to look at the wrong thing.
+   */
   readonly offline: boolean
   /**
    * How many `reaction.added` signals have arrived on this connection. A counter
@@ -37,6 +47,38 @@ const INITIAL: Fetched = { wall: null, loading: true, error: null }
  * long enough not to hammer a server that is the thing which is down.
  */
 const RETRY_DELAY_MS = 10_000
+
+/**
+ * The code the server answers the wall with when the event is not served to the room
+ * (`resolvePublicEvent`): an unknown slug, a draft, an archived event, a suspended client. It is
+ * one answer on purpose, so nobody outside learns which of them it was (docs/API.md, "What a
+ * suspended client is told").
+ */
+const NOT_SERVED_CODE = 'event.notFound'
+
+/**
+ * How often a wall whose stream is down reads the playlist anyway.
+ *
+ * The safety net under the stream's own report of a loss. That report is one shot per outage,
+ * and there are ways to be down without making it: a stream refused for good (the per-client cap,
+ * a proxy that blocks event streams) never delivered, and one that reconnects into a 404 after the
+ * wall was read a moment earlier has no second drop to report. Without this the room would keep an
+ * archived album, and never see a new photograph, until somebody reloaded the page. Half a
+ * minute: a wall that has lost its stream is already a degraded room, and this is one small read
+ * per projector, not one per signal.
+ */
+const STREAM_DOWN_REFRESH_MS = 30_000
+
+/**
+ * Whether a failed read is the server saying the event is no longer served — and nothing else.
+ *
+ * The code decides, not the status. A reverse proxy in the middle of a deploy also answers 404,
+ * with a page the transport turns into `unknown`, and blanking a live party's projector for that
+ * would be the opposite mistake to the one this exists for: no answer, a refusal that is not
+ * about the event, and a transport failure all leave the room its photos.
+ */
+const isNotServed = (cause: Error | null): boolean =>
+  cause instanceof ApiError && cause.code === NOT_SERVED_CODE
 
 /**
  * The keys of a wall response that {@link sameSettings} deliberately does not compare: the
@@ -145,10 +187,22 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
  *    so everything else on the response is compared separately by `sameSettings` and
  *    taken fresh when it moved. A wall that discarded those would never learn that the
  *    host had just changed the event's colour.
- * 2. **A failure never blanks the screen.** A refetch that fails keeps the playlist it
- *    already has and reports the error alongside it. A venue's network drops for
- *    thirty seconds several times an evening, and the correct behaviour is to carry on
- *    showing the photos the projector already holds.
+ * 2. **A failure never blanks the screen — except one the server explains.** A refetch that
+ *    fails keeps the playlist it already has and reports the error alongside it. A venue's
+ *    network drops for thirty seconds several times an evening, and the correct behaviour is
+ *    to carry on showing the photos the projector already holds.
+ *
+ *    The exception is the server answering that the event is no longer served: the host
+ *    archived it, or the operator suspended its client. Then the room must stop showing the
+ *    album — that was the whole point of the button — so the playlist is dropped, `notServed`
+ *    is raised, and the page says so in words that do not blame the network.
+ * 3. **A dropped stream asks the question.** An `EventSource` reports no status, so a feed the
+ *    server ended because the event is gone looks exactly like a network that dropped, and
+ *    nothing else would ever re-read the wall of a projector whose feed has gone quiet. When a
+ *    stream that was delivering is lost, the wall is read once: a 404 settles it, anything
+ *    else is the outage it looks like, and the read's own failure re-arms the retry below. A
+ *    wall that holds photos and has no stream also re-reads on a slow timer, for the outages the
+ *    stream cannot report (see `STREAM_DOWN_REFRESH_MS`).
  */
 export const useWallPlaylist = (slug: string): WallPlaylistState => {
   const api = useApi()
@@ -181,6 +235,7 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
   const { connected } = useEventStream({
     url: slug === '' ? null : api.streamUrl(slug),
     onSignal,
+    onDrop: refresh,
   })
 
   useEffect(() => {
@@ -215,10 +270,12 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
         // The abort came from this effect's own cleanup — StrictMode mounts twice — and
         // is not a failure the room needs to hear about.
         if (isAbortError(cause)) return
+        const error = asError(cause)
         setState((previous) => ({
-          wall: previous.wall,
+          // The one failure that takes the photos away: the server saying the event is gone.
+          wall: isNotServed(error) ? null : previous.wall,
           loading: false,
-          error: asError(cause),
+          error,
         }))
       },
     )
@@ -237,6 +294,16 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
     return () => window.clearTimeout(timer)
   }, [state.error, refresh])
 
+  const notServed = isNotServed(state.error)
+
+  const holdsPlaylist = state.wall !== null
+
+  useEffect(() => {
+    if (slug === '' || connected || !holdsPlaylist) return
+    const timer = window.setInterval(refresh, STREAM_DOWN_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [slug, connected, holdsPlaylist, refresh])
+
   return {
     wall: state.wall,
     // A slug-less route is not loading, it is broken: the page then shows its error
@@ -244,7 +311,8 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
     // must never be left looking at.
     loading: slug !== '' && state.loading,
     error: state.error,
-    offline: !connected,
+    notServed,
+    offline: !connected && !notServed,
     reactionPulse,
     refresh,
   }

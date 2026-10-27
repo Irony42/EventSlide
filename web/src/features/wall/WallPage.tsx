@@ -126,7 +126,8 @@ export function WallPage() {
   const { slug } = useParams()
   const eventSlug = slug ?? ''
 
-  const { wall, loading, error, offline, reactionPulse, refresh } = useWallPlaylist(eventSlug)
+  const { wall, loading, error, notServed, offline, reactionPulse, refresh } =
+    useWallPlaylist(eventSlug)
   const text = useTranslations()
 
   /**
@@ -292,11 +293,15 @@ export function WallPage() {
             <div className={styles['failure']} role="alert">
               <StatusIcon tone="danger" className={styles['failureIcon']} />
               <h1 className={styles['failureTitle']}>
-                {error instanceof ApiError
-                  ? messageForCode(error.code, text)
-                  : text.wall.errorTitle}
+                {notServed
+                  ? text.wall.notServedTitle
+                  : error instanceof ApiError
+                    ? messageForCode(error.code, text)
+                    : text.wall.errorTitle}
               </h1>
-              <p className={styles['failureHint']}>{text.wall.errorHint}</p>
+              <p className={styles['failureHint']}>
+                {notServed ? text.wall.notServedHint : text.wall.errorHint}
+              </p>
               {/* The wall retries on its own; this is for the host who walked over
                   rather than waiting for the next attempt. */}
               <Button size="lg" onClick={refresh}>
