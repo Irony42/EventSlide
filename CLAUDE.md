@@ -129,7 +129,9 @@ src/
     mail/          NullMailer (the default) and the optional SMTP adapter on nodemailer
     realtime/      The in-memory event bus (the SSE channels live with their route, interface/http/routes/streamRoutes.ts)
     logging/       pino
-    time/          System clock
+    security/      In-memory sign-in attempt counter (the per-sign-in cap on second-factor guesses)
+    system/        The free-disk-space probe (`statfs`) behind the upload guard
+    time/          System clock, background timers
   interface/http/  server.ts (pure builder), middleware/, routes/, schemas/
   main/            container.ts, index.ts
 web/src/           React app (see §2)

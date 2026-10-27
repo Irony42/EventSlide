@@ -3815,8 +3815,9 @@ papered over: §1 says this document is the specification and one side is a bug,
 bug needs a name and a line number.
 
 Every route that exists is documented, and every route documented exists — verified in
-both directions: **37 routes in code, 37 `###` headings in §1–8, no discrepancy either
-way**. Nothing here is a missing endpoint. The audit found ten divergences; six have
+both directions: **90 distinct routes in code (91 registrations: the guest's and the host's
+`DELETE …/photos/:photoId` share a path), 87 route headings in §1–8 (three of them cover two
+routes), no discrepancy either way**. Nothing here is a missing endpoint. The audit found ten divergences; six have
 since been fixed and removed, and these four are the places where the code and the intent
 above are not yet the same thing. Items marked **doc corrected above** have been fixed in
 this file. The rest are code defects — rewriting a specification to agree with a bug is
@@ -3836,7 +3837,7 @@ neither.
 
 ### 9.1 The per-guest cap sends a code this document invented — **doc corrected above**
 
-`src/application/usecases/photos/uploadPhotos.ts:177` returns
+`uploadPhotos` (`src/application/usecases/photos/uploadPhotos.ts`) returns
 `DomainError.quotaExceeded('event.photoLimitReached')`. This file said
 `403 photo.tooManyForGuest`, which the server has never sent and which is also the wrong
 status — `quotaExceeded` maps to **413**. The contract has picked `event.photoLimitReached`;
@@ -3846,7 +3847,7 @@ status — `quotaExceeded` maps to **413**. The contract has picked `event.photo
 ### 9.5 The wall's e2e timing hooks are accepted and read by nothing — **stale code**
 
 `wallQuery` (`requestSchemas.ts`) accepts `e2e_interval` and `e2e_transition`. The route
-parses the query at `publicRoutes.ts:167`, passes `slideIntervalMs: null` at `:178`
+parses the query in `publicRoutes.ts`, passes `slideIntervalMs: null`
 unconditionally, and reads neither; the real overrides live client-side in
 `web/src/features/wall/hooks/useTimingOverrides.ts`. **This is the third parameter-accepted-
 then-ignored entry, and the one still open** — the other two are the closed 9.3 and 9.4
@@ -3857,7 +3858,7 @@ honoured the pair under `E2E_HOOKS=1`, which described a design that is not ther
 states that the server reads neither and points here. What remains is the accepting
 itself, plus two things that follow it:
 
-- `HttpConfig.e2eHooks` (`types.ts:75`, set from `container.ts:162`) is plumbed through
+- `HttpConfig.e2eHooks` (declared in `types.ts`, set by the composition root in `main/container.ts`) is plumbed through
   the HTTP layer and **read by no handler**. `publicRoutes.test.ts` exercises both states
   of the flag precisely to pin that it changes no answer.
 - The rationale the flag was given does not hold on the side that does read the hooks.
@@ -3873,7 +3874,7 @@ Closing it is a removal from `wallQuery` plus the flag, and it is not a one-file
 `requestSchemas.ts` and its test; `publicRoutes.ts` and `publicRoutes.test.ts`, which
 asserts **200** for `?e2e_interval=250&e2e_transition=10000` and is the test that goes red
 first; `types.ts`, `container.ts` and `middlewareHarness.ts` for the flag; and
-`docs/TESTING.md:414,472` with `.claude/skills/eventslide-e2e/SKILL.md:175`, which both
+`docs/TESTING.md` with `.claude/skills/eventslide-e2e/SKILL.md`, which both
 still describe the hooks as server-honoured. Nine files, one commit — which is why it did
 not travel with 9.3 and 9.4, whose fixes were a schema line each.
 
@@ -3882,11 +3883,11 @@ not travel with 9.3 and 9.4, whose fixes were a schema line each.
 Re-verified on 12 September, and **two of the three claims this entry used to make were
 themselves stale**; what is left is smaller and sharper than it was written.
 
-The live half: `ModerationPhotoDto` in `src/interface/http/presenters/dto.ts:88` is the
+The live half: `ModerationPhotoDto` in `src/interface/http/presenters/dto.ts` is the
 row of `GET /api/events/:slug/photos` — the gallery — and carries `byteSize`.
-`ModerationPhotoDto` in `web/src/lib/api/dto.ts:98` is the row of
+`ModerationPhotoDto` in `web/src/lib/api/dto.ts` is the row of
 `ModerationQueueResponse`, i.e. of `GET /api/events/:slug/moderation`, whose server row is
-a **different interface**, `ModerationQueueItemDto` (`dto.ts:204`), which correctly has no
+a **different interface**, `ModerationQueueItemDto` (`dto.ts`), which correctly has no
 `byteSize`. So each declaration is right about the endpoint it actually serves, and the
 drift is the shared name: a reader comparing the two finds a field on one side and not the
 other and cannot tell whether that is a bug. Nothing receives the mismatched bytes today —

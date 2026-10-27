@@ -66,7 +66,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * What this router may **not** do is reach into anybody's event. `requireOperator` grants
  * the box, never an evening — see `middleware/authz.ts` — and a handler here that read a
  * photograph or a moderation queue would be §10.6's support access without its time-box,
- * its announcement or its audit trail. It reads no `EventRepository`: it is handed nine use
+ * its announcement or its audit trail. It reads no `EventRepository`: it is handed fifteen use
  * cases (`SiteRouteDeps`), and the ones it calls take a client's id, an account's id and a read
  * model that has no content in it.
  *
@@ -79,7 +79,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  */
 
 /**
- * What the operator's router is handed: the gates' own dependencies, and **the eleven use cases it
+ * What the operator's router is handed: the gates' own dependencies, and **the fifteen use cases it
  * calls and no others**. It is not given the whole bag, so a handler that reached for
  * `getEventBySlug`, a moderation queue or a photograph would not compile; `deps` is there for
  * `requireOperator` and its siblings, and no handler here reads `deps.events`.

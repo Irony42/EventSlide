@@ -2506,9 +2506,9 @@ is wrong** — `absoluteExpiresAt` appears nowhere in `src/` or `web/`, only in 
 document's own §6 row. _(Both entries are now obsolete: the cap exists, in a third shape —
 `issuedAt` written at login, compared by `enforceSessionAge` against a 7-day ceiling.)_
 
-#### `requireGuestOwnsPhoto` — the skill is wrong, this document is right
+#### `requireGuestOwnsPhoto` — the skill is wrong, this document is right — since **FIXED**
 
-`.claude/skills/eventslide-http-endpoint/SKILL.md:93` lists `requireGuestOwnsPhoto()` as
+_(The skill was rewritten from the real files and no longer lists it; what follows is what it said.)_ `.claude/skills/eventslide-http-endpoint/SKILL.md` listed `requireGuestOwnsPhoto()` as
 the **fourth row of the normative middleware table** under "Authorization — declare it,
 per route", sitting between two middlewares that do exist. It exists nowhere in `src/`. §2
 of this document is correct and the skill is not. An agent told to pick a row for every
