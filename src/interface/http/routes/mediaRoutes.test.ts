@@ -675,6 +675,8 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant: an event whose client
     const response = await getJson(world, mediaPath(FROZEN_PHOTO, 'thumb', 'gele'))
 
     expect(response.status).toBe(404)
+    // The same code as an event that does not exist, so a frozen slug is not told apart from an unknown one.
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it('answers a guest of the event the same, even for their own photograph', async () => {
@@ -684,6 +686,8 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant: an event whose client
     )
 
     expect(response.status).toBe(404)
+    // The same code as an event that does not exist, so a frozen slug is not told apart from an unknown one.
+    expect(response.body.error.code).toBe('event.notFound')
   })
 
   it('still serves a moderator of the event the bytes of its photographs', async () => {

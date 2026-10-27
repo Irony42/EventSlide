@@ -860,9 +860,11 @@ describe('openStream', () => {
 
     open()
 
-    const heartbeat = setInterval.mock.results[0]?.value as { hasRef(): boolean } | undefined
-    expect(heartbeat?.hasRef()).toBe(false)
+    const beat = setInterval.mock.calls.findIndex(([, delay]) => delay === 15_000)
+    const heartbeat = setInterval.mock.results[beat]?.value as { hasRef(): boolean } | undefined
     setInterval.mockRestore()
+    expect(beat).toBeGreaterThanOrEqual(0)
+    expect(heartbeat?.hasRef()).toBe(false)
   })
 
   it('stops the heartbeat once the client has disconnected', () => {

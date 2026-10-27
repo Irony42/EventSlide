@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AT, aUser } from '../../application/testing/builders'
 import { FakeClock } from '../../application/testing/fakeClock'
-import { ABSOLUTE_SESSION_LIFETIME_MS } from './middleware/authz'
 import { buildServerHarness } from './testing/serverHarness'
 import { signedInAs, signInByAddress } from './testing/signIn'
 
@@ -31,7 +30,8 @@ describe('the absolute session cap, through buildServer', () => {
   it('lets a session that is almost a week old read who it is', async () => {
     const { clock, agent } = await aSignedInHost()
 
-    clock.advance(ABSOLUTE_SESSION_LIFETIME_MS - 1_000)
+    // A literal week, not the constant: a cap shortened by mistake must not move the test with it.
+    clock.advance(7 * 24 * 60 * 60 * 1000 - 1_000)
 
     expect((await agent.get('/api/auth/me')).body).toMatchObject({ authenticated: true })
   })
