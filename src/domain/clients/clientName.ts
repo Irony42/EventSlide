@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { toSingleLine } from '../shared/plainText'
 
 /**
  * A client's own name: the studio, the agency, the couple — whatever the operator typed
@@ -17,22 +18,13 @@ import { err, ok, type Result } from '../shared/result'
 const MIN_LENGTH = 1
 const MAX_LENGTH = 200
 
-const LINE_BREAKS = /[\t\n\r\f\v]+/g
-
-/** Same categories as `EventName`: control characters, formatting marks, private use. */
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu
-
 export class ClientName {
   private constructor(readonly value: string) {}
 
   static create(raw: unknown): Result<ClientName, DomainError> {
     if (typeof raw !== 'string') return err(DomainError.invalid('clientName.invalid'))
 
-    const cleaned = raw
-      .replace(LINE_BREAKS, ' ')
-      .replace(INVISIBLE, '')
-      .replace(/\s{2,}/gu, ' ')
-      .trim()
+    const cleaned = toSingleLine(raw)
 
     if (cleaned.length < MIN_LENGTH) return err(DomainError.invalid('clientName.empty'))
     if (cleaned.length > MAX_LENGTH) {

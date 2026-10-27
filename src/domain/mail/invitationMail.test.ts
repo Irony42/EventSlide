@@ -75,6 +75,18 @@ describe('invitationMail', () => {
     })
   })
 
+  it('shows a name on one line, without the characters that hide or reorder text', () => {
+    // The name is somebody else's typing, set into a sentence the recipient reads: a bidi
+    // override would reverse the rest of the line, and a zero-width space would pad it.
+    const bidiOverride = String.fromCharCode(0x202e)
+    const zeroWidthSpace = String.fromCharCode(0x200b)
+    const name = `Camille
+${bidiOverride}& Sacha${zeroWidthSpace}  2026`
+    const mail = mailIn('fr', { kind: 'event', name })
+
+    expect(mail.text).toContain('Camille & Sacha 2026')
+  })
+
   it('addresses the recipient it was given', () => {
     expect(mailIn('fr').to).toBe(TO)
   })
