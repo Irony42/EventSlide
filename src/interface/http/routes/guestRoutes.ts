@@ -32,7 +32,7 @@ import {
   uploadFields,
 } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
-import type { GuestMissionListResponseDto } from '../presenters/dto'
+import type { GuestMissionListResponseDto, MyPhotosDto } from '../presenters/dto'
 import type { HttpUseCases } from '../useCases'
 
 /**
@@ -406,7 +406,7 @@ export const guestRoutes = ({
         // photo got through, and a proxy or a back-button serving it from a store would
         // show them the answer from before the host published it.
         response.setHeader('Cache-Control', 'no-store')
-        sendJson(response, {
+        const body: MyPhotosDto = {
           items: page.items.map((photo) =>
             toGuestPhotoDto({
               photo,
@@ -417,7 +417,8 @@ export const guestRoutes = ({
           // The upload rule's own answer (`Event.acceptsUploads`: status and suspension), so the
           // screen can say the evening is over instead of offering a form the server will refuse.
           acceptingUploads: event.acceptsUploads(),
-        })
+        }
+        sendJson(response, body)
       })
     }),
   )
