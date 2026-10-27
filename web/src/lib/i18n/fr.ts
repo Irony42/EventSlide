@@ -919,6 +919,8 @@ export const fr = {
     codeRotated: 'Le code d’accès a été changé. L’ancien ne fonctionne plus.',
     settingsSaved: 'Réglages enregistrés.',
     settingsReadOnly: 'Cet évènement est archivé : ses réglages ne peuvent plus être modifiés.',
+    // What a moderator is shown in place of a form every save of which the server would refuse.
+    settingsOwnerOnly: 'Seul le propriétaire de l’évènement peut modifier ses réglages.',
     retentionHint: 'Les photos sont supprimées ce délai après la clôture de l’évènement.',
     selfDeleteGrace: 'Délai de suppression',
     selfDeleteGraceHint: 'Pendant ce délai, un invité peut retirer lui-même sa photo.',

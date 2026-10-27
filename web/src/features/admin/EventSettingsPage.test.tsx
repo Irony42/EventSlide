@@ -68,6 +68,42 @@ describe('EventSettingsPage', () => {
     expect(await screen.findByRole('heading', { name: fr.admin.settings })).toBeVisible()
   })
 
+  describe('for a moderator, whose every save the server refuses', () => {
+    const asModerator = () =>
+      fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })),
+      })
+
+    it('says only the owner can change the settings, and disables every control', async () => {
+      renderPage(asModerator())
+
+      expect(await screen.findByText(fr.admin.settingsOwnerOnly)).toBeVisible()
+      expect(screen.getByLabelText(fr.admin.moderationManual)).toBeDisabled()
+      expect(screen.getByLabelText(fr.admin.allowCaptions)).toBeDisabled()
+      expect(screen.getByRole('button', { name: fr.app.save })).toBeDisabled()
+      // Not the archived sentence: the reason is the role, and the event is live.
+      expect(screen.queryByText(fr.admin.settingsReadOnly)).toBeNull()
+    })
+
+    it('gives the archived reason, not the role one, for an archived event', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () => anEventDto({ role: 'moderator', status: 'archived' })),
+        }),
+      )
+
+      expect(await screen.findByText(fr.admin.settingsReadOnly)).toBeVisible()
+      expect(screen.queryByText(fr.admin.settingsOwnerOnly)).toBeNull()
+    })
+
+    it('leaves the form to the owner, who gets no such sentence', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'owner' })) }))
+
+      expect(await screen.findByLabelText(fr.admin.moderationManual)).toBeEnabled()
+      expect(screen.queryByText(fr.admin.settingsOwnerOnly)).toBeNull()
+    })
+  })
+
   it('shows the settings the server sent', async () => {
     const api = fakeApi({
       getEvent: vi.fn(async () =>

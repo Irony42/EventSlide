@@ -750,6 +750,7 @@ export const it: UiText = {
     settingsSaved: 'Impostazioni salvate.',
     settingsReadOnly:
       'Questo evento è archiviato: le sue impostazioni non possono più essere modificate.',
+    settingsOwnerOnly: 'Solo il proprietario dell’evento può modificarne le impostazioni.',
     retentionHint: 'Le foto vengono eliminate dopo questo intervallo dalla chiusura dell’evento.',
     selfDeleteGrace: 'Tempo per eliminare',
     selfDeleteGraceHint: 'Durante questo tempo un invitato può eliminare da sé la propria foto.',

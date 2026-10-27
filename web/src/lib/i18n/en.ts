@@ -735,6 +735,7 @@ export const en: UiText = {
     codeRotated: 'The access code has been changed. The old one no longer works.',
     settingsSaved: 'Settings saved.',
     settingsReadOnly: 'This event is archived: its settings can no longer be changed.',
+    settingsOwnerOnly: 'Only the event’s owner can change its settings.',
     retentionHint: 'The photos are deleted this long after the event is closed.',
     selfDeleteGrace: 'Deletion window',
     selfDeleteGraceHint: 'During this window, a guest can delete their own photo.',
