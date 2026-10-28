@@ -72,6 +72,9 @@
    host's choice of face is not worth a `1` that could be an `l`. The event's name beside
    it carries the pairing; the code carries the job. */
 .code {
+  /* ADR 0010: a fixed-width face, so a 0 and an O, a 1 and an l, sit apart. */
+  font-family: var(--font-mono);
+  letter-spacing: 0.12em;
   font-size: var(--text-display);
   line-height: var(--leading-tight);
   font-weight: 700;

@@ -27,7 +27,11 @@ body {
   font-size: var(--text-base);
   line-height: var(--leading-normal);
   color: var(--text-primary);
-  background: var(--surface-base);
+  /* ADR 0010: the safelight, a glow at the top of every page. The wall paints its own
+     ground over it, so the photographs never sit under it. */
+  background:
+    radial-gradient(120% 50% at 50% -12%, var(--safelight), transparent 62%) no-repeat,
+    var(--surface-base);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   /* A guest drags on the upload screen to reorder their queue; the browser must not
@@ -168,4 +172,47 @@ a {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+/**
+ * The Guinguette's two ornaments (ADR 0010): a string of pennants along the top edge and a
+ * strip of gingham along the bottom. Painted by the page, behind nothing a guest has to
+ * read, and never a control. `:has()` for the same reason the tokens use it: the
+ * ambiance is decided by the surface inside, and the page around it follows in one paint.
+ *
+ * The pennant is a conic mask: a triangle whose apex is the bottom centre of each 28px
+ * cell, spanning the angle from that apex to the two top corners (atan(14 / 20) = 35deg).
+ */
+body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::before,
+body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::after {
+  content: '';
+  position: fixed;
+  inset-inline: 0;
+  pointer-events: none;
+  z-index: var(--z-toast);
+}
+
+body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::before {
+  inset-block-start: 0;
+  block-size: 20px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--decor-3) 0 28px,
+    var(--decor-1) 28px 56px,
+    var(--decor-4) 56px 84px,
+    var(--decor-2) 84px 112px
+  );
+  mask: conic-gradient(from -35deg at 50% 100%, #000 0 70deg, transparent 0) 0 0 / 28px 100%
+    repeat-x;
+}
+
+body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::after {
+  inset-block-end: 0;
+  block-size: 12px;
+  background:
+    linear-gradient(90deg, color-mix(in oklch, var(--decor-1) 55%, transparent) 50%, transparent 0)
+      0 0 / 12px 12px,
+    linear-gradient(color-mix(in oklch, var(--decor-1) 55%, transparent) 50%, transparent 0) 0 0 /
+      12px 12px,
+    var(--decor-4);
 }

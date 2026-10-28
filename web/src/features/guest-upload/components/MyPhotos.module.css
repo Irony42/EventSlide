@@ -38,6 +38,17 @@
   object-fit: cover;
   border-radius: var(--radius-sm);
   background: var(--surface-overlay);
+  transition: filter var(--duration-slow) var(--ease-out);
+}
+
+/**
+ * ADR 0010, the Chambre noire's signature: a photo still waiting for the host is shown as
+ * its negative, and it develops into the print when it reaches the screen. The badge beside
+ * it still says so in words (DESIGN-SYSTEM.md section 8), so the filter is never the only
+ * signal.
+ */
+.negative {
+  filter: invert(1) grayscale(0.35) contrast(0.9);
 }
 
 /**

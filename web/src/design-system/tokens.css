@@ -3,9 +3,11 @@
   color-scheme: dark;
 
   /* ---- Surfaces. Dark by default: the room is dark and phones are held in it. ---- */
-  --surface-base: oklch(16% 0.02 265); /* page background, wall letterbox */
-  --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
-  --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
+  /* ADR 0010: the product's own look is the Chambre noire, a velvet black warmed by the
+     safelight, where the paper is the only light thing. */
+  --surface-base: oklch(11% 0.006 25); /* page background, wall letterbox */
+  --surface-raised: oklch(16% 0.014 25); /* Card, toolbar, moderation tile */
+  --surface-overlay: oklch(21% 0.02 25); /* Dialog, Toast, popover */
   /* ---- Two translucent blacks, because they were one and they are two different jobs.
 
          `--surface-scrim` is a **ground**: text sits on it, over a photograph nobody has
@@ -30,12 +32,17 @@
   --text-print: oklch(30% 0.02 85); /* the caption written on the mat */
   --text-print-secondary: oklch(40% 0.02 85); /* the credit under it */
   /* ---- Borders ---- */
-  --border-subtle: oklch(30% 0.02 265); /* default hairline */
-  --border-strong: oklch(54% 0.02 265); /* input rest state, focused card */
+  --border-subtle: oklch(27% 0.02 25); /* default hairline */
+  --border-strong: oklch(54% 0.02 40); /* input rest state, focused card */
   /* ---- Text ---- */
-  --text-primary: oklch(97% 0.005 265);
-  --text-secondary: oklch(78% 0.015 265);
-  --text-muted: oklch(64% 0.02 265);
+  --text-primary: oklch(95% 0.01 85); /* silver-gelatin paper */
+  --text-secondary: oklch(78% 0.016 65);
+  --text-muted: oklch(66% 0.018 45);
+  /* The safelight. Ornament only: a gradient behind the page, never under text, never on
+     the wall while it is showing photographs (principle 1). */
+  --safelight: oklch(30% 0.12 26);
+  /* Numbers that are counted or copied: frame numbers, times, the join code. */
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
 
   /* ---- Accent. One hue. Reserved for the primary action and nothing else.
 
@@ -68,6 +75,8 @@
   /* The face for --text-display and --text-xl on the wall. The same stack as --font-sans
      until an event asks for the other pairing, so an unthemed wall is unchanged. */
   --font-display: var(--font-sans);
+  /* Page and card headings on the guest's phone. The system face until an ambiance names one. */
+  --font-heading: var(--font-sans);
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -112,12 +121,12 @@
 
          - **Over an unknown photograph**, the brightest possible backdrop is pure white:
            a white dress in full sun, and also the ceiling of the sRGB gamut, so nothing a
-           camera can produce is worse. 0.95 is the lowest alpha that holds there.
+           camera can produce is worse. 0.96 is the lowest alpha that holds there (0.95 on the slate before ADR 0010).
          - **Over our own ground**, the backdrop is a colour this product chose, so the
            worst case is enumerable instead of unbounded: the brightest *field* a
            stylesheet paints on a non-wall surface, which today is a primary button's
            `--accent` at whichever of the 360 hues an event may pick renders lightest.
-           0.92 is the lowest alpha that holds there.
+           0.96 since ADR 0010, because the paper button is as bright as white (0.92 before).
 
          Both are derived against the same bar, so the only thing that differs between
          them is the backdrop: the lowest alpha at which the material is at least as good
@@ -128,7 +137,7 @@
          both tints, over all 360 accents an event can carry.
 
          **Two floors three points apart is the measurement, not a disappointment**, and
-         it says where the opacity actually comes from: `--text-muted` clears 4.62:1 on
+         it says where the opacity actually comes from: `--text-muted` cleared 4.62:1 on
          `--surface-overlay` against a 4.5 target, so the whole palette has about a tenth
          of a ratio point of headroom before a translucent ground stops being one this
          product would accept. Removing the photograph from the worst case buys three
@@ -144,8 +153,8 @@
      blur: a filter that runs still promotes a compositing layer, and the point of the
      fallback is to stop paying for one. */
   --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  --glass-tint-photo: oklch(21% 0.025 265 / 0.95); /* --surface-raised, over a photograph */
-  --glass-tint-ground: oklch(21% 0.025 265 / 0.92); /* --surface-raised, over our own ground */
+  --glass-tint-photo: oklch(16% 0.014 25 / 0.96); /* --surface-raised, over a photograph */
+  --glass-tint-ground: oklch(16% 0.014 25 / 0.96); /* --surface-raised, over our own ground */
   /* The tint in force, and the conservative one by default: a surface that declares
      nothing at all is held to the floor that survives an unknown photograph. Every tier
      below is an alias of one of the two above, so a raw alpha exists once. */
@@ -154,8 +163,8 @@
   /* The edge and the highlight are the product's own light at a hairline's strength —
      `--text-primary`'s colour, not a new one. Glass is lit from the top, so the
      highlight is inset and the border is not. */
-  --glass-border: oklch(97% 0.005 265 / 0.16);
-  --glass-highlight: oklch(97% 0.005 265 / 0.1);
+  --glass-border: oklch(95% 0.01 85 / 0.16);
+  --glass-highlight: oklch(95% 0.01 85 / 0.1);
   --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
 
   /* ---- Motion ---- */
@@ -205,7 +214,109 @@
  * may reach `--accent-hue` at all, and `eventThemeContract.test.ts` fails if the
  * lightness and chroma here and the ones that rule computes with ever disagree.
  */
-:root,
+/**
+ * ADR 0010: **with no event accent, the action is the paper.** The Chambre noire has no
+ * colour to press: the primary button is a print, the one light surface on the screen, and
+ * a link is paper-white underlined. An event that chose a hue still gets the derivation
+ * below, on the surface that carries it, exactly as before.
+ */
+:root {
+  --accent: oklch(93% 0.012 85);
+  --accent-strong: oklch(84% 0.014 80); /* hover / pressed */
+  --accent-contrast: oklch(11% 0.006 25); /* text on top of --accent */
+  --focus-ring: 0 0 0 3px oklch(93% 0.012 85 / 0.65);
+}
+
+/**
+ * Ambiances, ADR 0010. A closed pack of surfaces, inks, faces and ornaments that the
+ * guest's phone and the wall wear; the console never does. Declared before the event
+ * accent so a hue the host chose still wins on the same element.
+ *
+ * Two selectors, one block: the surface element carries the attribute, and `:root:has()`
+ * lets the page around it (body background, header, the ornaments in base.css) follow in
+ * the same paint. A template preview inside the console is excluded by its marker, or
+ * previewing a festive template would re-skin the moderation console.
+ *
+ * Every derived custom property is restated, because a property that references another
+ * is substituted where it is declared (see the accent block below): the glass tints and
+ * the opaque fallback would otherwise keep the Chambre noire's raised black.
+ *
+ * The faces are bundled (no CDN) and cost nothing until an element on screen uses them,
+ * which only an ambiance that names them does. Licences: web/public/licenses/.
+ */
+@font-face {
+  font-family: 'Shrikhand';
+  src: url('./fonts/Shrikhand-latin.woff2') format('woff2');
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Shrikhand';
+  src: url('./fonts/Shrikhand-latin-ext.woff2') format('woff2');
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('./fonts/BricolageGrotesque-latin.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('./fonts/BricolageGrotesque-latin-ext.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+/* Guinguette: a summer night by the water. Duck-blue dark, cream paper, a lampion to press. */
+[data-event-ambiance='guinguette'],
+:root:has([data-event-ambiance='guinguette']:not([data-template-preview])) {
+  --surface-base: oklch(19% 0.05 215);
+  --surface-raised: oklch(24% 0.055 213);
+  --surface-overlay: oklch(27% 0.055 212);
+  --border-subtle: oklch(34% 0.05 210);
+  --border-strong: oklch(60% 0.05 200);
+  --text-primary: oklch(95% 0.025 88);
+  --text-secondary: oklch(84% 0.035 150);
+  --text-muted: oklch(76% 0.04 170);
+  --safelight: oklch(32% 0.07 210);
+  --accent: oklch(83% 0.15 78);
+  --accent-strong: oklch(76% 0.16 74);
+  --accent-contrast: oklch(20% 0.05 215);
+  --focus-ring: 0 0 0 3px oklch(83% 0.15 78 / 0.65);
+  /* The lampion sits near --warning's angle, so the warning moves out of its way. */
+  --warning: oklch(88% 0.16 105);
+  --font-display: 'Shrikhand', ui-serif, Georgia, serif;
+  --font-heading: 'Bricolage Grotesque', var(--font-sans);
+  --radius-md: var(--radius-lg);
+  /* Ornament, never a control: the pennants and the gingham. */
+  --decor-1: oklch(58% 0.16 32);
+  --decor-2: oklch(74% 0.09 175);
+  --decor-3: oklch(83% 0.15 78);
+  --decor-4: oklch(95% 0.025 88);
+  /* Not yet derived like the root pair: set above it on purpose until a sweep measures it. */
+  --glass-tint-photo: oklch(24% 0.055 213 / 0.97);
+  --glass-tint-ground: oklch(24% 0.055 213 / 0.95);
+  --glass-tint: var(--glass-tint-photo);
+  --glass-opaque: var(--surface-raised);
+  --glass-border: oklch(95% 0.025 88 / 0.16);
+  --glass-highlight: oklch(95% 0.025 88 / 0.1);
+  --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
+}
+
 [data-event-accent] {
   --accent: oklch(72% 0.17 var(--accent-hue));
   --accent-strong: oklch(64% 0.19 var(--accent-hue)); /* hover / pressed */

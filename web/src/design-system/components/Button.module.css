@@ -4,6 +4,8 @@
   justify-content: center;
   gap: var(--space-2);
   border-radius: var(--radius-md);
+  /* The system face, unless an ambiance names a heading face (ADR 0010). */
+  font-family: var(--font-heading);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;

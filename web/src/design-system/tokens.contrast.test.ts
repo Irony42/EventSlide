@@ -54,7 +54,22 @@ if (DECLARED_HUE?.[1] === undefined) {
 /** The hue an event with no theme renders, and the one every assertion here measures. */
 const DEFAULT_HUE = Number(DECLARED_HUE[1])
 
-const tokens = parseOklchTokens(TOKENS.replaceAll('var(--accent-hue)', DECLARED_HUE[1]))
+/**
+ * The product's own palette, without the ambiance blocks (ADR 0010).
+ *
+ * The parser keeps the last declaration of a name, and an ambiance re-declares every
+ * surface and ink, so reading the whole file would quietly measure the Guinguette as if it
+ * were the root. The ambiances are cut out here and measured on their own below. What is
+ * left still ends on the `[data-event-accent]` derivation, which is what every sweep in
+ * this file is about; the root's own paper accent is measured separately.
+ */
+const AMBIANCE_BLOCKS = /\/\*\*\n \* Ambiances, ADR 0010[\s\S]*?(?=\n\[data-event-accent\] \{)/
+if (!AMBIANCE_BLOCKS.test(TOKENS)) {
+  throw new Error('tokens.css no longer opens its ambiances with the ADR 0010 comment')
+}
+const ROOT_TOKENS = TOKENS.replace(AMBIANCE_BLOCKS, '')
+
+const tokens = parseOklchTokens(ROOT_TOKENS.replaceAll('var(--accent-hue)', DECLARED_HUE[1]))
 
 const token = (name: string): Oklch => {
   const value = tokens.get(name)
@@ -120,6 +135,56 @@ const FOCUS_RING_ALPHA = ((): number => {
   }
   return Number(found[1])
 })()
+
+/**
+ * The ambiances, measured on their own (ADR 0010): each block is the same contract as the
+ * root, at the same bars, over its own surfaces. A new ambiance is not shippable until it
+ * passes the same five pairs.
+ */
+describe.each([['guinguette']])('the %s ambiance', (name) => {
+  const block = new RegExp(`\\[data-event-ambiance='${name}'\\][^{]*\\{([^}]*)\\}`).exec(TOKENS)
+  if (block?.[1] === undefined) throw new Error(`tokens.css declares no ${name} block`)
+  const own = parseOklchTokens(`:root {${block[1]}}`)
+  const of = (token: string): Oklch => {
+    const value = own.get(token)
+    if (value === undefined) throw new Error(`the ${name} block does not restate ${token}`)
+    return value
+  }
+
+  it.each([
+    ['--text-primary', 12],
+    ['--text-secondary', 7],
+    ['--text-muted', 4.5],
+  ] as const)('keeps %s above its bar on every surface it declares', (ink, bar) => {
+    for (const surface of SURFACES)
+      expect(contrast(of(ink), of(surface))).toBeGreaterThanOrEqual(bar)
+  })
+
+  it('keeps the label on its accent readable at rest and under a finger', () => {
+    expect(contrast(of('--accent-contrast'), of('--accent'))).toBeGreaterThanOrEqual(7)
+    expect(contrast(of('--accent-contrast'), of('--accent-strong'))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('keeps its accent readable from the back of the room', () => {
+    expect(contrast(of('--accent'), of('--surface-base'))).toBeGreaterThanOrEqual(7)
+  })
+})
+
+describe('the paper the root presses (ADR 0010)', () => {
+  const root = parseOklchTokens(/:root \{\n {2}--accent:[^}]*\}/.exec(TOKENS)?.[0] ?? '')
+  const paper = root.get('--accent')
+  const ink = root.get('--accent-contrast')
+
+  it('is declared as the root accent, without a hue to move', () => {
+    expect(paper).toBeDefined()
+  })
+
+  it('carries its label at the accent’s own bar', () => {
+    if (paper === undefined || ink === undefined) throw new Error('no paper accent at the root')
+    expect(contrast(ink, paper)).toBeGreaterThanOrEqual(7)
+    expect(contrast(paper, token('--surface-overlay'))).toBeGreaterThanOrEqual(7)
+  })
+})
 
 describe('token contrast', () => {
   it('parses the palette out of tokens.css rather than a copy of it', () => {
@@ -413,7 +478,15 @@ describe('the glass material over an unknown photograph', () => {
     // The whole claim of two tiers in one line. Written the day the numbers came out
     // three points apart, because "there are two tints" is satisfied just as well by two
     // tints that are equal, and that is the shape this would rot into.
-    expect(token('--glass-tint-ground').alpha).toBeLessThan(token('--glass-tint-photo').alpha)
+    //
+    // ADR 0010 is the day it stopped buying anything, and that is recorded rather than
+    // hidden: the Chambre noire's primary button is the paper, a field as bright as the
+    // white the photo tier was derived against, so our own ground is no kinder than a
+    // photograph and both floors land on 0.96. The tiers stay two names, so an ambiance
+    // with a darker action can win the points back; the ground may never be the stricter.
+    expect(token('--glass-tint-ground').alpha).toBeLessThanOrEqual(
+      token('--glass-tint-photo').alpha,
+    )
   })
 
   it.each(['--glass-border', '--glass-highlight'] as const)(
@@ -545,7 +618,14 @@ describe('the glass material over an unknown photograph', () => {
  */
 describe('the glass material over our own ground', () => {
   /** The backdrop the ground floor is derived against. See `lightestHue`. */
-  const CEILING = srgb(lightestHue(token('--accent')))
+  // ADR 0010: the root's own primary button is the paper, brighter than any hue an event
+  // can carry, so it is the field the ground floor has to hold over.
+  const PAPER = parseOklchTokens(/:root \{\n {2}--accent:[^}]*\}/.exec(TOKENS)?.[0] ?? '').get(
+    '--accent',
+  )
+  if (PAPER === undefined) throw new Error('tokens.css declares no paper accent at the root')
+  const LIGHTEST_HUE = srgb(lightestHue(token('--accent')))
+  const CEILING = luminanceOf(srgb(PAPER)) > luminanceOf(LIGHTEST_HUE) ? srgb(PAPER) : LIGHTEST_HUE
 
   const groundPane = (alpha: number): Srgb =>
     composite({ ...token('--glass-tint-ground'), alpha }, CEILING)
@@ -618,7 +698,7 @@ describe('the glass material over our own ground', () => {
 
   it('states what the split actually bought, in the units a reader cares about', () => {
     /**
-     * Eight per cent of the backdrop against five, and it is recorded rather than
+     * Seven per cent of the backdrop against four (eight against five before ADR 0010), and it is recorded rather than
      * celebrated.
      *
      * The gain is small because the photograph was never what made the material opaque.
@@ -631,8 +711,10 @@ describe('the glass material over our own ground', () => {
     const photo = 1 - token('--glass-tint-photo').alpha
     const ground = 1 - token('--glass-tint-ground').alpha
 
-    expect(Math.round(photo * 100)).toBe(5)
-    expect(Math.round(ground * 100)).toBe(8)
+    // ADR 0010 moved the numbers: on the Chambre noire's darker raised black the photograph
+    // floor sits at 0.96 and our own ground at 0.93, and the paper button takes the split to nothing (see the tier test above).
+    expect(Math.round(photo * 100)).toBe(4)
+    expect(Math.round(ground * 100)).toBe(4)
   })
 })
 

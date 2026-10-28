@@ -17,7 +17,11 @@
 }
 
 .title {
+  /* The event's name in the ambiance's display face: heavy and tight in the Chambre noire. */
+  font-family: var(--font-display);
   font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
 }
 
 .intro {
