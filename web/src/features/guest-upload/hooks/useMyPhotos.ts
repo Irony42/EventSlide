@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import { readEventTheme } from '../../../design-system/eventTheme'
+import { rememberEventTheme } from '../../../lib/guestSession'
 import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import type { GuestPhotoDto } from '../../../lib/api/dto'
+import type { EventThemeDto, GuestPhotoDto } from '../../../lib/api/dto'
 
 /**
  * The guest's own photos, from `GET /api/events/:slug/photos/mine`.
@@ -25,6 +27,17 @@ export interface MyPhotosState {
    * refusal stays the backstop.
    */
   readonly acceptingUploads: boolean
+  /**
+   * The event's look as the server last said it, or `null` while it has not said (the first read
+   * is in the air, or failed, or the server predates the field). The screen paints the theme the
+   * join stored until this is set, so the first frame is never blank, and one repaint is what
+   * a host's change costs a guest who joined before it.
+   *
+   * Narrowed here with `readEventTheme`: it is untrusted input, and a hue of `"rose"` would
+   * reach `--accent-hue` as a string the browser cannot parse. A malformed answer is `null`,
+   * not a refusal, so the theme the guest already has stands.
+   */
+  readonly theme: EventThemeDto | null
   /**
    * The server no longer serves this gallery to this guest (`404 event.notFound`): the
    * event is gone, or its account is suspended. Sending is pointless and every upload would
@@ -80,6 +93,7 @@ const classifyRead = (cause: unknown): Failure => {
 interface Loaded {
   readonly photos: readonly GuestPhotoDto[]
   readonly acceptingUploads: boolean
+  readonly theme: EventThemeDto | null
   readonly loading: boolean
   readonly failure: Failure | null
 }
@@ -90,6 +104,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   const [state, setState] = useState<Loaded>({
     photos: [],
     acceptingUploads: true,
+    theme: null,
     loading: true,
     failure: null,
   })
@@ -111,14 +126,19 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
     api.myPhotos(slug, controller.signal).then(
       (response) => {
-        if (current) {
-          setState({
-            photos: response.items,
-            acceptingUploads: response.acceptingUploads ?? true,
-            loading: false,
-            failure: null,
-          })
-        }
+        if (!current) return
+        // Written back so the next open of the screen paints it first. Only a theme this build
+        // can read: `null` (absent from an older server, or malformed) leaves the stored one.
+        const theme = readEventTheme(response.theme)
+        if (theme !== null) rememberEventTheme(slug, theme)
+        setState((previous) => ({
+          photos: response.items,
+          acceptingUploads: response.acceptingUploads ?? true,
+          // A later read that carries none does not take the theme back: what was learned stands.
+          theme: theme ?? previous.theme,
+          loading: false,
+          failure: null,
+        }))
       },
       (cause: unknown) => {
         if (!current) return
@@ -182,6 +202,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   return {
     photos: state.photos,
     acceptingUploads: state.acceptingUploads,
+    theme: state.theme,
     unavailable: state.failure?.kind === 'gone',
     signedOut: state.failure?.kind === 'signedOut',
     loading: state.loading,

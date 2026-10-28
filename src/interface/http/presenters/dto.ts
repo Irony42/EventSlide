@@ -301,6 +301,13 @@ export interface UploadResponseDto {
 export interface MyPhotosDto {
   readonly items: readonly GuestPhotoDto[]
   readonly acceptingUploads: boolean
+  /**
+   * The event's look **now**, so a guest who joined before the host changed it learns of it.
+   *
+   * The join's copy is a snapshot and the upload screen cannot refetch the event (there is no
+   * readable "event by slug"), so this is the read it already makes that can carry the news.
+   */
+  readonly theme: EventThemeDto
 }
 
 export interface GuestPhotoDto {

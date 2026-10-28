@@ -313,6 +313,11 @@ export interface UploadResponse {
 export interface MyPhotosDto {
   readonly items: readonly GuestPhotoDto[]
   readonly acceptingUploads?: boolean
+  /**
+   * The event's look as the server holds it now, which the join's copy may no longer be.
+   * Absent from a server build that predates it, and then the stored theme stands.
+   */
+  readonly theme?: EventThemeDto
 }
 
 export interface GuestPhotoDto {

@@ -20,14 +20,20 @@ import {
   renderWithProviders,
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
-import type { GuestPhotoDto, ReactionsResponse, WallItemDto, WallResponse } from '../../lib/api/dto'
+import type {
+  GuestPhotoDto,
+  PublicEventDto,
+  ReactionsResponse,
+  WallItemDto,
+  WallResponse,
+} from '../../lib/api/dto'
 
 const SLUG = 'camille-et-sacha'
 
 /** What the join step leaves behind. Without it the screen has no event to show. */
-const havingJoined = (): void => {
+const havingJoined = (overrides: Partial<PublicEventDto> = {}): void => {
   rememberGuestSession({
-    event: aPublicEvent(),
+    event: aPublicEvent(overrides),
     displayName: 'Léa',
     privacyNotice: aPrivacyNoticeState(),
   })
@@ -486,5 +492,63 @@ describe('a guest the server does not recognise any more, on the feed', () => {
 
     expect(await screen.findByRole('img')).toBeVisible()
     await waitFor(() => expect(readRememberedGuestSession()).toBeNull())
+  })
+
+  describe('a theme the host changed after the guest joined', () => {
+    const VIOLET = { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' } as const
+    const ROSE = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' } as const
+    const pageOf = async () =>
+      (await screen.findByRole('heading', { name: fr.feed.title })).closest('div')
+
+    it('paints the colour the wall answers with instead of the one the join stored', async () => {
+      // The wall is the feed's own read, so the news costs no request; the join's copy is only
+      // what the first frame is painted from.
+      havingJoined({ theme: VIOLET })
+      renderFeed(withWall([photo('a')], { theme: ROSE }))
+
+      const page = await pageOf()
+      await waitFor(() => expect(page).toHaveAttribute('data-event-accent', '345'))
+    })
+
+    it('writes it back, so the tab and the device hold the same theme for the next visit', async () => {
+      havingJoined({ theme: VIOLET })
+      renderFeed(withWall([photo('a')], { theme: ROSE }))
+
+      await waitFor(() => expect(readGuestSession(SLUG)?.event.theme).toEqual(ROSE))
+      expect(readRememberedGuestSession()?.event.theme).toEqual(ROSE)
+    })
+
+    it('keeps the colour it learned when a later wall answer carries none', async () => {
+      havingJoined({ theme: VIOLET })
+      let reads = 0
+      renderFeed(
+        fakeApi({
+          wall: vi.fn(async () => {
+            reads += 1
+            return aWallResponse({
+              items: [photo('a')],
+              ...(reads === 1 ? { theme: ROSE } : { theme: { ...ROSE, accentHue: 4000 } }),
+            })
+          }),
+          myPhotos: vi.fn(async () => ({ items: [] })),
+        }),
+      )
+      const page = await pageOf()
+      await waitFor(() => expect(page).toHaveAttribute('data-event-accent', '345'))
+
+      await userEvent.click(screen.getByRole('button', { name: fr.feed.refresh }))
+      await waitFor(() => expect(reads).toBe(2))
+
+      expect(page).toHaveAttribute('data-event-accent', '345')
+    })
+
+    it('keeps the stored theme when the wall carries none this build can read', async () => {
+      havingJoined({ theme: ROSE })
+      renderFeed(withWall([photo('a')], { theme: { ...ROSE, accentHue: 4000 } }))
+
+      expect(await screen.findByRole('img')).toBeVisible()
+      expect(await pageOf()).toHaveAttribute('data-event-accent', '345')
+      expect(readGuestSession(SLUG)?.event.theme).toEqual(ROSE)
+    })
   })
 })
