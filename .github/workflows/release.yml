@@ -516,12 +516,29 @@ jobs:
       - name: Verify what was just signed, as a user would
         # The identity a user passes to `cosign verify`, written in docs/IMAGE-SOURCES.md
         # word for word: this run is what proves that command works.
+        #
+        # Each check has five minutes and a verbose trace. For v3.0.0 this step hung twice
+        # until the job's limit cancelled it, and a cancelled job keeps no log, while the same
+        # two commands passed in seconds from outside. A check that hangs now fails on its own,
+        # and prints the end of its trace, so the next one says where it waited.
         run: |
           set -euo pipefail
           identity='^https://github\.com/Irony42/EventSlide/\.github/workflows/release\.yml@refs/(tags/v.+|heads/main)$'
           issuer='https://token.actions.githubusercontent.com'
-          cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
-          cosign verify-attestation --type spdxjson --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
+          check() {
+            local log status
+            log="$(mktemp)"
+            if timeout 300 "$@" > "$log" 2>&1; then
+              tail -n 20 "$log"
+            else
+              status=$?
+              tail -n 200 "$log"
+              echo "::error::$2 failed with status $status (124 is the five-minute limit)."
+              exit "$status"
+            fi
+          }
+          check cosign verify --verbose --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
+          check cosign verify-attestation --type spdxjson --verbose --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
 
   promote:
     # `X.Y` and `X` are what people who follow a minor or a major pull, so they move last:

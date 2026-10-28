@@ -286,6 +286,12 @@ describe('how the image is signed', () => {
     expect(script).toContain("issuer='https://token.actions.githubusercontent.com'")
   })
 
+  it('gives each check a time limit, so a hang fails with its trace instead of being cancelled without one', () => {
+    expect(script).toMatch(/timeout \d+ "\$@"/)
+    expect(script).toMatch(/^\s*check cosign verify --verbose /m)
+    expect(script).toMatch(/^\s*check cosign verify-attestation --type spdxjson --verbose /m)
+  })
+
   it('names, as the only identity it accepts, this repository and this workflow file', () => {
     expect(script).toContain(
       String.raw`identity='^https://github\.com/Irony42/EventSlide/\.github/workflows/release\.yml@refs/(tags/v.+|heads/main)$'`,
