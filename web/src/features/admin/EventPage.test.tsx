@@ -287,6 +287,18 @@ describe('EventPage', () => {
     expect(screen.getByRole('link', { name: fr.admin.openModeration })).toBeVisible()
   })
 
+  it('offers a moderator no settings tile, and an owner one', async () => {
+    const moderator = fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) })
+    const { unmount } = renderPage(moderator)
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+    expect(screen.queryByRole('link', { name: fr.admin.settings })).toBeNull()
+    unmount()
+
+    renderPage(fakeApi())
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+    expect(screen.getByRole('link', { name: fr.admin.settings })).toBeVisible()
+  })
+
   it('deletes the album only once the address has been typed, then returns to the dashboard', async () => {
     const api = fakeApi()
 

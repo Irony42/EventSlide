@@ -164,6 +164,23 @@ describe('listEventsForHost', () => {
       expect(await rolesOf(HOST)).toEqual(new Map([[WEDDING, 'owner']]))
     })
 
+    it('does not let the role held in one event colour another row of the same list', async () => {
+      // One event listed by the owner column alone, another by a moderator membership: the
+      // moderator's role is the gala's and must not leak onto the wedding.
+      events.seed(
+        anEvent({ id: WEDDING, ownerId: HOST, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+        anEvent({ id: GALA, ownerId: OTHER_HOST, slug: 'gala-annuel', joinCode: 'Z3N9PT' }),
+      )
+      await memberships.grant({ eventId: GALA, userId: HOST, role: 'moderator', grantedAt: AT })
+
+      expect(await rolesOf(HOST)).toEqual(
+        new Map([
+          [WEDDING, 'owner'],
+          [GALA, 'moderator'],
+        ]),
+      )
+    })
+
     it('lists no event of another host, whatever role the caller holds elsewhere', async () => {
       // The tenant boundary: a membership of one event gives the caller that event's row and
       // nobody else's, and another account's membership of it colours nothing.

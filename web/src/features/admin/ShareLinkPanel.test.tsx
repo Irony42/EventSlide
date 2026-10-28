@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Link } from 'react-router-dom'
 import { formatDateTime } from '../../lib/format'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -168,6 +169,28 @@ describe('ShareLinkPanel', () => {
       await screen.findByRole('alert')
 
       expect(leave()).toBe(true)
+    })
+
+    it('keeps the host on the page when they decline to follow a link of the app while the address is unsaved', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      renderWithProviders(
+        <>
+          <ShareLinkPanel slug={SLUG} />
+          <Link to="/admin">Vos évènements</Link>
+        </>,
+        { api: fakeApi(), route: '/', path: '/' },
+      )
+      await createLink()
+
+      await userEvent.click(screen.getByRole('link', { name: 'Vos évènements' }))
+
+      expect(confirm).toHaveBeenCalledWith(fr.admin.shareLinkLeaveWarning)
+      // Still here: the router did not take the link.
+      expect(screen.getByLabelText(fr.admin.shareLinkUrl)).toHaveValue(URL_SHOWN)
+
+      confirm.mockReturnValue(true)
+      await userEvent.click(screen.getByRole('link', { name: 'Vos évènements' }))
+      await waitFor(() => expect(screen.queryByLabelText(fr.admin.shareLinkUrl)).toBeNull())
     })
 
     it('says nothing about leaving when no link has been made on this page', async () => {
