@@ -178,9 +178,14 @@ test.describe('the projected wall @visual', () => {
     host: Parameters<typeof signInAsHost>[0],
     app: Parameters<typeof signInAsHost>[1],
     slug: string,
-    theme: { colour?: string; fonts?: string; frame?: string },
+    theme: { ambiance?: string; colour?: string; fonts?: string; frame?: string },
   ) => {
     await host.goto(app.url(`/admin/events/${slug}/settings`))
+    if (theme.ambiance !== undefined) {
+      // `exact`: the field's hint also says "ambiance", and a substring match would be two
+      // controls.
+      await host.getByLabel('Ambiance', { exact: true }).selectOption({ label: theme.ambiance })
+    }
     if (theme.colour !== undefined) await host.getByRole('radio', { name: theme.colour }).check()
     if (theme.fonts !== undefined) {
       await host.getByLabel('Typographie').selectOption({ label: theme.fonts })
@@ -401,6 +406,19 @@ test.describe('the projected wall @visual', () => {
       motion: 'still',
       photoIds: null,
     },
+    // Five prints on a string, on the Chambre noire: the layout is the same in both
+    // ambiances, and the default look is the one every other baseline here photographs.
+    // The sway is declined for a wall that is not advancing, so this is the print at rest.
+    // Like the polaroid, its pixels are a function of the ids (the tilt hashes them), so the
+    // five photographs the line must hold are asserted: newest first, six down to two.
+    {
+      layout: 'clothesline',
+      slug: 'corde-a-linge',
+      slides: 5,
+      file: 'wall-clothesline.png',
+      motion: 'still',
+      photoIds: [photoIdAt(6), photoIdAt(5), photoIdAt(4), photoIdAt(3), photoIdAt(2)],
+    },
     // The split declares no motion at all; its fade is the mosaic's, timed from
     // `--wall-transition`.
     {
@@ -620,5 +638,88 @@ test.describe('the projected wall @visual', () => {
     await expect(projector.getByTestId('wall-join')).toHaveCount(0)
 
     await expect(projector).toHaveScreenshot('wall-mosaic-themed.png', { animations: 'disabled' })
+  })
+
+  /**
+   * The Guinguette, ADR 0010 — an ambiance is a whole look, and these are the baselines of
+   * its own that the first prototype did not take.
+   *
+   * Every shot picks the ambiance through the settings form a host uses, and none sets an
+   * accent, a face or a frame: the ambiance is the variable here, and a baseline that
+   * moved two more things would be a diff that names no cause. The wall photographs its
+   * ground (a grade over a picture of string lights in a garden), the kraft join card and
+   * the cream-and-wood hardware of the clothesline, none of which any Chambre noire shot
+   * above can show.
+   */
+  test('the Guinguette’s empty wall', async ({ app, surfaces }) => {
+    const event = await app.seedEvent({ slug: 'guinguette-vide', name: 'Camille & Sacha' })
+    const { host, projector } = surfaces
+
+    await signInAsHost(host, app)
+    await applyTheme(host, app, event.slug, { ambiance: 'Guinguette' })
+
+    await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-empty')).toBeVisible()
+    await expect(projector.locator('[data-event-ambiance]')).toHaveAttribute(
+      'data-event-ambiance',
+      'guinguette',
+    )
+
+    // The whole frame, unlike the Chambre noire's empty baseline, which clips to the copy.
+    // The copy is the subject there; here the subject is the ground the copy sits on — the
+    // photograph, its grade and the kraft invitation — and a clip would photograph none.
+    await expect(projector).toHaveScreenshot('wall-empty-guinguette.png', {
+      animations: 'disabled',
+    })
+  })
+
+  test('the Guinguette’s spotlight', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'guinguette-plein-ecran')
+    const { host, projector } = surfaces
+
+    await applyTheme(host, app, event.slug, { ambiance: 'Guinguette' })
+
+    // `?layout=spotlight` is named, because the Guinguette's own default is the clothesline
+    // and this shot is the one-photo layout on the photographed ground.
+    await projector.goto(
+      wallUrl(app, event.slug, { layout: 'spotlight', intervalMs: 0, transitionMs: 0 }),
+    )
+    await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
+      'data-wall-layout',
+      'spotlight',
+    )
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+    await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
+
+    await expect(projector).toHaveScreenshot('wall-spotlight-guinguette.png', {
+      animations: 'disabled',
+    })
+  })
+
+  test('the Guinguette hangs its wall on the clothesline by itself', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'guinguette-corde')
+    const { host, projector } = surfaces
+
+    await applyTheme(host, app, event.slug, { ambiance: 'Guinguette' })
+
+    // No `layout` in the URL: that the clothesline is what the wall opens on is the claim,
+    // and it is made by the ambiance (`ambianceLayout.ts`) rather than by the address.
+    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
+    await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
+      'data-wall-layout',
+      'clothesline',
+    )
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(5)
+    await expect(projector.locator('[data-motion]')).toHaveAttribute('data-motion', 'still')
+
+    // The same five ids as the Chambre noire's shot, for the same reason: the tilts.
+    const held = await projector
+      .locator('[data-photo-id]')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-photo-id')))
+    expect(held).toEqual([6, 5, 4, 3, 2].map((nth) => photoIdAt(nth)))
+
+    await expect(projector).toHaveScreenshot('wall-clothesline-guinguette.png', {
+      animations: 'disabled',
+    })
   })
 })
