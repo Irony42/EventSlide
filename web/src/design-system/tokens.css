@@ -105,6 +105,8 @@
          derived from it are declared just below this block rather than here — see the
          comment there, it is not a style choice. ---- */
   --accent-hue: 305;
+  /* The tint of a Sur mesure ground (ADR 0011): an angle, set inline where it applies. */
+  --ground-hue: 255deg;
   /* The kraft the root presses. With no event accent this is the action; an event that chose a
      hue gets the derivation declared below the ambiances, on the surface that carries it. */
   --accent: oklch(74% 0.09 68);
@@ -723,6 +725,169 @@
   --wall-card-texture: none;
   --wall-card-ink: var(--accent);
   --wall-card-ink-2: var(--text-secondary);
+}
+
+/* ---- Sur mesure, a host's own ambiance (ADR 0011). Two polarities, one angle each.
+   Every colour below is `oklch(L C var(--ground-hue))` at a FIXED lightness and chroma: the
+   host moves an angle and nothing else, so what is legible at one hue is legible at all of them,
+   and `tokens.contrast.test.ts` sweeps the circle (15 degrees, both ends) to prove it. Chroma
+   stays between 0.004 and 0.03 on surfaces and inks, so any hue is a tint and never a colour.
+   `--ground-hue` is set inline on the themed surface and the page marker, like `--accent-hue`;
+   the root's default is what the page around a marker wears until the markup mirrors it there.
+   No ornaments: base.css lists the ambiances that draw a strip and this is not one of them.
+   No bundled photograph: the ground is the surface colour, or the host's own venue photograph
+   under the polarity's worst-case coat (`--ambiance-grade` and `--ambiance-scrim`, held at 4.5:1
+   over pure white (dark) or pure black (light) by scripts/ambianceGround.test.ts). ---- */
+/* prettier-ignore */
+[data-event-ambiance='custom'][data-ambiance-ground='dark'],
+:root:has(:where([data-event-ambiance='custom'][data-ambiance-ground='dark']:not([data-template-preview]))) {
+  --surface-base: oklch(15% 0.02 var(--ground-hue));
+  --surface-raised: oklch(20% 0.024 var(--ground-hue));
+  --surface-overlay: oklch(24% 0.026 var(--ground-hue));
+  --surface-scrim: oklch(10% 0.015 var(--ground-hue) / 0.83);
+  --border-subtle: oklch(30% 0.03 var(--ground-hue));
+  --border-strong: oklch(60% 0.05 var(--ground-hue));
+  --text-primary: oklch(96% 0.012 var(--ground-hue));
+  --text-secondary: oklch(86% 0.02 var(--ground-hue));
+  --text-muted: oklch(77% 0.03 var(--ground-hue));
+  /* The accent is the root's derivation (72% lightness, a dark label), from the host's hue. The
+     default hue is what an event that chose none presses. */
+  --accent-hue: 255;
+  --accent: oklch(72% 0.17 var(--accent-hue));
+  --accent-strong: oklch(64% 0.19 var(--accent-hue));
+  --accent-contrast: oklch(18% 0.02 var(--accent-hue));
+  --accent-texture: none;
+  --focus-ring: 0 0 0 3px oklch(72% 0.17 var(--accent-hue) / 0.65);
+  --ambiance-ground: none;
+  /* Derived, not chosen: with no photograph of its own this paints the surface colour and nothing
+     else. Under a host's venue photograph it is the lowest top alpha at which every ink keeps 4.5:1
+     over pure white (dark) or pure black (light) under the coat below, at every ground hue
+     (scripts/ambianceGround.test.ts). */
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(15% 0.02 var(--ground-hue) / 0.68),
+    oklch(15% 0.02 var(--ground-hue) / 0.66) 30%,
+    oklch(15% 0.02 var(--ground-hue) / 0.74) 65%,
+    oklch(15% 0.02 var(--ground-hue) / 0.96)
+  );
+  --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: none;
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
+  --qr-field: var(--text-primary);
+  --qr-ink: var(--surface-base);
+  --glass-tint-photo: oklch(20% 0.024 var(--ground-hue) / 0.97);
+  --glass-tint-ground: oklch(20% 0.024 var(--ground-hue) / 0.97);
+  --glass-border: oklch(96% 0.012 var(--ground-hue) / 0.16);
+  --glass-highlight: oklch(96% 0.012 var(--ground-hue) / 0.1);
+}
+
+/* prettier-ignore */
+[data-event-ambiance='custom'][data-ambiance-ground='light'],
+:root:has(:where([data-event-ambiance='custom'][data-ambiance-ground='light']:not([data-template-preview]))) {
+  color-scheme: light;
+  --surface-base: oklch(97.5% 0.01 var(--ground-hue));
+  --surface-raised: oklch(99.5% 0.004 var(--ground-hue));
+  --surface-overlay: oklch(95% 0.015 var(--ground-hue));
+  --surface-scrim: oklch(97.5% 0.01 var(--ground-hue) / 0.87);
+  --border-subtle: oklch(88% 0.015 var(--ground-hue));
+  --border-strong: oklch(62% 0.035 var(--ground-hue));
+  --text-primary: oklch(21% 0.03 var(--ground-hue));
+  --text-secondary: oklch(30% 0.03 var(--ground-hue));
+  --text-muted: oklch(40% 0.03 var(--ground-hue));
+  /* The Noces' accent (40% lightness, a white label): a pastel on a pale ground is unreadable at
+     any hue. */
+  --accent-hue: 255;
+  --accent: oklch(40% 0.15 var(--accent-hue));
+  --accent-strong: oklch(33% 0.15 var(--accent-hue));
+  --accent-contrast: oklch(99% 0.005 var(--accent-hue));
+  --accent-texture: none;
+  --focus-ring: 0 0 0 3px oklch(40% 0.15 var(--accent-hue) / 0.8);
+  /* The semantic colours restated darker, as the Noces does: the root's are tuned for dark
+     surfaces. Hue-fixed, so the moderation queue reads the same. */
+  --success: oklch(48% 0.13 155);
+  --danger: oklch(52% 0.2 25);
+  --warning: oklch(50% 0.11 70);
+  --ambiance-ground: none;
+  /* Derived, not chosen: with no photograph of its own this paints the surface colour and nothing
+     else. Under a host's venue photograph it is the lowest top alpha at which every ink keeps 4.5:1
+     over pure white (dark) or pure black (light) under the coat below, at every ground hue
+     (scripts/ambianceGround.test.ts). */
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(97.5% 0.01 var(--ground-hue) / 0.65),
+    oklch(97.5% 0.01 var(--ground-hue) / 0.63) 30%,
+    oklch(97.5% 0.01 var(--ground-hue) / 0.71) 65%,
+    oklch(97.5% 0.01 var(--ground-hue) / 0.96)
+  );
+  --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  --wall-card-bg: var(--surface-raised);
+  --wall-card-texture: none;
+  --wall-card-ink: var(--accent);
+  --wall-card-ink-2: var(--text-secondary);
+  --qr-field: var(--surface-raised);
+  --qr-ink: var(--text-primary);
+  --glass-tint-photo: oklch(99.5% 0.004 var(--ground-hue) / 0.95);
+  --glass-tint-ground: oklch(99.5% 0.004 var(--ground-hue) / 0.95);
+  --glass-border: oklch(21% 0.03 var(--ground-hue) / 0.14);
+  --glass-highlight: oklch(100% 0 0 / 0.6);
+}
+
+/* The faces a Sur mesure event borrows (`custom.faces`), restated from the ambiance that owns
+   them: faces, display weight and the control's corner, nothing else. One small block per face
+   set, so the six are not six copies of whole ambiances; tokens.contrast.test.ts holds each to
+   the values its own ambiance declares. */
+[data-ambiance-faces='guinguette'],
+:root:has(:where([data-ambiance-faces='guinguette']:not([data-template-preview]))) {
+  --font-heading: 'Bricolage Grotesque', var(--font-sans);
+  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-display-weight: 400;
+  --button-radius: var(--radius-md);
+}
+
+[data-ambiance-faces='riviera'],
+:root:has(:where([data-ambiance-faces='riviera']:not([data-template-preview]))) {
+  --font-heading: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display-weight: 500;
+  --button-radius: var(--radius-full);
+}
+
+[data-ambiance-faces='champs'],
+:root:has(:where([data-ambiance-faces='champs']:not([data-template-preview]))) {
+  --font-heading: 'Fraunces', ui-serif, Georgia, serif;
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-display-weight: 500;
+  --button-radius: var(--radius-full);
+}
+
+[data-ambiance-faces='bivouac'],
+:root:has(:where([data-ambiance-faces='bivouac']:not([data-template-preview]))) {
+  --font-heading: 'Bricolage Grotesque', var(--font-sans);
+  --font-display: 'Bricolage Grotesque', var(--font-sans);
+  --font-display-weight: 800;
+  --button-radius: var(--radius-sm);
+}
+
+[data-ambiance-faces='cabaret'],
+:root:has(:where([data-ambiance-faces='cabaret']:not([data-template-preview]))) {
+  --font-heading: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display: 'Poiret One', 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display-weight: 400;
+  --button-radius: var(--radius-none);
+}
+
+[data-ambiance-faces='noces'],
+:root:has(:where([data-ambiance-faces='noces']:not([data-template-preview]))) {
+  --font-heading: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-display-weight: 400;
+  --button-radius: var(--radius-full);
 }
 
 /**

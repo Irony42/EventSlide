@@ -715,6 +715,19 @@ already does. The filmstrip and the collage show no captions at all.
 > `[data-event-ambiance]` blocks in `tokens.css`, each measured on its own by
 > `tokens.contrast.test.ts` and `scripts/ambianceGround.test.ts`. The primary action is kraft at the
 > root. See [ADR 0010](adr/0010-event-ambiances.md); the sections below predate it.
+>
+> **Sur mesure (ADR 0011).** A seventh ambiance is the host's own: a polarity (`data-ambiance-ground`
+> light or dark), a **ground hue** and the faces of one of the six (`data-ambiance-faces`). Two blocks
+> in `tokens.css` derive every surface, border, ink, glass tint, scrim, wall card, QR plate and focus
+> ring as `oklch(L C var(--ground-hue))` at fixed lightness and low chroma (0.004 to 0.03); the dark
+> block's accent is the root's derivation, the light block's the Noces' (40%, a white label), and the
+> light block restates the semantic colours darker. No photograph and no ornament by default: the
+> ground is the surface colour, or the host's venue photograph under the polarity's worst-case coat.
+> The proof is a sweep, not a runtime check: both polarities at 25 ground hues (15 degrees, 0 to 345
+> and 359) crossed with every accent hue on the same grid and the block's default, in
+> `tokens.contrast.test.ts`, and the venue-photo bound at every ground hue in
+> `scripts/ambianceGround.test.ts`. A tone that fails at one hue is changed in `tokens.css`, never
+> relaxed in a test.
 
 Roadmap 2.2. A host gives one event a look: an **accent hue**, a **font pairing** and a
 **frame style** — and, since roadmap 11.5, the **material** its panes are made of. A wedding
