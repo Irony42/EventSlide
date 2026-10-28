@@ -13,7 +13,8 @@
   justify-content: center;
   gap: var(--space-10);
   padding: var(--wall-safe);
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
 }
 
 .copy {

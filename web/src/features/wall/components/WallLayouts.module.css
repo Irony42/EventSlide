@@ -20,7 +20,8 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--wall-safe);
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
   grid-template-columns: repeat(4, 1fr);
   grid-template-rows: repeat(3, 1fr);
   grid-template-areas:
@@ -106,7 +107,8 @@
      362px of overlap. The row lays out inside what the corner leaves free instead, and
      gets the space back the moment the card is dismissed. */
   padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
   /* A print is as tall as its photo plus its caption, and a guest who writes two long
      lines makes it taller. The stage clips rather than letting a mat run off the screen,
      which on a projector means off the wall and into the room. */
@@ -141,7 +143,8 @@
   overflow: hidden;
   aspect-ratio: 4 / 5;
   border-radius: var(--radius-sm);
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
 }
 
 .printImage {
@@ -194,7 +197,8 @@
   align-content: center;
   overflow: hidden;
   padding-block: var(--wall-safe);
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
 }
 
 .track {
@@ -305,7 +309,8 @@
   gap: var(--space-2);
   align-content: start;
   padding: var(--wall-safe);
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
 }
 
 .cell {
@@ -352,7 +357,8 @@
      a much smaller share of the width, and on any wall a host who wants the full pair
      presses Escape and the reservation goes with the card. */
   padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
 }
 
 .pane {

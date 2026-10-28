@@ -52,6 +52,8 @@
      legible over it. Nothing at the root. */
   --ambiance-ground: none;
   --ambiance-grade: linear-gradient(transparent, transparent);
+  /* What the wall's layouts paint behind and between the slides. */
+  --wall-ground: var(--surface-base);
   /* Numbers that are counted or copied: frame numbers, times, the join code. */
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
 
@@ -344,11 +346,13 @@
   --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
   --ambiance-grade: linear-gradient(
     180deg,
-    oklch(16% 0.016 70 / 0.35),
-    oklch(16% 0.016 70 / 0.2) 30%,
-    oklch(16% 0.016 70 / 0.82) 70%,
+    oklch(16% 0.016 70 / 0.55),
+    oklch(16% 0.016 70 / 0.62) 30%,
+    oklch(16% 0.016 70 / 0.86) 65%,
     oklch(16% 0.016 70 / 0.96)
   );
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   /* Ornament, never a control: the bulbs and the linen. */
   --decor-1: oklch(55% 0.14 32);
   --decor-bulb: oklch(90% 0.1 85);
