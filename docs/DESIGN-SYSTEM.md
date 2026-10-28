@@ -711,7 +711,7 @@ already does. The filmstrip and the collage show no captions at all.
 
 > **Ambiances (ADR 0010).** A theme also names an ambiance: a closed pack of surfaces, inks, faces,
 > a photographed ground and ornaments. The Guinguette is the root look (the listing in section 2
-> predates it and shows the old slate), and Riviera, Champs d'or, Bivouac and Cabaret are
+> predates it and shows the old slate), and Riviera, Champs d'or, Bivouac, Cabaret and Noces are
 > `[data-event-ambiance]` blocks in `tokens.css`, each measured on its own by
 > `tokens.contrast.test.ts` and `scripts/ambianceGround.test.ts`. The primary action is kraft at the
 > root. See [ADR 0010](adr/0010-event-ambiances.md); the sections below predate it.

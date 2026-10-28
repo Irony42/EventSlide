@@ -39,7 +39,7 @@ Pierre picked four of them to sit beside the Guinguette.
 ## Decision
 
 1. **An event's theme names an ambiance**: `ambiance: 'guinguette' | 'riviera' | 'champs' |
-'bivouac' | 'cabaret'`, beside the accent, the pairing, the frame and the material, in
+'bivouac' | 'cabaret' | 'noces'`, beside the accent, the pairing, the frame and the material, in
    `src/domain/events/eventTheme.ts`. It is a closed vocabulary; adding an ambiance is a code change
    with its own review, never host input.
 2. **The Guinguette is the root.** It is the product's own look and the default ambiance, so it emits
@@ -105,7 +105,7 @@ Pierre picked four of them to sit beside the Guinguette.
       colour (`--ambiance-scrim`, declared in each block: 0.30, and 0.70 for the Bivouac, whose
       bundled photograph is dark and whose grade is therefore thin), and
       `scripts/ambianceGround.test.ts` proves all three inks keep 4.5:1 over a **pure white**
-      photograph, the brightest a photograph can be, in each of the five. Any real photograph is
+      photograph, the brightest a photograph can be, in each of the six. Any real photograph is
       darker than that bound. What it does not promise is that a venue photograph looks good under
       the grade, only that it cannot make the text unreadable.
     - _Painting without a flash._ `html::before` can only read the root's custom properties, so the
@@ -124,18 +124,19 @@ Pierre picked four of them to sit beside the Guinguette.
 
 ### What each ambiance is
 
-| Ambiance (fr) | Palette and ground                                 | Faces                                     | Ornament                             | Control      |
-| ------------- | -------------------------------------------------- | ----------------------------------------- | ------------------------------------ | ------------ |
-| Guinguette    | wood-brown, cream, kraft; a garden's string lights | Instrument Serif, Bricolage Grotesque     | filament bulbs on top, gingham below | rounded      |
-| Riviera       | navy, a sail's white; a sea at sunset              | Playfair Display                          | breton stripe top and bottom         | pill         |
-| Champs d'or   | earth, honey; tall grass in golden light           | Fraunces                                  | linen strip below                    | pill         |
-| Bivouac       | night blue, ember; a campfire under stars          | Bricolage Grotesque (800)                 | tartan strip below                   | small radius |
-| Cabaret       | ebony, champagne gold; a velvet curtain            | Poiret One, Playfair Display for headings | art-deco fan line, double rule       | square       |
+| Ambiance (fr) | Palette and ground                                 | Faces                                           | Ornament                             | Control      |
+| ------------- | -------------------------------------------------- | ----------------------------------------------- | ------------------------------------ | ------------ |
+| Guinguette    | wood-brown, cream, kraft; a garden's string lights | Instrument Serif, Bricolage Grotesque           | filament bulbs on top, gingham below | rounded      |
+| Riviera       | navy, a sail's white; a sea at sunset              | Playfair Display                                | breton stripe top and bottom         | pill         |
+| Champs d'or   | earth, honey; tall grass in golden light           | Fraunces                                        | linen strip below                    | pill         |
+| Bivouac       | night blue, ember; a campfire under stars          | Bricolage Grotesque (800)                       | tartan strip below                   | small radius |
+| Cabaret       | ebony, champagne gold; a velvet curtain            | Poiret One, Playfair Display for headings       | art-deco fan line, double rule       | square       |
+| Noces         | wine-black, ivory, rose red; red roses, white wrap | Instrument Serif, Playfair Display for headings | thin double rule, a line of petals   | pill         |
 
 ### What it costs, in bytes (all lazy: nothing downloads until the ambiance is on screen)
 
 - Photographs: 25 KB (Guinguette), 26 KB (Riviera), 104 KB (Bivouac), 106 KB (Champs d'or), 90 KB
-  (Cabaret, re-encoded at 1400 px wide).
+  (Cabaret, re-encoded at 1400 px wide), 109 KB (Noces).
 - Faces: Instrument Serif 67 KB and Bricolage Grotesque 56 KB (root), Playfair Display 73 KB,
   Fraunces 146 KB, Poiret One 13 KB, each for all of its styles and both subsets; a phone fetches
   the latin subset of the styles it shows, a third to a half of that.
