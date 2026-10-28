@@ -303,7 +303,14 @@ describe('the ambiance an event wears (ADR 0010)', () => {
   })
 
   it('offers the Guinguette and four others, and no longer the Chambre noire', () => {
-    expect([...THEME_AMBIANCES]).toEqual(['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret'])
+    expect([...THEME_AMBIANCES]).toEqual([
+      'guinguette',
+      'riviera',
+      'champs',
+      'bivouac',
+      'cabaret',
+      'noces',
+    ])
     expect(isThemeAmbiance('darkroom')).toBe(false)
   })
 

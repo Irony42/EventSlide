@@ -147,7 +147,14 @@ export type ThemeMaterial = (typeof THEME_MATERIALS)[number]
  * font pairing, the frame and the material still apply on top, so an ambiance chooses a
  * world and the host still chooses a colour in it.
  */
-export const THEME_AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret'] as const
+export const THEME_AMBIANCES = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+] as const
 export type ThemeAmbiance = (typeof THEME_AMBIANCES)[number]
 
 /**
