@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GuestUploadPage } from './GuestUploadPage'
-import { rememberGuestSession } from '../../lib/guestSession'
+import {
+  readGuestSession,
+  readRememberedGuestSession,
+  rememberGuestSession,
+} from '../../lib/guestSession'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -1195,5 +1199,168 @@ describe('the privacy notice, as the page changes around it', () => {
 
     expect(await screen.findByText(fr.upload.clipDoneImmediate)).toBeVisible()
     expect(screen.queryByText(fr.upload.clipDone)).toBeNull()
+  })
+})
+
+describe('a gallery the server no longer serves (A3)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    havingJoined()
+  })
+
+  /** A suspended account: the server answers `404` before it would say the evening is over. */
+  const suspended = (): Api =>
+    fakeApi({
+      myPhotos: vi.fn(async () => {
+        throw new ApiError(404, 'event.notFound')
+      }),
+    })
+
+  it('says so, and offers no button that every send would fail on', async () => {
+    renderUpload(suspended())
+
+    expect(await screen.findByText(fr.upload.galleryUnavailable)).toBeVisible()
+    expect(screen.queryByLabelText(fr.upload.addPhotos)).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.upload.send })).toBeNull()
+  })
+
+  it('stops offering the photographs of the evening, which are not served either', async () => {
+    renderUpload(suspended())
+    await screen.findByText(fr.upload.galleryUnavailable)
+
+    expect(screen.queryByRole('link', { name: fr.feed.link })).toBeNull()
+  })
+
+  it('does not call a missing gallery an empty list of sends', async () => {
+    renderUpload(suspended())
+    await screen.findByText(fr.upload.galleryUnavailable)
+
+    expect(screen.queryByText(fr.upload.mineEmpty)).toBeNull()
+    expect(screen.queryByText(fr.upload.mineFailed)).toBeNull()
+  })
+
+  it('keeps the link to the feed on a closed evening, which still has its wall', async () => {
+    renderUpload(fakeApi({ myPhotos: vi.fn(async () => ({ items: [], acceptingUploads: false })) }))
+    await screen.findByText(fr.errors['event.notAcceptingUploads'])
+
+    expect(screen.getByRole('link', { name: fr.feed.link })).toBeVisible()
+  })
+
+  it('keeps offering a retry when the list could not be read for a reason that is the network’s', async () => {
+    renderUpload(
+      fakeApi({
+        myPhotos: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      }),
+    )
+
+    expect(await screen.findByText(fr.upload.mineFailed)).toBeVisible()
+    expect(screen.queryByText(fr.upload.galleryUnavailable)).toBeNull()
+    expect(screen.getByLabelText(fr.upload.addPhotos)).toBeInTheDocument()
+  })
+})
+
+describe('a guest the server does not recognise any more (A1, A2)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    havingJoined()
+  })
+
+  it('is sent to the code entry, and the device forgets the event so the app does not loop', async () => {
+    renderUpload(
+      fakeApi({
+        myPhotos: vi.fn(async () => {
+          throw new ApiError(401, 'guestToken.expired')
+        }),
+      }),
+    )
+
+    expect(await screen.findByRole('heading', { name: fr.upload.notJoinedTitle })).toBeVisible()
+    expect(readRememberedGuestSession()).toBeNull()
+    expect(readGuestSession(SLUG)).toBeNull()
+  })
+})
+
+describe('a guest who comes back to the page after the tab was closed (A1, A2)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  it('finds the event the device remembers, with no code to type', () => {
+    havingJoined()
+    sessionStorage.clear()
+
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
+  })
+
+  it('asks for the code when the device remembers another event', () => {
+    havingJoined({ slug: 'gala' })
+    sessionStorage.clear()
+
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('heading', { name: fr.upload.notJoinedTitle })).toBeVisible()
+  })
+
+  it('lets the guest say it is not their evening, and forgets it', async () => {
+    havingJoined()
+    renderUpload(fakeApi())
+
+    await userEvent.click(screen.getByRole('button', { name: fr.join.notYourEvening }))
+
+    expect(readRememberedGuestSession()).toBeNull()
+    expect(readGuestSession(SLUG)).toBeNull()
+  })
+})
+
+describe('leaving the event from the header (A10)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    havingJoined()
+  })
+
+  it('cannot be pressed while photos are on their way, which leaving would cancel', async () => {
+    const api = fakeApi({
+      uploadPhotos: vi.fn(() => new Promise<UploadResponse>(() => {})),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: fr.join.notYourEvening })).toBeDisabled(),
+    )
+    expect(readRememberedGuestSession()).not.toBeNull()
+  })
+
+  it('is available when nothing is being sent', () => {
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('button', { name: fr.join.notYourEvening })).toBeEnabled()
+  })
+
+  it('offers the way back to the code on a gallery the server says is gone, since a cookie from another event says the same', async () => {
+    renderUpload(
+      fakeApi({
+        myPhotos: vi.fn(async () => {
+          throw new ApiError(404, 'event.notFound')
+        }),
+      }),
+    )
+
+    expect(
+      await screen.findByRole('link', { name: fr.upload.galleryUnavailableAction }),
+    ).toHaveAttribute('href', '/join')
   })
 })

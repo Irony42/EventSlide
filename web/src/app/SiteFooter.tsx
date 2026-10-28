@@ -1,8 +1,20 @@
+import { Link, useLocation } from 'react-router-dom'
 import { cx } from '../design-system/classNames'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { NewTabLink } from './NewTabLink'
 import { useAbout } from './useAbout'
 import styles from './SiteFooter.module.css'
+
+/**
+ * The screens where following "À propos" in the **same** tab costs the reader nothing.
+ *
+ * Everywhere else the link opens a tab of its own, for the reason `NewTabLink` gives: the
+ * upload screen aborts its sends when it unmounts, and the host's forms keep unsaved
+ * edits. These screens hold nothing: the code entry, the feed and the page itself. The shared gallery is not one of them: coming back re-reads the album from its first page, and a reader deep in it would lose their place. Same
+ * tab is what an installed app needs (a new tab there has no Back, A7), and `/about` has a
+ * Back control of its own.
+ */
+const SAME_TAB_SAFE: readonly RegExp[] = [/^\/about$/, /^\/join(\/|$)/, /^\/e\/[^/]+\/photos$/]
 
 export interface SiteFooterProps {
   /**
@@ -63,7 +75,9 @@ export function SiteFooter({
   reportLink = false,
 }: SiteFooterProps) {
   const text = useTranslations()
+  const { pathname } = useLocation()
   const { sourceUrl, links } = useAbout()
+  const sameTab = SAME_TAB_SAFE.some((safe) => safe.test(pathname))
   const operatorLink = cx(styles['link'], styles['operatorLink'])
 
   return (
@@ -71,9 +85,15 @@ export function SiteFooter({
       <NewTabLink href={sourceUrl} className={styles['link']}>
         {text.about.sourceCode}
       </NewTabLink>
-      <NewTabLink href="/about" className={styles['link']}>
-        {text.about.aboutLink}
-      </NewTabLink>
+      {sameTab ? (
+        <Link to="/about" className={styles['link']}>
+          {text.about.aboutLink}
+        </Link>
+      ) : (
+        <NewTabLink href="/about" className={styles['link']}>
+          {text.about.aboutLink}
+        </NewTabLink>
+      )}
       {links.terms === undefined ? null : (
         <NewTabLink href={links.terms} className={operatorLink}>
           {text.about.termsLink}

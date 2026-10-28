@@ -19,6 +19,16 @@ import type {
  * reloads, and sending them back to the join screen for a reload would cost the photo.
  * Per tab, gone when the tab closes, and it holds nothing the guest could not already
  * read on the join card.
+ *
+ * **One copy outlives the tab: the last event, in `localStorage`** (navigation pass,
+ * finding A1). The installed app opens `/join`, a tab that has no session, and without a
+ * memory it asks for a code printed on a card the guest no longer holds. The copy is the
+ * very object the tab stores, so it carries nothing the session did not already hold: the
+ * event's public settings, the display name the guest chose to give, and the privacy
+ * notice's state. It is **one** entry, replaced by the next join and never a list of
+ * events visited, and it expires with the guest's cookie ({@link REMEMBERED_FOR_MS}). It is cleared by {@link forgetGuestSession} ("Ce n'est pas votre
+ * soirée ?"), and by the upload screen when the server says the guest's access is gone.
+ * It never holds the device token: that is an `HttpOnly` cookie this code cannot read.
  */
 
 export interface GuestSession {
@@ -250,14 +260,100 @@ const readSession = (value: unknown): GuestSession | null => {
   }
 }
 
-export const rememberGuestSession = (session: GuestSession): void => {
+const REMEMBERED_KEY = 'eventslide.guest.last'
+
+/**
+ * Writes are best effort, each on its own: Safari in private browsing throws on
+ * `sessionStorage` writes, a browser with site data blocked throws on both, and one failing
+ * must not stop the other from landing.
+ */
+const tryWrite = (storage: () => Storage, key: string, value: string): void => {
   try {
-    sessionStorage.setItem(keyFor(session.event.slug), JSON.stringify(session))
+    storage().setItem(key, value)
   } catch {
-    // Safari in private browsing throws on write. Losing the reload resilience is
-    // survivable; failing the join over it is not, and a QR code scanned from a
-    // messaging app opens in exactly that kind of browser.
+    // Losing the reload resilience is survivable; failing the join over it is not, and a QR
+    // code scanned from a messaging app opens in exactly that kind of browser.
   }
+}
+
+const tryRemove = (storage: () => Storage, key: string): void => {
+  try {
+    storage().removeItem(key)
+  } catch {
+    // Nothing to clean up in a browser that will not let us write.
+  }
+}
+
+const tryRead = (storage: () => Storage, key: string): string | null => {
+  try {
+    return storage().getItem(key)
+  } catch {
+    return null
+  }
+}
+
+const parseSession = (raw: string | null): GuestSession | null => {
+  if (raw === null) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  return readSession(parsed)
+}
+
+const inTab = (): Storage => sessionStorage
+const onDevice = (): Storage => localStorage
+
+/**
+ * How long the device keeps its memory of the last event: as long as the guest's cookie lives
+ * (`GUEST_COOKIE_MAX_AGE_MS` in the server's `publicRoutes.ts`, 36 hours).
+ *
+ * Past that the server no longer knows this phone, so resuming would open an upload screen only
+ * to be told so, and the guest's name and the event's settings would sit in `localStorage` on a
+ * possibly shared phone for as long as nobody cleared them. An older entry is **deleted when it
+ * is read**, so it does not outlive its usefulness by more than the next launch.
+ */
+export const REMEMBERED_FOR_MS = 36 * 60 * 60 * 1000
+
+interface Remembered {
+  readonly session: GuestSession
+  /** When the guest joined, in ms since the epoch: the one value added to what the session holds. */
+  readonly rememberedAt: number
+}
+
+const readRemembered = (now: number): Remembered | null => {
+  const raw = tryRead(onDevice, REMEMBERED_KEY)
+  if (raw === null) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    parsed = null
+  }
+  const session = readSession(parsed)
+  const rememberedAt: unknown =
+    typeof parsed === 'object' && parsed !== null ? field(parsed, 'rememberedAt') : undefined
+  if (
+    session === null ||
+    typeof rememberedAt !== 'number' ||
+    !Number.isFinite(rememberedAt) ||
+    now - rememberedAt >= REMEMBERED_FOR_MS
+  ) {
+    tryRemove(onDevice, REMEMBERED_KEY)
+    return null
+  }
+  return { session, rememberedAt }
+}
+
+/** The remembered last event, narrowed like every stored entry, or `null` (and gone when stale). */
+export const readRememberedGuestSession = (now: number = Date.now()): GuestSession | null =>
+  readRemembered(now)?.session ?? null
+
+export const rememberGuestSession = (session: GuestSession, now: number = Date.now()): void => {
+  tryWrite(inTab, keyFor(session.event.slug), JSON.stringify(session))
+  tryWrite(onDevice, REMEMBERED_KEY, JSON.stringify({ ...session, rememberedAt: now }))
 }
 
 /**
@@ -266,33 +362,58 @@ export const rememberGuestSession = (session: GuestSession): void => {
  * The upload screen re-reads the notice while it is open, and a reload should render
  * what it last learned rather than what the join said hours ago. A tab with no session
  * has nothing to update: it is on its way back to the join screen anyway.
+ *
+ * The device's "last event" is refreshed only when it is **this** event: a tab left open on
+ * an earlier evening must not take the memory back from the one the guest joined since. And its
+ * date stays the join's: reading a notice does not renew a cookie.
  */
-export const rememberPrivacyNotice = (slug: string, privacyNotice: PrivacyNoticeState): void => {
-  const session = readGuestSession(slug)
+export const rememberPrivacyNotice = (
+  slug: string,
+  privacyNotice: PrivacyNoticeState,
+  now: number = Date.now(),
+): void => {
+  const session = readGuestSession(slug, now)
   if (session === null) return
-  rememberGuestSession({ ...session, privacyNotice })
+  const next: GuestSession = { ...session, privacyNotice }
+  tryWrite(inTab, keyFor(slug), JSON.stringify(next))
+  const remembered = readRemembered(now)
+  if (remembered?.session.event.slug === slug) {
+    tryWrite(
+      onDevice,
+      REMEMBERED_KEY,
+      JSON.stringify({ ...next, rememberedAt: remembered.rememberedAt }),
+    )
+  }
 }
 
-export const readGuestSession = (slug: string): GuestSession | null => {
-  let raw: string | null
-  try {
-    raw = sessionStorage.getItem(keyFor(slug))
-  } catch {
-    return null
-  }
-  if (raw === null) return null
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  const session = readSession(parsed)
-  if (session === null) return null
+/**
+ * What this device knows about `slug`: this tab's own entry, else the remembered last event
+ * if it is that very event.
+ *
+ * The fallback is what turns a reopened tab, a bookmark or the installed app's icon into the
+ * upload screen instead of a request for a code. It is matched on the slug, never handed out
+ * for another event: the address is what the guest asked for.
+ */
+export const readGuestSession = (slug: string, now: number = Date.now()): GuestSession | null => {
   // The key already contains the slug, so a mismatch means the entry was hand-edited
   // or written by another build. Refusing it sends the guest through the join screen
   // instead of showing them somebody else's event name — the 1.0 QR bug in miniature.
-  if (session.event.slug !== slug) return null
-  return session
+  const own = parseSession(tryRead(inTab, keyFor(slug)))
+  if (own !== null && own.event.slug === slug) return own
+  const remembered = readRememberedGuestSession(now)
+  return remembered !== null && remembered.event.slug === slug ? remembered : null
+}
+
+/**
+ * "Ce n'est pas votre soirée ?": this device stops treating `slug` as the guest's event, and
+ * forgets whichever event it remembered.
+ *
+ * Clears the tab's entry **and the device's, whichever event that names**: a guest saying "not
+ * mine" on a screen the device did not remember would otherwise be carried straight back to the
+ * one it did. The guest's `HttpOnly` cookie is the server's and stays: the next join replaces
+ * it, and it opens nothing outside the event that issued it.
+ */
+export const forgetGuestSession = (slug: string): void => {
+  tryRemove(inTab, keyFor(slug))
+  tryRemove(onDevice, REMEMBERED_KEY)
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Link, Route, Routes } from 'react-router-dom'
 import { AboutPage } from './AboutPage'
 import { fr } from '../../lib/i18n/fr'
 import { SUPPORTED_LOCALES } from '../../lib/i18n/locale'
@@ -410,5 +412,30 @@ describe('AboutPage, the operator section', () => {
     expect(screen.getByText(text.operatorNameLabel)).toBeVisible()
     expect(screen.getByText(text.operatorContactLabel)).toBeVisible()
     expect(screen.getByRole('link', { name: new RegExp(text.termsLink) })).toBeVisible()
+  })
+})
+
+describe('AboutPage: a way back (A7)', () => {
+  it('walks the history when the reader came from a screen of this app', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<Link to="/about">to about</Link>} />
+        <Route path="/about" element={<AboutPage />} />
+      </Routes>,
+      { api: silentServer(), route: '/' },
+    )
+    await userEvent.click(screen.getByRole('link', { name: 'to about' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.about.back }))
+
+    expect(screen.getByRole('link', { name: 'to about' })).toBeVisible()
+  })
+
+  it('offers the front door when the page was opened in a tab of its own', () => {
+    // Nothing is behind it: a Back button here would do nothing, or leave the app.
+    renderWithProviders(<AboutPage />, { api: silentServer() })
+
+    expect(screen.getByRole('link', { name: fr.about.home })).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('button', { name: fr.about.back })).toBeNull()
   })
 })

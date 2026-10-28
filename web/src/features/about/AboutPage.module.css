@@ -69,3 +69,13 @@
   align-items: center;
   min-height: var(--touch-min);
 }
+
+/* Above the card, at the start of the line: a thumb-sized way out of a page with no other. */
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  align-self: flex-start;
+  margin-block-end: var(--space-2);
+  font-weight: 600;
+}

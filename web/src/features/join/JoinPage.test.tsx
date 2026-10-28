@@ -3,12 +3,14 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { JoinPage } from './JoinPage'
+import { readRememberedGuestSession, rememberGuestSession } from '../../lib/guestSession'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import notice from '../../design-system/components/Notice.module.css'
 import { classesOf, cls } from '../../testing/classesOf'
 import {
   aJoinResponse,
+  aPrivacyNoticeState,
   aPublicEvent,
   fakeApi,
   renderWithProviders,
@@ -209,5 +211,142 @@ describe('JoinPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.join.submit }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.unknown)
+  })
+})
+
+/** What a browser answers when the page is running from the home-screen icon. */
+const asInstalledApp = (): void => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query: string) =>
+      ({
+        matches: query.includes('display-mode: standalone'),
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }) as unknown as MediaQueryList,
+  )
+}
+
+const havingJoined = (slug: string): void => {
+  rememberGuestSession({
+    event: aPublicEvent({ slug, name: 'Kermesse' }),
+    displayName: 'Léa',
+    privacyNotice: aPrivacyNoticeState(),
+  })
+  // The tab is gone; the device remembers.
+  sessionStorage.clear()
+}
+
+describe('JoinPage: the installed app reopens the event (A1)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+  })
+
+  it('goes straight back to the event the phone joined last, asking the server nothing', async () => {
+    havingJoined('kermesse')
+    asInstalledApp()
+    const api = fakeApi()
+
+    renderJoin('/join', api)
+
+    expect(await screen.findByRole('heading', { name: UPLOAD_SCREEN })).toBeVisible()
+    expect(api.join).not.toHaveBeenCalled()
+  })
+
+  it('stays an empty code entry in an ordinary browser tab', () => {
+    // A guest typing tomorrow's code in a tab must not be carried to last night's event.
+    havingJoined('kermesse')
+
+    renderJoin('/join', fakeApi())
+
+    expect(screen.getByLabelText(fr.join.codeLabel)).toHaveValue('')
+  })
+
+  it('asks for a code when the installed app has nothing remembered', () => {
+    asInstalledApp()
+
+    renderJoin('/join', fakeApi())
+
+    expect(screen.getByLabelText(fr.join.codeLabel)).toHaveValue('')
+  })
+
+  it('prefers a scanned code over what it remembers', async () => {
+    havingJoined('kermesse')
+    asInstalledApp()
+    const api = fakeApi({
+      join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Gala' }) })),
+    })
+
+    renderJoin('/join/H7K2QM', api)
+
+    expect(await screen.findByRole('heading', { name: fr.join.welcome('Gala') })).toBeVisible()
+    expect(api.join).toHaveBeenCalledWith('H7K2QM', null)
+  })
+})
+
+describe('JoinPage: a way out of the wrong event (A10)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+  })
+
+  it('goes back to an empty code entry and forgets the event it had just resolved', async () => {
+    const api = fakeApi({
+      join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),
+    })
+    renderJoin('/join/H7K2QM', api)
+    await screen.findByRole('heading', { name: fr.join.welcome('Kermesse') })
+
+    await userEvent.click(screen.getByRole('button', { name: fr.join.notYourEvening }))
+
+    expect(await screen.findByLabelText(fr.join.codeLabel)).toHaveValue('')
+    expect(readRememberedGuestSession()).toBeNull()
+    expect(api.join).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not offer it while the code is still being resolved or typed', () => {
+    renderJoin('/join', fakeApi())
+
+    expect(screen.queryByRole('button', { name: fr.join.notYourEvening })).toBeNull()
+  })
+})
+
+describe('JoinPage: a code that opens nothing (A9)', () => {
+  it('says the evening may not be open yet, or may be over, and what to do', async () => {
+    const api = fakeApi({
+      join: vi.fn(async () => {
+        throw new ApiError(404, 'event.notFound')
+      }),
+    })
+    renderJoin('/join/H7K2QM', api)
+
+    expect(await screen.findByText(fr.join.notOpenHint)).toBeVisible()
+    // Still the code box, still editable: one answer for every cause, so nothing more specific.
+    expect(screen.getByLabelText(fr.join.codeLabel)).toHaveValue('H7K2QM')
+  })
+
+  it('says nothing of the kind for a failure that is the network’s', async () => {
+    const api = fakeApi({
+      join: vi.fn(async () => {
+        throw ApiError.network()
+      }),
+    })
+    renderJoin('/join/H7K2QM', api)
+
+    await screen.findByRole('alert')
+    expect(screen.queryByText(fr.join.notOpenHint)).toBeNull()
+  })
+})
+
+describe('JoinPage: the organiser’s way in (H1)', () => {
+  it('links the code entry to the sign-in page, and asks the server nothing for it', () => {
+    const api = fakeApi()
+    renderJoin('/join', api)
+
+    expect(screen.getByRole('link', { name: fr.join.organiserLink })).toHaveAttribute(
+      'href',
+      '/login',
+    )
+    expect(api.session).not.toHaveBeenCalled()
+    expect(api.join).not.toHaveBeenCalled()
   })
 })
