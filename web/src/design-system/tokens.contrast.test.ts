@@ -159,8 +159,12 @@ const BLACK: Srgb = [0, 0, 0]
 const CUSTOM_POLARITIES = ['dark', 'light'] as const
 type CustomPolarity = (typeof CUSTOM_POLARITIES)[number]
 
-/** 0 to 345 every 15 degrees, and 359 to close the circle: the two ends of what the domain accepts. */
-const GRID: readonly number[] = [...Array.from({ length: 24 }, (_unused, step) => step * 15), 359]
+/**
+ * Every degree, 0 to 359: the whole of what the domain accepts. A « Sur mesure » accent answers to
+ * no status distance (ADR 0011, decision 8), so these bars are the only thing between any host's
+ * angle and an unreadable button, and a narrow bad band must not hide between grid points.
+ */
+const GRID: readonly number[] = [...Array.from({ length: 360 }, (_unused, step) => step)]
 /** The ground is swept at every degree: its tones are cheap to measure, and a narrow bad band must not hide between grid points. */
 const GROUND_HUES: readonly number[] = Array.from({ length: 360 }, (_unused, hue) => hue)
 
@@ -1297,12 +1301,12 @@ describe.each(CUSTOM_POLARITIES)(
       expect(ratio, `${label}: worst ${ratio.toFixed(2)} at ${where}`).toBeGreaterThanOrEqual(bar)
     }
 
-    it('sweeps 25 ground hues, closes the circle, and crosses them with every accent on the grid', () => {
-      expect(GRID).toHaveLength(25)
+    it('sweeps every one of the 360 ground hues and crosses them with every accent hue, reds included', () => {
+      expect(GRID).toHaveLength(360)
       expect(GRID[0]).toBe(0)
-      expect(GRID[23]).toBe(345)
-      expect(GRID[24]).toBe(359)
-      expect(accents.length).toBeGreaterThanOrEqual(25)
+      expect(GRID[359]).toBe(359)
+      expect(accents.length).toBeGreaterThanOrEqual(360)
+      expect(accents).toContain(22)
       expect(accents).toContain(defaultAccent)
     })
 

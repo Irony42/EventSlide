@@ -1164,7 +1164,7 @@ export const fr = {
       'De 0° à 359° : seule la teinte se choisit, la clarté est fixée pour que tout reste lisible.',
     customAccentHue: 'Couleur d’accent',
     customAccentHueHint:
-      'Certaines teintes sont refusées, car elles se confondraient avec les couleurs de réussite, d’alerte ou d’erreur, ou seraient illisibles sur l’écran de la salle. Si la vôtre l’est, l’enregistrement vous le dira et votre choix reste affiché.',
+      'Toutes les teintes sont permises, y compris celles qui rappellent le vert, le jaune ou le rouge de l’application : le texte du bouton reste lisible sur chacune, et une alerte garde toujours une icône et un mot.',
     customFaces: 'Typographie',
     customFacesHint:
       'Les polices et les angles des boutons de l’une des six ambiances, chacune montrée dans sa propre police.',
@@ -1525,7 +1525,7 @@ export const fr = {
     'eventTheme.accentUnreadable':
       'Cette couleur ne serait pas lisible à l’écran de la salle. Choisissez-en une dans la liste.',
     'eventTheme.accentTooCloseToStatus':
-      'Cette couleur ressemble trop aux couleurs d’état de l’application. Choisissez-en une autre dans la liste.',
+      'Cette couleur ressemble trop aux couleurs d’état de l’application. Choisissez une autre teinte.',
 
     /* ---- Added by the short video clips (docs/ROADMAP.md 1.4). They live here and not
             in a feature block because `messageForCode` resolves a server error code

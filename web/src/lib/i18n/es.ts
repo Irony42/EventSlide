@@ -464,7 +464,7 @@ export const es: UiText = {
     'eventTheme.accentUnreadable':
       'Ese color no sería legible en la pantalla de la sala. Elija uno de la lista.',
     'eventTheme.accentTooCloseToStatus':
-      'Ese color se parece demasiado a los colores de estado de la aplicación. Elija otro.',
+      'Ese color se parece demasiado a los colores de estado de la aplicación. Elija otro matiz.',
     'gallery.notAvailable': 'Este enlace ya no está disponible.',
     'gallery.passwordRequired': 'Este álbum está protegido con contraseña.',
     'gallery.wrongPassword': 'Contraseña incorrecta.',
@@ -983,7 +983,7 @@ export const es: UiText = {
       'De 0° a 359°: usted solo elige el matiz; la luminosidad es fija para que todo siga siendo legible.',
     customAccentHue: 'Color de acento',
     customAccentHueHint:
-      'Algunos matices se rechazan porque se confundirían con los colores de éxito, aviso o error, o no se leerían en la pantalla de la sala. Si el suyo es uno de ellos, al guardar se lo diremos y su elección seguirá en pantalla.',
+      'Se permite cualquier matiz, incluso los que recuerdan al verde, el amarillo o el rojo de la aplicación: el texto del botón sigue siendo legible en todos, y una alerta siempre lleva un icono y una palabra.',
     customFaces: 'Tipografía',
     customFacesHint:
       'Las fuentes y las esquinas de los botones de uno de los seis ambientes, cada uno mostrado con su propia fuente.',

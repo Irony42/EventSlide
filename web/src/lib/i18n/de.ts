@@ -497,7 +497,7 @@ export const de: UiText = {
     'eventTheme.accentUnreadable':
       'Diese Farbe wäre auf der Leinwand im Saal nicht lesbar. Wählen Sie eine aus der Liste.',
     'eventTheme.accentTooCloseToStatus':
-      'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie eine andere.',
+      'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie einen anderen Farbton.',
     'gallery.notAvailable': 'Dieser Link ist nicht mehr verfügbar.',
     'gallery.passwordRequired': 'Dieses Album ist durch ein Passwort geschützt.',
     'gallery.wrongPassword': 'Falsches Passwort.',
@@ -999,7 +999,7 @@ export const de: UiText = {
       'Von 0° bis 359°: Sie wählen nur die Tönung, die Helligkeit ist fest, damit alles lesbar bleibt.',
     customAccentHue: 'Akzentfarbe',
     customAccentHueHint:
-      'Manche Farbtöne werden abgelehnt, weil sie mit den Farben für Erfolg, Warnung oder Fehler verwechselt würden oder auf dem Bildschirm im Saal nicht lesbar wären. Trifft das auf Ihren zu, sagt Ihnen das Speichern es, und Ihre Auswahl bleibt stehen.',
+      'Alle Farbtöne sind erlaubt, auch solche, die an das Grün, Gelb oder Rot der Anwendung erinnern: Die Schrift auf der Schaltfläche bleibt bei jedem lesbar, und eine Warnung trägt immer ein Symbol und ein Wort.',
     customFaces: 'Schrift',
     customFacesHint:
       'Die Schriften und Schaltflächenecken einer der sechs Stimmungen, jede in ihrer eigenen Schrift gezeigt.',

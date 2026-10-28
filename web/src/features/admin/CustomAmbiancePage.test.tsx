@@ -130,7 +130,7 @@ describe('CustomAmbiancePage', () => {
 
   it('shows a refusal in words next to the button and keeps the draft as it was left', async () => {
     const updateSettings = vi.fn(async () => {
-      throw new ApiError(422, 'eventTheme.accentTooCloseToStatus')
+      throw new ApiError(422, 'eventTheme.accentUnreadable')
     })
     renderPage(fakeApi({ getEvent: vi.fn(async () => eventWith(CUSTOM_THEME)), updateSettings }))
     await screen.findByRole('heading', { name: fr.admin.customAmbianceTitle })
@@ -139,12 +139,50 @@ describe('CustomAmbiancePage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(fr.errors['eventTheme.accentTooCloseToStatus'])
+    expect(alert).toHaveTextContent(fr.errors['eventTheme.accentUnreadable'])
     expect(alert).toHaveTextContent(fr.admin.customKept)
     // Not corrected: the slider and the preview still wear the refused angle.
     expect(screen.getByLabelText(fr.admin.customAccentHue)).toHaveValue('125')
     expect(wallFrame()).toHaveAttribute('data-event-accent', '125')
   })
+
+  it('draws the swatch in the accent of the chosen polarity, not always the dark ground’s', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => eventWith(CUSTOM_THEME)) }))
+    await screen.findByRole('heading', { name: fr.admin.customAmbianceTitle })
+    const swatch = () =>
+      document.querySelector<HTMLElement>(
+        '[data-event-accent][aria-hidden="true"]:not([data-template-preview])',
+      )
+
+    // tokens.css derives the accent per polarity on [data-event-ambiance='custom'][data-ambiance-ground].
+    expect(swatch()).toHaveAttribute('data-event-ambiance', 'custom')
+    expect(swatch()).toHaveAttribute('data-ambiance-ground', 'light')
+    await userEvent.click(screen.getByRole('radio', { name: fr.admin.customGroundNames.dark }))
+    expect(swatch()).toHaveAttribute('data-ambiance-ground', 'dark')
+  })
+
+  it.each([22, 155, 85])(
+    'offers hue %i, a status-like colour, and sends it: a host-made theme answers to contrast only',
+    async (hue) => {
+      const updateSettings = vi.fn(async (_slug: string, _settings: unknown) =>
+        eventWith(CUSTOM_THEME),
+      )
+      renderPage(fakeApi({ getEvent: vi.fn(async () => eventWith(CUSTOM_THEME)), updateSettings }))
+      await screen.findByRole('heading', { name: fr.admin.customAmbianceTitle })
+
+      fireEvent.change(screen.getByLabelText(fr.admin.customAccentHue), {
+        target: { value: String(hue) },
+      })
+
+      expect(screen.getByRole('button', { name: fr.app.save })).toBeEnabled()
+      expect(screen.queryByRole('alert')).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+      await waitFor(() => expect(updateSettings).toHaveBeenCalledTimes(1))
+      expect((updateSettings.mock.calls[0]?.[1] as { theme: EventThemeDto }).theme.accentHue).toBe(
+        hue,
+      )
+    },
+  )
 
   it('can be read but not saved by a moderator', async () => {
     renderPage(

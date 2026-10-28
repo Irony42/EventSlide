@@ -450,7 +450,7 @@ export const en: UiText = {
     'eventTheme.accentUnreadable':
       'That colour would not be readable on the screen in the room. Choose one from the list.',
     'eventTheme.accentTooCloseToStatus':
-      'That colour is too close to the application’s status colours. Choose another one.',
+      'That colour is too close to the application’s status colours. Choose another hue.',
     'gallery.notAvailable': 'This link is no longer available.',
     'gallery.passwordRequired': 'This album is protected by a password.',
     'gallery.wrongPassword': 'Incorrect password.',
@@ -947,7 +947,7 @@ export const en: UiText = {
       'From 0° to 359°: only the tint is yours to choose; the lightness is fixed so everything stays readable.',
     customAccentHue: 'Accent colour',
     customAccentHueHint:
-      'Some hues are refused, because they would be mistaken for the success, warning or error colours, or could not be read on the room’s screen. If yours is one, saving will say so and your choice stays on screen.',
+      'Every hue is allowed, including ones close to the application’s green, yellow or red: the label on the button stays readable on each, and an alert always carries an icon and a word.',
     customFaces: 'Typeface',
     customFacesHint:
       'The fonts and button corners of one of the six ambiances, each shown in its own font.',

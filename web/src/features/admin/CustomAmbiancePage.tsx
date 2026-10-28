@@ -165,7 +165,7 @@ export function CustomAmbiancePage() {
               setFailure(null)
               setDraft({ ...draft, accentHue })
             }}
-            swatch
+            swatchGround={draft.custom.ground}
           />
 
           {/* The four curated accents, a click away: hues the server is known to accept. */}
@@ -264,12 +264,12 @@ interface HueSliderProps {
   readonly value: number
   readonly disabled: boolean
   readonly onChange: (value: number) => void
-  /** Draws the accent this angle makes, beside its value. */
-  readonly swatch?: boolean
+  /** Draws, beside the value, the accent this angle makes on this polarity (the tone the ground really wears). */
+  readonly swatchGround?: ThemeGround
 }
 
 /** A labelled range with its value written out: the angle is never only a position. */
-function HueSlider({ label, hint, value, disabled, onChange, swatch = false }: HueSliderProps) {
+function HueSlider({ label, hint, value, disabled, onChange, swatchGround }: HueSliderProps) {
   const id = useId()
   return (
     <div className={styles['group']}>
@@ -289,11 +289,13 @@ function HueSlider({ label, hint, value, disabled, onChange, swatch = false }: H
           aria-describedby={`${id}-hint`}
           onChange={(changed) => onChange(Number(changed.target.value))}
         />
-        {swatch ? (
+        {swatchGround !== undefined ? (
           <span
             className={styles['swatch']}
             aria-hidden="true"
             data-event-accent={String(value)}
+            data-event-ambiance="custom"
+            data-ambiance-ground={swatchGround}
             style={swatchStyle(value)}
           />
         ) : null}

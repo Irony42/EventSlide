@@ -476,7 +476,7 @@ export const it: UiText = {
     'eventTheme.accentUnreadable':
       'Questo colore non sarebbe leggibile sullo schermo in sala. Scegline uno dall’elenco.',
     'eventTheme.accentTooCloseToStatus':
-      'Questo colore somiglia troppo ai colori di stato dell’applicazione. Scegline un altro.',
+      'Questo colore somiglia troppo ai colori di stato dell’applicazione. Scegli un’altra tinta.',
     'gallery.notAvailable': 'Questo link non è più disponibile.',
     'gallery.passwordRequired': 'Questo album è protetto da password.',
     'gallery.wrongPassword': 'Password errata.',
@@ -962,7 +962,7 @@ export const it: UiText = {
       'Da 0° a 359°: scegli solo la tinta, la luminosità è fissa perché tutto resti leggibile.',
     customAccentHue: 'Colore d’accento',
     customAccentHueHint:
-      'Alcune tinte vengono rifiutate, perché sarebbero confuse con i colori di successo, avviso o errore, o non sarebbero leggibili sullo schermo della sala. Se la tua è una di queste, il salvataggio te lo dirà e la tua scelta resta visibile.',
+      'Ogni tinta è permessa, comprese quelle vicine al verde, al giallo o al rosso dell’applicazione: il testo del pulsante resta leggibile su ciascuna, e un avviso porta sempre un’icona e una parola.',
     customFaces: 'Carattere',
     customFacesHint:
       'I font e gli angoli dei pulsanti di una delle sei atmosfere, ciascuna mostrata nel proprio font.',
