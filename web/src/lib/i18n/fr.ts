@@ -1129,6 +1129,21 @@ export const fr = {
     shareLinkRevokeHint:
       'Personne ne pourra plus ouvrir l’album avec ce lien, même avec le mot de passe. Vous pourrez en créer un nouveau.',
     shareLinkRevoked: 'Le lien a été désactivé.',
+
+    /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
+    venuePhoto: 'Photo de votre lieu',
+    venuePhotoHint:
+      'Remplace la photo de la guinguette derrière l’écran de vos invités et celui de la salle. Elle est réduite et débarrassée de ses métadonnées, position GPS comprise, puis assombrie pour que le texte reste lisible.',
+    venuePhotoPreviewAlt: 'Aperçu de la photo de votre lieu',
+    venuePhotoDefault: 'Aucune photo de votre lieu : l’ambiance montre sa photo par défaut.',
+    venuePhotoChoose: 'Choisir une photo',
+    venuePhotoReplace: 'Remplacer la photo',
+    venuePhotoRemove: 'Revenir à la photo par défaut',
+    venuePhotoBusy: 'Envoi de la photo…',
+    venuePhotoSaved: 'La photo de votre lieu est enregistrée.',
+    venuePhotoRemoved: 'La photo par défaut est rétablie.',
+    venuePhotoSaveFirst:
+      'Enregistrez d’abord l’ambiance choisie : la photo de votre lieu se règle ensuite.',
   },
 
   auth: {
@@ -1540,6 +1555,11 @@ export const fr = {
     'upload.busy': 'Beaucoup d’envois sont en cours. Réessayez dans un instant.',
     'storage.boxFull':
       'Il n’y a plus assez de place pour enregistrer ce fichier. Prévenez l’organisateur.',
+    /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
+    'venuePhoto.ambianceHasNoPhotograph': 'Cette ambiance n’a pas de photo à remplacer.',
+    'venuePhoto.tooLarge': 'Cette photo est trop lourde, même réduite. Essayez-en une autre.',
+    'venuePhoto.notFound': 'Cette photo n’existe plus.',
+    'venuePhoto.saveFailed': 'La photo n’a pas pu être enregistrée. Réessayez.',
   },
 
   /**

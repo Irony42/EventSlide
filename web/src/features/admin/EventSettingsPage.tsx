@@ -4,6 +4,7 @@ import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
+import { hasPhotographedGround } from '../../design-system/eventTheme'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../lib/i18n/locale'
@@ -13,7 +14,9 @@ import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
+import { VenuePhotoField } from './components/VenuePhotoField'
 import { isMutable } from './eventLifecycle'
+import { toSettingsPatch } from './settingsPayload'
 import { toInstant, toLocalInput } from './eventSchedule'
 // Shared with the create form's template card, so the two screens cannot word the same
 // window differently.
@@ -228,7 +231,7 @@ export function EventSettingsPage() {
     submitEvent.preventDefault()
     setFailure(null)
 
-    void save.run('save', slug, settings).then((result) => {
+    void save.run('save', slug, toSettingsPatch(settings)).then((result) => {
       if (!result.ok) {
         setFailure(result.message)
         return
@@ -294,6 +297,7 @@ export function EventSettingsPage() {
         page="settings"
         eventName={event.name}
         ambiance={event.settings.theme.ambiance}
+        groundUrl={event.settings.theme.groundUrl}
       />
       <h1 className={styles['title']}>{t.admin.settings}</h1>
 
@@ -446,6 +450,22 @@ export function EventSettingsPage() {
           disabled={readOnly}
           onChange={(theme) => update({ theme })}
         />
+
+        {/*
+          The host's own photograph of the venue (ADR 0010, decision 8), for an ambiance that
+          photographs its ground. Judged on the **saved** ambiance, as the server judges the
+          upload: it is its own request and does not wait for the Save button below, so a form
+          that has changed ambiance and not saved it closes the control and says why.
+        */}
+        {hasPhotographedGround(event.settings.theme.ambiance) ? (
+          <VenuePhotoField
+            slug={slug}
+            groundUrl={event.settings.theme.groundUrl}
+            ambianceUnsaved={settings.theme.ambiance !== event.settings.theme.ambiance}
+            disabled={readOnly}
+            onChanged={replace}
+          />
+        ) : null}
 
         {failure === null ? null : (
           <Notice tone="danger" role="alert" variant="boxed">

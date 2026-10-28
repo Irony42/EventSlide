@@ -533,6 +533,8 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   createEvent: vi.fn(async () => anEventDto()),
   getEvent: vi.fn(async () => anEventDto()),
   updateSettings: vi.fn(async () => anEventDto()),
+  putVenuePhoto: vi.fn(async () => anEventDto()),
+  removeVenuePhoto: vi.fn(async () => anEventDto()),
   setEventStatus: vi.fn(async () => anEventDto()),
   setSchedule: vi.fn(async () => anEventDto()),
   rotateJoinCode: vi.fn(async () => anEventDto()),

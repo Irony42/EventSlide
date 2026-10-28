@@ -35,6 +35,8 @@ export interface HostBreadcrumbProps {
    * reads it with the event's name.
    */
   readonly ambiance?: ThemeAmbiance
+  /** The host's own photograph of the venue, when the page has the event (ADR 0010, decision 8). */
+  readonly groundUrl?: string | null | undefined
 }
 
 /**
@@ -65,9 +67,19 @@ export function HostBreadcrumb({
   eventName,
   compact = false,
   ambiance,
+  groundUrl,
 }: HostBreadcrumbProps) {
   if (eventName === undefined) return <FetchedTrail slug={slug} page={page} compact={compact} />
-  return <Trail slug={slug} page={page} name={eventName} compact={compact} ambiance={ambiance} />
+  return (
+    <Trail
+      slug={slug}
+      page={page}
+      name={eventName}
+      compact={compact}
+      ambiance={ambiance}
+      groundUrl={groundUrl}
+    />
+  )
 }
 
 /**
@@ -100,6 +112,7 @@ function FetchedTrail({
       name={name}
       compact={compact}
       ambiance={data?.settings.theme.ambiance}
+      groundUrl={data?.settings.theme.groundUrl}
     />
   )
 }
@@ -110,6 +123,7 @@ function Trail({
   name,
   compact,
   ambiance,
+  groundUrl,
 }: {
   readonly slug: string
   readonly page: HostEventPage
@@ -117,6 +131,7 @@ function Trail({
   readonly name: string | null
   readonly compact: boolean
   readonly ambiance: ThemeAmbiance | undefined
+  readonly groundUrl: string | null | undefined
 }) {
   const t = useTranslations()
   const eventPath = `${EVENTS_PATH}/events/${slug}`
@@ -128,7 +143,7 @@ function Trail({
 
   return (
     <>
-      <AmbianceMarker ambiance={ambiance} />
+      <AmbianceMarker ambiance={ambiance} groundUrl={groundUrl} />
       <nav
         aria-label={t.admin.breadcrumbLabel}
         className={cx(styles['nav'], compact && styles['compact'])}

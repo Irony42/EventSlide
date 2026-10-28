@@ -212,6 +212,37 @@ html::before {
     var(--ambiance-ground) center / cover no-repeat;
 }
 
+/**
+ * A host's own photograph of their venue in place of an ambiance's bundled ground (ADR 0010,
+ * decision 8). `html::before` above can only read the root's custom properties, and the photograph
+ * arrives as an inline one on the surface (or the marker) that is dressed, so that element paints
+ * its own fixed layer instead — the same layer, the same stack position, the same cover — and the
+ * root's is emptied so the bundled photograph is neither drawn under it nor downloaded.
+ *
+ * Painted in the same render as the element, so there is no frame in which the bundled photograph
+ * shows first. The template preview is excluded, as it is from every ambiance rule: it never
+ * carries a photograph, but it is the one place this must not be able to leak into.
+ */
+:root:has([data-venue-ground='guest']:not([data-template-preview]))::before {
+  background: none;
+}
+
+[data-venue-ground='guest']:not([data-template-preview])::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    var(--ambiance-grade),
+    var(--ambiance-ground) center / cover no-repeat;
+}
+
+/* The marker is an element to hang the layer on and takes no room of its own. */
+[data-ambiance-marker][data-venue-ground] {
+  display: contents;
+}
+
 /* Only for someone who has not asked for less motion, and never under the bulbs. */
 @media (prefers-reduced-motion: no-preference) {
   body:not(:has([data-event-ambiance='guinguette']))::before {

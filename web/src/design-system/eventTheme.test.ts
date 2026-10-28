@@ -86,6 +86,84 @@ describe('themeSurfaceProps', () => {
     }
   })
 
+  describe('the host’s own photograph of the venue (ADR 0010, decision 8)', () => {
+    const URL_PATH = `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`
+    const guinguette = (groundUrl: string | null) => aTheme({ ambiance: 'guinguette', groundUrl })
+
+    it.each(['guest', 'wall'] as const)(
+      'hands the %s surface the photograph as an inline custom property, JSON-quoted',
+      (surface) => {
+        const props = themeSurfaceProps(guinguette(URL_PATH), surface)
+
+        expect(props.style).toEqual({ '--ambiance-ground': `url("${URL_PATH}")` })
+        expect(props['data-venue-ground']).toBe(surface)
+        expect(props['data-event-ambiance']).toBe('guinguette')
+      },
+    )
+
+    it('keeps the accent hue on the same element, in the same style object', () => {
+      const props = themeSurfaceProps({ ...guinguette(URL_PATH), accentHue: 345 }, 'wall')
+
+      expect(props.style).toEqual({
+        '--accent-hue': '345',
+        '--ambiance-ground': `url("${URL_PATH}")`,
+      })
+    })
+
+    it('adds nothing for an event with no photograph, so the bundled one is untouched', () => {
+      const props = themeSurfaceProps(guinguette(null), 'guest')
+
+      expect(props).not.toHaveProperty('style')
+      expect(props).not.toHaveProperty('data-venue-ground')
+    })
+
+    it('adds nothing under an ambiance that paints no photograph, whatever the server sent', () => {
+      const props = themeSurfaceProps(aTheme({ groundUrl: URL_PATH }), 'wall')
+
+      expect(props).toEqual({})
+    })
+
+    it.each([
+      ['an absolute URL on another origin', 'https://evil.example/ground.png'],
+      ['a protocol-relative one', `//evil.example${URL_PATH}`],
+      ['a path that escapes', '/api/events/../venue-photo/' + 'ab'.repeat(32)],
+      ['a CSS break-out', `${URL_PATH}"); background: red; (`],
+      ['a digest in capitals', URL_PATH.toUpperCase()],
+      ['a short digest', '/api/events/camille-et-sacha/venue-photo/abcd'],
+    ])('refuses %s, because it is written into a CSS url()', (_name, groundUrl) => {
+      expect(themeSurfaceProps(guinguette(groundUrl), 'guest')).not.toHaveProperty('style')
+    })
+
+    it('is read back from storage only when it is a path this product mints', () => {
+      const stored = { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' }
+
+      expect(
+        readEventTheme({ ...stored, ambiance: 'guinguette', groundUrl: URL_PATH })?.groundUrl,
+      ).toBe(URL_PATH)
+      // Anything else is the bundled ground and never a refusal: a decoration must not send a
+      // guest back to the join screen mid-evening.
+      const odd = readEventTheme({
+        ...stored,
+        ambiance: 'guinguette',
+        groundUrl: 'https://evil.example/x',
+      })
+      expect(odd).not.toBeNull()
+      expect(odd).not.toHaveProperty('groundUrl')
+    })
+  })
+
+  it('paints the photograph only where the template preview is not', async () => {
+    // The preview carries `data-template-preview` and never a photograph, but it is the one
+    // place the layer must not be able to leak into, as with every ambiance rule.
+    const { default: base } = await import('./base.css?raw')
+    const rules = base.match(/[^{}]*\[data-venue-ground='guest'\][^{]*\{/g) ?? []
+
+    expect(rules.length).toBeGreaterThan(0)
+    for (const rule of rules.filter((candidate) => candidate.includes('::before'))) {
+      expect(rule).toContain(':not([data-template-preview])')
+    }
+  })
+
   it('emits no ambiance for the product’s own look', () => {
     expect(themeSurfaceProps(aTheme(), 'wall')).not.toHaveProperty('data-event-ambiance')
     expect(themeSurfaceProps(aTheme(), 'guest')).not.toHaveProperty('data-event-ambiance')

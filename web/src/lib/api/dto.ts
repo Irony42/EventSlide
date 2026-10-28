@@ -92,6 +92,15 @@ export interface EventThemeDto {
    */
   readonly material: ThemeMaterial
   readonly ambiance: ThemeAmbiance
+  /**
+   * Where the host's own photograph of their venue is served, replacing the ambiance's bundled
+   * ground (ADR 0010, decision 8), or `null`. A path on this origin that names the photograph's
+   * digest, so it changes when the photograph does.
+   *
+   * Optional on the client alone, and only because a theme a tab stored before this field
+   * existed has none: the server always sends it. `readEventTheme` is what lets one through.
+   */
+  readonly groundUrl?: string | null
 }
 
 /** What a guest may know about an event before and after joining. */

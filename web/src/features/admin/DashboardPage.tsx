@@ -193,5 +193,10 @@ export function DashboardPage() {
  */
 function SingleEventAmbiance({ slug }: { readonly slug: string }) {
   const event = useEvent(slug)
-  return <AmbianceMarker ambiance={event.data?.settings.theme.ambiance} />
+  return (
+    <AmbianceMarker
+      ambiance={event.data?.settings.theme.ambiance}
+      groundUrl={event.data?.settings.theme.groundUrl}
+    />
+  )
 }

@@ -475,6 +475,11 @@ export const es: UiText = {
 
     'upload.busy': 'Se están realizando muchos envíos. Inténtelo de nuevo en un momento.',
     'storage.boxFull': 'No queda espacio para guardar este archivo. Avise al organizador.',
+    /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
+    'venuePhoto.ambianceHasNoPhotograph': 'Este ambiente no tiene una foto que sustituir.',
+    'venuePhoto.tooLarge': 'Esta foto pesa demasiado, incluso reducida. Pruebe con otra.',
+    'venuePhoto.notFound': 'Esta foto ya no existe.',
+    'venuePhoto.saveFailed': 'No se ha podido guardar la foto. Inténtelo de nuevo.',
   },
 
   moderation: {
@@ -945,6 +950,21 @@ export const es: UiText = {
     shareLinkRevokeHint:
       'Nadie podrá volver a abrir el álbum con este enlace, ni siquiera con la contraseña. Podrá crear uno nuevo.',
     shareLinkRevoked: 'El enlace se ha desactivado.',
+
+    /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
+    venuePhoto: 'Foto de su local',
+    venuePhotoHint:
+      'Sustituye la foto de la guinguette detrás de la pantalla de sus invitados y la de la sala. Se reduce y se le quitan los metadatos, la posición GPS incluida, y luego se oscurece para que el texto siga siendo legible.',
+    venuePhotoPreviewAlt: 'Vista previa de la foto de su local',
+    venuePhotoDefault: 'Sin foto de su local: el ambiente muestra su foto por defecto.',
+    venuePhotoChoose: 'Elegir una foto',
+    venuePhotoReplace: 'Sustituir la foto',
+    venuePhotoRemove: 'Volver a la foto por defecto',
+    venuePhotoBusy: 'Enviando la foto…',
+    venuePhotoSaved: 'La foto de su local está guardada.',
+    venuePhotoRemoved: 'Se ha restablecido la foto por defecto.',
+    venuePhotoSaveFirst:
+      'Guarde primero el ambiente elegido: la foto de su local se ajusta después.',
   },
 
   auth: {

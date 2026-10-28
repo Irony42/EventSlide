@@ -146,7 +146,7 @@ export function JoinPage() {
     return (
       <>
         {/* The welcome is the first screen of the event: it wears its ambiance (ADR 0010). */}
-        <AmbianceMarker ambiance={event.theme.ambiance} />
+        <AmbianceMarker ambiance={event.theme.ambiance} groundUrl={event.theme.groundUrl} />
         <Card as="h1" title={t.join.welcome(event.name)} className={styles['card']}>
           <form className={styles['form']} onSubmit={handleSubmit} noValidate>
             {/*

@@ -359,7 +359,7 @@ describe('the route table and the router agree about what exists', () => {
     expect(glassBackdropFor('/admin/events/new')).toBe('ground')
     expect(glassBackdropFor('/admin/events/mariage-camille')).toBe('photo')
     expect(glassBackdropFor('/admin/events/mariage-camille/moderation')).toBe('photo')
-    expect(glassBackdropFor('/admin/events/mariage-camille/settings')).toBe('ground')
+    expect(glassBackdropFor('/admin/events/mariage-camille/settings')).toBe('photo')
     expect(glassBackdropFor('/join/ABCD')).toBe('ground')
     expect(glassBackdropFor('/e/mariage/upload')).toBe('photo')
   })

@@ -814,4 +814,111 @@ describe('EventSettingsPage', () => {
       expect(await screen.findByText(fr.admin.wallLanguageHint)).toBeVisible()
     })
   })
+
+  describe('the host’s own photograph of the venue (ADR 0010, decision 8)', () => {
+    const URL_PATH = `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`
+    const guinguette = (groundUrl: string | null, role: EventDto['role'] = 'owner'): EventDto =>
+      anEventDto({
+        role,
+        settings: eventSettings({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+            groundUrl,
+          },
+        }),
+      })
+
+    it('is offered under an ambiance whose ground is a photograph', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(null)) }))
+
+      expect(await screen.findByText(fr.admin.venuePhoto)).toBeVisible()
+      expect(screen.getByTestId('venue-photo-input')).toBeEnabled()
+    })
+
+    it('is not offered under the Chambre noire, which paints no photograph', async () => {
+      renderPage(fakeApi())
+
+      await screen.findByRole('heading', { name: fr.admin.settings })
+      expect(screen.queryByText(fr.admin.venuePhoto)).toBeNull()
+    })
+
+    it('shows the photograph that is stored', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH)) }))
+
+      expect(
+        await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt }),
+      ).toHaveAttribute('src', URL_PATH)
+    })
+
+    it('shows the new photograph as soon as the upload is answered, with no second read', async () => {
+      const putVenuePhoto = vi.fn(async () => guinguette(URL_PATH))
+      const getEvent = vi.fn(async () => guinguette(null))
+      renderPage(fakeApi({ getEvent, putVenuePhoto }))
+      await screen.findByText(fr.admin.venuePhoto)
+      const reads = getEvent.mock.calls.length
+
+      await userEvent.upload(
+        screen.getByTestId('venue-photo-input'),
+        new File(['x'], 'lieu.jpg', { type: 'image/jpeg' }),
+      )
+
+      expect(
+        await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt }),
+      ).toHaveAttribute('src', URL_PATH)
+      expect(getEvent.mock.calls.length).toBe(reads)
+    })
+
+    it('does not throw away what the host typed in the form when a photograph arrives', async () => {
+      const getEvent = vi.fn(async () => guinguette(null))
+      renderPage(fakeApi({ getEvent, putVenuePhoto: vi.fn(async () => guinguette(URL_PATH)) }))
+      await userEvent.selectOptions(await screen.findByLabelText(fr.admin.maxPhotosPerGuest), '25')
+
+      await userEvent.upload(
+        screen.getByTestId('venue-photo-input'),
+        new File(['x'], 'lieu.jpg', { type: 'image/jpeg' }),
+      )
+      await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt })
+
+      expect(screen.getByLabelText(fr.admin.maxPhotosPerGuest)).toHaveValue('25')
+    })
+
+    it('never sends the photograph’s URL with the settings, which the server would refuse', async () => {
+      const api = fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH)) })
+
+      renderPage(api)
+      await screen.findByText(fr.admin.venuePhoto)
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent?.theme).toEqual({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      })
+    })
+
+    it('is closed to a moderator, who may read but not change', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH, 'moderator')) }))
+
+      await screen.findByText(fr.admin.venuePhoto)
+      expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
+    })
+
+    it('is closed while the form holds an ambiance that has not been saved', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH)) }))
+      await userEvent.selectOptions(
+        await screen.findByLabelText(fr.admin.themeAmbiance),
+        'darkroom',
+      )
+
+      expect(screen.getByText(fr.admin.venuePhotoSaveFirst)).toBeVisible()
+      expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
+    })
+  })
 })

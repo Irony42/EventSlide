@@ -43,8 +43,9 @@ const ink = (name: string): Oklch => {
 
 /** The grade's stops, `oklch(… / alpha) position%`, in order down the page. */
 const gradeStops = (() => {
-  const grade = /--ambiance-grade:([\s\S]*?);/.exec(block)?.[1]
-  if (grade === undefined) throw new Error('the guinguette block declares no --ambiance-grade')
+  const grade = /--ambiance-grade-bundled:([\s\S]*?);/.exec(block)?.[1]
+  if (grade === undefined)
+    throw new Error('the guinguette block declares no --ambiance-grade-bundled')
   const stops = [...grade.matchAll(/oklch\(([^)]*)\/\s*([\d.]+)\)\s*(?:([\d.]+)%)?/g)]
   if (stops.length < 2) throw new Error('the grade is not a gradient of oklch stops')
   const colour = parseOklchTokens(`:root {
@@ -126,4 +127,68 @@ describe('text over the Guinguette’s photographed ground', () => {
       expect(ratio(luminanceOf(srgb(ink(name))), p99)).toBeGreaterThanOrEqual(bar)
     },
   )
+})
+
+/**
+ * A host's own photograph (ADR 0010, decision 8) is nobody's measured photograph, so the claim
+ * cannot be "the 99th percentile passes", it has to hold for **any** photograph. It does, and
+ * for the strongest possible reason: the venue grade is the bundled one plus one more coat of
+ * the same brown, and under that the inks pass over a ground that is **pure white**, the
+ * brightest thing a photograph can be. A photograph that is not white is only darker.
+ */
+describe('text over a host’s own photograph of their venue', () => {
+  const venueRule = (() => {
+    const found =
+      /\[data-event-ambiance='guinguette'\]\[data-venue-ground\]\s*\{([\s\S]*?)\n\}/.exec(TOKENS)
+    if (found?.[1] === undefined) throw new Error('tokens.css declares no venue-photo rule')
+    return found[1]
+  })()
+
+  const scrimAlpha = (() => {
+    const scrim = /--ambiance-scrim:\s*oklch\(([^)]*)\/\s*([\d.]+)\)/.exec(venueRule)
+    if (scrim?.[2] === undefined) throw new Error('the venue rule declares no --ambiance-scrim')
+    return Number(scrim[2])
+  })()
+
+  it('layers one more coat over the bundled grade and never replaces it', () => {
+    // Layered, not substituted: the venue grade can only be darker than the bundled one.
+    expect(venueRule).toMatch(/--ambiance-grade:\s*linear-gradient\(var\(--ambiance-scrim\)/)
+    expect(venueRule).toMatch(/var\(--ambiance-grade-bundled\)\s*;/)
+    expect(scrimAlpha).toBeGreaterThan(0)
+  })
+
+  it.each([
+    ['--text-primary', 4.5],
+    ['--text-secondary', 4.5],
+    ['--text-muted', 4.5],
+  ] as const)('keeps %s above %s:1 even over a pure white photograph', (name, bar) => {
+    const [gr, gg, gb] = gradeStops.colour
+    let worst = Number.POSITIVE_INFINITY
+    // Every row of the top half of the page, where the text sits on the ground itself.
+    for (let step = 0; step <= 50; step++) {
+      const bundled = alphaAt(step / 100)
+      // Two coats composited: the scrim over the photograph, then the bundled grade over that.
+      const a = 1 - (1 - bundled) * (1 - scrimAlpha)
+      const white = 1
+      const graded: Srgb = [
+        gr * a + white * (1 - a),
+        gg * a + white * (1 - a),
+        gb * a + white * (1 - a),
+      ]
+      worst = Math.min(worst, ratio(luminanceOf(srgb(ink(name))), luminanceOf(graded)))
+    }
+    expect(worst).toBeGreaterThanOrEqual(bar)
+  })
+
+  it('is needed: the bundled grade alone does not hold the muted ink over pure white', () => {
+    // The mutation that proves the coat earns its place. Remove it and this is the failure.
+    const [gr, gg, gb] = gradeStops.colour
+    let worst = Number.POSITIVE_INFINITY
+    for (let step = 0; step <= 50; step++) {
+      const a = alphaAt(step / 100)
+      const graded: Srgb = [gr * a + (1 - a), gg * a + (1 - a), gb * a + (1 - a)]
+      worst = Math.min(worst, ratio(luminanceOf(srgb(ink('--text-muted'))), luminanceOf(graded)))
+    }
+    expect(worst).toBeLessThan(4.5)
+  })
 })

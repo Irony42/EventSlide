@@ -508,6 +508,11 @@ export const de: UiText = {
     'upload.busy': 'Es laufen gerade viele Uploads. Versuchen Sie es gleich noch einmal.',
     'storage.boxFull':
       'Es ist kein Speicherplatz mehr frei, um diese Datei zu speichern. Sagen Sie dem Veranstalter Bescheid.',
+    /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
+    'venuePhoto.ambianceHasNoPhotograph': 'Diese Stimmung hat kein Foto, das sich ersetzen lässt.',
+    'venuePhoto.tooLarge': 'Dieses Foto ist auch verkleinert zu groß. Versuchen Sie ein anderes.',
+    'venuePhoto.notFound': 'Dieses Foto gibt es nicht mehr.',
+    'venuePhoto.saveFailed': 'Das Foto konnte nicht gespeichert werden. Versuchen Sie es erneut.',
   },
 
   moderation: {
@@ -961,6 +966,21 @@ export const de: UiText = {
     shareLinkRevokeHint:
       'Niemand kann das Album mit diesem Link mehr öffnen, auch nicht mit dem Passwort. Sie können einen neuen erstellen.',
     shareLinkRevoked: 'Der Link wurde deaktiviert.',
+
+    /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
+    venuePhoto: 'Foto Ihrer Location',
+    venuePhotoHint:
+      'Ersetzt das Foto der Guinguette hinter dem Bildschirm Ihrer Gäste und dem im Saal. Es wird verkleinert und von seinen Metadaten befreit, GPS-Position inklusive, und dann abgedunkelt, damit der Text lesbar bleibt.',
+    venuePhotoPreviewAlt: 'Vorschau des Fotos Ihrer Location',
+    venuePhotoDefault: 'Kein Foto Ihrer Location: Die Stimmung zeigt ihr Standardfoto.',
+    venuePhotoChoose: 'Foto auswählen',
+    venuePhotoReplace: 'Foto ersetzen',
+    venuePhotoRemove: 'Zurück zum Standardfoto',
+    venuePhotoBusy: 'Foto wird gesendet…',
+    venuePhotoSaved: 'Das Foto Ihrer Location ist gespeichert.',
+    venuePhotoRemoved: 'Das Standardfoto ist wieder da.',
+    venuePhotoSaveFirst:
+      'Speichern Sie zuerst die gewählte Stimmung: danach lässt sich das Foto Ihrer Location einstellen.',
   },
 
   auth: {

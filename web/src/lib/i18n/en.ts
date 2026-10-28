@@ -460,6 +460,11 @@ export const en: UiText = {
 
     'upload.busy': 'A lot of uploads are in progress. Try again in a moment.',
     'storage.boxFull': 'There is no room left to save this file. Let the organiser know.',
+    /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
+    'venuePhoto.ambianceHasNoPhotograph': 'This ambiance has no photo to replace.',
+    'venuePhoto.tooLarge': 'This photo is too heavy, even resized. Try another one.',
+    'venuePhoto.notFound': 'This photo no longer exists.',
+    'venuePhoto.saveFailed': 'The photo could not be saved. Try again.',
   },
 
   moderation: {
@@ -909,6 +914,20 @@ export const en: UiText = {
     shareLinkRevokeHint:
       'Nobody will be able to open the album with this link any more, even with the password. You can make a new one.',
     shareLinkRevoked: 'The link has been switched off.',
+
+    /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
+    venuePhoto: 'Photo of your venue',
+    venuePhotoHint:
+      'Replaces the Guinguette’s photo behind your guests’ screen and the room’s. It is resized and stripped of its metadata, GPS position included, then darkened so the text stays readable.',
+    venuePhotoPreviewAlt: 'Preview of your venue photo',
+    venuePhotoDefault: 'No photo of your venue: the ambiance shows its default photo.',
+    venuePhotoChoose: 'Choose a photo',
+    venuePhotoReplace: 'Replace the photo',
+    venuePhotoRemove: 'Go back to the default photo',
+    venuePhotoBusy: 'Uploading the photo…',
+    venuePhotoSaved: 'Your venue photo is saved.',
+    venuePhotoRemoved: 'The default photo is back.',
+    venuePhotoSaveFirst: 'Save the ambiance you chose first: your venue photo is set after that.',
   },
 
   auth: {

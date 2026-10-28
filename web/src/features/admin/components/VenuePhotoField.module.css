@@ -1,0 +1,82 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/**
+ * The photograph as the wall will crop it: a wide frame, `cover`. It is a preview of the file
+ * the server stored (the response's own URL), not of the one the browser picked, so what the
+ * host sees is what the guests will.
+ */
+.preview {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: calc(var(--space-8) * 5);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* The label is the button, with the real input stretched transparently over it, as in
+   `ClipComposer`: a `<div onClick>` forwarding to `input.click()` is unreachable by keyboard. */
+.pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pick:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.pick:has(.input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.busy {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

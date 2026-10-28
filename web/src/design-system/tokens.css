@@ -357,13 +357,14 @@
   --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
   /* Derived, not chosen: the lowest top alpha at which --text-muted keeps 4.5:1 over the 99th
      percentile of the photograph as a phone crops it (scripts/ambianceGround.test.ts); 0.79 fails. */
-  --ambiance-grade: linear-gradient(
+  --ambiance-grade-bundled: linear-gradient(
     180deg,
     oklch(16% 0.016 70 / 0.8),
     oklch(16% 0.016 70 / 0.78) 30%,
     oklch(16% 0.016 70 / 0.86) 65%,
     oklch(16% 0.016 70 / 0.96)
   );
+  --ambiance-grade: var(--ambiance-grade-bundled);
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   --wall-ambient: none;
@@ -383,6 +384,18 @@
   --glass-tint-ground: oklch(21% 0.02 70 / 0.95);
   --glass-border: oklch(96% 0.022 85 / 0.16);
   --glass-highlight: oklch(96% 0.022 85 / 0.1);
+}
+
+/* A host's own photograph in place of the Guinguette's (ADR 0010, decision 8). Nobody measured
+   it, so it is held to the bundled grade **plus one more coat of the same brown**: the photograph
+   may be anything, and the coat is what scripts/ambianceGround.test.ts proves keeps all three
+   inks above 4.5:1 even over a pure white ground. Declared on the element that carries the
+   photograph, so the wall's --wall-ground, which substitutes --ambiance-grade where it is
+   declared, picks the darker grade up with no rule of its own. */
+[data-event-ambiance='guinguette'][data-venue-ground] {
+  --ambiance-scrim: oklch(16% 0.016 70 / 0.3);
+  --ambiance-grade:
+    linear-gradient(var(--ambiance-scrim), var(--ambiance-scrim)), var(--ambiance-grade-bundled);
 }
 
 [data-event-accent] {
