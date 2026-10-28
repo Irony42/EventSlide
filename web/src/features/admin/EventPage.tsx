@@ -6,6 +6,7 @@ import { Card } from '../../design-system/components/Card'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { useToast } from '../../design-system/components/useToast'
 import { cx } from '../../design-system/classNames'
+import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { useAbout } from '../../app/useAbout'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
@@ -84,13 +85,22 @@ export function EventPage() {
   }
 
   if (loading) return <Pending label={t.admin.eventLoading} />
-  if (error !== null) return <LoadFailure message={error} onRetry={reload} as="h1" />
-  if (event === null) return <LoadFailure message={t.errors.unknown} onRetry={reload} as="h1" />
+  // A page that failed to load is still a dead end without the way out: a mistyped or revoked
+  // address is exactly when the host needs the list.
+  if (error !== null || event === null) {
+    return (
+      <div className={styles['page']}>
+        <HostBreadcrumb slug={slug} page="event" eventName={null} />
+        <LoadFailure message={error ?? t.errors.unknown} onRetry={reload} as="h1" />
+      </div>
+    )
+  }
 
   const isOwner = event.role === 'owner'
 
   return (
     <div className={styles['page']}>
+      <HostBreadcrumb slug={event.slug} page="event" eventName={event.name} />
       <header className={styles['header']}>
         <h1 className={styles['title']}>{event.name}</h1>
         <div className={styles['facts']}>
