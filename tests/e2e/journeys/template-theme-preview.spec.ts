@@ -42,6 +42,16 @@ test('each template card shows its own colour, typography and photo corners', as
   expect(await computed(preview('conference'), '--accent')).toContain('250')
   expect(await computed(preview('none'), '--accent')).toContain('305')
 
+  // The swatch is what paints the accent: the root carrying `--accent` is not the same fact as
+  // something using it, and a stylesheet that stopped reading it would leave the colour right
+  // on the element and absent from the page.
+  const swatch = (key: string): Locator => preview(key).locator('[data-preview-accent]')
+  const rose = await computed(swatch('wedding'), 'background-color')
+  const azure = await computed(swatch('conference'), 'background-color')
+  const violet = await computed(swatch('none'), 'background-color')
+  expect(new Set([rose, azure, violet]).size).toBe(3)
+  expect(await computed(swatch('birthday'), 'background-color')).toBe(violet)
+
   // Corners: round > the product's own > square, which is the order of the names the cards
   // print ("Coins très arrondis" for a wedding, "Coins droits" for a conference).
   const round = await px(photo('wedding').first(), 'border-top-left-radius')

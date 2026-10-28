@@ -790,6 +790,14 @@ caught it.
 | Guest   | yes    | no           | no          | yes      |
 | Host    | no     | no           | no          | no       |
 
+One deliberate exception to the Host row: the **template miniatures** on the create form
+(`/admin/events/new`, `TemplateThemePreview`). Each is a small, `aria-hidden` element that
+spreads `themeSurfaceProps(theme, 'wall')` for the template it sits beside, so the host sees the
+accent, the heading face and the photo corners a template would give _before_ choosing it. The
+attributes sit on that element only — the console around it stays unthemed — and the panel in the
+miniature is painted `--surface-raised` rather than wearing the glass sheet (§13), because every
+template sets the default material and a still box shows no blur.
+
 \* and it changes nothing there, for the reason §13 gives: the room has already given the
 material up on every machine, so the marker the wall carries states a choice that was
 already in force. It is carried anyway, because the wall wears the event's look and a

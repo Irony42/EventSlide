@@ -17,7 +17,7 @@ import type { EventTemplateKey } from '../../../lib/api/dto'
  * `data-event-fonts`, `data-event-frame` and `data-glass`. Every colour, face and corner
  * below then resolves through `tokens.css` exactly as it does in the room — the accent
  * through `var(--accent)`, the heading through `var(--font-display)`, the photographs'
- * corners through `var(--wall-frame-radius)` and the panel through the glass material. This
+ * corners through `var(--wall-frame-radius)`. The panel is the one part that is not worn, below. This
  * file and its stylesheet hold no value of their own, so a new frame style or a changed
  * palette reaches the preview in the same commit it reaches the wall, and cannot drift.
  *
@@ -66,7 +66,7 @@ export function TemplateThemePreview({ template }: TemplateThemePreviewProps) {
     >
       <div className={styles['panel']}>
         <span className={styles['heading']}>{t.admin.templatePreviewSample}</span>
-        <span className={styles['accent']} />
+        <span className={styles['accent']} data-preview-accent />
       </div>
       <div className={styles['photos']}>
         {PHOTOS.map((slot) => (
