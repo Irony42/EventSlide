@@ -3,7 +3,7 @@
 ## Status
 
 Proposed, with a prototype on `feat/ambiances-proto`. The field, its storage, its wire shape, the
-picker, the root palette and one festive ambiance (Guinguette) are built and tested. **Not built**, and
+picker, the root palette and one festive ambiance (Guinguette) are built and tested, and since 28/10 so is the host's own venue photograph (decision 8a). **Not built**, and
 said so: the ambiance-specific wall layouts (the Guinguette's clothesline, the Chambre noire's
 contact sheet), the ornaments on the wall's join card, the marker strokes in the moderation console,
 the derivation of the Guinguette's glass alphas (set conservatively above the root's for now), a
@@ -67,7 +67,47 @@ ground, kraft, filament bulbs, linen gingham). Pierre asked whether several coul
 8. **An ambiance may photograph its ground.** The Guinguette champêtre ships one photograph of
    string lights in a garden at dusk (Unsplash licence, credited in `web/public/licenses/`, 25 KB
    in WebP) behind the guest's page and the wall, under a grade that keeps text legible. A host
-   uploading a photograph of their own venue is the natural next step and is not built.
+   may replace it with a photograph of their own venue, uploaded once per event: see
+   "Decision 8a" below.
+
+8a. **A host's own venue photograph** (28/10). An owner uploads one photograph in the event's
+settings, for an ambiance that photographs its ground (`hasPhotographedGround`, today the
+Guinguette); it replaces the bundled one on the guest's page, on the wall and behind the host's
+own pages, and removing it brings the bundled one back.
+
+- _Where it lives._ `EventSettings.venuePhoto`, a SHA-256 digest **beside the theme**, not in it:
+  a theme is replaced whole by `PATCH /settings`, and a host changing an accent must not be able
+  to drop a photograph that arrives by its own route. The wire carries it as
+  `theme.groundUrl`, which the settings schema refuses to read back.
+- _The file._ The existing upload safety, unchanged in kind: format by magic bytes, pixel budget
+  from the header, `rotate()` before resize, **all metadata stripped** (a venue photograph carries
+  the venue's GPS position), 1600 px WebP at quality 60, re-encoded and never passed through,
+  stored as `<event>/ground/<ab>/<sha256>.webp` and served only through the application, only
+  while the settings name that digest. It is a `ground` media variant outside the variants a
+  photograph's route can name.
+- _Quota._ Not counted: the quota guards guests' photographs and is enforced in a transaction
+  over their rows; one file per event, replaced in place and bounded at 1 MiB cannot exhaust it,
+  and counting it would let a decoration refuse a guest. The reconciliation sweep, the backup and
+  the purge script all know that the settings name a file no row does.
+- _Legibility._ The photograph is nobody's measured photograph, so it is **not** held to the
+  derived per-photograph grade, and no per-photo measurement is attempted. It is held to something
+  stronger and simpler: the bundled grade plus one more coat of the same brown
+  (`--ambiance-scrim`, 0.30), and `scripts/ambianceGround.test.ts` proves all three inks keep
+  4.5:1 over a **pure white** photograph, the brightest a photograph can be, while the bundled
+  grade alone does not. Any real photograph is darker than that bound. What it does not promise is
+  that a venue photograph looks good under the grade, only that it cannot make the text unreadable.
+- _Painting without a flash._ `html::before` can only read the root's custom properties, so the
+  photograph travels as an **inline custom property on the element that is dressed** (the themed
+  surface, or the ambiance marker, which then is not `hidden`), set in the same render. That
+  element paints its own fixed `::before` with the same grade and stack position, the root's
+  bundled layer is emptied, and the wall's `--wall-ground` picks it up through `tokens.css`
+  because it substitutes `--ambiance-grade` where it is declared. The template preview is
+  excluded like every ambiance rule. The URL is only accepted if it matches the path this product
+  mints, since it is written into a CSS `url()`.
+- _Not done, said so._ The shared gallery shows the bundled ground (its route is the wall's, which
+  an archived event does not serve). A projector that is already running learns of a new photograph
+  at its next playlist change or reload until `sameSettings` in the wall's playlist hook compares
+  `theme.groundUrl`; that hook belongs to the wall's own change and is recorded in the pull request.
 
 9. **What the Chambre noire wears beyond its palette**: the event's name in Instrument Serif at
    display size on the guest's phone, a film grain over the page ground, and two safelight leaks
