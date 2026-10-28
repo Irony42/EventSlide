@@ -3,6 +3,7 @@ import {
   isChunkLoadError,
   pageReload,
   reloadForStaleBundle,
+  serverReachable,
   STALE_BUNDLE_MARKER,
   STALE_BUNDLE_WINDOW_MS,
   surfaceOfPath,
@@ -26,6 +27,10 @@ describe('isChunkLoadError', () => {
     [
       'a host that answers the old address with index.html',
       'Failed to load module script: Expected a JavaScript module script',
+    ],
+    [
+      'Vite, for a stylesheet that is gone',
+      'Unable to preload CSS for /assets/WallPage-8c1d04.css',
     ],
     ['a webpack-style loader', 'Loading chunk 7 failed.'],
   ])('recognises the way %s says a chunk did not arrive', (_engine, message) => {
@@ -112,10 +117,41 @@ describe('surfaceOfPath', () => {
     ['/admin', 'host'],
     ['/admin/events/mariage/moderation', 'host'],
     ['/login', 'host'],
+    ['/invite/abc123', 'host'],
+    ['/password/reset/abc123', 'host'],
     ['/join/H7K2QM', 'guest'],
     ['/e/camille-et-sacha/upload', 'guest'],
     ['/', 'guest'],
   ] as const)('puts %s on the %s surface', (path, surface) => {
     expect(surfaceOfPath(path)).toBe(surface)
+  })
+})
+
+describe('serverReachable', () => {
+  it('is true when the server answers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 200 })),
+    )
+
+    expect(await serverReachable()).toBe(true)
+  })
+
+  it('is false when the server answers with a failure, as a proxy does with nothing behind it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 502 })),
+    )
+
+    expect(await serverReachable()).toBe(false)
+  })
+
+  it('is false when the request cannot be made at all', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))),
+    )
+
+    expect(await serverReachable()).toBe(false)
   })
 })

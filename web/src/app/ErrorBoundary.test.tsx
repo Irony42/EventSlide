@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ErrorBoundary } from './ErrorBoundary'
-import { pageReload, STALE_BUNDLE_MARKER, WALL_RETRY_DELAY_MS } from '../lib/crashRecovery'
+import {
+  pageReload,
+  STALE_BUNDLE_MARKER,
+  STALE_BUNDLE_WINDOW_MS,
+  WALL_RETRY_DELAY_MS,
+} from '../lib/crashRecovery'
 import { fr } from '../lib/i18n/fr'
 
 /** A child that fails on demand, so the recovery path can actually be exercised. */
@@ -271,6 +276,7 @@ describe('ErrorBoundary: the wall tries again by itself', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   /** Fails while `crashes.on` is true, so the test decides when the cause goes away. */
@@ -373,22 +379,67 @@ describe('ErrorBoundary: the wall tries again by itself', () => {
     log.mockRestore()
   })
 
-  it('reloads the page, not the tree, when the wall crashed on a chunk that is gone', () => {
+  it('reloads a wall whose chunk is gone only when the loop guard allows it, never sooner', async () => {
     const log = silenceReactErrorLog()
     const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
-    // A reload a moment ago already failed to cure it: the guard sends it to the timer.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 200 })),
+    )
+    // A reload a moment ago already failed to cure it: the guard refuses for a minute.
     sessionStorage.setItem(STALE_BUNDLE_MARKER, String(Date.now()))
     render(
       <ErrorBoundary surface="wall">
         <StaleChunk />
       </ErrorBoundary>,
     )
-    expect(reload).not.toHaveBeenCalled()
 
-    act(() => {
-      vi.advanceTimersByTime(WALL_RETRY_DELAY_MS)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STALE_BUNDLE_WINDOW_MS - 1)
     })
+    expect(reload).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeVisible()
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(WALL_RETRY_DELAY_MS)
+    })
+    expect(reload).toHaveBeenCalledTimes(1)
+    log.mockRestore()
+  })
+
+  it('does not reload a wall while the server cannot be reached, and keeps asking', async () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    const server = { up: false }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        if (!server.up) throw new TypeError('Failed to fetch')
+        return new Response(null, { status: 200 })
+      }),
+    )
+    // A reload 40 s ago did not cure it, so the guard still refuses at the first attempts and the
+    // server being down is what holds the reload back once the minute has passed.
+    sessionStorage.setItem(
+      STALE_BUNDLE_MARKER,
+      String(Date.now() - (STALE_BUNDLE_WINDOW_MS - 20_000)),
+    )
+    render(
+      <ErrorBoundary surface="wall">
+        <StaleChunk />
+      </ErrorBoundary>,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(WALL_RETRY_DELAY_MS * 2)
+    })
+    expect(reload).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toBeVisible()
+
+    server.up = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(WALL_RETRY_DELAY_MS)
+    })
     expect(reload).toHaveBeenCalledTimes(1)
     log.mockRestore()
   })

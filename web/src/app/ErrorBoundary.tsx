@@ -4,6 +4,7 @@ import {
   isChunkLoadError,
   pageReload,
   reloadForStaleBundle,
+  serverReachable,
   surfaceOfPath,
   WALL_RETRY_DELAY_MS,
   type CrashSurface,
@@ -68,6 +69,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   private retryTimer: ReturnType<typeof setTimeout> | null = null
+  private mounted = true
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { error }
@@ -99,7 +101,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (previousState.error !== null && this.state.error === null) this.clearRetry()
   }
 
+  override componentDidMount(): void {
+    // StrictMode unmounts and mounts a class once in development.
+    this.mounted = true
+  }
+
   override componentWillUnmount(): void {
+    this.mounted = false
     this.clearRetry()
   }
 
@@ -118,8 +126,28 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.clearRetry()
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null
-      this.handleReset()
+      this.retryByItself()
     }, WALL_RETRY_DELAY_MS)
+  }
+
+  /**
+   * The timed retry. A render error is simply rendered again. A chunk that is gone needs a new
+   * document, and that goes through the same guard as the first automatic reload (once a minute,
+   * never offline) and only once the server answers, so an unattended wall can neither loop on a
+   * broken build nor reload into the browser's error page. When it holds back it waits another
+   * delay and asks again.
+   */
+  private retryByItself(): void {
+    const { error } = this.state
+    if (error === null || !isChunkLoadError(error)) {
+      this.handleReset()
+      return
+    }
+    void serverReachable().then((reachable) => {
+      if (!this.mounted || this.state.error === null) return
+      if (reachable && reloadForStaleBundle()) return
+      this.scheduleRetry()
+    })
   }
 
   private readonly handleReset = () => {

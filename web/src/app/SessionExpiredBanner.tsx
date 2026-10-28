@@ -28,7 +28,6 @@ export function SessionExpiredBanner() {
 
   return (
     <div className={styles['banner']}>
-      ` {/* \`alert\`: the host must hear it now, and the node is inserted only when it is true. */}
       <Notice tone="warning" variant="boxed" role="alert">
         {t.shell.sessionExpired}{' '}
         <Link to="/login" state={{ from: `${pathname}${search}` }}>

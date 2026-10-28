@@ -30,6 +30,8 @@ const CHUNK_FAILURE = [
   /dynamically imported module/i,
   /importing a module script failed/i,
   /failed to load module script/i,
+  // Vite's own wrapper, thrown when a stale tab's stylesheet is gone before its script is tried.
+  /unable to preload/i,
   /loading (css )?chunk \S+ failed/i,
 ]
 
@@ -108,8 +110,32 @@ export type CrashSurface = 'guest' | 'host' | 'wall'
  */
 export const surfaceOfPath = (pathname: string): CrashSurface => {
   if (/^\/e\/[^/]+\/display\/?$/.test(pathname)) return 'wall'
-  if (pathname === '/login' || pathname === '/admin' || pathname.startsWith('/admin/')) {
+  // `HostLayout`'s addresses: the console, the sign-in, and the pages a link opens.
+  if (
+    pathname === '/login' ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    pathname.startsWith('/invite/') ||
+    pathname.startsWith('/password/')
+  ) {
     return 'host'
   }
   return 'guest'
+}
+
+/**
+ * Whether the server answers at all, asked with a request that costs nothing.
+ *
+ * The wall's timed retry asks it before reloading: a reload while the venue's network is down
+ * swaps the crash screen for the browser's own error page, which runs no script and so never
+ * recovers. `navigator.onLine` cannot say it, because a LAN with no route to the server still
+ * reports online.
+ */
+export const serverReachable = async (): Promise<boolean> => {
+  try {
+    const response = await fetch('/', { method: 'HEAD', cache: 'no-store' })
+    return response.ok
+  } catch {
+    return false
+  }
 }

@@ -41,7 +41,9 @@ export function NotFoundView() {
  *
  * The one request it makes is `GET /api/auth/me`, shared with the account menu and the gate when
  * the address is under `/admin`, so it is free there. It lives on the host layout only: the
- * guest layout's dead ends use {@link NotFoundView} and never ask.
+ * guest layout's own dead ends (`/join/*`, `/e/*`, `/g/*`) use {@link NotFoundView} and never ask.
+ * A guest on some other unmatched address (a card printed against an older shape) lands here and
+ * does pay that one small request; the guest screens themselves pay none.
  */
 export function HostNotFoundView() {
   const t = useTranslations()

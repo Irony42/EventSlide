@@ -121,6 +121,18 @@ describe('an expired session (H2)', () => {
     expect(vi.mocked(api.session).mock.calls.length).toBe(asked)
   })
 
+  it('is the notice and its link and nothing else: no stray text around them', async () => {
+    asHost('/admin')
+    await screen.findByRole('heading', { name: fr.admin.events })
+
+    act(() => announceSessionExpired())
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.parentElement?.textContent).toBe(
+      `${fr.shell.sessionExpired} ${fr.shell.sessionExpiredAction}`,
+    )
+  })
+
   it('says nothing on the sign-in page, where there is no session to have lost', async () => {
     asVisitor('/login')
     await screen.findByRole('heading', { name: fr.auth.title })
