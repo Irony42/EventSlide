@@ -23,8 +23,9 @@ class FakeResizeObserver {
   constructor(private readonly callback: () => void) {
     observers.push(this)
   }
+  /** Like the real one, it only hears of an element it was asked to watch. */
   fire(): void {
-    this.callback()
+    if (this.observe.mock.calls.length > 0) this.callback()
   }
 }
 
@@ -151,12 +152,14 @@ describe('useOversizedPane', () => {
   })
 
   it('stops listening once the pane is gone', () => {
+    const removed = vi.spyOn(window, 'removeEventListener')
     const { unmount } = render(<Pane />)
     const [observer] = observers
 
     unmount()
 
     expect(observer?.disconnect).toHaveBeenCalled()
+    expect(removed).toHaveBeenCalledWith('resize', expect.any(Function))
   })
 })
 

@@ -31,10 +31,17 @@ const PER_ROW = 100
 const observers: Array<{ fire: () => void }> = []
 
 class FakeResizeObserver {
+  private watching = false
   constructor(private readonly callback: () => void) {
-    observers.push({ fire: () => this.callback() })
+    observers.push({
+      fire: () => {
+        if (this.watching) this.callback()
+      },
+    })
   }
-  observe(): void {}
+  observe(): void {
+    this.watching = true
+  }
   unobserve(): void {}
   disconnect(): void {}
 }
