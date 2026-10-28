@@ -75,6 +75,19 @@ describe('themeSurfaceProps', () => {
     expect(themeSurfaceProps(theme, 'guest')['data-event-ambiance']).toBe('riviera')
   })
 
+  /** A selector list split on its own commas, not on the ones inside a :is() or a :has(). */
+  const topLevelCommas = (list: string): string[] => {
+    const parts: string[] = ['']
+    let depth = 0
+    for (const char of list) {
+      if (char === '(') depth++
+      if (char === ')') depth--
+      if (char === ',' && depth === 0) parts.push('')
+      else parts[parts.length - 1] += char
+    }
+    return parts
+  }
+
   it('keeps the guest ornaments off the wall, which carries its layout marker', async () => {
     // ADR 0010: a fixed string of bulbs over a projected photograph is the one place the
     // ornament would break principle 1, so the selector must exclude the wall.
@@ -87,7 +100,8 @@ describe('themeSurfaceProps', () => {
       .filter((selector) => selector.includes('data-event-ambiance'))
     // Five ambiances, each with at least one rule of its own, plus the shared skeleton.
     expect(rules.length).toBeGreaterThanOrEqual(10)
-    for (const selector of rules) {
+    // Every selector of a comma list, not the list: one bare member would put a strip on the wall.
+    for (const selector of rules.flatMap(topLevelCommas)) {
       expect(selector).toContain(':not(:has([data-wall-layout]))')
     }
     // The root look has no marker of its own: it is the body that holds no ambiance at all.

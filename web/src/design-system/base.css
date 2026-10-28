@@ -218,7 +218,8 @@ html::before {
   ):not(:has([data-wall-layout]))::after {
   position: fixed;
   inset-inline: 0;
-  z-index: var(--z-toast);
+  /* Under the sticky bars, the toasts and the dialogs, which must stay readable over a strip. */
+  z-index: var(--z-wall-caption);
   pointer-events: none;
 }
 
