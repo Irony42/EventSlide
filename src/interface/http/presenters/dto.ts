@@ -380,8 +380,8 @@ export interface EventSummaryDto {
   /**
    * What the caller is **in this event**: the one fact the dashboard needs to leave out the
    * lifecycle buttons a moderator's request would be refused (`403`). Whether a role may do a
-   * thing stays the domain's call (`canManageEvent`); the console holds a transcription of that
-   * rule, pinned against the domain by a test.
+   * thing stays the domain's call (`canManageEvent`); the console holds a hand-kept transcription of
+   * that rule (`web/src/features/admin/eventLifecycle.ts`), which states the domain test's facts.
    */
   readonly role: EventRole
 }

@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { LoadFailure } from '../../design-system/components/Async'

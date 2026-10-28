@@ -12,8 +12,16 @@ import { useLeaveWarning } from './useLeaveWarning'
 
 const MESSAGE = 'Quitter quand même ?'
 
-function Page({ active, links }: { readonly active: boolean; readonly links?: ReactNode }) {
-  useLeaveWarning(active, MESSAGE)
+function Page({
+  active,
+  links,
+  message = MESSAGE,
+}: {
+  readonly active: boolean
+  readonly links?: ReactNode
+  readonly message?: string
+}) {
+  useLeaveWarning(active, message)
   return <nav>{links}</nav>
 }
 
@@ -69,7 +77,7 @@ describe('useLeaveWarning', () => {
             <a href="/api/events/mariage/album.zip" download>
               Album
             </a>
-            <a href="https://example.org/">Ailleurs</a>
+            <a href="https://example.org/elsewhere">Ailleurs</a>
             <a href={`${window.location.pathname}#haut`}>Haut</a>
           </>
         }
@@ -80,11 +88,48 @@ describe('useLeaveWarning', () => {
     expect(confirm).not.toHaveBeenCalled()
   })
 
-  it('lets a modified click through: it opens a tab and leaves this one alone', () => {
-    render(<Page active links={<a href="/admin">Vos évènements</a>} />)
+  it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }])(
+    'lets a modified click through: it opens a tab or a window and leaves this one alone (%o)',
+    (modifier) => {
+      render(<Page active links={<a href="/admin">Vos évènements</a>} />)
 
-    expect(fireEvent.click(screen.getByRole('link'), { ctrlKey: true })).toBe(true)
+      expect(fireEvent.click(screen.getByRole('link'), modifier)).toBe(true)
+      expect(confirm).not.toHaveBeenCalled()
+    },
+  )
+
+  it('lets a link through that names another browsing context, whatever it is called', () => {
+    render(
+      <Page
+        active
+        links={
+          <a href="/admin" target="_top">
+            Vos évènements
+          </a>
+        }
+      />,
+    )
+
+    expect(click('Vos évènements')).toBe(true)
     expect(confirm).not.toHaveBeenCalled()
+  })
+
+  it('asks for another query on this very page, which is another screen', () => {
+    render(<Page active links={<a href={`${window.location.pathname}?autre=1`}>Filtre</a>} />)
+
+    confirm.mockReturnValueOnce(false)
+    expect(click('Filtre')).toBe(false)
+    expect(confirm).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks in the language now on screen', () => {
+    const { rerender } = render(<Page active links={<a href="/admin">Vos évènements</a>} />)
+    rerender(<Page active message="Leave anyway?" links={<a href="/admin">Vos évènements</a>} />)
+
+    confirm.mockReturnValueOnce(false)
+    click('Vos évènements')
+
+    expect(confirm).toHaveBeenCalledWith('Leave anyway?')
   })
 
   it('stops listening when the page goes', () => {

@@ -17,9 +17,11 @@ import type { MembershipRepository } from '../../ports/userRepository'
  * out the buttons that a moderator's request would only have answered `403`. The role is the
  * caller's own membership of that event, read through `listForUser`, every row of which is
  * `(eventId, caller)`: a membership of another event, or of another account, cannot colour a
- * row. A row the caller reaches by the `owner_id` column alone, with no membership row (a
- * fixture, or an account that predates memberships), is the owner's: that is how the
- * repository admitted it to the list.
+ * row. A row the caller reaches by the `owner_id` column alone has no membership row to read.
+ * `createWithOwner` always writes one, so on a real database that is a fixture or an account
+ * that predates memberships, and it is listed as the owner's because that column is how the
+ * repository admitted it. Note that `requireRole` has no such fallback: for such a row the
+ * event's own routes answer 404, whatever this says.
  */
 
 /** A dashboard row and the caller's role in it. */

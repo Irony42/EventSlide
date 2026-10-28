@@ -417,8 +417,8 @@ export interface EventSummaryDto {
   readonly createdAt: string
   /**
    * What the caller is in this event. The dashboard reads it to leave out the lifecycle buttons
-   * a moderator's request would be refused; `eventLifecycle.canManageEvent` is the transcription
-   * of the domain's rule.
+   * a moderator's request would be refused; `eventLifecycle.canManageEvent` is a hand-kept
+   * transcription of the domain's rule.
    */
   readonly role: EventRole
 }

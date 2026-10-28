@@ -107,6 +107,7 @@ export const isMutable = (status: EventStatus): boolean => status !== 'archived'
  *
  * **A presentation of the rule, not the rule.** The server still refuses the request
  * (`changeEventStatus` asks `requireEventRole(…, 'manage')`); this only keeps the console from
- * offering what it knows will be refused. `eventLifecycle.test.ts` pins it against the domain's.
+ * offering what it knows will be refused. `eventLifecycle.test.ts` states the same facts as the
+ * domain's own test (`eventRole.test.ts`); the two are kept alike by hand, as for the transitions.
  */
 export const canManageEvent = (role: EventRole): boolean => role === 'owner'

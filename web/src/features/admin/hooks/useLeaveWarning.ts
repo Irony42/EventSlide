@@ -14,6 +14,11 @@ import { useEffect } from 'react'
  * cancelled. It is the limit of "keep it simple", and the page says in words, beside the link,
  * that it will not be shown again.
  *
+ * **Known double prompt**: a same-origin plain `<a href>` that makes a full page load (the join
+ * link, a crash screen's home link) is asked here and then again by the browser's own
+ * `beforeunload`, because the two cannot be told apart from a router `Link`. Accepted: the
+ * question is the same one twice, only while an address is on screen that is shown nowhere else.
+ *
  * Links that cannot lose the page are let through: a new tab, a download, a modified click,
  * another address of the same page, and a different origin (which unloads, so `beforeunload`
  * has it).
@@ -44,8 +49,8 @@ export const useLeaveWarning = (active: boolean, message: string): void => {
         return
       }
       if (!window.confirm(message)) {
+        // The router's own links read `defaultPrevented` and do not navigate.
         event.preventDefault()
-        event.stopPropagation()
       }
     }
 

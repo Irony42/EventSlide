@@ -2475,7 +2475,9 @@ live, and it needs a role in the event to answer.
 `EventDto.role` carries. It is the caller's own membership of that event: another account's
 membership of it, or the caller's of another event, never colours a row, and no event outside
 the caller's own list appears whatever role is asked about. A row the caller reaches through
-the `owner_id` column with no membership row is the owner's. The console reads it to leave
+the `owner_id` column with no membership row (not something `POST /api/events` produces: it always
+writes the owner's membership) is listed as the owner's, though the event's own routes decide by
+membership alone and would answer it `404`. The console reads it to leave
 out the lifecycle buttons (go live, close, archive) that a moderator's request would be
 refused with `403 auth.forbidden`; the server still decides every one of those requests.
 

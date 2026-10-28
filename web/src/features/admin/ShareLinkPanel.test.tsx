@@ -193,6 +193,26 @@ describe('ShareLinkPanel', () => {
       await waitFor(() => expect(screen.queryByLabelText(fr.admin.shareLinkUrl)).toBeNull())
     })
 
+    it('asks again for a second link, which has not been copied either', async () => {
+      clipboard({ writeText: vi.fn(async () => undefined) })
+      render(fakeApi(withLink()))
+      const replace = async () => {
+        await userEvent.click(
+          await screen.findByRole('button', { name: fr.admin.shareLinkReplace }),
+        )
+        await screen.findByText(fr.admin.shareLinkCreated)
+      }
+      await replace()
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.shareLinkCopy }))
+      await screen.findByText(fr.admin.shareLinkCopied)
+      expect(leave()).toBe(false)
+
+      // "Replace" is offered while the first address is on screen: a new one, shown once.
+      await replace()
+
+      await waitFor(() => expect(leave()).toBe(true))
+    })
+
     it('says nothing about leaving when no link has been made on this page', async () => {
       render(fakeApi(withLink()))
       await screen.findByText(fr.admin.shareLinkReplaceHint)
