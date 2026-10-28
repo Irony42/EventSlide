@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../design-system/components/Button'
 import { ConfirmDialog } from '../design-system/components/ConfirmDialog'
 import { useToast } from '../design-system/components/useToast'
 import { useClientLimits } from '../features/admin/hooks/useClientLimits'
 import { useSignOut } from '../features/auth/hooks/useAuthActions'
 import { useTranslations } from '../lib/i18n/useTranslations'
+import { hereAsFrom } from '../lib/landing'
 import { useAbout } from './useAbout'
 import { useSession } from './useSession'
 import styles from './AccountMenu.module.css'
@@ -33,6 +34,17 @@ import styles from './AccountMenu.module.css'
  *   deliberately.
  * - **Change password**: the page that already existed and had no link to it.
  *
+ * **Security** (the second factor, H7) is offered when the box has a key to enrol with, or the
+ * account has already enrolled: `secondFactor.available || enrolled`. Until then the page was
+ * reachable only by typing its address, and for an operator the console's gate was the one link to it.
+ *
+ * **While the password must be changed** (`mustChangePassword`, H15) every address of the console
+ * leads back to the one page, so the menu offers no destination at all: it says why, and keeps the
+ * two ways out. The entry for the page itself goes too: the person is on it.
+ *
+ * **The entry for the page you are on is marked** (`aria-current="page"`, H17), and the links
+ * that leave for a page you may want to come back from (password, security) carry `from`.
+ *
  * A disclosure rather than an ARIA `menu`: a button that shows a short list of links and
  * buttons, every one of them a Tab stop. The `menu` pattern promises arrow-key roving that a
  * list of three does not need, and promising it without keeping it is worse than not.
@@ -51,13 +63,15 @@ export function AccountMenu() {
   const t = useTranslations()
   const { session } = useSession()
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
   const { signOut, signOutEverywhere, busy } = useSignOut()
   const panelId = useId()
   // The client's own space is offered to a member of a client, and to nobody else: the entry
   // exists only when the box has a client space (`features.siteAdmin`, read by the hook) and
   // the account is in one.
-  const { clients } = useClientLimits(session?.authenticated === true)
+  const mustChange = session?.authenticated === true && session.user.mustChangePassword
+  const { clients } = useClientLimits(session?.authenticated === true && !mustChange)
   const consoleExists = useAbout().features.siteAdmin
 
   const [open, setOpen] = useState(false)
@@ -92,6 +106,11 @@ export function AccountMenu() {
   }, [open, confirming])
 
   if (session === null || !session.authenticated) return null
+
+  // What a link to `target` is handed: where the person is, to come back to. From `target` itself
+  // it hands on what the page was given, so "Annuler" does not lead back to the page it is on.
+  const carry = (target: string) =>
+    location.pathname === target ? location.state : { from: hereAsFrom(location) }
 
   const leave = (result: Awaited<ReturnType<typeof signOut>>) => {
     if (result.ok) {
@@ -146,25 +165,68 @@ export function AccountMenu() {
       {open ? (
         <div id={panelId} className={styles['panel']}>
           <p className={styles['who']}>{t.auth.accountSignedInAs(session.user.email)}</p>
-          {/* Offered to every signed-in account: the list answers each one with the events it owns
-              or moderates, so there is no account for whom it is a dead end. It is the way to
-              "Nouvel évènement" from anywhere in the console. */}
-          <Link className={styles['item']} to="/admin" onClick={() => setOpen(false)}>
-            {t.admin.events}
-          </Link>
-          {consoleExists && session.user.canOperateSite ? (
-            <Link className={styles['item']} to="/admin/site" onClick={() => setOpen(false)}>
-              {t.site.menuLink}
-            </Link>
-          ) : null}
-          {clients.length > 0 ? (
-            <Link className={styles['item']} to="/admin/client" onClick={() => setOpen(false)}>
-              {t.clientSpace.spaceLink}
-            </Link>
-          ) : null}
-          <Link className={styles['item']} to="/admin/password" onClick={() => setOpen(false)}>
-            {t.auth.changePassword}
-          </Link>
+          {mustChange ? (
+            <p className={styles['who']}>{t.auth.menuMustChange}</p>
+          ) : (
+            <>
+              {/* Offered to every signed-in account: the list answers each one with the events it
+                  owns or moderates, so there is no account for whom it is a dead end. It is the
+                  way to "Nouvel évènement" from anywhere in the console. */}
+              <Link
+                className={styles['item']}
+                to="/admin"
+                aria-current={location.pathname === '/admin' ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                {t.admin.events}
+              </Link>
+              {consoleExists && session.user.canOperateSite ? (
+                <Link
+                  className={styles['item']}
+                  to="/admin/site"
+                  aria-current={
+                    location.pathname === '/admin/site' ||
+                    location.pathname.startsWith('/admin/site/')
+                      ? 'page'
+                      : undefined
+                  }
+                  onClick={() => setOpen(false)}
+                >
+                  {t.site.menuLink}
+                </Link>
+              ) : null}
+              {clients.length > 0 ? (
+                <Link
+                  className={styles['item']}
+                  to="/admin/client"
+                  aria-current={location.pathname === '/admin/client' ? 'page' : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  {t.clientSpace.spaceLink}
+                </Link>
+              ) : null}
+              {session.user.secondFactor.available || session.user.secondFactor.enrolled ? (
+                <Link
+                  className={styles['item']}
+                  to="/admin/security"
+                  state={carry('/admin/security')}
+                  aria-current={location.pathname === '/admin/security' ? 'page' : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  {t.auth.securityTitle}
+                </Link>
+              ) : null}
+              <Link
+                className={styles['item']}
+                to="/admin/password"
+                state={carry('/admin/password')}
+                aria-current={location.pathname === '/admin/password' ? 'page' : undefined}
+                onClick={() => setOpen(false)}
+              >
+                {t.auth.changePassword}
+              </Link>
+            </>
+          )}
           <button type="button" className={styles['item']} onClick={handleSignOut}>
             {t.auth.logout}
           </button>

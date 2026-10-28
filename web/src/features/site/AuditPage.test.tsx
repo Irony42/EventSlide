@@ -154,7 +154,10 @@ describe('the console’s log', () => {
     const api = withLog([aSiteAuditEntry()])
     openConsole(`/admin/site/audit?clientId=${CLIENT_ID}`, api)
 
-    expect(await screen.findByText(fr.site.auditFiltered)).toBeVisible()
+    // It names the client, from the listing, and not only that there is a filter.
+    expect(
+      await screen.findByText(fr.site.auditFilteredFor('Atelier Alpha'), { exact: false }),
+    ).toBeVisible()
     // The request is made in an effect, after the heading is on screen: wait for it, do not race it.
     await waitFor(() =>
       expect(api.siteAudit).toHaveBeenCalledWith({ clientId: CLIENT_ID }, expect.anything()),
@@ -187,7 +190,7 @@ describe('the console’s log', () => {
     await screen.findByRole('listitem')
 
     expect(api.siteAudit).toHaveBeenCalledWith({}, expect.anything())
-    expect(screen.queryByText(fr.site.auditFiltered)).toBeNull()
+    expect(screen.queryByText(/Journal du client/)).toBeNull()
   })
 
   it('reads older lines with the bound the server gave, and keeps the lines already read', async () => {

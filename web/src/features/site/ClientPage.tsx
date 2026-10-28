@@ -59,9 +59,14 @@ export function ClientPage() {
           <InviteForm clientId={client.id} />
           <OffboardCard client={client} onChanged={reload} />
           <ClientEvents clientId={client.id} />
-          <p>
+          <p className={styles['more']}>
             <Link className={styles['back']} to={`/admin/site/audit?clientId=${client.id}`}>
               {t.site.auditLink}
+            </Link>
+            {/* The accounts that sign in to this client are in the accounts listing, where each
+                one names the clients it belongs to: Clients and Comptes lead to one another. */}
+            <Link className={styles['back']} to="/admin/site/accounts">
+              {t.site.accountsLink}
             </Link>
           </p>
         </>

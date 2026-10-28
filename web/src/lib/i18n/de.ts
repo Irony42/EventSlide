@@ -1059,6 +1059,26 @@ export const de: UiText = {
     logoutEverywhereTitle: 'Überall abmelden?',
     logoutEverywhereHint:
       'Ihre Sitzung wird auf allen Geräten beendet, auch auf diesem, und Sie müssen sich erneut anmelden. Sinnvoll, wenn Sie ein Gerät verloren oder einen gemeinsam genutzten Computer verwendet haben.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'Sie sind bereits angemeldet. Weiterleitung …',
+    forgotNoMail:
+      'Passwort vergessen? Dieser Server versendet keine E-Mails: Bitten Sie die Person, die ihn betreibt, es zurückzusetzen.',
+    changePasswordForced:
+      'Ihr Passwort wurde für Sie festgelegt: Ersetzen Sie es, bevor Sie weitermachen. Danach geht es dort weiter, wohin Sie wollten.',
+    menuMustChange:
+      'Ändern Sie zuerst Ihr Passwort: Der Rest der Konsole bleibt bis dahin geschlossen.',
+    securityBack: 'Zurück',
+    secondFactorEnabled: 'Bestätigung in zwei Schritten aktiviert.',
+    recoveryCodesLeaveTitle: 'Verlassen, ohne die Codes notiert zu haben?',
+    recoveryCodesLeaveHint:
+      'Diese Codes werden nur einmal angezeigt: Wenn Sie die Seite verlassen, können Sie sie nicht mehr lesen. Neue Codes erhalten Sie nur nach erneuter Bestätigung Ihrer Identität.',
+    recoveryCodesLeaveStay: 'Bleiben und Codes notieren',
+    recoveryCodesLeaveGo: 'Trotzdem verlassen',
+    deadInvitationSignIn:
+      'Falls Sie sie schon angenommen haben, besteht Ihr Konto bereits: Melden Sie sich an.',
+    deadInvitationSignedIn:
+      'Sie sind bereits angemeldet: Falls Sie sie mit diesem Konto angenommen haben, finden Sie Ihre Veranstaltungen dort.',
   },
 
   mobileModeration: {
@@ -1361,8 +1381,19 @@ export const de: UiText = {
       'Alles, was auf der Instanz getan wurde, das Neueste zuerst. Der Grund einer Änderung der Grenzen ist der eigene Satz des Betreibers.',
     auditEmpty: 'Noch keine Aktion aufgezeichnet.',
     auditMore: 'Ältere Aktionen anzeigen',
-    auditFiltered: 'Protokoll eines einzelnen Kunden.',
     auditShowAll: 'Gesamtes Protokoll anzeigen',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Konsole verlassen',
+    accountsLink: 'Alle Konten ansehen',
+    noClient: 'Keine',
+    auditFilteredFor: (name: string) => `Protokoll des Kunden „${name}“.`,
+    auditToClient: 'Diesen Kunden ansehen',
+    linkLeaveTitle: 'Verlassen, ohne den Link kopiert zu haben?',
+    linkLeaveHint:
+      'Es wurde keine E-Mail gesendet: Dieser Link wird nur hier angezeigt, ein einziges Mal. Wenn Sie die Seite verlassen, können Sie ihn nicht mehr kopieren; Sie müssen einen neuen ausstellen.',
+    linkLeaveStay: 'Bleiben und Link kopieren',
+    linkLeaveGo: 'Trotzdem verlassen',
     auditReason: (reason: string) => `Grund: ${reason}`,
     auditAccount: (short: string) => `Konto ${short}`,
     actors: {

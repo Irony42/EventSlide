@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useApi } from '../../app/useApi'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -10,8 +11,10 @@ import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './adminShared'
 import { ResetOutcome } from './components/ResetOutcome'
+import { useClientNames } from './hooks/useClientNames'
 import { useOperatorAction } from './hooks/useOperatorAction'
 import { usePagedList } from './hooks/usePagedList'
+import { shortId } from './siteLabels'
 import tables from './components/Table.module.css'
 import styles from './AccountsPage.module.css'
 import type { Locale } from '../../lib/i18n/locale'
@@ -47,6 +50,9 @@ export function AccountsPage() {
     [api],
   )
   const list = usePagedList(fetchPage)
+  // Each account names the clients it belongs to, as links: Comptes and Clients lead to one
+  // another. The id stands in for a name the listing could not give.
+  const clientName = useClientNames()
   const [acting, setActing] = useState<{
     readonly act: Act
     readonly account: SiteAccountDto
@@ -218,7 +224,24 @@ export function AccountsPage() {
                       : (formatDateTime(account.lastLoginAt, locale) ?? account.lastLoginAt)}
                   </td>
                   <td>{account.ownedEventCount}</td>
-                  <td>{account.clients.length}</td>
+                  <td>
+                    {account.clients.length === 0 ? (
+                      <span className={tables['muted']}>{t.site.noClient}</span>
+                    ) : (
+                      <ul className={styles['clients']}>
+                        {account.clients.map((membership) => (
+                          <li key={membership.clientId}>
+                            <Link
+                              className={styles['link']}
+                              to={`/admin/site/clients/${membership.clientId}`}
+                            >
+                              {clientName.get(membership.clientId) ?? shortId(membership.clientId)}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </td>
                   <td>
                     <div className={tables['actions']}>
                       {account.disabledAt === null ? (

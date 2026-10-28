@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { ChangePasswordPage } from './ChangePasswordPage'
+import { MustChangePasswordGate } from './MustChangePasswordGate'
 import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
-import { fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
+import { aSessionUser, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
+import type { SessionResponse } from '../../lib/api/dto'
 
 const DASHBOARD = 'Tableau de bord'
 
@@ -133,5 +135,123 @@ describe('ChangePasswordPage', () => {
     // A form with no address field: the sentence must not talk about one.
     expect(alert).toHaveTextContent(fr.auth.passwordIncorrect)
     expect(alert).not.toHaveTextContent(fr.errors['auth.invalidCredentials'])
+  })
+})
+
+/**
+ * Navigation pass, batch D (H14, H15): the change returns to where the person was going, says why
+ * when it was forced, and can be cancelled when it was not.
+ */
+describe('ChangePasswordPage: coming and going (H14)', () => {
+  const MODERATION = 'Console de modération'
+  const PASSWORD = { current: 'le-mot-de-passe-actuel', next: 'une-phrase-de-passe-solide' }
+
+  /** The page entered with a `from` in its state, as the gate and the account menu enter it. */
+  const enter = (api: Api, state: unknown) =>
+    renderWithProviders(
+      <Routes>
+        <Route path="/depart" element={<Navigate to="/admin/password" replace state={state} />} />
+        <Route path="/admin/password" element={<ChangePasswordPage />} />
+        <Route path="/admin" element={<p>{DASHBOARD}</p>} />
+        <Route path="/admin/events/mariage/moderation" element={<p>{MODERATION}</p>} />
+      </Routes>,
+      { api, route: '/depart' },
+    )
+
+  const asUser = (mustChangePassword: boolean, overrides: Partial<Api> = {}) =>
+    fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => ({
+        authenticated: true,
+        user: aSessionUser({ mustChangePassword }),
+      })),
+      ...overrides,
+    })
+
+  const change = () =>
+    fill({ current: PASSWORD.current, next: PASSWORD.next, confirmation: PASSWORD.next })
+
+  it.each([
+    ['forced', true],
+    ['voluntary', false],
+  ])('returns to the page the person was going to after a %s change', async (_name, forced) => {
+    enter(asUser(forced), { from: '/admin/events/mariage/moderation' })
+    await screen.findByLabelText(fr.auth.currentPassword)
+
+    await change()
+
+    expect(await screen.findByText(MODERATION)).toBeVisible()
+  })
+
+  it('lands them on the dashboard, as before, when nobody said where they were going', async () => {
+    enter(asUser(false), undefined)
+    await screen.findByLabelText(fr.auth.currentPassword)
+
+    await change()
+
+    expect(await screen.findByText(DASHBOARD)).toBeVisible()
+  })
+
+  it('says why, in forced mode, and offers no way to cancel', async () => {
+    enter(asUser(true), { from: '/admin/events/mariage/moderation' })
+
+    expect(await screen.findByText(new RegExp(fr.auth.changePasswordForced))).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.app.cancel })).toBeNull()
+  })
+
+  it('offers a way to cancel, and no explanation, when the person came by choice', async () => {
+    enter(asUser(false), { from: '/admin/events/mariage/moderation' })
+    await screen.findByLabelText(fr.auth.currentPassword)
+
+    expect(screen.queryByText(new RegExp(fr.auth.changePasswordForced))).toBeNull()
+    expect(screen.getByRole('button', { name: fr.app.cancel })).toBeVisible()
+  })
+
+  it('takes the person back to where they were when they cancel, and changes nothing', async () => {
+    const api = asUser(false)
+    enter(api, { from: '/admin/events/mariage/moderation' })
+    await userEvent.click(await screen.findByRole('button', { name: fr.app.cancel }))
+
+    expect(await screen.findByText(MODERATION)).toBeVisible()
+    expect(api.changePassword).not.toHaveBeenCalled()
+  })
+
+  it('takes them to the dashboard when they cancel and there is no page to go back to', async () => {
+    enter(asUser(false), undefined)
+    await userEvent.click(await screen.findByRole('button', { name: fr.app.cancel }))
+
+    expect(await screen.findByText(DASHBOARD)).toBeVisible()
+  })
+
+  it('keeps saying why once the change is made, through the gate that unmounts the page', async () => {
+    // Choosing the password makes the session forget itself, the gate shows its wait, and the page
+    // is mounted again: it has to be told by the state the gate wrote, not by what it remembers.
+    // Here the landing never arrives, so the page is still the one on screen.
+    let session: SessionResponse = {
+      authenticated: true,
+      user: aSessionUser({ mustChangePassword: true }),
+    }
+    const api = fakeApi({
+      session: vi.fn(async () => session),
+      changePassword: vi.fn(async () => {
+        session = { authenticated: true, user: aSessionUser({ mustChangePassword: false }) }
+      }),
+      listEvents: vi.fn(() => new Promise<never>(() => undefined)),
+    })
+    renderWithProviders(
+      <Routes>
+        <Route element={<MustChangePasswordGate />}>
+          <Route path="/admin" element={<p>{DASHBOARD}</p>} />
+          <Route path="/admin/password" element={<ChangePasswordPage />} />
+        </Route>
+      </Routes>,
+      { api, route: '/admin' },
+    )
+    await screen.findByText(new RegExp(fr.auth.changePasswordForced))
+
+    await change()
+
+    await waitFor(() => expect(api.listEvents).toHaveBeenCalled())
+    expect(await screen.findByText(new RegExp(fr.auth.changePasswordForced))).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.app.cancel })).toBeNull()
   })
 })

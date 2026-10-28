@@ -1017,6 +1017,24 @@ export const it: UiText = {
     logoutEverywhereTitle: 'Disconnettersi ovunque?',
     logoutEverywhereHint:
       'La sua sessione verrà chiusa su tutti i dispositivi, questo compreso, e dovrà accedere di nuovo. Utile se ha perso un dispositivo o usato un computer condiviso.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'Ha già effettuato l’accesso. Reindirizzamento…',
+    forgotNoMail:
+      'Ha dimenticato la password? Questo server non invia e-mail: chieda a chi lo gestisce di reimpostarla.',
+    changePasswordForced:
+      'La sua password è stata scelta per lei: la sostituisca prima di proseguire. Tornerà poi dove stava andando.',
+    menuMustChange: 'Cambi prima la password: il resto della console resta chiuso fino ad allora.',
+    securityBack: 'Indietro',
+    secondFactorEnabled: 'Verifica in due passaggi attivata.',
+    recoveryCodesLeaveTitle: 'Uscire senza aver annotato i codici?',
+    recoveryCodesLeaveHint:
+      'Questi codici vengono mostrati una sola volta: uscendo da questa pagina non potrà più leggerli. Per ottenerne di nuovi dovrà confermare di nuovo la sua identità.',
+    recoveryCodesLeaveStay: 'Restare e annotare i codici',
+    recoveryCodesLeaveGo: 'Uscire comunque',
+    deadInvitationSignIn: 'Se l’ha già accettato, il suo account esiste: acceda.',
+    deadInvitationSignedIn:
+      'Ha già effettuato l’accesso: se l’ha accettato con questo account, i suoi eventi sono lì.',
   },
 
   mobileModeration: {
@@ -1318,8 +1336,19 @@ export const it: UiText = {
       'Tutto ciò che è stato fatto sull’istanza, dal più recente al più vecchio. Il motivo di una modifica dei limiti è la frase dell’operatore stesso.',
     auditEmpty: 'Nessuna azione registrata per ora.',
     auditMore: 'Mostra le azioni più vecchie',
-    auditFiltered: 'Registro di un solo cliente.',
     auditShowAll: 'Mostra tutto il registro',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Esci dalla console',
+    accountsLink: 'Vedi tutti gli account',
+    noClient: 'Nessuno',
+    auditFilteredFor: (name: string) => `Registro del cliente «${name}».`,
+    auditToClient: 'Vedi questo cliente',
+    linkLeaveTitle: 'Uscire senza aver copiato il link?',
+    linkLeaveHint:
+      'Non è partita nessuna e-mail: questo link è mostrato solo qui, una volta. Uscendo da questa pagina non potrà più copiarlo; dovrà emetterne uno nuovo.',
+    linkLeaveStay: 'Restare e copiare il link',
+    linkLeaveGo: 'Uscire comunque',
     auditReason: (reason: string) => `Motivo: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
     actors: {
