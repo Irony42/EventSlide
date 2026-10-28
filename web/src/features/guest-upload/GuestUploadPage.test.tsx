@@ -809,6 +809,145 @@ describe('sending a video', () => {
     expect(page).not.toHaveAttribute('data-glass')
   })
 
+  /* ---- A host who changes the look after a guest has joined. ---- */
+
+  describe('a theme the host changed after the guest joined', () => {
+    const VIOLET = { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' } as const
+    const ROSE = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' } as const
+
+    const answeringWith = (theme: unknown): Partial<Api> => ({
+      // Cast through unknown because a malformed or absent theme is the case under test.
+      myPhotos: vi.fn(async () => ({ items: [], theme }) as unknown as { items: never[] }),
+    })
+
+    const pageOf = async () =>
+      (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
+
+    it('paints the new colour once the page’s own read has answered, and the stored one until then', async () => {
+      // The join wrote violet; the host has since chosen rose. The screen cannot refetch the
+      // event, so what it can learn is on the read it makes anyway: the guest's own photos.
+      havingJoined({ theme: VIOLET })
+      let answer: (value: { items: never[]; theme: typeof ROSE }) => void = () => {}
+      renderUpload(
+        fakeApi({
+          myPhotos: vi.fn(
+            () =>
+              new Promise<{ items: never[]; theme: typeof ROSE }>((resolve) => {
+                answer = resolve
+              }),
+          ),
+        }),
+      )
+
+      // First frame: the join's copy, with no request waited on.
+      const page = await pageOf()
+      expect(page).not.toHaveAttribute('data-event-accent')
+
+      await act(async () => answer({ items: [], theme: ROSE }))
+
+      expect(page).toHaveAttribute('data-event-accent', '345')
+      expect(page).toHaveStyle({ '--accent-hue': '345' })
+    })
+
+    it('writes the new theme back, so the tab and the device hold the same one', async () => {
+      havingJoined({ theme: VIOLET })
+      renderUpload(fakeApi(answeringWith(ROSE)))
+
+      await waitFor(() => expect(readGuestSession(SLUG)?.event.theme).toEqual(ROSE))
+      expect(readRememberedGuestSession()?.event.theme).toEqual(ROSE)
+      // Everything else the join wrote is still there.
+      expect(readGuestSession(SLUG)?.displayName).toBe('Léa')
+    })
+
+    it('paints the new colour on the very first frame of the next visit', async () => {
+      havingJoined({ theme: VIOLET })
+      const first = renderUpload(fakeApi(answeringWith(ROSE)))
+      await waitFor(() => expect(readGuestSession(SLUG)?.event.theme).toEqual(ROSE))
+      first.unmount()
+
+      // A second visit whose read never answers: all it has is what was written back.
+      renderUpload(fakeApi({ myPhotos: vi.fn(() => new Promise<never>(() => {})) }))
+
+      expect(await pageOf()).toHaveAttribute('data-event-accent', '345')
+    })
+
+    it('keeps the stored theme when the read fails, and does not rewrite the session', async () => {
+      havingJoined({ theme: ROSE })
+      renderUpload(
+        fakeApi({
+          myPhotos: vi.fn(async () => {
+            throw ApiError.network()
+          }),
+        }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.upload.mineFailed)
+      expect(await pageOf()).toHaveAttribute('data-event-accent', '345')
+      expect(readGuestSession(SLUG)?.event.theme).toEqual(ROSE)
+    })
+
+    it('keeps the stored theme when a server that predates the field answers without one', async () => {
+      havingJoined({ theme: ROSE })
+      renderUpload(fakeApi(withPhotos()))
+
+      expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
+      expect(await pageOf()).toHaveAttribute('data-event-accent', '345')
+      expect(readGuestSession(SLUG)?.event.theme).toEqual(ROSE)
+    })
+
+    it.each([
+      { name: 'a hue that is not a number', theme: { ...ROSE, accentHue: 'rose' } },
+      { name: 'a hue past the circle', theme: { ...ROSE, accentHue: 4000 } },
+      { name: 'a font pairing this build has never heard of', theme: { ...ROSE, fonts: 'comic' } },
+      { name: 'something that is not a theme at all', theme: 'rose' },
+    ])('ignores $name, untrusted input that must not reach the stylesheet', async ({ theme }) => {
+      havingJoined({ theme: VIOLET })
+      const api = fakeApi(answeringWith(theme))
+      renderUpload(api)
+
+      await waitFor(() => expect(api.myPhotos).toHaveBeenCalled())
+      expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
+      const page = await pageOf()
+      expect(page).not.toHaveAttribute('data-event-accent')
+      expect(page?.getAttribute('style')).toBeNull()
+      expect(readGuestSession(SLUG)?.event.theme).toEqual(VIOLET)
+      expect(readRememberedGuestSession()?.event.theme).toEqual(VIOLET)
+    })
+
+    it('keeps the colour it learned when a later read answers without one', async () => {
+      // The screen's own copy of the session is read once, at mount, and is the old theme. A
+      // later answer carrying no usable theme (a server rolled back) must not drop the page back
+      // to it: what the guest has been looking at is what stands.
+      havingJoined({ theme: VIOLET })
+      let reads = 0
+      const api = fakeApi({
+        myPhotos: vi.fn(async () => {
+          reads += 1
+          const items = [aGuestPhoto({ id: 'photo-1', canDelete: true })]
+          return reads === 1 ? { items, theme: ROSE } : { items: [] }
+        }),
+      })
+      renderUpload(api)
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.upload.deleteOwnNumbered(1) }),
+      )
+      const dialog = await screen.findByRole('dialog', { name: fr.upload.deleteOwnConfirm })
+      await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.deleteOwn }))
+
+      expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
+      expect(reads).toBe(2)
+      expect(await pageOf()).toHaveAttribute('data-event-accent', '345')
+    })
+
+    it('takes the colour back to the product’s own when the host chose that again', async () => {
+      havingJoined({ theme: ROSE })
+      renderUpload(fakeApi(answeringWith(VIOLET)))
+
+      await waitFor(() => expect(readGuestSession(SLUG)?.event.theme).toEqual(VIOLET))
+      expect(await pageOf()).not.toHaveAttribute('data-event-accent')
+    })
+  })
+
   describe('the mission checklist', () => {
     const withMissions = (...missions: readonly GuestMissionDto[]): Partial<Api> => ({
       myMissions: vi.fn(async () => ({ items: missions })),

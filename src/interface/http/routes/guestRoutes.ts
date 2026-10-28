@@ -18,6 +18,7 @@ import {
   toGuestMissionDto,
   toGuestPhotoDto,
   toReactionsDto,
+  toEventThemeDto,
   toRenamedGuestDto,
   toUploadResponseDto,
 } from '../presenters/presenters'
@@ -390,6 +391,9 @@ export const guestRoutes = ({
           // The upload rule's own answer (`Event.acceptsUploads`; in practice the status, a suspended client's guests never get here), so the
           // screen can say the evening is over instead of offering a form the server will refuse.
           acceptingUploads: event.acceptsUploads(),
+          // Read per request, through the presenter the join uses. The join's copy is a snapshot,
+          // and this is the one read the upload screen makes that can learn the host changed it.
+          theme: toEventThemeDto(event.settings.theme),
         }
         sendJson(response, body)
       })

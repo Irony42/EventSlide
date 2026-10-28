@@ -254,10 +254,19 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
      * phone on venue Wi-Fi — that would have paid for a face too small here to show off.
      *
      * Applied on the element rather than on `:root`, and read out of the session the join
-     * already wrote, so the first frame is the right colour: a `sessionStorage` read is
-     * synchronous, and nothing here waits on a request.
+     * already wrote, so the first frame is painted without waiting on a request: a
+     * `sessionStorage` read is synchronous.
+     *
+     * **Then the server's answer, because the join's copy is a snapshot.** A host who changes
+     * the colour after a guest joined has not changed what that guest's session holds, and this
+     * screen cannot refetch the event. The guest's own-photos read — which the screen makes
+     * anyway — carries the current theme, so it takes over the moment it answers: one repaint,
+     * only for a guest whose theme actually changed, and never a request added to the first
+     * screen. While that read is in the air, or if it fails, the stored theme stands. The same
+     * answer is written back to the session (see `useMyPhotos`), so the next visit's first frame
+     * is already the new one.
      */
-    <div {...themeSurfaceProps(event.theme, 'guest')} className={styles['page']}>
+    <div {...themeSurfaceProps(mine.theme ?? event.theme, 'guest')} className={styles['page']}>
       <header className={styles['header']}>
         {/* The event name, on the screen the guest actually uploads from. 1.0 read the
             event from a query parameter the QR page never set, so every photo went to

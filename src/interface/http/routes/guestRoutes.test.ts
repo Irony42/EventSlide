@@ -732,6 +732,42 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
     expect(endedResponse.body.acceptingUploads).toBe(false)
   })
 
+  it('carries the event’s look as it is now, so a guest who joined before a change learns of it', async () => {
+    // Populated, not merely declared: `dtoContract.test.ts` cannot see a presenter that declares
+    // the field and never fills it. The join's copy of the theme is a snapshot and the upload
+    // screen has no other read that could learn the host changed it.
+    const subject = buildSubject({
+      settings: { theme: { accentHue: 345, fonts: 'serif', frame: 'square', material: 'plain' } },
+    })
+
+    const response = await request(subject.app)
+      .get(`${BASE}/photos/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.status).toBe(200)
+    expect(response.body.theme).toEqual({
+      accentHue: 345,
+      fonts: 'serif',
+      frame: 'square',
+      material: 'plain',
+    })
+  })
+
+  it('carries the default look for an event whose host chose nothing', async () => {
+    const subject = buildSubject()
+
+    const response = await request(subject.app)
+      .get(`${BASE}/photos/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.body.theme).toEqual({
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'glass',
+    })
+  })
+
   it('carries the thumb url and the caption, and never a storage path', async () => {
     const subject = buildSubject()
 

@@ -292,6 +292,28 @@ describe('how the image is signed', () => {
     expect(script).toMatch(/^\s*check cosign verify-attestation --type spdxjson --verbose /m)
   })
 
+  it('lets nothing the checks start hold the step open: no stdin, every byte to a file', () => {
+    expect(script).toMatch(
+      /timeout -k \d+ \d+ "\$@" < \/dev\/null > "\$DIAG\/[^"]+" 2> "\$DIAG\/[^"]+"/,
+    )
+    expect(script).toMatch(/\) < \/dev\/null > \/dev\/null 2>&1 &/)
+  })
+
+  it('stops the checks before the job limit and keeps their evidence whatever happened', () => {
+    const steps = stepsOf(sign)
+    const verifyAt = steps.findIndex(
+      (step) => step['name'] === 'Verify what was just signed, as a user would',
+    )
+    const verify = steps[verifyAt]
+    const keep = steps[verifyAt + 1]
+
+    expect(Number(verify?.['timeout-minutes'])).toBeLessThan(Number(sign['timeout-minutes']))
+    expect(keep?.['if']).toBe('always()')
+    expect(String(keep?.['uses'])).toMatch(/^actions\/upload-artifact@[0-9a-f]{40}$/)
+    expect(mapAt(keep, 'with')['path']).toBe('${{ runner.temp }}/cosign-diag')
+    expect(mapAt(verify, 'env')['DIAG']).toBe('${{ runner.temp }}/cosign-diag')
+  })
+
   it('names, as the only identity it accepts, this repository and this workflow file', () => {
     expect(script).toContain(
       String.raw`identity='^https://github\.com/Irony42/EventSlide/\.github/workflows/release\.yml@refs/(tags/v.+|heads/main)$'`,

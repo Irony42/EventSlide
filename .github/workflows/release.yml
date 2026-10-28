@@ -517,31 +517,54 @@ jobs:
         # The identity a user passes to `cosign verify`, written in docs/IMAGE-SOURCES.md
         # word for word: this run is what proves that command works.
         #
-        # Each check has five minutes and a verbose trace. For v3.0.0 this step hung twice
-        # until the job's limit cancelled it, and a cancelled job keeps no log, while the same
-        # two commands passed in seconds from outside. A check that hangs now fails on its own,
-        # and prints the end of its trace, so the next one says where it waited.
+        # Each check has five minutes and a verbose trace. For v3.0.0 this step hung three
+        # times until the job's limit cancelled it, and a cancelled job keeps no log, while the
+        # same two commands passed in seconds from outside. The third time ran under the
+        # five-minute `timeout -k`, which never fired, so what held the step was not cosign
+        # itself: most likely a process it left behind holding the step's output open. So
+        # nothing here writes to the step's own stdout or reads its stdin while cosign runs,
+        # every byte goes to files under $DIAG, a snapshot of the process tree is taken
+        # after each check and while one is still running, and the step has its own limit
+        # below the job's, so the upload after it runs and keeps the evidence.
+        timeout-minutes: 12
+        env:
+          DIAG: ${{ runner.temp }}/cosign-diag
         run: |
           set -euo pipefail
+          mkdir -p "$DIAG"
           identity='^https://github\.com/Irony42/EventSlide/\.github/workflows/release\.yml@refs/(tags/v.+|heads/main)$'
           issuer='https://token.actions.githubusercontent.com'
-          # The trace goes to stderr and is kept aside; what cosign proves (its "Verification
-          # for" summary, and the verified payload on stdout) is printed as before. The trace
-          # redacts the Authorization headers and the registry's token responses.
+          # What cosign proves (its "Verification for" summary, and the verified payload) is
+          # printed once it is done. The trace redacts the Authorization headers and the
+          # registry's token responses.
           check() {
-            local log status
-            log="$(mktemp)"
-            if timeout -k 10 300 "$@" 2> "$log"; then
-              sed -n '/^Verification for /,$p' "$log"
+            local name="$2" status=0
+            # Its own sleep must not hold the step's output either.
+            ( sleep 240; ps -eo pid,ppid,etimes,stat,args --forest > "$DIAG/$name-ps-at-240s.txt" 2>&1 ) < /dev/null > /dev/null 2>&1 &
+            local snapshot=$!
+            timeout -k 10 300 "$@" < /dev/null > "$DIAG/$name.out" 2> "$DIAG/$name.err" || status=$?
+            kill "$snapshot" 2> /dev/null || true
+            ps -eo pid,ppid,etimes,stat,args --forest > "$DIAG/$name-ps-after.txt" 2>&1 || true
+            if [ "$status" -eq 0 ]; then
+              sed -n '/^Verification for /,$p' "$DIAG/$name.err"
+              head -c 2000 "$DIAG/$name.out"; echo
             else
-              status=$?
-              tail -n 200 "$log"
-              echo "::error::cosign $2 failed with status $status (124 or 137 is the five-minute limit)."
+              tail -n 200 "$DIAG/$name.err"
+              echo "::error::cosign $name failed with status $status (124 or 137 is the five-minute limit)."
               exit "$status"
             fi
           }
           check cosign verify --verbose --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
           check cosign verify-attestation --type spdxjson --verbose --certificate-identity-regexp "$identity" --certificate-oidc-issuer "$issuer" "$IMAGE_REF"
+
+      - name: Keep what the checks left, whatever happened
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cosign-diagnostics
+          path: ${{ runner.temp }}/cosign-diag
+          if-no-files-found: ignore
+          retention-days: 14
 
   promote:
     # `X.Y` and `X` are what people who follow a minor or a major pull, so they move last:

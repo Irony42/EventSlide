@@ -3,6 +3,7 @@ import {
   forgetGuestSession,
   readGuestSession,
   readRememberedGuestSession,
+  rememberEventTheme,
   rememberGuestSession,
   rememberPrivacyNotice,
 } from './guestSession'
@@ -565,5 +566,106 @@ describe('guestSession: the memory expires with the guest’s cookie', () => {
     )
 
     expect(readRememberedGuestSession()).toBeNull()
+  })
+})
+
+describe('guestSession: a theme the server has since changed', () => {
+  const HOUR = 60 * 60 * 1000
+  const ROSE = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' } as const
+
+  const joined = (slug: string, now?: number) =>
+    rememberGuestSession(
+      {
+        event: aPublicEvent({ slug, name: `Soirée ${slug}` }),
+        displayName: 'Léa',
+        privacyNotice: aPrivacyNoticeState({ acknowledgement: 'current' }),
+      },
+      now,
+    )
+
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  it('replaces the stored theme and keeps everything else the join wrote', () => {
+    joined('gala')
+
+    rememberEventTheme('gala', ROSE)
+
+    const session = readGuestSession('gala')
+    expect(session?.event.theme).toEqual(ROSE)
+    expect(session?.event.name).toBe('Soirée gala')
+    expect(session?.displayName).toBe('Léa')
+    expect(session?.privacyNotice?.acknowledgement).toBe('current')
+  })
+
+  it('leaves the device’s memory of the event holding the same theme, not the old one', () => {
+    // The two copies are one answer. A tab that refreshed and a device that did not would
+    // paint the new colour in the tab and the old one on the next launch of the installed app.
+    joined('gala')
+
+    rememberEventTheme('gala', ROSE)
+    sessionStorage.clear()
+
+    expect(readRememberedGuestSession()?.event.theme).toEqual(ROSE)
+    expect(readGuestSession('gala')?.event.theme).toEqual(ROSE)
+  })
+
+  it('writes nothing for a tab that never joined, which is on its way to the join screen', () => {
+    rememberEventTheme('jamais-rejoint', ROSE)
+
+    expect(readGuestSession('jamais-rejoint')).toBeNull()
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('does not bring back an event the guest said was not theirs', () => {
+    joined('gala')
+    forgetGuestSession('gala')
+
+    rememberEventTheme('gala', ROSE)
+
+    expect(readGuestSession('gala')).toBeNull()
+    expect(readRememberedGuestSession()).toBeNull()
+  })
+
+  it('is not taken back by a tab left open on an earlier evening re-reading its theme', () => {
+    // The device remembers the event joined last. An older tab learning that its own event was
+    // repainted must not give the device back to it, nor hand it the older event's colours.
+    joined('gala')
+    joined('mariage')
+
+    rememberEventTheme('gala', ROSE)
+
+    expect(readRememberedGuestSession()?.event.slug).toBe('mariage')
+    expect(readRememberedGuestSession()?.event.theme).toEqual(aPublicEvent().theme)
+    expect(readGuestSession('gala')?.event.theme).toEqual(ROSE)
+  })
+
+  it('leaves a join made since in another tab alone, whatever this tab still holds', () => {
+    // This tab joined as Léa; the installed app has since joined the same event as Zoé. A tab
+    // that goes on reading its theme must not take the device's name back.
+    joined('gala')
+    const tab = sessionStorage.getItem('eventslide.guest.gala') as string
+    rememberGuestSession({
+      event: aPublicEvent({ slug: 'gala', name: 'Soirée gala' }),
+      displayName: 'Zoé',
+      privacyNotice: aPrivacyNoticeState({ acknowledgement: 'none' }),
+    })
+    sessionStorage.setItem('eventslide.guest.gala', tab)
+
+    rememberEventTheme('gala', ROSE)
+
+    const device = readRememberedGuestSession()
+    expect(device?.displayName).toBe('Zoé')
+    expect(device?.event.theme).toEqual(ROSE)
+  })
+
+  it('is not renewed by learning a theme: that does not renew the cookie', () => {
+    joined('gala', 0)
+
+    rememberEventTheme('gala', ROSE, 30 * HOUR)
+
+    expect(readRememberedGuestSession(37 * HOUR)).toBeNull()
   })
 })

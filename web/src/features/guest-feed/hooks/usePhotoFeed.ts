@@ -1,8 +1,10 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import { readEventTheme } from '../../../design-system/eventTheme'
+import { rememberEventTheme } from '../../../lib/guestSession'
 import { ApiError } from '../../../lib/http'
 import { useLoader } from '../../../lib/useLoader'
-import type { GuestPhotoDto, WallItemDto, WallResponse } from '../../../lib/api/dto'
+import type { EventThemeDto, GuestPhotoDto, WallItemDto, WallResponse } from '../../../lib/api/dto'
 
 /**
  * What a guest's phone shows of the evening: the published photographs, as the wall has
@@ -45,6 +47,13 @@ export interface PhotoFeedState {
   readonly unavailable: boolean
   /** The host's switch, as the wall says it now. */
   readonly reactionsEnabled: boolean
+  /**
+   * The event's look as the wall says it now, or `null` until it has answered (or when it
+   * carries none this build can read). It is the answer the screen prefers to the join's
+   * stored copy, which a host's later change leaves behind. The wall's read is the feed's own,
+   * so this costs no request.
+   */
+  readonly theme: EventThemeDto | null
   /** Ids of the guest's own photographs. Empty while unknown or when that read failed. */
   readonly ownIds: ReadonlySet<string>
   /** True until both reads have answered once: drawing bars before then would flash them. */
@@ -106,12 +115,24 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
   }, [reloadWall, reloadMine])
 
   const served = wall.data === null || wall.data.gone ? null : wall.data.wall
+  const answered = useMemo(() => readEventTheme(served?.theme ?? null), [served])
+  // What was learned stands: a later answer with no theme this build can read (a server rolled
+  // back mid-evening) must not drop the page back to the join's older copy. Adjusted during
+  // render rather than in an effect, which is the supported way to derive state from a prop.
+  const [learned, setLearned] = useState<EventThemeDto | null>(null)
+  if (answered !== null && answered !== learned) setLearned(answered)
+  const theme = answered ?? learned
+  // Written back so the next open — this screen's or the upload screen's — paints it first.
+  useEffect(() => {
+    if (theme !== null) rememberEventTheme(slug, theme)
+  }, [slug, theme])
 
   return {
     items: served === null ? null : served.items,
     unavailable: wall.data?.gone === true,
     signedOut: mine.data?.signedOut === true,
     reactionsEnabled: served?.reactionsEnabled ?? false,
+    theme,
     ownIds,
     settling: (wall.data === null && wall.loading) || (mine.data === null && mine.loading),
     refreshing: wall.data !== null && wall.loading,
