@@ -675,6 +675,7 @@ export const fr = {
       filmstrip: 'Pellicule',
       collage: 'Collage',
       split: 'Côte à côte',
+      clothesline: 'Corde à linge',
     } satisfies Record<WallLayout, string>,
     layoutOrder: (names: readonly string[]) => `Dispositions, dans l’ordre : ${names.join(', ')}.`,
 

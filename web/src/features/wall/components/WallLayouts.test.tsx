@@ -322,7 +322,7 @@ describe('WallLayouts', () => {
     expect(motionOf(container)).toBe('still')
   })
 
-  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split'])(
+  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split', 'clothesline'])(
     'shows nothing and asks for no bytes when %s has an empty playlist',
     (layout) => {
       const { container } = renderWall(layout, [])
@@ -411,6 +411,156 @@ describe('the polaroid layout', () => {
     // The tilt is composition, not motion, and stays: three square prints in a row is a
     // grid of three, which is a layout this wall already has.
     expect(tiltOf(container).some((degrees) => degrees !== 0)).toBe(true)
+  })
+})
+
+/**
+ * Up to five prints pegged to a string, for the Guinguette.
+ *
+ * What has to hold is what the polaroid's tests hold — nothing random, a tilt that reads as
+ * placed — and three things of its own: the line is never longer than what hangs on it, the
+ * newest print is the one marked, and the sway is declined for somebody who asked for no
+ * motion and for a wall that is not advancing.
+ */
+describe('the clothesline layout', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const newestOnScreen = (): readonly (string | null)[] =>
+    screen
+      .getAllByTestId('wall-slide')
+      .filter((print) => print.getAttribute('data-newest') === 'true')
+      .map((print) => print.getAttribute('data-photo-id'))
+
+  it('hangs five prints and names the photo on each', () => {
+    renderWall('clothesline', somePhotos(8))
+
+    expect(photoIdsOnScreen()).toEqual(['photo-0', 'photo-1', 'photo-2', 'photo-3', 'photo-4'])
+  })
+
+  it('changes one print per interval, so the line reads as a placement and not a refresh', () => {
+    renderWall('clothesline', somePhotos(8), { index: 6 })
+
+    // Slot 1's turn: the other four are where they were at the previous slide.
+    expect(photoIdsOnScreen()).toEqual(['photo-5', 'photo-6', 'photo-2', 'photo-3', 'photo-4'])
+  })
+
+  it.each([3, 4])('hangs only the %i prints it can fill', (count) => {
+    renderWall('clothesline', somePhotos(count))
+
+    // The same face twice on one wall reads as a fault, so a short playlist is a short line.
+    expect(screen.getAllByTestId('wall-slide')).toHaveLength(count)
+  })
+
+  it('never mounts more than five prints, however long the evening runs', () => {
+    renderWall('clothesline', somePhotos(500), { index: 417 })
+
+    expect(screen.getAllByTestId('wall-slide')).toHaveLength(5)
+    expect(screen.getAllByRole('img')).toHaveLength(5)
+  })
+
+  it.each([
+    [3, 5],
+    [4, 5],
+    [4, 9],
+  ])('never hangs one photo twice: %i photos at slide %i', (count, index) => {
+    renderWall('clothesline', somePhotos(count), { index })
+
+    const ids = photoIdsOnScreen()
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('marks the print whose photo arrived last, whatever slot it hangs in', () => {
+    const items = somePhotos(5).map((item, at) => ({
+      ...item,
+      createdAt: `2026-10-28T20:0${at === 3 ? 9 : at}:00.000Z`,
+    }))
+    renderWall('clothesline', items)
+
+    expect(newestOnScreen()).toEqual(['photo-3'])
+  })
+
+  it('marks exactly one print, even when every photo arrived at the same instant', () => {
+    renderWall('clothesline', somePhotos(5))
+
+    // A tie keeps the first, deterministically, and two projectors agree.
+    expect(newestOnScreen()).toEqual(['photo-0'])
+  })
+
+  it('keeps the earlier print when a timestamp does not parse', () => {
+    const items = somePhotos(3).map((item) => ({ ...item, createdAt: 'not a date' }))
+    renderWall('clothesline', items)
+
+    expect(newestOnScreen()).toEqual(['photo-0'])
+  })
+
+  it('captions each print on its mat', () => {
+    renderWall('clothesline', somePhotos(3))
+
+    expect(screen.getByText('Photo 0')).toBeVisible()
+    expect(screen.getAllByText('Léa')).toHaveLength(3)
+  })
+
+  it('puts a decorative pin on every print, hidden from a screen reader', () => {
+    const { container } = renderWall('clothesline', somePhotos(5))
+
+    const pins = container.querySelectorAll(`.${cls(styles, 'pin')}`)
+    expect(pins).toHaveLength(5)
+    for (const pin of pins) expect(pin).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('turns a print by an angle derived from its photo, so two projectors agree', () => {
+    const items = somePhotos(8)
+
+    const first = renderWall('clothesline', items)
+    const before = tiltOf(first.container)
+    first.unmount()
+    const second = renderWall('clothesline', items)
+
+    expect(tiltOf(second.container)).toEqual(before)
+    expect(before.some((degrees) => degrees !== 0)).toBe(true)
+  })
+
+  it('keeps every tilt inside the range that reads as placed rather than as fallen over', () => {
+    const { container } = renderWall('clothesline', somePhotos(8))
+
+    for (const degrees of tiltOf(container)) {
+      expect(Math.abs(degrees)).toBeLessThanOrEqual(4)
+    }
+  })
+
+  it('sways while the wall is advancing', () => {
+    const { container } = renderWall('clothesline', somePhotos(8))
+
+    expect(motionOf(container)).toBe('swaying')
+  })
+
+  it('holds still when the host pauses the wall', () => {
+    const { container } = renderWall('clothesline', somePhotos(8), { paused: true })
+
+    // `intervalMs` is `0` for a paused wall, and this layout follows the strip's rule: a
+    // held wall stops moving.
+    expect(motionOf(container)).toBe('still')
+  })
+
+  it('does not sway at all for somebody who asked for no motion', () => {
+    asksForNoMotion()
+
+    const { container } = renderWall('clothesline', somePhotos(8))
+
+    // Declined here and not left to `base.css`'s collapsed duration, which would leave an
+    // infinite animation holding whichever frame it was collapsed on.
+    expect(motionOf(container)).toBe('still')
+    // The tilt is composition, and stays.
+    expect(tiltOf(container).some((degrees) => degrees !== 0)).toBe(true)
+  })
+
+  it('shows a clip’s poster and mounts no decoder: five slots is not a decode budget', () => {
+    const { container } = renderWall('clothesline', [aWallClip({ caption: 'La première danse' })])
+
+    expect(container.querySelector('video')).toBeNull()
+    expect(container.querySelectorAll('img')).toHaveLength(1)
   })
 })
 
@@ -727,7 +877,7 @@ describe('a clip on the wall', () => {
     expect(player).toHaveAttribute('src', '/api/events/camille-et-sacha/photos/clip-1/video')
   })
 
-  it.each(['mosaic', 'polaroid', 'filmstrip', 'collage'] as const)(
+  it.each(['mosaic', 'polaroid', 'filmstrip', 'collage', 'clothesline'] as const)(
     'shows its poster frame in %s, and mounts no decoder',
     (layout) => {
       stubPlayback()

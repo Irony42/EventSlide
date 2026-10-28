@@ -38,6 +38,8 @@ const PLAYS_VIDEO: Readonly<Record<WallLayout, boolean>> = {
   collage: false,
   // Two panes, neither cropped. Two decoders, which is the budget.
   split: true,
+  // Five slots: the polaroid's reason, and a bigger count.
+  clothesline: false,
 }
 
 export const wallLayoutPlaysVideo = (layout: WallLayout): boolean => PLAYS_VIDEO[layout]

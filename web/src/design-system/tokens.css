@@ -32,6 +32,13 @@
   --surface-print: oklch(95% 0.012 85); /* polaroid mat, warm white */
   --text-print: oklch(30% 0.02 85); /* the caption written on the mat */
   --text-print-secondary: oklch(40% 0.02 85); /* the credit under it */
+  /* ---- The clothesline layout's hardware. Ornament, and the same in every ambiance: the
+         twine is a light line on a dark ground, the pins are wood. Neither is ever drawn over
+         a photograph, and neither carries text. ---- */
+  --clothesline-twine: oklch(78% 0.05 80);
+  --clothespin-wood: oklch(70% 0.09 70);
+  --clothespin-wood-shade: oklch(50% 0.09 60);
+  --clothesline-newest-scale: 1.08; /* the newest print hangs this much larger */
   /* ---- Borders ---- */
   --border-subtle: oklch(32% 0.025 70); /* default hairline */
   --border-strong: oklch(58% 0.03 70); /* input rest state, focused card */
@@ -224,6 +231,11 @@
   --duration-fast: 140ms; /* press feedback, focus */
   --duration-base: 240ms; /* dialogs, toasts, tile state */
   --duration-slow: 520ms; /* wall crossfade */
+  /* The clothesline's sway: a print swinging on its pin, ±1.5°. Slow is calm, and calm is the
+     point on a wall that runs for eight hours. Never timed from the slide interval: it is not
+     a slide. */
+  --duration-sway: 6s;
+  --sway-angle: 1.5deg;
 
   /* ---- Layout ---- */
   --container-guest: 30rem; /* single column, phone-first */

@@ -636,6 +636,7 @@ export const es: UiText = {
       filmstrip: 'Tira de fotos',
       collage: 'Collage',
       split: 'Lado a lado',
+      clothesline: 'Tendedero',
     },
     layoutOrder: (names: readonly string[]) => `Disposiciones, en orden: ${names.join(', ')}.`,
 

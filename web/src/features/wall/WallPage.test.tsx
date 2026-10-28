@@ -616,15 +616,15 @@ describe('WallPage', () => {
     await screen.findByTestId('wall-slide')
 
     const visited: (string | null)[] = [theWall().getAttribute('data-wall-layout')]
-    for (let press = 0; press < 6; press += 1) {
+    for (let press = 0; press < 7; press += 1) {
       await userEvent.keyboard('l')
       visited.push(theWall().getAttribute('data-wall-layout'))
     }
 
-    // The two layouts 2.0 shipped, then the four 2.3 added — not sorted by slot count,
-    // so that the first press still lands where every host's hand expects it. What this
-    // protects is the wrap: the seventh press comes home rather than stranding somebody
-    // on a layout they cannot get out of.
+    // The two layouts 2.0 shipped, then the four 2.3 added, then the clothesline — not
+    // sorted by slot count, so that the first press still lands where every host's hand
+    // expects it. What this protects is the wrap: the eighth press comes home rather than
+    // stranding somebody on a layout they cannot get out of.
     expect(visited).toEqual([
       'spotlight',
       'mosaic',
@@ -632,11 +632,12 @@ describe('WallPage', () => {
       'filmstrip',
       'collage',
       'split',
+      'clothesline',
       'spotlight',
     ])
   })
 
-  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split'])(
+  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split', 'clothesline'])(
     'renders %s itself rather than falling back to the layout nearest to it',
     async (layout) => {
       // Every name in the contract is now built. A layout that silently rendered its
@@ -649,6 +650,50 @@ describe('WallPage', () => {
       expect(theWall()).toHaveAttribute('data-wall-layout', layout)
     },
   )
+
+  describe('the layout an ambiance suggests', () => {
+    const themed = (ambiance: 'riviera' | 'guinguette') =>
+      aPopulatedWall({
+        items: somePhotos(8),
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass', ambiance },
+      })
+
+    it('hangs the Guinguette’s wall on the clothesline when nobody asked for another', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'clothesline')
+      expect(screen.getAllByTestId('wall-slide')).toHaveLength(5)
+    })
+
+    it('leaves an ambiance with no opinion on whatever the wall response carries', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('riviera')) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+    })
+
+    it('yields to a kiosk that names its layout', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'mosaic')
+    })
+
+    it('lets L continue from the clothesline, and the cycle come home to it', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      // The clothesline is last in the cycle, so the key after it wraps to the spotlight.
+      await userEvent.keyboard('l')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+    })
+  })
 
   it('explains its keyboard shortcuts when the host presses the question mark', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
