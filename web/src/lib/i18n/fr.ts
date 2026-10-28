@@ -468,6 +468,8 @@ export const fr = {
 
   moderation: {
     title: 'Modération',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Version téléphone, photo par photo',
     intro: 'Rien n’apparaît à l’écran sans votre validation.',
     pending: (count: number) =>
       t.count(count, {
@@ -1109,6 +1111,11 @@ export const fr = {
     shareLinkUrl: 'Adresse du lien',
     shareLinkCopy: 'Copier le lien',
     shareLinkCopied: 'Lien copié.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'La copie a échoué. L’adresse est sélectionnée : copiez-la avec Ctrl+C (ou en appuyant longuement sur un téléphone).',
+    shareLinkLeaveWarning:
+      'Cette adresse ne sera plus jamais affichée et vous ne l’avez pas copiée. Quitter la page quand même ?',
     shareLinkRevoke: 'Désactiver le lien',
     shareLinkRevokeTitle: 'Désactiver ce lien ?',
     shareLinkRevokeHint:
@@ -1579,6 +1586,8 @@ export const fr = {
      * exact failure `router.test.tsx` names one case per admin address to catch.
      */
     title: 'Modération sur téléphone',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Console complète, pour ordinateur',
     intro: 'Glissez la photo vers la droite pour publier, vers la gauche pour refuser.',
     /** The second half of the gesture: the host has gone far enough to decide. */
     releaseToPublish: 'Relâchez pour publier',
@@ -1758,6 +1767,10 @@ export const fr = {
     spaceTitle: 'Espace client',
     limitsTitle: 'Limites et usage',
     noLimits: 'Votre opérateur n’a fixé aucune limite à votre compte.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Votre compte n’est rattaché à aucun client.',
+    noClientHint:
+      'Il n’y a donc ni limite ni usage à consulter ici. Vos évènements, eux, sont sur la page « Vos évènements ».',
     roleOwner: 'Propriétaire',
     roleMember: 'Membre',
     pendingTitle: 'En attente de votre accord',

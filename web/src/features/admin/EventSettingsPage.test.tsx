@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventSettingsPage } from './EventSettingsPage'
 import { toLocalInput } from './eventSchedule'
@@ -66,6 +66,23 @@ describe('EventSettingsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
 
     expect(await screen.findByRole('heading', { name: fr.admin.settings })).toBeVisible()
+  })
+
+  it('offers the list of events inside the failure itself, beside the retry', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(() => Promise.reject(new ApiError(404, 'event.notFound'))) }),
+    )
+
+    await screen.findByRole('alert')
+
+    // The failure's own way out, beside Réessayer and not only in the trail above it: an address
+    // that does not exist or an access that was withdrawn is not mended by asking again.
+    const failure = screen.getByRole('alert')
+    expect(within(failure).getByRole('button', { name: fr.app.retry })).toBeVisible()
+    expect(within(failure).getByRole('link', { name: fr.admin.events })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
   })
 
   describe('for a moderator, whose every save the server refuses', () => {

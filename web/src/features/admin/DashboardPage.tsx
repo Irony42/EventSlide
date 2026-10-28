@@ -3,6 +3,7 @@ import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { EmptyState } from '../../design-system/components/EmptyState'
+import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
 import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { Async } from '../../design-system/components/Async'
@@ -10,7 +11,7 @@ import { EventStatusBadge } from './components/EventStatusBadge'
 import { CeilingBanner } from './components/CeilingBanner'
 import { StorageMeter } from './components/StorageMeter'
 import { SuspensionScreen } from './components/SuspensionScreen'
-import { allowsModeration, lifecycleActions, servesWall } from './eventLifecycle'
+import { allowsModeration, canManageEvent, lifecycleActions, servesWall } from './eventLifecycle'
 import { useEventList } from './hooks/useEventData'
 import { useStatusChange } from './hooks/useEventActions'
 import { useClientLimits } from './hooks/useClientLimits'
@@ -109,18 +110,22 @@ export function DashboardPage() {
                   }
                   footer={
                     <>
-                      {lifecycleActions(event.status, t).map((action) => (
-                        <Button
-                          key={action.to}
-                          variant={action.primary ? 'primary' : 'secondary'}
-                          size="sm"
-                          loading={statusChange.pending === `${event.slug}:${action.to}`}
-                          disabled={statusChange.busy}
-                          onClick={() => changeStatus(event, action.to)}
-                        >
-                          {action.label}
-                        </Button>
-                      ))}
+                      {/* The owner's: a moderator's request to change the lifecycle is answered 403, so
+                          the buttons are not offered to them. The server still decides. */}
+                      {(canManageEvent(event.role) ? lifecycleActions(event.status, t) : []).map(
+                        (action) => (
+                          <Button
+                            key={action.to}
+                            variant={action.primary ? 'primary' : 'secondary'}
+                            size="sm"
+                            loading={statusChange.pending === `${event.slug}:${action.to}`}
+                            disabled={statusChange.busy}
+                            onClick={() => changeStatus(event, action.to)}
+                          >
+                            {action.label}
+                          </Button>
+                        ),
+                      )}
                       {allowsModeration(event.status) ? (
                         <Link
                           className={styles['actionLink']}
@@ -130,9 +135,22 @@ export function DashboardPage() {
                         </Link>
                       ) : null}
                       {servesWall(event.status) ? (
-                        <Link className={styles['actionLink']} to={`/e/${event.slug}/display`}>
-                          {t.admin.openWall}
-                        </Link>
+                        <>
+                          {/* A tab of its own, like the event page's tile: the wall has no way back to
+                              the console. The hint describes the link without joining its name. */}
+                          <Link
+                            className={styles['actionLink']}
+                            to={`/e/${event.slug}/display`}
+                            target="_blank"
+                            rel="noopener"
+                            aria-describedby={`wall-hint-${event.id}`}
+                          >
+                            {t.admin.openWall}
+                          </Link>
+                          <VisuallyHidden id={`wall-hint-${event.id}`}>
+                            {t.about.opensInNewTab}
+                          </VisuallyHidden>
+                        </>
                       ) : null}
                     </>
                   }

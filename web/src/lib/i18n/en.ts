@@ -464,6 +464,8 @@ export const en: UiText = {
 
   moderation: {
     title: 'Moderation',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Phone version, one photo at a time',
     intro: 'Nothing reaches the screen without your approval.',
     pending: (count: number) =>
       t.count(count, {
@@ -890,6 +892,11 @@ export const en: UiText = {
     shareLinkUrl: 'Link address',
     shareLinkCopy: 'Copy the link',
     shareLinkCopied: 'Link copied.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'Copying failed. The address is selected: copy it with Ctrl+C (or by long-pressing on a phone).',
+    shareLinkLeaveWarning:
+      'This address will never be shown again and you have not copied it. Leave the page anyway?',
     shareLinkRevoke: 'Switch off the link',
     shareLinkRevokeTitle: 'Switch off this link?',
     shareLinkRevokeHint:
@@ -1019,6 +1026,8 @@ export const en: UiText = {
 
   mobileModeration: {
     title: 'Moderation on a phone',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Full console, for a computer',
     intro: 'Swipe the photo right to publish, left to reject.',
     releaseToPublish: 'Release to publish',
     releaseToReject: 'Release to reject',
@@ -1105,6 +1114,10 @@ export const en: UiText = {
     spaceTitle: 'Client space',
     limitsTitle: 'Limits and usage',
     noLimits: 'Your operator has not set any limit on your account.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Your account does not belong to any client.',
+    noClientHint:
+      'So there is no limit or usage to read here. Your events are on the page that lists them.',
     roleOwner: 'Owner',
     roleMember: 'Member',
     pendingTitle: 'Waiting for your approval',

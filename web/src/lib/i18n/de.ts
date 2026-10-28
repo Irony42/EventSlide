@@ -512,6 +512,8 @@ export const de: UiText = {
 
   moderation: {
     title: 'Moderation',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Telefonversion, Foto für Foto',
     intro: 'Nichts erscheint ohne Ihre Freigabe auf dem Bildschirm.',
     pending: (count: number) =>
       t.count(count, {
@@ -942,6 +944,11 @@ export const de: UiText = {
     shareLinkUrl: 'Adresse des Links',
     shareLinkCopy: 'Link kopieren',
     shareLinkCopied: 'Link kopiert.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'Das Kopieren ist fehlgeschlagen. Die Adresse ist markiert: Kopieren Sie sie mit Strg+C (oder auf dem Telefon mit langem Drücken).',
+    shareLinkLeaveWarning:
+      'Diese Adresse wird nie wieder angezeigt und Sie haben sie nicht kopiert. Die Seite trotzdem verlassen?',
     shareLinkRevoke: 'Link deaktivieren',
     shareLinkRevokeTitle: 'Diesen Link deaktivieren?',
     shareLinkRevokeHint:
@@ -1076,6 +1083,8 @@ export const de: UiText = {
 
   mobileModeration: {
     title: 'Moderation am Telefon',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Vollständige Konsole für den Computer',
     intro: 'Wischen Sie das Foto nach rechts zum Freigeben, nach links zum Ablehnen.',
     releaseToPublish: 'Loslassen zum Freigeben',
     releaseToReject: 'Loslassen zum Ablehnen',
@@ -1162,6 +1171,10 @@ export const de: UiText = {
     spaceTitle: 'Kundenbereich',
     limitsTitle: 'Grenzen und Nutzung',
     noLimits: 'Ihr Betreiber hat für Ihr Konto keine Grenze festgelegt.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Ihr Konto gehört zu keinem Kunden.',
+    noClientHint:
+      'Hier gibt es also weder Grenzen noch Nutzung einzusehen. Ihre Veranstaltungen finden Sie auf der Seite „Ihre Veranstaltungen“.',
     roleOwner: 'Inhaber',
     roleMember: 'Mitglied',
     pendingTitle: 'Wartet auf Ihre Zustimmung',

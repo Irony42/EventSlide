@@ -269,7 +269,7 @@ const buildWorld = ({
           events,
           getEventLimits: makeGetEventLimits({ clients }),
         }),
-        listEventsForHost: makeListEventsForHost({ events }),
+        listEventsForHost: makeListEventsForHost({ events, memberships }),
         resolveJoinCode: absent('resolveJoinCode'),
         identifyMediaViewer: absent('identifyMediaViewer'),
         updateEventSettings: makeUpdateEventSettings({
@@ -717,8 +717,51 @@ describe('the host event routes', () => {
           guestCount: 3,
           usedBytes: 3_000_000,
           createdAt: AT.toISOString(),
+          role: 'owner',
         },
       ])
+    })
+
+    it('tells a moderator they moderate the event, so the dashboard can leave out the owner’s buttons', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent.get('/api/events')
+
+      expect(response.body.items).toEqual([
+        expect.objectContaining({ slug: SLUG, role: 'moderator' }),
+      ])
+    })
+
+    it('gives each event the role the caller holds in that event, and no event of another client', async () => {
+      // The gala's owner is also invited to moderate the wedding: two rows, two roles, and the
+      // wedding's owner and moderator memberships colour nothing of theirs.
+      await world.memberships.grant({
+        eventId: WEDDING,
+        userId: asUserId(GALA_OWNER),
+        role: 'moderator',
+        grantedAt: AT,
+      })
+      const agent = await signedIn(world, 'gala-owner')
+
+      const response = await agent.get('/api/events')
+
+      expect(
+        response.body.items.map((item: { slug: string; role: string }) => [item.slug, item.role]),
+      ).toEqual(
+        expect.arrayContaining([
+          ['gala-annuel', 'owner'],
+          [SLUG, 'moderator'],
+        ]),
+      )
+      expect(response.body.items).toHaveLength(2)
+    })
+
+    it('shows a host with no part in an event neither the event nor a role for it', async () => {
+      const agent = await signedIn(world, 'newcomer')
+
+      const response = await agent.get('/api/events')
+
+      expect(response.body).toEqual({ items: [] })
     })
 
     it("never lists another host's event", async () => {

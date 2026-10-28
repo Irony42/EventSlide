@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
+import { HostEventsLink } from '../../app/HostEventsLink'
+import { LoadFailure } from '../../design-system/components/Async'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
@@ -202,15 +204,12 @@ export function MobileModerationPage() {
             <Spinner size="lg" label={t.app.loading} />
           </div>
         ) : queue.error !== null && queue.items.length === 0 ? (
-          <EmptyState
+          <LoadFailure
             as="h2"
             title={t.moderation.loadFailed}
-            description={messageForError(queue.error, t)}
-            action={
-              <Button variant="primary" onClick={queue.refresh}>
-                {t.app.retry}
-              </Button>
-            }
+            message={messageForError(queue.error, t)}
+            onRetry={queue.refresh}
+            secondaryAction={<HostEventsLink />}
           />
         ) : current === null ? (
           <EmptyState as="h2" title={t.moderation.empty} description={t.moderation.emptyHint} />
@@ -355,6 +354,15 @@ export function MobileModerationPage() {
           <p className={styles['undoHint']}>{t.mobileModeration.undoUnavailable}</p>
         ) : null}
       </div>
+      {/* After the thumb zone and outside it, never in it. The bar above is `sticky`, so whatever
+          it holds is painted over the bottom of the viewport: a link inside it made the bar a
+          line taller, and on a short phone screen the bar then covered the middle of the card,
+          where a swipe starts (the pointer landed on the bar and the gesture never began). Here
+          the bar and the card are exactly where they were, and the link is below the fold's work:
+          a host who has put the phone down and sat at the laptop scrolls to it. */}
+      <Link className={styles['otherConsole']} to={`/admin/events/${slug}/moderation`}>
+        {t.mobileModeration.openConsole}
+      </Link>
     </div>
   )
 }

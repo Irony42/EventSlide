@@ -1,5 +1,5 @@
 import type { BadgeTone } from '../../design-system/components/Badge'
-import type { EventStatus } from '../../lib/api/dto'
+import type { EventRole, EventStatus } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
 
 /**
@@ -98,3 +98,16 @@ export const offersSupport = (status: EventStatus): boolean => status === 'close
 
 /** Mirrors `isMutable`: settings, name and join code are frozen once archived. */
 export const isMutable = (status: EventStatus): boolean => status !== 'archived'
+
+/**
+ * Mirrors `canManageEvent` (`src/domain/events/eventRole.ts`): the host's own decisions, the
+ * lifecycle among them, are the owner's. A moderator is handed a laptop to approve photographs,
+ * and every lifecycle request they sent would be answered `403 auth.forbidden`, so the console
+ * leaves those buttons out rather than offer a control whose every press is refused.
+ *
+ * **A presentation of the rule, not the rule.** The server still refuses the request
+ * (`changeEventStatus` asks `requireEventRole(…, 'manage')`); this only keeps the console from
+ * offering what it knows will be refused. `eventLifecycle.test.ts` states the same facts as the
+ * domain's own test (`eventRole.test.ts`); the two are kept alike by hand, as for the transitions.
+ */
+export const canManageEvent = (role: EventRole): boolean => role === 'owner'

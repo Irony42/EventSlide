@@ -1,14 +1,21 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import type { EventStatus } from '../../../lib/api/dto'
-import { allowsModeration, servesWall } from '../eventLifecycle'
+import type { EventRole, EventStatus } from '../../../lib/api/dto'
+import { allowsModeration, canManageEvent, servesWall } from '../eventLifecycle'
 import { EventActionIcon, type EventActionGlyph } from './EventActionIcon'
 import styles from './EventActionLinks.module.css'
 
 export interface EventActionLinksProps {
   readonly slug: string
   readonly status: EventStatus
+  /**
+   * What the viewer is in this event. The settings tile is the owner's: a moderator may read
+   * the page but change nothing on it, and a tile that leads to a form whose every control is
+   * disabled is clutter in the middle of an evening.
+   */
+  readonly role: EventRole
   /** Built by the API client, so the link and the endpoint cannot drift apart. */
   readonly albumUrl: string
 }
@@ -42,11 +49,36 @@ const tileProps = (priority: Priority) => ({
 })
 
 /** A route inside the app: a real `<a href>`, so middle-click and "open in a new tab" work. */
-function RouteTile({ to, priority, glyph, children }: TileProps & { readonly to: string }) {
+function RouteTile({
+  to,
+  priority,
+  glyph,
+  children,
+  newTab = false,
+}: TileProps & {
+  readonly to: string
+  /**
+   * Opens in a tab of its own. Only the wall's: it is the projector's screen, the console must
+   * still be there, one tab away, when the host comes back, and the wall has no way back to it
+   * of its own. `noopener`, so the wall cannot reach the console that opened it. The link's name
+   * stays its words alone; what it does is its description.
+   */
+  readonly newTab?: boolean
+}) {
+  const t = useTranslations()
+  const hintId = useId()
   return (
-    <Link {...tileProps(priority)} to={to}>
-      <TileBody glyph={glyph}>{children}</TileBody>
-    </Link>
+    <>
+      <Link
+        {...tileProps(priority)}
+        to={to}
+        {...(newTab ? { target: '_blank', rel: 'noopener', 'aria-describedby': hintId } : {})}
+      >
+        <TileBody glyph={glyph}>{children}</TileBody>
+      </Link>
+      {/* Beside the link and not in it: inside, it would join the link's name. */}
+      {newTab ? <VisuallyHidden id={hintId}>{t.about.opensInNewTab}</VisuallyHidden> : null}
+    </>
   )
 }
 
@@ -62,7 +94,7 @@ function RouteTile({ to, priority, glyph, children }: TileProps & { readonly to:
  * not this component's: an archived event has no wall and no queue, and the grid simply
  * holds fewer of them.
  */
-export function EventActionLinks({ slug, status, albumUrl }: EventActionLinksProps) {
+export function EventActionLinks({ slug, status, role, albumUrl }: EventActionLinksProps) {
   const t = useTranslations()
   const wall = servesWall(status)
   const moderation = allowsModeration(status)
@@ -72,7 +104,7 @@ export function EventActionLinks({ slug, status, albumUrl }: EventActionLinksPro
       {wall || moderation ? (
         <div className={styles['group']}>
           {wall ? (
-            <RouteTile priority="primary" glyph="wall" to={`/e/${slug}/display`}>
+            <RouteTile priority="primary" glyph="wall" to={`/e/${slug}/display`} newTab>
               {t.admin.openWall}
             </RouteTile>
           ) : null}
@@ -99,9 +131,11 @@ export function EventActionLinks({ slug, status, albumUrl }: EventActionLinksPro
             {t.mobileModeration.title}
           </RouteTile>
         ) : null}
-        <RouteTile priority="secondary" glyph="settings" to={`/admin/events/${slug}/settings`}>
-          {t.admin.settings}
-        </RouteTile>
+        {canManageEvent(role) ? (
+          <RouteTile priority="secondary" glyph="settings" to={`/admin/events/${slug}/settings`}>
+            {t.admin.settings}
+          </RouteTile>
+        ) : null}
         {/*
           A plain link, not a fetch: the ZIP is streamed and can be hundreds of
           megabytes, so the browser's own download manager is the right tool —
