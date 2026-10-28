@@ -1,6 +1,6 @@
 import { accentNameFor, DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
 import { graceLabel } from './settingsLabels'
-import type { EventSettingsDto, EventTemplateKey } from '../../lib/api/dto'
+import type { EventSettingsDto, EventTemplateKey, EventThemeDto } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
 
 /**
@@ -196,3 +196,16 @@ export const templateSummary = (
  */
 export const templateWarning = (patch: Partial<EventSettingsDto>, text: UiText): string | null =>
   patch.moderation === 'auto' ? text.admin.moderationAutoWarning : null
+
+/**
+ * The theme a template would give an event, for the miniature beside its card.
+ *
+ * A lookup into the table above and nothing more: which appearance a template sets is the
+ * domain's rule and the table's content, and the preview asks for it rather than restating
+ * it. `null` for "Sans modèle" and for a patch that carries no theme, which is what the
+ * server stores for an event nobody themed and what `themeSurfaceProps` renders as the
+ * product's own look — so the preview of "no template" is the defaults without this file
+ * naming one.
+ */
+export const templateTheme = (key: EventTemplateKey | null): EventThemeDto | null =>
+  key === null ? null : (EVENT_TEMPLATE_PATCHES[key].theme ?? null)

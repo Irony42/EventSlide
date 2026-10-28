@@ -735,6 +735,7 @@ export const de: UiText = {
     templateNoneSummary:
       'Standardeinstellungen: jedes Foto wird freigegeben, bevor es auf den Bildschirm kommt; unbegrenzte Aufbewahrung.',
     templateChanges: 'Diese Vorlage stellt ein:',
+    templatePreviewSample: 'Ihre Veranstaltung',
     templateClipsOn: 'Videos erlaubt',
     templateClipsOff: 'Videos deaktiviert',
     templateNames: {

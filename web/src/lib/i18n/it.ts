@@ -704,6 +704,7 @@ export const it: UiText = {
     templateNoneSummary:
       'Impostazioni predefinite: ogni foto approvata prima dello schermo, conservazione illimitata.',
     templateChanges: 'Questo modello imposta:',
+    templatePreviewSample: 'Il tuo evento',
     templateClipsOn: 'Video consentiti',
     templateClipsOff: 'Video disattivati',
     templateNames: {

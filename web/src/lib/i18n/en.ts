@@ -690,6 +690,7 @@ export const en: UiText = {
     templateNoneSummary:
       'Default settings: every photo approved before it reaches the screen, kept indefinitely.',
     templateChanges: 'This template sets:',
+    templatePreviewSample: 'Your event',
     templateClipsOn: 'Videos allowed',
     templateClipsOff: 'Videos turned off',
     templateNames: {
