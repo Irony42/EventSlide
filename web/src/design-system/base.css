@@ -242,7 +242,7 @@ html::before {
     body:has([data-event-ambiance='bivouac']:not([data-template-preview])),
     body:has([data-event-ambiance='cabaret']:not([data-template-preview])),
     body:has([data-event-ambiance='noces']:not([data-template-preview]))
-  ):not(:has([data-wall-layout]))::before,
+  ):not(:has([data-wall-layout], [data-ornament-free]))::before,
 :is(
     body:not(:has([data-event-ambiance]:not([data-template-preview]))),
     body:has([data-event-ambiance='riviera']:not([data-template-preview])),
@@ -250,7 +250,7 @@ html::before {
     body:has([data-event-ambiance='bivouac']:not([data-template-preview])),
     body:has([data-event-ambiance='cabaret']:not([data-template-preview])),
     body:has([data-event-ambiance='noces']:not([data-template-preview]))
-  ):not(:has([data-wall-layout]))::after {
+  ):not(:has([data-wall-layout], [data-ornament-free]))::after {
   position: fixed;
   inset-inline: 0;
   /* Under the sticky bars, the toasts and the dialogs, which must stay readable over a strip. */
@@ -260,7 +260,7 @@ html::before {
 
 /* ---- The Guinguette: a string of filament bulbs along the top, linen gingham below. ---- */
 body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::before {
   content: '';
   inset-block-start: 0;
@@ -274,7 +274,7 @@ body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
 }
 
 body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::after {
   content: '';
   inset-block-end: 0;
@@ -293,16 +293,18 @@ body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
 }
 
 /* Room for the ornaments, so they never sit over the header or the last control. */
-body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(:has([data-wall-layout])) {
+body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
   padding-block: var(--space-6) var(--space-5);
 }
 
 /* ---- Riviera: a breton stripe along the top and the bottom. ---- */
 body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::before,
 body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::after {
   content: '';
   block-size: 12px;
@@ -314,26 +316,26 @@ body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
 }
 
 body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::before {
   inset-block-start: 0;
 }
 
 body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::after {
   inset-block-end: 0;
 }
 
 body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   ) {
   padding-block: var(--space-4);
 }
 
 /* ---- Champs d'or: a strip of linen along the bottom. ---- */
 body:has([data-event-ambiance='champs']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::after {
   content: '';
   inset-block-end: 0;
@@ -344,14 +346,14 @@ body:has([data-event-ambiance='champs']:not([data-template-preview])):not(
 }
 
 body:has([data-event-ambiance='champs']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   ) {
   padding-block-end: var(--space-5);
 }
 
 /* ---- Bivouac: a strip of tartan wool along the bottom. ---- */
 body:has([data-event-ambiance='bivouac']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::after {
   content: '';
   inset-block-end: 0;
@@ -362,14 +364,14 @@ body:has([data-event-ambiance='bivouac']:not([data-template-preview])):not(
 }
 
 body:has([data-event-ambiance='bivouac']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   ) {
   padding-block-end: var(--space-5);
 }
 
 /* ---- Cabaret: an art-deco fan line along the top, a double rule along the bottom. ---- */
 body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::before {
   content: '';
   inset-block-start: 14px;
@@ -385,7 +387,7 @@ body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
 }
 
 body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::after {
   content: '';
   inset-block-end: 12px;
@@ -395,14 +397,14 @@ body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
 }
 
 body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   ) {
   padding-block: var(--space-8) var(--space-5);
 }
 
 /* ---- Noces: a thin double rule along the top, a line of rose petals along the bottom. ---- */
 body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::before {
   content: '';
   inset-block-start: 12px;
@@ -412,7 +414,7 @@ body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
 }
 
 body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
-    :has([data-wall-layout])
+    :has([data-wall-layout], [data-ornament-free])
   )::after {
   content: '';
   inset-block-end: 10px;
@@ -426,6 +428,8 @@ body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
     0 0 / 26px 10px repeat-x;
 }
 
-body:has([data-event-ambiance='noces']:not([data-template-preview])):not(:has([data-wall-layout])) {
+body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
   padding-block: var(--space-6) var(--space-5);
 }

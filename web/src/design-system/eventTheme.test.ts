@@ -88,9 +88,11 @@ describe('themeSurfaceProps', () => {
     return parts
   }
 
-  it('keeps the guest ornaments off the wall, which carries its layout marker', async () => {
+  it('keeps the guest ornaments off the wall and the host’s phone console, which carry a marker', async () => {
     // ADR 0010: a fixed string of bulbs over a projected photograph is the one place the
-    // ornament would break principle 1, so the selector must exclude the wall.
+    // ornament would break principle 1, so the selector must exclude the wall. The phone
+    // console spends every line on one thumb, and the strip's padding pushed a photo's caption
+    // and author under the fold of an iPhone (28/10), so it is excluded the same way.
     const { default: base } = await import('./base.css?raw')
     // Every rule that draws on the page's own pseudo-elements, or pads the body for them.
     const rules = [
@@ -102,11 +104,11 @@ describe('themeSurfaceProps', () => {
     expect(rules.length).toBeGreaterThanOrEqual(10)
     // Every selector of a comma list, not the list: one bare member would put a strip on the wall.
     for (const selector of rules.flatMap(topLevelCommas)) {
-      expect(selector).toContain(':not(:has([data-wall-layout]))')
+      expect(selector).toContain(':not(:has([data-wall-layout],[data-ornament-free]))')
     }
     // The root look has no marker of its own: it is the body that holds no ambiance at all.
     expect(base.replace(/\s+/g, '')).toContain(
-      'body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(:has([data-wall-layout]))::before',
+      'body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(:has([data-wall-layout],[data-ornament-free]))::before',
     )
   })
 
