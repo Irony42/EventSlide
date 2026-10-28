@@ -1,5 +1,6 @@
 import { DEFAULT_EVENT_THEME, readEventTheme } from '../design-system/eventTheme'
 import type {
+  EventThemeDto,
   NoticeAcknowledgementStatus,
   NoticeAudience,
   NoticePublication,
@@ -372,9 +373,50 @@ export const rememberPrivacyNotice = (
   privacyNotice: PrivacyNoticeState,
   now: number = Date.now(),
 ): void => {
+  amendGuestSession(slug, now, (session) => ({ ...session, privacyNotice }))
+}
+
+/**
+ * Replace the stored theme with the one the server answered with, keeping the rest.
+ *
+ * The join's copy of the theme is a snapshot, and a host who changes the colour at 21:00 has
+ * not changed what a guest who joined at 19:00 sees until something tells that guest's phone.
+ * The upload screen's own-photos read and the feed's wall read both carry the current theme;
+ * this is where what they learn is written back, so the **next** open of the screen paints the
+ * right colour on its first frame instead of the old one for a round trip.
+ *
+ * It follows the same three rules {@link rememberPrivacyNotice} does, and for the same
+ * reasons: a tab with no session has nothing to update, the device's "last event" follows
+ * only when it is **this** event, and reading does not renew the cookie's date. The tab's
+ * copy and the device's therefore always hold the same theme: both are refreshed, or the
+ * device's is a different event's and is left alone.
+ *
+ * The caller narrows the theme (`readEventTheme`) before handing it over: this writes what it
+ * is given, and a stored entry that fails `isPublicEvent` would log the guest out of the screen.
+ */
+export const rememberEventTheme = (
+  slug: string,
+  theme: EventThemeDto,
+  now: number = Date.now(),
+): void => {
+  amendGuestSession(slug, now, (session) => ({ ...session, event: { ...session.event, theme } }))
+}
+
+/**
+ * Rewrites the stored session for `slug` through `change`, in the tab and on the device.
+ *
+ * The device's "last event" is rewritten only when it is **this** event: a tab left open on an
+ * earlier evening must not take the memory back from the one the guest joined since. And its
+ * date stays the join's: nothing amended here renews a cookie.
+ */
+const amendGuestSession = (
+  slug: string,
+  now: number,
+  change: (session: GuestSession) => GuestSession,
+): void => {
   const session = readGuestSession(slug, now)
   if (session === null) return
-  const next: GuestSession = { ...session, privacyNotice }
+  const next = change(session)
   tryWrite(inTab, keyFor(slug), JSON.stringify(next))
   const remembered = readRemembered(now)
   if (remembered?.session.event.slug === slug) {

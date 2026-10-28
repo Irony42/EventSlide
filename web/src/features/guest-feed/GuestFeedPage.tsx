@@ -95,7 +95,9 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
   }, [shown])
 
   return (
-    <div {...themeSurfaceProps(event.theme, 'guest')} className={styles['page']}>
+    // The wall's answer once it has one, the join's stored copy until then: a host's later change
+    // reaches a guest who joined before it on this read, which the feed makes anyway.
+    <div {...themeSurfaceProps(feed.theme ?? event.theme, 'guest')} className={styles['page']}>
       <header className={styles['header']}>
         <h1 className={styles['title']}>{t.feed.title}</h1>
         <p className={styles['event']}>{event.name}</p>
