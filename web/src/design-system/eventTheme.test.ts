@@ -164,6 +164,15 @@ describe('themeSurfaceProps', () => {
     }
   })
 
+  it('empties the root’s bundled ground when a surface carries the host’s own', async () => {
+    // Otherwise the bundled photograph is drawn (and downloaded) under the host's, and shows
+    // through a photograph with transparency.
+    const { default: base } = await import('./base.css?raw')
+    const rule = /:root:has\(\[data-venue-ground='guest'\][^{]*\{([^}]*)\}/.exec(base)
+
+    expect(rule?.[1]?.replace(/\s+/g, '')).toBe('background:none;')
+  })
+
   it('emits no ambiance for the product’s own look', () => {
     expect(themeSurfaceProps(aTheme(), 'wall')).not.toHaveProperty('data-event-ambiance')
     expect(themeSurfaceProps(aTheme(), 'guest')).not.toHaveProperty('data-event-ambiance')

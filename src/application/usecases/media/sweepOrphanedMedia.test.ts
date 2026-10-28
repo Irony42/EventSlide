@@ -200,15 +200,30 @@ describe('sweepOrphanedMedia', () => {
       // use. Freshness alone would not save it if the file is old, as a re-upload's is.
       events.seed(anEvent({ id: 'event-1' }))
       await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1))
-      const realSources = clips.listStagedSources.bind(clips)
-      clips.listStagedSources = async (eventId) => {
-        const staged = await realSources(eventId)
+      // Hooked onto the confirmation, which runs after every batched read: the settings are
+      // read once for the bulk set and asked again here, and this is the window between them.
+      const realReferencing = photos.findIdsReferencing.bind(photos)
+      photos.findIdsReferencing = async (eventId, hash) => {
         await events.save(anEvent({ id: 'event-1', settings: { venuePhoto: hashOf('9a1') } }))
-        return staged
+        return realReferencing(eventId, hash)
       }
 
       expect((await sweep()).collected).toBe(0)
       expect(await media.exists(EVENT, hashOf('9a1'), 'ground')).toBe(true)
+    })
+
+    it('does not so much as ask about a digest the settings name, which the bulk pass settles', async () => {
+      // The performance half, as for every other filter in this file: the per-digest confirmation
+      // would also save it, so only the count of questions can tell the bulk set is doing its job.
+      events.seed(anEvent({ id: 'event-1', settings: { venuePhoto: hashOf('9a1') } }))
+      await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1))
+      const calls = new CallLog()
+      photos = calls.watch('photos', photos)
+      build()
+
+      await sweep()
+
+      expect(calls.sequenceOf('photos.findIdsReferencing')).toEqual([])
     })
 
     it('keeps a clip’s poster, which no row names as its content hash', async () => {
