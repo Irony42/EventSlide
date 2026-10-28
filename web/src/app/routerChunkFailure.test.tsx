@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
+import { useNavigate, type NavigateFunction } from 'react-router-dom'
 import { ErrorBoundary } from './ErrorBoundary'
 import { AppRoutes } from './router'
 import { de } from '../lib/i18n/de'
@@ -37,6 +38,10 @@ vi.mock('../features/wall/WallPage', () => {
   throw new Error('Failed to fetch dynamically imported module: /assets/WallPage-8c1d04.js')
 })
 
+vi.mock('../features/gallery/GalleryPage', () => {
+  throw new Error('Failed to fetch dynamically imported module: /assets/GalleryPage-1b7e55.js')
+})
+
 const asHost = (route: string, locale: Locale = 'fr') => {
   const api = fakeApi({
     session: vi.fn(async (): Promise<SessionResponse> => ({
@@ -62,6 +67,30 @@ describe('AppRoutes with a chunk that cannot be loaded', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
     expect(screen.getByRole('button', { name: fr.app.retry })).toBeVisible()
+    log.mockRestore()
+  })
+
+  it('offers the host their events as the way home from the crash', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    asHost('/admin')
+
+    expect(await screen.findByRole('link', { name: fr.shell.hostHome })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
+    log.mockRestore()
+  })
+
+  it('shows no link at all on the wall, and tries again by itself', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderWithProviders(<AppRoutes />, { route: '/e/camille-et-sacha/display' })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+    expect(screen.queryByRole('link', { name: fr.shell.hostHome })).toBeNull()
+    expect(screen.queryByRole('link', { name: fr.shell.notFoundHome })).toBeNull()
+    expect(screen.getByText(fr.shell.crashAutoRetry)).toBeVisible()
     log.mockRestore()
   })
 
@@ -121,6 +150,65 @@ describe('the crash screen speaks the language of the surface it covers', () => 
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
     expect(screen.queryByText(de.shell.crashTitle)).toBeNull()
+    log.mockRestore()
+  })
+})
+
+/**
+ * A crash does not outlive the page it happened on (navigation pass, H11): Back from a screen
+ * whose chunk failed lands on a screen that renders, not on the crash screen.
+ */
+describe('Back from a screen that crashed', () => {
+  /** A way to move around inside the one router the harness mounts. */
+  let navigate: NavigateFunction = () => {}
+  const Capture = () => {
+    navigate = useNavigate()
+    return null
+  }
+
+  it('renders the console page the host came from', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const api = fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => ({
+        authenticated: true,
+        user: aSessionUser(),
+      })),
+    })
+    renderWithProviders(
+      <>
+        <Capture />
+        <AppRoutes />
+      </>,
+      { api, route: '/admin/events/new' },
+    )
+    expect(await screen.findByRole('heading', { name: fr.admin.newEvent })).toBeVisible()
+
+    act(() => void navigate('/admin'))
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+    act(() => void navigate(-1))
+
+    expect(await screen.findByRole('heading', { name: fr.admin.newEvent })).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
+    log.mockRestore()
+  })
+
+  it('renders the guest page the guest came from, under the same lazy boundary', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderWithProviders(
+      <>
+        <Capture />
+        <AppRoutes />
+      </>,
+      { route: '/about' },
+    )
+    expect(await screen.findByRole('heading', { name: fr.about.title })).toBeVisible()
+
+    act(() => void navigate(`/g/${'Q'.repeat(43)}`))
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+    act(() => void navigate(-1))
+
+    expect(await screen.findByRole('heading', { name: fr.about.title })).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
     log.mockRestore()
   })
 })

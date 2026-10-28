@@ -1,0 +1,7 @@
+/* Stays in view while a long page scrolls: the host must not have to hunt for the way back in. */
+.banner {
+  position: sticky;
+  top: var(--space-2);
+  z-index: var(--z-dialog);
+  margin-bottom: var(--space-4);
+}

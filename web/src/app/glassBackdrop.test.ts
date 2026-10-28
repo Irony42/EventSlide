@@ -260,9 +260,10 @@ describe('the route table and the router agree about what exists', () => {
     // `path="…"` would be picked up here, which is the harmless direction to be wrong in.
     const declared = [...ROUTER.matchAll(/path="([^"]+)"/g)]
       .flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
-      // The one address that renders no shell: it is a `<Navigate>` outside every layout,
-      // so there is no surface element for a tier to land on.
-      .filter((path) => path !== '/')
+      // The addresses that render no shell: each is a `<Navigate>` (`/`, `/e/:slug` to the
+      // upload page, `/admin/events` to the dashboard), so there is no surface element for a
+      // tier to land on. The page they send to is in the table under its own address.
+      .filter((path) => !['/', '/e/:slug', '/admin/events'].includes(path))
 
     expect([...ROUTE_BACKDROPS.map((route) => route.path)].sort()).toEqual([...declared].sort())
   })

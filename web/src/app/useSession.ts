@@ -42,6 +42,18 @@ export const useSession = (): SessionState => {
 }
 
 /**
+ * Whether the session ended under the page: some request of the signed-in area was answered
+ * `401 auth.required`.
+ *
+ * It is a flag and not a redirect. The page stays as it is, with whatever it holds, and a
+ * banner (`SessionExpiredBanner`) tells the host and offers the way back in. A reader that
+ * wants to react (a form that should keep its draft, a poll that should stop) reads this.
+ * Dropped by itself when the host crosses the border of the signed-in area, which is what
+ * signing in again does.
+ */
+export const useSessionExpired = (): boolean => useStore().expired
+
+/**
  * Says the shared answer may be wrong now: somebody signed in or out, or changed what the
  * session must do. Does not subscribe, so a sign-in form that calls it still asks nothing.
  */

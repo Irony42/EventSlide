@@ -235,6 +235,11 @@ export const en: UiText = {
     notFoundTitle: 'Page not found',
     notFoundHint: 'This address does not exist. Check the link, or go back to the start.',
     notFoundHome: 'Back to the start',
+    /* Navigation pass, batch B: the way home from a 404 or a crash, and the expired-session banner. */
+    hostHome: 'Go to your events',
+    sessionExpired: 'Your session has expired.',
+    sessionExpiredAction: 'Sign in again',
+    crashAutoRetry: 'Trying again automatically in a moment…',
   },
 
   errors: {

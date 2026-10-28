@@ -247,6 +247,11 @@ export const it: UiText = {
     notFoundHint:
       'Questo indirizzo non esiste. Controlli il link, oppure torni alla pagina iniziale.',
     notFoundHome: 'Torna alla pagina iniziale',
+    /* Navigation pass, batch B: the way home from a 404 or a crash, and the expired-session banner. */
+    hostHome: 'Vai ai suoi eventi',
+    sessionExpired: 'La sua sessione è scaduta.',
+    sessionExpiredAction: 'Acceda di nuovo',
+    crashAutoRetry: 'Un nuovo tentativo partirà automaticamente tra un istante…',
   },
 
   errors: {

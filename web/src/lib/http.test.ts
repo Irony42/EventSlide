@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, asError, http, isAbortError } from './http'
 import { fr } from './i18n/fr'
+import { SESSION_EXPIRED_EVENT } from './sessionExpiry'
 import { TRANSLATIONS, messageForCode } from './i18n/translations'
 
 /**
@@ -882,5 +883,52 @@ describe('a token rotated underneath a request', () => {
 
     expect(failure.code).toBe('request.csrfMismatch')
     expect(FakeXhr.instances).toHaveLength(1)
+  })
+})
+
+/**
+ * The transport says when the session ended (navigation pass, H2): `SessionProvider` turns it
+ * into a banner. It must say it for the server's "no valid session" answer and for nothing else,
+ * or a wrong password would announce an expiry.
+ */
+describe('announcing an expired session', () => {
+  const heardDuring = async (response: () => Response): Promise<number> => {
+    answerWith(response)
+    const listener = vi.fn()
+    window.addEventListener(SESSION_EXPIRED_EVENT, listener)
+    await http.get('/api/events').catch(() => undefined)
+    window.removeEventListener(SESSION_EXPIRED_EVENT, listener)
+    return listener.mock.calls.length
+  }
+
+  it('is announced when the server answers 401 auth.required', async () => {
+    const heard = await heardDuring(() =>
+      jsonBody(401, { error: { code: 'auth.required', message: 'Sign in' } }),
+    )
+
+    expect(heard).toBe(1)
+  })
+
+  it('is not announced for a wrong password, which is a 401 as well', async () => {
+    const heard = await heardDuring(() =>
+      jsonBody(401, { error: { code: 'auth.invalidCredentials' } }),
+    )
+
+    expect(heard).toBe(0)
+  })
+
+  it('is not announced for a refusal that is not a missing session', async () => {
+    const heard = await heardDuring(() => jsonBody(403, { error: { code: 'auth.forbidden' } }))
+
+    expect(heard).toBe(0)
+  })
+
+  it('still rejects with the ApiError, so the page that asked can say what failed', async () => {
+    answerWith(() => jsonBody(401, { error: { code: 'auth.required' } }))
+
+    await expect(http.get('/api/events')).rejects.toMatchObject({
+      status: 401,
+      code: 'auth.required',
+    })
   })
 })

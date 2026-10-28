@@ -249,6 +249,11 @@ export const de: UiText = {
     notFoundHint:
       'Diese Adresse gibt es nicht. Prüfen Sie den Link oder gehen Sie zurück zum Anfang.',
     notFoundHome: 'Zurück zum Anfang',
+    /* Navigation pass, batch B: the way home from a 404 or a crash, and the expired-session banner. */
+    hostHome: 'Zu Ihren Veranstaltungen',
+    sessionExpired: 'Ihre Sitzung ist abgelaufen.',
+    sessionExpiredAction: 'Melden Sie sich erneut an',
+    crashAutoRetry: 'Ein neuer Versuch startet automatisch in Kürze…',
   },
 
   errors: {
