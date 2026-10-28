@@ -1,22 +1,40 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useSession } from '../../app/useSession'
+import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { ADMIN_HOME, forcedByGate, fromOf } from '../../lib/landing'
 import { AuthForm } from './components/AuthForm'
 import { useChangePassword } from './hooks/useAuthActions'
+import { useResolveLanding } from './hooks/useLanding'
 import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 
 /**
  * Surface: the host's laptop. Reached on purpose, or forced by
  * `MustChangePasswordGate` for an account whose password was set for it and not by it.
+ *
+ * **Both ways bring the person back to where they were going** (`from` in the navigation state:
+ * the gate writes it, and so does the account menu), not to the dashboard. They differ in two
+ * things: a forced change says why, in a sentence above the form, and has no way out (every other
+ * address of the console leads back here); a voluntary one has an "Annuler" that returns to
+ * where the person was.
  */
 export function ChangePasswordPage() {
   const t = useTranslations()
   const { submit, submitting, error, clearError } = useChangePassword()
   const toast = useToast()
   const navigate = useNavigate()
+  const { state } = useLocation()
+  const { session } = useSession()
+  const resolveLanding = useResolveLanding()
+  // The session says so, and so does the gate that sent the person here (see `forcedByGate`):
+  // choosing the password makes the session forget itself, the gate shows its wait, and this page
+  // is mounted again before it leaves, when the session no longer says the change was forced.
+  const mustChange = session !== null && session.authenticated && session.user.mustChangePassword
+  const forced = mustChange || forcedByGate(state)
 
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -41,18 +59,29 @@ export function ChangePasswordPage() {
     void submit({ currentPassword: current, newPassword: next }).then((accepted) => {
       if (!accepted) return
       toast.show(t.auth.passwordSaved, { tone: 'success' })
-      navigate('/admin', { replace: true })
+      void resolveLanding({ state }).then((path) => navigate(path, { replace: true }))
     })
   }
 
   return (
     <AuthForm
       title={t.auth.changePassword}
-      intro={t.auth.changePasswordIntro}
+      intro={
+        forced
+          ? `${t.auth.changePasswordForced} ${t.auth.changePasswordIntro}`
+          : t.auth.changePasswordIntro
+      }
       error={error}
       submitting={submitting}
       submitLabel={t.app.save}
       onSubmit={handleSubmit}
+      footer={
+        forced ? null : (
+          <Button variant="ghost" onClick={() => navigate(fromOf(state) ?? ADMIN_HOME)}>
+            {t.app.cancel}
+          </Button>
+        )
+      }
     >
       <Field label={t.auth.currentPassword}>
         {(control) => (

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useApi } from '../../app/useApi'
 import { Badge } from '../../design-system/components/Badge'
@@ -7,7 +7,7 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from './adminShared'
-import { useLoader } from './adminShared'
+import { useClientNames } from './hooks/useClientNames'
 import { usePagedList } from './hooks/usePagedList'
 import { auditSentence, reasonOf, shortId } from './siteLabels'
 import styles from './AuditPage.module.css'
@@ -50,15 +50,7 @@ function AuditLog({ clientId }: { readonly clientId: string | undefined }) {
   )
   const list = usePagedList(fetchPage)
 
-  const loadNames = useCallback(
-    async (signal: AbortSignal) => (await api.siteClients({ limit: 200 }, signal)).items,
-    [api],
-  )
-  const { data: clients } = useLoader(loadNames)
-  const nameOf = useMemo(
-    () => new Map((clients ?? []).map((client) => [client.id, client.name] as const)),
-    [clients],
-  )
+  const nameOf = useClientNames()
 
   return (
     <div className={styles['page']}>
@@ -66,7 +58,13 @@ function AuditLog({ clientId }: { readonly clientId: string | undefined }) {
       <p className={styles['hint']}>{t.site.auditHint}</p>
       {clientId === undefined ? null : (
         <p>
-          {t.site.auditFiltered}{' '}
+          {/* Says **which** client, not only that there is a filter: the address carries an id,
+              and an operator who followed a link here would otherwise have to guess. The name
+              is the one the listing gives; until it arrives, or if it cannot, the id stands in. */}
+          {t.site.auditFilteredFor(nameOf.get(clientId) ?? shortId(clientId))}{' '}
+          <Link className={styles['link']} to={`/admin/site/clients/${clientId}`}>
+            {t.site.auditToClient}
+          </Link>{' '}
           <Link className={styles['link']} to="/admin/site/audit">
             {t.site.auditShowAll}
           </Link>

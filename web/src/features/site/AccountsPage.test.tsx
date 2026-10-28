@@ -5,7 +5,14 @@ import { fr } from '../../lib/i18n/fr'
 import { ApiError } from '../../lib/http'
 import type { Api } from '../../lib/api/client'
 import type { SiteAccountDto } from '../../lib/api/dto'
-import { ACCOUNT_ID, aSiteAccount, OPERATOR_ID } from '../../testing/siteFixtures'
+import {
+  ACCOUNT_ID,
+  aSiteAccount,
+  aSiteClient,
+  CLIENT_ID,
+  OPERATOR_ID,
+  OTHER_CLIENT_ID,
+} from '../../testing/siteFixtures'
 import {
   consoleApi,
   callsOutsideTheConsole,
@@ -33,6 +40,58 @@ const pressReset = async () => {
   const dialog = await screen.findByRole('dialog', { name: fr.site.resetTitle })
   await userEvent.click(within(dialog).getByRole('button', { name: fr.site.resetPassword }))
 }
+
+describe('the console’s accounts: leading to their clients (H17)', () => {
+  it('names each client an account belongs to, as a link to its page', async () => {
+    open(
+      withAccounts(
+        [
+          aSiteAccount({
+            clients: [
+              { clientId: CLIENT_ID, role: 'owner' },
+              { clientId: OTHER_CLIENT_ID, role: 'member' },
+            ],
+          }),
+        ],
+        {
+          siteClients: vi.fn(async () => ({
+            items: [aSiteClient(), aSiteClient({ id: OTHER_CLIENT_ID, name: 'Studio Lune' })],
+            next: null,
+          })),
+        },
+      ),
+    )
+
+    expect(await screen.findByRole('link', { name: 'Atelier Alpha' })).toHaveAttribute(
+      'href',
+      `/admin/site/clients/${CLIENT_ID}`,
+    )
+    expect(screen.getByRole('link', { name: 'Studio Lune' })).toHaveAttribute(
+      'href',
+      `/admin/site/clients/${OTHER_CLIENT_ID}`,
+    )
+  })
+
+  it('still leads to the client when the listing of names could not be read, by its id', async () => {
+    open(
+      withAccounts([aSiteAccount()], {
+        siteClients: vi.fn(() => Promise.reject(new ApiError(500, 'server.unexpected'))),
+      }),
+    )
+
+    expect(await screen.findByRole('link', { name: CLIENT_ID.slice(0, 8) })).toHaveAttribute(
+      'href',
+      `/admin/site/clients/${CLIENT_ID}`,
+    )
+  })
+
+  it('says so, and links nothing, for an account that belongs to no client', async () => {
+    open(withAccounts([aSiteAccount({ clients: [] })]))
+
+    expect(await screen.findByText(fr.site.noClient)).toBeVisible()
+    expect(screen.queryByRole('link', { name: /Atelier/ })).toBeNull()
+  })
+})
 
 describe('the console’s accounts: reading them', () => {
   it('waits, saying so, while the first page is on its way', async () => {
@@ -296,6 +355,22 @@ describe('the console’s accounts: resetting a password', () => {
     ).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
     expect(screen.queryByText(/password\/reset/)).toBeNull()
+  })
+
+  it('asks before the operator leaves the page while the reset link is the only copy', async () => {
+    const siteResetPassword = vi.fn<Api['siteResetPassword']>().mockResolvedValue({
+      delivery: 'link',
+      link: 'https://photos.example.test/password/reset/UN-JETON',
+      expiresAt: '2026-06-20T22:00:00.000Z',
+    })
+    open(withAccounts([aSiteAccount()], { siteResetPassword }))
+    await pressReset()
+    await screen.findByText('https://photos.example.test/password/reset/UN-JETON')
+
+    await userEvent.click(screen.getByRole('link', { name: fr.site.navAudit }))
+
+    expect(await screen.findByRole('dialog', { name: fr.site.linkLeaveTitle })).toBeVisible()
+    expect(screen.getByText('https://photos.example.test/password/reset/UN-JETON')).toBeVisible()
   })
 
   it('says what the server said when there is no mailer, and shows no link', async () => {

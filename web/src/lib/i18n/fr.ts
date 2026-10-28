@@ -1226,6 +1226,25 @@ export const fr = {
     logoutEverywhereTitle: 'Se déconnecter partout ?',
     logoutEverywhereHint:
       'Votre session sera fermée sur tous vos appareils, celui-ci compris, et il faudra vous reconnecter. Utile si vous avez perdu un appareil ou utilisé un ordinateur partagé.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'Vous êtes déjà connecté. Redirection…',
+    forgotNoMail:
+      'Mot de passe oublié ? Ce serveur n’envoie pas d’e-mail : demandez à la personne qui l’administre de le réinitialiser.',
+    changePasswordForced:
+      'Votre mot de passe a été choisi pour vous : remplacez-le avant d’aller plus loin. Vous reviendrez ensuite là où vous alliez.',
+    menuMustChange:
+      'Changez d’abord votre mot de passe : le reste de la console est fermé jusque-là.',
+    securityBack: 'Retour',
+    secondFactorEnabled: 'Vérification en deux étapes activée.',
+    recoveryCodesLeaveTitle: 'Quitter sans avoir noté vos codes ?',
+    recoveryCodesLeaveHint:
+      'Ces codes ne s’affichent qu’une fois : en quittant cette page, vous ne pourrez plus les relire. Pour en obtenir de nouveaux, il faudra confirmer de nouveau votre identité.',
+    recoveryCodesLeaveStay: 'Rester et noter mes codes',
+    recoveryCodesLeaveGo: 'Quitter quand même',
+    deadInvitationSignIn: 'Si vous l’avez déjà acceptée, votre compte existe : connectez-vous.',
+    deadInvitationSignedIn:
+      'Vous êtes déjà connecté : si vous l’aviez acceptée avec ce compte, vos évènements s’y trouvent.',
   },
 
   /**
@@ -1945,8 +1964,19 @@ export const fr = {
       'Tout ce qui s’est fait sur l’instance, du plus récent au plus ancien. Le motif d’un changement de limites est la phrase de l’opérateur.',
     auditEmpty: 'Aucune action enregistrée pour le moment.',
     auditMore: 'Voir les actions plus anciennes',
-    auditFiltered: 'Journal d’un seul client.',
     auditShowAll: 'Voir tout le journal',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Quitter la console',
+    accountsLink: 'Voir tous les comptes',
+    noClient: 'Aucun',
+    auditFilteredFor: (name: string) => `Journal du client « ${name} ».`,
+    auditToClient: 'Voir ce client',
+    linkLeaveTitle: 'Quitter sans avoir copié le lien ?',
+    linkLeaveHint:
+      'Aucun e-mail n’est parti : ce lien n’est affiché qu’ici, une seule fois. En quittant cette page, vous ne pourrez plus le copier ; il faudra en émettre un nouveau.',
+    linkLeaveStay: 'Rester et copier le lien',
+    linkLeaveGo: 'Quitter quand même',
     auditReason: (reason: string) => `Motif : ${reason}`,
     auditAccount: (short: string) => `compte ${short}`,
     actors: {

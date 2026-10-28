@@ -49,6 +49,8 @@ export function ClientsPage() {
         {creating ? null : (
           <Button
             variant="primary"
+            // Not while the only copy of a link is on screen: opening the form would drop it.
+            disabled={opened?.invitation.delivery === 'link'}
             onClick={() => {
               setOpened(null)
               setCreating(true)

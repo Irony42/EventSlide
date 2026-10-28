@@ -210,3 +210,19 @@ describe('ResetPasswordPage', () => {
     expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(TOKEN)
   })
 })
+
+describe('ResetPasswordPage: a way back (H16)', () => {
+  it('offers the sign-in from the form, for somebody who opened the mail by mistake or remembered', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/password/reset/:token" element={<ResetPasswordPage />} />
+        <Route path="/login" element={<p>Connexion</p>} />
+      </Routes>,
+      { route: '/password/reset/le-jeton' },
+    )
+
+    await userEvent.click(await screen.findByRole('link', { name: fr.auth.backToLogin }))
+
+    expect(await screen.findByText('Connexion')).toBeVisible()
+  })
+})

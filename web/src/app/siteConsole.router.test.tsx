@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fr } from '../lib/i18n/fr'
 import { ApiError } from '../lib/http'
 import type { Api } from '../lib/api/client'
-import { aSessionUser, anAbout } from '../testing/renderWithProviders'
+import { aClientLimits, aSessionUser, anAbout } from '../testing/renderWithProviders'
 import { aSiteClient, CLIENT_ID } from '../testing/siteFixtures'
 import { consoleApi, openConsole, operatorSession } from '../testing/siteConsole'
 
@@ -254,8 +254,14 @@ describe('the second factor, where the box requires one', () => {
   })
 
   it('asks an operator whose session skipped the code to sign in again, where it is asked', async () => {
+    // Signed out for real once the button is pressed: the sign-in page sends on anybody who is in.
+    let signedOut = false
+    const skipped = session({ enrolled: true, verified: false, required: true })
     const api = consoleApi({
-      session: session({ enrolled: true, verified: false, required: true }),
+      session: vi.fn(async () => (signedOut ? { authenticated: false as const } : skipped())),
+      logout: vi.fn(async () => {
+        signedOut = true
+      }),
     })
     openConsole('/admin/site', api)
 
@@ -280,5 +286,118 @@ describe('the second factor, where the box requires one', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
     expect(screen.getByRole('heading', { name: fr.site.factorTitle })).toBeVisible()
+  })
+})
+
+/** Navigation pass, batch D (H7, H9, H17): keeping the page across a re-authentication, and the way out. */
+describe('re-authentication from the console keeps the intended page (H7)', () => {
+  const AUDIT_URL = `/admin/site/audit?clientId=${CLIENT_ID}`
+
+  it('returns to the filtered log, query included, after the sign-in a skipped code calls for', async () => {
+    let signedOut = false
+    let verified = false
+    const api = consoleApi({
+      session: vi.fn(async () =>
+        signedOut
+          ? { authenticated: false as const }
+          : operatorSession({
+              secondFactor: { available: true, enrolled: true, verified, required: true },
+            }),
+      ),
+      siteClients: vi.fn(async () => ({ items: [aSiteClient()], next: null })),
+      logout: vi.fn(async () => {
+        signedOut = true
+      }),
+      login: vi.fn(async () => {
+        signedOut = false
+        // The code is asked at the sign-in, so this session has passed it.
+        verified = true
+        return aSessionUser()
+      }),
+    })
+    openConsole(AUDIT_URL, api)
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.site.factorSignOut }))
+    await userEvent.type(await screen.findByLabelText(fr.auth.email), 'pierre@example.com')
+    await userEvent.type(screen.getByLabelText(fr.auth.password), 'un-mot-de-passe-long')
+    await userEvent.click(screen.getByRole('button', { name: fr.auth.submit }))
+
+    // The same page, and the same slice of it: the audit's own filter notice is on screen.
+    expect(await screen.findByRole('heading', { name: fr.site.auditTitle })).toBeVisible()
+    expect(screen.getByText(/Journal du client/)).toBeVisible()
+  })
+
+  it('sends the enrolment link the page the operator was on, so the security page can bring them back', async () => {
+    const api = consoleApi({
+      session: vi.fn(async () =>
+        operatorSession({
+          secondFactor: { available: true, enrolled: false, verified: false, required: true },
+        }),
+      ),
+    })
+    openConsole(AUDIT_URL, api)
+
+    // `SecurityPage` reads `from`; its own tests follow it. Here the link is followed to the page.
+    await userEvent.click(await screen.findByRole('link', { name: fr.site.factorEnrolLink }))
+
+    expect(await screen.findByRole('link', { name: fr.auth.securityBack })).toHaveAttribute(
+      'href',
+      AUDIT_URL,
+    )
+  })
+})
+
+describe('the console leads out to the other homes (H9)', () => {
+  const exits = () => screen.findByRole('navigation', { name: fr.site.exitsLabel })
+
+  it('links to the list of events from every page of the console', async () => {
+    openConsole('/admin/site/accounts', consoleApi())
+
+    const nav = await exits()
+
+    expect(within(nav).getByRole('link', { name: fr.admin.events })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
+  })
+
+  it('links to the client space when the operator also belongs to a client, and not otherwise', async () => {
+    openConsole(
+      '/admin/site',
+      consoleApi({ myLimits: vi.fn(async () => ({ clients: [aClientLimits()] })) }),
+    )
+
+    expect(
+      await within(await exits()).findByRole('link', { name: fr.clientSpace.spaceLink }),
+    ).toHaveAttribute('href', '/admin/client')
+  })
+
+  it('offers no client space to an operator who is in no client', async () => {
+    const api = consoleApi()
+    openConsole('/admin/site', api)
+    const nav = await exits()
+    await waitFor(() => expect(api.myLimits).toHaveBeenCalled())
+
+    expect(within(nav).queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
+  })
+
+  it('keeps the exits out of the list of sections, which stays three', async () => {
+    openConsole('/admin/site', consoleApi())
+
+    const sections = await screen.findByRole('navigation', { name: fr.site.navLabel })
+
+    expect(sections.querySelectorAll('a')).toHaveLength(3)
+  })
+})
+
+describe('the console marks where the operator is, in the menu as well (H17)', () => {
+  it('marks the console entry of the account menu on a client’s page', async () => {
+    openConsole(`/admin/site/clients/${CLIENT_ID}`, consoleApi())
+    await userEvent.click(await menuButton())
+
+    expect(await screen.findByRole('link', { name: fr.site.menuLink })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 })
