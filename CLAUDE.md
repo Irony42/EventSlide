@@ -300,10 +300,10 @@ that renders guest-supplied content. The short version:
   other way, or answers a dead link differently, is the defect.
 - `helmet` sets a strict CSP. There is **no CDN** — Bootstrap is gone and the CSS is
   bundled. Do not reintroduce a remote `<script>` or `<link>`.
-- **No web font is shipped for the product's own look.** Since ADR 0010 two OFL display faces
-  (Shrikhand, Bricolage Grotesque, about 80 kB) ship for the Guinguette ambiance only, and a
-  browser fetches them only when that ambiance is on screen. The rest of this bullet is still
-  true of every other evening. This file used to say fonts were bundled; nothing in the
+- **Two OFL faces ship since ADR 0010.** Instrument Serif (about 65 kB for both styles and both
+  subsets) is the display face of every evening: the event's name and the wall's captions.
+  Bricolage Grotesque (about 56 kB) is the Guinguette's heading face. A browser fetches a face
+  only when an element on screen uses it. The history below is kept for the argument. This file used to say fonts were bundled; nothing in the
   tree ever loaded one — there is no `.woff2`, no `fonts/` directory and no
   `@font-face` anywhere. `--font-sans` opens with `'InterVariable', 'Inter'`, which is
   opportunistic rather than a dependency: it picks those up on a machine that already

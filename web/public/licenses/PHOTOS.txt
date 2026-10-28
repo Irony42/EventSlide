@@ -1,0 +1,7 @@
+Photographs bundled with EventSlide (ADR 0010)
+
+web/src/design-system/ambiances/guinguette-ground-1600.webp
+  "Des guirlandes lumineuses floues éclairent un chemin à travers des arbres verts"
+  by Liana S, https://unsplash.com/photos/DH9Mf77EjRg
+  Licensed under the Unsplash License, https://unsplash.com/license
+  (free to use, including commercially; no permission needed; attribution appreciated).

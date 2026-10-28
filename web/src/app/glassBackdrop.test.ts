@@ -184,11 +184,28 @@ const backgroundValues = (css: string): readonly string[] =>
     (match) => (match[1] === undefined ? [] : [match[1]]),
   )
 
+/**
+ * Layers that are not a colour and paint nothing at the root (ADR 0010).
+ *
+ * `--accent-texture` is `none` at the root, which is the only palette a `ground` route
+ * renders: the textures belong to an ambiance, and an ambiance only dresses the guest's
+ * phone and the wall, both of them on the strict floor. Asserted below rather than assumed.
+ */
+const ROOT_NONE_LAYERS = new Set(['--accent-texture'])
+
 /** Background fills a stylesheet paints, as token names. */
 const fillsIn = (css: string): readonly string[] =>
   backgroundValues(css)
     .flatMap((value) => [...value.matchAll(/var\(\s*(--[\w-]+)/g)])
     .flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
+    .filter((name) => !ROOT_NONE_LAYERS.has(name))
+
+describe('the layers the floor check skips', () => {
+  it.each([...ROOT_NONE_LAYERS])('declares %s as none at the root', (name) => {
+    const root = /:root \{[\s\S]*?\n\}/.exec(TOKENS)?.[0] ?? ''
+    expect(root).toMatch(new RegExp(`${name}:\\s*none;`))
+  })
+})
 
 /**
  * Elements that paint pixels this stylesheet does not choose.

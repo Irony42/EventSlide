@@ -812,8 +812,20 @@ describe('sending a video', () => {
   /* ---- A host who changes the look after a guest has joined. ---- */
 
   describe('a theme the host changed after the guest joined', () => {
-    const VIOLET = { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' } as const
-    const ROSE = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' } as const
+    const VIOLET = {
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'glass',
+      ambiance: 'darkroom',
+    } as const
+    const ROSE = {
+      accentHue: 345,
+      fonts: 'serif',
+      frame: 'round',
+      material: 'plain',
+      ambiance: 'darkroom',
+    } as const
 
     const answeringWith = (theme: unknown): Partial<Api> => ({
       // Cast through unknown because a malformed or absent theme is the case under test.

@@ -37,12 +37,14 @@
 /* ---------------------------------------------------------------- variants -- */
 
 .primary {
-  background: var(--accent);
+  /* Kraft fibres in the Guinguette, nothing elsewhere (ADR 0010). */
+  background-image: var(--accent-texture);
+  background-color: var(--accent);
   color: var(--accent-contrast);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background-color: var(--accent-strong);
 }
 
 .secondary {

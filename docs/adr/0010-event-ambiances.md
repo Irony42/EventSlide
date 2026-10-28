@@ -54,10 +54,13 @@ lampions, raffle tickets). Pierre asked whether several could be offered side by
    same element, because `[data-event-accent]` is declared after the ambiance blocks.
 6. **Every ambiance passes the root's contrast bars on its own surfaces** (`tokens.contrast.test.ts`
    measures each block separately). An ambiance that does not is not shippable.
-7. **Faces are bundled, never fetched.** Shrikhand and Bricolage Grotesque (OFL, latin and
-   latin-ext, about 80 KB together) ship as `woff2` with `font-display: swap`. A browser downloads a
-   face only when an element on screen uses it, and only an ambiance names them, so an evening in the
-   Chambre noire downloads no font at all.
+7. **Faces are bundled, never fetched.** Instrument Serif (the display face of every evening) and
+   Bricolage Grotesque (the Guinguette's headings), OFL, latin and latin-ext, ship as `woff2` with
+   `font-display: swap`. A browser downloads a face only when an element on screen uses it.
+8. **An ambiance may photograph its ground.** The Guinguette champêtre ships one photograph of
+   string lights in a garden at dusk (Unsplash licence, credited in `web/public/licenses/`, 25 KB
+   in WebP) behind the guest's page and the wall, under a grade that keeps text legible. A host
+   uploading a photograph of their own venue is the natural next step and is not built.
 
 ## Consequences
 

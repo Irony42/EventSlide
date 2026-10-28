@@ -571,7 +571,13 @@ describe('guestSession: the memory expires with the guest’s cookie', () => {
 
 describe('guestSession: a theme the server has since changed', () => {
   const HOUR = 60 * 60 * 1000
-  const ROSE = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' } as const
+  const ROSE = {
+    accentHue: 345,
+    fonts: 'serif',
+    frame: 'round',
+    material: 'plain',
+    ambiance: 'darkroom',
+  } as const
 
   const joined = (slug: string, now?: number) =>
     rememberGuestSession(

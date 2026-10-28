@@ -41,6 +41,17 @@
   /* The safelight. Ornament only: a gradient behind the page, never under text, never on
      the wall while it is showing photographs (principle 1). */
   --safelight: oklch(22% 0.08 26);
+  /* The page's moving light: two leaks of the safelight that drift behind everything, and
+     the film grain over the ground. Ornament only, never under a photograph. */
+  --leak-1: oklch(38% 0.15 27 / 0.55);
+  --leak-2: oklch(42% 0.14 50 / 0.35);
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  /* What a primary control is made of, under its colour. Nothing at the root. */
+  --accent-texture: none;
+  /* A photograph of the place, behind the page and the wall, with the grade that keeps text
+     legible over it. Nothing at the root. */
+  --ambiance-ground: none;
+  --ambiance-grade: linear-gradient(transparent, transparent);
   /* Numbers that are counted or copied: frame numbers, times, the join code. */
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
 
@@ -74,12 +85,13 @@
     'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   /* The face for --text-display and --text-xl on the wall. The same stack as --font-sans
      until an event asks for the other pairing, so an unthemed wall is unchanged. */
-  --font-display: var(--font-sans);
+  /* ADR 0010: the Chambre noire's display face is an editorial serif, bundled. */
+  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
   /* Page and card headings on the guest's phone. The system face until an ambiance names one. */
   --font-heading: var(--font-sans);
   /* The weight the display face is set in. Heavy for the system face; an ambiance whose
      display face ships a single weight sets that one, so nothing is synthesised. */
-  --font-display-weight: 800;
+  --font-display-weight: 400;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -246,20 +258,42 @@
  * which name the ambiance selectors for that reason. A template preview, which matches only
  * the element, keeps the root's glass; it carries no glass pane.
  *
- * The faces are bundled (no CDN) and cost nothing until an element on screen uses them,
- * which only an ambiance that names them does. Licences: web/public/licenses/.
+ * The faces are bundled (no CDN) and cost nothing until an element on screen uses them.
+ * Instrument Serif is the root's display face (the event's name, the wall's captions);
+ * Bricolage Grotesque is the Guinguette's heading face. Licences: web/public/licenses/.
  */
 @font-face {
-  font-family: 'Shrikhand';
-  src: url('./fonts/Shrikhand-latin.woff2') format('woff2');
+  font-family: 'Instrument Serif';
+  src: url('./fonts/InstrumentSerif-normal-latin.woff2') format('woff2');
+  font-style: normal;
   font-display: swap;
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Shrikhand';
-  src: url('./fonts/Shrikhand-latin-ext.woff2') format('woff2');
+  font-family: 'Instrument Serif';
+  src: url('./fonts/InstrumentSerif-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('./fonts/InstrumentSerif-italic-latin.woff2') format('woff2');
+  font-style: italic;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('./fonts/InstrumentSerif-italic-latin-ext.woff2') format('woff2');
+  font-style: italic;
   font-display: swap;
   unicode-range:
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
@@ -286,40 +320,46 @@
     U+A720-A7FF;
 }
 
-/* Guinguette: a summer night by the water. Duck-blue dark, cream paper, a lampion to press. */
+/* Guinguette champêtre: dinner under the string lights in a garden at dusk. A photographed
+   ground, warm wood-brown surfaces, cream inks, kraft to press. */
 [data-event-ambiance='guinguette'],
 :root:has([data-event-ambiance='guinguette']:not([data-template-preview])) {
-  --surface-base: oklch(19% 0.05 215);
-  --surface-raised: oklch(24% 0.055 213);
-  --surface-overlay: oklch(27% 0.055 212);
-  --border-subtle: oklch(34% 0.05 210);
-  --border-strong: oklch(60% 0.05 200);
-  --text-primary: oklch(95% 0.025 88);
-  --text-secondary: oklch(84% 0.035 150);
-  --text-muted: oklch(76% 0.04 170);
-  --safelight: oklch(32% 0.07 210);
-  --accent: oklch(83% 0.15 78);
-  --accent-strong: oklch(76% 0.16 74);
-  --accent-contrast: oklch(20% 0.05 215);
-  --focus-ring: 0 0 0 3px oklch(83% 0.15 78 / 0.65);
-  /* The lampion sits near --warning's angle, so the warning moves out of its way. */
-  --warning: oklch(88% 0.16 105);
-  --font-display: 'Shrikhand', ui-serif, Georgia, serif;
+  --surface-base: oklch(16% 0.016 70);
+  --surface-raised: oklch(21% 0.02 70);
+  --surface-overlay: oklch(25% 0.022 70);
+  --border-subtle: oklch(32% 0.025 70);
+  --border-strong: oklch(58% 0.03 70);
+  --text-primary: oklch(96% 0.022 85);
+  --text-secondary: oklch(85% 0.03 80);
+  --text-muted: oklch(75% 0.035 75);
+  --safelight: oklch(30% 0.06 70);
+  --leak-1: transparent;
+  --leak-2: transparent;
+  --accent: oklch(74% 0.09 68);
+  --accent-strong: oklch(66% 0.09 64);
+  --accent-contrast: oklch(20% 0.04 55);
+  --accent-texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.035 .6' numOctaves='4'/><feColorMatrix values='0 0 0 0 .25 0 0 0 0 .16 0 0 0 0 .08 0 0 0 .45 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
+  --focus-ring: 0 0 0 3px oklch(85% 0.12 80 / 0.7);
   --font-heading: 'Bricolage Grotesque', var(--font-sans);
-  --font-display-weight: 400;
-  --radius-md: var(--radius-lg);
-  /* Shrikhand is already compact; tightening it fuses the letters. */
-  --tracking-tight: 0;
-  /* Ornament, never a control: the pennants and the gingham. */
-  --decor-1: oklch(58% 0.16 32);
-  --decor-2: oklch(74% 0.09 175);
-  --decor-3: oklch(83% 0.15 78);
-  --decor-4: oklch(95% 0.025 88);
+  --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(16% 0.016 70 / 0.35),
+    oklch(16% 0.016 70 / 0.2) 30%,
+    oklch(16% 0.016 70 / 0.82) 70%,
+    oklch(16% 0.016 70 / 0.96)
+  );
+  /* Ornament, never a control: the bulbs and the linen. */
+  --decor-1: oklch(55% 0.14 32);
+  --decor-bulb: oklch(90% 0.1 85);
+  --decor-glow: oklch(80% 0.14 70 / 0.55);
+  --decor-wire: oklch(14% 0.01 60);
+  --decor-4: oklch(93% 0.02 85);
   /* Measured over white by the ambiance tests; not yet stepped down to the lowest alpha. */
-  --glass-tint-photo: oklch(24% 0.055 213 / 0.97);
-  --glass-tint-ground: oklch(24% 0.055 213 / 0.95);
-  --glass-border: oklch(95% 0.025 88 / 0.16);
-  --glass-highlight: oklch(95% 0.025 88 / 0.1);
+  --glass-tint-photo: oklch(21% 0.02 70 / 0.97);
+  --glass-tint-ground: oklch(21% 0.02 70 / 0.95);
+  --glass-border: oklch(96% 0.022 85 / 0.16);
+  --glass-highlight: oklch(96% 0.022 85 / 0.1);
 }
 
 [data-event-accent] {

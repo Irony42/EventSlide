@@ -47,6 +47,15 @@
  * it still says so in words (DESIGN-SYSTEM.md section 8), so the filter is never the only
  * signal.
  */
+/* In the Guinguette a sent photo is a print: a cream border, a little tilt, a shadow. */
+:global([data-event-ambiance='guinguette']) .thumb {
+  border: var(--space-1) solid var(--text-primary);
+  border-block-end-width: var(--space-3);
+  border-radius: 0;
+  rotate: -2deg;
+  box-shadow: var(--shadow-md);
+}
+
 .negative {
   filter: invert(1) grayscale(0.35) contrast(0.9);
 }
