@@ -851,6 +851,10 @@ export const fr = {
     templateNoneSummary:
       'Réglages par défaut : chaque photo validée avant l’écran, conservation illimitée.',
     templateChanges: 'Ce modèle règle :',
+    /* The heading of the miniature beside each card. A sample rather than the event's name:
+       nothing has been typed yet when a host chooses, and the real name is content, which no
+       table translates. It is set in the template's own face, so the face is what shows. */
+    templatePreviewSample: 'Votre évènement',
     templateClipsOn: 'Vidéos autorisées',
     templateClipsOff: 'Vidéos désactivées',
     templateNames: {

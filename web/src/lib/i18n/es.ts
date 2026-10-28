@@ -724,6 +724,7 @@ export const es: UiText = {
     templateNoneSummary:
       'Ajustes por defecto: cada foto se aprueba antes de llegar a la pantalla, conservación ilimitada.',
     templateChanges: 'Esta plantilla ajusta:',
+    templatePreviewSample: 'Su evento',
     templateClipsOn: 'Vídeos permitidos',
     templateClipsOff: 'Vídeos desactivados',
     templateNames: {

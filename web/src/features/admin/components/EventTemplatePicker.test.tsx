@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventTemplatePicker } from './EventTemplatePicker'
 import { EVENT_TEMPLATE_KEYS, EVENT_TEMPLATE_PATCHES, templateSummary } from '../eventTemplates'
 import { fr } from '../../../lib/i18n/fr'
+import { accentNameFor } from '../../../design-system/eventTheme'
+import type { EventTemplateKey } from '../../../lib/api/dto'
 
 /**
  * The control a host meets before they have any events at all (roadmap 3.5).
@@ -174,5 +177,134 @@ describe('EventTemplatePicker', () => {
     render(<EventTemplatePicker value="party" disabled onChange={vi.fn()} />)
 
     for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled()
+  })
+})
+
+/**
+ * The miniature beside each card (roadmap 3.5 and 2.2).
+ *
+ * It is decorative, so what these hold is that it adds nothing to the radio group — not to a
+ * name, not to a description, not to the tab order — and that each card's picture is about
+ * that card's template and about nothing the selection says.
+ */
+describe('EventTemplatePicker theme previews', () => {
+  const previewIn = (key: EventTemplateKey | 'none'): HTMLElement => {
+    const preview = document.querySelector<HTMLElement>(`[data-template-preview="${key}"]`)
+    if (preview === null) throw new Error(`no preview for ${key}`)
+    return preview
+  }
+
+  /** A picker that holds its own selection, as the create form does. */
+  function Controlled() {
+    const [value, setValue] = useState<EventTemplateKey | null>(null)
+    return <EventTemplatePicker value={value} disabled={false} onChange={setValue} />
+  }
+
+  it('draws one miniature per option, "Sans modèle" included', () => {
+    renderPicker()
+
+    expect(document.querySelectorAll('[data-template-preview]')).toHaveLength(
+      TEMPLATE_KEYS.length + 1,
+    )
+  })
+
+  it.each(TEMPLATE_KEYS)('draws %s in the appearance its own card lists in words', (key) => {
+    // The two halves of one card, held together: whatever the sentence says moves, the
+    // picture next to it moves — and a part the sentence does not name stays the default.
+    // Without this a preview could wear a tidy theme that is not the one the card
+    // promises, and both of its own tests would pass.
+    renderPicker()
+    const radio = screen.getByRole('radio', { name: new RegExp(fr.admin.templateNames[key]) })
+    const preview = previewIn(key)
+
+    const hue = preview.getAttribute('data-event-accent')
+    if (hue !== null) {
+      const name = accentNameFor(Number(hue))
+      expect(name).not.toBeNull()
+      expect(radio).toHaveAccessibleDescription(
+        new RegExp(escape(fr.admin.themeAccentNames[name ?? 'violet'])),
+      )
+    }
+    const fonts = preview.getAttribute('data-event-fonts')
+    if (fonts === 'serif') {
+      expect(radio).toHaveAccessibleDescription(new RegExp(escape(fr.admin.themeFontsNames.serif)))
+    }
+    const frame = preview.getAttribute('data-event-frame')
+    if (frame === 'round' || frame === 'square') {
+      expect(radio).toHaveAccessibleDescription(new RegExp(escape(fr.admin.themeFrameNames[frame])))
+    }
+    // The wedding is the card that names all three, so the loop above cannot pass by
+    // checking nothing.
+    if (key === 'wedding') expect([hue, fonts, frame]).toEqual(['345', 'serif', 'round'])
+  })
+
+  it('draws "Sans modèle" as the defaults', () => {
+    renderPicker()
+
+    const preview = previewIn('none')
+    expect(preview).not.toHaveAttribute('data-event-accent')
+    expect(preview).not.toHaveAttribute('data-event-fonts')
+    expect(preview).not.toHaveAttribute('data-event-frame')
+  })
+
+  it.each([...TEMPLATE_KEYS, null] as const)(
+    'adds nothing to what %s announces: its name and its description are the same with the picture there',
+    (key) => {
+      renderPicker()
+
+      const radio = screen.getByRole('radio', {
+        name: new RegExp(key === null ? fr.admin.templateNone : fr.admin.templateNames[key]),
+      })
+
+      expect(radio).not.toHaveAccessibleName(new RegExp(fr.admin.templatePreviewSample))
+      expect(radio).not.toHaveAccessibleDescription(new RegExp(fr.admin.templatePreviewSample))
+    },
+  )
+
+  it('keeps five radios and no other control, with the pictures in', () => {
+    renderPicker()
+
+    expect(screen.getAllByRole('radio')).toHaveLength(TEMPLATE_KEYS.length + 1)
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    // Hidden from the tree altogether: not a list, not an image, not a heading.
+    expect(within(screen.getByRole('group')).getAllByRole('list')).toHaveLength(
+      TEMPLATE_KEYS.length,
+    )
+  })
+
+  it('keeps the group usable by keyboard and each picture on its own card when the selection moves', async () => {
+    render(<Controlled />)
+    const before = Object.fromEntries(
+      [...document.querySelectorAll('[data-template-preview]')].map((preview) => [
+        preview.getAttribute('data-template-preview'),
+        preview.outerHTML,
+      ]),
+    )
+
+    // Tab lands on the checked radio — "Sans modèle" — and nothing in a miniature is a stop.
+    await userEvent.tab()
+    expect(screen.getByRole('radio', { name: new RegExp(fr.admin.templateNone) })).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(
+      screen.getByRole('radio', { name: new RegExp(fr.admin.templateNames.wedding) }),
+    ).toBeChecked()
+    await userEvent.click(
+      screen.getByRole('radio', { name: new RegExp(fr.admin.templateNames.party) }),
+    )
+
+    expect(
+      screen.getAllByRole('radio').filter((radio) => (radio as HTMLInputElement).checked),
+    ).toHaveLength(1)
+    expect(
+      screen.getByRole('radio', { name: new RegExp(fr.admin.templateNames.party) }),
+    ).toBeChecked()
+    // Choosing never repaints a card's picture: each one is about its own template.
+    const after = Object.fromEntries(
+      [...document.querySelectorAll('[data-template-preview]')].map((preview) => [
+        preview.getAttribute('data-template-preview'),
+        preview.outerHTML,
+      ]),
+    )
+    expect(after).toEqual(before)
   })
 })
