@@ -347,6 +347,7 @@ describe('the toast region', () => {
     guestCount: 0,
     usedBytes: 0,
     createdAt: '2026-06-20T21:04:11.031Z',
+    role: 'owner',
   })
 
   it('speaks the host’s own language on the host console', async () => {
@@ -1059,7 +1060,19 @@ describe('the account menu', () => {
   })
 
   it('signs out from the console and lands on the sign-in screen', async () => {
-    const api = signedInApi()
+    // Signed out for real: the sign-in page asks the session, and a session that is still good
+    // would send the person back into the console (H13).
+    let signedIn = true
+    const api = fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> =>
+        signedIn
+          ? { authenticated: true, user: aSessionUser({ email: 'camille@example.org' }) }
+          : { authenticated: false },
+      ),
+      logout: vi.fn(async () => {
+        signedIn = false
+      }),
+    })
     renderWithProviders(<AppRoutes />, { api, route: '/admin' })
 
     await userEvent.click(await screen.findByRole('button', { name: fr.auth.accountMenu }))

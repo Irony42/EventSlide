@@ -22,6 +22,7 @@ import type { SessionResponse } from '../lib/api/dto'
  */
 
 const signedIn = (): SessionResponse => ({ authenticated: true, user: aSessionUser() })
+const NOBODY: SessionResponse = { authenticated: false }
 
 const asHost = (route: string) => {
   const api = fakeApi({ session: vi.fn(async () => signedIn()) })
@@ -143,8 +144,19 @@ describe('an expired session (H2)', () => {
   })
 
   it('takes the host to sign in and brings them back to the page they were on', async () => {
-    asHost('/admin/events/new')
+    // The session really is over by the time the sign-in page asks (it asks, to send on somebody
+    // who is still in), and is a good one again once the form has been sent.
+    let valid = true
+    const api = fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => (valid ? signedIn() : NOBODY)),
+      login: vi.fn(async () => {
+        valid = true
+        return aSessionUser()
+      }),
+    })
+    renderWithProviders(<AppRoutes />, { api, route: '/admin/events/new' })
     await screen.findByRole('heading', { name: fr.admin.newEvent })
+    valid = false
     act(() => announceSessionExpired())
 
     await userEvent.click(await screen.findByRole('link', { name: fr.shell.sessionExpiredAction }))

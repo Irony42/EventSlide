@@ -47,6 +47,11 @@ export const it: UiText = {
     submitting: 'Connessione…',
     welcome: (eventName: string) => `Benvenuti a ${eventName}`,
     anonymous: 'Resta anonimo',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: 'Non è la sua festa?',
+    notOpenHint:
+      'Se ha scansionato un codice QR, la galleria potrebbe non essere ancora aperta o la festa potrebbe essere finita. Riprovi tra un momento o chieda agli organizzatori.',
+    organiserLink: 'Area organizzatori',
   },
 
   upload: {
@@ -103,6 +108,9 @@ export const it: UiText = {
     notJoinedTitle: 'Entri nella galleria per inviare le sue foto',
     notJoinedHint: 'Scansioni di nuovo il codice QR, oppure inserisca il codice della serata.',
     notJoinedAction: 'Inserisci il codice',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable: 'Questa galleria non è più disponibile. Non può più inviare foto.',
+    galleryUnavailableAction: 'Inserisci di nuovo il codice',
 
     missionsTitle: 'Missioni',
     missionsHint: 'Tocchi una missione, poi invii la sua foto.',
@@ -482,6 +490,8 @@ export const it: UiText = {
 
   moderation: {
     title: 'Moderazione',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Versione per telefono, una foto alla volta',
     intro: 'Nulla appare sullo schermo senza la sua approvazione.',
     pending: (count: number) =>
       t.count(count, {
@@ -589,6 +599,9 @@ export const it: UiText = {
     emptyHint: 'Le foto approvate dagli organizzatori compariranno qui.',
     failed: 'Non è stato possibile caricare le foto. Riprovi.',
     own: 'La sua foto',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'Questa galleria non viene più mostrata.',
+    unavailableHint: 'È archiviata o non è più aperta, quindi qui non ci sono foto da vedere.',
   },
 
   wall: {
@@ -610,6 +623,8 @@ export const it: UiText = {
     shortcuts: 'Scorciatoie da tastiera',
     shortcutsHint:
       'Spazio mette in pausa, le frecce cambiano foto, F passa a schermo intero, L cambia la disposizione.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'Per uscire: Esc o F escono dallo schermo intero, poi chiuda la scheda.',
     layoutNames: {
       spotlight: 'Schermo intero',
       mosaic: 'Mosaico',
@@ -890,6 +905,11 @@ export const it: UiText = {
     shareLinkUrl: 'Indirizzo del link',
     shareLinkCopy: 'Copia il link',
     shareLinkCopied: 'Link copiato.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'Copia non riuscita. L’indirizzo è selezionato: lo copi con Ctrl+C (o con una pressione lunga su un telefono).',
+    shareLinkLeaveWarning:
+      'Questo indirizzo non verrà più mostrato e non l’ha copiato. Uscire comunque dalla pagina?',
     shareLinkRevoke: 'Disattiva il link',
     shareLinkRevokeTitle: 'Disattivare questo link?',
     shareLinkRevokeHint:
@@ -997,10 +1017,30 @@ export const it: UiText = {
     logoutEverywhereTitle: 'Disconnettersi ovunque?',
     logoutEverywhereHint:
       'La sua sessione verrà chiusa su tutti i dispositivi, questo compreso, e dovrà accedere di nuovo. Utile se ha perso un dispositivo o usato un computer condiviso.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'Ha già effettuato l’accesso. Reindirizzamento…',
+    forgotNoMail:
+      'Ha dimenticato la password? Questo server non invia e-mail: chieda a chi lo gestisce di reimpostarla.',
+    changePasswordForced:
+      'La sua password è stata scelta per lei: la sostituisca prima di proseguire. Tornerà poi dove stava andando.',
+    menuMustChange: 'Cambi prima la password: il resto della console resta chiuso fino ad allora.',
+    securityBack: 'Indietro',
+    secondFactorEnabled: 'Verifica in due passaggi attivata.',
+    recoveryCodesLeaveTitle: 'Uscire senza aver annotato i codici?',
+    recoveryCodesLeaveHint:
+      'Questi codici vengono mostrati una sola volta: uscendo da questa pagina non potrà più leggerli. Per ottenerne di nuovi dovrà confermare di nuovo la sua identità.',
+    recoveryCodesLeaveStay: 'Restare e annotare i codici',
+    recoveryCodesLeaveGo: 'Uscire comunque',
+    deadInvitationSignIn: 'Se l’ha già accettato, il suo account esiste: acceda.',
+    deadInvitationSignedIn:
+      'Ha già effettuato l’accesso: se l’ha accettato con questo account, i suoi eventi sono lì.',
   },
 
   mobileModeration: {
     title: 'Moderazione da telefono',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Console completa, per computer',
     intro: 'Trascini la foto verso destra per pubblicare, verso sinistra per rifiutare.',
     releaseToPublish: 'Rilasci per pubblicare',
     releaseToReject: 'Rilasci per rifiutare',
@@ -1037,6 +1077,9 @@ export const it: UiText = {
     sourceCode: 'Codice sorgente (AGPL-3.0)',
     opensInNewTab: 'si apre in una nuova scheda',
     aboutLink: 'Informazioni',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Indietro',
+    home: 'Home',
 
     title: 'Informazioni su EventSlide',
     intro:
@@ -1084,6 +1127,10 @@ export const it: UiText = {
     spaceTitle: 'Area cliente',
     limitsTitle: 'Limiti e utilizzo',
     noLimits: 'Il suo operatore non ha fissato alcun limite sul suo account.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Il suo account non appartiene ad alcun cliente.',
+    noClientHint:
+      'Qui non ci sono quindi né limiti né utilizzo da consultare. I suoi eventi sono nella pagina «I suoi eventi».',
     roleOwner: 'Proprietario',
     roleMember: 'Membro',
     pendingTitle: 'In attesa della sua approvazione',
@@ -1289,8 +1336,19 @@ export const it: UiText = {
       'Tutto ciò che è stato fatto sull’istanza, dal più recente al più vecchio. Il motivo di una modifica dei limiti è la frase dell’operatore stesso.',
     auditEmpty: 'Nessuna azione registrata per ora.',
     auditMore: 'Mostra le azioni più vecchie',
-    auditFiltered: 'Registro di un solo cliente.',
     auditShowAll: 'Mostra tutto il registro',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Esci dalla console',
+    accountsLink: 'Vedi tutti gli account',
+    noClient: 'Nessuno',
+    auditFilteredFor: (name: string) => `Registro del cliente «${name}».`,
+    auditToClient: 'Vedi questo cliente',
+    linkLeaveTitle: 'Uscire senza aver copiato il link?',
+    linkLeaveHint:
+      'Non è partita nessuna e-mail: questo link è mostrato solo qui, una volta. Uscendo da questa pagina non potrà più copiarlo; dovrà emetterne uno nuovo.',
+    linkLeaveStay: 'Restare e copiare il link',
+    linkLeaveGo: 'Uscire comunque',
     auditReason: (reason: string) => `Motivo: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
     actors: {

@@ -43,6 +43,11 @@ export const en: UiText = {
     submitting: 'Connecting…',
     welcome: (eventName: string) => `Welcome to ${eventName}`,
     anonymous: 'Stay anonymous',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: 'Not your event?',
+    notOpenHint:
+      'If you scanned a QR code, the gallery may not be open yet, or the event may be over. Try again in a moment, or ask the organiser.',
+    organiserLink: 'Organiser area',
   },
 
   upload: {
@@ -95,6 +100,9 @@ export const en: UiText = {
     notJoinedTitle: 'Join the gallery to send your photos',
     notJoinedHint: 'Scan the QR code again, or type the event code.',
     notJoinedAction: 'Enter the code',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable: 'This gallery is no longer available. You can no longer send photos to it.',
+    galleryUnavailableAction: 'Enter the code again',
 
     missionsTitle: 'Missions',
     missionsHint: 'Tap a mission, then send your photo.',
@@ -456,6 +464,8 @@ export const en: UiText = {
 
   moderation: {
     title: 'Moderation',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Phone version, one photo at a time',
     intro: 'Nothing reaches the screen without your approval.',
     pending: (count: number) =>
       t.count(count, {
@@ -564,6 +574,10 @@ export const en: UiText = {
     emptyHint: 'Photos the organisers approve will appear here.',
     failed: 'The photos could not be loaded. Try again.',
     own: 'Your photo',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'This gallery is no longer on display.',
+    unavailableHint:
+      'It has been archived or is no longer open, so there are no photos to see here.',
   },
 
   wall: {
@@ -589,6 +603,8 @@ export const en: UiText = {
     shortcuts: 'Keyboard shortcuts',
     shortcutsHint:
       'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
 
     layoutNames: {
       spotlight: 'Full screen',
@@ -876,6 +892,11 @@ export const en: UiText = {
     shareLinkUrl: 'Link address',
     shareLinkCopy: 'Copy the link',
     shareLinkCopied: 'Link copied.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'Copying failed. The address is selected: copy it with Ctrl+C (or by long-pressing on a phone).',
+    shareLinkLeaveWarning:
+      'This address will never be shown again and you have not copied it. Leave the page anyway?',
     shareLinkRevoke: 'Switch off the link',
     shareLinkRevokeTitle: 'Switch off this link?',
     shareLinkRevokeHint:
@@ -983,10 +1004,30 @@ export const en: UiText = {
     logoutEverywhereTitle: 'Sign out everywhere?',
     logoutEverywhereHint:
       'Your session will be closed on every device, this one included, and you will have to sign in again. Useful if you lost a device or used a shared computer.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'You are already signed in. Redirecting…',
+    forgotNoMail:
+      'Forgotten your password? This server sends no e-mail: ask whoever runs it to reset it for you.',
+    changePasswordForced:
+      'Your password was chosen for you: replace it before going further. You will then return to where you were going.',
+    menuMustChange: 'Change your password first: the rest of the console stays closed until then.',
+    securityBack: 'Back',
+    secondFactorEnabled: 'Two-step verification turned on.',
+    recoveryCodesLeaveTitle: 'Leave without writing down your codes?',
+    recoveryCodesLeaveHint:
+      'These codes are shown only once: if you leave this page you can no longer read them. Getting new ones means confirming your identity again.',
+    recoveryCodesLeaveStay: 'Stay and write them down',
+    recoveryCodesLeaveGo: 'Leave anyway',
+    deadInvitationSignIn: 'If you have already accepted it, your account exists: sign in.',
+    deadInvitationSignedIn:
+      'You are already signed in: if you accepted it with this account, your events are there.',
   },
 
   mobileModeration: {
     title: 'Moderation on a phone',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Full console, for a computer',
     intro: 'Swipe the photo right to publish, left to reject.',
     releaseToPublish: 'Release to publish',
     releaseToReject: 'Release to reject',
@@ -1023,6 +1064,9 @@ export const en: UiText = {
     sourceCode: 'Source code (AGPL-3.0)',
     opensInNewTab: 'opens a new tab',
     aboutLink: 'About',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Back',
+    home: 'Home',
 
     title: 'About EventSlide',
     intro:
@@ -1070,6 +1114,10 @@ export const en: UiText = {
     spaceTitle: 'Client space',
     limitsTitle: 'Limits and usage',
     noLimits: 'Your operator has not set any limit on your account.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Your account does not belong to any client.',
+    noClientHint:
+      'So there is no limit or usage to read here. Your events are on the page that lists them.',
     roleOwner: 'Owner',
     roleMember: 'Member',
     pendingTitle: 'Waiting for your approval',
@@ -1273,8 +1321,19 @@ export const en: UiText = {
       'Everything that was done on the instance, newest first. The reason for a change of limits is the operator’s own sentence.',
     auditEmpty: 'No action recorded yet.',
     auditMore: 'Show older actions',
-    auditFiltered: 'One client’s log.',
     auditShowAll: 'Show the whole log',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Leave the console',
+    accountsLink: 'See all accounts',
+    noClient: 'None',
+    auditFilteredFor: (name: string) => `Log of the client “${name}”.`,
+    auditToClient: 'See this client',
+    linkLeaveTitle: 'Leave without copying the link?',
+    linkLeaveHint:
+      'No e-mail went out: this link is shown only here, once. If you leave this page you can no longer copy it; you will have to issue a new one.',
+    linkLeaveStay: 'Stay and copy the link',
+    linkLeaveGo: 'Leave anyway',
     auditReason: (reason: string) => `Reason: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
     actors: {

@@ -4,6 +4,8 @@ export interface VisuallyHiddenProps {
   readonly children: ReactNode
   /** `span` inside a sentence, `div` when it wraps block content. */
   readonly as?: 'span' | 'div'
+  /** So that a control can name this text as its description (`aria-describedby`). */
+  readonly id?: string
 }
 
 /**
@@ -14,6 +16,10 @@ export interface VisuallyHiddenProps {
  * a second copy in a module would be a second thing to keep correct. `display: none`
  * is not an option — it removes the text from the accessibility tree too.
  */
-export function VisuallyHidden({ children, as: Element = 'span' }: VisuallyHiddenProps) {
-  return <Element className="visually-hidden">{children}</Element>
+export function VisuallyHidden({ children, as: Element = 'span', id }: VisuallyHiddenProps) {
+  return (
+    <Element id={id} className="visually-hidden">
+      {children}
+    </Element>
+  )
 }

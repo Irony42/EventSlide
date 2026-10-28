@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GuestFeedPage } from './GuestFeedPage'
-import { rememberGuestSession } from '../../lib/guestSession'
+import {
+  readGuestSession,
+  readRememberedGuestSession,
+  rememberGuestSession,
+} from '../../lib/guestSession'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -190,8 +194,14 @@ describe('GuestFeedPage', () => {
 
     expect(await screen.findAllByRole('listitem')).toHaveLength(2)
     expect(screen.getAllByRole('group')).toHaveLength(1)
+    // Waited for, not read at once: the bar asks for its reactions in an effect, and the list
+    // above appears from a state update outside `act`, whose passive effects React runs a
+    // moment after the commit that Testing Library already saw. Reading the call count in the
+    // same tick is what made this test fail once on a slow runner.
+    await waitFor(() =>
+      expect(api.reactions).toHaveBeenCalledWith(SLUG, 'theirs', expect.any(AbortSignal)),
+    )
     expect(api.reactions).toHaveBeenCalledTimes(1)
-    expect(api.reactions).toHaveBeenCalledWith(SLUG, 'theirs', expect.any(AbortSignal))
   })
 
   it('still shows the evening when the guest’s own list cannot be read', async () => {
@@ -350,5 +360,131 @@ describe('GuestFeedPage', () => {
       'href',
       '/join',
     )
+  })
+})
+
+describe('a gallery the server no longer serves (A3)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    havingJoined()
+  })
+
+  const archived = (): Api =>
+    fakeApi({
+      wall: vi.fn(async () => {
+        throw new ApiError(404, 'event.notFound')
+      }),
+    })
+
+  it('says it is no longer on display instead of offering a retry that cannot succeed', async () => {
+    renderFeed(archived())
+
+    expect(await screen.findByRole('heading', { name: fr.feed.unavailable })).toBeVisible()
+    expect(screen.getByText(fr.feed.unavailableHint)).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.app.retry })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.feed.refresh })).toBeNull()
+    expect(screen.queryByText(fr.feed.failed)).toBeNull()
+  })
+
+  it('still offers the way back to the upload screen', async () => {
+    renderFeed(archived())
+    await screen.findByRole('heading', { name: fr.feed.unavailable })
+
+    expect(screen.getByRole('link', { name: fr.feed.back })).toHaveAttribute(
+      'href',
+      `/e/${SLUG}/upload`,
+    )
+  })
+
+  it('keeps the retry for a failure that is the network’s, which a retry can fix', async () => {
+    renderFeed(
+      fakeApi({
+        wall: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      }),
+    )
+
+    expect(await screen.findByText(fr.feed.failed)).toBeVisible()
+    expect(screen.getByRole('button', { name: fr.app.retry })).toBeVisible()
+    expect(screen.queryByText(fr.feed.unavailable)).toBeNull()
+  })
+
+  it('keeps the retry for a server error, which is not the server saying the gallery is gone', async () => {
+    renderFeed(
+      fakeApi({
+        wall: vi.fn(async () => {
+          throw new ApiError(503, 'service.notReady')
+        }),
+      }),
+    )
+
+    expect(await screen.findByRole('button', { name: fr.app.retry })).toBeVisible()
+  })
+
+  it('is an ordinary feed on a closed evening, which still serves its wall', async () => {
+    // The server's answer for a closed event is the same 200 as for an open one.
+    renderFeed(withWall([photo('a')]))
+
+    expect(await screen.findByRole('img')).toBeVisible()
+    expect(screen.queryByText(fr.feed.unavailable)).toBeNull()
+  })
+})
+
+describe('a guest with no session on the feed (A2)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  it('asks for the code (where the code then leads is the router journey’s test)', () => {
+    renderFeed(fakeApi())
+
+    expect(screen.getByRole('link', { name: fr.upload.notJoinedAction })).toHaveAttribute(
+      'href',
+      '/join',
+    )
+  })
+
+  it('finds the event the device remembers, with no code to type', async () => {
+    havingJoined()
+    sessionStorage.clear()
+
+    renderFeed(withWall([photo('a')]))
+
+    expect(await screen.findByRole('img')).toBeVisible()
+  })
+
+  it('lets the guest say it is not their evening, and forgets it', async () => {
+    havingJoined()
+    renderFeed(withWall([photo('a')]))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.join.notYourEvening }))
+
+    expect(readRememberedGuestSession()).toBeNull()
+    expect(readGuestSession(SLUG)).toBeNull()
+  })
+})
+
+describe('a guest the server does not recognise any more, on the feed', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    havingJoined()
+  })
+
+  it('still shows the evening, and stops the device resuming an event it no longer has access to', async () => {
+    renderFeed(
+      fakeApi({
+        wall: vi.fn(async () => aWallResponse({ items: [photo('a')] })),
+        myPhotos: vi.fn(async () => {
+          throw new ApiError(401, 'guestToken.expired')
+        }),
+      }),
+    )
+
+    expect(await screen.findByRole('img')).toBeVisible()
+    await waitFor(() => expect(readRememberedGuestSession()).toBeNull())
   })
 })

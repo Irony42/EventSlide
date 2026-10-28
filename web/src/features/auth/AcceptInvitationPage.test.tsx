@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -40,6 +40,8 @@ const renderInvitation = (api: Api, options: { readonly locale?: Locale } = {}) 
       <Route path="/invite/:token" element={<AcceptInvitationPage />} />
       <Route path="/admin" element={<p>Tableau de bord</p>} />
       <Route path="/admin/events/:slug" element={<EventStub />} />
+      <Route path="/admin/events/:slug/moderation" element={<EventStub />} />
+      <Route path="/admin/events/:slug/moderation/mobile" element={<EventStub />} />
       <Route path="/login" element={<LoginProbe />} />
     </Routes>,
     { api, route: `/invite/${TOKEN}`, ...options },
@@ -130,7 +132,7 @@ describe('AcceptInvitationPage: what the link says', () => {
 })
 
 describe('AcceptInvitationPage: creating the account', () => {
-  it('sends the name and the password chosen, and lands the person on the event', async () => {
+  it('sends the name and the password chosen, and lands a moderator on the queue they were invited to', async () => {
     const api = fakeApi()
     renderInvitation(api)
 
@@ -1078,5 +1080,77 @@ describe('AcceptInvitationPage: the terms of use', () => {
       expect(screen.queryByRole('checkbox')).toBeNull()
       expect(document.body).not.toHaveTextContent(TERMS.version)
     })
+  })
+})
+
+/** Navigation pass, batch D (H12): where an accepted invitation lands, and what a dead one offers. */
+describe('AcceptInvitationPage: where the person starts', () => {
+  const original = window.matchMedia
+  afterEach(() => {
+    window.matchMedia = original
+  })
+
+  it('lands a moderator on the phone’s queue when the screen is a phone’s', async () => {
+    window.matchMedia = vi.fn(() => ({ matches: true }) as MediaQueryList)
+    renderInvitation(fakeApi())
+
+    await fillIn('Camille')
+    await submit()
+
+    expect(
+      await screen.findByText(/Évènement à \/admin\/events\/camille-et-sacha\/moderation\/mobile$/),
+    ).toBeVisible()
+  })
+
+  it.each(['owner', 'member'] as const)(
+    'lands a client’s %s on the list of events, which links to the client space',
+    async (role) => {
+      const api = fakeApi({
+        invitation: vi.fn(async () => anInvitationPreview({ kind: 'client', role })),
+        acceptInvitation: vi.fn(async () =>
+          anInvitationAccepted({ kind: 'client', role, eventSlug: null }),
+        ),
+      })
+      renderInvitation(api)
+
+      await fillIn('Camille')
+      await submit()
+
+      expect(await screen.findByText('Tableau de bord')).toBeVisible()
+    },
+  )
+
+  it('lands somebody who accepts with the account they are signed in with on the same queue', async () => {
+    renderInvitation(fakeApi(signedInAs('organisation@example.com')))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.auth.invitationAcceptAs }))
+
+    expect(
+      await screen.findByText(/Évènement à \/admin\/events\/camille-et-sacha\/moderation$/),
+    ).toBeVisible()
+  })
+})
+
+describe('AcceptInvitationPage: a dead link offers more than the sign-in (H12)', () => {
+  const dead = (overrides: Partial<Api> = {}) =>
+    fakeApi({
+      invitation: vi.fn(() => Promise.reject(new ApiError(404, 'invitation.notFound'))),
+      ...overrides,
+    })
+
+  it('says what to do next to somebody who already accepted it, and offers the sign-in', async () => {
+    renderInvitation(dead())
+
+    expect(await screen.findByText(fr.errors['invitation.notFound'])).toBeVisible()
+    expect(screen.getByText(fr.auth.deadInvitationSignIn)).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.auth.submit })).toHaveAttribute('href', '/login')
+  })
+
+  it('offers the list of events, not a second sign-in, to somebody who is signed in', async () => {
+    renderInvitation(dead(signedInAs('organisation@example.com')))
+
+    expect(await screen.findByText(fr.auth.deadInvitationSignedIn)).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.admin.events })).toHaveAttribute('href', '/admin')
+    expect(screen.queryByRole('link', { name: fr.auth.submit })).toBeNull()
   })
 })

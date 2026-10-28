@@ -91,8 +91,16 @@ test('a moderator invited by link accepts it on their own machine and can modera
     // On the event, signed in by the acceptance itself with the password they just chose: no
     // rotation gate, because nobody else ever knew it. And they moderate **this** event, only
     // because of the invitation — no membership was written by a fixture.
-    await expect(theirPage).toHaveURL(new RegExp(`/admin/events/${event.slug}$`))
-    await expect(theirPage.getByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    // A moderator lands on the queue they were invited to work: the console's on a laptop, the
+    // phone's on a phone (decision 2 of the navigation pass).
+    await expect(theirPage).toHaveURL(
+      new RegExp(`/admin/events/${event.slug}/moderation(/mobile)?$`),
+    )
+    await expect(
+      theirPage.getByRole('heading', {
+        name: new RegExp(`^(${fr.moderation.title}|${fr.mobileModeration.title})$`),
+      }),
+    ).toBeVisible()
     await expect(
       theirPage.getByRole('button', { name: fr.auth.accountMenu, exact: true }),
     ).toBeVisible()
@@ -279,8 +287,12 @@ test('a person who already has an account is sent to sign in, comes back to the 
 
     await page.getByRole('button', { name: fr.auth.invitationAcceptAs }).click()
 
-    await expect(page).toHaveURL(new RegExp(`/admin/events/${second.slug}$`))
-    await expect(page.getByRole('heading', { name: 'Second évènement' })).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`/admin/events/${second.slug}/moderation(/mobile)?$`))
+    await expect(
+      page.getByRole('heading', {
+        name: new RegExp(`^(${fr.moderation.title}|${fr.mobileModeration.title})$`),
+      }),
+    ).toBeVisible()
   } finally {
     await accountContext.close()
     await newMachine.close()

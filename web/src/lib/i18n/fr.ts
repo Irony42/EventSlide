@@ -85,6 +85,11 @@ export const fr = {
     submitting: 'Connexion…',
     welcome: (eventName: string) => `Bienvenue à ${eventName}`,
     anonymous: 'Rester anonyme',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: 'Ce n’est pas votre soirée ?',
+    notOpenHint:
+      'Si vous avez scanné un QR code, la galerie n’est peut-être pas encore ouverte, ou la soirée est terminée. Réessayez dans un moment, ou demandez à l’organisateur.',
+    organiserLink: 'Espace organisateur',
   },
 
   upload: {
@@ -148,6 +153,10 @@ export const fr = {
     notJoinedTitle: 'Rejoignez la galerie pour envoyer vos photos',
     notJoinedHint: 'Scannez à nouveau le QR code, ou saisissez le code de la soirée.',
     notJoinedAction: 'Saisir le code',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable:
+      'Cette galerie n’est plus disponible. Vous ne pouvez plus y envoyer de photos.',
+    galleryUnavailableAction: 'Saisir à nouveau le code',
 
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
@@ -459,6 +468,8 @@ export const fr = {
 
   moderation: {
     title: 'Modération',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Version téléphone, photo par photo',
     intro: 'Rien n’apparaît à l’écran sans votre validation.',
     pending: (count: number) =>
       t.count(count, {
@@ -608,6 +619,10 @@ export const fr = {
     emptyHint: 'Les photos validées par les organisateurs apparaîtront ici.',
     failed: 'Les photos n’ont pas pu être chargées. Réessayez.',
     own: 'Votre photo',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'Cette galerie n’est plus affichée.',
+    unavailableHint:
+      'Elle est archivée ou n’est plus ouverte : il n’y a plus de photos à voir ici.',
   },
 
   wall: {
@@ -636,6 +651,8 @@ export const fr = {
     shortcuts: 'Raccourcis clavier',
     shortcutsHint:
       'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'Pour quitter : Échap ou F sortent du plein écran, puis fermez l’onglet.',
 
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**
@@ -1094,6 +1111,11 @@ export const fr = {
     shareLinkUrl: 'Adresse du lien',
     shareLinkCopy: 'Copier le lien',
     shareLinkCopied: 'Lien copié.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'La copie a échoué. L’adresse est sélectionnée : copiez-la avec Ctrl+C (ou en appuyant longuement sur un téléphone).',
+    shareLinkLeaveWarning:
+      'Cette adresse ne sera plus jamais affichée et vous ne l’avez pas copiée. Quitter la page quand même ?',
     shareLinkRevoke: 'Désactiver le lien',
     shareLinkRevokeTitle: 'Désactiver ce lien ?',
     shareLinkRevokeHint:
@@ -1211,6 +1233,25 @@ export const fr = {
     logoutEverywhereTitle: 'Se déconnecter partout ?',
     logoutEverywhereHint:
       'Votre session sera fermée sur tous vos appareils, celui-ci compris, et il faudra vous reconnecter. Utile si vous avez perdu un appareil ou utilisé un ordinateur partagé.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'Vous êtes déjà connecté. Redirection…',
+    forgotNoMail:
+      'Mot de passe oublié ? Ce serveur n’envoie pas d’e-mail : demandez à la personne qui l’administre de le réinitialiser.',
+    changePasswordForced:
+      'Votre mot de passe a été choisi pour vous : remplacez-le avant d’aller plus loin. Vous reviendrez ensuite là où vous alliez.',
+    menuMustChange:
+      'Changez d’abord votre mot de passe : le reste de la console est fermé jusque-là.',
+    securityBack: 'Retour',
+    secondFactorEnabled: 'Vérification en deux étapes activée.',
+    recoveryCodesLeaveTitle: 'Quitter sans avoir noté vos codes ?',
+    recoveryCodesLeaveHint:
+      'Ces codes ne s’affichent qu’une fois : en quittant cette page, vous ne pourrez plus les relire. Pour en obtenir de nouveaux, il faudra confirmer de nouveau votre identité.',
+    recoveryCodesLeaveStay: 'Rester et noter mes codes',
+    recoveryCodesLeaveGo: 'Quitter quand même',
+    deadInvitationSignIn: 'Si vous l’avez déjà acceptée, votre compte existe : connectez-vous.',
+    deadInvitationSignedIn:
+      'Vous êtes déjà connecté : si vous l’aviez acceptée avec ce compte, vos évènements s’y trouvent.',
   },
 
   /**
@@ -1545,6 +1586,8 @@ export const fr = {
      * exact failure `router.test.tsx` names one case per admin address to catch.
      */
     title: 'Modération sur téléphone',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Console complète, pour ordinateur',
     intro: 'Glissez la photo vers la droite pour publier, vers la gauche pour refuser.',
     /** The second half of the gesture: the host has gone far enough to decide. */
     releaseToPublish: 'Relâchez pour publier',
@@ -1632,6 +1675,9 @@ export const fr = {
     opensInNewTab: 'ouvre un nouvel onglet',
     /** The footer's other link: the page below. */
     aboutLink: 'À propos',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Retour',
+    home: 'Accueil',
 
     title: 'À propos d’EventSlide',
     intro:
@@ -1721,6 +1767,10 @@ export const fr = {
     spaceTitle: 'Espace client',
     limitsTitle: 'Limites et usage',
     noLimits: 'Votre opérateur n’a fixé aucune limite à votre compte.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Votre compte n’est rattaché à aucun client.',
+    noClientHint:
+      'Il n’y a donc ni limite ni usage à consulter ici. Vos évènements, eux, sont sur la page « Vos évènements ».',
     roleOwner: 'Propriétaire',
     roleMember: 'Membre',
     pendingTitle: 'En attente de votre accord',
@@ -1927,8 +1977,19 @@ export const fr = {
       'Tout ce qui s’est fait sur l’instance, du plus récent au plus ancien. Le motif d’un changement de limites est la phrase de l’opérateur.',
     auditEmpty: 'Aucune action enregistrée pour le moment.',
     auditMore: 'Voir les actions plus anciennes',
-    auditFiltered: 'Journal d’un seul client.',
     auditShowAll: 'Voir tout le journal',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Quitter la console',
+    accountsLink: 'Voir tous les comptes',
+    noClient: 'Aucun',
+    auditFilteredFor: (name: string) => `Journal du client « ${name} ».`,
+    auditToClient: 'Voir ce client',
+    linkLeaveTitle: 'Quitter sans avoir copié le lien ?',
+    linkLeaveHint:
+      'Aucun e-mail n’est parti : ce lien n’est affiché qu’ici, une seule fois. En quittant cette page, vous ne pourrez plus le copier ; il faudra en émettre un nouveau.',
+    linkLeaveStay: 'Rester et copier le lien',
+    linkLeaveGo: 'Quitter quand même',
     auditReason: (reason: string) => `Motif : ${reason}`,
     auditAccount: (short: string) => `compte ${short}`,
     actors: {

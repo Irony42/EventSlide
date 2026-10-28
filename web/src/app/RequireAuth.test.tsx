@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { RequireAuth } from './RequireAuth'
 import { ApiError } from '../lib/http'
 import { fr } from '../lib/i18n/fr'
@@ -81,5 +81,39 @@ describe('RequireAuth', () => {
     )
 
     expect(await screen.findByText(CONSOLE)).toBeVisible()
+  })
+})
+
+describe('RequireAuth: where the host was going (H7, H14)', () => {
+  /** Shows what the sign-in page is handed, which is the whole contract with `LoginPage`. */
+  function Arrival() {
+    return <p data-testid="arrival">{JSON.stringify(useLocation().state)}</p>
+  }
+
+  const guardedAt = (route: string) =>
+    renderWithProviders(
+      <Routes>
+        <Route path="/login" element={<Arrival />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/admin/site/audit" element={<p>{CONSOLE}</p>} />
+        </Route>
+      </Routes>,
+      { api: fakeApi(), route },
+    )
+
+  it('keeps the query with the path, so a filtered audit log is where the host comes back to', async () => {
+    guardedAt('/admin/site/audit?clientId=c-1')
+
+    expect(await screen.findByTestId('arrival')).toHaveTextContent(
+      JSON.stringify({ from: '/admin/site/audit?clientId=c-1' }),
+    )
+  })
+
+  it('writes the bare path when there is no query', async () => {
+    guardedAt('/admin/site/audit')
+
+    expect(await screen.findByTestId('arrival')).toHaveTextContent(
+      JSON.stringify({ from: '/admin/site/audit' }),
+    )
   })
 })

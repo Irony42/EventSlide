@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
-import { readGuestSession } from '../../lib/guestSession'
+import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { CaptionField } from './components/CaptionField'
 import { ClipComposer } from './components/ClipComposer'
@@ -60,6 +60,7 @@ export function GuestUploadPage() {
 /** Reached by a bookmark, or after the tab was closed and reopened. */
 function NotJoined() {
   const t = useTranslations()
+  const { pathname } = useLocation()
 
   return (
     <EmptyState
@@ -67,7 +68,8 @@ function NotJoined() {
       title={t.upload.notJoinedTitle}
       description={t.upload.notJoinedHint}
       action={
-        <Link className={styles['rejoin']} to="/join">
+        // Where the guest was heading, so the code entry returns here.
+        <Link className={styles['rejoin']} to="/join" state={{ from: pathname }}>
           {t.upload.notJoinedAction}
         </Link>
       }
@@ -85,6 +87,7 @@ interface UploadScreenProps {
 
 function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenProps) {
   const t = useTranslations()
+  const navigate = useNavigate()
   const mine = useMyPhotos(slug)
   /**
    * The privacy notice (roadmap §5.1): what happens to a photo, read once per device
@@ -221,6 +224,19 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
     installSlot.current?.focus()
   }
 
+  /**
+   * The server does not know this guest any more (no cookie, or one past its 36 hours).
+   *
+   * What the device remembered of the event is dropped with it, or the installed app would
+   * reopen this very screen on every launch: the code entry is the only way forward.
+   */
+  const signedOut = mine.signedOut
+  useEffect(() => {
+    if (signedOut) forgetGuestSession(slug)
+  }, [signedOut, slug])
+  if (signedOut) return <NotJoined />
+
+  const sending = queue.sending || outbox.draining || clip.stage === 'uploading'
   const trimmedCaption = caption.trim()
 
   /** The words of the chosen prompt, for the line under the send button. */
@@ -257,9 +273,29 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         </p>
         {/* What the room is looking at, on a page of its own: a list that grows all evening
             would push the controls below off the bottom of the phone. */}
-        <Link className={styles['feedLink']} to={`/e/${slug}/photos`}>
-          {t.feed.link}
-        </Link>
+        {/* Not once the server has stopped serving the gallery: the link would lead to a
+            page that can only say so. A closed or archived evening keeps it, because a
+            closed one still has its wall and an archived one's feed explains itself. */}
+        {mine.unavailable ? null : (
+          <Link className={styles['feedLink']} to={`/e/${slug}/photos`}>
+            {t.feed.link}
+          </Link>
+        )}
+        {/* The way out of an event that is not the guest's (navigation pass, A1/A10). */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={styles['noticeLink']}
+          // Not while photos are on their way: leaving unmounts this screen, which cancels every
+          // send in flight (the reason `NewTabLink` exists), and a thumb brushes a header link.
+          disabled={sending}
+          onClick={() => {
+            forgetGuestSession(slug)
+            navigate('/join')
+          }}
+        >
+          {t.join.notYourEvening}
+        </Button>
         {/* The way back to the notice once it has been read. Not rendered while the card
             is on screen, where it would open the same text a second time. */}
         {notice.state === null || gated ? null : (
@@ -281,13 +317,15 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         )}
       </header>
 
-      <MyPhotos
-        photos={mine.photos}
-        loading={mine.loading}
-        error={mine.error}
-        onRetry={mine.refresh}
-        onDelete={mine.remove}
-      />
+      {mine.unavailable ? null : (
+        <MyPhotos
+          photos={mine.photos}
+          loading={mine.loading}
+          error={mine.error}
+          onRetry={mine.refresh}
+          onDelete={mine.remove}
+        />
+      )}
 
       {/* Below the proof that it worked, above the controls: a reward for having sent
           something, never a gate in front of sending it.
@@ -316,7 +354,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         {/* Above the queue: it is the answer to "did my photos go?", and a guest who
             reads it stops pressing "Envoyer" again. */}
         {/* Not once the evening is over: "will be sent" would be a promise the box refuses. */}
-        {mine.acceptingUploads ? (
+        {mine.acceptingUploads && !mine.unavailable ? (
           <OfflineNotice
             waiting={outbox.waiting}
             draining={outbox.draining}
@@ -329,7 +367,22 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           in force. Everything below it picks or sends a new photo, so all of it waits;
           the queue above does not, because what it holds was already chosen.
         */}
-        {!mine.acceptingUploads ? (
+        {mine.unavailable ? (
+          // A suspended account, or an event the server no longer knows: it answers `404` before it
+          // would even say the evening is over, and every send would fail. No form, no queue of
+          // false hope.
+          <>
+            <Notice tone="warning" variant="boxed" role="status">
+              {t.upload.galleryUnavailable}
+            </Notice>
+            {/* The same `404` is what the server says to a phone whose cookie names another
+                event (this one was joined before a later one), and it cannot tell the two
+                apart on purpose: so the way back to the code is offered here as well. */}
+            <Link className={styles['rejoin']} to="/join" state={{ from: `/e/${slug}/upload` }}>
+              {t.upload.galleryUnavailableAction}
+            </Link>
+          </>
+        ) : !mine.acceptingUploads ? (
           // The host closed the evening (or archived it, or its account is suspended): there is
           // nothing left to send, so none of the controls is offered, and the sentence is the one the
           // server would have refused an upload with. What the guest sent stays listed above.

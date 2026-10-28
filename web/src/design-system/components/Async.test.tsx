@@ -77,6 +77,38 @@ describe('Async: the failure', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
+  it('offers a way out beside the retry when the page hands one over, the retry still first', async () => {
+    const reload = vi.fn()
+    render(
+      <LoadFailure
+        message="Introuvable."
+        onRetry={reload}
+        secondaryAction={<a href="/admin">Vos évènements</a>}
+      />,
+    )
+
+    const alert = screen.getByRole('alert')
+    const controls = [...alert.querySelectorAll('button, a')].map((element) => element.textContent)
+    expect(controls).toEqual([fr.app.retry, 'Vos évènements'])
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('is exactly the retry alone when no way out is handed over', () => {
+    render(<LoadFailure message="Hors ligne" onRetry={() => undefined} />)
+
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('names what did not load in the page’s own words when it has them', () => {
+    render(<LoadFailure message="Hors ligne" onRetry={() => undefined} title="File introuvable" />)
+
+    expect(screen.getByRole('heading', { name: 'File introuvable' })).toBeInTheDocument()
+    expect(screen.queryByText(fr.app.loadFailed)).toBeNull()
+  })
+
   it('wins over the answer a failed refresh left behind', () => {
     // The reader is told the refresh failed, instead of being shown a page that may be out of
     // date as though it were current.

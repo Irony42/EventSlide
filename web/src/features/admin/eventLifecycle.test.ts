@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   allowsModeration,
+  canManageEvent,
   isMutable,
   lifecycleActions,
   offersSupport,
@@ -95,5 +96,14 @@ describe('status labels', () => {
     expect(statusLabel('live', fr)).toBe(fr.admin.statusLive)
     expect(statusLabel('closed', fr)).toBe(fr.admin.statusClosed)
     expect(statusLabel('archived', fr)).toBe(fr.admin.statusArchived)
+  })
+})
+
+describe('who may change the lifecycle', () => {
+  // The same fact as `capabilities by role` in `src/domain/events/eventRole.test.ts`: the host's
+  // own decisions are the owner's, and a moderator exists to approve photographs and nothing else.
+  it('is the owner’s alone, as the domain says', () => {
+    expect(canManageEvent('owner')).toBe(true)
+    expect(canManageEvent('moderator')).toBe(false)
   })
 })

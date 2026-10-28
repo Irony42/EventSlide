@@ -99,3 +99,8 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/* Quiet, and out of the way of the two things this header is for. */
+.notYours {
+  align-self: flex-start;
+}

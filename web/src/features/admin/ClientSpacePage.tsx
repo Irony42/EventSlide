@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useApi } from '../../app/useApi'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -23,6 +24,9 @@ import type {
   ClientLimitsDto,
   PendingInvitationDto,
 } from '../../lib/api/dto'
+
+const EVENTS_PATH = '/admin'
+const NEW_EVENT_PATH = '/admin/events/new'
 
 const TONE: Readonly<Record<CeilingMeterDto['level'], ProgressTone>> = {
   ok: 'accent',
@@ -55,12 +59,42 @@ export function ClientSpacePage() {
     [api],
   )
   const limits = useLoader(load)
+  // As on the dashboard: a suspended client creates nothing, so it is not offered a new event.
+  const suspended = limits.data?.some((client) => client.suspended) ?? false
 
   return (
     <div className={styles['page']}>
-      <h1 className={styles['title']}>{t.clientSpace.spaceTitle}</h1>
+      <div className={styles['header']}>
+        <h1 className={styles['title']}>{t.clientSpace.spaceTitle}</h1>
+        {/* This page used to be a dead end: the way back to the events, and the one thing a
+            client does here, "Nouvel évènement", were both on the page it came from. */}
+        <Link className={styles['actionLink']} to={EVENTS_PATH}>
+          {t.admin.events}
+        </Link>
+        {suspended ? null : (
+          <Link className={styles['actionLink']} to={NEW_EVENT_PATH}>
+            {t.admin.newEvent}
+          </Link>
+        )}
+      </div>
 
-      <Async state={limits} empty={<EmptyState title={t.clientSpace.noLimits} />}>
+      <Async
+        state={limits}
+        empty={
+          // Not "no limit": an account with no client has nothing the operator could have
+          // limited, and saying the operator set none is a claim about an account that is not
+          // theirs to have.
+          <EmptyState
+            title={t.clientSpace.noClient}
+            description={t.clientSpace.noClientHint}
+            action={
+              <Link className={styles['actionLink']} to={EVENTS_PATH}>
+                {t.admin.events}
+              </Link>
+            }
+          />
+        }
+      >
         {(clients) =>
           clients.map((client) => (
             <section key={client.id} className={styles['client']}>

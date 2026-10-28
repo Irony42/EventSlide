@@ -1,3 +1,4 @@
+import { LeaveGuard } from '../../../app/LeaveGuard'
 import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
 import { useToast } from '../../../design-system/components/useToast'
@@ -23,6 +24,12 @@ export interface LinkNoticeProps {
  * address bar, not in storage, not logged, and gone when the operator closes the box or leaves the
  * page. It is shown as text, never opened by the console, so the operator is never one click from
  * spending a person's one-time link.
+ *
+ * **While it is on screen, leaving the page asks first** (`LeaveGuard`, H10): the link is held in
+ * the parent's state and nowhere else, so a click on the client it was made for, or on any other
+ * link, used to lose the only copy without a word. The guard lives here and not in each parent
+ * because this component is exactly the span in which there is something to lose: an invitation
+ * opened with a client, one sent from the client's page, a password reset handed to the operator.
  */
 export function LinkNotice({ title, body, label, link, onDismiss }: LinkNoticeProps) {
   const t = useTranslations()
@@ -40,16 +47,25 @@ export function LinkNotice({ title, body, label, link, onDismiss }: LinkNoticePr
   }
 
   return (
-    <Card
-      as="h3"
-      role="status"
-      title={title}
-      footer={<LinkActions onCopy={copy} onDismiss={onDismiss} />}
-    >
-      <p>{body}</p>
-      <p className={styles['label']}>{label}</p>
-      <code className={styles['link']}>{link}</code>
-    </Card>
+    <>
+      <LeaveGuard
+        when
+        title={t.site.linkLeaveTitle}
+        description={t.site.linkLeaveHint}
+        stayLabel={t.site.linkLeaveStay}
+        leaveLabel={t.site.linkLeaveGo}
+      />
+      <Card
+        as="h3"
+        role="status"
+        title={title}
+        footer={<LinkActions onCopy={copy} onDismiss={onDismiss} />}
+      >
+        <p>{body}</p>
+        <p className={styles['label']}>{label}</p>
+        <code className={styles['link']}>{link}</code>
+      </Card>
+    </>
   )
 }
 

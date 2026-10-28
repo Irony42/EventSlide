@@ -3,3 +3,12 @@
   justify-content: center;
   padding-block: var(--space-8);
 }
+
+/* Réessayer and the way out, side by side and wrapping on a phone. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}

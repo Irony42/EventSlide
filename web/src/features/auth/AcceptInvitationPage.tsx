@@ -9,6 +9,7 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
+import { afterInvitationPath, onPhone } from '../../lib/landing'
 import { useLocale } from '../../lib/i18n/useTranslations'
 import { AuthActions, AuthPage } from './components/AuthPage'
 import { AuthForm } from './components/AuthForm'
@@ -18,7 +19,7 @@ import { useAcceptInvitation, useInvitationPreview } from './hooks/useInvitation
 import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 import styles from './AcceptInvitationPage.module.css'
 import type { AcceptOutcome } from './hooks/useInvitation'
-import type { InvitationAcceptedDto, InvitationPreviewDto } from '../../lib/api/dto'
+import type { InvitationPreviewDto } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
 
 /** What the link is for, in a sentence. The name is content: printed as written. */
@@ -28,10 +29,6 @@ const describe = (preview: InvitationPreviewDto, text: UiText): string => {
     ? text.auth.invitationToOwn(preview.targetName)
     : text.auth.invitationToJoin(preview.targetName)
 }
-
-/** Where a person who has just accepted should be: the event, or — for a client — the console. */
-const destination = (accepted: InvitationAcceptedDto): string =>
-  accepted.eventSlug === null ? '/admin' : `/admin/events/${encodeURIComponent(accepted.eventSlug)}`
 
 /**
  * `/invite/:token`: the page every mailed or copied invitation opens (roadmap §10.3, G2-10).
@@ -114,10 +111,22 @@ export function AcceptInvitationPage() {
   }
 
   if (view.kind === 'dead' || diedUnderUs) {
+    const signedInNow = session !== null && session.authenticated
     return (
       <AuthPage title={t.auth.deadLinkTitle} intro={t.errors['invitation.notFound']} focusTitle>
+        {/* The sentence above is the server's, and says to ask the sender. This one is the other
+            thing a person at a dead link may be: somebody who already accepted it. */}
+        <p className={styles['deadHint']}>
+          {signedInNow ? t.auth.deadInvitationSignedIn : t.auth.deadInvitationSignIn}
+        </p>
         <AuthActions>
-          <Link to="/login">{t.auth.submit}</Link>
+          {/* One link to where this browser can go: the console if somebody is signed in here
+              (a person with an account who followed an old mail), the sign-in otherwise. */}
+          {signedInNow ? (
+            <Link to="/admin">{t.admin.events}</Link>
+          ) : (
+            <Link to="/login">{t.auth.submit}</Link>
+          )}
         </AuthActions>
       </AuthPage>
     )
@@ -162,7 +171,9 @@ export function AcceptInvitationPage() {
     switch (outcome.kind) {
       case 'accepted':
         toast.show(t.auth.invitationAccepted, { tone: 'success' })
-        navigate(destination(outcome.accepted), { replace: true })
+        // A moderator starts on the queue they were invited to work (the phone's, on a phone); a
+        // client's owner or member on the list of events. `lib/landing.ts` has the rule.
+        navigate(afterInvitationPath(outcome.accepted, onPhone()), { replace: true })
         return
       case 'dead':
         setDiedUnderUs(true)

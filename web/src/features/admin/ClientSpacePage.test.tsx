@@ -52,8 +52,56 @@ describe('ClientSpacePage', () => {
   it('says an account that belongs to no client has nothing to show, instead of an empty page', async () => {
     open(onBox([]))
 
-    expect(await screen.findByRole('heading', { name: fr.clientSpace.noLimits })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: fr.clientSpace.noClient })).toBeVisible()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // This used to say "your operator has set no limit": a claim about an account that has no
+  // operator-managed client at all (navigation pass, H9). The old assertion pinned that sentence.
+  it('does not tell an account with no client that its operator set no limit', async () => {
+    open(onBox([]))
+
+    await screen.findByRole('heading', { name: fr.clientSpace.noClient })
+    expect(screen.queryByText(fr.clientSpace.noLimits)).toBeNull()
+  })
+
+  it('leads an account with no client to its events, which are the one thing it has', async () => {
+    open(onBox([]))
+
+    await screen.findByRole('heading', { name: fr.clientSpace.noClient })
+    for (const link of screen.getAllByRole('link', { name: fr.admin.events })) {
+      expect(link).toHaveAttribute('href', '/admin')
+    }
+    expect(screen.getByRole('link', { name: fr.admin.newEvent })).toHaveAttribute(
+      'href',
+      '/admin/events/new',
+    )
+  })
+
+  it('is no dead end: it leads back to the events and on to a new one', async () => {
+    open(onBox([aClientLimits()]))
+
+    await screen.findByRole('heading', { name: 'Atelier Alpha' })
+    expect(screen.getByRole('link', { name: fr.admin.events })).toHaveAttribute('href', '/admin')
+    expect(screen.getByRole('link', { name: fr.admin.newEvent })).toHaveAttribute(
+      'href',
+      '/admin/events/new',
+    )
+  })
+
+  it('offers a suspended client no new event, as the dashboard does, but still the way back', async () => {
+    open(onBox([aClientLimits({ suspended: true })]))
+
+    await screen.findByText(fr.clientSpace.suspendedTitle)
+    expect(screen.queryByRole('link', { name: fr.admin.newEvent })).toBeNull()
+    expect(screen.getByRole('link', { name: fr.admin.events })).toHaveAttribute('href', '/admin')
+  })
+
+  it('still leads away when the limits could not be read', async () => {
+    open(onBox([], { myLimits: vi.fn(async () => Promise.reject(ApiError.network())) }))
+
+    await screen.findByRole('alert')
+    expect(screen.getByRole('link', { name: fr.admin.events })).toHaveAttribute('href', '/admin')
   })
 
   it('says the limits could not be read, as a failure and not as "no limit", and reads them again on request', async () => {

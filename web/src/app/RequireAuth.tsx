@@ -4,6 +4,7 @@ import { Button } from '../design-system/components/Button'
 import { EmptyState } from '../design-system/components/EmptyState'
 import { Spinner } from '../design-system/components/Spinner'
 import { useTranslations } from '../lib/i18n/useTranslations'
+import { hereAsFrom } from '../lib/landing'
 import { useSession } from './useSession'
 import styles from './RequireAuth.module.css'
 
@@ -52,9 +53,10 @@ export function RequireAuth({ children }: RequireAuthProps) {
   }
 
   if (session === null || !session.authenticated) {
-    // `state` carries where the host was going, so the login form can return them
-    // there instead of dropping them on the dashboard.
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    // `state` carries where the host was going, **path and query** (an audit filtered to one
+    // client is its query), so the login form can return them there instead of dropping them
+    // on the dashboard. It is the format `SessionExpiredBanner` writes and `fromOf` reads.
+    return <Navigate to="/login" replace state={{ from: hereAsFrom(location) }} />
   }
 
   return children === undefined ? <Outlet /> : <>{children}</>

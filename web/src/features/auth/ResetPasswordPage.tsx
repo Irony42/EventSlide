@@ -92,6 +92,9 @@ export function ResetPasswordPage() {
       submitting={submitting}
       submitLabel={t.auth.resetSubmit}
       onSubmit={handleSubmit}
+      // The form was the only thing on the page: a person who opened the mail by mistake, or
+      // remembered the password, had nothing to press but the browser's Back.
+      footer={<Link to="/login">{t.auth.backToLogin}</Link>}
     >
       <Field
         label={t.auth.newPassword}

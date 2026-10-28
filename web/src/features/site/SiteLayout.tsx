@@ -6,6 +6,8 @@ import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { messageForError } from '../../lib/i18n/translations'
+import { hereAsFrom } from '../../lib/landing'
+import { useClientLimits } from './adminShared'
 import { StepUpProvider } from './StepUpProvider'
 import styles from './SiteLayout.module.css'
 
@@ -23,6 +25,7 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
   const t = useTranslations()
   const api = useApi()
   const navigate = useNavigate()
+  const location = useLocation()
   const { session } = useSession()
   const [failure, setFailure] = useState<string | null>(null)
 
@@ -43,7 +46,10 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
               onClick={() => {
                 setFailure(null)
                 api.logout().then(
-                  () => navigate('/login', { replace: true }),
+                  // Back to this very page once the code has been asked: the sign-in returns
+                  // the person to `from`, query included.
+                  () =>
+                    navigate('/login', { replace: true, state: { from: hereAsFrom(location) } }),
                   (cause: unknown) => setFailure(messageForError(cause, t)),
                 )
               }}
@@ -53,7 +59,12 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
             {failure === null ? null : <p role="alert">{failure}</p>}
           </>
         ) : (
-          <Link className={styles['link']} to="/admin/security">
+          // And back to this page once the factor is in place (`SecurityPage` reads `from`).
+          <Link
+            className={styles['link']}
+            to="/admin/security"
+            state={{ from: hereAsFrom(location) }}
+          >
             {t.site.factorEnrolLink}
           </Link>
         )
@@ -77,6 +88,9 @@ function SecondFactorGate({ children }: { readonly children: ReactNode }) {
 export function SiteLayout() {
   const t = useTranslations()
   const { pathname } = useLocation()
+  // The operator may also belong to a client (their own events, a client space): the console is
+  // one of three homes and says so. Asked of the account's own limits, as the menu does.
+  const { clients: memberships } = useClientLimits()
 
   const clients = pathname === '/admin/site' || pathname.startsWith('/admin/site/clients/')
   const sections: readonly {
@@ -99,6 +113,17 @@ export function SiteLayout() {
         <header className={styles['header']}>
           <p className={styles['brand']}>{t.site.consoleTitle}</p>
           <p className={styles['intro']}>{t.site.consoleIntro}</p>
+          {/* The way out of the console, to the other two homes (H9). Plain links, like the sections. */}
+          <nav aria-label={t.site.exitsLabel} className={styles['exits']}>
+            <Link className={styles['exit']} to="/admin">
+              {t.admin.events}
+            </Link>
+            {memberships.length > 0 ? (
+              <Link className={styles['exit']} to="/admin/client">
+                {t.clientSpace.spaceLink}
+              </Link>
+            ) : null}
+          </nav>
           <nav aria-label={t.site.navLabel} className={styles['nav']}>
             {sections.map((section) => (
               <Link

@@ -497,7 +497,10 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       events: adapters.events,
       getEventLimits: makeGetEventLimits({ clients: adapters.clients }),
     }),
-    listEventsForHost: makeListEventsForHost({ events: adapters.events }),
+    listEventsForHost: makeListEventsForHost({
+      events: adapters.events,
+      memberships: adapters.memberships,
+    }),
     resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
     updateEventSettings: makeUpdateEventSettings({
       events: adapters.events,
