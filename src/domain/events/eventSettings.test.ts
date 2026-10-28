@@ -42,7 +42,7 @@ describe('EventSettings defaults', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     })
   })
 
@@ -94,7 +94,7 @@ describe('EventSettings.create', () => {
           fonts: 'serif',
           frame: 'round',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
         wallLanguage: 'de',
       }),
@@ -114,7 +114,7 @@ describe('EventSettings.create', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
       wallLanguage: 'de',
     })
@@ -264,7 +264,7 @@ describe('EventSettings.with', () => {
           fonts: 'serif',
           frame: 'round',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       }),
     )
@@ -276,7 +276,7 @@ describe('EventSettings.with', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       }),
     )
@@ -286,7 +286,7 @@ describe('EventSettings.with', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     })
   })
 
@@ -298,7 +298,7 @@ describe('EventSettings.with', () => {
           fonts: 'serif',
           frame: 'round',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       }),
     )
@@ -315,7 +315,7 @@ describe('EventSettings.with', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     })
 
@@ -354,7 +354,7 @@ describe('a theme the current rule would refuse, on an event that already has on
     fonts: 'sans',
     frame: 'soft',
     material: 'glass',
-    ambiance: 'darkroom',
+    ambiance: 'guinguette',
   } as const
 
   it('is read back without being re-judged', () => {
@@ -388,7 +388,7 @@ describe('a theme the current rule would refuse, on an event that already has on
         fonts: 'serif',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     })
 

@@ -160,7 +160,7 @@ describe('toPublicEventDto', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     })
   })
@@ -324,7 +324,7 @@ describe('toEventSettingsDto', () => {
           fonts: 'serif',
           frame: 'square',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
         wallLanguage: 'es',
       },
@@ -344,7 +344,7 @@ describe('toEventSettingsDto', () => {
         fonts: 'serif',
         frame: 'square',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
       wallLanguage: 'es',
     })

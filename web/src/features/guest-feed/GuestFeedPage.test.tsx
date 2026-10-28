@@ -500,14 +500,14 @@ describe('a guest the server does not recognise any more, on the feed', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     } as const
     const ROSE = {
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
       material: 'plain',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     } as const
     const pageOf = async () =>
       (await screen.findByRole('heading', { name: fr.feed.title })).closest('div')
