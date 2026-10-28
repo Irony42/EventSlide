@@ -52,9 +52,7 @@ export const makeRemoveVenuePhoto =
     const previous = event.settings.venuePhoto
     if (previous === null) return ok(event)
 
-    const settings = event.settings.with({ venuePhoto: null })
-    if (!settings.ok) return settings
-    const updated = event.withSettings(settings.value)
+    const updated = event.withSettings(event.settings.withVenuePhoto(null))
     if (!updated.ok) return updated
 
     await events.save(updated.value)

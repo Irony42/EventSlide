@@ -323,6 +323,21 @@ describe('EventSettings.with', () => {
     expect(cleared.venuePhoto).toBeNull()
   })
 
+  it('names and clears the venue photograph without touching a single other setting', () => {
+    const digest = ContentHash.create('cd'.repeat(32))
+    if (!digest.ok) throw new Error('fixture digest')
+    const before = unwrap(EventSettings.create({ retentionDays: 30, allowCaptions: false }))
+
+    const named = before.withVenuePhoto(digest.value)
+    const cleared = named.withVenuePhoto(null)
+
+    expect(named.venuePhoto?.value).toBe(digest.value.value)
+    expect({ ...named.toProps(), venuePhoto: null }).toEqual(before.toProps())
+    expect(cleared.toProps()).toEqual(before.toProps())
+    // A new value: the original is not edited under whoever holds it.
+    expect(before.venuePhoto).toBeNull()
+  })
+
   it('keeps the venue photograph when the host saves something else, a theme included', () => {
     // The photograph arrives by its own route, so a settings save that never mentions it
     // must not be able to drop it: that is the whole reason it sits beside the theme.

@@ -330,6 +330,18 @@ export class EventSettings {
     return this.props.venuePhoto
   }
 
+  /**
+   * The same settings with the host's venue photograph named, or cleared with `null`.
+   *
+   * Not `with`: that judges a whole merged set of fields, and this changes the one that has no
+   * range, no legibility rule and no relation to another field. The rest is already valid, since
+   * it is what this object holds, so there is nothing here that can fail and so no `Result` for a
+   * caller to carry a branch for that nothing can reach.
+   */
+  withVenuePhoto(venuePhoto: ContentHash | null): EventSettings {
+    return new EventSettings({ ...this.props, venuePhoto })
+  }
+
   /** Snapshot for the repository to serialise into the `settings` JSON column. */
   toProps(): EventSettingsProps {
     return this.props

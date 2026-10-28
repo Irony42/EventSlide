@@ -227,7 +227,8 @@ describe('the host’s own venue photograph, through the real container (ADR 001
     expect(url).toMatch(new RegExp(`^/api/events/${SLUG}/venue-photo/[0-9a-f]{64}$`))
 
     // The event is a draft until it goes live, and a draft serves nobody but its host.
-    expect((await request(container?.app).get(url)).status).toBe(404)
+    if (container === null) throw new Error('no container')
+    expect((await request(container.app).get(url)).status).toBe(404)
     const own = await agent.get(url).buffer(true).parse(binary)
     expect(own.status).toBe(200)
     const stored = await sharp(bytesOf(own)).metadata()

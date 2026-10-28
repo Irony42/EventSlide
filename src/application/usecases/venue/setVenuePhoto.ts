@@ -164,12 +164,8 @@ export const makeSetVenuePhoto = ({
       return err(DomainError.unexpected('photo.mediaWriteFailed'))
     }
 
-    // Neither of these can refuse: the patch touches no field a settings merge judges, and a
-    // writable event has just been read. They are returned rather than asserted so that a
-    // broken invariant surfaces as an error and not as a crash.
-    const settings = event.settings.with({ venuePhoto: digest.value })
-    if (!settings.ok) return settings
-    const updated = event.withSettings(settings.value)
+    // An archived event is refused here, by the entity, for every kind of edit.
+    const updated = event.withSettings(event.settings.withVenuePhoto(digest.value))
     if (!updated.ok) return updated
 
     const replacesItself = previous !== null && previous.equals(digest.value)
