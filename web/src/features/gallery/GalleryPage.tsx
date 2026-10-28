@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
@@ -33,6 +33,20 @@ import styles from './GalleryPage.module.css'
  * the same thing.
  */
 
+/**
+ * Which photograph the viewer shows, read from the history entry that opened it.
+ *
+ * Opening a photograph **pushes** an entry (A6): on a phone the Back gesture closes the
+ * viewer instead of leaving the album and losing the guest's place in it. The position is
+ * router state and not part of the address, so the shared link stays the same one and
+ * nothing about a photograph is written into a URL that gets forwarded.
+ */
+const openedFrom = (state: unknown): number | null => {
+  if (typeof state !== 'object' || state === null) return null
+  const index: unknown = Reflect.get(state, 'photo')
+  return typeof index === 'number' && Number.isInteger(index) && index >= 0 ? index : null
+}
+
 const Robots = () => <meta name="robots" content="noindex,nofollow" />
 
 export function GalleryPage() {
@@ -41,7 +55,25 @@ export function GalleryPage() {
   const { token = '' } = useParams()
   const state = useGallery(token)
   const [password, setPassword] = useState('')
-  const [open, setOpen] = useState<number | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const open = openedFrom(location.state)
+  const openPhoto = (index: number) => navigate('.', { state: { photo: index } })
+  // Back, not a second push: closing walks the history the opening made. An entry that did not
+  // come from this page (nothing before it) is replaced instead, so closing never leaves the album.
+  //
+  // Once per opening: Back lands a moment later (popstate), so a double tap on the close button
+  // would otherwise pop a second entry and leave the album. `open` changing re-arms it.
+  const closing = useRef(false)
+  useEffect(() => {
+    closing.current = false
+  }, [open])
+  const closePhoto = () => {
+    if (closing.current) return
+    closing.current = true
+    if (location.key === 'default') navigate('.', { replace: true, state: null })
+    else navigate(-1)
+  }
 
   if (state.phase === 'loading') {
     return (
@@ -145,7 +177,7 @@ export function GalleryPage() {
                 className={styles['open']}
                 aria-label={t.gallery.openPhoto(index + 1)}
                 aria-haspopup="dialog"
-                onClick={() => setOpen(index)}
+                onClick={() => openPhoto(index)}
               >
                 {/* Decorative inside a labelled button: the viewer carries the caption. */}
                 <img
@@ -198,7 +230,7 @@ export function GalleryPage() {
         photo={viewing}
         position={(open ?? 0) + 1}
         total={gallery.photoCount}
-        onClose={() => setOpen(null)}
+        onClose={closePhoto}
       />
     </div>
   )

@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
 import { useApi } from '../../../app/useApi'
+import { ApiError } from '../../../lib/http'
 import { useLoader } from '../../../lib/useLoader'
-import type { WallItemDto } from '../../../lib/api/dto'
+import type { GuestPhotoDto, WallItemDto, WallResponse } from '../../../lib/api/dto'
 
 /**
  * What a guest's phone shows of the evening: the published photographs, as the wall has
@@ -21,9 +22,27 @@ import type { WallItemDto } from '../../../lib/api/dto'
  * nothing else.
  */
 
+/**
+ * What the wall read answered: the photographs, or "this gallery is not served".
+ *
+ * `404 event.notFound` is the server saying the event is archived, not open or its account
+ * suspended (docs/API.md, the wall's errors). Retrying cannot change that, so it is an
+ * **answer** here and not a failure: the screen says so once and offers no "Réessayer".
+ * A closed event still serves its wall, so a closed evening is an ordinary feed.
+ */
+type WallAnswer = { readonly gone: false; readonly wall: WallResponse } | { readonly gone: true }
+
 export interface PhotoFeedState {
   /** `null` until the wall has answered once. Absence is not emptiness. */
   readonly items: readonly WallItemDto[] | null
+  /** The server no longer recognises this guest (`401` on their own list). */
+  readonly signedOut: boolean
+  /**
+   * The gallery is no longer served (archived, not open, suspended): nothing to retry.
+   * Read from the **wall**, which is public, so a guest's cookie cannot make it say so; the
+   * upload screen's own-photos read cannot claim the same (see `useMyPhotos`).
+   */
+  readonly unavailable: boolean
   /** The host's switch, as the wall says it now. */
   readonly reactionsEnabled: boolean
   /** Ids of the guest's own photographs. Empty while unknown or when that read failed. */
@@ -42,8 +61,35 @@ export interface PhotoFeedState {
 
 export const usePhotoFeed = (slug: string): PhotoFeedState => {
   const api = useApi()
-  const loadWall = useCallback((signal: AbortSignal) => api.wall(slug, signal), [api, slug])
-  const loadMine = useCallback((signal: AbortSignal) => api.myPhotos(slug, signal), [api, slug])
+  const loadWall = useCallback(
+    async (signal: AbortSignal): Promise<WallAnswer> => {
+      try {
+        return { gone: false, wall: await api.wall(slug, signal) }
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 404 && cause.code === 'event.notFound') {
+          return { gone: true }
+        }
+        throw cause
+      }
+    },
+    [api, slug],
+  )
+  const loadMine = useCallback(
+    async (
+      signal: AbortSignal,
+    ): Promise<{ readonly items: readonly GuestPhotoDto[]; readonly signedOut: boolean }> => {
+      try {
+        const answer = await api.myPhotos(slug, signal)
+        return { items: answer.items, signedOut: false }
+      } catch (cause) {
+        // The guest's access is gone (no cookie, or one past its 36 hours). The feed is public and
+        // still reads, so this is an answer, not a failure: the screen reports it to the device.
+        if (cause instanceof ApiError && cause.status === 401) return { items: [], signedOut: true }
+        throw cause
+      }
+    },
+    [api, slug],
+  )
   const wall = useLoader(loadWall)
   const mine = useLoader(loadMine)
 
@@ -59,9 +105,13 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
     reloadMine()
   }, [reloadWall, reloadMine])
 
+  const served = wall.data === null || wall.data.gone ? null : wall.data.wall
+
   return {
-    items: wall.data === null ? null : wall.data.items,
-    reactionsEnabled: wall.data?.reactionsEnabled ?? false,
+    items: served === null ? null : served.items,
+    unavailable: wall.data?.gone === true,
+    signedOut: mine.data?.signedOut === true,
+    reactionsEnabled: served?.reactionsEnabled ?? false,
     ownIds,
     settling: (wall.data === null && wall.loading) || (mine.data === null && mine.loading),
     refreshing: wall.data !== null && wall.loading,
