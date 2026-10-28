@@ -708,6 +708,12 @@ already does. The filmstrip and the collage show no captions at all.
 
 ## 12. Per-event theming
 
+> **Ambiances (ADR 0010).** Since the prototype of 28 October a theme also names an
+> ambiance: a closed pack of surfaces, inks, faces and ornaments for the guest's phone and
+> the wall, declared as a `[data-event-ambiance]` block in `tokens.css` and measured on its
+> own by `tokens.contrast.test.ts`. The root is the Chambre noire, whose primary action is the
+> paper. See [ADR 0010](adr/0010-event-ambiances.md); the sections below predate it.
+
 Roadmap 2.2. A host gives one event a look: an **accent hue**, a **font pairing** and a
 **frame style** — and, since roadmap 11.5, the **material** its panes are made of. A wedding
 in rose and a corporate launch in a company blue should not look like the same product, and

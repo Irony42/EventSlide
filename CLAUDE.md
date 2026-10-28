@@ -300,7 +300,10 @@ that renders guest-supplied content. The short version:
   other way, or answers a dead link differently, is the defect.
 - `helmet` sets a strict CSP. There is **no CDN** — Bootstrap is gone and the CSS is
   bundled. Do not reintroduce a remote `<script>` or `<link>`.
-- **No web font is shipped.** This file used to say fonts were bundled; nothing in the
+- **No web font is shipped for the product's own look.** Since ADR 0010 two OFL display faces
+  (Shrikhand, Bricolage Grotesque, about 80 kB) ship for the Guinguette ambiance only, and a
+  browser fetches them only when that ambiance is on screen. The rest of this bullet is still
+  true of every other evening. This file used to say fonts were bundled; nothing in the
   tree ever loaded one — there is no `.woff2`, no `fonts/` directory and no
   `@font-face` anywhere. `--font-sans` opens with `'InterVariable', 'Inter'`, which is
   opportunistic rather than a dependency: it picks those up on a machine that already
