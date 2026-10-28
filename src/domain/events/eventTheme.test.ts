@@ -10,10 +10,9 @@ import {
   isThemeFonts,
   isThemeFrame,
   isThemeMaterial,
+  currentAmbianceName,
   isThemeAmbiance,
   THEME_AMBIANCES,
-  AMBIANCES_WITH_PHOTOGRAPHED_GROUND,
-  hasPhotographedGround,
   restoreEventTheme,
   THEME_FONTS,
   THEME_FRAMES,
@@ -243,7 +242,7 @@ describe('the shipped hues', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     })
     expect(CURATED_ACCENT_HUES['violet']).toBe(DEFAULT_EVENT_THEME.accentHue)
   })
@@ -300,7 +299,21 @@ describe('narrowing a value read back from storage', () => {
 
 describe('the ambiance an event wears (ADR 0010)', () => {
   it('ships on the product’s own look, so an unthemed event emits nothing', () => {
-    expect(DEFAULT_EVENT_THEME.ambiance).toBe('darkroom')
+    expect(DEFAULT_EVENT_THEME.ambiance).toBe('guinguette')
+  })
+
+  it('offers the Guinguette and four others, and no longer the Chambre noire', () => {
+    expect([...THEME_AMBIANCES]).toEqual(['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret'])
+    expect(isThemeAmbiance('darkroom')).toBe(false)
+  })
+
+  it('reads the retired darkroom as the Guinguette that replaced it, and nothing else', () => {
+    // Stored themes and guests' sessions written before 28/10 still say `darkroom`.
+    expect(currentAmbianceName('darkroom')).toBe('guinguette')
+    expect(currentAmbianceName('riviera')).toBe('riviera')
+    // Not a lookup into Object.prototype: an inherited key is not an alias.
+    expect(currentAmbianceName('constructor')).toBe('constructor')
+    expect(currentAmbianceName(undefined)).toBeUndefined()
   })
 
   it.each(THEME_AMBIANCES)('recognises %s as an ambiance', (value) => {
@@ -315,19 +328,6 @@ describe('the ambiance an event wears (ADR 0010)', () => {
       expect(isThemeAmbiance(value)).toBe(false)
     },
   )
-})
-
-describe('which ambiances photograph their ground (ADR 0010, decision 8)', () => {
-  it('offers the Guinguette, whose ground is a photograph, and not the Chambre noire', () => {
-    expect(hasPhotographedGround('guinguette')).toBe(true)
-    expect(hasPhotographedGround('darkroom')).toBe(false)
-  })
-
-  it('lists only ambiances that exist, so a typo cannot offer an upload that shows nowhere', () => {
-    for (const ambiance of AMBIANCES_WITH_PHOTOGRAPHED_GROUND) {
-      expect(THEME_AMBIANCES).toContain(ambiance)
-    }
-  })
 })
 
 describe('the material a host chooses for their panes', () => {
@@ -350,10 +350,10 @@ describe('the material a host chooses for their panes', () => {
     // material it is wearing, and a hue it accepts is accepted the same way: the two
     // decisions are independent, and a rule that made them interact would be inventing one.
     expect(
-      createEventTheme(aTheme({ accentHue: 160, material: 'plain', ambiance: 'darkroom' })).ok,
+      createEventTheme(aTheme({ accentHue: 160, material: 'plain', ambiance: 'guinguette' })).ok,
     ).toBe(false)
     expect(
-      createEventTheme(aTheme({ accentHue: 250, material: 'plain', ambiance: 'darkroom' })).ok,
+      createEventTheme(aTheme({ accentHue: 250, material: 'plain', ambiance: 'guinguette' })).ok,
     ).toBe(true)
   })
 
@@ -361,7 +361,7 @@ describe('the material a host chooses for their panes', () => {
     // `restoreEventTheme` is lenient about the *hue* and about nothing else. A host who
     // turned the material off did so on purpose, and a rule tightened on Tuesday must not
     // put a blur back on their wedding on Saturday.
-    const restored = restoreEventTheme(aTheme({ material: 'plain', ambiance: 'darkroom' }))
+    const restored = restoreEventTheme(aTheme({ material: 'plain', ambiance: 'guinguette' }))
 
     expect(restored.ok && restored.value.material).toBe('plain')
   })
@@ -373,7 +373,7 @@ describe('the material a host chooses for their panes', () => {
     // there is no host choice in it to keep — but it is worth a test saying which way it
     // goes, because the alternative reading is "keep the parts that still parse".
     const restored = restoreEventTheme(
-      aTheme({ accentHue: 400, material: 'plain', ambiance: 'darkroom' }),
+      aTheme({ accentHue: 400, material: 'plain', ambiance: 'guinguette' }),
     )
 
     expect(restored.ok && restored.value).toEqual(DEFAULT_EVENT_THEME)

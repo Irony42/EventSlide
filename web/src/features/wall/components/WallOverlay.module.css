@@ -24,8 +24,8 @@
   z-index: var(--z-wall-caption);
   align-items: center;
   box-shadow: var(--shadow-lg);
-  /* ADR 0010: a sleeve of photographic paper in the Chambre noire, a kraft ticket in the
-     Guinguette. Its inks are the ones named for that ground. */
+  /* ADR 0010: a ticket of the ambiance's own paper (kraft in the Guinguette). Its inks are
+     the ones named for that ground. */
   background-color: var(--wall-card-bg);
   background-image: var(--wall-card-texture);
   color: var(--wall-card-ink);

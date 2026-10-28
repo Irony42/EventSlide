@@ -14,6 +14,7 @@ export const WALL_LAYOUTS = [
   'filmstrip',
   'collage',
   'split',
+  'clothesline',
 ] as const
 
 export type WallLayout = (typeof WALL_LAYOUTS)[number]
@@ -93,6 +94,16 @@ const SPECS: Readonly<Record<WallLayout, WallLayoutSpec>> = {
     playsVideo: false,
   },
   split: { slotCount: 2, crops: false, showsCaption: true, showsAuthor: true, playsVideo: true },
+  // Three to five prints on a string: five slots, fewer while the playlist is shorter.
+  // Cropped to a print's 4:5 window like the polaroid, captioned on the mat like it, and
+  // for the same reason it shows a clip's poster: five decoders is not a budget.
+  clothesline: {
+    slotCount: 5,
+    crops: true,
+    showsCaption: true,
+    showsAuthor: true,
+    playsVideo: false,
+  },
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>

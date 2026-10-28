@@ -5,3 +5,14 @@ web/src/design-system/ambiances/guinguette-ground-1600.webp
   by Liana S, https://unsplash.com/photos/DH9Mf77EjRg
   Licensed under the Unsplash License, https://unsplash.com/license
   (free to use, including commercially; no permission needed; attribution appreciated).
+
+web/src/design-system/ambiances/riviera-ground-1600.webp
+  "Coucher de soleil sur l'océan depuis un balcon", https://unsplash.com/photos/1Yxvy3lfaA0
+web/src/design-system/ambiances/champs-ground-1600.webp
+  "Le soleil brille à travers les hautes herbes", https://unsplash.com/photos/gHMBw
+web/src/design-system/ambiances/bivouac-ground-1600.webp
+  "Les gens ayant un feu de joie sous le ciel bleu rempli d'étoiles", https://unsplash.com/photos/Qag2W_cL1jg
+web/src/design-system/ambiances/cabaret-ground-1600.webp
+  "Un rideau de velours pend près de portes vitrées", https://unsplash.com/photos/u75jwAs
+  All licensed under the Unsplash License, https://unsplash.com/license
+  (free to use, including commercially; attribution appreciated).

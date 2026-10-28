@@ -942,8 +942,8 @@ Only what a guest may know before joining. The owner, the quota, the counts and 
 settings that are none of their business are absent.
 
 `theme.groundUrl` is the host's own photograph of the venue (§7, `PUT /venue-photo`): a path on this
-origin naming the photograph's digest, or `null` for the ambiance's bundled ground — and `null` on
-every ambiance that paints no photograph, whatever is stored. A client takes it only if it matches
+origin naming the photograph's digest, or `null` for the ambiance's bundled ground, and always `null`
+on the shared gallery. A client takes it only if it matches
 `/api/events/<slug>/venue-photo/<64 hex>`.
 
 `theme` is not a permission like the two switches above it — it is what the host's event
@@ -1146,10 +1146,10 @@ client-side concern. The projector reads `?layout=` off its own _display_ URL �
 `/e/:slug/display?layout=mosaic`, which is what a kiosk's autostart line can hold — and
 the host's `L` key cycles the same thing at the screen; both live in the browser
 (`web/src/features/wall/hooks/useLayoutParam.ts`) and neither is sent here. Names are
-`spotlight | mosaic | polaroid | filmstrip | collage | split`, and an unknown or
+`spotlight | mosaic | polaroid | filmstrip | collage | split | clothesline`, and an unknown or
 malformed one is ignored in favour of this response's value rather than raising
 anything: a projector rendering nothing for eight hours is the one failure this screen
-may not have. All six render themselves; none falls back to a neighbour. `L` walks them
+may not have. All seven render themselves; none falls back to a neighbour. Without `?layout=`, a Guinguette event opens on `clothesline` (ADR 0010, decided in the browser). `L` walks them
 in the order above and wraps.
 
 `joinCode` is present because the wall is also the invitation: it shows the code and a
@@ -2755,7 +2755,7 @@ Rename. **200** with the event. **Errors** — `409 event.immutable` on an archi
 ### `PUT /api/events/:slug/venue-photo` and `DELETE`
 
 The host's own photograph of their venue, which replaces the bundled ground of an ambiance
-that photographs its own (today the Guinguette; ADR 0010, decision 8). **Owner only**, as
+(every ambiance paints a photograph; ADR 0010, decision 11). **Owner only**, as
 `PATCH /settings` is: `401 auth.required`, `404 event.notFound` for a caller with no part in the
 event, `403 auth.forbidden` for its moderator, and `403 client.suspended` on a frozen client.
 All of it is decided before a byte is buffered.
@@ -2768,7 +2768,6 @@ the full event, whose `settings.theme.groundUrl` is now the photograph's URL.
 | ------ | ---------------------------------------------------------------- | --------------------------------------------------------------- |
 | 400    | `upload.noFiles`                                                 | no `photo` part                                                 |
 | 400    | `image.unsupportedFormat` \| `image.corrupt` \| `image.animated` | the bytes are not one still image the pipeline reads            |
-| 409    | `venuePhoto.ambianceHasNoPhotograph`                             | the **saved** ambiance paints no photograph                     |
 | 413    | `upload.tooLarge`                                                | above `MAX_UPLOAD_BYTES`, cut off at the byte that crosses it   |
 | 413    | `photo.pixelBudgetExceeded` \| `venuePhoto.tooLarge`             | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 1 MiB |
 | 429    | `rate.limited`                                                   | more than ten uploads an hour from one account                  |

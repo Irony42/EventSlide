@@ -273,7 +273,9 @@ describe('the host’s own venue photograph, through the real container (ADR 001
     expect(saved.status, JSON.stringify(saved.body)).toBe(200)
     expect(saved.body.settings.theme.groundUrl).toBeNull()
     const stored = container?.db
-      .prepare<[string], { readonly settings: string }>('SELECT settings FROM events WHERE slug = ?')
+      .prepare<[string], { readonly settings: string }>(
+        'SELECT settings FROM events WHERE slug = ?',
+      )
       .get(SLUG)
     expect(stored?.settings).not.toContain('anything')
   })

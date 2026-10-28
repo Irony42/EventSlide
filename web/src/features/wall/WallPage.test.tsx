@@ -616,15 +616,15 @@ describe('WallPage', () => {
     await screen.findByTestId('wall-slide')
 
     const visited: (string | null)[] = [theWall().getAttribute('data-wall-layout')]
-    for (let press = 0; press < 6; press += 1) {
+    for (let press = 0; press < 7; press += 1) {
       await userEvent.keyboard('l')
       visited.push(theWall().getAttribute('data-wall-layout'))
     }
 
-    // The two layouts 2.0 shipped, then the four 2.3 added — not sorted by slot count,
-    // so that the first press still lands where every host's hand expects it. What this
-    // protects is the wrap: the seventh press comes home rather than stranding somebody
-    // on a layout they cannot get out of.
+    // The two layouts 2.0 shipped, then the four 2.3 added, then the clothesline — not
+    // sorted by slot count, so that the first press still lands where every host's hand
+    // expects it. What this protects is the wrap: the eighth press comes home rather than
+    // stranding somebody on a layout they cannot get out of.
     expect(visited).toEqual([
       'spotlight',
       'mosaic',
@@ -632,11 +632,12 @@ describe('WallPage', () => {
       'filmstrip',
       'collage',
       'split',
+      'clothesline',
       'spotlight',
     ])
   })
 
-  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split'])(
+  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split', 'clothesline'])(
     'renders %s itself rather than falling back to the layout nearest to it',
     async (layout) => {
       // Every name in the contract is now built. A layout that silently rendered its
@@ -649,6 +650,44 @@ describe('WallPage', () => {
       expect(theWall()).toHaveAttribute('data-wall-layout', layout)
     },
   )
+
+  describe('the layout an ambiance suggests', () => {
+    const themed = (ambiance: 'riviera' | 'guinguette') =>
+      aPopulatedWall({
+        items: somePhotos(8),
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass', ambiance },
+      })
+
+    it('keeps the wall response’s layout for every ambiance, the default included', async () => {
+      // Since 28/10 the Guinguette is the product's own look, so no ambiance forces a layout:
+      // the clothesline is one `L` press or `?layout=clothesline` away.
+      for (const ambiance of ['guinguette', 'riviera'] as const) {
+        const api = fakeApi({ wall: wallSequence(themed(ambiance)) })
+        const { unmount } = renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+        await screen.findAllByTestId('wall-slide')
+        expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+        unmount()
+      }
+    })
+
+    it('yields to a kiosk that names its layout', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'mosaic')
+    })
+
+    it('wraps L from the clothesline, last in the cycle, back to the spotlight', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=clothesline`, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      await userEvent.keyboard('l')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+    })
+  })
 
   it('explains its keyboard shortcuts when the host presses the question mark', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
@@ -972,7 +1011,7 @@ describe('WallPage', () => {
               fonts: 'sans',
               frame: 'soft',
               material: 'glass',
-              ambiance: 'darkroom',
+              ambiance: 'guinguette',
             },
           }),
         ),
@@ -999,7 +1038,7 @@ describe('WallPage', () => {
               fonts: 'serif',
               frame: 'square',
               material: 'glass',
-              ambiance: 'darkroom',
+              ambiance: 'guinguette',
             },
           }),
         ),
@@ -1024,7 +1063,7 @@ describe('WallPage', () => {
               fonts: 'sans',
               frame: 'soft',
               material: 'glass',
-              ambiance: 'darkroom',
+              ambiance: 'guinguette',
             },
           }),
         ),
@@ -1055,7 +1094,7 @@ describe('WallPage', () => {
               fonts: 'sans',
               frame: 'soft',
               material: 'plain',
-              ambiance: 'darkroom',
+              ambiance: 'guinguette',
             },
           }),
         ),
@@ -1100,7 +1139,7 @@ describe('WallPage', () => {
               fonts: 'serif',
               frame: 'soft',
               material: 'glass',
-              ambiance: 'darkroom',
+              ambiance: 'guinguette',
             },
           }),
         )

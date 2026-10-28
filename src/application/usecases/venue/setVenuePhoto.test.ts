@@ -3,7 +3,7 @@ import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
 import { EventName } from '../../../domain/events/eventName'
-import { asEventId, asUserId, type EventId } from '../../../domain/shared/ids'
+import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { AT, anEvent, type EventInput } from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeContentHasher } from '../../testing/fakeContentHasher'
@@ -194,21 +194,6 @@ describe('setVenuePhoto', () => {
       })
 
       expect(!result.ok && result.error.code).toBe('event.immutable')
-    })
-
-    it('refuses when the ambiance paints no photograph, so the upload would show nowhere', async () => {
-      const darkroom: EventId = asEventId('evt-darkroom')
-      events.seed(anEvent({ id: darkroom, ownerId: STRANGER, slug: 'soiree', joinCode: 'K4M8QR' }))
-      memberships.seed({ eventId: darkroom, userId: STRANGER, role: 'owner', grantedAt: AT })
-
-      const result = await setVenuePhoto({
-        eventId: darkroom,
-        actorId: STRANGER,
-        bytes: tagBytes('pic'),
-      })
-
-      expect(!result.ok && result.error.code).toBe('venuePhoto.ambianceHasNoPhotograph')
-      expect(images.calls).toEqual([])
     })
   })
 

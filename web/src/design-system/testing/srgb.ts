@@ -132,3 +132,30 @@ export const lightestHue = (colour: Oklch): Oklch =>
   Array.from({ length: 360 }, (_unused, h) => ({ ...colour, h })).reduce((light, next) =>
     luminanceOf(srgb(next)) > luminanceOf(srgb(light)) ? next : light,
   )
+
+/**
+ * `tokens.css` without its ambiance blocks (ADR 0010): the root look, and nothing a themed
+ * event swaps in.
+ *
+ * The parser keeps the last declaration of a name, and every ambiance re-declares every
+ * surface and ink, so reading the whole file would quietly measure the last ambiance as if
+ * it were the root. The ambiances are cut out here and measured on their own, one block each,
+ * by `ambianceBlock`. What is left still ends on the `[data-event-accent]` derivation, which
+ * is what every hue sweep is about.
+ */
+const AMBIANCE_SECTION =
+  /\/\*\*\n \* Ambiances, ADR 0010[\s\S]*?(?=\n\/\*\*\n \* The accent, derived)/
+
+export const withoutAmbiances = (css: string): string => {
+  if (!AMBIANCE_SECTION.test(css)) {
+    throw new Error('tokens.css no longer opens its ambiances with the ADR 0010 comment')
+  }
+  return css.replace(AMBIANCE_SECTION, '')
+}
+
+/** One ambiance's own declarations, as the body of its `[data-event-ambiance='…']` block. */
+export const ambianceBlock = (css: string, name: string): string => {
+  const found = new RegExp(`\\[data-event-ambiance='${name}'\\][^{]*\\{([^}]*)\\}`).exec(css)
+  if (found?.[1] === undefined) throw new Error(`tokens.css declares no ${name} block`)
+  return found[1]
+}

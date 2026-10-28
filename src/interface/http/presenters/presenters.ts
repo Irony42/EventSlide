@@ -9,7 +9,6 @@ import type { EventCounts } from '../../../application/ports/eventRepository'
 import type { HostEventSummary } from '../../../application/usecases/events/listEventsForHost'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
-import { hasPhotographedGround } from '../../../domain/events/eventTheme'
 import type { AuditPage } from '../../../application/ports/auditLog'
 import type { ClientLimits } from '../../../application/usecases/clients/getClientLimits'
 import type { PendingInvitation } from '../../../application/usecases/clients/listPendingInvitations'
@@ -226,14 +225,12 @@ export const toEventThemeDto = (
 /**
  * Where the host's own venue photograph is served, or `null` for the ambiance's bundled one.
  *
- * Only for an ambiance that photographs its ground (`hasPhotographedGround`): a photograph kept
- * under an ambiance that paints none is not on the wire, so a client never has to decide that.
  * The digest is in the path so the URL changes when the photograph does, which is what makes
  * the route's year-long cache safe and means no client has to bust one. Built here and never
  * from anything a client sent.
  */
 export const venueGroundUrl = (settings: EventSettings, slug: string | null): string | null =>
-  slug === null || settings.venuePhoto === null || !hasPhotographedGround(settings.theme.ambiance)
+  slug === null || settings.venuePhoto === null
     ? null
     : `/api/events/${encodeURIComponent(slug)}/venue-photo/${settings.venuePhoto.value}`
 

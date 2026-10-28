@@ -1,5 +1,4 @@
 import type { Event } from '../../../domain/events/event'
-import { hasPhotographedGround } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -24,16 +23,14 @@ import { requireEventRole, requireWritable } from '../shared/eventRole'
  *
  * 1. the role, then the event's state, in that order, so a refusal that names the state
  *    never confirms an event exists to somebody with no part in it;
- * 2. **the ambiance must photograph its ground** (`hasPhotographedGround`), or the upload would
- *    be stored and shown nowhere;
- * 3. `probe` from the header before any decode, and the pixel budget on the declared numbers:
+ * 2. `probe` from the header before any decode, and the pixel budget on the declared numbers:
  *    the only order that stops a decompression bomb, exactly as `uploadPhotos` does it. The
  *    format is identified from the bytes by the adapter; the client's MIME type and filename
  *    never reach this function;
- * 4. `render`: rotated upright, **every metadata block stripped** (a venue photograph carries
+ * 3. `render`: rotated upright, **every metadata block stripped** (a venue photograph carries
  *    the GPS coordinates of the venue, which is the one thing a guest-facing file must not
  *    hand out), downscaled and re-encoded, so a polyglot cannot survive;
- * 5. bytes first, row second (CLAUDE.md section 9, trap 4): a failed save removes what this
+ * 4. bytes first, row second (CLAUDE.md section 9, trap 4): a failed save removes what this
  *    request wrote and **only what the previous settings do not name**, and a failed removal of
  *    the previous file is the sweep's to finish, never a reason to fail a save that succeeded.
  *
@@ -116,14 +113,6 @@ export const makeSetVenuePhoto = ({
 
     const writable = requireWritable(event)
     if (!writable.ok) return writable
-
-    if (!hasPhotographedGround(event.settings.theme.ambiance)) {
-      return err(
-        DomainError.conflict('venuePhoto.ambianceHasNoPhotograph', {
-          ambiance: event.settings.theme.ambiance,
-        }),
-      )
-    }
 
     const probed = await imageProcessor.probe(bytes)
     if (!probed.ok) return probed

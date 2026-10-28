@@ -146,7 +146,7 @@ describe('what a wedding starts from', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'champs',
     })
   })
 })
@@ -196,7 +196,7 @@ describe('what a conference starts from', () => {
       fonts: 'sans',
       frame: 'square',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     })
   })
 })
@@ -224,7 +224,7 @@ describe('what a party starts from', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'bivouac',
     })
   })
 })

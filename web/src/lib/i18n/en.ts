@@ -461,7 +461,6 @@ export const en: UiText = {
     'upload.busy': 'A lot of uploads are in progress. Try again in a moment.',
     'storage.boxFull': 'There is no room left to save this file. Let the organiser know.',
     /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
-    'venuePhoto.ambianceHasNoPhotograph': 'This ambiance has no photo to replace.',
     'venuePhoto.tooLarge': 'This photo is too heavy, even resized. Try another one.',
     'venuePhoto.notFound': 'This photo no longer exists.',
     'venuePhoto.saveFailed': 'The photo could not be saved. Try again.',
@@ -618,6 +617,7 @@ export const en: UiText = {
       filmstrip: 'Filmstrip',
       collage: 'Collage',
       split: 'Side by side',
+      clothesline: 'Clothesline',
     },
     layoutOrder: (names: readonly string[]) => `Layouts, in order: ${names.join(', ')}.`,
 
@@ -684,7 +684,7 @@ export const en: UiText = {
       'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
     themeAccent: 'Colour',
     themeAccentNames: {
-      violet: 'Paper (default)',
+      violet: 'Kraft (default)',
       rose: 'Pink',
       azure: 'Blue',
       teal: 'Teal',
@@ -711,10 +711,13 @@ export const en: UiText = {
     },
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
-      'The world your guests’ phones and the room’s screen wear. Your console does not change.',
+      'The world your guests’ phones, the room’s screen and this event’s pages in your console wear.',
     themeAmbianceNames: {
-      darkroom: 'Darkroom',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Golden fields',
+      bivouac: 'Bivouac',
+      cabaret: 'Cabaret',
     },
 
     template: 'Type of event',
@@ -927,7 +930,6 @@ export const en: UiText = {
     venuePhotoBusy: 'Uploading the photo…',
     venuePhotoSaved: 'Your venue photo is saved.',
     venuePhotoRemoved: 'The default photo is back.',
-    venuePhotoSaveFirst: 'Save the ambiance you chose first: your venue photo is set after that.',
   },
 
   auth: {

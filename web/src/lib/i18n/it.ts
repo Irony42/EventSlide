@@ -487,7 +487,6 @@ export const it: UiText = {
     'upload.busy': 'Sono in corso molti invii. Riprovi tra un momento.',
     'storage.boxFull': 'Non c’è più spazio per salvare questo file. Avvisi l’organizzatore.',
     /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
-    'venuePhoto.ambianceHasNoPhotograph': 'Questa ambientazione non ha una foto da sostituire.',
     'venuePhoto.tooLarge':
       'Questa foto è troppo pesante, anche ridimensionata. Provatene un’altra.',
     'venuePhoto.notFound': 'Questa foto non esiste più.',
@@ -638,6 +637,7 @@ export const it: UiText = {
       filmstrip: 'Pellicola',
       collage: 'Collage',
       split: 'Affiancate',
+      clothesline: 'Filo del bucato',
     },
     layoutOrder: (names: readonly string[]) => `Disposizioni, in ordine: ${names.join(', ')}.`,
     videoBy: (name: string) => `Video inviato da ${name}`,
@@ -700,7 +700,7 @@ export const it: UiText = {
       'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',
     themeAccent: 'Colore',
     themeAccentNames: {
-      violet: 'Carta (predefinita)',
+      violet: 'Kraft (predefinito)',
       rose: 'Rosa',
       azure: 'Blu',
       teal: 'Turchese',
@@ -726,10 +726,13 @@ export const it: UiText = {
     },
     themeAmbiance: 'Atmosfera',
     themeAmbianceHint:
-      'Il mondo che indossano i telefoni dei vostri ospiti e lo schermo della sala. La vostra console non cambia.',
+      'Il mondo che indossano i telefoni dei vostri ospiti, lo schermo della sala e le pagine di questo evento nella vostra console.',
     themeAmbianceNames: {
-      darkroom: 'Camera oscura',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Campi d’oro',
+      bivouac: 'Bivacco',
+      cabaret: 'Cabaret',
     },
     template: 'Tipo di evento',
     templateHint:
@@ -942,8 +945,6 @@ export const it: UiText = {
     venuePhotoBusy: 'Invio della foto…',
     venuePhotoSaved: 'La foto del vostro locale è salvata.',
     venuePhotoRemoved: 'La foto predefinita è stata ripristinata.',
-    venuePhotoSaveFirst:
-      'Salvate prima l’ambientazione scelta: la foto del vostro locale si imposta dopo.',
   },
 
   auth: {

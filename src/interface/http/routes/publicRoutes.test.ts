@@ -333,7 +333,7 @@ describe('POST /api/join', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
           groundUrl: null,
         },
       },
@@ -733,7 +733,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
       groundUrl: null,
     })
   })
@@ -758,7 +758,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
             fonts: 'serif',
             frame: 'square',
             material: 'glass',
-            ambiance: 'darkroom',
+            ambiance: 'guinguette',
           },
         },
       }),
@@ -771,7 +771,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
       fonts: 'serif',
       frame: 'square',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
       groundUrl: null,
     })
   })

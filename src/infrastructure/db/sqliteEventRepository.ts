@@ -25,6 +25,7 @@ import {
   isThemeFonts,
   isThemeFrame,
   isThemeMaterial,
+  currentAmbianceName,
   isThemeAmbiance,
   type EventThemeProps,
   type ThemeMaterial,
@@ -310,8 +311,10 @@ const settingsMaterialAddedLater = (value: unknown): ThemeMaterial => {
  */
 const settingsAmbianceAddedLater = (value: unknown): ThemeAmbiance => {
   if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
-  if (!isThemeAmbiance(value)) throw corrupt('settings', 'unknown theme ambiance')
-  return value
+  // A theme stored while the Chambre noire existed says `darkroom`: it reads as the Guinguette.
+  const ambiance = currentAmbianceName(value)
+  if (!isThemeAmbiance(ambiance)) throw corrupt('settings', 'unknown theme ambiance')
+  return ambiance
 }
 
 /**

@@ -336,7 +336,7 @@ describe('EventSettingsPage', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       }),
     )
@@ -359,7 +359,7 @@ describe('EventSettingsPage', () => {
               fonts: 'serif',
               frame: 'round',
               material: 'glass',
-              ambiance: 'darkroom',
+              ambiance: 'guinguette',
             },
           }),
         }),
@@ -389,7 +389,7 @@ describe('EventSettingsPage', () => {
   })
 
   it('dresses the console in the event’s ambiance, and only in that (ADR 0010, 28/10)', async () => {
-    // Pierre's call on 28/10: an event in the Guinguette is a Guinguette in the console too.
+    // Pierre's call on 28/10: an event in the Riviera is a Riviera in the console too.
     // The accent, the pairing and the frame still stay off the console: the ambiance is the
     // world, the hue is the event's, and the moderation queue's status colours are fixed.
     const api = fakeApi({
@@ -401,7 +401,7 @@ describe('EventSettingsPage', () => {
               fonts: 'serif',
               frame: 'round',
               material: 'glass',
-              ambiance: 'guinguette',
+              ambiance: 'riviera',
             },
           }),
         }),
@@ -412,7 +412,7 @@ describe('EventSettingsPage', () => {
     await screen.findByRole('heading', { name: fr.admin.settings })
 
     const dressed = [...document.querySelectorAll('[data-event-ambiance]')]
-    expect(dressed.map((node) => node.getAttribute('data-event-ambiance'))).toEqual(['guinguette'])
+    expect(dressed.map((node) => node.getAttribute('data-event-ambiance'))).toEqual(['riviera'])
     expect(document.querySelectorAll('[data-event-fonts]')).toHaveLength(0)
   })
 
@@ -426,7 +426,7 @@ describe('EventSettingsPage', () => {
               fonts: 'serif',
               frame: 'square',
               material: 'glass',
-              ambiance: 'darkroom',
+              ambiance: 'guinguette',
             },
           }),
         }),
@@ -839,13 +839,6 @@ describe('EventSettingsPage', () => {
       expect(screen.getByTestId('venue-photo-input')).toBeEnabled()
     })
 
-    it('is not offered under the Chambre noire, which paints no photograph', async () => {
-      renderPage(fakeApi())
-
-      await screen.findByRole('heading', { name: fr.admin.settings })
-      expect(screen.queryByText(fr.admin.venuePhoto)).toBeNull()
-    })
-
     it('shows the photograph that is stored', async () => {
       renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH)) }))
 
@@ -907,17 +900,6 @@ describe('EventSettingsPage', () => {
       renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH, 'moderator')) }))
 
       await screen.findByText(fr.admin.venuePhoto)
-      expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
-    })
-
-    it('is closed while the form holds an ambiance that has not been saved', async () => {
-      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH)) }))
-      await userEvent.selectOptions(
-        await screen.findByLabelText(fr.admin.themeAmbiance),
-        'darkroom',
-      )
-
-      expect(screen.getByText(fr.admin.venuePhotoSaveFirst)).toBeVisible()
       expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
     })
   })

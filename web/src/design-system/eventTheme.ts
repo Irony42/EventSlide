@@ -52,7 +52,7 @@ export const DEFAULT_EVENT_THEME: EventThemeDto = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
-  ambiance: 'darkroom',
+  ambiance: 'guinguette',
 })
 
 /**
@@ -91,17 +91,13 @@ export const CURATED_ACCENT_NAMES = Object.keys(CURATED_ACCENT_HUES) as readonly
 export const THEME_FONTS: readonly ThemeFonts[] = ['sans', 'serif']
 export const THEME_FRAMES: readonly ThemeFrame[] = ['soft', 'square', 'round']
 export const THEME_MATERIALS: readonly ThemeMaterial[] = ['glass', 'plain']
-export const THEME_AMBIANCES: readonly ThemeAmbiance[] = ['darkroom', 'guinguette']
-
-/**
- * The ambiances whose ground is a photograph, and so the ones that can show a host's own
- * (ADR 0010, decision 8). Mirrors `AMBIANCES_WITH_PHOTOGRAPHED_GROUND` in the domain; pinned by
- * `eventThemeContract.test.ts`.
- */
-export const AMBIANCES_WITH_PHOTOGRAPHED_GROUND: readonly ThemeAmbiance[] = ['guinguette']
-
-export const hasPhotographedGround = (ambiance: ThemeAmbiance): boolean =>
-  AMBIANCES_WITH_PHOTOGRAPHED_GROUND.includes(ambiance)
+export const THEME_AMBIANCES: readonly ThemeAmbiance[] = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+]
 
 /**
  * The only shape a venue photograph's URL may have: a path under this origin that names a
@@ -126,8 +122,9 @@ const cssUrl = (path: string): string => `url(${JSON.stringify(path)})`
  * the ground and the page it sits behind are one paint: nothing is applied from an effect, so
  * there is no frame in which the bundled photograph shows first.
  *
- * Nothing at all unless the ambiance photographs its ground: a kept photograph under an
- * ambiance that paints none is not the client's to show, whatever the server sent.
+ * Every ambiance paints a photograph, the root look included (which carries no
+ * `data-event-ambiance`), so this needs nothing of the ambiance: the server sends a URL only for a
+ * photograph it holds, and the client takes it only if it is a path this product mints.
  */
 export interface VenueGroundProps {
   readonly style: CSSProperties & { readonly '--ambiance-ground': string }
@@ -135,13 +132,10 @@ export interface VenueGroundProps {
 }
 
 export const venueGroundProps = (
-  theme: {
-    readonly ambiance: ThemeAmbiance
-    readonly groundUrl?: string | null | undefined
-  } | null,
+  theme: { readonly groundUrl?: string | null | undefined } | null,
   surface: ThemedSurface,
 ): VenueGroundProps | null => {
-  if (theme === null || !hasPhotographedGround(theme.ambiance)) return null
+  if (theme === null) return null
   if (!isVenueGroundUrl(theme.groundUrl)) return null
   return {
     style: { '--ambiance-ground': cssUrl(theme.groundUrl) },
@@ -195,7 +189,7 @@ export interface ThemeSurfaceProps extends GlassMaterialProps {
   readonly 'data-event-accent'?: string
   readonly 'data-event-fonts'?: EventThemeDto['fonts']
   readonly 'data-event-frame'?: EventThemeDto['frame']
-  /** The ambiance block `tokens.css` selects. Absent for the product's own, `darkroom`. */
+  /** The ambiance block `tokens.css` selects. Absent for the product's own, `guinguette`. */
   readonly 'data-event-ambiance'?: EventThemeDto['ambiance']
   /** Present when the host's own photograph is the ground; see {@link venueGroundProps}. */
   readonly 'data-venue-ground'?: ThemedSurface
@@ -286,12 +280,16 @@ const readThemeMaterial = (value: unknown): ThemeMaterial | null => {
 
 /**
  * The ambiance, for a theme written before ambiances existed: absent is the product's own,
- * present and unknown is refused, exactly as for the material above.
+ * present and unknown is refused, exactly as for the material above. The one name this build
+ * no longer ships, `darkroom`, is read as the Guinguette that replaced it.
  */
 const readThemeAmbiance = (value: unknown): ThemeAmbiance | null => {
   if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
-  if (typeof value !== 'string' || !isThemeAmbiance(value)) return null
-  return value
+  // A tab that stored its session while the Chambre noire existed holds `darkroom`: that look
+  // was replaced by the Guinguette on 28/10, and refusing the entry would log the guest out.
+  const named = value === 'darkroom' ? 'guinguette' : value
+  if (typeof named !== 'string' || !isThemeAmbiance(named)) return null
+  return named
 }
 
 /**

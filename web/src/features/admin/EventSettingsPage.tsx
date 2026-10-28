@@ -4,7 +4,6 @@ import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
-import { hasPhotographedGround } from '../../design-system/eventTheme'
 import { useToast } from '../../design-system/components/useToast'
 import { formatDateTime } from '../../lib/format'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../lib/i18n/locale'
@@ -452,20 +451,16 @@ export function EventSettingsPage() {
         />
 
         {/*
-          The host's own photograph of the venue (ADR 0010, decision 8), for an ambiance that
-          photographs its ground. Judged on the **saved** ambiance, as the server judges the
-          upload: it is its own request and does not wait for the Save button below, so a form
-          that has changed ambiance and not saved it closes the control and says why.
+          The host's own photograph of the venue (ADR 0010, decision 8a): every ambiance paints a
+          photograph, so every ambiance can show theirs instead. It is its own request and does not
+          wait for the Save button below; the preview is the one the server stored.
         */}
-        {hasPhotographedGround(event.settings.theme.ambiance) ? (
-          <VenuePhotoField
-            slug={slug}
-            groundUrl={event.settings.theme.groundUrl}
-            ambianceUnsaved={settings.theme.ambiance !== event.settings.theme.ambiance}
-            disabled={readOnly}
-            onChanged={replace}
-          />
-        ) : null}
+        <VenuePhotoField
+          slug={slug}
+          groundUrl={event.settings.theme.groundUrl}
+          disabled={readOnly}
+          onChanged={replace}
+        />
 
         {failure === null ? null : (
           <Notice tone="danger" role="alert" variant="boxed">

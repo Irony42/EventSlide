@@ -303,7 +303,6 @@ describe('will-change is spent on the wall and nowhere else', () => {
 const ANIMATION_DECLARATION = /(?:^|[;{\s])animation(?:-name)?\s*:/
 
 const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
-  'design-system/base.css': 'no-preference',
   'design-system/components/Dialog.module.css': 'no-preference',
   'design-system/components/Spinner.module.css': 'reduce-branch',
   'design-system/components/Toast.module.css': 'no-preference',
@@ -505,5 +504,57 @@ describe('every wall animation says what it gives up when the machine runs out',
     expect(animating.length).toBeGreaterThan(3)
     expect(rungFor(`[data-wall-budget='cut'] .thing { animation: none; }`, 'cut')).toBe(true)
     expect(rungFor(`.thing { animation: none; }`, 'cut')).toBe(false)
+  })
+})
+
+/**
+ * The clothesline's sway, which is the second thing on the wall that loops.
+ *
+ * `WallLayouts.module.css` already answers every question the tables above ask of a wall
+ * stylesheet, so nothing above can fail for this animation alone — and that is the gap. A
+ * loop is the one kind of wall animation whose mistakes accumulate for eight hours, so
+ * what is pinned here is what makes this one safe to leave running: it is declared only
+ * under the attribute the component withholds, its duration is a token and never a
+ * literal, its keyframes move nothing but a rotation, and both rungs of the ladder stop it.
+ */
+describe('the clothesline sways within its budget', () => {
+  const css =
+    entries.find(([path]) => path === 'features/wall/components/WallLayouts.module.css')?.[1] ?? ''
+  const component = components.get('features/wall/components/WallLayouts.tsx') ?? ''
+  const sway = [...css.matchAll(/[^{}]*\{[^{}]*animation:\s*line-sway[^{}]*\}/g)].map(
+    ([rule]) => rule,
+  )
+
+  it('finds the rule it is checking, rather than matching nothing', () => {
+    expect(sway).toHaveLength(1)
+  })
+
+  it('runs only while the layout says it is swaying, and the component withholds that', () => {
+    expect(sway[0]).toContain(".clothesline[data-motion='swaying']")
+    // The one place the value is decided: motion that is not asked for, and a wall that is
+    // not advancing, both say `still`.
+    expect(component).toMatch(/sways\s*=\s*!reducedMotion\s*&&\s*slideshow\.intervalMs\s*>\s*0/)
+  })
+
+  it('takes its duration from a token, and swings by a token', () => {
+    expect(sway[0]).toMatch(/animation:\s*line-sway\s+var\(--duration-sway\)/)
+    expect(css).toMatch(/rotate\(calc\(var\(--wall-tilt, 0deg\) [-+] var\(--sway-angle\)\)\)/)
+  })
+
+  it('moves nothing but a rotation', () => {
+    const body = /@keyframes line-sway\s*\{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+
+    expect(keyframedProperties(`@keyframes line-sway {${body}\n}`)).toEqual([
+      'transform',
+      'transform',
+    ])
+  })
+
+  it('is stopped by both rungs of the ladder', () => {
+    const rule = /data-wall-budget='cut'] .clothesline[^{]*{([^}]*)}/.exec(css)
+    expect(css).toContain("[data-wall-budget='still'] .clothesline[data-motion='swaying'] .hung")
+    expect(css).toContain("[data-wall-budget='cut'] .clothesline[data-motion='swaying'] .hung")
+    // The one rule that carries both selectors must actually switch the animation off.
+    expect(rule?.[1] ?? '').toContain('animation: none')
   })
 })

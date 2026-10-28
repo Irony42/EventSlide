@@ -250,34 +250,6 @@ describe('the host venue photograph routes', () => {
       expect(tiny.media.objectCount).toBe(0)
     })
 
-    it('answers 409 when the ambiance paints no photograph, and stores nothing', async () => {
-      world.events.seed(
-        anEvent({
-          id: asEventId('evt-dark'),
-          ownerId: OWNER,
-          slug: 'soiree-sombre',
-          joinCode: 'K4M8QR',
-          status: 'live',
-        }),
-      )
-      world.memberships.seed({
-        eventId: asEventId('evt-dark'),
-        userId: asUserId(OWNER),
-        role: 'owner',
-        grantedAt: AT,
-      })
-
-      const response = await upload(
-        await signedIn(world, 'owner'),
-        await phonePhoto(),
-        'soiree-sombre',
-      )
-
-      expect(response.status).toBe(409)
-      expect(response.body.error.code).toBe('venuePhoto.ambianceHasNoPhotograph')
-      expect(world.media.objectCount).toBe(0)
-    })
-
     it('refuses a moderator with 403 before buffering anything', async () => {
       const response = await upload(await signedIn(world, 'moderator'), await phonePhoto())
 

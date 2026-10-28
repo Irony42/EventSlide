@@ -3486,7 +3486,7 @@ must not see, and its introduction says so.
 
 ## 24. The host's own venue photograph (a new upload surface)
 
-ADR 0010, decision 8a. One authenticated upload per event, by the **owner**, of a photograph that the
+ADR 0010, decision 11. One authenticated upload per event, by the **owner**, of a photograph that the
 guest's phone and the wall then paint behind the evening. It is the one file in the product that a
 host (and not a guest) sends and that every guest and the public wall then receive, so it gets the
 guest upload's controls and a few of its own.

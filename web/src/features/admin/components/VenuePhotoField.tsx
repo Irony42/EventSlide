@@ -14,11 +14,6 @@ export interface VenuePhotoFieldProps {
    * and does not wait for "Enregistrer", so the preview has to be what is stored.
    */
   readonly groundUrl: string | null | undefined
-  /**
-   * The form carries an ambiance choice the host has not saved. The server judges an upload
-   * against the **saved** ambiance, so until then the controls are closed and say why.
-   */
-  readonly ambianceUnsaved: boolean
   readonly disabled: boolean
   /** The event as the server answered, so the page replaces its copy and shows the new URL. */
   readonly onChanged: (event: EventDto) => void
@@ -39,7 +34,6 @@ export interface VenuePhotoFieldProps {
 export function VenuePhotoField({
   slug,
   groundUrl,
-  ambianceUnsaved,
   disabled,
   onChanged,
 }: VenuePhotoFieldProps) {
@@ -49,10 +43,9 @@ export function VenuePhotoField({
   const remove = useRemoveVenuePhoto()
   const [failure, setFailure] = useState<string | null>(null)
   const inputId = useId()
-  const saveFirstId = useId()
 
   const busy = upload.busy || remove.busy
-  const closed = disabled || ambianceUnsaved
+  const closed = disabled
   const present = groundUrl !== null && groundUrl !== undefined
 
   const handlePick = (event: ChangeEvent<HTMLInputElement>) => {
@@ -95,12 +88,6 @@ export function VenuePhotoField({
         <p className={styles['hint']}>{t.admin.venuePhotoDefault}</p>
       )}
 
-      {ambianceUnsaved ? (
-        <p id={saveFirstId} className={styles['hint']}>
-          {t.admin.venuePhotoSaveFirst}
-        </p>
-      ) : null}
-
       <div className={styles['actions']}>
         <label className={styles['pick']} htmlFor={inputId}>
           <span>{present ? t.admin.venuePhotoReplace : t.admin.venuePhotoChoose}</span>
@@ -108,7 +95,6 @@ export function VenuePhotoField({
             id={inputId}
             className={styles['input']}
             data-testid="venue-photo-input"
-            aria-describedby={ambianceUnsaved ? saveFirstId : undefined}
             type="file"
             accept="image/*"
             disabled={closed || busy}

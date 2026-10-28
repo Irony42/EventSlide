@@ -675,6 +675,7 @@ export const fr = {
       filmstrip: 'Pellicule',
       collage: 'Collage',
       split: 'Côte à côte',
+      clothesline: 'Corde à linge',
     } satisfies Record<WallLayout, string>,
     layoutOrder: (names: readonly string[]) => `Dispositions, dans l’ordre : ${names.join(', ')}.`,
 
@@ -807,7 +808,7 @@ export const fr = {
       'Visible par vos invités et sur l’écran de la salle. Les couleurs proposées restent lisibles à dix mètres.',
     themeAccent: 'Couleur',
     themeAccentNames: {
-      violet: 'Papier (par défaut)',
+      violet: 'Kraft (par défaut)',
       rose: 'Rose',
       azure: 'Bleu',
       teal: 'Turquoise',
@@ -845,10 +846,13 @@ export const fr = {
     } satisfies Record<ThemeMaterial, string>,
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
-      'L’univers que portent l’écran de vos invités et celui de la salle. Votre console ne change pas.',
+      'L’univers que portent l’écran de vos invités, celui de la salle et les pages de cet évènement dans votre console.',
     themeAmbianceNames: {
-      darkroom: 'Chambre noire',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Champs d’or',
+      bivouac: 'Bivouac',
+      cabaret: 'Cabaret',
     } satisfies Record<ThemeAmbiance, string>,
 
     /* ---- Event templates (roadmap 3.5). The names of the four evenings, plus the two
@@ -1142,8 +1146,6 @@ export const fr = {
     venuePhotoBusy: 'Envoi de la photo…',
     venuePhotoSaved: 'La photo de votre lieu est enregistrée.',
     venuePhotoRemoved: 'La photo par défaut est rétablie.',
-    venuePhotoSaveFirst:
-      'Enregistrez d’abord l’ambiance choisie : la photo de votre lieu se règle ensuite.',
   },
 
   auth: {
@@ -1556,7 +1558,6 @@ export const fr = {
     'storage.boxFull':
       'Il n’y a plus assez de place pour enregistrer ce fichier. Prévenez l’organisateur.',
     /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
-    'venuePhoto.ambianceHasNoPhotograph': 'Cette ambiance n’a pas de photo à remplacer.',
     'venuePhoto.tooLarge': 'Cette photo est trop lourde, même réduite. Essayez-en une autre.',
     'venuePhoto.notFound': 'Cette photo n’existe plus.',
     'venuePhoto.saveFailed': 'La photo n’a pas pu être enregistrée. Réessayez.',

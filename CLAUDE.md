@@ -300,12 +300,14 @@ that renders guest-supplied content. The short version:
   other way, or answers a dead link differently, is the defect.
 - `helmet` sets a strict CSP. There is **no CDN** — Bootstrap is gone and the CSS is
   bundled. Do not reintroduce a remote `<script>` or `<link>`.
-- **Two OFL faces ship since ADR 0010**, argued there rather than assumed: Instrument Serif
-  (about 65 kB for both styles and both subsets) is the display face of every evening — the
-  event's name and the wall's captions — and Bricolage Grotesque (about 56 kB) is the
-  Guinguette's heading face. They live in `web/src/design-system/fonts/`, with their licences in
-  `web/public/licenses/`. A browser fetches a face only when an element on screen uses it. Body
-  text stays on the system stack, on purpose: it is what every guest reads on venue Wi-Fi.
+- **Five OFL families ship since ADR 0010**, argued there rather than assumed. The root look wears
+  Instrument Serif (about 67 kB for both styles and both subsets: the event's name and the wall's
+  captions) and Bricolage Grotesque (about 56 kB: headings and the label of a control); the other
+  ambiances add Playfair Display (about 73 kB, Riviera and the Cabaret's headings), Fraunces (about
+  146 kB, Champs d'or) and Poiret One (about 13 kB, the Cabaret's display face). They live in
+  `web/src/design-system/fonts/`, with their licences in `web/public/licenses/`. A browser fetches a
+  face only when an element on screen uses it, so an event pays for its own ambiance and no other.
+  Body text stays on the system stack, on purpose: it is what every guest reads on venue Wi-Fi.
 
 ---
 

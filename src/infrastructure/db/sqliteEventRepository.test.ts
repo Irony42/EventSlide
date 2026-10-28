@@ -549,7 +549,7 @@ describe('SqliteEventRepository', () => {
             fonts: 'comic',
             frame: 'soft',
             material: 'glass',
-            ambiance: 'darkroom',
+            ambiance: 'guinguette',
           },
         }),
       },
@@ -561,7 +561,7 @@ describe('SqliteEventRepository', () => {
             fonts: 'sans',
             frame: 'oval',
             material: 'glass',
-            ambiance: 'darkroom',
+            ambiance: 'guinguette',
           },
         }),
       },
@@ -573,7 +573,7 @@ describe('SqliteEventRepository', () => {
             fonts: 'sans',
             frame: 'soft',
             material: 'glass',
-            ambiance: 'darkroom',
+            ambiance: 'guinguette',
           },
         }),
       },
@@ -620,7 +620,7 @@ describe('SqliteEventRepository', () => {
             fonts: 'sans',
             frame: 'soft',
             material: 'glass',
-            ambiance: 'darkroom',
+            ambiance: 'guinguette',
           },
         }),
         'evt-1',
@@ -745,7 +745,7 @@ describe('SqliteEventRepository', () => {
             fonts: 'sans',
             frame: 'soft',
             material: 'glass',
-            ambiance: 'darkroom',
+            ambiance: 'guinguette',
           },
         }),
         'evt-1',
@@ -771,7 +771,7 @@ describe('SqliteEventRepository', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       })
     })
 
@@ -789,7 +789,33 @@ describe('SqliteEventRepository', () => {
         fonts: 'sans',
         frame: 'square',
         material: 'plain',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
+      })
+    })
+
+    it('reads a theme stored as darkroom, the retired Chambre noire, as the Guinguette', async () => {
+      // Pierre's local database holds events themed while the Chambre noire existed. Refusing
+      // them would be reporting corruption that is not there.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({
+          theme: {
+            accentHue: 345,
+            fonts: 'serif',
+            frame: 'round',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
+        }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'guinguette',
       })
     })
 
@@ -803,13 +829,13 @@ describe('SqliteEventRepository', () => {
             fonts: 'sans',
             frame: 'round',
             material: 'glass',
-            ambiance: 'guinguette',
+            ambiance: 'riviera',
           },
         }),
         'evt-1',
       )
 
-      expect((await repo.findById(asEventId('evt-1')))?.settings.theme.ambiance).toBe('guinguette')
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme.ambiance).toBe('riviera')
     })
 
     it('renders an event themed before the material existed exactly as it rendered then', async () => {
@@ -829,7 +855,7 @@ describe('SqliteEventRepository', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       })
     })
 

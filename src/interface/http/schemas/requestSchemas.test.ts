@@ -565,6 +565,18 @@ describe('unknown keys, decided per schema', () => {
     },
   )
 
+  it('refuses the retired darkroom on the way in: legacy names are read, never written', () => {
+    const theme = {
+      accentHue: 200,
+      fonts: THEME_FONTS[0],
+      frame: THEME_FRAMES[0],
+      material: THEME_MATERIALS[0],
+      ambiance: 'darkroom',
+    }
+
+    expect(updateSettingsBody.safeParse({ theme }).success).toBe(false)
+  })
+
   it('refuses a key the theme does not declare, inside a settings body that is otherwise fine', () => {
     // zod 4 keeps `.strict()` as a legacy method and spells it `z.strictObject`; a nested object
     // that quietly went back to stripping would save a theme the host never chose.

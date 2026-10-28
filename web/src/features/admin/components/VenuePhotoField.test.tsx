@@ -40,7 +40,6 @@ const renderField = (
     <VenuePhotoField
       slug="camille-et-sacha"
       groundUrl={null}
-      ambianceUnsaved={false}
       disabled={false}
       onChanged={onChanged}
       {...props}
@@ -162,19 +161,5 @@ describe('VenuePhotoField', () => {
 
     expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
     expect(screen.getByRole('button', { name: fr.admin.venuePhotoRemove })).toBeDisabled()
-  })
-
-  it('closes the controls and says why while the form holds an ambiance that is not saved', () => {
-    renderField(fakeApi(), { groundUrl: URL_PATH, ambianceUnsaved: true })
-
-    expect(screen.getByText(fr.admin.venuePhotoSaveFirst)).toBeVisible()
-    expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
-    expect(screen.getByRole('button', { name: fr.admin.venuePhotoRemove })).toBeDisabled()
-  })
-
-  it('does not say to save first when there is nothing unsaved', () => {
-    renderField(fakeApi())
-
-    expect(screen.queryByText(fr.admin.venuePhotoSaveFirst)).toBeNull()
   })
 })

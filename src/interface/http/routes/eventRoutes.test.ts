@@ -981,7 +981,7 @@ describe('the host event routes', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       })
     })
@@ -1016,7 +1016,7 @@ describe('the host event routes', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'champs',
         groundUrl: null,
       })
     })
@@ -1166,7 +1166,7 @@ describe('the host event routes', () => {
           fonts: 'serif',
           frame: 'round',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
         wallLanguage: 'en',
       })
@@ -1186,7 +1186,7 @@ describe('the host event routes', () => {
           fonts: 'serif',
           frame: 'round',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
           groundUrl: null,
         },
         wallLanguage: 'en',
@@ -1207,7 +1207,7 @@ describe('the host event routes', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       })
 
@@ -1231,7 +1231,7 @@ describe('the host event routes', () => {
           fonts: 'serif',
           frame: 'round',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       })
 
@@ -1240,7 +1240,7 @@ describe('the host event routes', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       })
     })
 
@@ -1285,7 +1285,7 @@ describe('the host event routes', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'plain',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       })
 
@@ -1323,7 +1323,7 @@ describe('the host event routes', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
         groundUrl: null,
       })
     })

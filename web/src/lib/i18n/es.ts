@@ -476,7 +476,6 @@ export const es: UiText = {
     'upload.busy': 'Se están realizando muchos envíos. Inténtelo de nuevo en un momento.',
     'storage.boxFull': 'No queda espacio para guardar este archivo. Avise al organizador.',
     /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
-    'venuePhoto.ambianceHasNoPhotograph': 'Este ambiente no tiene una foto que sustituir.',
     'venuePhoto.tooLarge': 'Esta foto pesa demasiado, incluso reducida. Pruebe con otra.',
     'venuePhoto.notFound': 'Esta foto ya no existe.',
     'venuePhoto.saveFailed': 'No se ha podido guardar la foto. Inténtelo de nuevo.',
@@ -641,6 +640,7 @@ export const es: UiText = {
       filmstrip: 'Tira de fotos',
       collage: 'Collage',
       split: 'Lado a lado',
+      clothesline: 'Tendedero',
     },
     layoutOrder: (names: readonly string[]) => `Disposiciones, en orden: ${names.join(', ')}.`,
 
@@ -717,7 +717,7 @@ export const es: UiText = {
       'Visible para sus invitados y en la pantalla de la sala. Los colores propuestos siguen siendo legibles a diez metros.',
     themeAccent: 'Color',
     themeAccentNames: {
-      violet: 'Papel (predeterminado)',
+      violet: 'Kraft (predeterminado)',
       rose: 'Rosa',
       azure: 'Azul',
       teal: 'Turquesa',
@@ -744,10 +744,13 @@ export const es: UiText = {
     },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:
-      'El mundo que visten los móviles de sus invitados y la pantalla de la sala. Su consola no cambia.',
+      'El mundo que visten los móviles de sus invitados, la pantalla de la sala y las páginas de este evento en su consola.',
     themeAmbianceNames: {
-      darkroom: 'Cuarto oscuro',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Campos de oro',
+      bivouac: 'Vivac',
+      cabaret: 'Cabaret',
     },
 
     template: 'Tipo de evento',
@@ -963,8 +966,6 @@ export const es: UiText = {
     venuePhotoBusy: 'Enviando la foto…',
     venuePhotoSaved: 'La foto de su local está guardada.',
     venuePhotoRemoved: 'Se ha restablecido la foto por defecto.',
-    venuePhotoSaveFirst:
-      'Guarde primero el ambiente elegido: la foto de su local se ajusta después.',
   },
 
   auth: {

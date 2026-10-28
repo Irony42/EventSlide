@@ -743,7 +743,7 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
           fonts: 'serif',
           frame: 'square',
           material: 'plain',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
       },
     })
@@ -758,7 +758,7 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       fonts: 'serif',
       frame: 'square',
       material: 'plain',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
       groundUrl: null,
     })
   })
@@ -775,7 +775,7 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
       groundUrl: null,
     })
   })

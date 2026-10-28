@@ -509,7 +509,6 @@ export const de: UiText = {
     'storage.boxFull':
       'Es ist kein Speicherplatz mehr frei, um diese Datei zu speichern. Sagen Sie dem Veranstalter Bescheid.',
     /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
-    'venuePhoto.ambianceHasNoPhotograph': 'Diese Stimmung hat kein Foto, das sich ersetzen lässt.',
     'venuePhoto.tooLarge': 'Dieses Foto ist auch verkleinert zu groß. Versuchen Sie ein anderes.',
     'venuePhoto.notFound': 'Dieses Foto gibt es nicht mehr.',
     'venuePhoto.saveFailed': 'Das Foto konnte nicht gespeichert werden. Versuchen Sie es erneut.',
@@ -664,6 +663,7 @@ export const de: UiText = {
       filmstrip: 'Filmstreifen',
       collage: 'Collage',
       split: 'Nebeneinander',
+      clothesline: 'Wäscheleine',
     },
     layoutOrder: (names: readonly string[]) =>
       `Anordnungen, in dieser Reihenfolge: ${names.join(', ')}.`,
@@ -731,7 +731,7 @@ export const de: UiText = {
       'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',
     themeAccent: 'Farbe',
     themeAccentNames: {
-      violet: 'Papier (Standard)',
+      violet: 'Kraftpapier (Standard)',
       rose: 'Rosa',
       azure: 'Blau',
       teal: 'Türkis',
@@ -757,10 +757,13 @@ export const de: UiText = {
     },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:
-      'Die Welt, die die Handys Ihrer Gäste und die Leinwand im Saal tragen. Ihre Konsole ändert sich nicht.',
+      'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrer Konsole tragen.',
     themeAmbianceNames: {
-      darkroom: 'Dunkelkammer',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Goldene Felder',
+      bivouac: 'Biwak',
+      cabaret: 'Kabarett',
     },
 
     template: 'Art der Veranstaltung',
@@ -979,8 +982,6 @@ export const de: UiText = {
     venuePhotoBusy: 'Foto wird gesendet…',
     venuePhotoSaved: 'Das Foto Ihrer Location ist gespeichert.',
     venuePhotoRemoved: 'Das Standardfoto ist wieder da.',
-    venuePhotoSaveFirst:
-      'Speichern Sie zuerst die gewählte Stimmung: danach lässt sich das Foto Ihrer Location einstellen.',
   },
 
   auth: {

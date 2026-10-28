@@ -11,7 +11,8 @@ export type PhotoStatus = 'pending' | 'published' | 'rejected' | 'hidden'
 export type EventStatus = 'draft' | 'live' | 'closed' | 'archived'
 export type ModerationDecision = 'publish' | 'reject' | 'hide'
 export type ReactionKind = 'love' | 'laugh' | 'wow' | 'cheers' | 'clap'
-export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split'
+export type WallLayout =
+  'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split' | 'clothesline'
 /**
  * The language an event's projected wall speaks (roadmap 1.5).
  *
@@ -48,7 +49,7 @@ export type ThemeFrame = 'soft' | 'square' | 'round'
 /** The material its panes are made of (roadmap 11.5). Both renderings already ship. */
 export type ThemeMaterial = 'glass' | 'plain'
 /** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
-export type ThemeAmbiance = 'darkroom' | 'guinguette'
+export type ThemeAmbiance = 'guinguette' | 'riviera' | 'champs' | 'bivouac' | 'cabaret'
 
 /**
  * The preset an event's settings are created from (roadmap 3.5).

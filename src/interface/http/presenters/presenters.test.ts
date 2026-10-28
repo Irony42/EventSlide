@@ -164,7 +164,7 @@ describe('toPublicEventDto', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
         groundUrl: null,
       },
     })
@@ -329,7 +329,7 @@ describe('toEventSettingsDto', () => {
           fonts: 'serif',
           frame: 'square',
           material: 'glass',
-          ambiance: 'darkroom',
+          ambiance: 'guinguette',
         },
         wallLanguage: 'es',
       },
@@ -349,7 +349,7 @@ describe('toEventSettingsDto', () => {
         fonts: 'serif',
         frame: 'square',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
         groundUrl: null,
       },
       wallLanguage: 'es',
@@ -638,13 +638,6 @@ describe('the host’s venue photograph on the wire (ADR 0010)', () => {
   it('is null until the host uploads one', () => {
     const { settings } = anEvent({ settings: { theme: guinguette } })
 
-    expect(toEventThemeDto(settings, 'camille-et-sacha').groundUrl).toBeNull()
-  })
-
-  it('is null under an ambiance that paints no photograph, though the file is kept', () => {
-    const { settings } = anEvent({ settings: { venuePhoto: digest.value } })
-
-    expect(settings.venuePhoto).not.toBeNull()
     expect(toEventThemeDto(settings, 'camille-et-sacha').groundUrl).toBeNull()
   })
 

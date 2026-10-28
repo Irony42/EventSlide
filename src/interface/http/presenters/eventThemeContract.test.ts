@@ -13,7 +13,6 @@ import {
   THEME_FRAMES,
   THEME_MATERIALS,
   THEME_AMBIANCES,
-  AMBIANCES_WITH_PHOTOGRAPHED_GROUND,
 } from '../../../domain/events/eventTheme'
 
 /**
@@ -254,12 +253,6 @@ describe('the picker the host actually uses', () => {
       material: client.get('material'),
       ambiance: client.get('ambiance'),
     }).toEqual(DEFAULT_EVENT_THEME)
-  })
-
-  it('mirrors which ambiances photograph their ground, so the picker offers the upload where the server accepts it', () => {
-    expect(clientArray('AMBIANCES_WITH_PHOTOGRAPHED_GROUND')).toEqual([
-      ...AMBIANCES_WITH_PHOTOGRAPHED_GROUND,
-    ])
   })
 
   it.each([
