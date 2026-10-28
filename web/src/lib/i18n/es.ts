@@ -44,6 +44,11 @@ export const es: UiText = {
     submitting: 'Conectando…',
     welcome: (eventName: string) => `Le damos la bienvenida a ${eventName}`,
     anonymous: 'Mantener el anonimato',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: '¿No es su fiesta?',
+    notOpenHint:
+      'Si ha escaneado un código QR, puede que la galería aún no esté abierta o que la fiesta haya terminado. Inténtelo de nuevo en un momento o pregunte a la organización.',
+    organiserLink: 'Espacio de organizadores',
   },
 
   upload: {
@@ -100,6 +105,9 @@ export const es: UiText = {
     notJoinedTitle: 'Únase a la galería para enviar sus fotos',
     notJoinedHint: 'Vuelva a escanear el código QR o introduzca el código de la fiesta.',
     notJoinedAction: 'Introducir el código',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable: 'Esta galería ya no está disponible. Ya no puede enviar fotos.',
+    galleryUnavailableAction: 'Introducir de nuevo el código',
 
     missionsTitle: 'Misiones',
     missionsHint: 'Toque una misión y luego envíe su foto.',
@@ -586,6 +594,9 @@ export const es: UiText = {
     emptyHint: 'Las fotos que aprueben los organizadores aparecerán aquí.',
     failed: 'No se han podido cargar las fotos. Inténtelo de nuevo.',
     own: 'Su foto',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'Esta galería ya no se muestra.',
+    unavailableHint: 'Está archivada o ya no está abierta, así que aquí no hay fotos que ver.',
   },
 
   wall: {
@@ -609,6 +620,8 @@ export const es: UiText = {
     shortcuts: 'Atajos de teclado',
     shortcutsHint:
       'Espacio pausa, las flechas cambian de foto, F pasa a pantalla completa, L cambia la disposición.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'Para salir: Esc o F salen de la pantalla completa; después cierre la pestaña.',
 
     /**
      * The working words a Spanish host at the projector would use for each grid, not
@@ -1066,6 +1079,9 @@ export const es: UiText = {
     sourceCode: 'Código fuente (AGPL-3.0)',
     opensInNewTab: 'se abre en una pestaña nueva',
     aboutLink: 'Acerca de',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Volver',
+    home: 'Inicio',
 
     title: 'Acerca de EventSlide',
     intro:

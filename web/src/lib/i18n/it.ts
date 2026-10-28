@@ -47,6 +47,11 @@ export const it: UiText = {
     submitting: 'Connessione…',
     welcome: (eventName: string) => `Benvenuti a ${eventName}`,
     anonymous: 'Resta anonimo',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: 'Non è la sua festa?',
+    notOpenHint:
+      'Se ha scansionato un codice QR, la galleria potrebbe non essere ancora aperta o la festa potrebbe essere finita. Riprovi tra un momento o chieda agli organizzatori.',
+    organiserLink: 'Area organizzatori',
   },
 
   upload: {
@@ -103,6 +108,9 @@ export const it: UiText = {
     notJoinedTitle: 'Entri nella galleria per inviare le sue foto',
     notJoinedHint: 'Scansioni di nuovo il codice QR, oppure inserisca il codice della serata.',
     notJoinedAction: 'Inserisci il codice',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable: 'Questa galleria non è più disponibile. Non può più inviare foto.',
+    galleryUnavailableAction: 'Inserisci di nuovo il codice',
 
     missionsTitle: 'Missioni',
     missionsHint: 'Tocchi una missione, poi invii la sua foto.',
@@ -589,6 +597,9 @@ export const it: UiText = {
     emptyHint: 'Le foto approvate dagli organizzatori compariranno qui.',
     failed: 'Non è stato possibile caricare le foto. Riprovi.',
     own: 'La sua foto',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'Questa galleria non viene più mostrata.',
+    unavailableHint: 'È archiviata o non è più aperta, quindi qui non ci sono foto da vedere.',
   },
 
   wall: {
@@ -610,6 +621,8 @@ export const it: UiText = {
     shortcuts: 'Scorciatoie da tastiera',
     shortcutsHint:
       'Spazio mette in pausa, le frecce cambiano foto, F passa a schermo intero, L cambia la disposizione.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'Per uscire: Esc o F escono dallo schermo intero, poi chiuda la scheda.',
     layoutNames: {
       spotlight: 'Schermo intero',
       mosaic: 'Mosaico',
@@ -1037,6 +1050,9 @@ export const it: UiText = {
     sourceCode: 'Codice sorgente (AGPL-3.0)',
     opensInNewTab: 'si apre in una nuova scheda',
     aboutLink: 'Informazioni',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Indietro',
+    home: 'Home',
 
     title: 'Informazioni su EventSlide',
     intro:

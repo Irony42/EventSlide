@@ -335,7 +335,9 @@ export function WallPage() {
         title={text.wall.shortcuts}
         // Six layouts is more than a host can hold in their head at a projector, so the
         // one screen that explains `L` names what it walks through.
-        description={`${text.wall.shortcutsHint} ${layoutOrderHint(text)}`}
+        // And how to leave: there is deliberately no exit button on the projected screen, so a guest
+        // cannot drop the picture by mistake (navigation pass, A5; decision 5).
+        description={`${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}`}
         onClose={closeHelp}
       />
     </div>

@@ -44,6 +44,11 @@ export const de: UiText = {
     submitting: 'Wird verbunden…',
     welcome: (eventName: string) => `Willkommen bei ${eventName}`,
     anonymous: 'Anonym bleiben',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: 'Das ist nicht Ihre Feier?',
+    notOpenHint:
+      'Falls Sie einen QR-Code gescannt haben: Die Galerie ist vielleicht noch nicht geöffnet, oder die Feier ist vorbei. Versuchen Sie es gleich noch einmal oder fragen Sie die Veranstalter.',
+    organiserLink: 'Bereich für Veranstalter',
   },
 
   upload: {
@@ -103,6 +108,10 @@ export const de: UiText = {
     notJoinedTitle: 'Treten Sie der Galerie bei, um Ihre Fotos zu senden',
     notJoinedHint: 'Scannen Sie den QR-Code erneut oder geben Sie den Code der Feier ein.',
     notJoinedAction: 'Code eingeben',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable:
+      'Diese Galerie ist nicht mehr verfügbar. Sie können keine Fotos mehr senden.',
+    galleryUnavailableAction: 'Code erneut eingeben',
 
     missionsTitle: 'Missionen',
     missionsHint: 'Tippen Sie auf eine Mission und senden Sie dann Ihr Foto.',
@@ -611,6 +620,10 @@ export const de: UiText = {
     emptyHint: 'Fotos, die die Veranstalter freigegeben haben, erscheinen hier.',
     failed: 'Die Fotos konnten nicht geladen werden. Versuchen Sie es erneut.',
     own: 'Ihr Foto',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'Diese Galerie wird nicht mehr angezeigt.',
+    unavailableHint:
+      'Sie ist archiviert oder nicht mehr geöffnet, hier gibt es keine Fotos mehr zu sehen.',
   },
 
   wall: {
@@ -634,6 +647,8 @@ export const de: UiText = {
     shortcuts: 'Tastenkürzel',
     shortcutsHint:
       'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'Zum Verlassen: Esc oder F beenden den Vollbildmodus, danach den Tab schließen.',
 
     layoutNames: {
       spotlight: 'Vollbild',
@@ -1077,6 +1092,9 @@ export const de: UiText = {
     sourceCode: 'Quellcode (AGPL-3.0)',
     opensInNewTab: 'öffnet einen neuen Tab',
     aboutLink: 'Info',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Zurück',
+    home: 'Startseite',
 
     title: 'Über EventSlide',
     intro:

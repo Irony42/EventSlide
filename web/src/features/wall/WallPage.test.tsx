@@ -660,6 +660,19 @@ describe('WallPage', () => {
     expect(await screen.findByRole('dialog')).toHaveTextContent(fr.wall.shortcutsHint)
   })
 
+  it('says how to leave the wall, and draws no exit control for a guest to press by mistake (A5)', async () => {
+    // There is deliberately no on-screen exit: the console opens the wall in a tab of its
+    // own, and the host who walks up to the projector is told how to close it.
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+
+    await userEvent.keyboard('?')
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent(fr.wall.leaveHint)
+  })
+
   it('keeps a join reminder in the corner and puts it away with a key', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })

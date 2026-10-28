@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
+import { Link, Route, Routes, useNavigate } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -275,5 +276,79 @@ describe('GalleryPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
     expect(screen.getByText(en.gallery.photoCount(2))).toBeVisible()
+  })
+})
+
+/** The browser's Back, which is what a phone's gesture does. */
+function BackGesture() {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => navigate(-1)}>
+      back gesture
+    </button>
+  )
+}
+
+describe('GalleryPage: Back from a photograph (A6)', () => {
+  const renderWithBack = (api: Api) =>
+    renderWithProviders(
+      <>
+        <GalleryPage />
+        <BackGesture />
+      </>,
+      { api, route: `/g/${TOKEN}`, path: '/g/:token' },
+    )
+
+  it('closes the photograph and stays on the album, with its place kept', async () => {
+    renderWithBack(fakeApi())
+    await userEvent.click(await screen.findByRole('button', { name: fr.gallery.openPhoto(2) }))
+    expect(screen.getByRole('dialog')).toBeVisible()
+
+    await userEvent.click(screen.getByRole('button', { name: 'back gesture' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
+    expect(screen.getAllByRole('button', { name: /Agrandir/ })).toHaveLength(2)
+  })
+
+  it('is closed by its own close button the same way, leaving nothing behind it', async () => {
+    renderWithBack(fakeApi())
+    await userEvent.click(await screen.findByRole('button', { name: fr.gallery.openPhoto(1) }))
+
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: fr.ui.dialogClose }),
+    )
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // A second Back would leave the album, which is the page's first entry: nothing is
+    // left in between for it to stop on.
+    expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
+  })
+})
+
+describe('GalleryPage: closing a photograph twice in a row (A6)', () => {
+  it('goes back once, so a double tap does not leave the album', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<Link to={`/g/${TOKEN}`}>to album</Link>} />
+        <Route path="/g/:token" element={<GalleryPage />} />
+      </Routes>,
+      { api: fakeApi(), route: '/' },
+    )
+    await userEvent.click(screen.getByRole('link', { name: 'to album' }))
+    await userEvent.click(await screen.findByRole('button', { name: fr.gallery.openPhoto(1) }))
+
+    // Two taps before React has re-rendered: the second sees the same handler as the first.
+    const close = within(screen.getByRole('dialog')).getByRole('button', {
+      name: fr.ui.dialogClose,
+    })
+    act(() => {
+      close.click()
+      close.click()
+    })
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'to album' })).toBeNull()
   })
 })

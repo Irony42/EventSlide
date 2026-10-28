@@ -25,6 +25,17 @@ export interface MyPhotosState {
    * refusal stays the backstop.
    */
   readonly acceptingUploads: boolean
+  /**
+   * The server no longer serves this gallery to this guest (`404 event.notFound`): the
+   * event is gone, or its account is suspended. Sending is pointless and every upload would
+   * fail, so the screen says so instead of offering the form.
+   */
+  readonly unavailable: boolean
+  /**
+   * The guest's access is not recognised (`401`): no cookie, or one that expired. The
+   * screen sends them to the code entry rather than on to uploads that cannot succeed.
+   */
+  readonly signedOut: boolean
   readonly loading: boolean
   /**
    * A sentence in the guest's current language, ready to render. `null` when nothing
@@ -48,7 +59,23 @@ export interface MyPhotosState {
  * `code` is the server's own, so a refused deletion still says *why* it was refused,
  * in whichever language the guest is reading when they look at it.
  */
-type Failure = { readonly kind: 'load' } | { readonly kind: 'action'; readonly code: string | null }
+type Failure =
+  | { readonly kind: 'load' }
+  | { readonly kind: 'gone' }
+  | { readonly kind: 'signedOut' }
+  | { readonly kind: 'action'; readonly code: string | null }
+
+/**
+ * What a failed read means. Only these two answers are about the guest's standing and not the
+ * network, so only they stop the screen offering uploads; everything else stays "try again".
+ */
+const classifyRead = (cause: unknown): Failure => {
+  if (cause instanceof ApiError) {
+    if (cause.status === 401) return { kind: 'signedOut' }
+    if (cause.status === 404 && cause.code === 'event.notFound') return { kind: 'gone' }
+  }
+  return { kind: 'load' }
+}
 
 interface Loaded {
   readonly photos: readonly GuestPhotoDto[]
@@ -101,7 +128,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         // The photos already on screen stay: a read that fails (a moment of bad Wi-Fi) is
         // news about the read, and this list is what tells the guest their uploads arrived.
         // Only the very first read has nothing to keep.
-        setState((previous) => ({ ...previous, loading: false, failure: { kind: 'load' } }))
+        setState((previous) => ({ ...previous, loading: false, failure: classifyRead(cause) }))
       },
     )
 
@@ -146,6 +173,8 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
    */
   const error = useMemo<string | null>(() => {
     if (state.failure === null) return null
+    // Said by the screen as a whole, not as a line above "Vos envois".
+    if (state.failure.kind === 'gone' || state.failure.kind === 'signedOut') return null
     if (state.failure.kind === 'load') return t.upload.mineFailed
     return state.failure.code === null ? t.errors.unknown : messageForCode(state.failure.code, t)
   }, [state.failure, t])
@@ -153,6 +182,8 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   return {
     photos: state.photos,
     acceptingUploads: state.acceptingUploads,
+    unavailable: state.failure?.kind === 'gone',
+    signedOut: state.failure?.kind === 'signedOut',
     loading: state.loading,
     error,
     refresh,

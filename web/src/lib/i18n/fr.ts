@@ -85,6 +85,11 @@ export const fr = {
     submitting: 'Connexion…',
     welcome: (eventName: string) => `Bienvenue à ${eventName}`,
     anonymous: 'Rester anonyme',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: 'Ce n’est pas votre soirée ?',
+    notOpenHint:
+      'Si vous avez scanné un QR code, la galerie n’est peut-être pas encore ouverte, ou la soirée est terminée. Réessayez dans un moment, ou demandez à l’organisateur.',
+    organiserLink: 'Espace organisateur',
   },
 
   upload: {
@@ -148,6 +153,10 @@ export const fr = {
     notJoinedTitle: 'Rejoignez la galerie pour envoyer vos photos',
     notJoinedHint: 'Scannez à nouveau le QR code, ou saisissez le code de la soirée.',
     notJoinedAction: 'Saisir le code',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable:
+      'Cette galerie n’est plus disponible. Vous ne pouvez plus y envoyer de photos.',
+    galleryUnavailableAction: 'Saisir à nouveau le code',
 
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
@@ -608,6 +617,10 @@ export const fr = {
     emptyHint: 'Les photos validées par les organisateurs apparaîtront ici.',
     failed: 'Les photos n’ont pas pu être chargées. Réessayez.',
     own: 'Votre photo',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'Cette galerie n’est plus affichée.',
+    unavailableHint:
+      'Elle est archivée ou n’est plus ouverte : il n’y a plus de photos à voir ici.',
   },
 
   wall: {
@@ -636,6 +649,8 @@ export const fr = {
     shortcuts: 'Raccourcis clavier',
     shortcutsHint:
       'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'Pour quitter : Échap ou F sortent du plein écran, puis fermez l’onglet.',
 
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**
@@ -1632,6 +1647,9 @@ export const fr = {
     opensInNewTab: 'ouvre un nouvel onglet',
     /** The footer's other link: the page below. */
     aboutLink: 'À propos',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Retour',
+    home: 'Accueil',
 
     title: 'À propos d’EventSlide',
     intro:

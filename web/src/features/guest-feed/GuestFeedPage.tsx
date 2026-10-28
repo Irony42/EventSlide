@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
-import { readGuestSession } from '../../lib/guestSession'
+import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { ReactionBar } from './components/ReactionBar'
@@ -41,6 +41,7 @@ export function GuestFeedPage() {
 /** Reached by a bookmark, or after the tab was closed and reopened. */
 function NotJoined() {
   const t = useTranslations()
+  const { pathname } = useLocation()
 
   return (
     <EmptyState
@@ -48,7 +49,8 @@ function NotJoined() {
       title={t.upload.notJoinedTitle}
       description={t.upload.notJoinedHint}
       action={
-        <Link className={styles['rejoin']} to="/join">
+        // Where the guest was heading, so the code entry returns here and not to the upload screen.
+        <Link className={styles['rejoin']} to="/join" state={{ from: pathname }}>
           {t.upload.notJoinedAction}
         </Link>
       }
@@ -64,6 +66,13 @@ interface FeedScreenProps {
 function FeedScreen({ slug, event }: FeedScreenProps) {
   const t = useTranslations()
   const feed = usePhotoFeed(slug)
+  const navigate = useNavigate()
+  // The feed stays readable, but the device must stop resuming an event the server no longer
+  // knows this phone for.
+  const signedOut = feed.signedOut
+  useEffect(() => {
+    if (signedOut) forgetGuestSession(slug)
+  }, [signedOut, slug])
   const [shown, setShown] = useState(PAGE_SIZE)
 
   const items = feed.items ?? []
@@ -94,11 +103,28 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
           <Link className={styles['link']} to={`/e/${slug}/upload`}>
             {t.feed.back}
           </Link>
-          <Button variant="ghost" size="sm" loading={feed.refreshing} onClick={feed.refresh}>
-            {t.feed.refresh}
-          </Button>
+          {feed.unavailable ? null : (
+            <Button variant="ghost" size="sm" loading={feed.refreshing} onClick={feed.refresh}>
+              {t.feed.refresh}
+            </Button>
+          )}
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={styles['notYours']}
+          onClick={() => {
+            forgetGuestSession(slug)
+            navigate('/join')
+          }}
+        >
+          {t.join.notYourEvening}
+        </Button>
       </header>
+
+      {feed.unavailable ? (
+        <EmptyState as="h2" title={t.feed.unavailable} description={t.feed.unavailableHint} />
+      ) : null}
 
       {feed.items === null && feed.error !== null ? (
         <div className={styles['failure']}>
