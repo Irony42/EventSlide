@@ -355,10 +355,12 @@
   --focus-ring: 0 0 0 3px oklch(85% 0.12 80 / 0.7);
   --font-heading: 'Bricolage Grotesque', var(--font-sans);
   --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
+  /* Derived, not chosen: the lowest top alpha at which --text-muted keeps 4.5:1 over the 99th
+     percentile of the photograph as a phone crops it (scripts/ambianceGround.test.ts); 0.79 fails. */
   --ambiance-grade: linear-gradient(
     180deg,
-    oklch(16% 0.016 70 / 0.72),
-    oklch(16% 0.016 70 / 0.7) 30%,
+    oklch(16% 0.016 70 / 0.8),
+    oklch(16% 0.016 70 / 0.78) 30%,
     oklch(16% 0.016 70 / 0.86) 65%,
     oklch(16% 0.016 70 / 0.96)
   );
