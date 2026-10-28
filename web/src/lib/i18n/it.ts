@@ -936,7 +936,7 @@ export const it: UiText = {
     /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
     venuePhoto: 'Foto del vostro locale',
     venuePhotoHint:
-      'Sostituisce la foto della guinguette dietro lo schermo dei vostri ospiti e quello della sala. Viene ridimensionata e privata dei metadati, posizione GPS compresa, poi scurita perché il testo resti leggibile.',
+      'Sostituisce la foto dell’atmosfera dietro lo schermo dei vostri ospiti e quello della sala. Viene ridimensionata e privata dei metadati, posizione GPS compresa, poi velata perché il testo resti leggibile.',
     venuePhotoPreviewAlt: 'Anteprima della foto del vostro locale',
     venuePhotoDefault:
       'Nessuna foto del vostro locale: l’ambientazione mostra la sua foto predefinita.',

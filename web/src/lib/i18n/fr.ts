@@ -1138,7 +1138,7 @@ export const fr = {
     /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
     venuePhoto: 'Photo de votre lieu',
     venuePhotoHint:
-      'Remplace la photo de la guinguette derrière l’écran de vos invités et celui de la salle. Elle est réduite et débarrassée de ses métadonnées, position GPS comprise, puis assombrie pour que le texte reste lisible.',
+      'Remplace la photo de l’ambiance derrière l’écran de vos invités et celui de la salle. Elle est réduite et débarrassée de ses métadonnées, position GPS comprise, puis voilée pour que le texte reste lisible.',
     venuePhotoPreviewAlt: 'Aperçu de la photo de votre lieu',
     venuePhotoDefault: 'Aucune photo de votre lieu : l’ambiance montre sa photo par défaut.',
     venuePhotoChoose: 'Choisir une photo',
