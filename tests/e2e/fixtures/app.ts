@@ -273,7 +273,19 @@ const inAnyLanguage = (pick: (text: UiText) => string): RegExp =>
  * fixture that forges a session would let a broken login ship green.
  */
 export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
+  // Asked first, over the page's own cookies: a session that is still good is sent on by `/login`
+  // (navigation pass H13), so there is no form to fill. `openSurfaces` signs `Surfaces.host` in
+  // and most journeys call this again on it. Before H13 the form simply showed again; now it is
+  // gone a moment after it appears, which Chromium's timing happened to survive and Firefox's
+  // did not (`moderation.spec.ts`, firefox-desktop).
+  const open = await page.request.get(app.url('/api/auth/me'))
+  const alreadyIn =
+    open.ok() && ((await open.json()) as { authenticated?: boolean }).authenticated === true
   await page.goto(app.url('/login'))
+  if (alreadyIn) {
+    await page.waitForURL(ADMIN_AREA)
+    return
+  }
   await page.getByLabel(inAnyLanguage((text) => text.auth.email)).fill(app.owner.email)
   await page.getByLabel(inAnyLanguage((text) => text.auth.password)).fill(app.owner.password)
   await page.getByRole('button', { name: inAnyLanguage((text) => text.auth.submit) }).click()
@@ -282,8 +294,14 @@ export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
   // test asserted next, twenty lines away from the cause. The fixture rotates the
   // bootstrap password at boot (see `OWNER_SETTLED_PASSWORD`), so landing here means
   // something regressed, and it should say so.
-  await page.waitForURL(/\/admin(?:\/(?!password))?/)
+  await page.waitForURL(ADMIN_AREA)
 }
+
+/**
+ * Where a signed-in host lands: `/admin` or below it, never `/admin/password`, which a bare
+ * `/\/admin/` would also match (see the comment in `signInAsHost`).
+ */
+const ADMIN_AREA = /\/admin(?:\/(?!password))?/
 
 /**
  * Joins an event as a guest, through the real join page.

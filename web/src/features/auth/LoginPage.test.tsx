@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { LoginPage } from './LoginPage'
@@ -487,6 +487,35 @@ describe('LoginPage: a session that is still good (H13)', () => {
     renderLogin(fakeApi({ session: vi.fn(() => new Promise<never>(() => undefined)) }))
 
     expect(screen.getByLabelText(fr.auth.email)).toBeVisible()
+  })
+
+  it('keeps the very same form while the session is read, so what is being typed is not lost', async () => {
+    // A form that re-mounted when the answer arrived would drop a keystroke, and a journey filling
+    // it (Playwright holds the element) would find it detached.
+    let answer: (session: SessionResponse) => void = () => undefined
+    const api = fakeApi({
+      session: vi.fn(() => new Promise<SessionResponse>((resolve) => (answer = resolve))),
+    })
+    renderLogin(api)
+    const email = screen.getByLabelText(fr.auth.email)
+    await userEvent.type(email, 'camille@example.com')
+
+    await act(async () => answer({ authenticated: false }))
+
+    expect(screen.getByLabelText(fr.auth.email)).toBe(email)
+    expect(email.isConnected).toBe(true)
+    expect(email).toHaveValue('camille@example.com')
+  })
+
+  it('does not read the session again once it has been read, whatever the form does after', async () => {
+    const api = fakeApi()
+    renderLogin(api)
+    await waitFor(() => expect(api.session).toHaveBeenCalledTimes(1))
+
+    await userEvent.type(screen.getByLabelText(fr.auth.email), 'camille@example.com')
+    await userEvent.type(screen.getByLabelText(fr.auth.password), 'x')
+
+    expect(api.session).toHaveBeenCalledTimes(1)
   })
 
   it('shows the form when the session could not be asked for', async () => {
