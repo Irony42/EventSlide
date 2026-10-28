@@ -660,12 +660,11 @@ test.describe('the projected wall @visual', () => {
 
     await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
     await expect(projector.getByTestId('wall-empty')).toBeVisible()
-    await expect(projector.locator('[data-event-ambiance]')).toHaveAttribute(
-      'data-event-ambiance',
-      'guinguette',
-    )
+    // The Guinguette is the root look since 28/10, so it emits no attribute: what dresses the
+    // wall is the root palette and its photographed ground.
+    await expect(projector.locator('[data-event-ambiance]')).toHaveCount(0)
 
-    // The whole frame, unlike the Chambre noire's empty baseline, which clips to the copy.
+    // The whole frame, unlike the other empty baseline, which clips to the copy.
     // The copy is the subject there; here the subject is the ground the copy sits on — the
     // photograph, its grade and the kraft invitation — and a clip would photograph none.
     await expect(projector).toHaveScreenshot('wall-empty-guinguette.png', {
@@ -702,9 +701,10 @@ test.describe('the projected wall @visual', () => {
 
     await applyTheme(host, app, event.slug, { ambiance: 'Guinguette' })
 
-    // No `layout` in the URL: that the clothesline is what the wall opens on is the claim,
-    // and it is made by the ambiance (`ambianceLayout.ts`) rather than by the address.
-    await projector.goto(wallUrl(app, event.slug, { intervalMs: 0, transitionMs: 0 }))
+    // The Guinguette is the default look since 28/10, so the layout is named by the address.
+    await projector.goto(
+      wallUrl(app, event.slug, { layout: 'clothesline', intervalMs: 0, transitionMs: 0 }),
+    )
     await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
       'data-wall-layout',
       'clothesline',
@@ -712,7 +712,7 @@ test.describe('the projected wall @visual', () => {
     await expect(projector.getByTestId('wall-slide')).toHaveCount(5)
     await expect(projector.locator('[data-motion]')).toHaveAttribute('data-motion', 'still')
 
-    // The same five ids as the Chambre noire's shot, for the same reason: the tilts.
+    // The same five ids as the other clothesline shot, for the same reason: the tilts.
     const held = await projector
       .locator('[data-photo-id]')
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-photo-id')))

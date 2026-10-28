@@ -658,21 +658,16 @@ describe('WallPage', () => {
         theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass', ambiance },
       })
 
-    it('hangs the Guinguette’s wall on the clothesline when nobody asked for another', async () => {
-      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
-      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
-      await screen.findAllByTestId('wall-slide')
-
-      expect(theWall()).toHaveAttribute('data-wall-layout', 'clothesline')
-      expect(screen.getAllByTestId('wall-slide')).toHaveLength(5)
-    })
-
-    it('leaves an ambiance with no opinion on whatever the wall response carries', async () => {
-      const api = fakeApi({ wall: wallSequence(themed('riviera')) })
-      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
-      await screen.findAllByTestId('wall-slide')
-
-      expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+    it('keeps the wall response’s layout for every ambiance, the default included', async () => {
+      // Since 28/10 the Guinguette is the product's own look, so no ambiance forces a layout:
+      // the clothesline is one `L` press or `?layout=clothesline` away.
+      for (const ambiance of ['guinguette', 'riviera'] as const) {
+        const api = fakeApi({ wall: wallSequence(themed(ambiance)) })
+        const { unmount } = renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+        await screen.findAllByTestId('wall-slide')
+        expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+        unmount()
+      }
     })
 
     it('yields to a kiosk that names its layout', async () => {
@@ -683,12 +678,11 @@ describe('WallPage', () => {
       expect(theWall()).toHaveAttribute('data-wall-layout', 'mosaic')
     })
 
-    it('lets L continue from the clothesline, and the cycle come home to it', async () => {
+    it('wraps L from the clothesline, last in the cycle, back to the spotlight', async () => {
       const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
-      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=clothesline`, path: PATH })
       await screen.findAllByTestId('wall-slide')
 
-      // The clothesline is last in the cycle, so the key after it wraps to the spotlight.
       await userEvent.keyboard('l')
 
       expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
