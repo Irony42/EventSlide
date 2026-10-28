@@ -196,6 +196,7 @@ function SingleEventAmbiance({ slug }: { readonly slug: string }) {
   return (
     <AmbianceMarker
       ambiance={event.data?.settings.theme.ambiance}
+      custom={event.data?.settings.theme.custom}
       groundUrl={event.data?.settings.theme.groundUrl}
     />
   )

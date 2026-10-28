@@ -4,7 +4,7 @@ import { useLoader } from '../lib/useLoader'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { cx } from '../design-system/classNames'
 import { AmbianceMarker } from '../design-system/components/AmbianceMarker'
-import type { ThemeAmbiance } from '../lib/api/dto'
+import type { ThemeAmbiance, ThemeCustom } from '../lib/api/dto'
 import { useApi } from './useApi'
 import styles from './HostBreadcrumb.module.css'
 
@@ -35,6 +35,8 @@ export interface HostBreadcrumbProps {
    * reads it with the event's name.
    */
   readonly ambiance?: ThemeAmbiance
+  /** The host's own ambiance, when `ambiance` is `custom` (ADR 0011). */
+  readonly custom?: ThemeCustom | undefined
   /** The host's own photograph of the venue, when the page has the event (ADR 0010, decision 8). */
   readonly groundUrl?: string | null | undefined
 }
@@ -67,6 +69,7 @@ export function HostBreadcrumb({
   eventName,
   compact = false,
   ambiance,
+  custom,
   groundUrl,
 }: HostBreadcrumbProps) {
   if (eventName === undefined) return <FetchedTrail slug={slug} page={page} compact={compact} />
@@ -77,6 +80,7 @@ export function HostBreadcrumb({
       name={eventName}
       compact={compact}
       ambiance={ambiance}
+      custom={custom}
       groundUrl={groundUrl}
     />
   )
@@ -112,6 +116,7 @@ function FetchedTrail({
       name={name}
       compact={compact}
       ambiance={data?.settings.theme.ambiance}
+      custom={data?.settings.theme.custom}
       groundUrl={data?.settings.theme.groundUrl}
     />
   )
@@ -123,6 +128,7 @@ function Trail({
   name,
   compact,
   ambiance,
+  custom,
   groundUrl,
 }: {
   readonly slug: string
@@ -131,6 +137,7 @@ function Trail({
   readonly name: string | null
   readonly compact: boolean
   readonly ambiance: ThemeAmbiance | undefined
+  readonly custom: ThemeCustom | undefined
   readonly groundUrl: string | null | undefined
 }) {
   const t = useTranslations()
@@ -143,7 +150,7 @@ function Trail({
 
   return (
     <>
-      <AmbianceMarker ambiance={ambiance} groundUrl={groundUrl} />
+      <AmbianceMarker ambiance={ambiance} custom={custom} groundUrl={groundUrl} />
       <nav
         aria-label={t.admin.breadcrumbLabel}
         className={cx(styles['nav'], compact && styles['compact'])}

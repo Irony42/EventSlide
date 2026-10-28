@@ -752,6 +752,7 @@ export const es: UiText = {
       bivouac: 'Vivac',
       cabaret: 'Cabaret',
       noces: 'Boda',
+      custom: 'A medida',
     },
 
     template: 'Tipo de evento',

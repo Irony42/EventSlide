@@ -854,6 +854,7 @@ export const fr = {
       bivouac: 'Bivouac',
       cabaret: 'Cabaret',
       noces: 'Noces',
+      custom: 'Sur mesure',
     } satisfies Record<ThemeAmbiance, string>,
 
     /* ---- Event templates (roadmap 3.5). The names of the four evenings, plus the two

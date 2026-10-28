@@ -117,6 +117,7 @@ export function EventPage() {
         page="event"
         eventName={event.name}
         ambiance={event.settings.theme.ambiance}
+        custom={event.settings.theme.custom}
         groundUrl={event.settings.theme.groundUrl}
       />
       <header className={styles['header']}>

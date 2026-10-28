@@ -296,6 +296,7 @@ export function EventSettingsPage() {
         page="settings"
         eventName={event.name}
         ambiance={event.settings.theme.ambiance}
+        custom={event.settings.theme.custom}
         groundUrl={event.settings.theme.groundUrl}
       />
       <h1 className={styles['title']}>{t.admin.settings}</h1>

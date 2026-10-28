@@ -66,3 +66,34 @@ describe('AmbianceMarker', () => {
     },
   )
 })
+
+describe('AmbianceMarker with a custom ambiance (ADR 0011)', () => {
+  const custom = { ground: 'light', groundHue: 40, faces: 'cabaret' } as const
+
+  it('carries the polarity, the borrowed faces and the ground hue as an angle', () => {
+    const { container } = render(<AmbianceMarker ambiance="custom" custom={custom} />)
+    const marker = container.querySelector('[data-ambiance-marker]')
+
+    expect(marker).toHaveAttribute('data-event-ambiance', 'custom')
+    expect(marker).toHaveAttribute('data-ambiance-ground', 'light')
+    expect(marker).toHaveAttribute('data-ambiance-faces', 'cabaret')
+    expect(marker).toHaveStyle({ '--ground-hue': '40deg' })
+  })
+
+  it('keeps the ground hue beside the venue photograph', () => {
+    const path = `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`
+    const { container } = render(
+      <AmbianceMarker ambiance="custom" custom={custom} groundUrl={path} />,
+    )
+    const marker = container.querySelector('[data-ambiance-marker]')
+
+    expect(marker).toHaveAttribute('data-ambiance-ground', 'light')
+    expect(marker).toHaveStyle({ '--ground-hue': '40deg', '--ambiance-ground': `url("${path}")` })
+  })
+
+  it('ignores the object for any other ambiance', () => {
+    const { container } = render(<AmbianceMarker ambiance="noces" custom={custom} />)
+
+    expect(container.querySelector('[data-ambiance-ground]')).toBeNull()
+  })
+})

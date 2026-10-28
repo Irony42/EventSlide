@@ -390,3 +390,51 @@ describe('readEventTheme', () => {
     ).toBeNull()
   })
 })
+
+describe('the host’s own ambiance on a surface (ADR 0011)', () => {
+  const custom = { ground: 'dark', groundHue: 200, faces: 'cabaret' } as const
+  const worn = aTheme({ ambiance: 'custom', custom })
+
+  it.each(['wall', 'guest'] as const)('emits polarity, faces and an angle on the %s', (surface) => {
+    const props = themeSurfaceProps(worn, surface)
+
+    expect(props['data-event-ambiance']).toBe('custom')
+    expect(props['data-ambiance-ground']).toBe('dark')
+    expect(props['data-ambiance-faces']).toBe('cabaret')
+    expect(props.style).toEqual({ '--ground-hue': '200deg' })
+  })
+
+  it('shares the style with the accent and the venue photograph', () => {
+    const path = `/api/events/camille/venue-photo/${'ab'.repeat(32)}`
+    const props = themeSurfaceProps({ ...worn, accentHue: 345, groundUrl: path }, 'wall')
+
+    expect(props.style).toMatchObject({ '--accent-hue': '345', '--ground-hue': '200deg' })
+    expect(props.style).toHaveProperty('--ambiance-ground')
+    expect(props['data-venue-ground']).toBe('wall')
+  })
+
+  it('emits nothing of it for another ambiance', () => {
+    const props = themeSurfaceProps(aTheme({ ambiance: 'noces' }), 'wall')
+
+    expect(props).not.toHaveProperty('data-ambiance-ground')
+    expect(props).not.toHaveProperty('data-ambiance-faces')
+  })
+
+  it('reads the object off the wire, and refuses a custom ambiance without a valid one', () => {
+    const base = { ...DEFAULT_EVENT_THEME, ambiance: 'custom' }
+
+    expect(readEventTheme({ ...base, custom })).toEqual({ ...base, custom })
+    expect(readEventTheme(base)).toBeNull()
+    expect(readEventTheme({ ...base, custom: 'dark' })).toBeNull()
+    expect(readEventTheme({ ...base, custom: { ...custom, ground: 'grey' } })).toBeNull()
+    expect(readEventTheme({ ...base, custom: { ...custom, faces: 'custom' } })).toBeNull()
+    expect(readEventTheme({ ...base, custom: { ...custom, groundHue: '1' } })).toBeNull()
+    expect(readEventTheme({ ...base, custom: { ...custom, groundHue: 1.5 } })).toBeNull()
+    expect(readEventTheme({ ...base, custom: { ...custom, groundHue: 360 } })).toBeNull()
+    expect(readEventTheme({ ...base, custom: { ...custom, groundHue: -1 } })).toBeNull()
+  })
+
+  it('drops an object that arrives beside an ambiance that does not wear it', () => {
+    expect(readEventTheme({ ...DEFAULT_EVENT_THEME, custom })).toEqual(DEFAULT_EVENT_THEME)
+  })
+})

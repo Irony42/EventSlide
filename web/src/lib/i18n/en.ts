@@ -719,6 +719,7 @@ export const en: UiText = {
       bivouac: 'Bivouac',
       cabaret: 'Cabaret',
       noces: 'Wedding',
+      custom: 'Custom',
     },
 
     template: 'Type of event',
