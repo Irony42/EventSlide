@@ -651,6 +651,50 @@ describe('WallPage', () => {
     },
   )
 
+  describe('the layout an ambiance suggests', () => {
+    const themed = (ambiance: 'darkroom' | 'guinguette') =>
+      aPopulatedWall({
+        items: somePhotos(8),
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass', ambiance },
+      })
+
+    it('hangs the Guinguette’s wall on the clothesline when nobody asked for another', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'clothesline')
+      expect(screen.getAllByTestId('wall-slide')).toHaveLength(5)
+    })
+
+    it('leaves the Chambre noire on whatever the wall response carries', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('darkroom')) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+    })
+
+    it('yields to a kiosk that names its layout', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: `${ROUTE}?layout=mosaic`, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'mosaic')
+    })
+
+    it('lets L continue from the clothesline, and the cycle come home to it', async () => {
+      const api = fakeApi({ wall: wallSequence(themed('guinguette')) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findAllByTestId('wall-slide')
+
+      // The clothesline is last in the cycle, so the key after it wraps to the spotlight.
+      await userEvent.keyboard('l')
+
+      expect(theWall()).toHaveAttribute('data-wall-layout', 'spotlight')
+    })
+  })
+
   it('explains its keyboard shortcuts when the host presses the question mark', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
