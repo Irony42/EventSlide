@@ -525,15 +525,18 @@ jobs:
           set -euo pipefail
           identity='^https://github\.com/Irony42/EventSlide/\.github/workflows/release\.yml@refs/(tags/v.+|heads/main)$'
           issuer='https://token.actions.githubusercontent.com'
+          # The trace goes to stderr and is kept aside; what cosign proves (its "Verification
+          # for" summary, and the verified payload on stdout) is printed as before. The trace
+          # redacts the Authorization headers and the registry's token responses.
           check() {
             local log status
             log="$(mktemp)"
-            if timeout 300 "$@" > "$log" 2>&1; then
-              tail -n 20 "$log"
+            if timeout -k 10 300 "$@" 2> "$log"; then
+              sed -n '/^Verification for /,$p' "$log"
             else
               status=$?
               tail -n 200 "$log"
-              echo "::error::$2 failed with status $status (124 is the five-minute limit)."
+              echo "::error::cosign $2 failed with status $status (124 or 137 is the five-minute limit)."
               exit "$status"
             fi
           }

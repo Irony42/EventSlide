@@ -287,7 +287,7 @@ describe('how the image is signed', () => {
   })
 
   it('gives each check a time limit, so a hang fails with its trace instead of being cancelled without one', () => {
-    expect(script).toMatch(/timeout \d+ "\$@"/)
+    expect(script).toMatch(/timeout -k \d+ \d+ "\$@"/)
     expect(script).toMatch(/^\s*check cosign verify --verbose /m)
     expect(script).toMatch(/^\s*check cosign verify-attestation --type spdxjson --verbose /m)
   })
