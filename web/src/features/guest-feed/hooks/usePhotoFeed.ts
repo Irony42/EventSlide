@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { readEventTheme } from '../../../design-system/eventTheme'
 import { rememberEventTheme } from '../../../lib/guestSession'
@@ -115,7 +115,13 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
   }, [reloadWall, reloadMine])
 
   const served = wall.data === null || wall.data.gone ? null : wall.data.wall
-  const theme = useMemo(() => readEventTheme(served?.theme ?? null), [served])
+  const answered = useMemo(() => readEventTheme(served?.theme ?? null), [served])
+  // What was learned stands: a later answer with no theme this build can read (a server rolled
+  // back mid-evening) must not drop the page back to the join's older copy. Adjusted during
+  // render rather than in an effect, which is the supported way to derive state from a prop.
+  const [learned, setLearned] = useState<EventThemeDto | null>(null)
+  if (answered !== null && answered !== learned) setLearned(answered)
+  const theme = answered ?? learned
   // Written back so the next open — this screen's or the upload screen's — paints it first.
   useEffect(() => {
     if (theme !== null) rememberEventTheme(slug, theme)

@@ -518,6 +518,30 @@ describe('a guest the server does not recognise any more, on the feed', () => {
       expect(readRememberedGuestSession()?.event.theme).toEqual(ROSE)
     })
 
+    it('keeps the colour it learned when a later wall answer carries none', async () => {
+      havingJoined({ theme: VIOLET })
+      let reads = 0
+      renderFeed(
+        fakeApi({
+          wall: vi.fn(async () => {
+            reads += 1
+            return aWallResponse({
+              items: [photo('a')],
+              ...(reads === 1 ? { theme: ROSE } : { theme: { ...ROSE, accentHue: 4000 } }),
+            })
+          }),
+          myPhotos: vi.fn(async () => ({ items: [] })),
+        }),
+      )
+      const page = await pageOf()
+      await waitFor(() => expect(page).toHaveAttribute('data-event-accent', '345'))
+
+      await userEvent.click(screen.getByRole('button', { name: fr.feed.refresh }))
+      await waitFor(() => expect(reads).toBe(2))
+
+      expect(page).toHaveAttribute('data-event-accent', '345')
+    })
+
     it('keeps the stored theme when the wall carries none this build can read', async () => {
       havingJoined({ theme: ROSE })
       renderFeed(withWall([photo('a')], { theme: { ...ROSE, accentHue: 4000 } }))

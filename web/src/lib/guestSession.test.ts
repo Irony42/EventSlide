@@ -634,6 +634,25 @@ describe('guestSession: a theme the server has since changed', () => {
     expect(readGuestSession('gala')?.event.theme).toEqual(ROSE)
   })
 
+  it('leaves a join made since in another tab alone, whatever this tab still holds', () => {
+    // This tab joined as Léa; the installed app has since joined the same event as Zoé. A tab
+    // that goes on reading its theme must not take the device's name back.
+    joined('gala')
+    const tab = sessionStorage.getItem('eventslide.guest.gala') as string
+    rememberGuestSession({
+      event: aPublicEvent({ slug: 'gala', name: 'Soirée gala' }),
+      displayName: 'Zoé',
+      privacyNotice: aPrivacyNoticeState({ acknowledgement: 'none' }),
+    })
+    sessionStorage.setItem('eventslide.guest.gala', tab)
+
+    rememberEventTheme('gala', ROSE)
+
+    const device = readRememberedGuestSession()
+    expect(device?.displayName).toBe('Zoé')
+    expect(device?.event.theme).toEqual(ROSE)
+  })
+
   it('is not renewed by learning a theme: that does not renew the cookie', () => {
     joined('gala', 0)
 

@@ -2891,9 +2891,10 @@ blob without it, so rolling forward again reads the host's choice as `glass`. Se
 operators do roll back on the day; if one does, the host's surface finish is the thing to
 re-pick afterwards.
 
-The theme also rides on `POST /api/join` (§3) and `GET /api/events/:slug/wall` (§4), so
-the guest's phone and the projector paint the right colour on their first frame instead of
-repainting one round trip later.
+The theme also rides on `POST /api/join` (§3), `GET /api/events/:slug/wall` (§4) and
+`GET /api/events/:slug/photos/mine` (§3), so the guest's phone and the projector paint the right
+colour on their first frame instead of repainting one round trip later, and a guest who joined
+before a change learns of it on the next read.
 
 **200** with the event. **Errors** — `409 event.immutable`,
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,

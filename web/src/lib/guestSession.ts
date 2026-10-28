@@ -416,14 +416,16 @@ const amendGuestSession = (
 ): void => {
   const session = readGuestSession(slug, now)
   if (session === null) return
-  const next = change(session)
-  tryWrite(inTab, keyFor(slug), JSON.stringify(next))
+  tryWrite(inTab, keyFor(slug), JSON.stringify(change(session)))
   const remembered = readRemembered(now)
   if (remembered?.session.event.slug === slug) {
+    // Amended from **the device's own copy**, not from the tab's: a tab left open can hold an
+    // older name or notice than a join made since in another tab or the installed app, and
+    // copying the tab's over it would take that join back.
     tryWrite(
       onDevice,
       REMEMBERED_KEY,
-      JSON.stringify({ ...next, rememberedAt: remembered.rememberedAt }),
+      JSON.stringify({ ...change(remembered.session), rememberedAt: remembered.rememberedAt }),
     )
   }
 }
