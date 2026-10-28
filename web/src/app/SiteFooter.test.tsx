@@ -543,3 +543,26 @@ describe('SiteFooter, the operator’s links', () => {
     },
   )
 })
+
+describe('SiteFooter: where “À propos” opens (A7)', () => {
+  const aboutLink = () => screen.getByRole('link', { name: literal(fr.about.aboutLink) })
+
+  it.each(['/join', '/join/H7K2QM', '/e/gala/photos', '/g/token', '/about'])(
+    'opens it in the same tab on %s, where leaving costs the reader nothing',
+    (route) => {
+      renderWithProviders(<SiteFooter />, { api: silentServer(), route })
+
+      expect(aboutLink()).toHaveAttribute('href', '/about')
+      expect(aboutLink()).not.toHaveAttribute('target')
+    },
+  )
+
+  it.each(['/e/gala/upload', '/admin', '/admin/events/gala/settings'])(
+    'opens it in a tab of its own on %s, where leaving would cost a send or an unsaved edit',
+    (route) => {
+      renderWithProviders(<SiteFooter />, { api: silentServer(), route })
+
+      expect(aboutLink()).toHaveAttribute('target', '_blank')
+    },
+  )
+})

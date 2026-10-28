@@ -43,6 +43,11 @@ export const en: UiText = {
     submitting: 'Connecting…',
     welcome: (eventName: string) => `Welcome to ${eventName}`,
     anonymous: 'Stay anonymous',
+    /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
+    notYourEvening: 'Not your event?',
+    notOpenHint:
+      'If you scanned a QR code, the gallery may not be open yet, or the event may be over. Try again in a moment, or ask the organiser.',
+    organiserLink: 'Organiser area',
   },
 
   upload: {
@@ -95,6 +100,8 @@ export const en: UiText = {
     notJoinedTitle: 'Join the gallery to send your photos',
     notJoinedHint: 'Scan the QR code again, or type the event code.',
     notJoinedAction: 'Enter the code',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    galleryUnavailable: 'This gallery is no longer available. You can no longer send photos to it.',
 
     missionsTitle: 'Missions',
     missionsHint: 'Tap a mission, then send your photo.',
@@ -564,6 +571,10 @@ export const en: UiText = {
     emptyHint: 'Photos the organisers approve will appear here.',
     failed: 'The photos could not be loaded. Try again.',
     own: 'Your photo',
+    /* Navigation pass, batch A: a gallery the server no longer serves. */
+    unavailable: 'This gallery is no longer on display.',
+    unavailableHint:
+      'It has been archived or is no longer open, so there are no photos to see here.',
   },
 
   wall: {
@@ -589,6 +600,8 @@ export const en: UiText = {
     shortcuts: 'Keyboard shortcuts',
     shortcutsHint:
       'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout.',
+    /* Navigation pass, batch A: how to leave the wall. */
+    leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
 
     layoutNames: {
       spotlight: 'Full screen',
@@ -1023,6 +1036,9 @@ export const en: UiText = {
     sourceCode: 'Source code (AGPL-3.0)',
     opensInNewTab: 'opens a new tab',
     aboutLink: 'About',
+    /* Navigation pass, batch A: a way back from the page. */
+    back: 'Back',
+    home: 'Home',
 
     title: 'About EventSlide',
     intro:

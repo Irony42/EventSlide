@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
 import { useApi } from '../../../app/useApi'
+import { ApiError } from '../../../lib/http'
 import { useLoader } from '../../../lib/useLoader'
-import type { WallItemDto } from '../../../lib/api/dto'
+import type { WallItemDto, WallResponse } from '../../../lib/api/dto'
 
 /**
  * What a guest's phone shows of the evening: the published photographs, as the wall has
@@ -21,9 +22,21 @@ import type { WallItemDto } from '../../../lib/api/dto'
  * nothing else.
  */
 
+/**
+ * What the wall read answered: the photographs, or "this gallery is not served".
+ *
+ * `404 event.notFound` is the server saying the event is archived, not open or its account
+ * suspended (docs/API.md, the wall's errors). Retrying cannot change that, so it is an
+ * **answer** here and not a failure: the screen says so once and offers no "Réessayer".
+ * A closed event still serves its wall, so a closed evening is an ordinary feed.
+ */
+type WallAnswer = { readonly gone: false; readonly wall: WallResponse } | { readonly gone: true }
+
 export interface PhotoFeedState {
   /** `null` until the wall has answered once. Absence is not emptiness. */
   readonly items: readonly WallItemDto[] | null
+  /** The gallery is no longer served (archived, not open, suspended): nothing to retry. */
+  readonly unavailable: boolean
   /** The host's switch, as the wall says it now. */
   readonly reactionsEnabled: boolean
   /** Ids of the guest's own photographs. Empty while unknown or when that read failed. */
@@ -42,7 +55,19 @@ export interface PhotoFeedState {
 
 export const usePhotoFeed = (slug: string): PhotoFeedState => {
   const api = useApi()
-  const loadWall = useCallback((signal: AbortSignal) => api.wall(slug, signal), [api, slug])
+  const loadWall = useCallback(
+    async (signal: AbortSignal): Promise<WallAnswer> => {
+      try {
+        return { gone: false, wall: await api.wall(slug, signal) }
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 404 && cause.code === 'event.notFound') {
+          return { gone: true }
+        }
+        throw cause
+      }
+    },
+    [api, slug],
+  )
   const loadMine = useCallback((signal: AbortSignal) => api.myPhotos(slug, signal), [api, slug])
   const wall = useLoader(loadWall)
   const mine = useLoader(loadMine)
@@ -59,9 +84,12 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
     reloadMine()
   }, [reloadWall, reloadMine])
 
+  const served = wall.data === null || wall.data.gone ? null : wall.data.wall
+
   return {
-    items: wall.data === null ? null : wall.data.items,
-    reactionsEnabled: wall.data?.reactionsEnabled ?? false,
+    items: served === null ? null : served.items,
+    unavailable: wall.data?.gone === true,
+    reactionsEnabled: served?.reactionsEnabled ?? false,
     ownIds,
     settling: (wall.data === null && wall.loading) || (mine.data === null && mine.loading),
     refreshing: wall.data !== null && wall.loading,

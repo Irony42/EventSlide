@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { readGuestSession, rememberGuestSession, rememberPrivacyNotice } from './guestSession'
+import {
+  forgetGuestSession,
+  readGuestSession,
+  readRememberedGuestSession,
+  rememberGuestSession,
+  rememberPrivacyNotice,
+} from './guestSession'
 import { aPrivacyNotice, aPrivacyNoticeState, aPublicEvent } from '../testing/renderWithProviders'
 
 /**
@@ -386,4 +392,103 @@ describe('guestSession, the operator named in the notice (roadmap G2-17)', () =>
       expect(stored({ ...aPrivacyNotice(), operator })).toBeNull()
     },
   )
+})
+
+/**
+ * The device's memory of the last event (navigation pass, A1). What it holds and when it is
+ * cleared are the two things a guest on a shared phone is owed, so both are stated here.
+ */
+describe('guestSession: the last event, remembered on the device', () => {
+  const joined = (slug: string, displayName: string | null = 'Léa') =>
+    rememberGuestSession({
+      event: aPublicEvent({ slug }),
+      displayName,
+      privacyNotice: aPrivacyNoticeState({ acknowledgement: 'none' }),
+    })
+
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  it('outlives the tab: a tab with no session of its own finds the event it was sent to', () => {
+    joined('gala')
+    sessionStorage.clear()
+
+    expect(readGuestSession('gala')?.event.slug).toBe('gala')
+    expect(readRememberedGuestSession()?.displayName).toBe('Léa')
+  })
+
+  it('is never handed out for another event than the one asked for', () => {
+    joined('gala')
+    sessionStorage.clear()
+
+    expect(readGuestSession('mariage')).toBeNull()
+  })
+
+  it('is one entry: the next join replaces it instead of adding a list of evenings', () => {
+    joined('gala')
+    joined('mariage')
+
+    expect(readRememberedGuestSession()?.event.slug).toBe('mariage')
+    expect(localStorage.length).toBe(1)
+  })
+
+  it('holds what the session already held and nothing else', () => {
+    joined('gala', 'Léa')
+
+    const [key] = Object.keys(localStorage)
+    const stored: unknown = JSON.parse(localStorage.getItem(key ?? '') ?? 'null')
+
+    expect(Object.keys(stored as object).sort()).toEqual(['displayName', 'event', 'privacyNotice'])
+  })
+
+  it('is cleared, with the tab’s entry, when the guest says it is not their evening', () => {
+    joined('gala')
+
+    forgetGuestSession('gala')
+
+    expect(readRememberedGuestSession()).toBeNull()
+    expect(readGuestSession('gala')).toBeNull()
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('leaves the memory of another event alone when a different one is forgotten', () => {
+    joined('mariage')
+
+    forgetGuestSession('gala')
+
+    expect(readRememberedGuestSession()?.event.slug).toBe('mariage')
+  })
+
+  it('is not taken back by a tab left open on an earlier evening re-reading its notice', () => {
+    joined('gala')
+    joined('mariage')
+
+    rememberPrivacyNotice('gala', aPrivacyNoticeState({ acknowledgement: 'current' }))
+
+    expect(readRememberedGuestSession()?.event.slug).toBe('mariage')
+  })
+
+  it('follows the notice for the event it remembers', () => {
+    joined('gala')
+
+    rememberPrivacyNotice('gala', aPrivacyNoticeState({ acknowledgement: 'current' }))
+
+    expect(readRememberedGuestSession()?.privacyNotice?.acknowledgement).toBe('current')
+  })
+
+  it('is refused when it is not a session this build can read', () => {
+    localStorage.setItem('eventslide.guest.last', '{"event":{"slug":"gala"}}')
+
+    expect(readRememberedGuestSession()).toBeNull()
+  })
+
+  it('still lets a join succeed when the device refuses to store anything', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+
+    expect(() => joined('gala')).not.toThrow()
+  })
 })

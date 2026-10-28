@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { Field } from '../../design-system/components/Field'
@@ -7,6 +7,8 @@ import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { Stack } from '../../design-system/components/Stack'
 import { TextInput } from '../../design-system/components/TextInput'
+import { readRememberedGuestSession } from '../../lib/guestSession'
+import { isInstalled } from '../../lib/pwa/install'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { useJoin } from './hooks/useJoin'
 import styles from './JoinPage.module.css'
@@ -25,6 +27,13 @@ import styles from './JoinPage.module.css'
  *   characters, and a client that rejected `h7k-2qm` would be wrong about a code the
  *   server accepts.
  *
+ * **The installed app's icon opens `/join` with no code** (navigation pass, A1). A phone that
+ * has joined an event before sends the guest straight back to it, from what the device
+ * remembers (`lib/guestSession.ts`): no request, and the card with the code is not needed.
+ * Only the installed app does this. In a browser tab `/join` is the code entry it has always
+ * been, so a guest who types the next evening's code is not carried to last night's event.
+ * "Ce n'est pas votre soirée ?" is the way out of both.
+ *
  * The path is a path and not `?code=`, which is the 1.0 defect this whole route exists
  * to prevent: the QR page emitted `?partyname=` and the upload page read `?party`, so
  * every guest silently uploaded to the default event.
@@ -32,9 +41,13 @@ import styles from './JoinPage.module.css'
 export function JoinPage() {
   const t = useTranslations()
   const { code: codeFromPath } = useParams()
-  const { phase, event, error, join, continueToUpload } = useJoin()
+  const { phase, event, error, errorCode, join, continueToUpload, leave } = useJoin()
 
   const [code, setCode] = useState(codeFromPath ?? '')
+  /** Read once, at mount: the memory is not something this screen re-reads as it renders. */
+  const [resumable] = useState(() =>
+    codeFromPath === undefined && isInstalled() ? readRememberedGuestSession() : null,
+  )
   const [name, setName] = useState('')
 
   const autoSubmitted = useRef(false)
@@ -51,6 +64,10 @@ export function JoinPage() {
     autoSubmitted.current = true
     join({ code: codeFromPath, displayName: null, advance: false })
   }, [codeFromPath, join])
+
+  if (resumable !== null) {
+    return <Navigate to={`/e/${encodeURIComponent(resumable.event.slug)}/upload`} replace />
+  }
 
   const trimmedName = name.trim()
   const displayName = trimmedName.length > 0 ? trimmedName : null
@@ -135,6 +152,22 @@ export function JoinPage() {
           )}
           {nameField}
           {actions}
+          {/* A scan of somebody else's card, or last night's: the guest has no other way
+              back to a code entry, and the code in the address would resolve again. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            block
+            onClick={() => {
+              // The typed code is the one that led here: left in the box it would be offered again.
+              setCode('')
+              setName('')
+              setPressed(false)
+              leave(event.slug)
+            }}
+          >
+            {t.join.notYourEvening}
+          </Button>
         </form>
       </Card>
     )
@@ -166,6 +199,14 @@ export function JoinPage() {
             />
           )}
         </Field>
+        {/* The server answers one thing for a code it does not know, an evening that is
+            over and one that has not opened (so that codes cannot be enumerated), and so does
+            this line: it says what the guest can do, not which one it is. */}
+        {errorCode === 'event.notFound' ? (
+          <p className={styles['hint']} role="status">
+            {t.join.notOpenHint}
+          </p>
+        ) : null}
         {nameField}
         <Stack gap="3">
           <Button
@@ -189,6 +230,11 @@ export function JoinPage() {
           </Button>
         </Stack>
       </form>
+      {/* Discreet, and a plain link: no request is made for it. The front door stays the
+          guest's, and a host who typed the bare domain still has a way in (decision 1). */}
+      <Link className={styles['organiser']} to="/login">
+        {t.join.organiserLink}
+      </Link>
     </Card>
   )
 }
