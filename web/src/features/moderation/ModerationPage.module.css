@@ -38,3 +38,12 @@
   border: 1px solid var(--danger);
   border-radius: var(--radius-sm);
 }
+
+/* The way to the phone's version of the queue: a link in the header, as tall as the touch floor. */
+.otherConsole {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: var(--touch-min);
+  font-size: var(--text-sm);
+}

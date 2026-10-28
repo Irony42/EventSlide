@@ -355,6 +355,94 @@ describe('opening a client', () => {
     expect(document.body).not.toHaveTextContent(/PLANTED-TOKEN|https?:\/\//)
   })
 
+  describe('the invitation link that exists nowhere else (H10)', () => {
+    const NAME = 'Atelier Alpha'
+
+    /** The box with no mail, a client just opened: the link is on screen, with the client's own link beside it. */
+    const withLinkOnScreen = async (invitation: OperatorInvitationDto) => {
+      const api = consoleApi({
+        siteClientDefaults: vi.fn(async () => defaults),
+        siteProvisionClient: vi.fn(async () => ({ clientId: CLIENT_ID, invitation })),
+        siteClients: vi.fn(async () => ({ items: [aSiteClient({ name: NAME })], next: null })),
+      })
+      await openForm(api)
+      await screen.findByLabelText(fr.site.maxEvents)
+      await fill(NAME)
+      await submit()
+      await screen.findByText(fr.site.clientCreated)
+      return api
+    }
+
+    const prompt = () => screen.findByRole('dialog', { name: fr.site.linkLeaveTitle })
+
+    /** The link under "Client ouvert", the one the operator follows to look at what they just made. */
+    const clientLink = () =>
+      within(screen.getByRole('region', { name: fr.site.clientCreated })).getByRole('link', {
+        name: NAME,
+      })
+
+    it('asks before following the link to the client, and says what is lost', async () => {
+      await withLinkOnScreen(aLinkInvitation('https://photos.example.test/invite/UN-JETON'))
+
+      await userEvent.click(clientLink())
+
+      const dialog = await prompt()
+      expect(within(dialog).getByText(fr.site.linkLeaveHint)).toBeVisible()
+      // Still here, with the link on screen to copy.
+      expect(screen.getByText('https://photos.example.test/invite/UN-JETON')).toBeVisible()
+    })
+
+    it('keeps the link on screen when the operator stays', async () => {
+      await withLinkOnScreen(aLinkInvitation('https://photos.example.test/invite/UN-JETON'))
+      await userEvent.click(clientLink())
+
+      await userEvent.click(
+        within(await prompt()).getByRole('button', { name: fr.site.linkLeaveStay }),
+      )
+
+      expect(screen.getByText('https://photos.example.test/invite/UN-JETON')).toBeVisible()
+      expect(screen.queryByRole('heading', { level: 1, name: NAME })).toBeNull()
+    })
+
+    it('opens the client when the operator leaves anyway', async () => {
+      await withLinkOnScreen(aLinkInvitation('https://photos.example.test/invite/UN-JETON'))
+      await userEvent.click(clientLink())
+
+      await userEvent.click(
+        within(await prompt()).getByRole('button', { name: fr.site.linkLeaveGo }),
+      )
+
+      expect(await screen.findByRole('heading', { level: 1, name: NAME })).toBeVisible()
+    })
+
+    it('asks nothing once the box has been closed, the operator having passed the link on', async () => {
+      await withLinkOnScreen(aLinkInvitation('https://photos.example.test/invite/UN-JETON'))
+      await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+
+      // The section goes with the box; the client is still in the table below.
+      await userEvent.click(await screen.findByRole('link', { name: NAME }))
+
+      expect(await screen.findByRole('heading', { level: 1, name: NAME })).toBeVisible()
+    })
+
+    it('asks nothing when the invitation went by mail, since there is nothing to lose', async () => {
+      await withLinkOnScreen(aSiteInvitation({ delivery: 'mail' }))
+
+      await userEvent.click(clientLink())
+
+      expect(await screen.findByRole('heading', { level: 1, name: NAME })).toBeVisible()
+    })
+
+    it('has the browser ask as well when the tab is closed, while the link is the only copy', async () => {
+      await withLinkOnScreen(aLinkInvitation('https://photos.example.test/invite/UN-JETON'))
+
+      const closing = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(closing)
+
+      expect(closing.defaultPrevented).toBe(true)
+    })
+  })
+
   it('asks the operator to confirm themselves when the server says so, and opens the client on that confirmation', async () => {
     const siteProvisionClient = vi
       .fn<Api['siteProvisionClient']>()
@@ -470,5 +558,29 @@ describe('opening a client', () => {
 
     expect(screen.queryByRole('heading', { name: fr.site.newClientTitle })).toBeNull()
     expect(api.siteProvisionClient).not.toHaveBeenCalled()
+  })
+})
+
+describe('the button that would drop the only copy of a link', () => {
+  it('waits while the invitation link is on screen, and is back once the box is closed', async () => {
+    const api = consoleApi({
+      siteClientDefaults: vi.fn(async () => aSiteClientDefaults()),
+      siteProvisionClient: vi.fn(async () => ({
+        clientId: CLIENT_ID,
+        invitation: aLinkInvitation('https://photos.example.test/invite/UN-JETON'),
+      })),
+    })
+    openConsole('/admin/site', api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.site.newClient }))
+    await userEvent.type(await screen.findByLabelText(fr.site.clientName), 'Atelier Alpha')
+    await userEvent.type(screen.getByLabelText(fr.site.ownerEmail), 'camille@example.com')
+    await userEvent.click(screen.getByRole('button', { name: fr.site.createClient }))
+    await screen.findByText(fr.site.invitationLinkTitle)
+
+    expect(screen.getByRole('button', { name: fr.site.newClient })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+
+    expect(screen.getByRole('button', { name: fr.site.newClient })).toBeEnabled()
   })
 })

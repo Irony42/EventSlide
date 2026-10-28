@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
@@ -13,6 +13,7 @@ import { Async } from '../../design-system/components/Async'
 import { SelectField } from './components/SelectField'
 import { useShareLink } from './hooks/useEventData'
 import { useCreateShareLink, useRevokeShareLink } from './hooks/useEventActions'
+import { useLeaveWarning } from './hooks/useLeaveWarning'
 import styles from './ShareLinkPanel.module.css'
 import type { ShareLinkCreated } from '../../lib/api/dto'
 
@@ -39,6 +40,13 @@ const DEFAULT_LIFETIME = 30
  * turn back into the URL, so the answer to "make a link" is the only time the address
  * exists outside the host's own message — this panel keeps it on screen, with a copy
  * button, until the host leaves the page, and says so.
+ *
+ * **So losing it has to be hard.** A copy the browser refuses says so, in words, and leaves the
+ * address selected in its field to copy by hand. And while the address is on screen and nothing
+ * has copied it, leaving the page asks first (`useLeaveWarning`): once it has been copied it
+ * exists elsewhere (the host's message, their clipboard), and the question would only be noise.
+ * That is the whole check: a link shown and never copied, because this page is the only place
+ * it is ever shown.
  */
 export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
   const t = useTranslations()
@@ -53,9 +61,15 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
   const [password, setPassword] = useState('')
   const [createFailure, setCreateFailure] = useState<string | null>(null)
   const [created, setCreated] = useState<ShareLinkCreated | null>(null)
+  /** The address left this page: the copy button worked, or the host copied it by hand. */
+  const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
+  const urlField = useRef<HTMLInputElement>(null)
   const [confirming, setConfirming] = useState(false)
 
   const link = shareLink.data?.link ?? null
+
+  useLeaveWarning(created !== null && !copied, t.admin.shareLinkLeaveWarning)
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -68,6 +82,8 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
         return
       }
       setCreated(result.value)
+      setCopied(false)
+      setCopyFailed(false)
       setPassword('')
       reload()
     })
@@ -75,12 +91,23 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
 
   const copy = () => {
     if (created === null) return
-    // The address is also selectable in the field beside this button, so a browser that
-    // refuses the clipboard costs the host a long-press rather than the link.
-    void navigator.clipboard?.writeText(created.url).then(
-      () => toast.show(t.admin.shareLinkCopied, { tone: 'success' }),
-      () => undefined,
-    )
+    const refused = () => {
+      // The address is in the field beside this button: selected, so the host's own Ctrl+C (or a
+      // long-press) finishes what the browser would not, and the failure is said out loud.
+      setCopyFailed(true)
+      urlField.current?.focus()
+      urlField.current?.select()
+    }
+    // No clipboard at all (an insecure origin, an old browser) is the same failure as a refusal.
+    if (navigator.clipboard === undefined) {
+      refused()
+      return
+    }
+    void navigator.clipboard.writeText(created.url).then(() => {
+      setCopied(true)
+      setCopyFailed(false)
+      toast.show(t.admin.shareLinkCopied, { tone: 'success' })
+    }, refused)
   }
 
   const confirmRevoke = () => {
@@ -91,6 +118,7 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
         return
       }
       setCreated(null)
+      setCopyFailed(false)
       toast.show(t.admin.shareLinkRevoked, { tone: 'success' })
       reload()
     })
@@ -128,12 +156,16 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
             {(control) => (
               <TextInput
                 {...control}
+                ref={urlField}
                 readOnly
                 value={created.url}
                 onFocus={(focused) => focused.target.select()}
+                // A hand copy counts: the address has left this page.
+                onCopy={() => setCopied(true)}
               />
             )}
           </Field>
+          {copyFailed ? <p role="alert">{t.admin.shareLinkCopyFailed}</p> : null}
           <div className={styles['actions']}>
             <Button variant="primary" onClick={copy}>
               {t.admin.shareLinkCopy}

@@ -125,6 +125,34 @@ describe('ModerationPage', () => {
     expect(api.moderationQueue).toHaveBeenCalledTimes(2)
   })
 
+  it('offers the list of events inside the failure itself, beside the retry', async () => {
+    renderConsole(
+      fakeApi({
+        moderationQueue: vi.fn(() => Promise.reject(new ApiError(404, 'event.notFound'))),
+      }),
+    )
+
+    await screen.findByText(fr.moderation.loadFailed)
+
+    // The failure's own way out, beside Réessayer and not only in the trail above it: an address
+    // that does not exist or an access that was withdrawn is not mended by asking again.
+    const failure = screen.getByRole('alert')
+    expect(within(failure).getByRole('button', { name: fr.app.retry })).toBeVisible()
+    expect(within(failure).getByRole('link', { name: fr.admin.events })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
+  })
+
+  it('leads to the phone’s version of the same queue', async () => {
+    renderConsole(fakeApi())
+
+    expect(await screen.findByRole('link', { name: fr.moderation.openMobile })).toHaveAttribute(
+      'href',
+      `/admin/events/${SLUG}/moderation/mobile`,
+    )
+  })
+
   it('lists what has arrived, with the caption, the author and the status as a word', async () => {
     const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
     renderConsole(api)

@@ -24,6 +24,16 @@ export interface LoadFailureProps {
   readonly message: string
   readonly onRetry: () => void
   readonly as?: EmptyStateHeadingLevel
+  /** What is named as not loaded, for a screen with a better word than the generic one. */
+  readonly title?: string
+  /**
+   * A way out beside Réessayer, for a page whose failure is not always one a retry can mend:
+   * an address that does not exist, an access that was withdrawn. The page hands over a finished
+   * link (this module has no router and must not grow one), and it sits **after** Réessayer, so
+   * the primary action is still the first stop of the tab order. Left out, the failure is
+   * exactly what it always was.
+   */
+  readonly secondaryAction?: ReactNode
 }
 
 /**
@@ -33,19 +43,34 @@ export interface LoadFailureProps {
  * on screen, and 1.0 rendered the same nothing for both — so a host with a projector
  * waiting reloaded, then rebooted.
  */
-export function LoadFailure({ message, onRetry, as = 'h2' }: LoadFailureProps) {
+export function LoadFailure({
+  message,
+  onRetry,
+  as = 'h2',
+  title,
+  secondaryAction,
+}: LoadFailureProps) {
   const t = useTranslations()
 
   return (
     <EmptyState
       role="alert"
       as={as}
-      title={t.app.loadFailed}
+      title={title ?? t.app.loadFailed}
       description={message}
       action={
-        <Button variant="primary" onClick={onRetry}>
-          {t.app.retry}
-        </Button>
+        secondaryAction === undefined ? (
+          <Button variant="primary" onClick={onRetry}>
+            {t.app.retry}
+          </Button>
+        ) : (
+          <div className={styles['actions']}>
+            <Button variant="primary" onClick={onRetry}>
+              {t.app.retry}
+            </Button>
+            {secondaryAction}
+          </div>
+        )
       }
     />
   )

@@ -142,6 +142,33 @@ describe('MobileModerationPage', () => {
     expect(api.moderationQueue).toHaveBeenCalledTimes(2)
   })
 
+  it('offers the list of events inside the failure itself, beside the retry', async () => {
+    renderPhone(
+      fakeApi({
+        moderationQueue: vi.fn(() => Promise.reject(new ApiError(404, 'event.notFound'))),
+      }),
+    )
+
+    await screen.findByText(fr.moderation.loadFailed)
+
+    // The failure's own way out, beside Réessayer and not only in the trail above it: an address
+    // that does not exist or an access that was withdrawn is not mended by asking again.
+    const failure = screen.getByRole('alert')
+    expect(within(failure).getByRole('button', { name: fr.app.retry })).toBeVisible()
+    expect(within(failure).getByRole('link', { name: fr.admin.events })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
+  })
+
+  it('leads to the full console of the same event, which has no other link to this screen', async () => {
+    renderPhone(fakeApi())
+
+    expect(
+      await screen.findByRole('link', { name: fr.mobileModeration.openConsole }),
+    ).toHaveAttribute('href', `/admin/events/${SLUG}/moderation`)
+  })
+
   it('offers one photo at a time, whatever is waiting behind it', async () => {
     // The whole point of this surface. A grid of five is what the laptop is for.
     const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })

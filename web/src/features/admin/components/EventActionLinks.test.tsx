@@ -4,14 +4,14 @@ import { EventActionLinks } from './EventActionLinks'
 import { de } from '../../../lib/i18n/de'
 import { fr } from '../../../lib/i18n/fr'
 import { renderWithProviders } from '../../../testing/renderWithProviders'
-import type { EventStatus } from '../../../lib/api/dto'
+import type { EventRole, EventStatus } from '../../../lib/api/dto'
 import type { Locale } from '../../../lib/i18n/locale'
 
 const ALBUM = '/api/events/camille-et-sacha/album.zip'
 
-const render = (status: EventStatus = 'live', locale: Locale = 'fr') =>
+const render = (status: EventStatus = 'live', locale: Locale = 'fr', role: EventRole = 'owner') =>
   renderWithProviders(
-    <EventActionLinks slug="camille-et-sacha" status={status} albumUrl={ALBUM} />,
+    <EventActionLinks slug="camille-et-sacha" status={status} role={role} albumUrl={ALBUM} />,
     { locale },
   )
 
@@ -50,10 +50,48 @@ describe('EventActionLinks', () => {
     render()
 
     expect(screen.queryAllByRole('button')).toEqual([])
-    // Same-tab navigation, as before: no tile forces a new window on the host.
+  })
+
+  // This reverses #246's "no tile forces a new window" for this one tile (navigation pass,
+  // decision 5): the wall is the projector's screen and has no way back to the console, so the
+  // console stays in its own tab and the wall opens beside it.
+  it('opens the wall, and only the wall, in a tab of its own, without handing it the console', () => {
+    render()
+
+    const wall = screen.getByRole('link', { name: fr.admin.openWall })
+    expect(wall).toHaveAttribute('target', '_blank')
+    expect(wall).toHaveAttribute('rel', 'noopener')
     for (const link of screen.getAllByRole('link')) {
-      expect(link).not.toHaveAttribute('target')
+      if (link !== wall) expect(link).not.toHaveAttribute('target')
     }
+  })
+
+  it('says aloud that the wall opens a new tab, without lengthening the link’s name', () => {
+    render()
+
+    expect(screen.getByRole('link', { name: fr.admin.openWall })).toHaveAccessibleDescription(
+      fr.about.opensInNewTab,
+    )
+  })
+
+  it('offers a moderator no settings tile: the page would be read-only for them', () => {
+    render('live', 'fr', 'moderator')
+
+    expect(screen.queryByRole('link', { name: fr.admin.settings })).toBeNull()
+    // Everything a moderator can use stays.
+    expect(screen.getByRole('link', { name: fr.admin.openWall })).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.admin.openModeration })).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.mobileModeration.title })).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.admin.download })).toBeVisible()
+  })
+
+  it('keeps the settings tile for an owner', () => {
+    render('live', 'fr', 'owner')
+
+    expect(screen.getByRole('link', { name: fr.admin.settings })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/settings',
+    )
   })
 
   it('hands the album to the browser as a download rather than navigating to it', () => {

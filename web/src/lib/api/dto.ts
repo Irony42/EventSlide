@@ -418,6 +418,12 @@ export interface EventSummaryDto {
   readonly guestCount: number
   readonly usedBytes: number
   readonly createdAt: string
+  /**
+   * What the caller is in this event. The dashboard reads it to leave out the lifecycle buttons
+   * a moderator's request would be refused; `eventLifecycle.canManageEvent` is a hand-kept
+   * transcription of the domain's rule.
+   */
+  readonly role: EventRole
 }
 
 export interface EventDto extends EventSummaryDto {
@@ -447,7 +453,6 @@ export interface EventDto extends EventSummaryDto {
    * gone, and this is the only thing that says so. Saving any schedule clears it.
    */
   readonly scheduleDiscardedAt: string | null
-  readonly role: EventRole
 }
 
 export interface GuestDto {

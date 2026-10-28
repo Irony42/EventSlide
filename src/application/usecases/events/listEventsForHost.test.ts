@@ -25,7 +25,7 @@ describe('listEventsForHost', () => {
     photos = new FakePhotoRepository()
     guests = new FakeGuestRepository()
     events = new FakeEventRepository({ memberships, photos, guests })
-    listEventsForHost = makeListEventsForHost({ events })
+    listEventsForHost = makeListEventsForHost({ events, memberships })
   })
 
   it('lists the events the host owns', async () => {
@@ -106,6 +106,101 @@ describe('listEventsForHost', () => {
       pendingCount: 1,
       guestCount: 1,
       usedBytes: 5_000,
+    })
+  })
+
+  describe('the caller’s role in each row', () => {
+    const rolesOf = async (userId: typeof HOST) => {
+      const result = await listEventsForHost({ userId })
+      return result.ok ? new Map(result.value.map((summary) => [summary.id, summary.role])) : null
+    }
+
+    it('says owner for an event the caller owns, and moderator for one they only moderate', async () => {
+      events.seed(
+        anEvent({ id: WEDDING, ownerId: HOST, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+        anEvent({ id: GALA, ownerId: OTHER_HOST, slug: 'gala-annuel', joinCode: 'Z3N9PT' }),
+      )
+      await memberships.grant({ eventId: WEDDING, userId: HOST, role: 'owner', grantedAt: AT })
+      await memberships.grant({ eventId: GALA, userId: OTHER_HOST, role: 'owner', grantedAt: AT })
+      await memberships.grant({ eventId: GALA, userId: HOST, role: 'moderator', grantedAt: AT })
+
+      expect(await rolesOf(HOST)).toEqual(
+        new Map([
+          [WEDDING, 'owner'],
+          [GALA, 'moderator'],
+        ]),
+      )
+    })
+
+    it('gives a moderator the one role they hold, never the owner’s', async () => {
+      events.seed(
+        anEvent({ id: WEDDING, ownerId: HOST, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+      )
+      await memberships.grant({ eventId: WEDDING, userId: HOST, role: 'owner', grantedAt: AT })
+      await memberships.grant({
+        eventId: WEDDING,
+        userId: MODERATOR,
+        role: 'moderator',
+        grantedAt: AT,
+      })
+
+      expect(await rolesOf(MODERATOR)).toEqual(new Map([[WEDDING, 'moderator']]))
+    })
+
+    it('reads the membership before the owner column: a demoted owner is what the membership says', async () => {
+      events.seed(
+        anEvent({ id: WEDDING, ownerId: HOST, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+      )
+      await memberships.grant({ eventId: WEDDING, userId: HOST, role: 'moderator', grantedAt: AT })
+
+      expect(await rolesOf(HOST)).toEqual(new Map([[WEDDING, 'moderator']]))
+    })
+
+    it('takes a row listed by the owner column alone for the owner’s', async () => {
+      events.seed(
+        anEvent({ id: WEDDING, ownerId: HOST, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+      )
+
+      expect(await rolesOf(HOST)).toEqual(new Map([[WEDDING, 'owner']]))
+    })
+
+    it('does not let the role held in one event colour another row of the same list', async () => {
+      // One event listed by the owner column alone, another by a moderator membership: the
+      // moderator's role is the gala's and must not leak onto the wedding.
+      events.seed(
+        anEvent({ id: WEDDING, ownerId: HOST, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+        anEvent({ id: GALA, ownerId: OTHER_HOST, slug: 'gala-annuel', joinCode: 'Z3N9PT' }),
+      )
+      await memberships.grant({ eventId: GALA, userId: HOST, role: 'moderator', grantedAt: AT })
+
+      expect(await rolesOf(HOST)).toEqual(
+        new Map([
+          [WEDDING, 'owner'],
+          [GALA, 'moderator'],
+        ]),
+      )
+    })
+
+    it('lists no event of another host, whatever role the caller holds elsewhere', async () => {
+      // The tenant boundary: a membership of one event gives the caller that event's row and
+      // nobody else's, and another account's membership of it colours nothing.
+      events.seed(
+        anEvent({ id: WEDDING, ownerId: HOST, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
+        anEvent({ id: GALA, ownerId: OTHER_HOST, slug: 'gala-annuel', joinCode: 'Z3N9PT' }),
+      )
+      await memberships.grant({ eventId: WEDDING, userId: HOST, role: 'owner', grantedAt: AT })
+      await memberships.grant({ eventId: GALA, userId: OTHER_HOST, role: 'owner', grantedAt: AT })
+      await memberships.grant({
+        eventId: GALA,
+        userId: MODERATOR,
+        role: 'moderator',
+        grantedAt: AT,
+      })
+
+      const asModerator = await rolesOf(MODERATOR)
+      expect([...(asModerator ?? new Map()).keys()]).toEqual([GALA])
+      expect([...((await rolesOf(HOST)) ?? new Map()).keys()]).toEqual([WEDDING])
+      expect(await rolesOf(asUserId('user-nobody'))).toEqual(new Map())
     })
   })
 

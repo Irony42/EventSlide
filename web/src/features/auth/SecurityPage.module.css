@@ -53,3 +53,13 @@
   align-items: center;
   gap: var(--space-3);
 }
+
+/* The way back, above the page's own column and in its width, so the two line up. */
+.back {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: var(--container-guest);
+  margin-inline: auto;
+  padding-block-start: var(--space-4);
+  color: var(--text-secondary);
+}

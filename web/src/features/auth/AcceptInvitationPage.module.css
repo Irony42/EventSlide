@@ -4,3 +4,8 @@
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
+
+/* Under the dead link's own sentence, and quieter than it. */
+.deadHint {
+  color: var(--text-secondary);
+}

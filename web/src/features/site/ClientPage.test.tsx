@@ -150,6 +150,15 @@ describe('a client’s page: reading it', () => {
     expect(link).toHaveAttribute('href', `/admin/site/audit?clientId=${CLIENT_ID}`)
   })
 
+  it('points at the accounts listing, which names the clients each account belongs to (H17)', async () => {
+    open(withClient())
+
+    expect(await screen.findByRole('link', { name: fr.site.accountsLink })).toHaveAttribute(
+      'href',
+      '/admin/site/accounts',
+    )
+  })
+
   it('draws no photograph and asks for nothing outside the operator’s namespace', async () => {
     const api = withClient()
 

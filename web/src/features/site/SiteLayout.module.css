@@ -55,3 +55,15 @@
 .link {
   color: var(--accent);
 }
+
+/* The way out of the console: quieter than the sections, above them, so the console reads as one
+   of three homes and not the whole product. */
+.exits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+.exit {
+  color: var(--text-secondary);
+}

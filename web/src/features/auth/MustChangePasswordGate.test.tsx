@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { MustChangePasswordGate } from './MustChangePasswordGate'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -96,5 +96,30 @@ describe('MustChangePasswordGate', () => {
     )
 
     expect(await screen.findByText(DASHBOARD)).toBeVisible()
+  })
+})
+
+describe('MustChangePasswordGate: where the person was going (H14)', () => {
+  function Arrival() {
+    return <p data-testid="arrival">{JSON.stringify(useLocation().state)}</p>
+  }
+
+  it('carries the address, query included, to the change screen', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route element={<MustChangePasswordGate />}>
+          <Route path="/admin/site/audit" element={<p>Journal</p>} />
+          <Route path="/admin/password" element={<Arrival />} />
+        </Route>
+      </Routes>,
+      {
+        api: fakeApi({ session: vi.fn(sessionWith(true)) }),
+        route: '/admin/site/audit?clientId=c-1',
+      },
+    )
+
+    expect(await screen.findByTestId('arrival')).toHaveTextContent(
+      JSON.stringify({ from: '/admin/site/audit?clientId=c-1', forced: true }),
+    )
   })
 })

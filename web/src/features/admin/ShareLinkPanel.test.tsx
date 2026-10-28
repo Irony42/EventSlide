@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Link } from 'react-router-dom'
 import { formatDateTime } from '../../lib/format'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -80,6 +81,144 @@ describe('ShareLinkPanel', () => {
 
     expect(writeText).toHaveBeenCalledWith('https://photos.example.test/g/le-jeton-du-lien')
     expect(await screen.findByText(fr.admin.shareLinkCopied)).toBeVisible()
+  })
+
+  describe('a copy that fails, and a link that is never shown again', () => {
+    const URL_SHOWN = 'https://photos.example.test/g/le-jeton-du-lien'
+
+    const createLink = async () => {
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.shareLinkCreate }))
+      await screen.findByText(fr.admin.shareLinkCreated)
+    }
+    const leave = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    const clipboard = (value: unknown) =>
+      Object.defineProperty(navigator, 'clipboard', { value, configurable: true })
+
+    it('says the copy failed, and leaves the address on screen and selected to copy by hand', async () => {
+      clipboard({ writeText: vi.fn(async () => Promise.reject(new Error('denied'))) })
+      render(fakeApi())
+      await createLink()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.shareLinkCopy }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.admin.shareLinkCopyFailed)
+      expect(screen.queryByText(fr.admin.shareLinkCopied)).toBeNull()
+      const field = screen.getByLabelText<HTMLInputElement>(fr.admin.shareLinkUrl)
+      expect(field).toHaveValue(URL_SHOWN)
+      expect(field).toHaveFocus()
+      expect(field.selectionStart).toBe(0)
+      expect(field.selectionEnd).toBe(URL_SHOWN.length)
+    })
+
+    it('says the same when the browser has no clipboard at all', async () => {
+      clipboard(undefined)
+      render(fakeApi())
+      await createLink()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.shareLinkCopy }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(fr.admin.shareLinkCopyFailed)
+    })
+
+    it('says nothing is wrong when the copy worked', async () => {
+      clipboard({ writeText: vi.fn(async () => undefined) })
+      render(fakeApi())
+      await createLink()
+
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.shareLinkCopy }))
+
+      expect(await screen.findByText(fr.admin.shareLinkCopied)).toBeVisible()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('asks before the page is left while the address has never been copied', async () => {
+      render(fakeApi())
+      await createLink()
+
+      expect(leave()).toBe(true)
+    })
+
+    it('stops asking once the address has been copied', async () => {
+      clipboard({ writeText: vi.fn(async () => undefined) })
+      render(fakeApi())
+      await createLink()
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.shareLinkCopy }))
+      await screen.findByText(fr.admin.shareLinkCopied)
+
+      expect(leave()).toBe(false)
+    })
+
+    it('counts a copy the host made by hand from the field', async () => {
+      render(fakeApi())
+      await createLink()
+
+      fireEvent.copy(screen.getByLabelText(fr.admin.shareLinkUrl))
+
+      expect(leave()).toBe(false)
+    })
+
+    it('keeps asking after a copy that failed: the address has not left the page', async () => {
+      clipboard({ writeText: vi.fn(async () => Promise.reject(new Error('denied'))) })
+      render(fakeApi())
+      await createLink()
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.shareLinkCopy }))
+      await screen.findByRole('alert')
+
+      expect(leave()).toBe(true)
+    })
+
+    it('keeps the host on the page when they decline to follow a link of the app while the address is unsaved', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      renderWithProviders(
+        <>
+          <ShareLinkPanel slug={SLUG} />
+          <Link to="/admin">Vos évènements</Link>
+        </>,
+        { api: fakeApi(), route: '/', path: '/' },
+      )
+      await createLink()
+
+      await userEvent.click(screen.getByRole('link', { name: 'Vos évènements' }))
+
+      expect(confirm).toHaveBeenCalledWith(fr.admin.shareLinkLeaveWarning)
+      // Still here: the router did not take the link.
+      expect(screen.getByLabelText(fr.admin.shareLinkUrl)).toHaveValue(URL_SHOWN)
+
+      confirm.mockReturnValue(true)
+      await userEvent.click(screen.getByRole('link', { name: 'Vos évènements' }))
+      await waitFor(() => expect(screen.queryByLabelText(fr.admin.shareLinkUrl)).toBeNull())
+    })
+
+    it('asks again for a second link, which has not been copied either', async () => {
+      clipboard({ writeText: vi.fn(async () => undefined) })
+      render(fakeApi(withLink()))
+      const replace = async () => {
+        await userEvent.click(
+          await screen.findByRole('button', { name: fr.admin.shareLinkReplace }),
+        )
+        await screen.findByText(fr.admin.shareLinkCreated)
+      }
+      await replace()
+      await userEvent.click(screen.getByRole('button', { name: fr.admin.shareLinkCopy }))
+      await screen.findByText(fr.admin.shareLinkCopied)
+      expect(leave()).toBe(false)
+
+      // "Replace" is offered while the first address is on screen: a new one, shown once.
+      await replace()
+
+      await waitFor(() => expect(leave()).toBe(true))
+    })
+
+    it('says nothing about leaving when no link has been made on this page', async () => {
+      render(fakeApi(withLink()))
+      await screen.findByText(fr.admin.shareLinkReplaceHint)
+
+      expect(leave()).toBe(false)
+    })
   })
 
   it('reports a refused password on the password field', async () => {

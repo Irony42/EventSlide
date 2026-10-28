@@ -512,6 +512,8 @@ export const de: UiText = {
 
   moderation: {
     title: 'Moderation',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Telefonversion, Foto für Foto',
     intro: 'Nichts erscheint ohne Ihre Freigabe auf dem Bildschirm.',
     pending: (count: number) =>
       t.count(count, {
@@ -949,6 +951,11 @@ export const de: UiText = {
     shareLinkUrl: 'Adresse des Links',
     shareLinkCopy: 'Link kopieren',
     shareLinkCopied: 'Link kopiert.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'Das Kopieren ist fehlgeschlagen. Die Adresse ist markiert: Kopieren Sie sie mit Strg+C (oder auf dem Telefon mit langem Drücken).',
+    shareLinkLeaveWarning:
+      'Diese Adresse wird nie wieder angezeigt und Sie haben sie nicht kopiert. Die Seite trotzdem verlassen?',
     shareLinkRevoke: 'Link deaktivieren',
     shareLinkRevokeTitle: 'Diesen Link deaktivieren?',
     shareLinkRevokeHint:
@@ -1059,10 +1066,32 @@ export const de: UiText = {
     logoutEverywhereTitle: 'Überall abmelden?',
     logoutEverywhereHint:
       'Ihre Sitzung wird auf allen Geräten beendet, auch auf diesem, und Sie müssen sich erneut anmelden. Sinnvoll, wenn Sie ein Gerät verloren oder einen gemeinsam genutzten Computer verwendet haben.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'Sie sind bereits angemeldet. Weiterleitung …',
+    forgotNoMail:
+      'Passwort vergessen? Dieser Server versendet keine E-Mails: Bitten Sie die Person, die ihn betreibt, es zurückzusetzen.',
+    changePasswordForced:
+      'Ihr Passwort wurde für Sie festgelegt: Ersetzen Sie es, bevor Sie weitermachen. Danach geht es dort weiter, wohin Sie wollten.',
+    menuMustChange:
+      'Ändern Sie zuerst Ihr Passwort: Der Rest der Konsole bleibt bis dahin geschlossen.',
+    securityBack: 'Zurück',
+    secondFactorEnabled: 'Bestätigung in zwei Schritten aktiviert.',
+    recoveryCodesLeaveTitle: 'Verlassen, ohne die Codes notiert zu haben?',
+    recoveryCodesLeaveHint:
+      'Diese Codes werden nur einmal angezeigt: Wenn Sie die Seite verlassen, können Sie sie nicht mehr lesen. Neue Codes erhalten Sie nur nach erneuter Bestätigung Ihrer Identität.',
+    recoveryCodesLeaveStay: 'Bleiben und Codes notieren',
+    recoveryCodesLeaveGo: 'Trotzdem verlassen',
+    deadInvitationSignIn:
+      'Falls Sie sie schon angenommen haben, besteht Ihr Konto bereits: Melden Sie sich an.',
+    deadInvitationSignedIn:
+      'Sie sind bereits angemeldet: Falls Sie sie mit diesem Konto angenommen haben, finden Sie Ihre Veranstaltungen dort.',
   },
 
   mobileModeration: {
     title: 'Moderation am Telefon',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Vollständige Konsole für den Computer',
     intro: 'Wischen Sie das Foto nach rechts zum Freigeben, nach links zum Ablehnen.',
     releaseToPublish: 'Loslassen zum Freigeben',
     releaseToReject: 'Loslassen zum Ablehnen',
@@ -1149,6 +1178,10 @@ export const de: UiText = {
     spaceTitle: 'Kundenbereich',
     limitsTitle: 'Grenzen und Nutzung',
     noLimits: 'Ihr Betreiber hat für Ihr Konto keine Grenze festgelegt.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Ihr Konto gehört zu keinem Kunden.',
+    noClientHint:
+      'Hier gibt es also weder Grenzen noch Nutzung einzusehen. Ihre Veranstaltungen finden Sie auf der Seite „Ihre Veranstaltungen“.',
     roleOwner: 'Inhaber',
     roleMember: 'Mitglied',
     pendingTitle: 'Wartet auf Ihre Zustimmung',
@@ -1355,8 +1388,19 @@ export const de: UiText = {
       'Alles, was auf der Instanz getan wurde, das Neueste zuerst. Der Grund einer Änderung der Grenzen ist der eigene Satz des Betreibers.',
     auditEmpty: 'Noch keine Aktion aufgezeichnet.',
     auditMore: 'Ältere Aktionen anzeigen',
-    auditFiltered: 'Protokoll eines einzelnen Kunden.',
     auditShowAll: 'Gesamtes Protokoll anzeigen',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Konsole verlassen',
+    accountsLink: 'Alle Konten ansehen',
+    noClient: 'Keine',
+    auditFilteredFor: (name: string) => `Protokoll des Kunden „${name}“.`,
+    auditToClient: 'Diesen Kunden ansehen',
+    linkLeaveTitle: 'Verlassen, ohne den Link kopiert zu haben?',
+    linkLeaveHint:
+      'Es wurde keine E-Mail gesendet: Dieser Link wird nur hier angezeigt, ein einziges Mal. Wenn Sie die Seite verlassen, können Sie ihn nicht mehr kopieren; Sie müssen einen neuen ausstellen.',
+    linkLeaveStay: 'Bleiben und Link kopieren',
+    linkLeaveGo: 'Trotzdem verlassen',
     auditReason: (reason: string) => `Grund: ${reason}`,
     auditAccount: (short: string) => `Konto ${short}`,
     actors: {
