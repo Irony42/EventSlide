@@ -160,7 +160,8 @@ type CustomPolarity = (typeof CUSTOM_POLARITIES)[number]
 
 /** 0 to 345 every 15 degrees, and 359 to close the circle: the two ends of what the domain accepts. */
 const GRID: readonly number[] = [...Array.from({ length: 24 }, (_unused, step) => step * 15), 359]
-const GROUND_HUES = GRID
+/** The ground is swept at every degree: its tones are cheap to measure, and a narrow bad band must not hide between grid points. */
+const GROUND_HUES: readonly number[] = Array.from({ length: 360 }, (_unused, hue) => hue)
 
 const customBody = (polarity: CustomPolarity): string => {
   const found = new RegExp(
@@ -175,6 +176,10 @@ const CUSTOM_DEFAULT_ACCENT: Readonly<Record<CustomPolarity, number>> = {
   dark: Number(/--accent-hue:\s*(\d+);/.exec(customBody('dark'))?.[1]),
   light: Number(/--accent-hue:\s*(\d+);/.exec(customBody('light'))?.[1]),
 }
+
+for (const polarity of CUSTOM_POLARITIES)
+  if (!Number.isInteger(CUSTOM_DEFAULT_ACCENT[polarity]))
+    throw new Error(`the custom ${polarity} block declares no default --accent-hue`)
 
 const customCache = new Map<string, ReadonlyMap<string, Oklch>>()
 

@@ -926,6 +926,14 @@
     var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
 }
 
+/* The custom blocks are (0,2,0), one attribute more than the rule above, so they would win the
+   wall's ground back and drop the coat the venue bound rests on (ADR 0011, decision 4). */
+[data-event-ambiance='custom'][data-venue-ground='wall'] {
+  --wall-ground:
+    var(--venue-scrim-layer), var(--ambiance-grade),
+    var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+}
+
 [data-event-accent] {
   --accent: oklch(72% 0.17 var(--accent-hue));
   --accent-strong: oklch(64% 0.19 var(--accent-hue)); /* hover / pressed */

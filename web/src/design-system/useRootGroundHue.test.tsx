@@ -23,6 +23,16 @@ describe('useRootGroundHue', () => {
     expect(rootHue()).toBe('')
   })
 
+  it('hands the root back to a writer still mounted when another one leaves', () => {
+    const custom = (groundHue: number) => ({ ground: 'dark', groundHue, faces: 'cabaret' }) as const
+    const marker = renderHook(() => useRootGroundHue('custom', custom(60)))
+    const surface = renderHook(() => useRootGroundHue('custom', custom(60)))
+    surface.unmount()
+    expect(rootHue()).toBe('60deg')
+    marker.unmount()
+    expect(rootHue()).toBe('')
+  })
+
   it('leaves the root alone for a designed ambiance, even one that still carries a stray object', () => {
     renderHook(() => useRootGroundHue('noces', { ground: 'dark', groundHue: 90, faces: 'cabaret' }))
     expect(rootHue()).toBe('')

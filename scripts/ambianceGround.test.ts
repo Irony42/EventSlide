@@ -399,3 +399,16 @@ describe.each(['dark', 'light'] as const)(
     )
   },
 )
+
+describe('the venue coat against the custom blocks (ADR 0011, decision 4)', () => {
+  it('keeps the coat on the wall although the custom blocks outrank the plain venue rule', () => {
+    // `[data-event-ambiance='custom'][data-ambiance-ground=…]` is (0,2,0) and declares
+    // --wall-ground, so the (0,1,0) venue rule alone would lose to it and drop the coat.
+    expect(TOKENS).toMatch(
+      /\[data-event-ambiance='custom'\]\[data-venue-ground='wall'\]\s*\{\s*--wall-ground:\s*var\(--venue-scrim-layer\),\s*var\(--ambiance-grade\)/,
+    )
+    const blocks = TOKENS.indexOf("[data-event-ambiance='custom'][data-ambiance-ground='light']")
+    const coat = TOKENS.indexOf("[data-event-ambiance='custom'][data-venue-ground='wall']")
+    expect(coat).toBeGreaterThan(blocks)
+  })
+})

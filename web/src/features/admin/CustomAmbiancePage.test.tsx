@@ -90,6 +90,18 @@ describe('CustomAmbiancePage', () => {
     expect(cabaret.parentElement?.querySelector('[data-ambiance-faces="cabaret"]')).not.toBeNull()
   })
 
+  it('lets nothing but the saved event’s marker dress the page with a face', async () => {
+    renderPage(fakeApi({ getEvent: vi.fn(async () => eventWith(DEFAULT_EVENT_THEME)) }))
+    await screen.findByRole('radio', { name: fr.admin.themeAmbianceNames.cabaret })
+
+    // tokens.css dresses the root through :root:has([data-ambiance-faces]:not([data-template-preview])),
+    // so a sample of a face that is not marked as a preview would restyle the whole console.
+    const dressing = [...document.querySelectorAll('[data-ambiance-faces]')].filter(
+      (element) => element.closest('[data-template-preview]') === null,
+    )
+    expect(dressing).toEqual([])
+  })
+
   it('saves ambiance custom with its object and the accent, then returns to settings', async () => {
     const updateSettings = vi.fn(async (_slug: string, _settings: unknown) =>
       eventWith(CUSTOM_THEME),

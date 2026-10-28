@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type FormEvent } from 'react'
+import { useId, useState, type CSSProperties, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
@@ -85,11 +85,15 @@ export function CustomAmbiancePage() {
   const settingsPath = `/admin/events/${encodeURIComponent(slug)}/settings`
   const theme = draftTheme(event.settings.theme, draft.custom, draft.accentHue)
 
-  const setCustom = (patch: Partial<ThemeCustom>) =>
+  // A refusal is about the draft it was given; once the host moves anything it is stale.
+  const setCustom = (patch: Partial<ThemeCustom>) => {
+    setFailure(null)
     setDraft({ ...draft, custom: { ...draft.custom, ...patch } })
+  }
 
   const handleSubmit = (submitEvent: FormEvent<HTMLFormElement>) => {
     submitEvent.preventDefault()
+    if (readOnly || save.busy) return
     setFailure(null)
     void save.run('save', slug, toSettingsPatch({ ...event.settings, theme })).then((result) => {
       if (!result.ok) {
@@ -157,7 +161,10 @@ export function CustomAmbiancePage() {
             hint={t.admin.customAccentHueHint}
             value={draft.accentHue}
             disabled={readOnly}
-            onChange={(accentHue) => setDraft({ ...draft, accentHue })}
+            onChange={(accentHue) => {
+              setFailure(null)
+              setDraft({ ...draft, accentHue })
+            }}
             swatch
           />
 
@@ -175,7 +182,10 @@ export function CustomAmbiancePage() {
                     ? undefined
                     : String(CURATED_ACCENT_HUES[name])
                 }
-                onClick={() => setDraft({ ...draft, accentHue: CURATED_ACCENT_HUES[name] })}
+                onClick={() => {
+                  setFailure(null)
+                  setDraft({ ...draft, accentHue: CURATED_ACCENT_HUES[name] })
+                }}
               >
                 {t.admin.themeAccentNames[name]}
               </Button>
@@ -198,7 +208,11 @@ export function CustomAmbiancePage() {
                 />
                 {/* The option is drawn in its own face: `tokens.css` re-declares
                     `--font-display` for this attribute on this very element. */}
-                <span className={styles['face']} data-ambiance-faces={faces}>
+                <span
+                  className={styles['face']}
+                  data-ambiance-faces={faces}
+                  data-template-preview="faces"
+                >
                   <span className={styles['faceName']}>{t.admin.themeAmbianceNames[faces]}</span>
                 </span>
               </label>
@@ -256,7 +270,7 @@ interface HueSliderProps {
 
 /** A labelled range with its value written out: the angle is never only a position. */
 function HueSlider({ label, hint, value, disabled, onChange, swatch = false }: HueSliderProps) {
-  const id = `hue-${label}`
+  const id = useId()
   return (
     <div className={styles['group']}>
       <label htmlFor={id} className={styles['legend']}>

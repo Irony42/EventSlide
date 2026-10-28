@@ -2,6 +2,20 @@ import { useLayoutEffect } from 'react'
 import type { EventThemeDto, ThemeAmbiance, ThemeCustom } from '../lib/api/dto'
 
 /**
+ * Every writer mounted at once, last first. A page can hold more than one (the breadcrumb's marker
+ * beside a themed surface), and one leaving must hand the root back to the one still there rather
+ * than empty it.
+ */
+const writers: { readonly hue: number }[] = []
+
+const paint = (): void => {
+  const root = document.documentElement
+  const top = writers.at(-1)
+  if (top === undefined) root.style.removeProperty('--ground-hue')
+  else root.style.setProperty('--ground-hue', `${top.hue}deg`)
+}
+
+/**
  * Carries a host's own ground hue (ADR 0011) up to `<html>`, for the page around the event.
  *
  * `tokens.css` dresses the body and the header through the `:root:has(…)` twin of the custom
@@ -22,10 +36,12 @@ export function useRootGroundHue(
     ambiance === 'custom' && custom !== null && custom !== undefined ? custom.groundHue : null
   useLayoutEffect(() => {
     if (hue === null) return undefined
-    const root = document.documentElement
-    root.style.setProperty('--ground-hue', `${hue}deg`)
+    const writer = { hue }
+    writers.push(writer)
+    paint()
     return () => {
-      root.style.removeProperty('--ground-hue')
+      writers.splice(writers.indexOf(writer), 1)
+      paint()
     }
   }, [hue])
 }
