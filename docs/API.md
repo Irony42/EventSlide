@@ -945,7 +945,8 @@ It rides here because there is deliberately no readable "event by slug", so the 
 screen learns it from the session the join wrote: a `sessionStorage` read is synchronous,
 which is what puts the right colour on the first frame instead of repainting one round
 trip later under a guest's thumb. A client that has never heard of it renders the
-product's own look.
+product's own look. It is a snapshot: a host's later change reaches a guest who already
+joined on `GET /api/events/:slug/photos/mine` (below) and on the wall.
 
 `allowClips` here is **the host's switch, the client's plan (`clips_allowed`) and the box's capability
 together** — it answers
@@ -1401,9 +1402,18 @@ the evening is over instead of offering a form the server would refuse with `409
       "durationMs": null
     }
   ],
-  "acceptingUploads": true
+  "acceptingUploads": true,
+  "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft", "material": "glass" }
 }
 ```
+
+`theme` is the event's look **as it is now**, in the shape `POST /api/join` (§3) and the wall (§4)
+carry, read per request. It is here because the join's copy is a snapshot: a host who changes the
+colour after a guest joined has not changed what that guest's session holds, and the upload screen
+has no readable "event by slug" to ask. This is the read it already makes, so the first frame is
+still painted from the stored copy and a changed theme costs one repaint when this answers, never
+a request. The client writes the new theme back into the session it keeps, so the next visit's
+first frame is the new one. A client that predates the field keeps the join's theme.
 
 `canDelete` is computed server-side from the grace window, the current status **and the
 event's `allowGuestSelfDelete` switch**, so the client does not re-implement the rule and
