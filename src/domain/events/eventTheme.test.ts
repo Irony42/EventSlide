@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { contrastRatio } from './contrast'
 import {
+  accentContrastFailure,
   accentFailure,
   accentHueRange,
   accentPalette,
@@ -475,8 +476,41 @@ describe('the host’s own ambiance, « Sur mesure » (ADR 0011)', () => {
     if (!result.ok) expect(result.error.code).toBe('eventTheme.customInvalid')
   })
 
-  it('keeps the accent rule as it was, on a custom ambiance too', () => {
-    expect(createEventTheme(theme({ accentHue: 160 })).ok).toBe(false)
+  it.each(['dark', 'light'] as const)(
+    'accepts every accent hue on a custom %s ground: the status distance does not apply (ADR 0011, decision 8)',
+    (ground) => {
+      for (let hue = 0; hue <= 359; hue += 1) {
+        const result = createEventTheme(theme({ accentHue: hue, custom: { ...custom, ground } }))
+        expect(result.ok, `hue ${hue}`).toBe(true)
+      }
+    },
+  )
+
+  it.each([
+    ['red', 22],
+    ['green', 155],
+    ['yellow', 85],
+  ])('refuses %s for a designed ambiance, the full rule being unchanged there', (_name, hue) => {
+    for (const ambiance of ['guinguette', 'noces', 'cabaret'] as const) {
+      const result = createEventTheme(aTheme({ ambiance, accentHue: hue }))
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.code).toBe('eventTheme.accentTooCloseToStatus')
+    }
+  })
+
+  it('still refuses an accent hue off the circle on a custom ambiance', () => {
+    const result = createEventTheme(theme({ accentHue: 360 }))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('eventTheme.accentHueInvalid')
+  })
+
+  it('still holds a custom accent to the contrast bars', () => {
+    expect(accentContrastFailure(aPalette({ ink: { l: 0.7, c: 0.02, h: 22 } }))?.code).toBe(
+      'eventTheme.accentUnreadable',
+    )
+    expect(accentContrastFailure(accentPalette(22))).toBeNull()
   })
 
   it('renders the default rather than reading a stored pairing that is wrong', () => {

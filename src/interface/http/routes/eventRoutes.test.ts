@@ -1266,6 +1266,20 @@ describe('the host event routes', () => {
         expect((await world.events.findById(WEDDING))?.settings.theme.custom).toEqual(custom)
       })
 
+      it.each([22, 155, 85])(
+        'accepts accent hue %i, a status-like colour, on a custom ambiance (ADR 0011, decision 8)',
+        async (accentHue) => {
+          const agent = await signedIn(world, 'owner')
+
+          const response = await agent
+            .patch(`/api/events/${SLUG}/settings`)
+            .send({ theme: theme({ accentHue, ambiance: 'custom', custom }) })
+
+          expect(response.status).toBe(200)
+          expect(response.body.settings.theme.accentHue).toBe(accentHue)
+        },
+      )
+
       it('answers 400 eventTheme.customRequired when the ambiance is custom without it', async () => {
         const agent = await signedIn(world, 'owner')
 

@@ -2977,7 +2977,7 @@ before a change learns of it on the next read.
 **200** with the event. **Errors** — `409 event.immutable`,
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,
 `400 eventSettings.maxPhotosPerGuestInvalid`, `400 eventTheme.accentHueInvalid`,
-`400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus`,
+`400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus` (never for `ambiance: "custom"`, ADR 0011 decision 8),
 `400 eventTheme.customRequired`, `400 eventTheme.customNotAllowed`, `400 eventTheme.customInvalid`.
 
 There is no per-event wall `layout` here, and no API accepts one anywhere: the layout is

@@ -341,7 +341,7 @@ const statusClash = (accent: Oklch): DomainError | null => {
  * nudged a lightness so one screen looked better" — that section 8 says is how contrast
  * regresses.
  */
-export const accentFailure = (palette: AccentPalette): DomainError | null => {
+export const accentContrastFailure = (palette: AccentPalette): DomainError | null => {
   const onAccent = contrastRatio(palette.ink, palette.accent)
   if (onAccent < INK_ON_ACCENT_MIN) {
     return DomainError.invalid('eventTheme.accentUnreadable', {
@@ -360,8 +360,16 @@ export const accentFailure = (palette: AccentPalette): DomainError | null => {
     })
   }
 
-  return statusClash(palette.accent)
+  return null
 }
+
+/**
+ * The full rule, for every designed ambiance: the two contrast bars, then the distance to
+ * the status colours. A theme a host makes in « Sur mesure » answers to the first half only
+ * (ADR 0011, decision 8; `createEventTheme`).
+ */
+export const accentFailure = (palette: AccentPalette): DomainError | null =>
+  accentContrastFailure(palette) ?? statusClash(palette.accent)
 
 /** Narrows a value read back from the `settings` JSON column or from a form. */
 export const isThemeFonts = (value: unknown): value is ThemeFonts =>
@@ -427,7 +435,14 @@ const shapeFailure = (props: EventThemeProps): DomainError | null =>
  * this file already refuses to write.
  */
 export const createEventTheme = (props: EventThemeProps): Result<EventThemeProps, DomainError> => {
-  const failure = shapeFailure(props) ?? accentFailure(accentPalette(props.accentHue))
+  const palette = accentPalette(props.accentHue)
+  // « Sur mesure » is the host's own theme: any accent hue is theirs to choose, so it answers
+  // to the contrast bars only and not to the status distance (ADR 0011, decision 8). Colour is
+  // never the sole carrier of a status (DESIGN-SYSTEM section 8), so a red accent cannot pass
+  // for an alert. Every designed ambiance keeps the whole rule.
+  const failure =
+    shapeFailure(props) ??
+    (props.ambiance === 'custom' ? accentContrastFailure(palette) : accentFailure(palette))
   return failure === null ? ok(props) : err(failure)
 }
 
