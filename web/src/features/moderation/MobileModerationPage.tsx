@@ -353,12 +353,16 @@ export function MobileModerationPage() {
         {!queue.canUndo && lastDecision === 'reject' ? (
           <p className={styles['undoHint']}>{t.mobileModeration.undoUnavailable}</p>
         ) : null}
-        {/* Below the thumb's work, not among it: a host who has put the phone down and sat at
-            the laptop wants the grid, and nobody wants it by mistake mid-swipe. */}
-        <Link className={styles['otherConsole']} to={`/admin/events/${slug}/moderation`}>
-          {t.mobileModeration.openConsole}
-        </Link>
       </div>
+      {/* After the thumb zone and outside it, never in it. The bar above is `sticky`, so whatever
+          it holds is painted over the bottom of the viewport: a link inside it made the bar a
+          line taller, and on a short phone screen the bar then covered the middle of the card,
+          where a swipe starts (the pointer landed on the bar and the gesture never began). Here
+          the bar and the card are exactly where they were, and the link is below the fold's work:
+          a host who has put the phone down and sat at the laptop scrolls to it. */}
+      <Link className={styles['otherConsole']} to={`/admin/events/${slug}/moderation`}>
+        {t.mobileModeration.openConsole}
+      </Link>
     </div>
   )
 }

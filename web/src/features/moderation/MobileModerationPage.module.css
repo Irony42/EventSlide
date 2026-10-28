@@ -98,7 +98,7 @@
   text-align: center;
 }
 
-/* The way to the desktop console, under the thumb's work and centred like the hints above it. */
+/* The way to the desktop console, after the sticky action bar and not in it (see the page). */
 .otherConsole {
   display: inline-flex;
   align-items: center;
