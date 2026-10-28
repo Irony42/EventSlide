@@ -124,6 +124,13 @@ describe('AppRoutes', () => {
     expect(screen.queryByRole('heading', { name: fr.admin.events })).toBeNull()
   })
 
+  it('sends an anonymous visitor away from the ambiance editor', async () => {
+    at('/admin/events/mariage/settings/ambiance')
+
+    expect(await screen.findByRole('heading', { name: fr.auth.title })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: fr.admin.customAmbianceTitle })).toBeNull()
+  })
+
   it('serves the moderation console to a signed-in host', async () => {
     asHost('/admin/events/mariage/moderation')
 
@@ -144,6 +151,7 @@ describe('AppRoutes', () => {
     ['/admin/events/new', fr.admin.newEvent],
     ['/admin/events/mariage', 'Camille & Sacha'],
     ['/admin/events/mariage/settings', fr.admin.settings],
+    ['/admin/events/mariage/settings/ambiance', fr.admin.customAmbianceTitle],
     // The phone console is a second address over the same queue, so its heading is
     // deliberately not the console's — two addresses that render the same title are
     // exactly the copy-paste this table exists to catch.

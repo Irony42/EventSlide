@@ -932,6 +932,34 @@ export const en: UiText = {
     venuePhotoBusy: 'Uploading the photo…',
     venuePhotoSaved: 'Your venue photo is saved.',
     venuePhotoRemoved: 'The default photo is back.',
+    customAmbianceCreate: 'Create my ambiance (Custom)',
+    customAmbianceEdit: 'Edit my ambiance',
+    customAmbianceEntryHint:
+      'Your own ground, light or dark, tinted to your taste: you see it on real screens before saving.',
+    customAmbianceTitle: 'Your custom ambiance',
+    customAmbianceCrumb: 'Custom',
+    customAmbianceIntro:
+      'Choose a light or dark ground, its tint, your accent colour and a typeface. The previews show the real screens with your choices, and nothing is saved until you press Save.',
+    customGround: 'Ground',
+    customGroundNames: { light: 'Light', dark: 'Dark' },
+    customGroundHue: 'Ground tint',
+    customGroundHueHint:
+      'From 0° to 359°: only the tint is yours to choose; the lightness is fixed so everything stays readable.',
+    customAccentHue: 'Accent colour',
+    customAccentHueHint:
+      'Some hues are refused, because they would be mistaken for the success, warning or error colours, or could not be read on the room’s screen. If yours is one, saving will say so and your choice stays on screen.',
+    customFaces: 'Typeface',
+    customFacesHint:
+      'The fonts and button corners of one of the six ambiances, each shown in its own font.',
+    customPreview: 'Preview',
+    customPreviewHint:
+      'An illustration of what your guests and the room will see, with sample photos.',
+    customPreviewPhone: 'Your guests’ screen',
+    customPreviewWall: 'The room’s screen',
+    customPreviewCaption: 'What a lovely evening!',
+    customPreviewAuthor: 'Lea',
+    customKept: 'Your choice is kept as you left it: change it, then save again.',
+    customSaved: 'Your ambiance is saved.',
   },
 
   auth: {
@@ -1448,6 +1476,7 @@ export const en: UiText = {
     moderation: 'Moderation',
     mobileModeration: 'Moderation on a phone',
     settings: 'Event settings',
+    customAmbiance: 'Custom ambiance',
     clientSpace: 'Client space',
     site: 'Operator console',
     siteClient: 'Client',

@@ -984,6 +984,35 @@ export const de: UiText = {
     venuePhotoBusy: 'Foto wird gesendet…',
     venuePhotoSaved: 'Das Foto Ihrer Location ist gespeichert.',
     venuePhotoRemoved: 'Das Standardfoto ist wieder da.',
+    customAmbianceCreate: 'Meine eigene Stimmung erstellen',
+    customAmbianceEdit: 'Meine Stimmung bearbeiten',
+    customAmbianceEntryHint:
+      'Ihr eigener Hintergrund, hell oder dunkel, nach Ihrem Geschmack getönt: Sie sehen ihn vor dem Speichern auf echten Bildschirmen.',
+    customAmbianceTitle: 'Ihre eigene Stimmung',
+    customAmbianceCrumb: 'Eigene Stimmung',
+    customAmbianceIntro:
+      'Wählen Sie einen hellen oder dunklen Hintergrund, seine Tönung, Ihre Akzentfarbe und eine Schrift. Die Vorschauen zeigen die echten Bildschirme mit Ihrer Auswahl; gespeichert wird erst mit „Speichern“.',
+    customGround: 'Hintergrund',
+    customGroundNames: { light: 'Hell', dark: 'Dunkel' },
+    customGroundHue: 'Tönung des Hintergrunds',
+    customGroundHueHint:
+      'Von 0° bis 359°: Sie wählen nur die Tönung, die Helligkeit ist fest, damit alles lesbar bleibt.',
+    customAccentHue: 'Akzentfarbe',
+    customAccentHueHint:
+      'Manche Farbtöne werden abgelehnt, weil sie mit den Farben für Erfolg, Warnung oder Fehler verwechselt würden oder auf dem Bildschirm im Saal nicht lesbar wären. Trifft das auf Ihren zu, sagt Ihnen das Speichern es, und Ihre Auswahl bleibt stehen.',
+    customFaces: 'Schrift',
+    customFacesHint:
+      'Die Schriften und Schaltflächenecken einer der sechs Stimmungen, jede in ihrer eigenen Schrift gezeigt.',
+    customPreview: 'Vorschau',
+    customPreviewHint:
+      'Eine Illustration dessen, was Ihre Gäste und der Saal sehen werden, mit Beispielfotos.',
+    customPreviewPhone: 'Bildschirm Ihrer Gäste',
+    customPreviewWall: 'Bildschirm im Saal',
+    customPreviewCaption: 'Was für ein schöner Abend!',
+    customPreviewAuthor: 'Lea',
+    customKept:
+      'Ihre Auswahl bleibt so, wie Sie sie verlassen haben: ändern Sie sie und speichern Sie erneut.',
+    customSaved: 'Ihre Stimmung ist gespeichert.',
   },
 
   auth: {
@@ -1509,6 +1538,7 @@ export const de: UiText = {
     moderation: 'Moderation',
     mobileModeration: 'Moderation am Telefon',
     settings: 'Einstellungen der Veranstaltung',
+    customAmbiance: 'Eigene Stimmung',
     clientSpace: 'Kundenbereich',
     site: 'Betreiber-Konsole',
     siteClient: 'Kunde',

@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { Link } from 'react-router-dom'
 import {
   accentNameFor,
   CURATED_ACCENT_HUES,
@@ -45,11 +46,18 @@ const swatchStyle = (hue: number): SwatchStyle => ({ '--accent-hue': String(hue)
 
 export interface ThemeFieldsetProps {
   readonly theme: EventThemeDto
+  /** Where the editor of the host's own ambiance is; the link is withheld while the form is read-only. */
+  readonly customAmbiancePath?: string
   readonly disabled: boolean
   readonly onChange: (theme: EventThemeDto) => void
 }
 
-export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps) {
+export function ThemeFieldset({
+  theme,
+  customAmbiancePath,
+  disabled,
+  onChange,
+}: ThemeFieldsetProps) {
   const t = useTranslations()
   const selected: CuratedAccent | null = accentNameFor(theme.accentHue)
 
@@ -146,6 +154,17 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
           onChange({ ...rest, ambiance: value })
         }}
       />
+
+      {customAmbiancePath === undefined || disabled ? null : (
+        <p className={styles['hint']}>
+          <Link to={customAmbiancePath}>
+            {theme.ambiance === 'custom'
+              ? t.admin.customAmbianceEdit
+              : t.admin.customAmbianceCreate}
+          </Link>{' '}
+          {t.admin.customAmbianceEntryHint}
+        </p>
+      )}
 
       <SelectField
         label={t.admin.themeFonts}

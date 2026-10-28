@@ -115,6 +115,10 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.theme.fonts,
     settings.theme.frame,
     settings.theme.material,
+    settings.theme.ambiance,
+    settings.theme.custom?.ground ?? '',
+    settings.theme.custom?.groundHue ?? '',
+    settings.theme.custom?.faces ?? '',
     // The wall's language (roadmap 1.5). Flattened like the theme, and for the same
     // reason: a host who changed only this would otherwise have their unsaved choice
     // survive a background refresh that moved it underneath them.
@@ -447,6 +451,7 @@ export function EventSettingsPage() {
         */}
         <ThemeFieldset
           theme={settings.theme}
+          customAmbiancePath={`/admin/events/${encodeURIComponent(slug)}/settings/ambiance`}
           disabled={readOnly}
           onChange={(theme) => update({ theme })}
         />

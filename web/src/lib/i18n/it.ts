@@ -947,6 +947,34 @@ export const it: UiText = {
     venuePhotoBusy: 'Invio della foto…',
     venuePhotoSaved: 'La foto del vostro locale è salvata.',
     venuePhotoRemoved: 'La foto predefinita è stata ripristinata.',
+    customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
+    customAmbianceEdit: 'Modifica la mia atmosfera',
+    customAmbianceEntryHint:
+      'Il tuo sfondo, chiaro o scuro, con la tinta che preferisci: lo vedi su schermi reali prima di salvare.',
+    customAmbianceTitle: 'La tua atmosfera su misura',
+    customAmbianceCrumb: 'Su misura',
+    customAmbianceIntro:
+      'Scegli uno sfondo chiaro o scuro, la sua tinta, il colore d’accento e un carattere. Le anteprime mostrano gli schermi reali con le tue scelte e nulla viene salvato finché non premi «Salva».',
+    customGround: 'Sfondo',
+    customGroundNames: { light: 'Chiaro', dark: 'Scuro' },
+    customGroundHue: 'Tinta dello sfondo',
+    customGroundHueHint:
+      'Da 0° a 359°: scegli solo la tinta, la luminosità è fissa perché tutto resti leggibile.',
+    customAccentHue: 'Colore d’accento',
+    customAccentHueHint:
+      'Alcune tinte vengono rifiutate, perché sarebbero confuse con i colori di successo, avviso o errore, o non sarebbero leggibili sullo schermo della sala. Se la tua è una di queste, il salvataggio te lo dirà e la tua scelta resta visibile.',
+    customFaces: 'Carattere',
+    customFacesHint:
+      'I font e gli angoli dei pulsanti di una delle sei atmosfere, ciascuna mostrata nel proprio font.',
+    customPreview: 'Anteprima',
+    customPreviewHint:
+      'Un’illustrazione di ciò che vedranno i tuoi ospiti e la sala, con foto di esempio.',
+    customPreviewPhone: 'Schermo dei tuoi ospiti',
+    customPreviewWall: 'Schermo della sala',
+    customPreviewCaption: 'Che bella serata!',
+    customPreviewAuthor: 'Lea',
+    customKept: 'La tua scelta resta com’era: modificala e salva di nuovo.',
+    customSaved: 'La tua atmosfera è salvata.',
   },
 
   auth: {
@@ -1465,6 +1493,7 @@ export const it: UiText = {
     moderation: 'Moderazione',
     mobileModeration: 'Moderazione da telefono',
     settings: 'Impostazioni dell’evento',
+    customAmbiance: 'Atmosfera su misura',
     clientSpace: 'Area cliente',
     site: 'Console dell’operatore',
     siteClient: 'Cliente',

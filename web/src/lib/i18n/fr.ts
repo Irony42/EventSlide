@@ -40,6 +40,7 @@ import type {
   SiteAuditEntryDto,
   ThemeFonts,
   ThemeFrame,
+  ThemeGround,
   ThemeMaterial,
   ThemeAmbiance,
   WallLayout,
@@ -1148,6 +1149,35 @@ export const fr = {
     venuePhotoBusy: 'Envoi de la photo…',
     venuePhotoSaved: 'La photo de votre lieu est enregistrée.',
     venuePhotoRemoved: 'La photo par défaut est rétablie.',
+    customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
+    customAmbianceEdit: 'Modifier mon ambiance',
+    customAmbianceEntryHint:
+      'Votre propre fond, clair ou foncé, teinté à votre goût : vous le voyez sur de vrais écrans avant d’enregistrer.',
+    customAmbianceTitle: 'Votre ambiance Sur mesure',
+    customAmbianceCrumb: 'Sur mesure',
+    customAmbianceIntro:
+      'Choisissez un fond clair ou foncé, sa teinte, votre couleur d’accent et une typographie. Les aperçus montrent les vrais écrans avec vos choix, et rien n’est enregistré avant « Enregistrer ».',
+    customGround: 'Fond',
+    customGroundNames: { light: 'Clair', dark: 'Foncé' } satisfies Record<ThemeGround, string>,
+    customGroundHue: 'Teinte du fond',
+    customGroundHueHint:
+      'De 0° à 359° : seule la teinte se choisit, la clarté est fixée pour que tout reste lisible.',
+    customAccentHue: 'Couleur d’accent',
+    customAccentHueHint:
+      'Certaines teintes sont refusées, car elles se confondraient avec les couleurs de réussite, d’alerte ou d’erreur, ou seraient illisibles sur l’écran de la salle. Si la vôtre l’est, l’enregistrement vous le dira et votre choix reste affiché.',
+    customFaces: 'Typographie',
+    customFacesHint:
+      'Les polices et les angles des boutons de l’une des six ambiances, chacune montrée dans sa propre police.',
+    customPreview: 'Aperçu',
+    customPreviewHint:
+      'Illustration de ce que verront vos invités et la salle, avec des photos d’exemple.',
+    customPreviewPhone: 'Écran de vos invités',
+    customPreviewWall: 'Écran de la salle',
+    customPreviewCaption: 'Quelle belle soirée !',
+    customPreviewAuthor: 'Léa',
+    customKept:
+      'Votre choix est conservé tel que vous l’avez laissé : modifiez-le, puis enregistrez à nouveau.',
+    customSaved: 'Votre ambiance est enregistrée.',
   },
 
   auth: {
@@ -2114,6 +2144,7 @@ export const fr = {
     moderation: 'Modération',
     mobileModeration: 'Modération sur téléphone',
     settings: 'Réglages de l’évènement',
+    customAmbiance: 'Ambiance Sur mesure',
     clientSpace: 'Espace client',
     site: 'Console de l’opérateur',
     siteClient: 'Client',
