@@ -21,6 +21,7 @@ import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useMissions } from './hooks/useMissions'
 import { useMyPhotos } from './hooks/useMyPhotos'
 import { useOutbox } from './hooks/useOutbox'
+import { useOversizedPane } from './hooks/useOversizedPane'
 import { usePrivacyNotice } from './hooks/usePrivacyNotice'
 import { useUploadQueue } from './hooks/useUploadQueue'
 import type { PrivacyNoticeState, PublicEventDto } from '../../lib/api/dto'
@@ -219,6 +220,14 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
     else if (lost) noticeCard.current?.focus({ preventScroll: true })
   }, [gated])
 
+  /**
+   * Whether the pane below is too tall to stay pinned to the bottom of the screen. It grows
+   * with every photo the guest picks, so this is measured rather than assumed: see the hook,
+   * and `.composer[data-oversized]` in the stylesheet for what it changes.
+   */
+  const composer = useRef<HTMLDivElement | null>(null)
+  const oversized = useOversizedPane(composer)
+
   const installSlot = useRef<HTMLDivElement | null>(null)
   const dismissInstall = () => {
     install.dismiss()
@@ -358,9 +367,11 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           the top half of a phone needs a second hand, and the guest is holding a
           drink with the other one. */}
       <div
+        ref={composer}
         data-testid="upload-composer"
         className={styles['composer']}
         data-gated={gated ? '' : undefined}
+        data-oversized={oversized ? '' : undefined}
       >
         {/* Above the queue: it is the answer to "did my photos go?", and a guest who
             reads it stops pressing "Envoyer" again. */}

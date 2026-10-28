@@ -126,6 +126,21 @@
 }
 
 /**
+ * Not sticky while the pane is taller than `--sticky-pane-max-share` of the screen.
+ *
+ * The same argument as the privacy notice above, for the other thing that makes this pane
+ * grow: a row for every photo the guest picks, and the guest's own text size. A pinned pane
+ * covers what scrolls behind it, so by two thirds of the screen the guest's own photographs
+ * ("Vos envois") are a slit above it, and past the whole screen they are underneath it for
+ * good. In the flow instead, the page scrolls to the pane like any other content, and
+ * becomes pinned again the moment it is short enough. `useOversizedPane` measures it; the
+ * threshold is a token, and nothing is hidden either way.
+ */
+.composer[data-oversized] {
+  position: static;
+}
+
+/**
  * "Comment vos photos sont utilisées", under the signature line. A button rather than a
  * link, because it opens a dialog rather than going anywhere, and held to the touch
  * floor by the primitive. Its own width rather than the column's, so it reads as a line
