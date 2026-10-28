@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { ApiProvider } from '../../../app/ApiProvider'
 import { readGuestSession } from '../../../lib/guestSession'
 import { aJoinResponse, fakeApi } from '../../../testing/renderWithProviders'
-import { useJoin } from './useJoin'
+import { destinationAfterJoin, useJoin } from './useJoin'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 import type { JoinResponse } from '../../../lib/api/dto'
@@ -94,5 +94,28 @@ describe('useJoin', () => {
       // whether to show the picker or the notice (roadmap 5.1).
       privacyNotice: aJoinResponse().privacyNotice,
     })
+  })
+})
+
+describe('destinationAfterJoin (A2)', () => {
+  it('returns a guest who came from the feed to the feed of the event they joined', () => {
+    expect(destinationAfterJoin('gala', '/e/gala/photos')).toBe('/e/gala/photos')
+  })
+
+  it('sends everybody else to the upload screen', () => {
+    expect(destinationAfterJoin('gala', undefined)).toBe('/e/gala/upload')
+    expect(destinationAfterJoin('gala', '/e/gala/upload')).toBe('/e/gala/upload')
+  })
+
+  it('never follows the address of another event than the one the code opened', () => {
+    // A forwarded link to one evening, then the code of another.
+    expect(destinationAfterJoin('gala', '/e/mariage/photos')).toBe('/e/gala/upload')
+  })
+
+  it('never turns an arbitrary `from` into a redirect', () => {
+    expect(destinationAfterJoin('gala', 'https://elsewhere.example/e/gala/photos')).toBe(
+      '/e/gala/upload',
+    )
+    expect(destinationAfterJoin('gala', '/admin')).toBe('/e/gala/upload')
   })
 })
