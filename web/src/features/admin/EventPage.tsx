@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
@@ -10,6 +10,7 @@ import { useAbout } from '../../app/useAbout'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
+import { EventActionLinks } from './components/EventActionLinks'
 import { EventQrCard } from './components/EventQrCard'
 import { EventStatusBadge } from './components/EventStatusBadge'
 import { StorageMeter } from './components/StorageMeter'
@@ -19,13 +20,7 @@ import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
 import { ShareLinkPanel } from './ShareLinkPanel'
-import {
-  allowsModeration,
-  isMutable,
-  lifecycleActions,
-  offersSupport,
-  servesWall,
-} from './eventLifecycle'
+import { allowsModeration, isMutable, lifecycleActions, offersSupport } from './eventLifecycle'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
 import { usePurgeEvent, useRotateJoinCode, useStatusChange } from './hooks/useEventActions'
 import styles from './EventPage.module.css'
@@ -131,44 +126,7 @@ export function EventPage() {
           </Card>
 
           <Card as="h2" title={t.admin.eventControls}>
-            <div className={styles['links']}>
-              {servesWall(event.status) ? (
-                <Link className={styles['link']} to={`/e/${event.slug}/display`}>
-                  {t.admin.openWall}
-                </Link>
-              ) : null}
-              {allowsModeration(event.status) ? (
-                <>
-                  <Link className={styles['link']} to={`/admin/events/${event.slug}/moderation`}>
-                    {t.admin.openModeration}
-                  </Link>
-                  {/*
-                    The same queue, one photo at a time. It lives here rather than only
-                    on the console because the host who needs it has already walked away
-                    from the laptop: this page is what they reach on a phone, and an
-                    address they would otherwise have to type is an address nobody uses.
-                  */}
-                  <Link
-                    className={styles['link']}
-                    to={`/admin/events/${event.slug}/moderation/mobile`}
-                  >
-                    {t.mobileModeration.title}
-                  </Link>
-                </>
-              ) : null}
-              <Link className={styles['link']} to={`/admin/events/${event.slug}/settings`}>
-                {t.admin.settings}
-              </Link>
-              {/*
-                A plain link, not a fetch: the ZIP is streamed and can be hundreds of
-                megabytes, so the browser's own download manager is the right tool —
-                buffering it through JavaScript is how a laptop runs out of memory
-                halfway through an album.
-              */}
-              <a className={styles['link']} href={albumUrl} download>
-                {t.admin.download}
-              </a>
-            </div>
+            <EventActionLinks slug={event.slug} status={event.status} albumUrl={albumUrl} />
             <StorageMeter usedBytes={event.usedBytes} quotaBytes={event.quotaBytes} />
             {event.liveWindowEnd === undefined ? null : (
               <p className={styles['liveWindow']}>

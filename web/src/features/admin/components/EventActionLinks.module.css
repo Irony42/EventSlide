@@ -1,0 +1,102 @@
+/**
+ * The event page's navigation tiles, in two tiers.
+ *
+ * The primary tier is the two things the night turns on, so it is drawn larger and with the
+ * accent on its glyph; the secondary tier is a quieter row beneath it. Neither is filled
+ * with the accent: the one accent button on this card is the lifecycle's next step
+ * ("Passer en direct"), and two more would stop it being the thing to press.
+ */
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * Tiles share the row and wrap as a whole when it is too narrow, growing to fill what is
+ * left: a lone tile (an archived event has no wall) spans the card instead of leaving a
+ * hole, and a phone gets two to a row and a last one that is not an orphan.
+ */
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tile {
+  display: flex;
+  flex: 1 1 calc(var(--touch-min) * 3);
+  min-width: 0;
+  /* Not `--text-base` bold, which is a Button's job; a link keeps the page's weight. */
+  color: var(--text-primary);
+  text-decoration: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+/* The base ring rounds to `--radius-sm`, which would pinch the corner of a tile. */
+.tile:focus-visible {
+  border-radius: var(--radius-md);
+}
+
+.tile:hover {
+  background: var(--surface-overlay);
+  border-color: var(--border-strong);
+}
+
+.tile:active {
+  transform: scale(0.98);
+}
+
+.glyph {
+  /* The decoration is one step down from the label so the label is what is read. */
+  color: var(--text-secondary);
+}
+
+.label {
+  min-width: 0;
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- tiers -- */
+
+.tile[data-priority='primary'] {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: calc(var(--touch-min) * 2);
+  padding: var(--space-4);
+  background: var(--surface-overlay);
+  border-color: var(--border-strong);
+  font-size: var(--text-lg);
+}
+
+.tile[data-priority='primary']:hover {
+  background: var(--surface-base);
+}
+
+.tile[data-priority='primary'] .glyph {
+  color: var(--accent);
+  font-size: var(--text-xl);
+}
+
+.tile[data-priority='secondary'] .glyph {
+  font-size: var(--text-lg);
+}
+
+.tile[data-priority='secondary'] {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-min);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}

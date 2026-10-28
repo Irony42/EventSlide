@@ -64,18 +64,6 @@
   overflow-wrap: anywhere;
 }
 
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.link {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--touch-min);
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;

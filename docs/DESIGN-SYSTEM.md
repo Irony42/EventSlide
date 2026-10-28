@@ -147,6 +147,10 @@ token exactly.
 
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
+
+  /* ---- Icons. Outlined glyphs on a 16-unit grid, drawn as strokes: this is their weight,
+         in the grid's own units, so every glyph in a set is the same line at any size. ---- */
+  --icon-stroke: 1.5;
 }
 
 /* The accent, derived wherever a hue is in force. Two selectors, one rule — see §12:
@@ -327,6 +331,8 @@ reason. `classNames.guard.test.ts` fails on the old spellings.
 | `Stack`          | Vertical/horizontal rhythm with `gap`.                                                                         | Renders a plain element with no ARIA. One screen (`JoinPage`) uses it; the others lay themselves out in their own CSS Module.                                                            |
 
 A glyph beside a sentence is a `Notice`, in one of its two variants, and the call site says which: `variant` has no default. `boxed` is a block of its own, framed in the tone's colour with the ink left alone: a refused save, a disclosure the host must see. `inline` has no frame and tints the sentence itself, for a line attached to something else: the message under a field, under a progress bar. `statusIcon.guard.test.ts` fails when a feature draws a `StatusIcon` itself instead of using it; its allowlist names the few places that are not a line of text with a status (a badge, a toast, a list marker, a card or banner that carries more than one sentence, the projected wall), each with its reason.
+
+A navigation link that should look like a control is a link dressed as one, never a `Button` that navigates: the event page's `EventActionLinks` is the worked example, in two tiers (`data-priority="primary"` for what the evening turns on, `secondary` for the rest), with outline glyphs drawn once in `EventActionIcon` and weighted by `--icon-stroke`. It is a feature component rather than a primitive until a second screen needs it.
 
 Not in the catalogue, and not to be invented locally: drawers, carousels, accordions,
 and tooltips on the guest surface (there is no hover on a phone).
