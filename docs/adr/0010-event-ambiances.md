@@ -46,9 +46,13 @@ ground, kraft, filament bulbs, linen gingham). Pierre asked whether several coul
    follow in the same paint. A template preview in the console is excluded by its marker. The block
    restates every derived custom property (glass tints, opaque fallback, focus ring), because a
    property that references another is substituted where it is declared.
-3. **The guest's phone and the wall wear it; the host's console never does.** That is 2.2's rule,
-   unchanged: a moderation queue that changes colour per event is the one screen where consistency is
-   worth more than personality.
+3. **The whole evening wears it, console included** (amended 28/10, Pierre's call: "tout,
+   console comprise"). The guest's phone and the wall are themed surfaces; every other page that
+   is about one event (the welcome after a scan, the host's event page, settings and both
+   moderation consoles) carries an `AmbianceMarker`, and `:root:has()` dresses the page around
+   it. The accent, the pairing and the frame still stay off the console, and the semantic colours
+   are fixed in every ambiance, so the moderation queue keeps its working vocabulary. The
+   dashboard, sign-in and accounts stay in the root look: they are about no single evening.
 4. **The Chambre noire is the root**, i.e. the product's own look and the default ambiance, which
    emits no attribute. With no event accent, the primary action is the **paper**: a print-white
    button, the one light surface on a screen. An event that chose a hue still gets the 2.2 derivation

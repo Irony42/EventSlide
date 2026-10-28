@@ -388,6 +388,34 @@ describe('EventSettingsPage', () => {
     ])
   })
 
+  it('dresses the console in the event’s ambiance, and only in that (ADR 0010, 28/10)', async () => {
+    // Pierre's call on 28/10: an event in the Guinguette is a Guinguette in the console too.
+    // The accent, the pairing and the frame still stay off the console: the ambiance is the
+    // world, the hue is the event's, and the moderation queue's status colours are fixed.
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({
+          settings: eventSettings({
+            theme: {
+              accentHue: 345,
+              fonts: 'serif',
+              frame: 'round',
+              material: 'glass',
+              ambiance: 'guinguette',
+            },
+          }),
+        }),
+      ),
+    })
+
+    renderPage(api)
+    await screen.findByRole('heading', { name: fr.admin.settings })
+
+    const dressed = [...document.querySelectorAll('[data-event-ambiance]')]
+    expect(dressed.map((node) => node.getAttribute('data-event-ambiance'))).toEqual(['guinguette'])
+    expect(document.querySelectorAll('[data-event-fonts]')).toHaveLength(0)
+  })
+
   it('shows the theme the server already holds', async () => {
     const api = fakeApi({
       getEvent: vi.fn(async () =>

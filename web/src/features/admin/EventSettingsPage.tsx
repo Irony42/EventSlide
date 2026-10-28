@@ -289,7 +289,12 @@ export function EventSettingsPage() {
     <div className={styles['page']}>
       {/* Replaces the bare link to the event that stood under the heading: the trail is that link
           and the way to the list. */}
-      <HostBreadcrumb slug={event.slug} page="settings" eventName={event.name} />
+      <HostBreadcrumb
+        slug={event.slug}
+        page="settings"
+        eventName={event.name}
+        ambiance={event.settings.theme.ambiance}
+      />
       <h1 className={styles['title']}>{t.admin.settings}</h1>
 
       {readOnly ? (
