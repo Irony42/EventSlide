@@ -50,6 +50,20 @@ describe('every field of the wall response is accounted for', () => {
    * photograph moved `revision` — which on the empty wall a host is looking at while they
    * choose is never.
    */
+  it('notices the host replacing or removing the venue photo', () => {
+    // `groundUrl` is not a key of DEFAULT_EVENT_THEME, so the sweep below cannot see it.
+    const kept = aWallResponse()
+    const withPhoto = {
+      ...aWallResponse(),
+      theme: {
+        ...DEFAULT_EVENT_THEME,
+        groundUrl: '/api/events/e/venue-photo/abc',
+      } as unknown as EventThemeDto,
+    }
+    expect(sameSettings(kept, withPhoto)).toBe(false)
+    expect(sameSettings(withPhoto, kept)).toBe(false)
+  })
+
   it.each(Object.keys(DEFAULT_EVENT_THEME))('notices a change to theme.%s', (key) => {
     const kept = aWallResponse()
     const theme: Record<string, unknown> = { ...DEFAULT_EVENT_THEME }

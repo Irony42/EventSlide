@@ -91,7 +91,7 @@ export function VenuePhotoField({ slug, groundUrl, disabled, onChanged }: VenueP
             className={styles['input']}
             data-testid="venue-photo-input"
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
             disabled={closed || busy}
             onChange={handlePick}
           />
