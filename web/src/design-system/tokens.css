@@ -81,6 +81,10 @@
   --wall-card-texture: var(--accent-texture);
   --wall-card-ink: var(--accent-contrast);
   --wall-card-ink-2: var(--accent-contrast);
+  /* The QR plate: dark modules on a light field in every ambiance, never the reverse. In the dark
+     ambiances that is the ink on the base; in the Noces, whose inks are dark, it is the other way. */
+  --qr-field: var(--text-primary);
+  --qr-ink: var(--surface-base);
   /* Ornament, never a control. base.css draws it on the guest's pages and the console, never
      on the wall: the Guinguette's bulbs and gingham, and the woven strips the others add. */
   --decor-gingham: oklch(55% 0.14 32);
@@ -644,50 +648,81 @@
   --glass-highlight: oklch(97% 0.025 90 / 0.1);
 }
 
-/* Noces: red roses and a white tablecloth, a wedding in red and white. Wine-black surfaces, ivory
-   inks, a rose-red accent; a thin double rule on top and a line of petals at the bottom. */
+/* Noces: red roses and a white tablecloth, a wedding in red and white. The one LIGHT ambiance:
+   ivory and white surfaces, dark wine-grey inks, a crimson accent under a white label, a
+   photograph of roses on white paper under an ivory veil, a thin red double rule on top and a line
+   of red petals at the bottom. Light is a polarity, not an exception: the tests measure the
+   darkest part of the photograph for it, where they measure the brightest for the others. */
 [data-event-ambiance='noces'],
 :root:has(:where([data-event-ambiance='noces']:not([data-template-preview]))) {
-  --surface-base: oklch(15% 0.03 15);
-  --surface-raised: oklch(20% 0.04 15);
-  --surface-overlay: oklch(24% 0.045 15);
-  --border-subtle: oklch(30% 0.05 15);
-  --border-strong: oklch(62% 0.1 15);
-  --text-primary: oklch(97% 0.012 90);
-  --text-secondary: oklch(89% 0.03 25);
-  --text-muted: oklch(79% 0.045 20);
-  --accent: oklch(73% 0.14 18);
-  --accent-strong: oklch(66% 0.155 18);
-  --accent-contrast: oklch(13% 0.03 15);
+  color-scheme: light;
+  --surface-base: oklch(97.5% 0.008 85);
+  --surface-raised: oklch(100% 0 0);
+  --surface-overlay: oklch(95.5% 0.01 80);
+  --border-subtle: oklch(88% 0.012 70);
+  --border-strong: oklch(62% 0.03 60);
+  --text-primary: oklch(21% 0.03 10);
+  --text-secondary: oklch(30% 0.03 10);
+  --text-muted: oklch(40% 0.025 10);
+  --accent: oklch(45% 0.19 24);
+  --accent-strong: oklch(39% 0.19 24);
+  --accent-contrast: oklch(99% 0.005 85);
   --accent-texture: none;
-  --focus-ring: 0 0 0 3px oklch(85% 0.1 20 / 0.8);
+  --focus-ring: 0 0 0 3px oklch(45% 0.19 24 / 0.8);
+  /* The semantic colours are restated darker, on the same hues: the root's are tuned for dark
+     surfaces, and a pale yellow is not a glyph on white. */
+  --success: oklch(48% 0.13 155);
+  --danger: oklch(52% 0.2 25);
+  --warning: oklch(50% 0.11 70);
   --font-heading: 'Playfair Display', ui-serif, Georgia, serif;
   --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
   --font-display-weight: 400;
   --button-radius: var(--radius-full);
   --ambiance-ground: url('./ambiances/noces-ground-1600.webp');
-  /* Derived, not chosen: the lowest top alpha that holds --text-muted at 4.5:1 over the photograph. */
+  /* Derived, not chosen: the lowest top alpha at which every ink keeps 4.5:1 over the DARKEST
+     realistic part of the photograph (its 1st percentile), where a dark ambiance is measured on
+     the brightest (scripts/ambianceGround.test.ts). */
   --ambiance-grade: linear-gradient(
     180deg,
-    oklch(15% 0.03 15 / 0.72),
-    oklch(15% 0.03 15 / 0.7) 30%,
-    oklch(15% 0.03 15 / 0.78) 65%,
-    oklch(15% 0.03 15 / 0.96)
+    oklch(97.5% 0.008 85 / 0.74),
+    oklch(97.5% 0.008 85 / 0.72) 30%,
+    oklch(97.5% 0.008 85 / 0.8) 65%,
+    oklch(97.5% 0.008 85 / 0.96)
   );
   /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
-  --wall-card-bg: var(--accent);
-  --wall-card-texture: var(--accent-texture);
-  --wall-card-ink: var(--accent-contrast);
-  --wall-card-ink-2: var(--accent-contrast);
-  --decor-ivory: oklch(95% 0.02 90 / 0.7);
-  --decor-petal: oklch(62% 0.17 18 / 0.85);
-  --glass-tint-photo: oklch(20% 0.04 15 / 0.96);
-  --glass-tint-ground: oklch(20% 0.04 15 / 0.96);
-  --glass-border: oklch(97% 0.012 90 / 0.16);
-  --glass-highlight: oklch(97% 0.012 90 / 0.1);
+  /* Behind the wall's captions: ivory, because the inks are dark. */
+  --surface-scrim: oklch(97.5% 0.008 85 / 0.86);
+  /* The join card: white paper, the red as its ink. */
+  --wall-card-bg: var(--surface-raised);
+  --wall-card-texture: none;
+  --wall-card-ink: var(--accent);
+  --wall-card-ink-2: var(--text-secondary);
+  --qr-field: var(--surface-raised);
+  --qr-ink: var(--text-primary);
+  --decor-rule: oklch(45% 0.19 24 / 0.6);
+  --decor-petal: oklch(48% 0.19 24 / 0.85);
+  --glass-tint-photo: oklch(99% 0.005 85 / 0.96);
+  --glass-tint-ground: oklch(99% 0.005 85 / 0.96);
+  --glass-border: oklch(21% 0.03 10 / 0.14);
+  --glass-highlight: oklch(100% 0 0 / 0.6);
+}
+
+/* A host's chosen hue in the Noces. The generic derivation below is a pastel (72% lightness)
+   meant for a dark ground, and on ivory it would be a link nobody can read. Same shape, a deep
+   tone and a white label; the join card keeps its white paper. It sits in the ambiances' section
+   because tokens.contrast.test.ts reads it as the Noces' own derivation. */
+[data-event-ambiance='noces'][data-event-accent] {
+  --accent: oklch(40% 0.15 var(--accent-hue));
+  --accent-strong: oklch(33% 0.15 var(--accent-hue));
+  --accent-contrast: oklch(99% 0.005 var(--accent-hue));
+  --focus-ring: 0 0 0 3px oklch(40% 0.15 var(--accent-hue) / 0.8);
+  --wall-card-bg: var(--surface-raised);
+  --wall-card-texture: none;
+  --wall-card-ink: var(--accent);
+  --wall-card-ink-2: var(--text-secondary);
 }
 
 /**

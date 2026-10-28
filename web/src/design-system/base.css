@@ -408,7 +408,7 @@ body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
   inset-block-start: 12px;
   inset-inline: 22px;
   block-size: 5px;
-  border-block: 1px solid var(--decor-ivory);
+  border-block: 1px solid var(--decor-rule);
 }
 
 body:has([data-event-ambiance='noces']:not([data-template-preview])):not(

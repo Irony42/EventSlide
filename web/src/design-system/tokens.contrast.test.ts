@@ -147,6 +147,9 @@ const FOCUS_RING_ALPHA = ((): number => {
  */
 const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret', 'noces'] as const
 
+/** The darkest photograph there is: nothing is darker, as nothing is brighter than WHITE. */
+const BLACK: Srgb = [0, 0, 0]
+
 describe.each(AMBIANCES)('the %s ambiance', (name) => {
   const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
   const own = parseOklchTokens(`:root {${body}}`)
@@ -155,6 +158,29 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
     if (value === undefined) throw new Error(`the ${name} block does not restate ${token}`)
     return value
   }
+  /**
+   * The polarity: whether the inks are lighter than the surfaces (every ambiance but the Noces)
+   * or darker (the Noces). It decides which photograph is the worst case under a translucent
+   * pane: a light-inked pane fears the brightest photograph there is, white, and a dark-inked
+   * one the darkest, black. Nothing is exempted by it; the same bars are held both ways.
+   */
+  const lightInk = luminance(of('--text-primary')) > luminance(of('--surface-base'))
+  const worstPhoto: Srgb = lightInk ? WHITE : BLACK
+  /**
+   * The accent a host's hue derives in this ambiance: its own derivation when it declares one
+   * (`[data-event-ambiance='…'][data-event-accent]`), the generic one otherwise. Only the hue
+   * moves, which is all a theme may move.
+   */
+  const derivationBody = new RegExp(
+    `\\[data-event-ambiance='${name}'\\]\\[data-event-accent\\]\\s*\\{([^}]*)\\}`,
+  ).exec(TOKENS)?.[1]
+  const derivation = parseOklchTokens(
+    `:root {${(derivationBody ?? '').replaceAll('var(--accent-hue)', String(DEFAULT_HUE))}}`,
+  )
+  const derivedAt = (property: string, hue: number): Oklch => ({
+    ...(derivation.get(property) ?? token(property)),
+    h: hue,
+  })
 
   it.each([
     ['--text-primary', 12],
@@ -208,6 +234,15 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
   })
 
   it.each(['--success', '--danger', '--warning'] as const)(
+    'keeps %s readable as text on --surface-raised, where status text sits',
+    (status) => {
+      expect(
+        contrast(own.get(status) ?? token(status), of('--surface-raised')),
+      ).toBeGreaterThanOrEqual(4.5)
+    },
+  )
+
+  it.each(['--success', '--danger', '--warning'] as const)(
     'keeps %s visible as a glyph on every surface it declares',
     (status) => {
       const ink = own.get(status) ?? token(status)
@@ -219,22 +254,25 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
     ['--text-primary', 12],
     ['--text-secondary', 7],
     ['--text-muted', 4.5],
-  ] as const)('keeps %s above its bar on its glass over a white photograph', (ink, bar) => {
-    const pane = composite(of('--glass-tint-photo'), WHITE)
-    expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(bar)
-    // And no worse than on the darkest surface this palette lets text sit on.
-    expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(
-      ratioOf(srgb(of(ink)), srgb(of('--surface-overlay'))),
-    )
-  })
+  ] as const)(
+    'keeps %s above its bar on its glass over the worst photograph (white under light inks, black under dark ones)',
+    (ink, bar) => {
+      const pane = composite(of('--glass-tint-photo'), worstPhoto)
+      expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(bar)
+      // And no worse than on the darkest surface this palette lets text sit on.
+      expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(
+        ratioOf(srgb(of(ink)), srgb(of('--surface-overlay'))),
+      )
+    },
+  )
 
-  it('declares the lowest photo alpha that holds over white, so the number is derived', () => {
+  it('declares the lowest photo alpha that holds over the worst photograph, so the number is derived', () => {
     // The shape the root's tiers use: a value is only a floor if the step below it fails. The
     // bars are the pane's: the three inks at their targets and no worse than on the overlay,
     // the status glyphs, and the accent as a link.
     const tint = of('--glass-tint-photo')
     const holds = (alpha: number): boolean => {
-      const pane = composite({ ...tint, alpha }, WHITE)
+      const pane = composite({ ...tint, alpha }, worstPhoto)
       for (const [ink, bar] of [
         ['--text-primary', 12],
         ['--text-secondary', 7],
@@ -278,23 +316,67 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
       HUES.map((hue) => ({ hue, ratio: measure(hue) })).reduce((low, next) =>
         next.ratio < low.ratio ? next : low,
       )
-    const base = worstOf((h) => contrast(atHue('--accent', h), of('--surface-base')))
+    const base = worstOf((h) => contrast(derivedAt('--accent', h), of('--surface-base')))
     expect(base.ratio, `on --surface-base, worst at hue ${base.hue}`).toBeGreaterThanOrEqual(7)
 
     for (const surface of ['--surface-raised', '--surface-overlay'] as const) {
-      const link = worstOf((h) => contrast(atHue('--accent', h), of(surface)))
+      const link = worstOf((h) => contrast(derivedAt('--accent', h), of(surface)))
       expect(link.ratio, `on ${surface}, worst at hue ${link.hue}`).toBeGreaterThanOrEqual(4.5)
     }
     for (const surface of SURFACES) {
       const ring = worstOf((h) => {
         const ground = srgb(of(surface))
         return ratioOf(
-          composite({ ...atHue('--accent', h), alpha: FOCUS_RING_ALPHA }, ground),
+          composite({ ...derivedAt('--accent', h), alpha: FOCUS_RING_ALPHA }, ground),
           ground,
         )
       })
       expect(ring.ratio, `ring on ${surface}, worst at hue ${ring.hue}`).toBeGreaterThanOrEqual(3)
     }
+  })
+
+  it('keeps the label readable on the accent a host’s hue derives here, at rest and pressed', () => {
+    const rest = worst((h) => contrast(derivedAt('--accent-contrast', h), derivedAt('--accent', h)))
+    expect(rest.ratio, `label on accent, worst at hue ${rest.hue}`).toBeGreaterThanOrEqual(7)
+    const pressed = worst((h) =>
+      contrast(derivedAt('--accent-contrast', h), derivedAt('--accent-strong', h)),
+    )
+    expect(
+      pressed.ratio,
+      `label on accent-strong, worst at hue ${pressed.hue}`,
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
+/**
+ * The join card on the wall, per ambiance: its ink on its own paper, at the wall's bar. It is
+ * the accent's label on the accent paper in the dark ambiances and red ink on white paper in the
+ * Noces, so the references are resolved against the block that declares them, not assumed.
+ */
+describe.each(AMBIANCES)('the wall’s join card in the %s ambiance', (name) => {
+  const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+  const own = parseOklchTokens(`:root {${body}}`)
+  const resolve = (property: string): Oklch => {
+    const pattern = new RegExp(`${property}:\\s*([^;]+);`)
+    const declared = (pattern.exec(body) ?? pattern.exec(ROOT_BLOCK))?.[1]?.trim()
+    if (declared === undefined) throw new Error(`the ${name} block does not declare ${property}`)
+    const reference = /^var\((--[a-z-]+)\)$/.exec(declared)?.[1]
+    const found = own.get(reference ?? property)
+    if (found === undefined) throw new Error(`${property} does not resolve to a colour in ${name}`)
+    return found
+  }
+
+  it.each(['--wall-card-ink', '--wall-card-ink-2'] as const)(
+    'reads %s on its paper from the back of the room',
+    (ink) => {
+      expect(contrast(resolve(ink), resolve('--wall-card-bg'))).toBeGreaterThanOrEqual(7)
+    },
+  )
+
+  it('prints the QR dark on light, never the reverse, at the wall’s bar', () => {
+    // An inverted code is read unreliably by the cameras guests use (JoinQr.module.css).
+    expect(luminance(resolve('--qr-ink'))).toBeLessThan(luminance(resolve('--qr-field')))
+    expect(contrast(resolve('--qr-ink'), resolve('--qr-field'))).toBeGreaterThanOrEqual(7)
   })
 })
 
@@ -1012,6 +1094,49 @@ describe('the wall reads from the back of the room, over any photograph', () => 
     // body text's 12:1 for `--text-primary` — a higher bar than the wall's, not a lower.
     expect(ratioOf(srgb(token('--text-primary')), scrimAt(DECLARED_ALPHA))).toBeGreaterThanOrEqual(
       12,
+    )
+  })
+
+  /**
+   * The same wall, in every ambiance, by polarity. The captions sit on `--surface-scrim` and
+   * their inks are the ambiance's: light inks on a dark scrim over the brightest photograph
+   * (white) in the dark ambiances, dark inks on an ivory scrim over the darkest (black) in the
+   * Noces. An ambiance that declares no scrim of its own wears the root's, and is measured on it.
+   */
+  describe.each(AMBIANCES)('in the %s ambiance', (name) => {
+    const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+    const own = parseOklchTokens(`:root {${body}}`)
+    const of = (property: string): Oklch => own.get(property) ?? token(property)
+    const lightInk = luminance(of('--text-primary')) > luminance(of('--surface-base'))
+    const worstPhoto: Srgb = lightInk ? WHITE : BLACK
+    const scrim = of('--surface-scrim')
+    const scrimOver = (alpha: number): Srgb => composite({ ...scrim, alpha }, worstPhoto)
+    const wallInks = declaredInks.filter((ink) => !onPaper(ink))
+
+    it.each(['--surface-base', '--surface-raised'] as const)(
+      'every ink the wall declares clears 7:1 on %s',
+      (surface) => {
+        const failures = wallInks
+          .map((ink) => [ink, contrast(of(ink), of(surface))] as const)
+          .filter(([, ratio]) => ratio < WALL_TARGET)
+          .map(([ink, ratio]) => `${ink}: ${ratio.toFixed(2)}`)
+        expect(failures).toEqual([])
+      },
+    )
+
+    const holds = (alpha: number): boolean =>
+      ratioOf(srgb(of('--text-primary')), scrimOver(alpha)) >= 12 &&
+      wallInks.every((ink) => ratioOf(srgb(of(ink)), scrimOver(alpha)) >= WALL_TARGET)
+
+    it('clears 7:1 for every ink on its scrim over the worst photograph, and 12:1 for the badge', () => {
+      expect(holds(scrim.alpha)).toBe(true)
+    })
+
+    it.runIf(name === 'noces')(
+      'declares the lowest scrim alpha that holds, because the photograph is the hero',
+      () => {
+        expect(holds(Number((scrim.alpha - 0.01).toFixed(2)))).toBe(false)
+      },
     )
   })
 })

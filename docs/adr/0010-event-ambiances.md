@@ -124,14 +124,32 @@ Pierre picked four of them to sit beside the Guinguette.
 
 ### What each ambiance is
 
-| Ambiance (fr) | Palette and ground                                 | Faces                                           | Ornament                             | Control      |
-| ------------- | -------------------------------------------------- | ----------------------------------------------- | ------------------------------------ | ------------ |
-| Guinguette    | wood-brown, cream, kraft; a garden's string lights | Instrument Serif, Bricolage Grotesque           | filament bulbs on top, gingham below | rounded      |
-| Riviera       | navy, a sail's white; a sea at sunset              | Playfair Display                                | breton stripe top and bottom         | pill         |
-| Champs d'or   | earth, honey; tall grass in golden light           | Fraunces                                        | linen strip below                    | pill         |
-| Bivouac       | night blue, ember; a campfire under stars          | Bricolage Grotesque (800)                       | tartan strip below                   | small radius |
-| Cabaret       | ebony, champagne gold; a velvet curtain            | Poiret One, Playfair Display for headings       | art-deco fan line, double rule       | square       |
-| Noces         | wine-black, ivory, rose red; red roses, white wrap | Instrument Serif, Playfair Display for headings | thin double rule, a line of petals   | pill         |
+| Ambiance (fr) | Palette and ground                                                                                | Faces                                           | Ornament                                   | Control      |
+| ------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------ | ------------ |
+| Guinguette    | wood-brown, cream, kraft; a garden's string lights                                                | Instrument Serif, Bricolage Grotesque           | filament bulbs on top, gingham below       | rounded      |
+| Riviera       | navy, a sail's white; a sea at sunset                                                             | Playfair Display                                | breton stripe top and bottom               | pill         |
+| Champs d'or   | earth, honey; tall grass in golden light                                                          | Fraunces                                        | linen strip below                          | pill         |
+| Bivouac       | night blue, ember; a campfire under stars                                                         | Bricolage Grotesque (800)                       | tartan strip below                         | small radius |
+| Cabaret       | ebony, champagne gold; a velvet curtain                                                           | Poiret One, Playfair Display for headings       | art-deco fan line, double rule             | square       |
+| Noces         | **light**: white and ivory, wine-grey inks, crimson; red roses on white paper under an ivory veil | Instrument Serif, Playfair Display for headings | thin red double rule, a line of red petals | pill         |
+
+The Noces is the one **light** ambiance (Pierre, 28/10: "des menus dans les tons blancs et des
+highlights rouges"). Light is a **polarity**, and the tests treat it as one rather than as an
+exception: whichever side of its grade an ink lies on decides which end of the photograph is the
+worst case.
+
+- `scripts/ambianceGround.test.ts` holds a light ink to the 99th percentile (brightest) of the
+  graded photograph and a dark ink to the **1st** (darkest); the lowest-top-alpha derivation runs
+  both ways. The host's-own-photograph check uses **pure white** under a dark grade and **pure
+  black** under a light one. The grade is an ivory veil (0.74 at the top, the lowest that holds).
+- `tokens.contrast.test.ts` picks the worst photograph under the glass the same way, and measures
+  the wall's inks, the wall's join card (white paper, red ink) and the `--surface-scrim` (ivory
+  in the Noces, so a caption's dark ink reads over a black photograph) in every ambiance.
+- The semantic colours are restated darker in the Noces (the root's are tuned for dark surfaces),
+  and a host's chosen accent hue is derived by the Noces' own rule
+  (`[data-event-ambiance='noces'][data-event-accent]`, 40% lightness, white label) because the
+  generic pastel derivation cannot be read on ivory. The accent is 45% lightness: the 7:1 bar for
+  the accent on `--surface-base` is what caps it, not taste.
 
 ### What it costs, in bytes (all lazy: nothing downloads until the ambiance is on screen)
 
