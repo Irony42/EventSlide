@@ -322,6 +322,8 @@ const summary = (slug: string): EventSummaryDto => ({
   guestCount: 0,
   usedBytes: 0,
   createdAt: '2026-06-20T21:04:11.031Z',
+  // The landing reads the role from the event itself (`GET /api/events/:slug`), not from the list.
+  role: 'owner',
 })
 
 describe('LoginPage: where the host lands', () => {
