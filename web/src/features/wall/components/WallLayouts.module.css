@@ -363,7 +363,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: var(--space-5);
+  /* Wide enough that a print tilted 4 degrees, swaying 1.5 and hung 8% larger still clears
+     its neighbour's caption: they pivot at the top, so their feet swing furthest. */
+  gap: var(--space-6);
   padding-inline: var(--wall-safe);
   padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
   padding-block-start: var(--space-8);
@@ -390,7 +392,7 @@
  */
 .hung {
   position: relative;
-  flex: 0 1 calc((100% - var(--space-5) * 4) / 5);
+  flex: 0 1 calc((100% - var(--space-6) * 4) / 5);
   min-inline-size: 0;
   margin: 0;
   display: grid;
@@ -404,7 +406,7 @@
 }
 
 .hung[data-newest='true'] {
-  scale: 1.08;
+  scale: var(--clothesline-newest-scale);
   box-shadow: var(--shadow-lg);
   z-index: 1;
 }

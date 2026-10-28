@@ -85,9 +85,12 @@ const rotatingSlots = (
 ): readonly WallItemDto[] => {
   const visible = Math.min(slotCount, items.length)
   const slots: WallItemDto[] = []
+  // The turn cycle is as long as what is on the wall. With fewer photos than slots, a cycle
+  // of `slotCount` and a playlist of another length put one photo in two slots at once.
+  const cycle = visible
 
   for (let slot = 0; slot < visible; slot += 1) {
-    const sinceItsTurn = (((index - slot) % slotCount) + slotCount) % slotCount
+    const sinceItsTurn = (((index - slot) % cycle) + cycle) % cycle
     const turn = index - sinceItsTurn
     // Before a slot's first turn it simply shows the photo at its own position, so the
     // wall is full from the first frame instead of filling in over a minute.
@@ -197,13 +200,19 @@ const splitPanes = (items: readonly WallItemDto[], index: number): readonly Wall
  *
  * "Newest" is the upload's own timestamp and not the playlist's order, so the answer is
  * the same whichever slot a photo happens to hang in, and the same on two projectors. A
- * tie, or a timestamp that does not parse, keeps the earlier print: deterministic, and the
- * only way a wall with nothing to compare could have chosen.
+ * tie keeps the earlier print, and a timestamp that does not parse loses to one that does:
+ * deterministic, and the only way a wall with nothing to compare could have chosen.
  */
+/** An upload's time, with one that does not parse sorting before every one that does. */
+const stampOf = (item: WallItemDto): number => {
+  const stamp = Date.parse(item.createdAt)
+  return Number.isNaN(stamp) ? Number.NEGATIVE_INFINITY : stamp
+}
+
 const newestOf = (items: readonly WallItemDto[]): string | null => {
   let newest: WallItemDto | null = null
   for (const item of items) {
-    if (newest === null || Date.parse(item.createdAt) > Date.parse(newest.createdAt)) {
+    if (newest === null || stampOf(item) > stampOf(newest)) {
       newest = item
     }
   }

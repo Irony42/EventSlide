@@ -552,7 +552,10 @@ describe('the clothesline sways within its budget', () => {
   })
 
   it('is stopped by both rungs of the ladder', () => {
+    const rule = /data-wall-budget='cut'] .clothesline[^{]*{([^}]*)}/.exec(css)
     expect(css).toContain("[data-wall-budget='still'] .clothesline[data-motion='swaying'] .hung")
     expect(css).toContain("[data-wall-budget='cut'] .clothesline[data-motion='swaying'] .hung")
+    // The one rule that carries both selectors must actually switch the animation off.
+    expect(rule?.[1] ?? '').toContain('animation: none')
   })
 })

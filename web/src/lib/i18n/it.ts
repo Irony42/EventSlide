@@ -632,7 +632,7 @@ export const it: UiText = {
       filmstrip: 'Pellicola',
       collage: 'Collage',
       split: 'Affiancate',
-      clothesline: 'Stendibiancheria',
+      clothesline: 'Filo del bucato',
     },
     layoutOrder: (names: readonly string[]) => `Disposizioni, in ordine: ${names.join(', ')}.`,
     videoBy: (name: string) => `Video inviato da ${name}`,

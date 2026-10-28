@@ -37,6 +37,7 @@
   --clothesline-twine: oklch(78% 0.05 80);
   --clothespin-wood: oklch(70% 0.09 70);
   --clothespin-wood-shade: oklch(50% 0.09 60);
+  --clothesline-newest-scale: 1.08; /* the newest print hangs this much larger */
   /* ---- Borders ---- */
   --border-subtle: oklch(27% 0.02 25); /* default hairline */
   --border-strong: oklch(54% 0.02 40); /* input rest state, focused card */

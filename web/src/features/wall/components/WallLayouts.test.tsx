@@ -460,6 +460,17 @@ describe('the clothesline layout', () => {
     expect(screen.getAllByRole('img')).toHaveLength(5)
   })
 
+  it.each([
+    [3, 5],
+    [4, 5],
+    [4, 9],
+  ])('never hangs one photo twice: %i photos at slide %i', (count, index) => {
+    renderWall('clothesline', somePhotos(count), { index })
+
+    const ids = photoIdsOnScreen()
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
   it('marks the print whose photo arrived last, whatever slot it hangs in', () => {
     const items = somePhotos(5).map((item, at) => ({
       ...item,
