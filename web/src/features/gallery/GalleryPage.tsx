@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -61,8 +61,19 @@ export function GalleryPage() {
   const openPhoto = (index: number) => navigate('.', { state: { photo: index } })
   // Back, not a second push: closing walks the history the opening made. An entry that did not
   // come from this page (nothing before it) is replaced instead, so closing never leaves the album.
-  const closePhoto = () =>
-    location.key === 'default' ? navigate('.', { replace: true, state: null }) : navigate(-1)
+  //
+  // Once per opening: Back lands a moment later (popstate), so a double tap on the close button
+  // would otherwise pop a second entry and leave the album. `open` changing re-arms it.
+  const closing = useRef(false)
+  useEffect(() => {
+    closing.current = false
+  }, [open])
+  const closePhoto = () => {
+    if (closing.current) return
+    closing.current = true
+    if (location.key === 'default') navigate('.', { replace: true, state: null })
+    else navigate(-1)
+  }
 
   if (state.phase === 'loading') {
     return (

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { Field } from '../../design-system/components/Field'
@@ -10,7 +10,7 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { readRememberedGuestSession } from '../../lib/guestSession'
 import { isInstalled } from '../../lib/pwa/install'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { useJoin } from './hooks/useJoin'
+import { fromOf, useJoin } from './hooks/useJoin'
 import styles from './JoinPage.module.css'
 
 /**
@@ -45,8 +45,14 @@ export function JoinPage() {
 
   const [code, setCode] = useState(codeFromPath ?? '')
   /** Read once, at mount: the memory is not something this screen re-reads as it renders. */
+  const heading = fromOf(useLocation().state)
   const [resumable] = useState(() =>
-    codeFromPath === undefined && isInstalled() ? readRememberedGuestSession() : null,
+    // Not when a guest screen sent them here to type a code (`from`): they asked for that
+    // event's address, and carrying them to the remembered one would hide the code entry they
+    // were sent to.
+    codeFromPath === undefined && heading === undefined && isInstalled()
+      ? readRememberedGuestSession()
+      : null,
   )
   const [name, setName] = useState('')
 

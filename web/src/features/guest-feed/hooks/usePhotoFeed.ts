@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
 import { useLoader } from '../../../lib/useLoader'
-import type { WallItemDto, WallResponse } from '../../../lib/api/dto'
+import type { GuestPhotoDto, WallItemDto, WallResponse } from '../../../lib/api/dto'
 
 /**
  * What a guest's phone shows of the evening: the published photographs, as the wall has
@@ -35,7 +35,13 @@ type WallAnswer = { readonly gone: false; readonly wall: WallResponse } | { read
 export interface PhotoFeedState {
   /** `null` until the wall has answered once. Absence is not emptiness. */
   readonly items: readonly WallItemDto[] | null
-  /** The gallery is no longer served (archived, not open, suspended): nothing to retry. */
+  /** The server no longer recognises this guest (`401` on their own list). */
+  readonly signedOut: boolean
+  /**
+   * The gallery is no longer served (archived, not open, suspended): nothing to retry.
+   * Read from the **wall**, which is public, so a guest's cookie cannot make it say so; the
+   * upload screen's own-photos read cannot claim the same (see `useMyPhotos`).
+   */
   readonly unavailable: boolean
   /** The host's switch, as the wall says it now. */
   readonly reactionsEnabled: boolean
@@ -68,7 +74,22 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
     },
     [api, slug],
   )
-  const loadMine = useCallback((signal: AbortSignal) => api.myPhotos(slug, signal), [api, slug])
+  const loadMine = useCallback(
+    async (
+      signal: AbortSignal,
+    ): Promise<{ readonly items: readonly GuestPhotoDto[]; readonly signedOut: boolean }> => {
+      try {
+        const answer = await api.myPhotos(slug, signal)
+        return { items: answer.items, signedOut: false }
+      } catch (cause) {
+        // The guest's access is gone (no cookie, or one past its 36 hours). The feed is public and
+        // still reads, so this is an answer, not a failure: the screen reports it to the device.
+        if (cause instanceof ApiError && cause.status === 401) return { items: [], signedOut: true }
+        throw cause
+      }
+    },
+    [api, slug],
+  )
   const wall = useLoader(loadWall)
   const mine = useLoader(loadMine)
 
@@ -89,6 +110,7 @@ export const usePhotoFeed = (slug: string): PhotoFeedState => {
   return {
     items: served === null ? null : served.items,
     unavailable: wall.data?.gone === true,
+    signedOut: mine.data?.signedOut === true,
     reactionsEnabled: served?.reactionsEnabled ?? false,
     ownIds,
     settling: (wall.data === null && wall.loading) || (mine.data === null && mine.loading),

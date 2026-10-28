@@ -236,6 +236,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   }, [signedOut, slug])
   if (signedOut) return <NotJoined />
 
+  const sending = queue.sending || outbox.draining || clip.stage === 'uploading'
   const trimmedCaption = caption.trim()
 
   /** The words of the chosen prompt, for the line under the send button. */
@@ -285,6 +286,9 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           variant="ghost"
           size="sm"
           className={styles['noticeLink']}
+          // Not while photos are on their way: leaving unmounts this screen, which cancels every
+          // send in flight (the reason `NewTabLink` exists), and a thumb brushes a header link.
+          disabled={sending}
           onClick={() => {
             forgetGuestSession(slug)
             navigate('/join')
@@ -367,9 +371,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           // A suspended account, or an event the server no longer knows: it answers `404` before it
           // would even say the evening is over, and every send would fail. No form, no queue of
           // false hope.
-          <Notice tone="warning" variant="boxed" role="status">
-            {t.upload.galleryUnavailable}
-          </Notice>
+          <>
+            <Notice tone="warning" variant="boxed" role="status">
+              {t.upload.galleryUnavailable}
+            </Notice>
+            {/* The same `404` is what the server says to a phone whose cookie names another
+                event (this one was joined before a later one), and it cannot tell the two
+                apart on purpose: so the way back to the code is offered here as well. */}
+            <Link className={styles['rejoin']} to="/join" state={{ from: `/e/${slug}/upload` }}>
+              {t.upload.galleryUnavailableAction}
+            </Link>
+          </>
         ) : !mine.acceptingUploads ? (
           // The host closed the evening (or archived it, or its account is suspended): there is
           // nothing left to send, so none of the controls is offered, and the sentence is the one the

@@ -440,7 +440,13 @@ describe('guestSession: the last event, remembered on the device', () => {
     const [key] = Object.keys(localStorage)
     const stored: unknown = JSON.parse(localStorage.getItem(key ?? '') ?? 'null')
 
-    expect(Object.keys(stored as object).sort()).toEqual(['displayName', 'event', 'privacyNotice'])
+    // The session, plus the one date the memory needs to expire. No identifier, no token.
+    expect(Object.keys(stored as object).sort()).toEqual([
+      'displayName',
+      'event',
+      'privacyNotice',
+      'rememberedAt',
+    ])
   })
 
   it('is cleared, with the tab’s entry, when the guest says it is not their evening', () => {
@@ -453,12 +459,14 @@ describe('guestSession: the last event, remembered on the device', () => {
     expect(localStorage.length).toBe(0)
   })
 
-  it('leaves the memory of another event alone when a different one is forgotten', () => {
+  it('forgets whichever event the device remembered, even when another one is the one refused', () => {
+    // "Not mine" said on a screen the device did not remember must not be answered by carrying
+    // the guest straight to the one it did.
     joined('mariage')
 
     forgetGuestSession('gala')
 
-    expect(readRememberedGuestSession()?.event.slug).toBe('mariage')
+    expect(readRememberedGuestSession()).toBeNull()
   })
 
   it('is not taken back by a tab left open on an earlier evening re-reading its notice', () => {
@@ -490,5 +498,64 @@ describe('guestSession: the last event, remembered on the device', () => {
     })
 
     expect(() => joined('gala')).not.toThrow()
+  })
+})
+
+describe('guestSession: the memory expires with the guest’s cookie', () => {
+  const HOUR = 60 * 60 * 1000
+  const joinedAt = (now: number) =>
+    rememberGuestSession(
+      {
+        event: aPublicEvent({ slug: 'gala' }),
+        displayName: 'Léa',
+        privacyNotice: aPrivacyNoticeState(),
+      },
+      now,
+    )
+
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  it('is still there inside the cookie’s 36 hours', () => {
+    joinedAt(0)
+
+    expect(readRememberedGuestSession(35 * HOUR)?.event.slug).toBe('gala')
+  })
+
+  it('is gone after them, and deleted from the device rather than left to sit there', () => {
+    joinedAt(0)
+
+    expect(readRememberedGuestSession(37 * HOUR)).toBeNull()
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('is not handed to a tab with no session of its own once it has expired', () => {
+    joinedAt(0)
+    sessionStorage.clear()
+
+    expect(readGuestSession('gala', 37 * HOUR)).toBeNull()
+  })
+
+  it('is not renewed by reading the notice again: that does not renew the cookie', () => {
+    joinedAt(0)
+
+    rememberPrivacyNotice('gala', aPrivacyNoticeState({ acknowledgement: 'current' }), 30 * HOUR)
+
+    expect(readRememberedGuestSession(37 * HOUR)).toBeNull()
+  })
+
+  it('is refused when it carries no date, so an entry nobody can age is not kept for ever', () => {
+    localStorage.setItem(
+      'eventslide.guest.last',
+      JSON.stringify({
+        event: aPublicEvent({ slug: 'gala' }),
+        displayName: null,
+        privacyNotice: null,
+      }),
+    )
+
+    expect(readRememberedGuestSession()).toBeNull()
   })
 })

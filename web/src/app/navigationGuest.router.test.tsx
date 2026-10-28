@@ -106,6 +106,23 @@ describe('the installed app’s launch address (A1)', () => {
   })
 })
 
+describe('a link to another event, in the installed app', () => {
+  it('reaches the code entry instead of being carried to the event the phone remembers', async () => {
+    rememberGuestSession({
+      event: aPublicEvent({ slug: 'kermesse', name: 'Kermesse' }),
+      displayName: 'Léa',
+      privacyNotice: aPrivacyNoticeState(),
+    })
+    sessionStorage.clear()
+    asInstalledApp()
+
+    renderWithProviders(<AppRoutes />, { route: `/e/${SLUG}/photos`, session: false })
+    await userEvent.click(await screen.findByRole('link', { name: fr.upload.notJoinedAction }))
+
+    expect(await screen.findByLabelText(fr.join.codeLabel)).toHaveValue('')
+  })
+})
+
 describe('“À propos” from the code entry (A7)', () => {
   it('opens in the same tab, and Back returns to the code entry', async () => {
     renderWithProviders(<AppRoutes />, { route: '/join', session: false })

@@ -10,16 +10,11 @@ import styles from './SiteFooter.module.css'
  *
  * Everywhere else the link opens a tab of its own, for the reason `NewTabLink` gives: the
  * upload screen aborts its sends when it unmounts, and the host's forms keep unsaved
- * edits. These screens hold nothing: the code entry, the feed, the shared gallery and the page itself. Same
+ * edits. These screens hold nothing: the code entry, the feed and the page itself. The shared gallery is not one of them: coming back re-reads the album from its first page, and a reader deep in it would lose their place. Same
  * tab is what an installed app needs (a new tab there has no Back, A7), and `/about` has a
  * Back control of its own.
  */
-const SAME_TAB_SAFE: readonly RegExp[] = [
-  /^\/about$/,
-  /^\/join(\/|$)/,
-  /^\/e\/[^/]+\/photos$/,
-  /^\/g\//,
-]
+const SAME_TAB_SAFE: readonly RegExp[] = [/^\/about$/, /^\/join(\/|$)/, /^\/e\/[^/]+\/photos$/]
 
 export interface SiteFooterProps {
   /**

@@ -67,6 +67,12 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
   const t = useTranslations()
   const feed = usePhotoFeed(slug)
   const navigate = useNavigate()
+  // The feed stays readable, but the device must stop resuming an event the server no longer
+  // knows this phone for.
+  const signedOut = feed.signedOut
+  useEffect(() => {
+    if (signedOut) forgetGuestSession(slug)
+  }, [signedOut, slug])
   const [shown, setShown] = useState(PAGE_SIZE)
 
   const items = feed.items ?? []

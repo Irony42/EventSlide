@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
-import { useNavigate } from 'react-router-dom'
+import { act, screen, waitFor, within } from '@testing-library/react'
+import { Link, Route, Routes, useNavigate } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -323,5 +323,32 @@ describe('GalleryPage: Back from a photograph (A6)', () => {
     // A second Back would leave the album, which is the page's first entry: nothing is
     // left in between for it to stop on.
     expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
+  })
+})
+
+describe('GalleryPage: closing a photograph twice in a row (A6)', () => {
+  it('goes back once, so a double tap does not leave the album', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<Link to={`/g/${TOKEN}`}>to album</Link>} />
+        <Route path="/g/:token" element={<GalleryPage />} />
+      </Routes>,
+      { api: fakeApi(), route: '/' },
+    )
+    await userEvent.click(screen.getByRole('link', { name: 'to album' }))
+    await userEvent.click(await screen.findByRole('button', { name: fr.gallery.openPhoto(1) }))
+
+    // Two taps before React has re-rendered: the second sees the same handler as the first.
+    const close = within(screen.getByRole('dialog')).getByRole('button', {
+      name: fr.ui.dialogClose,
+    })
+    act(() => {
+      close.click()
+      close.click()
+    })
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'to album' })).toBeNull()
   })
 })

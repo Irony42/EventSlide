@@ -55,7 +55,7 @@ export const destinationAfterJoin = (slug: string, from: unknown): string => {
   return from === `${base}/photos` ? `${base}/photos` : `${base}/upload`
 }
 
-const fromOf = (state: unknown): unknown =>
+export const fromOf = (state: unknown): unknown =>
   typeof state === 'object' && state !== null ? Reflect.get(state, 'from') : undefined
 
 export const useJoin = (): JoinState => {

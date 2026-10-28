@@ -111,6 +111,7 @@ export const de: UiText = {
     /* Navigation pass, batch A: a gallery the server no longer serves. */
     galleryUnavailable:
       'Diese Galerie ist nicht mehr verfügbar. Sie können keine Fotos mehr senden.',
+    galleryUnavailableAction: 'Code erneut eingeben',
 
     missionsTitle: 'Missionen',
     missionsHint: 'Tippen Sie auf eine Mission und senden Sie dann Ihr Foto.',

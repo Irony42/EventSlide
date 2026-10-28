@@ -102,6 +102,7 @@ export const en: UiText = {
     notJoinedAction: 'Enter the code',
     /* Navigation pass, batch A: a gallery the server no longer serves. */
     galleryUnavailable: 'This gallery is no longer available. You can no longer send photos to it.',
+    galleryUnavailableAction: 'Enter the code again',
 
     missionsTitle: 'Missions',
     missionsHint: 'Tap a mission, then send your photo.',

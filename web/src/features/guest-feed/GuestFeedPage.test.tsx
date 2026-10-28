@@ -466,3 +466,25 @@ describe('a guest with no session on the feed (A2)', () => {
     expect(readGuestSession(SLUG)).toBeNull()
   })
 })
+
+describe('a guest the server does not recognise any more, on the feed', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    havingJoined()
+  })
+
+  it('still shows the evening, and stops the device resuming an event it no longer has access to', async () => {
+    renderFeed(
+      fakeApi({
+        wall: vi.fn(async () => aWallResponse({ items: [photo('a')] })),
+        myPhotos: vi.fn(async () => {
+          throw new ApiError(401, 'guestToken.expired')
+        }),
+      }),
+    )
+
+    expect(await screen.findByRole('img')).toBeVisible()
+    await waitFor(() => expect(readRememberedGuestSession()).toBeNull())
+  })
+})

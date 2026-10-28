@@ -1321,3 +1321,46 @@ describe('a guest who comes back to the page after the tab was closed (A1, A2)',
     expect(readGuestSession(SLUG)).toBeNull()
   })
 })
+
+describe('leaving the event from the header (A10)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    havingJoined()
+  })
+
+  it('cannot be pressed while photos are on their way, which leaving would cancel', async () => {
+    const api = fakeApi({
+      uploadPhotos: vi.fn(() => new Promise<UploadResponse>(() => {})),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: fr.join.notYourEvening })).toBeDisabled(),
+    )
+    expect(readRememberedGuestSession()).not.toBeNull()
+  })
+
+  it('is available when nothing is being sent', () => {
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('button', { name: fr.join.notYourEvening })).toBeEnabled()
+  })
+
+  it('offers the way back to the code on a gallery the server says is gone, since a cookie from another event says the same', async () => {
+    renderUpload(
+      fakeApi({
+        myPhotos: vi.fn(async () => {
+          throw new ApiError(404, 'event.notFound')
+        }),
+      }),
+    )
+
+    expect(
+      await screen.findByRole('link', { name: fr.upload.galleryUnavailableAction }),
+    ).toHaveAttribute('href', '/join')
+  })
+})

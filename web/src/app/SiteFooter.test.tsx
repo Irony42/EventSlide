@@ -547,7 +547,7 @@ describe('SiteFooter, the operator’s links', () => {
 describe('SiteFooter: where “À propos” opens (A7)', () => {
   const aboutLink = () => screen.getByRole('link', { name: literal(fr.about.aboutLink) })
 
-  it.each(['/join', '/join/H7K2QM', '/e/gala/photos', '/g/token', '/about'])(
+  it.each(['/join', '/join/H7K2QM', '/e/gala/photos', '/about'])(
     'opens it in the same tab on %s, where leaving costs the reader nothing',
     (route) => {
       renderWithProviders(<SiteFooter />, { api: silentServer(), route })
@@ -557,7 +557,7 @@ describe('SiteFooter: where “À propos” opens (A7)', () => {
     },
   )
 
-  it.each(['/e/gala/upload', '/admin', '/admin/events/gala/settings'])(
+  it.each(['/e/gala/upload', '/g/token', '/admin', '/admin/events/gala/settings'])(
     'opens it in a tab of its own on %s, where leaving would cost a send or an unsaved edit',
     (route) => {
       renderWithProviders(<SiteFooter />, { api: silentServer(), route })

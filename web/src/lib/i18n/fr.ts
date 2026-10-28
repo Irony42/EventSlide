@@ -156,6 +156,7 @@ export const fr = {
     /* Navigation pass, batch A: a gallery the server no longer serves. */
     galleryUnavailable:
       'Cette galerie n’est plus disponible. Vous ne pouvez plus y envoyer de photos.',
+    galleryUnavailableAction: 'Saisir à nouveau le code',
 
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
