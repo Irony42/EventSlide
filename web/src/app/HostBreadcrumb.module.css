@@ -1,0 +1,66 @@
+/**
+ * One line of small text above the page's heading, on a laptop and on a phone alike.
+ *
+ * The inline gutter is the shell's (`AppShell.module.css`), not this file's: a trail that added
+ * its own would sit out of line with the heading under it. It wraps rather than scrolls, so
+ * nothing on a phone ever pushes the page sideways.
+ */
+.nav {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Lets a long name give way, instead of holding the line wider than the screen. */
+  min-width: 0;
+  max-inline-size: 100%;
+}
+
+/* A target a mouse in a hurry can hit, as the dashboard's own links are. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  border-radius: var(--radius-sm);
+}
+
+/* The event's name: content of any length, kept to one line. */
+.name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: var(--touch-min);
+}
+
+.separator {
+  color: var(--text-muted);
+}
+
+.here {
+  color: var(--text-primary);
+}
+
+/* The phone's moderation screen: the same line, without the room a laptop has for it. */
+.compact .link {
+  min-height: 0;
+  padding-block: var(--space-1);
+}
+
+.compact .name {
+  line-height: inherit;
+}

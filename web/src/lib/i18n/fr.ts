@@ -701,6 +701,7 @@ export const fr = {
 
   admin: {
     events: 'Vos évènements',
+    breadcrumbLabel: 'Fil d’Ariane',
     newEvent: 'Nouvel évènement',
     eventName: 'Nom de l’évènement',
     eventNameHint: 'Visible par vos invités, par exemple « Camille & Sacha ».',

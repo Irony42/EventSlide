@@ -17,7 +17,13 @@ import styles from './AccountMenu.module.css'
  * control that signed anybody out — `api.logout` was never called — so a laptop passed to the
  * next person at a venue stayed the host's, and a lost phone was a session nobody could end.
  *
- * Three entries, each with its own reason:
+ * **The list of events** comes first, for every signed-in account: the header holds the language
+ * and this menu and nothing else, and from an event's own page there was no way to the list that
+ * carries "Nouvel évènement". The event pages carry a trail to it too (`HostBreadcrumb`); this is
+ * the way from every other screen. It is not gated: the list answers each account with the events
+ * it owns or moderates, so a moderator-only account has one to open as well.
+ *
+ * Then three entries, each with its own reason:
  *
  * - **Sign out**: this browser. Navigates to the sign-in page *after* the server has said the
  *   session is gone, never before: a menu that left while the request failed would show a
@@ -140,6 +146,12 @@ export function AccountMenu() {
       {open ? (
         <div id={panelId} className={styles['panel']}>
           <p className={styles['who']}>{t.auth.accountSignedInAs(session.user.email)}</p>
+          {/* Offered to every signed-in account: the list answers each one with the events it owns
+              or moderates, so there is no account for whom it is a dead end. It is the way to
+              "Nouvel évènement" from anywhere in the console. */}
+          <Link className={styles['item']} to="/admin" onClick={() => setOpen(false)}>
+            {t.admin.events}
+          </Link>
           {consoleExists && session.user.canOperateSite ? (
             <Link className={styles['item']} to="/admin/site" onClick={() => setOpen(false)}>
               {t.site.menuLink}
