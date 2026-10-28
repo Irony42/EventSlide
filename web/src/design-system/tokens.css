@@ -182,6 +182,10 @@
 
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
+
+  /* ---- Icons. Outlined glyphs on a 16-unit grid, drawn as strokes: this is their weight,
+         in the grid's own units, so every glyph in a set is the same line at any size. ---- */
+  --icon-stroke: 1.5;
 }
 
 /**

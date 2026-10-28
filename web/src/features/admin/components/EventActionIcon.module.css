@@ -1,0 +1,11 @@
+.icon {
+  /* Sized from the text it sits in, so a tile picks its glyph's size with its font size. */
+  width: 1em;
+  height: 1em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
