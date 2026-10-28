@@ -1,0 +1,69 @@
+/**
+ * The miniature's look. Every value is a token, and the ones that vary by template are the
+ * event-theme tokens the wall reads — `--accent`, `--font-display` and `--wall-frame-radius`
+ * — which the attributes on the root re-declare. Nothing here chooses a template's colour,
+ * face or corner; see `TemplateThemePreview.tsx`.
+ */
+
+/* The room's ground, in small: the wall is `--surface-base` and the panel sits on it. */
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 0 0 calc(var(--space-10) * 3);
+  max-inline-size: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  user-select: none;
+  pointer-events: none;
+}
+
+/*
+ * The panel, on `--surface-raised`: the colour the glass material is built on in every tier
+ * (`--glass-opaque` is that surface, tokens.css), and the one the opaque tier lands on whole.
+ * It does not compose the glass sheet, and that is deliberate — see `TemplateThemePreview.tsx`.
+ */
+.panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/* The event's face, as the wall sets its heading and the guest's caption. */
+.heading {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+/* The accent, as the primary action wears it. */
+.accent {
+  flex: none;
+  inline-size: var(--space-5);
+  block-size: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.photos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+/* A placeholder framed as a wall tile is: the same corner, the same ground. */
+.photo {
+  aspect-ratio: 1;
+  border-radius: var(--wall-frame-radius);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+}

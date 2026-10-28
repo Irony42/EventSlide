@@ -7,6 +7,7 @@ import {
   templateSummary,
   templateWarning,
 } from '../eventTemplates'
+import { TemplateThemePreview } from './TemplateThemePreview'
 import styles from './EventTemplatePicker.module.css'
 import type { EventTemplateKey } from '../../../lib/api/dto'
 
@@ -81,9 +82,12 @@ export function EventTemplatePicker({ value, disabled, onChange }: EventTemplate
           />
           <span className={styles['name']}>{t.admin.templateNone}</span>
         </label>
-        <p className={styles['summary']} id={describedBy(NONE)}>
-          {t.admin.templateNoneSummary}
-        </p>
+        <div className={styles['details']}>
+          <p className={styles['summary']} id={describedBy(NONE)}>
+            {t.admin.templateNoneSummary}
+          </p>
+          <TemplateThemePreview template={null} />
+        </div>
       </div>
 
       {EVENT_TEMPLATE_KEYS.map((key) => {
@@ -105,33 +109,36 @@ export function EventTemplatePicker({ value, disabled, onChange }: EventTemplate
               <span className={styles['name']}>{t.admin.templateNames[key]}</span>
             </label>
 
-            <div className={styles['body']} id={describedBy(key)}>
-              {/*
-                A list rather than a sentence: these are independent facts about separate
-                settings, and a screen reader announcing "liste de trois éléments" is the
-                honest shape — which it only is now that the list is not folded into the
-                radio's name. The heading before it is what stops the lines reading as
-                promises about the whole product rather than as what this option changes.
-              */}
-              <p className={styles['summary']}>{t.admin.templateChanges}</p>
-              <ul className={styles['changes']}>
-                {templateSummary(EVENT_TEMPLATE_PATCHES[key], t).map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
+            <div className={styles['details']}>
+              <div className={styles['body']} id={describedBy(key)}>
+                {/*
+                  A list rather than a sentence: these are independent facts about separate
+                  settings, and a screen reader announcing "liste de trois éléments" is the
+                  honest shape — which it only is now that the list is not folded into the
+                  radio's name. The heading before it is what stops the lines reading as
+                  promises about the whole product rather than as what this option changes.
+                */}
+                <p className={styles['summary']}>{t.admin.templateChanges}</p>
+                <ul className={styles['changes']}>
+                  {templateSummary(EVENT_TEMPLATE_PATCHES[key], t).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
 
-              {warning === null ? null : (
-                /*
-                  Same component and same string as the settings page shows when a host
-                  selects `auto` there. It is inside the described-by region on purpose:
-                  a host reaching this option hears what it does before they choose it,
-                  which is stronger than the settings page's `aria-live`, where the
-                  warning arrives after the choice.
-                */
-                <Notice tone="warning" variant="boxed">
-                  {warning}
-                </Notice>
-              )}
+                {warning === null ? null : (
+                  /*
+                    Same component and same string as the settings page shows when a host
+                    selects `auto` there. It is inside the described-by region on purpose:
+                    a host reaching this option hears what it does before they choose it,
+                    which is stronger than the settings page's `aria-live`, where the
+                    warning arrives after the choice.
+                  */
+                  <Notice tone="warning" variant="boxed">
+                    {warning}
+                  </Notice>
+                )}
+              </div>
+              <TemplateThemePreview template={key} />
             </div>
           </div>
         )

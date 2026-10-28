@@ -93,3 +93,21 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/**
+ * The description and the miniature of the theme, side by side while there is room and
+ * stacked when there is not. The miniature is decorative and last, so on a narrow window it
+ * drops below the list instead of squeezing it.
+ */
+.details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.details > .body,
+.details > .summary {
+  flex: 1 1 calc(var(--space-10) * 4);
+  min-inline-size: 0;
+}

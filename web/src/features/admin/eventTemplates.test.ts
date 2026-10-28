@@ -3,6 +3,7 @@ import {
   EVENT_TEMPLATE_KEYS,
   EVENT_TEMPLATE_PATCHES,
   templateSummary,
+  templateTheme,
   templateWarning,
 } from './eventTemplates'
 import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
@@ -248,5 +249,17 @@ describe('the warning a template carries', () => {
     // a guest's video can reach the projector with nobody having watched it. The warning
     // named only photos, which is the half a host would have checked.
     expect(fr.admin.moderationAutoWarning).toContain('vidéos')
+  })
+})
+
+describe('templateTheme', () => {
+  it.each(EVENT_TEMPLATE_KEYS)('hands the preview the theme %s itself sets', (key) => {
+    // The very object the card's "Apparence" line is printed from, so the picture and the
+    // sentence beside it cannot be about two different themes.
+    expect(templateTheme(key)).toBe(EVENT_TEMPLATE_PATCHES[key].theme)
+  })
+
+  it('hands the preview nothing for "Sans modèle", which sets no theme', () => {
+    expect(templateTheme(null)).toBeNull()
   })
 })
