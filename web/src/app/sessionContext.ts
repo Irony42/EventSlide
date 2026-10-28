@@ -14,6 +14,13 @@ export interface SessionStore {
   readonly data: SessionData
   /** Whether anybody has asked yet. The provider reads nothing until somebody does. */
   readonly requested: boolean
+  /**
+   * The server answered a request with "no valid session" (`401 auth.required`) while this
+   * provider was mounted. The shared answer is left alone on purpose: signing the host out
+   * client-side would swap the page for the sign-in form and lose whatever they were doing.
+   * Cleared when the scope changes or the session is forgotten, which is what signing in again is.
+   */
+  readonly expired: boolean
   /** Somebody needs the answer. Idempotent: the first call starts the one request. */
   readonly request: () => void
   /** The answer is stale and a reader is waiting for the new one: ask again now. */

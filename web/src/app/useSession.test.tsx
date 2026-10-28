@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { ApiProvider } from './ApiProvider'
 import { SessionProvider } from './SessionProvider'
-import { useForgetSession, useSession } from './useSession'
+import { announceSessionExpired } from '../lib/sessionExpiry'
+import { useForgetSession, useSession, useSessionExpired } from './useSession'
 import { aSessionUser, fakeApi } from '../testing/renderWithProviders'
 import type { ReactNode } from 'react'
 import type { Api } from '../lib/api/client'
@@ -242,5 +243,81 @@ describe('SessionProvider', () => {
 
     expect(() => renderHook(() => useSession(), { wrapper })).toThrow(/SessionProvider/)
     quiet.mockRestore()
+  })
+})
+
+/**
+ * `useSessionExpired` (navigation pass, H2): the flag the expired-session banner reads. It is
+ * raised by the transport's announcement and it is *only* a flag: the answer the provider holds
+ * is left as it was, because dropping it would make `RequireAuth` redirect and lose the page.
+ */
+describe('useSessionExpired', () => {
+  const mountExpired = (
+    scope: string,
+    api: Api = fakeApi({ session: vi.fn(async () => signedIn()) }),
+  ) => {
+    const wrapper =
+      (current: string) =>
+      ({ children }: { readonly children: ReactNode }) => (
+        <ApiProvider api={api}>
+          <SessionProvider scope={current}>{children}</SessionProvider>
+        </ApiProvider>
+      )
+    const view = renderHook(
+      () => ({ expired: useSessionExpired(), session: useSession(), forget: useForgetSession() }),
+      { wrapper: wrapper(scope) },
+    )
+    return { ...view, api }
+  }
+
+  it('is false until a request is answered 401 auth.required', async () => {
+    const { result } = mountExpired('signed-in')
+    await waitFor(() => expect(result.current.session.loading).toBe(false))
+
+    expect(result.current.expired).toBe(false)
+  })
+
+  it('turns true when the session ends, and keeps the answer it already held', async () => {
+    const { result, api } = mountExpired('signed-in')
+    await waitFor(() => expect(result.current.session.session?.authenticated).toBe(true))
+
+    act(() => announceSessionExpired())
+
+    expect(result.current.expired).toBe(true)
+    expect(result.current.session.session?.authenticated).toBe(true)
+    expect(api.session).toHaveBeenCalledTimes(1)
+  })
+
+  it('is dropped when somebody signs in or out (forget)', async () => {
+    const { result } = mountExpired('signed-in')
+    await waitFor(() => expect(result.current.session.loading).toBe(false))
+    act(() => announceSessionExpired())
+
+    act(() => result.current.forget())
+
+    expect(result.current.expired).toBe(false)
+  })
+
+  it('is dropped when the host crosses the border of the signed-in area', async () => {
+    const api = fakeApi({ session: vi.fn(async () => signedIn()) })
+    let scope = 'signed-in'
+    const { result, rerender } = renderHook(
+      () => ({ expired: useSessionExpired(), session: useSession() }),
+      {
+        wrapper: ({ children }: { readonly children: ReactNode }) => (
+          <ApiProvider api={api}>
+            <SessionProvider scope={scope}>{children}</SessionProvider>
+          </ApiProvider>
+        ),
+      },
+    )
+    await waitFor(() => expect(result.current.session.loading).toBe(false))
+    act(() => announceSessionExpired())
+    expect(result.current.expired).toBe(true)
+
+    scope = 'open'
+    rerender()
+
+    expect(result.current.expired).toBe(false)
   })
 })

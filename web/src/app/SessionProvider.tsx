@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { asError, isAbortError } from '../lib/http'
+import { onSessionExpired } from '../lib/sessionExpiry'
 import { SessionContext, type SessionData } from './sessionContext'
 import { useApi } from './useApi'
 
@@ -38,6 +39,11 @@ const UNKNOWN: SessionData = { session: null, loading: true, error: null }
  * - **`refresh`**, for a page that is waiting on the new answer (`SecurityPage`, the
  *   invitation page).
  *
+ * **It also hears the session end** (`lib/sessionExpiry.ts`): a `401 auth.required` from any
+ * request raises `expired`, which `useSessionExpired` reads. The cached answer is deliberately
+ * not dropped then: `RequireAuth` would redirect to the sign-in form and the page, and whatever
+ * the host had typed into it, would be gone. Crossing the scope or `forget` clears the flag.
+ *
  * Mounted by `HostLayout`: every reader is on the host's screens (`/login`, `/invite/:token` and
  * `/admin/**`), and the guest and the wall have no account to ask about.
  */
@@ -47,6 +53,7 @@ export function SessionProvider({ scope, children }: SessionProviderProps) {
   const [requested, setRequested] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [seenScope, setSeenScope] = useState(scope)
+  const [expired, setExpired] = useState(false)
 
   // Derived during render and not in an effect, on purpose: an effect would run after the
   // readers of the new scope had already rendered the old answer, and `RequireAuth` acts on
@@ -56,6 +63,7 @@ export function SessionProvider({ scope, children }: SessionProviderProps) {
     setSeenScope(scope)
     setData(UNKNOWN)
     setRequested(false)
+    setExpired(false)
   }
 
   const request = useCallback(() => setRequested(true), [])
@@ -74,7 +82,10 @@ export function SessionProvider({ scope, children }: SessionProviderProps) {
   const forget = useCallback(() => {
     setData(UNKNOWN)
     setRequested(false)
+    setExpired(false)
   }, [])
+
+  useEffect(() => onSessionExpired(() => setExpired(true)), [])
 
   useEffect(() => {
     if (!requested) return
@@ -106,8 +117,8 @@ export function SessionProvider({ scope, children }: SessionProviderProps) {
   }, [api, attempt, requested])
 
   const store = useMemo(
-    () => ({ data, requested, request, refresh, forget }),
-    [data, requested, request, refresh, forget],
+    () => ({ data, requested, expired, request, refresh, forget }),
+    [data, requested, expired, request, refresh, forget],
   )
 
   return <SessionContext.Provider value={store}>{children}</SessionContext.Provider>

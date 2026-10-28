@@ -96,6 +96,9 @@ const OPERATOR: readonly (readonly [string, Key])[] = [
   ['/admin/site/audit', 'siteAudit'],
 ]
 
+/** The addresses that answer with a redirect and so have no page to name. */
+const REDIRECTS = new Set(['/', '/e/:slug', '/admin/events'])
+
 describe('the browser tab', () => {
   it.each(GUEST)('names %s after the page', async (route, key) => {
     rememberGuestSession({ event: aPublicEvent(), displayName: null, privacyNotice: null })
@@ -141,7 +144,7 @@ describe('the browser tab', () => {
   it('names every address the router declares, not only the ones listed above', () => {
     // The tables above are typed by hand. This reads the route table itself, so a route
     // added without `titled(...)` fails here even though no row mentions it. The one
-    // address that renders no page is the `<Navigate>` from `/`.
+    // addresses that render no page are the `<Navigate>`s: `/`, `/e/:slug` and `/admin/events`.
     const routes = [
       ...ROUTER.matchAll(/<Route\s+path="([^"]+)"[\s\S]{0,160}?element=\{(titled\(|<[A-Za-z]+)/g),
     ].flatMap((match) =>
@@ -149,7 +152,7 @@ describe('the browser tab', () => {
     )
 
     const untitled = routes
-      .filter(([path, opening]) => path !== '/' && opening !== 'titled(')
+      .filter(([path, opening]) => !REDIRECTS.has(path) && opening !== 'titled(')
       .map(([path]) => path)
 
     expect(routes.length).toBeGreaterThan(20)

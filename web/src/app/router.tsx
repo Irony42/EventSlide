@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react'
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { PageTitle } from '../design-system/components/PageTitle'
 import { Spinner } from '../design-system/components/Spinner'
 import { ToastProvider } from '../design-system/components/ToastProvider'
@@ -15,9 +15,10 @@ import { AccountMenu } from './AccountMenu'
 import { ErrorBoundary } from './ErrorBoundary'
 import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
-import { NotFoundView } from './NotFoundView'
+import { HostNotFoundView, NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
 import { RequireOperator } from './RequireOperator'
+import { SessionExpiredBanner } from './SessionExpiredBanner'
 import { SessionProvider } from './SessionProvider'
 import { SiteFooter } from './SiteFooter'
 import styles from './router.module.css'
@@ -250,12 +251,25 @@ const GuestLayout = () => {
  * that failed after a deploy would have no boundary to land in at all.
  */
 const LazyGuestPage = () => (
-  <ErrorBoundary>
+  <ErrorBoundary surface="guest" resetKey={useLocation().pathname}>
     <Suspense fallback={<RouteFallback />}>
       <Outlet />
     </Suspense>
   </ErrorBoundary>
 )
+
+/**
+ * `/e/:slug` with nothing after it: the event's front door, sent to the page a guest uses.
+ *
+ * A link shortened by hand or a card that lost its last segment used to end on "page not found".
+ * The upload page is the guest's main screen (the join lands there), and it asks for the code
+ * itself when the phone holds no session for the event. `/e/:slug/photos` and `/display` are
+ * reached from the event, never guessed.
+ */
+const EventFrontDoor = () => {
+  const { slug } = useParams()
+  return <Navigate to={`/e/${encodeURIComponent(slug ?? '')}/upload`} replace />
+}
 
 /**
  * The host layout's header: the picker, and the account menu where there is an account.
@@ -293,8 +307,9 @@ const HostLayout = () => {
   const backdrop = useGlassBackdrop()
   const hostScreen = useHostScreen()
   const signedInArea = useSignedInArea()
+  const { pathname } = useLocation()
   return (
-    <ErrorBoundary>
+    <ErrorBoundary surface="host" resetKey={pathname}>
       <ToastProvider>
         {/* Around the shell and not inside the gate: the account menu in the header and the
             gates under the outlet read the same answer, and that is the whole point. */}
@@ -308,6 +323,8 @@ const HostLayout = () => {
             // is mid-upload or in front of the room.
             footer={<SiteFooter supportLink={hostScreen} helpLink={hostScreen} />}
           >
+            {/* Where the session's end is shown: over the page, which stays (decision 6). */}
+            {signedInArea ? <SessionExpiredBanner /> : null}
             <Suspense fallback={<RouteFallback />}>
               <Outlet />
             </Suspense>
@@ -332,7 +349,9 @@ const HostLayout = () => {
  */
 const WallLayout = () => (
   <DeferredLocale>
-    <ErrorBoundary>
+    {/* `surface="wall"`: no link home, and it tries again by itself after a crash, because
+        nobody is in front of the projector to press "Réessayer". */}
+    <ErrorBoundary surface="wall">
       <ToastProvider>
         <AppShell surface="wall">
           <Suspense fallback={<RouteFallback />}>
@@ -383,8 +402,10 @@ export function AppRoutes() {
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
-        {/* The front door is the guest join screen: it is the only address printed on
-            a card, and a host reaching it is one click from /login. */}
+        {/* The front door is the guest join screen: it is the only address printed on a card,
+            and it stays the guest's. A host does not get there by a redirect (that would cost
+            the guest screen a request to ask who is looking): they type `/login` or follow the
+            discreet "Espace organisateur" link the guest layout carries. */}
         <Route path="/" element={<Navigate to="/join" replace />} />
 
         <Route element={<GuestLayout />}>
@@ -394,6 +415,7 @@ export function AppRoutes() {
           <Route path="/join/:code" element={titled('join', <JoinPage />)} />
           <Route path="/e/:slug/upload" element={titled('upload', <GuestUploadPage />)} />
           <Route path="/e/:slug/photos" element={titled('feed', <GuestFeedPage />)} />
+          <Route path="/e/:slug" element={<EventFrontDoor />} />
           {/* The guest's own dead ends, answered on the guest's own surface.
               A card printed against an older URL shape, a link forwarded through a
               group chat, a path that gained a segment: the reader is holding a phone
@@ -461,7 +483,7 @@ export function AppRoutes() {
                   screen, as for an address nobody wrote, and is told nothing about a console. */}
               {siteAdmin ? (
                 <Route
-                  element={<RequireOperator fallback={titled('notFound', <NotFoundView />)} />}
+                  element={<RequireOperator fallback={titled('notFound', <HostNotFoundView />)} />}
                 >
                   <Route element={<SiteLayout />}>
                     <Route path="/admin/site" element={titled('site', <SiteClientsPage />)} />
@@ -490,8 +512,14 @@ export function AppRoutes() {
             </Route>
           </Route>
 
-          {/* Not a redirect to the upload page. See NotFoundView. */}
-          <Route path="*" element={titled('notFound', <NotFoundView />)} />
+          {/* The list of events is the dashboard: `/admin/events` was a parent address nobody
+              registered, so it was a 404 and a dead end for a breadcrumb that pointed at it. Outside the
+              gate on purpose: `/admin` is gated, and a signed-out host is sent to sign in from there. */}
+          <Route path="/admin/events" element={<Navigate to="/admin" replace />} />
+
+          {/* Not a redirect to the upload page. See NotFoundView. This one knows who is looking:
+              a signed-in host is offered `/admin`, not the guest's start. */}
+          <Route path="*" element={titled('notFound', <HostNotFoundView />)} />
         </Route>
       </Routes>
     </Suspense>

@@ -1519,6 +1519,11 @@ export const fr = {
     notFoundTitle: 'Page introuvable',
     notFoundHint: 'Cette adresse n’existe pas. Vérifiez le lien ou revenez à l’accueil.',
     notFoundHome: 'Revenir à l’accueil',
+    /* Navigation pass, batch B: the way home from a 404 or a crash, and the expired-session banner. */
+    hostHome: 'Aller à vos évènements',
+    sessionExpired: 'Votre session a expiré.',
+    sessionExpiredAction: 'Reconnectez-vous',
+    crashAutoRetry: 'Nouvelle tentative automatique dans un instant…',
   },
 
   /* ======================================================================== */

@@ -11,6 +11,8 @@
  * service worker.
  */
 
+import { announceSessionExpired, AUTH_REQUIRED_CODE } from './sessionExpiry'
+
 export interface ApiErrorBody {
   readonly error: {
     readonly code: string
@@ -188,6 +190,11 @@ const parse = async <T>(response: Response): Promise<T> => {
 
   if (!response.ok) {
     if (isApiErrorBody(payload)) {
+      // Only the server's "no valid session" answer. A wrong password at the sign-in form is a
+      // 401 too (`auth.invalidCredentials`) and is not an expiry.
+      if (response.status === 401 && payload.error.code === AUTH_REQUIRED_CODE) {
+        announceSessionExpired()
+      }
       throw new ApiError(response.status, payload.error.code, payload.error.details ?? {})
     }
     throw new ApiError(response.status, 'unknown')

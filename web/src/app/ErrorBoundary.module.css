@@ -23,3 +23,10 @@
 .hint {
   color: var(--text-secondary);
 }
+
+.home {
+  color: var(--accent);
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+}

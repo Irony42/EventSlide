@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ErrorBoundary } from './ErrorBoundary'
+import { pageReload, STALE_BUNDLE_MARKER, WALL_RETRY_DELAY_MS } from '../lib/crashRecovery'
 import { fr } from '../lib/i18n/fr'
 
 /** A child that fails on demand, so the recovery path can actually be exercised. */
@@ -89,6 +90,321 @@ describe('ErrorBoundary', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
 
     expect(onReset).toHaveBeenCalledTimes(1)
+    log.mockRestore()
+  })
+})
+
+/** A child that fails the way a lazy chunk does after a deploy. */
+const StaleChunk = (): never => {
+  throw new Error('Failed to fetch dynamically imported module: /assets/WallPage-8c1d04.js')
+}
+
+describe('ErrorBoundary: a chunk that failed to load after a deploy', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+  })
+
+  it('reloads the page once by itself, because only a new document can fetch the new chunks', () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+
+    render(
+      <ErrorBoundary surface="host">
+        <StaleChunk />
+      </ErrorBoundary>,
+    )
+
+    expect(reload).toHaveBeenCalledTimes(1)
+    log.mockRestore()
+  })
+
+  it('does not reload a second time within a minute: a loop would be worse than the crash screen', () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    sessionStorage.setItem(STALE_BUNDLE_MARKER, String(Date.now()))
+
+    render(
+      <ErrorBoundary surface="host">
+        <StaleChunk />
+      </ErrorBoundary>,
+    )
+
+    expect(reload).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+    log.mockRestore()
+  })
+
+  it('reloads the page, and does not re-render the tree, when Réessayer is pressed on it', async () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    sessionStorage.setItem(STALE_BUNDLE_MARKER, String(Date.now()))
+    render(
+      <ErrorBoundary surface="host">
+        <StaleChunk />
+      </ErrorBoundary>,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
+
+    // React.lazy keeps a rejected import, so a plain re-render would throw the same error.
+    expect(reload).toHaveBeenCalledTimes(1)
+    log.mockRestore()
+  })
+
+  it('does not reload for an ordinary render error', () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+
+    render(
+      <ErrorBoundary surface="host">
+        <Boom fail />
+      </ErrorBoundary>,
+    )
+
+    expect(reload).not.toHaveBeenCalled()
+    log.mockRestore()
+  })
+})
+
+describe('ErrorBoundary: the way home fits the audience', () => {
+  it('offers the guest the start of the app', () => {
+    const log = silenceReactErrorLog()
+
+    render(
+      <ErrorBoundary surface="guest">
+        <Boom fail />
+      </ErrorBoundary>,
+    )
+
+    expect(screen.getByRole('link', { name: fr.shell.notFoundHome })).toHaveAttribute('href', '/')
+    log.mockRestore()
+  })
+
+  it('offers the host their events, not the guest screen', () => {
+    const log = silenceReactErrorLog()
+
+    render(
+      <ErrorBoundary surface="host">
+        <Boom fail />
+      </ErrorBoundary>,
+    )
+
+    expect(screen.getByRole('link', { name: fr.shell.hostHome })).toHaveAttribute('href', '/admin')
+    expect(screen.queryByRole('link', { name: fr.shell.notFoundHome })).toBeNull()
+    log.mockRestore()
+  })
+
+  it('offers nothing on the wall: a guest must not be able to drop the projector', () => {
+    const log = silenceReactErrorLog()
+
+    render(
+      <ErrorBoundary surface="wall">
+        <Boom fail />
+      </ErrorBoundary>,
+    )
+
+    expect(screen.queryByRole('link')).toBeNull()
+    log.mockRestore()
+  })
+
+  it('reads the audience from the address when no layout says', () => {
+    const log = silenceReactErrorLog()
+    window.history.pushState({}, '', '/admin/events/mariage')
+
+    render(
+      <ErrorBoundary>
+        <Boom fail />
+      </ErrorBoundary>,
+    )
+
+    expect(screen.getByRole('link', { name: fr.shell.hostHome })).toBeVisible()
+    window.history.pushState({}, '', '/')
+    log.mockRestore()
+  })
+})
+
+describe('ErrorBoundary: a crash does not outlive the page it happened on', () => {
+  it('renders the tree again when the reset key changes, as it does after Back', () => {
+    const log = silenceReactErrorLog()
+    const { rerender } = render(
+      <ErrorBoundary surface="host" resetKey="/admin/events/mariage">
+        <Boom fail />
+      </ErrorBoundary>,
+    )
+    expect(screen.getByRole('alert')).toBeVisible()
+
+    rerender(
+      <ErrorBoundary surface="host" resetKey="/admin">
+        <Boom fail={false} />
+      </ErrorBoundary>,
+    )
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('Diaporama')).toBeVisible()
+    log.mockRestore()
+  })
+
+  it('stays on the crash screen while the reset key is the same', () => {
+    const log = silenceReactErrorLog()
+    const { rerender } = render(
+      <ErrorBoundary surface="host" resetKey="/admin/events/mariage">
+        <Boom fail />
+      </ErrorBoundary>,
+    )
+
+    rerender(
+      <ErrorBoundary surface="host" resetKey="/admin/events/mariage">
+        <Boom fail={false} />
+      </ErrorBoundary>,
+    )
+
+    expect(screen.getByRole('alert')).toBeVisible()
+    log.mockRestore()
+  })
+})
+
+describe('ErrorBoundary: the wall tries again by itself', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Fails while `crashes.on` is true, so the test decides when the cause goes away. */
+  const crashes = { on: true }
+  const Flaky = () => {
+    if (crashes.on) throw new Error('canvas: out of memory')
+    return <p>Diaporama</p>
+  }
+
+  it('renders the wall again after the delay, with nobody pressing anything', () => {
+    const log = silenceReactErrorLog()
+    crashes.on = true
+    render(
+      <ErrorBoundary surface="wall">
+        <Flaky />
+      </ErrorBoundary>,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+
+    crashes.on = false
+    act(() => {
+      vi.advanceTimersByTime(WALL_RETRY_DELAY_MS)
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('Diaporama')).toBeVisible()
+    log.mockRestore()
+  })
+
+  it('does not retry before the delay has passed', () => {
+    const log = silenceReactErrorLog()
+    crashes.on = true
+    render(
+      <ErrorBoundary surface="wall">
+        <Flaky />
+      </ErrorBoundary>,
+    )
+
+    crashes.on = false
+    act(() => {
+      vi.advanceTimersByTime(WALL_RETRY_DELAY_MS - 1)
+    })
+
+    expect(screen.getByRole('alert')).toBeVisible()
+    log.mockRestore()
+  })
+
+  it('keeps trying while the cause persists, and recovers on a later attempt', () => {
+    const log = silenceReactErrorLog()
+    crashes.on = true
+    render(
+      <ErrorBoundary surface="wall">
+        <Flaky />
+      </ErrorBoundary>,
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(WALL_RETRY_DELAY_MS)
+    })
+    expect(screen.getByRole('alert')).toBeVisible()
+
+    crashes.on = false
+    act(() => {
+      vi.advanceTimersByTime(WALL_RETRY_DELAY_MS)
+    })
+
+    expect(screen.getByText('Diaporama')).toBeVisible()
+    log.mockRestore()
+  })
+
+  it('says on screen that it will try again', () => {
+    const log = silenceReactErrorLog()
+    crashes.on = true
+
+    render(
+      <ErrorBoundary surface="wall">
+        <Flaky />
+      </ErrorBoundary>,
+    )
+
+    expect(screen.getByText(fr.shell.crashAutoRetry)).toBeVisible()
+    log.mockRestore()
+  })
+
+  it('leaves a host screen waiting for the person to press Réessayer', () => {
+    const log = silenceReactErrorLog()
+    crashes.on = true
+    render(
+      <ErrorBoundary surface="host">
+        <Flaky />
+      </ErrorBoundary>,
+    )
+
+    crashes.on = false
+    act(() => {
+      vi.advanceTimersByTime(WALL_RETRY_DELAY_MS * 3)
+    })
+
+    expect(screen.getByRole('alert')).toBeVisible()
+    log.mockRestore()
+  })
+
+  it('reloads the page, not the tree, when the wall crashed on a chunk that is gone', () => {
+    const log = silenceReactErrorLog()
+    const reload = vi.spyOn(pageReload, 'reload').mockImplementation(() => {})
+    // A reload a moment ago already failed to cure it: the guard sends it to the timer.
+    sessionStorage.setItem(STALE_BUNDLE_MARKER, String(Date.now()))
+    render(
+      <ErrorBoundary surface="wall">
+        <StaleChunk />
+      </ErrorBoundary>,
+    )
+    expect(reload).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(WALL_RETRY_DELAY_MS)
+    })
+
+    expect(reload).toHaveBeenCalledTimes(1)
+    log.mockRestore()
+  })
+
+  it('stops the timer when the wall goes away', () => {
+    const log = silenceReactErrorLog()
+    crashes.on = true
+    const { unmount } = render(
+      <ErrorBoundary surface="wall">
+        <Flaky />
+      </ErrorBoundary>,
+    )
+
+    unmount()
+
+    expect(vi.getTimerCount()).toBe(0)
     log.mockRestore()
   })
 })

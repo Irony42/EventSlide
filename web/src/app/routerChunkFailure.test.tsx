@@ -65,6 +65,30 @@ describe('AppRoutes with a chunk that cannot be loaded', () => {
     log.mockRestore()
   })
 
+  it('offers the host their events as the way home from the crash', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    asHost('/admin')
+
+    expect(await screen.findByRole('link', { name: fr.shell.hostHome })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
+    log.mockRestore()
+  })
+
+  it('shows no link at all on the wall, and tries again by itself', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    renderWithProviders(<AppRoutes />, { route: '/e/camille-et-sacha/display' })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.shell.crashTitle)
+    expect(screen.queryByRole('link', { name: fr.shell.hostHome })).toBeNull()
+    expect(screen.queryByRole('link', { name: fr.shell.notFoundHome })).toBeNull()
+    expect(screen.getByText(fr.shell.crashAutoRetry)).toBeVisible()
+    log.mockRestore()
+  })
+
   it('never puts the loader’s own message in front of the host', async () => {
     // "Failed to fetch dynamically imported module" is a sentence about a build, in
     // English, and a host at a wedding can do nothing with it.

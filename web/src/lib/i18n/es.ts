@@ -241,6 +241,11 @@ export const es: UiText = {
     notFoundTitle: 'Página no encontrada',
     notFoundHint: 'Esta dirección no existe. Compruebe el enlace o vuelva al inicio.',
     notFoundHome: 'Volver al inicio',
+    /* Navigation pass, batch B: the way home from a 404 or a crash, and the expired-session banner. */
+    hostHome: 'Ir a sus eventos',
+    sessionExpired: 'Su sesión ha caducado.',
+    sessionExpiredAction: 'Vuelva a iniciar sesión',
+    crashAutoRetry: 'Se volverá a intentar automáticamente en un momento…',
   },
 
   errors: {
