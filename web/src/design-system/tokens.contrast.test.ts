@@ -165,6 +165,30 @@ describe.each([['guinguette']])('the %s ambiance', (name) => {
     expect(contrast(of('--accent-contrast'), of('--accent-strong'))).toBeGreaterThanOrEqual(4.5)
   })
 
+  it('keeps the label readable where the kraft fibres are darkest (ADR 0010)', () => {
+    // The texture is a noise layer under the label, read out of the token rather than copied:
+    // its feColorMatrix paints one brown at an alpha that tops out at the matrix's own A.
+    // The worst pixel is that brown at that alpha over the accent, at rest and pressed.
+    const texture = /--accent-texture:\s*url\("([^"]*)"\)/.exec(block[1] ?? '')?.[1]
+    if (texture === undefined) throw new Error('the ambiance declares no kraft texture to measure')
+    const values = /values='([^']*)'/.exec(texture)?.[1]?.split(/\s+/).map(Number) ?? []
+    if (values.length !== 20)
+      throw new Error('the kraft texture no longer declares a 4x5 colour matrix')
+    const fibre: Srgb = [values[4] ?? 0, values[9] ?? 0, values[14] ?? 0]
+    const alpha = values[18] ?? 0
+    const over = (field: Oklch): Srgb => {
+      const [r, g, b] = srgb(field)
+      return [
+        fibre[0] * alpha + r * (1 - alpha),
+        fibre[1] * alpha + g * (1 - alpha),
+        fibre[2] * alpha + b * (1 - alpha),
+      ]
+    }
+    const label = srgb(of('--accent-contrast'))
+    expect(ratioOf(label, over(of('--accent')))).toBeGreaterThanOrEqual(4.5)
+    expect(ratioOf(label, over(of('--accent-strong')))).toBeGreaterThanOrEqual(4.5)
+  })
+
   it.each(['--success', '--danger', '--warning'] as const)(
     'keeps %s visible as a glyph on every surface it declares',
     (status) => {
