@@ -68,22 +68,32 @@ describe('themeSurfaceProps', () => {
     })
   })
 
-  it('dresses both surfaces in a festive ambiance (ADR 0010)', () => {
-    const theme = aTheme({ ambiance: 'guinguette' })
+  it('dresses both surfaces in an ambiance other than the default (ADR 0010)', () => {
+    const theme = aTheme({ ambiance: 'riviera' })
 
-    expect(themeSurfaceProps(theme, 'wall')['data-event-ambiance']).toBe('guinguette')
-    expect(themeSurfaceProps(theme, 'guest')['data-event-ambiance']).toBe('guinguette')
+    expect(themeSurfaceProps(theme, 'wall')['data-event-ambiance']).toBe('riviera')
+    expect(themeSurfaceProps(theme, 'guest')['data-event-ambiance']).toBe('riviera')
   })
 
   it('keeps the guest ornaments off the wall, which carries its layout marker', async () => {
     // ADR 0010: a fixed string of bulbs over a projected photograph is the one place the
     // ornament would break principle 1, so the selector must exclude the wall.
     const { default: base } = await import('./base.css?raw')
-    const selectors = base.match(/body:has\(\[data-event-ambiance[^{]*\{/g) ?? []
-    expect(selectors.length).toBeGreaterThan(0)
-    for (const selector of selectors) {
-      expect(selector.replace(/\s+/g, '')).toContain(':not(:has([data-wall-layout]))')
+    // Every rule that draws on the page's own pseudo-elements, or pads the body for them.
+    const rules = [
+      ...base.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(^|\})\s*([^{}@]*body[^{}]*)\{/g),
+    ]
+      .map(([, , selector]) => (selector ?? '').replace(/\s+/g, ''))
+      .filter((selector) => selector.includes('data-event-ambiance'))
+    // Five ambiances, each with at least one rule of its own, plus the shared skeleton.
+    expect(rules.length).toBeGreaterThanOrEqual(10)
+    for (const selector of rules) {
+      expect(selector).toContain(':not(:has([data-wall-layout]))')
     }
+    // The root look has no marker of its own: it is the body that holds no ambiance at all.
+    expect(base.replace(/\s+/g, '')).toContain(
+      'body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(:has([data-wall-layout]))::before',
+    )
   })
 
   it('emits no ambiance for the product’s own look', () => {
@@ -101,7 +111,7 @@ describe('themeSurfaceProps', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       }),
       'guest',
     )
@@ -119,11 +129,11 @@ describe('themeSurfaceProps', () => {
     // across many events, and a toolbar that changes material per event is the screen
     // where consistency beats personality — §12's argument, unchanged by the knob being a
     // surface finish rather than a colour.
-    expect(themeSurfaceProps(aTheme({ material: 'plain', ambiance: 'darkroom' }), surface)).toEqual(
-      {
-        'data-glass': 'opaque',
-      },
-    )
+    expect(
+      themeSurfaceProps(aTheme({ material: 'plain', ambiance: 'guinguette' }), surface),
+    ).toEqual({
+      'data-glass': 'opaque',
+    })
   })
 
   it.each(['wall', 'guest'] as const)(
@@ -134,7 +144,7 @@ describe('themeSurfaceProps', () => {
       // descendant wins for its subtree — so `data-glass="ground"` here would put a blur
       // back on a projector and on any machine the budget had already taken it from.
       expect(
-        themeSurfaceProps(aTheme({ material: 'glass', ambiance: 'darkroom' }), surface),
+        themeSurfaceProps(aTheme({ material: 'glass', ambiance: 'guinguette' }), surface),
       ).toEqual({})
     },
   )
@@ -164,14 +174,14 @@ describe('readEventTheme', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       }),
     ).toEqual({
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     })
   })
 
@@ -180,7 +190,13 @@ describe('readEventTheme', () => {
     ['a string where the object goes', 'rose'],
     [
       'a hue that is text',
-      { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+      {
+        accentHue: 'rose',
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
     ],
     [
       'a hue that is not a number at all',
@@ -189,28 +205,28 @@ describe('readEventTheme', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     ],
     [
       'a hue past the circle',
-      { accentHue: 4000, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+      { accentHue: 4000, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
     ],
     [
       'a negative hue',
-      { accentHue: -1, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+      { accentHue: -1, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
     ],
     [
       'a hue between two degrees',
-      { accentHue: 305.5, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+      { accentHue: 305.5, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
     ],
     [
       'a font pairing this build never shipped',
-      { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+      { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
     ],
     [
       'a frame style this build never shipped',
-      { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass', ambiance: 'darkroom' },
+      { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass', ambiance: 'guinguette' },
     ],
   ])('refuses %s', (_case, value) => {
     // A hue that is not a number reaches `--accent-hue` as something the browser cannot
@@ -227,8 +243,21 @@ describe('readEventTheme', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     })
+  })
+
+  it('reads a session stored as darkroom, the retired Chambre noire, as the Guinguette', () => {
+    // The tab was opened before 28/10: refusing the entry would send the guest back to the door.
+    expect(
+      readEventTheme({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'darkroom',
+      })?.ambiance,
+    ).toBe('guinguette')
   })
 
   it('refuses an ambiance this build never shipped rather than filling one in', () => {

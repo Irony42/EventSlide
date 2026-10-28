@@ -52,7 +52,7 @@ export const DEFAULT_EVENT_THEME: EventThemeDto = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
-  ambiance: 'darkroom',
+  ambiance: 'guinguette',
 })
 
 /**
@@ -91,7 +91,13 @@ export const CURATED_ACCENT_NAMES = Object.keys(CURATED_ACCENT_HUES) as readonly
 export const THEME_FONTS: readonly ThemeFonts[] = ['sans', 'serif']
 export const THEME_FRAMES: readonly ThemeFrame[] = ['soft', 'square', 'round']
 export const THEME_MATERIALS: readonly ThemeMaterial[] = ['glass', 'plain']
-export const THEME_AMBIANCES: readonly ThemeAmbiance[] = ['darkroom', 'guinguette']
+export const THEME_AMBIANCES: readonly ThemeAmbiance[] = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+]
 
 export const isThemeFonts = (value: string): value is ThemeFonts =>
   (THEME_FONTS as readonly string[]).includes(value)
@@ -136,7 +142,7 @@ export interface ThemeSurfaceProps extends GlassMaterialProps {
   readonly 'data-event-accent'?: string
   readonly 'data-event-fonts'?: EventThemeDto['fonts']
   readonly 'data-event-frame'?: EventThemeDto['frame']
-  /** The ambiance block `tokens.css` selects. Absent for the product's own, `darkroom`. */
+  /** The ambiance block `tokens.css` selects. Absent for the product's own, `guinguette`. */
   readonly 'data-event-ambiance'?: EventThemeDto['ambiance']
 }
 
@@ -213,12 +219,16 @@ const readThemeMaterial = (value: unknown): ThemeMaterial | null => {
 
 /**
  * The ambiance, for a theme written before ambiances existed: absent is the product's own,
- * present and unknown is refused, exactly as for the material above.
+ * present and unknown is refused, exactly as for the material above. The one name this build
+ * no longer ships, `darkroom`, is read as the Guinguette that replaced it.
  */
 const readThemeAmbiance = (value: unknown): ThemeAmbiance | null => {
   if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
-  if (typeof value !== 'string' || !isThemeAmbiance(value)) return null
-  return value
+  // A tab that stored its session while the Chambre noire existed holds `darkroom`: that look
+  // was replaced by the Guinguette on 28/10, and refusing the entry would log the guest out.
+  const named = value === 'darkroom' ? 'guinguette' : value
+  if (typeof named !== 'string' || !isThemeAmbiance(named)) return null
+  return named
 }
 
 /**

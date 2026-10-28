@@ -142,13 +142,31 @@ export type ThemeMaterial = (typeof THEME_MATERIALS)[number]
  * The event's ambiance: a closed, reviewed pack of surfaces, inks, display face and
  * ornaments that the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md).
  *
- * `darkroom` is the product's own look, so it is the default and emits nothing; every
- * other entry is a block in `tokens.css` with its own contrast test. The host's console
- * never wears one. The accent hue, the font pairing, the frame and the material still
- * apply on top, so an ambiance chooses a world and the host still chooses a colour in it.
+ * `guinguette` is the product's own look, so it is the default and emits nothing; every
+ * other entry is a block in `tokens.css` with its own contrast test. The accent hue, the
+ * font pairing, the frame and the material still apply on top, so an ambiance chooses a
+ * world and the host still chooses a colour in it.
  */
-export const THEME_AMBIANCES = ['darkroom', 'guinguette'] as const
+export const THEME_AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret'] as const
 export type ThemeAmbiance = (typeof THEME_AMBIANCES)[number]
+
+/**
+ * Names an ambiance used to go by, read as what replaced it.
+ *
+ * `darkroom` was the Chambre noire, the product's look before 28/10, which Pierre abandoned
+ * for the Guinguette. A theme stored while it existed (a host's settings row, a guest's
+ * `sessionStorage`) still says so, and the closed vocabulary above no longer does: refusing
+ * it would be corruption, and it is not. It is read as the Guinguette and written back as
+ * that the next time the settings are saved. Nothing new may be added here for an ordinary
+ * rename: this is for data already written.
+ */
+const LEGACY_AMBIANCES: Readonly<Record<string, ThemeAmbiance>> = { darkroom: 'guinguette' }
+
+/** A stored ambiance, with a legacy name replaced by the one that took its place. */
+export const currentAmbianceName = (value: unknown): unknown =>
+  typeof value === 'string' && Object.hasOwn(LEGACY_AMBIANCES, value)
+    ? LEGACY_AMBIANCES[value]
+    : value
 
 export interface EventThemeProps {
   /** Degrees on the oklch hue circle, 0-359. */
@@ -193,7 +211,7 @@ export const DEFAULT_EVENT_THEME: EventThemeProps = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
-  ambiance: 'darkroom',
+  ambiance: 'guinguette',
 })
 
 /**
