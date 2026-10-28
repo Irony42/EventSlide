@@ -20,4 +20,5 @@ export const AMBIANCE_LAYOUT: Readonly<Record<ThemeAmbiance, WallLayout | null>>
   champs: null,
   bivouac: null,
   cabaret: null,
+  noces: null,
 }

@@ -29,7 +29,7 @@ import {
 const ROOT = process.cwd()
 const TOKENS = readFileSync(join(ROOT, 'web/src/design-system/tokens.css'), 'utf8')
 
-const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret'] as const
+const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret', 'noces'] as const
 
 /**
  * Ambiances whose grade is deliberately denser than the lowest that holds on the phone, and

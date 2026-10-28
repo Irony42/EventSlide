@@ -853,6 +853,7 @@ export const fr = {
       champs: 'Champs d’or',
       bivouac: 'Bivouac',
       cabaret: 'Cabaret',
+      noces: 'Noces',
     } satisfies Record<ThemeAmbiance, string>,
 
     /* ---- Event templates (roadmap 3.5). The names of the four evenings, plus the two

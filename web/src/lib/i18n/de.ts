@@ -764,6 +764,7 @@ export const de: UiText = {
       champs: 'Goldene Felder',
       bivouac: 'Biwak',
       cabaret: 'Kabarett',
+      noces: 'Hochzeit',
     },
 
     template: 'Art der Veranstaltung',

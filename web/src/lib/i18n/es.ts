@@ -751,6 +751,7 @@ export const es: UiText = {
       champs: 'Campos de oro',
       bivouac: 'Vivac',
       cabaret: 'Cabaret',
+      noces: 'Boda',
     },
 
     template: 'Tipo de evento',

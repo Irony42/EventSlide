@@ -145,7 +145,7 @@ const FOCUS_RING_ALPHA = ((): number => {
  * passes the same pairs. The Guinguette is the root look, so its declarations are the root
  * block's; the others are their own `[data-event-ambiance]` block.
  */
-const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret'] as const
+const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret', 'noces'] as const
 
 describe.each(AMBIANCES)('the %s ambiance', (name) => {
   const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)

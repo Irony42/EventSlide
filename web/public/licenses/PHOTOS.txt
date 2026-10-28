@@ -14,5 +14,8 @@ web/src/design-system/ambiances/bivouac-ground-1600.webp
   "Les gens ayant un feu de joie sous le ciel bleu rempli d'étoiles", https://unsplash.com/photos/Qag2W_cL1jg
 web/src/design-system/ambiances/cabaret-ground-1600.webp
   "Un rideau de velours pend près de portes vitrées", https://unsplash.com/photos/u75jwAs
+web/src/design-system/ambiances/noces-ground-1600.webp
+  "Des roses rouges en bouquet, papier blanc et gypsophile" by Süheyl Burak, https://unsplash.com/photos/9F54Y8qAMUo
+  (cropped to the roses and the white wrapping, 1600 px wide)
   All licensed under the Unsplash License, https://unsplash.com/license
   (free to use, including commercially; attribution appreciated).

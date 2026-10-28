@@ -733,6 +733,7 @@ export const it: UiText = {
       champs: 'Campi d’oro',
       bivouac: 'Bivacco',
       cabaret: 'Cabaret',
+      noces: 'Nozze',
     },
     template: 'Tipo di evento',
     templateHint:

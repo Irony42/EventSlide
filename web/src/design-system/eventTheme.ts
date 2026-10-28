@@ -97,6 +97,7 @@ export const THEME_AMBIANCES: readonly ThemeAmbiance[] = [
   'champs',
   'bivouac',
   'cabaret',
+  'noces',
 ]
 
 /**
