@@ -712,7 +712,7 @@ export const es: UiText = {
       'Visible para sus invitados y en la pantalla de la sala. Los colores propuestos siguen siendo legibles a diez metros.',
     themeAccent: 'Color',
     themeAccentNames: {
-      violet: 'Papel (predeterminado)',
+      violet: 'Kraft (predeterminado)',
       rose: 'Rosa',
       azure: 'Azul',
       teal: 'Turquesa',
@@ -739,10 +739,13 @@ export const es: UiText = {
     },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:
-      'El mundo que visten los móviles de sus invitados y la pantalla de la sala. Su consola no cambia.',
+      'El mundo que visten los móviles de sus invitados, la pantalla de la sala y las páginas de este evento en su consola.',
     themeAmbianceNames: {
-      darkroom: 'Cuarto oscuro',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Campos de oro',
+      bivouac: 'Vivac',
+      cabaret: 'Cabaret',
     },
 
     template: 'Tipo de evento',

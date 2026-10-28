@@ -141,7 +141,8 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // four presets has an opinion about it: a preset is an occasion, and no occasion
       // implies a surface finish the way a wedding implies a serif.
       material: 'glass',
-      ambiance: 'darkroom',
+      // Linen and honey, golden hour in the tall grass: a wedding day, not a wedding night.
+      ambiance: 'champs',
     },
   },
 
@@ -160,14 +161,15 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
     theme: {
       // The product's own violet, and that is the decision rather than the absence of
       // one: a birthday honours no house colour and no bride's palette, and the default
-      // hue is the one the dark-room wall was designed around.
+      // hue is the one the product's own look was designed around.
       accentHue: CURATED_ACCENT_HUES.violet,
       fonts: 'sans',
       // The preset's opinion here is the frame, not the colour. Rounded corners read as
       // a photo album rather than a feed, which is what a family evening's wall is.
       frame: 'round',
       material: 'glass',
-      // The first festive ambiance (ADR 0010): a birthday is the evening it was drawn for.
+      // ADR 0010: a birthday is the evening the Guinguette was drawn for, and it is the
+      // product's own look, restated because `EventSettings` replaces a theme whole.
       ambiance: 'guinguette',
     },
   },
@@ -205,7 +207,9 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // knows neither: the host's console runs on the same laptop whatever the occasion,
       // and the projector has already given the material up (DESIGN-SYSTEM.md §13).
       material: 'glass',
-      ambiance: 'darkroom',
+      // The product's own look, restated because `EventSettings` replaces a theme whole. A
+      // company box wants nothing handmade, and the Guinguette is the calmest of the five.
+      ambiance: 'guinguette',
     },
   },
 
@@ -237,7 +241,8 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      // A fire under the stars: the party that goes on outside, loud and in the dark.
+      ambiance: 'bivouac',
     },
   },
 }

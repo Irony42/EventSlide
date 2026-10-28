@@ -726,7 +726,7 @@ export const de: UiText = {
       'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',
     themeAccent: 'Farbe',
     themeAccentNames: {
-      violet: 'Papier (Standard)',
+      violet: 'Kraftpapier (Standard)',
       rose: 'Rosa',
       azure: 'Blau',
       teal: 'Türkis',
@@ -752,10 +752,13 @@ export const de: UiText = {
     },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:
-      'Die Welt, die die Handys Ihrer Gäste und die Leinwand im Saal tragen. Ihre Konsole ändert sich nicht.',
+      'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrer Konsole tragen.',
     themeAmbianceNames: {
-      darkroom: 'Dunkelkammer',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Goldene Felder',
+      bivouac: 'Biwak',
+      cabaret: 'Kabarett',
     },
 
     template: 'Art der Veranstaltung',

@@ -59,7 +59,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'champs',
       },
     },
     birthday: {
@@ -82,7 +82,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         fonts: 'sans',
         frame: 'square',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     },
     party: {
@@ -93,7 +93,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'bivouac',
       },
     },
   }
@@ -142,6 +142,10 @@ const themeLine = (theme: EventSettingsDto['theme'], text: UiText): string | nul
     ...(theme.material === DEFAULT_EVENT_THEME.material
       ? []
       : [text.admin.themeMaterialNames[theme.material]]),
+    // The world the evening wears, when it is not the product's own (ADR 0010).
+    ...(theme.ambiance === DEFAULT_EVENT_THEME.ambiance
+      ? []
+      : [text.admin.themeAmbianceNames[theme.ambiance]]),
   ]
 
   return parts.length === 0 ? null : `${text.admin.theme} : ${parts.join(', ')}`

@@ -679,7 +679,7 @@ export const en: UiText = {
       'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
     themeAccent: 'Colour',
     themeAccentNames: {
-      violet: 'Paper (default)',
+      violet: 'Kraft (default)',
       rose: 'Pink',
       azure: 'Blue',
       teal: 'Teal',
@@ -706,10 +706,13 @@ export const en: UiText = {
     },
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
-      'The world your guests’ phones and the room’s screen wear. Your console does not change.',
+      'The world your guests’ phones, the room’s screen and this event’s pages in your console wear.',
     themeAmbianceNames: {
-      darkroom: 'Darkroom',
       guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Golden fields',
+      bivouac: 'Bivouac',
+      cabaret: 'Cabaret',
     },
 
     template: 'Type of event',
