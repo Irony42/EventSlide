@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { EventStatus } from '../../../lib/api/dto'
 import { allowsModeration, servesWall } from '../eventLifecycle'
@@ -32,13 +31,20 @@ function TileBody({ glyph, children }: Omit<TileProps, 'priority'>) {
   )
 }
 
-const tileClass = (priority: Priority): string =>
-  cx(styles['tile'], priority === 'primary' ? styles['primary'] : styles['secondary'])
+/**
+ * What makes an element a tile of a tier. The attribute is the whole mechanism: the
+ * stylesheet reads `data-priority` and nothing else, so what the test asserts is what is drawn,
+ * and a tile cannot say one tier and wear the other's look.
+ */
+const tileProps = (priority: Priority) => ({
+  className: styles['tile'],
+  'data-priority': priority,
+})
 
 /** A route inside the app: a real `<a href>`, so middle-click and "open in a new tab" work. */
 function RouteTile({ to, priority, glyph, children }: TileProps & { readonly to: string }) {
   return (
-    <Link className={tileClass(priority)} data-priority={priority} to={to}>
+    <Link {...tileProps(priority)} to={to}>
       <TileBody glyph={glyph}>{children}</TileBody>
     </Link>
   )
@@ -102,7 +108,7 @@ export function EventActionLinks({ slug, status, albumUrl }: EventActionLinksPro
           buffering it through JavaScript is how a laptop runs out of memory
           halfway through an album.
         */}
-        <a className={tileClass('secondary')} data-priority="secondary" href={albumUrl} download>
+        <a {...tileProps('secondary')} href={albumUrl} download>
           <TileBody glyph="album">{t.admin.download}</TileBody>
         </a>
       </div>

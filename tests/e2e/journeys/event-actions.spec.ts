@@ -45,6 +45,21 @@ test('the event page lays its actions out inside the screen, as real targets', a
     expect(box.x + box.width, `${name} runs off the right edge`).toBeLessThanOrEqual(viewport.width)
   }
 
+  // The tiers are drawn, not only declared: the two actions the evening turns on stand taller
+  // than the rest, whatever the width puts them beside.
+  const height = async (name: string): Promise<number> => {
+    const box = await page.getByRole('link', { name }).boundingBox()
+    if (box === null) throw new Error()
+    return box.height
+  }
+  const secondary = Math.max(
+    await height(fr.mobileModeration.title),
+    await height(fr.admin.settings),
+    await height(fr.admin.download),
+  )
+  expect(await height(fr.admin.openWall)).toBeGreaterThan(secondary)
+  expect(await height(fr.admin.openModeration)).toBeGreaterThan(secondary)
+
   // The whole page, not only the tiles: a tile that cannot shrink drags the document wider
   // than the screen, and it is the document that scrolls sideways.
   const overflow = await page.evaluate(
@@ -93,6 +108,11 @@ test('a tile shows the focus ring when the keyboard reaches it', async ({ app, p
   }
   await expect(wall).toBeFocused()
 
+  // The ring is the one thing that changes: compared with the same tile after the focus has
+  // moved on, so a shadow the tile wears for another reason (elevation, hover) cannot pass for it.
   const ring = await wall.evaluate((node) => getComputedStyle(node).boxShadow)
-  expect(ring).not.toBe('none')
+  await page.keyboard.press('Tab')
+  await expect(wall).not.toBeFocused()
+  const resting = await wall.evaluate((node) => getComputedStyle(node).boxShadow)
+  expect(ring).not.toBe(resting)
 })
