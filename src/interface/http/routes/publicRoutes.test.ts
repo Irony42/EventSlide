@@ -334,6 +334,7 @@ describe('POST /api/join', () => {
           frame: 'soft',
           material: 'glass',
           ambiance: 'darkroom',
+          groundUrl: null,
         },
       },
       privacyNotice: {
@@ -733,6 +734,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
       frame: 'soft',
       material: 'glass',
       ambiance: 'darkroom',
+      groundUrl: null,
     })
   })
 
@@ -770,6 +772,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
       frame: 'square',
       material: 'glass',
       ambiance: 'darkroom',
+      groundUrl: null,
     })
   })
 

@@ -286,6 +286,31 @@ const multipartFields = (fn: ts.ArrowFunction, formName: string): Keys => {
   return fields
 }
 
+/**
+ * Whether a payload is the `const form = new FormData()` the method built, which is how a
+ * multipart body is spelled on a verb other than `upload`'s POST: the host's venue photograph
+ * is a `PUT`, and its one part is read off the same `form.append(...)` calls.
+ */
+const isFormDataVariable = (fn: ts.ArrowFunction, payload: ts.Expression | undefined): boolean => {
+  if (payload === undefined || !ts.isIdentifier(payload)) return false
+  let found = false
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === payload.text &&
+      node.initializer !== undefined &&
+      ts.isNewExpression(node.initializer) &&
+      node.initializer.expression.getText() === 'FormData'
+    ) {
+      found = true
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(fn)
+  return found
+}
+
 /** The object literal `createApi` returns: one property per endpoint. */
 const apiSurface = ((): ts.ObjectLiteralExpression => {
   for (const statement of clientSource.statements) {
@@ -349,7 +374,7 @@ const { CLIENT_CALLS, CLIENT_LINKS } = ((): {
       const keys = new Map<string, Presence>()
       const payloadNode = node.arguments[1]
 
-      if (callee.name.text === 'upload') {
+      if (callee.name.text === 'upload' || isFormDataVariable(fn, payloadNode)) {
         const form =
           payloadNode !== undefined && ts.isIdentifier(payloadNode) ? payloadNode.text : null
         if (form === null) {

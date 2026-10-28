@@ -77,6 +77,13 @@ export interface EventThemeDto {
   readonly material: ThemeMaterial
   /** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
   readonly ambiance: ThemeAmbiance
+  /**
+   * Where the host's own photograph of their venue is served, replacing the ambiance's bundled
+   * ground; `null` when they have not uploaded one, when the ambiance paints no photograph, and
+   * on the shared gallery. A path on this origin that names the photograph's digest, so it
+   * changes when the photograph does.
+   */
+  readonly groundUrl: string | null
 }
 
 export interface PublicEventDto {

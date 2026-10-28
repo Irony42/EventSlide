@@ -9,7 +9,7 @@ import type { EventCounts } from '../../../application/ports/eventRepository'
 import type { HostEventSummary } from '../../../application/usecases/events/listEventsForHost'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
-import type { EventThemeProps } from '../../../domain/events/eventTheme'
+import { hasPhotographedGround } from '../../../domain/events/eventTheme'
 import type { AuditPage } from '../../../application/ports/auditLog'
 import type { ClientLimits } from '../../../application/usecases/clients/getClientLimits'
 import type { PendingInvitation } from '../../../application/usecases/clients/listPendingInvitations'
@@ -206,15 +206,38 @@ export const joinUrl = (publicUrl: string, joinCode: string): string =>
  * the public wire without anybody deciding to, and two of the three responses carrying
  * this are readable by a stranger holding a join code.
  */
-export const toEventThemeDto = (theme: EventThemeProps): EventThemeDto => ({
-  accentHue: theme.accentHue,
-  fonts: theme.fonts,
-  frame: theme.frame,
-  material: theme.material,
-  ambiance: theme.ambiance,
+export const toEventThemeDto = (
+  settings: EventSettings,
+  /**
+   * The slug the photograph is served under, or `null` for a surface that cannot read it: the
+   * shared gallery is opened by a token, often after the event stopped serving a wall, and the
+   * photograph's route is the wall's. That surface shows the ambiance's bundled ground.
+   */
+  slug: string | null,
+): EventThemeDto => ({
+  accentHue: settings.theme.accentHue,
+  fonts: settings.theme.fonts,
+  frame: settings.theme.frame,
+  material: settings.theme.material,
+  ambiance: settings.theme.ambiance,
+  groundUrl: venueGroundUrl(settings, slug),
 })
 
-export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto => ({
+/**
+ * Where the host's own venue photograph is served, or `null` for the ambiance's bundled one.
+ *
+ * Only for an ambiance that photographs its ground (`hasPhotographedGround`): a photograph kept
+ * under an ambiance that paints none is not on the wire, so a client never has to decide that.
+ * The digest is in the path so the URL changes when the photograph does, which is what makes
+ * the route's year-long cache safe and means no client has to bust one. Built here and never
+ * from anything a client sent.
+ */
+export const venueGroundUrl = (settings: EventSettings, slug: string | null): string | null =>
+  slug === null || settings.venuePhoto === null || !hasPhotographedGround(settings.theme.ambiance)
+    ? null
+    : `/api/events/${encodeURIComponent(slug)}/venue-photo/${settings.venuePhoto.value}`
+
+export const toEventSettingsDto = (settings: EventSettings, slug: string): EventSettingsDto => ({
   moderation: settings.moderation,
   allowCaptions: settings.allowCaptions,
   allowReactions: settings.allowReactions,
@@ -223,7 +246,7 @@ export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto =>
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
   retentionDays: settings.retentionDays,
   maxPhotosPerGuest: settings.maxPhotosPerGuest,
-  theme: toEventThemeDto(settings.theme),
+  theme: toEventThemeDto(settings, slug),
   wallLanguage: settings.wallLanguage,
 })
 
@@ -261,7 +284,7 @@ export const toPublicEventDto = (
   maxClipSeconds: context.clipLimits.maxSeconds,
   // Unlike the switches above, this is not a permission: it is what the host's event
   // looks like, and the guest's screen is one of the three places it looks like it.
-  theme: toEventThemeDto(event.settings.theme),
+  theme: toEventThemeDto(event.settings, event.slug.value),
 })
 
 /**
@@ -327,7 +350,7 @@ export const toEventDto = (
   joinUrl: joinUrl(context.publicUrl, event.joinCode.value),
   quotaBytes: limits.quotaBytes,
   ...(limits.liveWindowEnd === null ? {} : { liveWindowEnd: iso(limits.liveWindowEnd) }),
-  settings: toEventSettingsDto(event.settings),
+  settings: toEventSettingsDto(event.settings, event.slug.value),
   startsAt: isoOrNull(event.startsAt),
   closedAt: isoOrNull(event.closedAt),
   scheduledOpenAt: isoOrNull(event.scheduledOpenAt),
@@ -716,7 +739,7 @@ export const toWallResponseDto = (
     // Unlike the layout, the theme *is* a property of the event rather than of the
     // screen: two projectors in the same room must agree about the colour even when one
     // of them is showing a mosaic and the other a spotlight.
-    theme: toEventThemeDto(view.event.settings.theme),
+    theme: toEventThemeDto(view.event.settings, view.event.slug.value),
     // The same argument as the theme, one step further: the language is a property of the
     // event and not of the screen, so two projectors in one room agree about it even when
     // one of them was launched from a laptop set to English. `?layout=` is the deliberate
@@ -857,7 +880,7 @@ export const toShareLinkCreatedDto = (
 
 export const toGalleryDto = (view: GalleryView): GalleryDto => ({
   eventName: view.event.name.value,
-  theme: toEventThemeDto(view.event.settings.theme),
+  theme: toEventThemeDto(view.event.settings, null),
   photoCount: view.photoCount,
   expiresAt: view.link.expiresAt.toISOString(),
   archiveUrl: galleryArchiveUrl(view.archive),

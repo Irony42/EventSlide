@@ -561,6 +561,17 @@ const ROUTES: readonly RouteCase[] = [
       client.post(`/api/events/${slug}/moderators`).send({ email: 'lea@example.test' }),
   },
   {
+    // The upload: refused before a byte is buffered, so no body is needed to prove it.
+    name: 'PUT /events/:slug/venue-photo',
+    requires: 'owner',
+    call: (client, slug) => client.put(`/api/events/${slug}/venue-photo`),
+  },
+  {
+    name: 'DELETE /events/:slug/venue-photo',
+    requires: 'owner',
+    call: (client, slug) => client.delete(`/api/events/${slug}/venue-photo`),
+  },
+  {
     name: 'DELETE /events/:slug/moderators/:userId',
     requires: 'owner',
     call: (client, slug) => client.delete(`/api/events/${slug}/moderators/${MODERATOR}`),
@@ -1006,6 +1017,7 @@ describe('the host event routes', () => {
         frame: 'round',
         material: 'glass',
         ambiance: 'darkroom',
+        groundUrl: null,
       })
     })
 
@@ -1175,6 +1187,7 @@ describe('the host event routes', () => {
           frame: 'round',
           material: 'glass',
           ambiance: 'darkroom',
+          groundUrl: null,
         },
         wallLanguage: 'en',
       })
@@ -1311,6 +1324,7 @@ describe('the host event routes', () => {
         frame: 'soft',
         material: 'glass',
         ambiance: 'darkroom',
+        groundUrl: null,
       })
     })
   })

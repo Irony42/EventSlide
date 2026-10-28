@@ -1,6 +1,7 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import sharp from 'sharp'
 import request from 'supertest'
 import { afterEach, describe, expect, it } from 'vitest'
 import { asUserId } from '../domain/shared/ids'
@@ -167,5 +168,144 @@ describe('the answer about one event, through the real container (HTTP-M-06)', (
         .get(SLUG)?.quota_bytes,
     )
     expect(row?.guestCount).toBe(2)
+  })
+})
+
+describe('the host’s own venue photograph, through the real container (ADR 0010, decision 8)', () => {
+  /** A phone photograph of a venue: sideways, with a device name and a GPS block. */
+  const phonePhoto = async (): Promise<Buffer> =>
+    sharp({
+      create: { width: 800, height: 600, channels: 3, background: { r: 30, g: 90, b: 200 } },
+    })
+      .withMetadata({
+        orientation: 6,
+        exif: {
+          IFD0: { Make: 'EventSlide Test', Model: 'Fixture 1' },
+          IFD3: { GPSLatitudeRef: 'N', GPSLongitudeRef: 'E' },
+        },
+      })
+      .jpeg()
+      .toBuffer()
+
+  const bytesOf = (response: request.Response): Buffer => response.body as Buffer
+  const binary = (res: request.Response, done: (error: Error | null, body: unknown) => void) => {
+    const chunks: Buffer[] = []
+    res.on('data', (chunk: Buffer) => chunks.push(chunk))
+    res.on('end', () => done(null, Buffer.concat(chunks)))
+  }
+
+  const guinguette = async (
+    agent: ReturnType<typeof request.agent>,
+    csrf: () => string,
+  ): Promise<void> => {
+    const saved = await agent
+      .patch(`/api/events/${SLUG}/settings`)
+      .set(CSRF_HEADER, csrf())
+      .send({
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
+      })
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200)
+  }
+
+  it('stores a stripped WebP, serves it to the public wall, and survives a settings save', async () => {
+    const { agent, csrf } = await signedInOwner()
+    await guinguette(agent, csrf)
+
+    const put = await agent
+      .put(`/api/events/${SLUG}/venue-photo`)
+      .set(CSRF_HEADER, csrf())
+      .attach('photo', await phonePhoto(), { filename: 'lieu.php', contentType: 'text/x-php' })
+
+    expect(put.status, JSON.stringify(put.body)).toBe(200)
+    const url = put.body.settings.theme.groundUrl as string
+    expect(url).toMatch(new RegExp(`^/api/events/${SLUG}/venue-photo/[0-9a-f]{64}$`))
+
+    // The event is a draft until it goes live, and a draft serves nobody but its host.
+    expect((await request(container?.app).get(url)).status).toBe(404)
+    const own = await agent.get(url).buffer(true).parse(binary)
+    expect(own.status).toBe(200)
+    const stored = await sharp(bytesOf(own)).metadata()
+    expect(stored.format).toBe('webp')
+    expect(stored.exif).toBeUndefined()
+    expect([stored.width, stored.height]).toEqual([600, 800])
+    expect(bytesOf(own).includes(Buffer.from('EventSlide Test'))).toBe(false)
+
+    // Saved again with a different accent: the photograph is not part of that form.
+    const resaved = await agent
+      .patch(`/api/events/${SLUG}/settings`)
+      .set(CSRF_HEADER, csrf())
+      .send({
+        theme: {
+          accentHue: 345,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
+      })
+    expect(resaved.body.settings.theme.groundUrl).toBe(url)
+  })
+
+  it('refuses a theme that tries to name the photograph itself', async () => {
+    const { agent, csrf } = await signedInOwner()
+
+    const refused = await agent
+      .patch(`/api/events/${SLUG}/settings`)
+      .set(CSRF_HEADER, csrf())
+      .send({
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'guinguette',
+          groundUrl: '/api/events/anything/venue-photo/' + 'ab'.repeat(32),
+        },
+      })
+
+    expect([refused.status, refused.body.error.code]).toEqual([400, 'request.invalid'])
+  })
+
+  it('is taken down by the host: the URL answers 404 at once and the file is gone', async () => {
+    const { agent, csrf } = await signedInOwner()
+    await guinguette(agent, csrf)
+    const put = await agent
+      .put(`/api/events/${SLUG}/venue-photo`)
+      .set(CSRF_HEADER, csrf())
+      .attach('photo', await phonePhoto(), 'lieu.jpg')
+    const url = put.body.settings.theme.groundUrl as string
+    const directory = join(workDir ?? '', 'media', put.body.id as string, 'ground')
+    const before = await readdir(directory, { recursive: true })
+    expect(before.filter((name) => name.endsWith('.webp')).length).toBe(1)
+
+    const removed = await agent.delete(`/api/events/${SLUG}/venue-photo`).set(CSRF_HEADER, csrf())
+
+    expect(removed.status).toBe(200)
+    expect(removed.body.settings.theme.groundUrl).toBeNull()
+    expect((await agent.get(url)).status).toBe(404)
+    const left = await readdir(directory, { recursive: true })
+    expect(left.filter((name) => name.endsWith('.webp'))).toEqual([])
+  })
+
+  it('is deleted with the event', async () => {
+    const { agent, csrf } = await signedInOwner()
+    await guinguette(agent, csrf)
+    const put = await agent
+      .put(`/api/events/${SLUG}/venue-photo`)
+      .set(CSRF_HEADER, csrf())
+      .attach('photo', await phonePhoto(), 'lieu.jpg')
+    const eventDirectory = join(workDir ?? '', 'media', put.body.id as string)
+    expect((await readdir(join(eventDirectory, 'ground'))).length).toBe(1)
+
+    const purged = await agent.delete(`/api/events/${SLUG}`).set(CSRF_HEADER, csrf())
+
+    expect(purged.status).toBe(204)
+    await expect(readdir(eventDirectory)).rejects.toThrow(/ENOENT/)
   })
 })

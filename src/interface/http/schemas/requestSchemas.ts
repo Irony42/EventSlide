@@ -124,6 +124,13 @@ export const eventSlugParams = z.object({ eventSlug: slug })
 export const photoParams = z.object({ eventSlug: slug, photoId: uuid })
 
 /**
+ * A host's venue photograph is named by the SHA-256 of its stored bytes: 64 lowercase hex
+ * characters and nothing else, which is what keeps a path component from ever being a path.
+ * Not parsed with `.parse` by the route: a malformed digest is the same 404 as an unknown one.
+ */
+export const venuePhotoDigest = z.string().regex(/^[0-9a-f]{64}$/)
+
+/**
  * The renditions a client may ask for.
  *
  * `source` — a clip's un-stripped upload, waiting for the transcoder — is deliberately

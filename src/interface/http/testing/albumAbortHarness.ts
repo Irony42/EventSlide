@@ -120,6 +120,7 @@ export const hostAlbum = async (): Promise<AbortableAlbum> => {
           usecases: {
             getPhotoMedia: () => Promise.reject(new Error('not part of an album download')),
             identifyMediaViewer: () => Promise.reject(new Error('not part of an album download')),
+            getVenuePhotoMedia: () => Promise.reject(new Error('not part of an album download')),
             exportAlbum: makeExportAlbum({
               events: deps.events,
               photos,

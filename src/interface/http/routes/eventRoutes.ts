@@ -1,13 +1,20 @@
 import { Router, type RequestHandler, type Response } from 'express'
+import multer from 'multer'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
-import type { DomainError } from '../../../domain/shared/errors'
+import { DomainError } from '../../../domain/shared/errors'
 import { asClientId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import { asyncHandler } from '../middleware/asyncHandler'
+import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
 import { requireRole, requireUser } from '../middleware/authz'
 import { hostScopeOf, userOf } from '../middleware/scope'
-import { INVITATIONS_PER_ACCOUNT_PER_HOUR, invitationIssueLimiter } from '../middleware/rateLimit'
+import {
+  INVITATIONS_PER_ACCOUNT_PER_HOUR,
+  VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR,
+  invitationIssueLimiter,
+  venuePhotoLimiter,
+} from '../middleware/rateLimit'
 import {
   toEventDto,
   toEventSummaryDto,
@@ -283,6 +290,82 @@ export const eventRoutes = ({
       // code stops working immediately, and the response carries the new one so the
       // console can reprint the QR without a second request.
       const result = await usecases.rotateJoinCode({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+      })
+
+      await sendEvent(res, result, { role: scope.role })
+    }),
+  )
+
+  // ------------------------------------------------- the host's venue photograph --
+
+  /** The multipart part's name. Anything else is `LIMIT_UNEXPECTED_FILE` from multer. */
+  const VENUE_PHOTO_FIELD = 'photo'
+
+  /**
+   * Memory, for `guestRoutes`' reason: the pipeline re-encodes every byte it accepts, so a
+   * temporary file would be written to be read straight back and then cleaned up on every exit.
+   * One file, no text parts, and the operator's own per-file ceiling (`MAX_UPLOAD_BYTES`),
+   * which is what a phone photograph of a venue is judged against anywhere else in the product.
+   * Deliberately **no `fileFilter`**: it could only read the client's MIME type. The format
+   * is identified from the bytes, by the pipeline.
+   */
+  const venuePhotoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: deps.config.uploads.maxBytes, files: 1, fields: 0 },
+  })
+  const venuePhotoRateLimiter = venuePhotoLimiter(VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR)
+  const venuePhotoDiskGuard = createDiskSpaceGuard({
+    checker: deps.diskSpaceChecker,
+    paths: deps.config.storage.diskSpacePaths,
+    minFreeBytes: deps.config.storage.minFreeDiskBytes,
+  })
+
+  /**
+   * Put up, or replace, the photograph an ambiance paints behind the evening.
+   *
+   * Owner only, and **authorised before a byte is buffered**: the role check, then the
+   * account's budget, then the disk guard, and only then the multipart parser. Answers the
+   * event, whose theme now carries the photograph's URL, so the settings form shows it with
+   * no second request.
+   */
+  router.put(
+    '/events/:eventSlug/venue-photo',
+    requireRole('owner', deps),
+    venuePhotoRateLimiter,
+    venuePhotoDiskGuard,
+    venuePhotoUpload.single(VENUE_PHOTO_FIELD),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+
+      // Absent when the request was not multipart, or named another part: the same thing to
+      // a host whose picker silently failed, and never a 201 for nothing.
+      if (req.file === undefined) {
+        sendError(res, DomainError.invalid('upload.noFiles'))
+        return
+      }
+
+      const result = await usecases.setVenuePhoto({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        // The bytes and nothing else: the declared name and type are the client's words and
+        // reach no layer below this one.
+        bytes: req.file.buffer,
+      })
+
+      await sendEvent(res, result, { role: scope.role })
+    }),
+  )
+
+  /** Take it down: the ambiance shows its bundled ground again. Owner only, and idempotent. */
+  router.delete(
+    '/events/:eventSlug/venue-photo',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+
+      const result = await usecases.removeVenuePhoto({
         eventId: scope.event.id,
         actorId: scope.user.userId,
       })

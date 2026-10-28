@@ -759,6 +759,7 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       frame: 'square',
       material: 'plain',
       ambiance: 'darkroom',
+      groundUrl: null,
     })
   })
 
@@ -775,6 +776,7 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       frame: 'soft',
       material: 'glass',
       ambiance: 'darkroom',
+      groundUrl: null,
     })
   })
 

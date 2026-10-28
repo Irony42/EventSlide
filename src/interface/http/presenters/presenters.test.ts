@@ -14,9 +14,13 @@ import {
   toPublicEventDto,
   toSessionUserDto,
   type PresenterContext,
+  toEventThemeDto,
+  venueGroundUrl,
 } from './presenters'
 import type { AuditRecord } from '../../../application/ports/auditLog'
 import { AT, aGuest, aPhoto, aUser, anEvent } from '../../../application/testing/builders'
+import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
+import { ContentHash } from '../../../domain/photos/contentHash'
 import { asClientId, asUserId } from '../../../domain/shared/ids'
 
 const context: PresenterContext = {
@@ -161,6 +165,7 @@ describe('toPublicEventDto', () => {
         frame: 'soft',
         material: 'glass',
         ambiance: 'darkroom',
+        groundUrl: null,
       },
     })
   })
@@ -330,7 +335,7 @@ describe('toEventSettingsDto', () => {
       },
     })
 
-    expect(toEventSettingsDto(event.settings)).toEqual({
+    expect(toEventSettingsDto(event.settings, 'camille-et-sacha')).toEqual({
       moderation: 'auto',
       allowCaptions: false,
       allowReactions: true,
@@ -345,6 +350,7 @@ describe('toEventSettingsDto', () => {
         frame: 'square',
         material: 'glass',
         ambiance: 'darkroom',
+        groundUrl: null,
       },
       wallLanguage: 'es',
     })
@@ -353,7 +359,7 @@ describe('toEventSettingsDto', () => {
   it('renders "keep forever" and "no limit" as null', () => {
     const event = anEvent({ settings: { retentionDays: null, maxPhotosPerGuest: null } })
 
-    const dto = toEventSettingsDto(event.settings)
+    const dto = toEventSettingsDto(event.settings, 'camille-et-sacha')
 
     expect(dto.retentionDays).toBeNull()
     expect(dto.maxPhotosPerGuest).toBeNull()
@@ -609,5 +615,42 @@ describe('toClientAuditPageDto', () => {
     const dto = toClientAuditPageDto({ items: [record()], next: null })
 
     expect(Object.keys(dto.items[0] ?? {})).not.toContain('clientId')
+  })
+})
+
+describe('the host’s venue photograph on the wire (ADR 0010)', () => {
+  const digest = ContentHash.create('ab'.repeat(32))
+  if (!digest.ok) throw new Error('fixture digest')
+
+  const guinguette = { ...DEFAULT_EVENT_THEME, ambiance: 'guinguette' } as const
+
+  it('is a path under the event, naming the digest, so it changes when the photograph does', () => {
+    const { settings } = anEvent({ settings: { theme: guinguette, venuePhoto: digest.value } })
+
+    expect(venueGroundUrl(settings, 'camille-et-sacha')).toBe(
+      `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`,
+    )
+    expect(toEventThemeDto(settings, 'camille-et-sacha').groundUrl).toBe(
+      venueGroundUrl(settings, 'camille-et-sacha'),
+    )
+  })
+
+  it('is null until the host uploads one', () => {
+    const { settings } = anEvent({ settings: { theme: guinguette } })
+
+    expect(toEventThemeDto(settings, 'camille-et-sacha').groundUrl).toBeNull()
+  })
+
+  it('is null under an ambiance that paints no photograph, though the file is kept', () => {
+    const { settings } = anEvent({ settings: { venuePhoto: digest.value } })
+
+    expect(settings.venuePhoto).not.toBeNull()
+    expect(toEventThemeDto(settings, 'camille-et-sacha').groundUrl).toBeNull()
+  })
+
+  it('is null for the shared gallery, which cannot read the wall’s route', () => {
+    const { settings } = anEvent({ settings: { theme: guinguette, venuePhoto: digest.value } })
+
+    expect(toEventThemeDto(settings, null).groundUrl).toBeNull()
   })
 })

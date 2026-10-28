@@ -247,6 +247,22 @@ export const INVITATIONS_PER_ACCOUNT_PER_HOUR = 30
 export const invitationIssueLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
+// ------------------------------------------------------------ venue photo --
+
+/**
+ * How many venue photographs one **account** may upload per hour.
+ *
+ * Each one is a decode and a re-encode on the box that may be projecting a live event, and
+ * a host choosing their ground tries a few and settles: ten an hour is generous for that and
+ * nothing for a script. Keyed by account for `eventCreationLimiter`'s reason, and placed after
+ * `requireRole`, which is what puts the account on the request. Fixed rather than an
+ * environment setting, for `INVITATIONS_PER_ACCOUNT_PER_HOUR`'s.
+ */
+export const VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR = 10
+
+export const venuePhotoLimiter = (perHour: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
+
 // ------------------------------------------------------------ second factor --
 
 /**
