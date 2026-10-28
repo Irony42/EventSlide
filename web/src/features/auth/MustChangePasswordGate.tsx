@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { Spinner } from '../../design-system/components/Spinner'
 import { useSession } from '../../app/useSession'
+import { hereAsFrom } from '../../lib/landing'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './MustChangePasswordGate.module.css'
 
@@ -43,7 +44,8 @@ export function MustChangePasswordGate({ children }: MustChangePasswordGateProps
   const mustChange = session !== null && session.authenticated && session.user.mustChangePassword
 
   if (mustChange && location.pathname !== CHANGE_PASSWORD_PATH) {
-    return <Navigate to={CHANGE_PASSWORD_PATH} replace />
+    // Where they were going rides along, so choosing the password returns them there.
+    return <Navigate to={CHANGE_PASSWORD_PATH} replace state={{ from: hereAsFrom(location) }} />
   }
 
   return children === undefined ? <Outlet /> : <>{children}</>

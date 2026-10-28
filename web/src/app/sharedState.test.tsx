@@ -91,13 +91,13 @@ describe('what is asked once', () => {
     expect(api.about).toHaveBeenCalledTimes(1)
   })
 
-  it('does not read the session on the sign-in page, which has no use for it', async () => {
+  it('reads the session once on the sign-in page, to send on somebody who is already in (H13)', async () => {
     const api = fakeApi()
 
     openAdmin(api, '/login')
 
     expect(await screen.findByRole('heading', { name: fr.auth.title })).toBeVisible()
-    expect(api.session).not.toHaveBeenCalled()
+    await waitFor(() => expect(api.session).toHaveBeenCalledTimes(1))
   })
 
   it('asks again, once, when the host presses retry after a failure to ask', async () => {
@@ -202,7 +202,8 @@ describe('what is asked again because the answer changed', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: fr.auth.invitationSubmit }))
 
-    expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    // A moderator starts on the queue they were invited to work (decision 2).
+    expect(await screen.findByRole('heading', { name: fr.moderation.title })).toBeVisible()
     expect(screen.queryByRole('heading', { name: fr.auth.title })).toBeNull()
   })
 

@@ -11,3 +11,17 @@
 .hint {
   color: var(--text-secondary);
 }
+
+.link {
+  color: var(--accent);
+}
+
+/* The clients an account belongs to, one link each, stacked: a name can be long. */
+.clients {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

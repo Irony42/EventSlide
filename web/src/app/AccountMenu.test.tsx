@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { AccountMenu } from './AccountMenu'
 import { ApiError } from '../lib/http'
 import { fr } from '../lib/i18n/fr'
@@ -433,5 +433,143 @@ describe('AccountMenu: the client space', () => {
     await waitFor(() => expect(api.about).toHaveBeenCalled())
 
     expect(api.myLimits).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Navigation pass, batch D (H7, H15, H17): the second factor's page, the page you are on, and the
+ * menu while the password must be changed.
+ */
+describe('AccountMenu: security, the current page and a forced password change', () => {
+  const FACTOR = { available: true, enrolled: false, verified: false, required: false }
+
+  const as = (user: Parameters<typeof aSessionUser>[0], overrides: Partial<Api> = {}) =>
+    fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => ({
+        authenticated: true,
+        user: aSessionUser({ email: 'camille@example.org', ...user }),
+      })),
+      ...overrides,
+    })
+
+  /** Shows what the page a link opened was handed. */
+  const Arrival = () => <p data-testid="arrival">{JSON.stringify(useLocation().state)}</p>
+
+  /** The menu at an address of the console, with the pages it links to as stubs. */
+  const renderAt = (api: Api, route: string) =>
+    renderWithProviders(
+      <>
+        <AccountMenu />
+        <Routes>
+          <Route path="/admin/password" element={<Arrival />} />
+          <Route path="*" element={<p>Page</p>} />
+        </Routes>
+      </>,
+      { api, route },
+    )
+
+  it('offers the security page where the box has a key to enrol with', async () => {
+    renderAt(as({ secondFactor: FACTOR }), '/admin')
+    await open()
+
+    expect(screen.getByRole('link', { name: fr.auth.securityTitle })).toHaveAttribute(
+      'href',
+      '/admin/security',
+    )
+  })
+
+  it('offers it to an account that has enrolled, whatever the box says now', async () => {
+    renderAt(as({ secondFactor: { ...FACTOR, available: false, enrolled: true } }), '/admin')
+    await open()
+
+    expect(screen.getByRole('link', { name: fr.auth.securityTitle })).toBeVisible()
+  })
+
+  it('offers it to nobody on a box with no key and an account with no authenticator', async () => {
+    renderAt(as({}), '/admin')
+    await open()
+
+    expect(screen.queryByRole('link', { name: fr.auth.securityTitle })).toBeNull()
+  })
+
+  it('marks the entry of the page you are on, and only that one', async () => {
+    renderAt(as({ secondFactor: FACTOR }), '/admin/security')
+    await open()
+
+    expect(screen.getByRole('link', { name: fr.auth.securityTitle })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(screen.getByRole('link', { name: fr.admin.events })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: fr.auth.changePassword })).not.toHaveAttribute(
+      'aria-current',
+    )
+  })
+
+  it('marks the console for every page of the console, not only its front page', async () => {
+    renderAt(
+      as(
+        { canOperateSite: true },
+        {
+          about: vi.fn(async () =>
+            anAbout({ features: { siteAdmin: true, forgotPassword: false } }),
+          ),
+        },
+      ),
+      '/admin/site/accounts',
+    )
+    await open()
+
+    expect(await screen.findByRole('link', { name: fr.site.menuLink })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
+
+  it('sends the page it leaves along, so the password and security pages can bring the person back', async () => {
+    renderAt(as({ secondFactor: FACTOR }), '/admin/site/audit?clientId=c-1')
+    await open()
+    await userEvent.click(screen.getByRole('link', { name: fr.auth.changePassword }))
+
+    expect(await screen.findByTestId('arrival')).toHaveTextContent(
+      JSON.stringify({ from: '/admin/site/audit?clientId=c-1' }),
+    )
+  })
+
+  describe('while the password must be changed', () => {
+    const forced = () => as({ mustChangePassword: true, secondFactor: FACTOR })
+
+    it('offers no page of the console, since every one of them leads back to the same screen', async () => {
+      renderAt(forced(), '/admin/password')
+      await open()
+
+      expect(screen.queryByRole('link', { name: fr.admin.events })).toBeNull()
+      expect(screen.queryByRole('link', { name: fr.auth.securityTitle })).toBeNull()
+      expect(screen.queryByRole('link', { name: fr.auth.changePassword })).toBeNull()
+    })
+
+    it('says why, and keeps the two ways out', async () => {
+      renderAt(forced(), '/admin/password')
+      await open()
+
+      expect(screen.getByText(fr.auth.menuMustChange)).toBeVisible()
+      expect(screen.getByRole('button', { name: fr.auth.logout })).toBeVisible()
+      expect(screen.getByRole('button', { name: fr.auth.logoutEverywhere })).toBeVisible()
+    })
+
+    it('does not ask for the client space, which the server would refuse', async () => {
+      const api = as(
+        { mustChangePassword: true },
+        {
+          about: vi.fn(async () =>
+            anAbout({ features: { siteAdmin: true, forgotPassword: false } }),
+          ),
+        },
+      )
+      renderAt(api, '/admin/password')
+      await open()
+
+      expect(api.myLimits).not.toHaveBeenCalled()
+    })
   })
 })

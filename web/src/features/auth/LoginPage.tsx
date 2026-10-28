@@ -1,57 +1,103 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAbout } from '../../app/useAbout'
+import { useAbout, useAboutHeard } from '../../app/useAbout'
+import { useApi } from '../../app/useApi'
 import { Field } from '../../design-system/components/Field'
+import { Spinner } from '../../design-system/components/Spinner'
 import { TextInput } from '../../design-system/components/TextInput'
+import { fromOf } from '../../lib/landing'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { useLoader } from '../../lib/useLoader'
 import { AuthForm } from './components/AuthForm'
 import { SecondFactorPage } from './SecondFactorPage'
 import { useLogin } from './hooks/useAuthActions'
-
-const ADMIN_HOME = '/admin'
+import { useResolveLanding } from './hooks/useLanding'
 
 /**
- * Where to go once the host is in.
+ * Whether the history entry is the second step of a sign-in.
  *
- * `RequireAuth` puts the page they were heading for in the navigation state, so a
- * bookmarked moderation console does not dump them on the dashboard to click through
- * again. The value is read defensively because history state is whatever the browser
- * kept — it survives a reload and can come from an older build.
+ * The step lives in the entry's navigation state and not in the component, so that **Back**
+ * returns to the password step (the entry before it) and a **reload** stays on the code step
+ * (history state survives one). The half-finished sign-in itself is a cookie the server set and
+ * holds for five minutes: a code step restored after it ran out is answered
+ * `auth.secondFactorExpired`, and the page then says so on the password step. Read defensively:
+ * history state is whatever the browser kept.
  */
-const redirectTarget = (state: unknown): string => {
-  if (typeof state !== 'object' || state === null || !('from' in state)) return ADMIN_HOME
-  const from = state.from
-  // Only an in-app path: an absolute URL from history state would be an open redirect.
-  //
-  // The second character decides that as much as the first. A browser reads a backslash
-  // in a URL as a slash, so `/\ailleurs.example` *is* `//ailleurs.example` by the time
-  // it is resolved, and a check that only refused `//` let it through by one character.
-  // That is the same bypass react-router closed in 7.18.0 (GHSA-wrjc-x8rr-h8h6); it is
-  // refused here as well rather than left to the router, because this value comes out of
-  // history state and is read before the router ever sees it.
-  const inAppPath = /^\/(?![/\\])/
-  return typeof from === 'string' && inAppPath.test(from) ? from : ADMIN_HOME
+const isCodeStep = (state: unknown): boolean =>
+  typeof state === 'object' && state !== null && 'step' in state && state.step === 'code'
+
+/** The state of this entry, keeping where the person was heading and setting the step. */
+const stateWithStep = (state: unknown, step: 'code' | null): { from?: string; step?: 'code' } => {
+  const from = fromOf(state)
+  return { ...(from === null ? {} : { from }), ...(step === null ? {} : { step }) }
 }
 
-/** Surface: the host's laptop, usually the day before the event. */
+/**
+ * Somebody who opened the sign-in page with a session that is still good: sent where the rules
+ * in `lib/landing.ts` send them, instead of a form for an account they are already in.
+ */
+function AlreadySignedIn({ canOperateSite }: { readonly canOperateSite: boolean }) {
+  const t = useTranslations()
+  const navigate = useNavigate()
+  const { state } = useLocation()
+  const resolveLanding = useResolveLanding()
+
+  useEffect(() => {
+    let live = true
+    void resolveLanding({ state, canOperateSite }).then((path) => {
+      if (live) navigate(path, { replace: true })
+    })
+    return () => {
+      live = false
+    }
+  }, [resolveLanding, navigate, state, canOperateSite])
+
+  return <Spinner size="lg" label={t.auth.alreadySignedIn} />
+}
+
+/**
+ * Surface: the host's laptop, usually the day before the event.
+ *
+ * It asks `GET /api/auth/me` once on opening, and shows the form meanwhile: a session that is
+ * still good sends the person on (H13), and nobody who is signed out waits for the answer.
+ */
 export function LoginPage() {
+  const api = useApi()
+  const probe = useCallback((signal: AbortSignal) => api.session(signal), [api])
+  // A failed read leaves the form, which is what somebody who cannot be told otherwise needs.
+  const { data } = useLoader(probe)
+
+  if (data !== null && data.authenticated) {
+    return <AlreadySignedIn canOperateSite={data.user.canOperateSite} />
+  }
+  return <SignInForm />
+}
+
+function SignInForm() {
   const t = useTranslations()
   const { submit, submitting, error } = useLogin()
   const navigate = useNavigate()
   const location = useLocation()
+  const resolveLanding = useResolveLanding()
   // Whether the box can mail a reset link. False until the server says so, which is the answer
   // that offers no link to a page that cannot work.
   const { features } = useAbout()
+  const heard = useAboutHeard()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  // The password was right for an account with an authenticator: the server has started no
-  // session, and the page asks for the second step in place of the form.
-  const [awaitingCode, setAwaitingCode] = useState(false)
+  // The server said the password was right for an account with an authenticator: it has started
+  // no session, and the page asks for the second step in place of the form.
+  const awaitingCode = isCodeStep(location.state)
   // Why the password step is back, when the second step ended it.
   const [restartReason, setRestartReason] = useState<string | null>(null)
+  // The sign-in went through and the landing is being read: the form stays, busy.
+  const [arriving, setArriving] = useState(false)
 
-  const goHome = () => navigate(redirectTarget(location.state), { replace: true })
+  const goHome = () => {
+    setArriving(true)
+    void resolveLanding({ state: location.state }).then((path) => navigate(path, { replace: true }))
+  }
 
   const handleSubmit = () => {
     setRestartReason(null)
@@ -59,7 +105,10 @@ export function LoginPage() {
       // Nothing is cleared on refusal. A host who mistyped one character should fix
       // that character, not retype an address and a password from their manager.
       if (outcome === 'signedIn') goHome()
-      if (outcome === 'secondFactor') setAwaitingCode(true)
+      // A new history entry: Back is the password step again, with what was typed.
+      if (outcome === 'secondFactor') {
+        navigate(location.pathname, { state: stateWithStep(location.state, 'code') })
+      }
     })
   }
 
@@ -72,7 +121,7 @@ export function LoginPage() {
           // and an address the server just said is over should not be silently resubmitted.
           setPassword('')
           setRestartReason(reason)
-          setAwaitingCode(false)
+          navigate(location.pathname, { replace: true, state: stateWithStep(location.state, null) })
         }}
       />
     )
@@ -82,11 +131,17 @@ export function LoginPage() {
     <AuthForm
       title={t.auth.title}
       error={error ?? restartReason}
-      submitting={submitting}
+      submitting={submitting || arriving}
       submitLabel={t.auth.submit}
       onSubmit={handleSubmit}
       footer={
-        features.forgotPassword ? <Link to="/password/forgot">{t.auth.forgotLink}</Link> : null
+        features.forgotPassword ? (
+          <Link to="/password/forgot">{t.auth.forgotLink}</Link>
+        ) : heard ? (
+          // A box with no mail relay has no reset link to send: say who resets it instead of
+          // leaving a host who has forgotten the password with nowhere to look.
+          <span>{t.auth.forgotNoMail}</span>
+        ) : null
       }
     >
       <Field label={t.auth.email}>

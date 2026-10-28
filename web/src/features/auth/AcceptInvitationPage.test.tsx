@@ -40,6 +40,8 @@ const renderInvitation = (api: Api, options: { readonly locale?: Locale } = {}) 
       <Route path="/invite/:token" element={<AcceptInvitationPage />} />
       <Route path="/admin" element={<p>Tableau de bord</p>} />
       <Route path="/admin/events/:slug" element={<EventStub />} />
+      <Route path="/admin/events/:slug/moderation" element={<EventStub />} />
+      <Route path="/admin/events/:slug/moderation/mobile" element={<EventStub />} />
       <Route path="/login" element={<LoginProbe />} />
     </Routes>,
     { api, route: `/invite/${TOKEN}`, ...options },
@@ -130,7 +132,7 @@ describe('AcceptInvitationPage: what the link says', () => {
 })
 
 describe('AcceptInvitationPage: creating the account', () => {
-  it('sends the name and the password chosen, and lands the person on the event', async () => {
+  it('sends the name and the password chosen, and lands a moderator on the queue they were invited to', async () => {
     const api = fakeApi()
     renderInvitation(api)
 

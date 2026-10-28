@@ -983,6 +983,24 @@ export const en: UiText = {
     logoutEverywhereTitle: 'Sign out everywhere?',
     logoutEverywhereHint:
       'Your session will be closed on every device, this one included, and you will have to sign in again. Useful if you lost a device or used a shared computer.',
+
+    /* ---- Navigation pass, batch D: accounts and sign-in. ---- */
+    alreadySignedIn: 'You are already signed in. Redirecting…',
+    forgotNoMail:
+      'Forgotten your password? This server sends no e-mail: ask whoever runs it to reset it for you.',
+    changePasswordForced:
+      'Your password was chosen for you: replace it before going further. You will then return to where you were going.',
+    menuMustChange: 'Change your password first: the rest of the console stays closed until then.',
+    securityBack: 'Back',
+    secondFactorEnabled: 'Two-step verification turned on.',
+    recoveryCodesLeaveTitle: 'Leave without writing down your codes?',
+    recoveryCodesLeaveHint:
+      'These codes are shown only once: if you leave this page you can no longer read them. Getting new ones means confirming your identity again.',
+    recoveryCodesLeaveStay: 'Stay and write them down',
+    recoveryCodesLeaveGo: 'Leave anyway',
+    deadInvitationSignIn: 'If you have already accepted it, your account exists: sign in.',
+    deadInvitationSignedIn:
+      'You are already signed in: if you accepted it with this account, your events are there.',
   },
 
   mobileModeration: {
@@ -1273,8 +1291,19 @@ export const en: UiText = {
       'Everything that was done on the instance, newest first. The reason for a change of limits is the operator’s own sentence.',
     auditEmpty: 'No action recorded yet.',
     auditMore: 'Show older actions',
-    auditFiltered: 'One client’s log.',
     auditShowAll: 'Show the whole log',
+
+    /* ---- Navigation pass, batch D: the console's links and the invitation link. ---- */
+    exitsLabel: 'Leave the console',
+    accountsLink: 'See all accounts',
+    noClient: 'None',
+    auditFilteredFor: (name: string) => `Log of the client “${name}”.`,
+    auditToClient: 'See this client',
+    invitationLeaveTitle: 'Leave without copying the link?',
+    invitationLeaveHint:
+      'No e-mail went out: this invitation link is shown only here, once. If you leave this page you can no longer copy it; you can issue a new one from the client’s page.',
+    invitationLeaveStay: 'Stay and copy the link',
+    invitationLeaveGo: 'Leave anyway',
     auditReason: (reason: string) => `Reason: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
     actors: {

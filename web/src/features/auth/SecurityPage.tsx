@@ -1,7 +1,9 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useId, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { LeaveGuard } from '../../app/LeaveGuard'
 import { useApi } from '../../app/useApi'
-import { useSession } from '../../app/useSession'
+import { useForgetSession, useSession } from '../../app/useSession'
 import { Button } from '../../design-system/components/Button'
 import { Field } from '../../design-system/components/Field'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -9,6 +11,7 @@ import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import type { SecondFactorProof, TotpEnrolmentDto } from '../../lib/api/dto'
 import { ApiError } from '../../lib/http'
+import { ADMIN_HOME, fromOf } from '../../lib/landing'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AuthForm } from './components/AuthForm'
 import { messageForPasswordError } from '../../lib/i18n/translations'
@@ -74,6 +77,15 @@ function RecoveryCodes({
 
   return (
     <section className={styles['section']} aria-labelledby={headingId}>
+      {/* The codes are in this page's memory and nowhere else: leaving without pressing the button
+          below is the one way to lose them, so every way off the page asks first. */}
+      <LeaveGuard
+        when
+        title={t.auth.recoveryCodesLeaveTitle}
+        description={t.auth.recoveryCodesLeaveHint}
+        stayLabel={t.auth.recoveryCodesLeaveStay}
+        leaveLabel={t.auth.recoveryCodesLeaveGo}
+      />
       <h2 id={headingId} className={styles['heading']}>
         {t.auth.recoveryCodesTitle}
       </h2>
@@ -314,34 +326,68 @@ function Manage({
 }
 
 /**
- * Surface: the operator's laptop, reached on purpose (the console links here once it
- * exists; until then the address is the entry).
+ * Surface: the operator's laptop, reached from the account menu (H7: it was an orphan, reachable
+ * only by typing the address or from the console's gate).
  *
  * Three states, decided by what `GET /api/auth/me` says about this account and this box: no
  * key (nothing can be offered, and the page says so), no authenticator (the enrolment), an
  * authenticator (confirm who you are, then renew the codes or switch it off).
  *
+ * **It returns the person to where they came from** (`from` in the navigation state: the menu and
+ * the console's gate write it). A link at the top says so at any time; **finishing the enrolment
+ * takes them there**, so an operator the console turned away comes back to the page they asked for
+ * with a second factor in place, instead of being left on a page about a decision already made.
+ * Without a `from` (the address typed) they stay on the page, which then shows the account's
+ * authenticator, and the link goes to the list of events.
+ *
  * The recovery codes are shown from the moment they are minted until the person says they
  * have written them down, and **only held here**: they are not stored client-side and the
  * server cannot show them again, so a page that lost them on a re-render would have cost the
- * person their way back in.
+ * person their way back in. Leaving the page before that is asked about (`LeaveGuard`).
  */
 export function SecurityPage() {
   const t = useTranslations()
+  const toast = useToast()
+  const navigate = useNavigate()
+  const { state } = useLocation()
+  const from = fromOf(state)
   const { session, loading, refresh } = useSession()
-  const [codes, setCodes] = useState<readonly string[] | null>(null)
+  const forgetSession = useForgetSession()
+  const [codes, setCodes] = useState<{
+    readonly list: readonly string[]
+    /** These are the codes of an enrolment that has just been confirmed, not of a renewal. */
+    readonly enrolment: boolean
+  } | null>(null)
 
   if (codes !== null) {
     return (
       <RecoveryCodes
-        codes={codes}
+        codes={codes.list}
         onSaved={() => {
           setCodes(null)
+          if (!codes.enrolment) {
+            refresh()
+            return
+          }
+          toast.show(t.auth.secondFactorEnabled, { tone: 'success' })
+          if (from !== null) {
+            // The answer the console would read is the one from before the enrolment: drop it
+            // and let the page that is opened ask.
+            forgetSession()
+            navigate(from, { replace: true })
+            return
+          }
           refresh()
         }}
       />
     )
   }
+
+  const back = (
+    <Link className={styles['back']} to={from ?? ADMIN_HOME}>
+      {t.auth.securityBack}
+    </Link>
+  )
 
   if (loading || session === null || !session.authenticated) {
     return (
@@ -355,16 +401,24 @@ export function SecurityPage() {
 
   if (!enrolled && !available) {
     return (
-      <section className={styles['section']}>
-        <h1 className={styles['heading']}>{t.auth.securityTitle}</h1>
-        <p>{t.auth.securityUnavailable}</p>
-      </section>
+      <>
+        {back}
+        <section className={styles['section']}>
+          <h1 className={styles['heading']}>{t.auth.securityTitle}</h1>
+          <p>{t.auth.securityUnavailable}</p>
+        </section>
+      </>
     )
   }
 
-  return enrolled ? (
-    <Manage onCodes={setCodes} onDisabled={refresh} />
-  ) : (
-    <Enrol onEnrolled={setCodes} />
+  return (
+    <>
+      {back}
+      {enrolled ? (
+        <Manage onCodes={(list) => setCodes({ list, enrolment: false })} onDisabled={refresh} />
+      ) : (
+        <Enrol onEnrolled={(list) => setCodes({ list, enrolment: true })} />
+      )}
+    </>
   )
 }
