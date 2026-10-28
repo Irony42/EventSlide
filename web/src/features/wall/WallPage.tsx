@@ -39,10 +39,10 @@ const NO_ITEMS: readonly WallItemDto[] = []
  * hour, and `?layout=` on the display URL is the same change made in advance, for a
  * projector nobody is standing at.
  *
- * The order is the two layouts 2.0 shipped, then the four 2.3 added. It is not sorted by
- * anything — by slot count it would read 1, 6, 3, 5, 12, 2 — and the reason it is not is
- * that the first press has always landed on the mosaic, in every host's hands and in the
- * visual suite. Re-sorting the cycle to make a comment true would move that for no gain.
+ * The order is the two layouts 2.0 shipped, then the four 2.3 added, then the clothesline.
+ * It is not sorted by anything — by slot count it would read 1, 6, 3, 5, 12, 2, 5 — and the
+ * reason it is not is that the first press has always landed on the mosaic, in every host's
+ * hands and in the visual suite. Re-sorting the cycle to make a comment true would move that for no gain.
  * The help dialog reads the order off this array, so a layout added here cannot fall out
  * of the copy that names it.
  */
@@ -53,6 +53,7 @@ const LAYOUT_CYCLE: readonly WallLayout[] = [
   'filmstrip',
   'collage',
   'split',
+  'clothesline',
 ]
 
 /**
@@ -181,6 +182,7 @@ export function WallPage() {
   const [joinCardDismissed, setJoinCardDismissed] = useState(false)
 
   const serverLayout = wall?.layout
+
   const closeHelp = useCallback(() => setHelpOpen(false), [])
 
   /**

@@ -659,6 +659,7 @@ export const de: UiText = {
       filmstrip: 'Filmstreifen',
       collage: 'Collage',
       split: 'Nebeneinander',
+      clothesline: 'Wäscheleine',
     },
     layoutOrder: (names: readonly string[]) =>
       `Anordnungen, in dieser Reihenfolge: ${names.join(', ')}.`,

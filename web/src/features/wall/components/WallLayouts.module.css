@@ -336,6 +336,138 @@
 /* ---------------------------------------------------------------------------------- */
 
 /**
+ * Clothesline: up to five prints pegged to a string.
+ *
+ * The stage owns the ground and the clipping; `.line` is the row, and it is the string's
+ * containing block, so the twine sits exactly where the pins are whatever the screen. The
+ * row lays out inside what the join card leaves free (DESIGN-SYSTEM §9, "The reserved
+ * corner"); the twine is ornament and runs the full width of the row's box, past the
+ * card's gutter to the edge, where it passes above the card and behind nothing.
+ *
+ * Every print is the same width however many hang, so the fourth photograph of an evening
+ * does not resize the three already up; a short line is centred instead.
+ */
+.clothesline {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  padding-block: var(--wall-safe);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
+  overflow: hidden;
+}
+
+.line {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--space-5);
+  padding-inline: var(--wall-safe);
+  padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
+  padding-block-start: var(--space-8);
+}
+
+.line::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(var(--space-8) - var(--space-1));
+  block-size: calc(var(--space-1) / 2);
+  border-radius: var(--radius-full);
+  background: var(--clothesline-twine);
+}
+
+/**
+ * One print: the polaroid's paper, hung rather than piled.
+ *
+ * It turns about its pin, which is where it hangs from, so the sway reads as a swing and
+ * not as a wobble. The top mat is deeper than the polaroid's because the pin lives in it.
+ * `scale` is its own property and composes with the `rotate` the tilt and the sway write
+ * to `transform`, which is what lets the newest print be larger without a second
+ * transform to keep in step.
+ */
+.hung {
+  position: relative;
+  flex: 0 1 calc((100% - var(--space-5) * 4) / 5);
+  min-inline-size: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-3) var(--space-5);
+  border-radius: var(--radius-sm);
+  background: var(--surface-print);
+  box-shadow: var(--shadow-md);
+  transform: rotate(var(--wall-tilt, 0deg));
+  transform-origin: 50% 0;
+}
+
+.hung[data-newest='true'] {
+  scale: 1.08;
+  box-shadow: var(--shadow-lg);
+  z-index: 1;
+}
+
+/* The pin straddles the string and ends inside the mat, a few pixels short of the photograph
+   window: an ornament never covers a photograph. */
+.pin {
+  position: absolute;
+  inset-block-start: calc(-1 * var(--space-3));
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  inline-size: var(--space-3);
+  block-size: var(--space-6);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    to bottom,
+    var(--clothespin-wood) 0 60%,
+    var(--clothespin-wood-shade) 60% 66%,
+    var(--clothespin-wood) 66%
+  );
+}
+
+/**
+ * The sway: ±1.5° about the pin, slow, and out of step from one print to the next.
+ *
+ * `alternate` and `ease-in-out`, so a swing slows at either end the way a weight does.
+ * The delays are fractions of the one duration, negative so that every print is already
+ * mid-swing on the first frame: five prints leaving together would sway in unison, which
+ * is a machine and not a breeze.
+ */
+.clothesline[data-motion='swaying'] .hung {
+  animation: line-sway var(--duration-sway) var(--ease-in-out) infinite alternate;
+  will-change: transform;
+}
+
+.clothesline[data-motion='swaying'] .hung:nth-child(2) {
+  animation-delay: calc(var(--duration-sway) / -5);
+}
+
+.clothesline[data-motion='swaying'] .hung:nth-child(3) {
+  animation-delay: calc(var(--duration-sway) / -3);
+}
+
+.clothesline[data-motion='swaying'] .hung:nth-child(4) {
+  animation-delay: calc(var(--duration-sway) / -2);
+}
+
+.clothesline[data-motion='swaying'] .hung:nth-child(5) {
+  animation-delay: calc(var(--duration-sway) / -1.5);
+}
+
+@keyframes line-sway {
+  from {
+    transform: rotate(calc(var(--wall-tilt, 0deg) - var(--sway-angle)));
+  }
+  to {
+    transform: rotate(calc(var(--wall-tilt, 0deg) + var(--sway-angle)));
+  }
+}
+
+/* ---------------------------------------------------------------------------------- */
+
+/**
  * Split: two panes, each letterboxed.
  *
  * `contain` on both halves, because half an ultra-wide screen is still bigger than
@@ -415,7 +547,9 @@
  * a frame's width to the left of where the strip belongs.
  */
 [data-wall-budget='still'] .track[data-motion='drift'],
-[data-wall-budget='cut'] .track[data-motion='drift'] {
+[data-wall-budget='cut'] .track[data-motion='drift'],
+[data-wall-budget='still'] .clothesline[data-motion='swaying'] .hung,
+[data-wall-budget='cut'] .clothesline[data-motion='swaying'] .hung {
   animation: none;
   will-change: auto;
 }

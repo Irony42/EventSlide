@@ -62,6 +62,7 @@ const POLAROID_PRINTS = 3
 const FILMSTRIP_FRAMES = 5
 const COLLAGE_CELLS = 12
 const SPLIT_PANES = 2
+const CLOTHESLINE_PRINTS = 5
 
 /**
  * Which photos a rotating layout is holding at slide `index`.
@@ -189,6 +190,24 @@ const splitPanes = (items: readonly WallItemDto[], index: number): readonly Wall
   }
 
   return panes
+}
+
+/**
+ * The photo on the line that arrived last, or `null` when there is none.
+ *
+ * "Newest" is the upload's own timestamp and not the playlist's order, so the answer is
+ * the same whichever slot a photo happens to hang in, and the same on two projectors. A
+ * tie, or a timestamp that does not parse, keeps the earlier print: deterministic, and the
+ * only way a wall with nothing to compare could have chosen.
+ */
+const newestOf = (items: readonly WallItemDto[]): string | null => {
+  let newest: WallItemDto | null = null
+  for (const item of items) {
+    if (newest === null || Date.parse(item.createdAt) > Date.parse(newest.createdAt)) {
+      newest = item
+    }
+  }
+  return newest === null ? null : newest.id
 }
 
 /** The crossfade length the room was given, as the custom property the CSS reads. */
@@ -325,6 +344,72 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
           </figure>
         )
       })}
+
+      <PhotoPreload url={slideshow.next === null ? null : slideshow.next.displayUrl} />
+    </div>
+  )
+}
+
+/**
+ * Three to five prints pegged to a string, swaying a little.
+ *
+ * The polaroid's cousin for a garden party: the same cream-bordered paper, the same tilt
+ * derived from the photo id, hung by a wooden clothespin from a string that crosses the
+ * wall. It shows up to five prints and fewer while the playlist is shorter, so the string
+ * is never longer than what hangs on it.
+ *
+ * The newest print is the one the room should look at, so it hangs a little larger and
+ * casts the deeper shadow. Nothing is coloured: the accent is reserved for the action.
+ *
+ * The sway is the second thing on the wall that loops. It is declared from `data-motion`
+ * for the reason the polaroid's landing is: a collapsed duration under
+ * `prefers-reduced-motion` would leave an infinite animation at a frame nobody chose. A
+ * wall that is not advancing is held still as well — the strip's rule, and what makes a
+ * baseline of this layout the print at rest rather than the frame the shutter reached.
+ */
+function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+  const text = useTranslations()
+  const reducedMotion = usePrefersReducedMotion()
+  const prints = rotatingSlots(items, slideshow.index, CLOTHESLINE_PRINTS)
+  const newest = newestOf(prints)
+  const sways = !reducedMotion && slideshow.intervalMs > 0
+
+  return (
+    <div
+      className={styles['clothesline']}
+      style={stageStyleFor(transitionMs)}
+      data-motion={sways ? 'swaying' : 'still'}
+    >
+      <div className={styles['line']}>
+        {prints.map((item, slot) => {
+          const tilt: TiltStyle = { '--wall-tilt': `${tiltFor(item.id)}deg` }
+
+          return (
+            <figure
+              // The slot and the photo: a print taking its turn is a new element, which
+              // restarts its fade-in, and five of them is the whole of the node count.
+              key={`${slot}-${item.id}`}
+              className={styles['hung']}
+              style={tilt}
+              data-testid="wall-slide"
+              data-photo-id={item.id}
+              data-newest={item.id === newest ? 'true' : undefined}
+            >
+              {/* Over the mat's top border, never over the photograph. */}
+              <span className={styles['pin']} aria-hidden="true" />
+              <span className={styles['printWindow']}>
+                <WallMedia
+                  item={item}
+                  plays={plays}
+                  alt={photoAlt(item, text)}
+                  className={styles['image']}
+                />
+              </span>
+              <SlideCaption caption={item.caption} authorName={item.authorName} variant="print" />
+            </figure>
+          )
+        })}
+      </div>
 
       <PhotoPreload url={slideshow.next === null ? null : slideshow.next.displayUrl} />
     </div>
@@ -507,7 +592,7 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
  * The layout switch.
  *
  * Every name in the contract now renders itself; the `never` assignment below means
- * adding a seventh layout to `WallLayout` fails the build here instead of silently
+ * adding another layout to `WallLayout` fails the build here instead of silently
  * showing the room black.
  *
  * It is also the **one** place that asks whether this layout plays video. Resolved here
@@ -532,6 +617,8 @@ export function WallLayouts({ layout, ...view }: WallLayoutsProps) {
       return <CollageLayout {...view} plays={plays} />
     case 'split':
       return <SplitLayout {...view} plays={plays} />
+    case 'clothesline':
+      return <ClotheslineLayout {...view} plays={plays} />
     default: {
       const unhandled: never = layout
       return unhandled

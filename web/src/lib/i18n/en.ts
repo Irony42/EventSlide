@@ -613,6 +613,7 @@ export const en: UiText = {
       filmstrip: 'Filmstrip',
       collage: 'Collage',
       split: 'Side by side',
+      clothesline: 'Clothesline',
     },
     layoutOrder: (names: readonly string[]) => `Layouts, in order: ${names.join(', ')}.`,
 

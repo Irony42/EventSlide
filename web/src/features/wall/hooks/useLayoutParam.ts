@@ -20,6 +20,7 @@ const LAYOUT_NAMES: Readonly<Record<WallLayout, true>> = {
   filmstrip: true,
   collage: true,
   split: true,
+  clothesline: true,
 }
 
 const isWallLayout = (value: string): value is WallLayout => Object.hasOwn(LAYOUT_NAMES, value)

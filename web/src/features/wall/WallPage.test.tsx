@@ -616,15 +616,15 @@ describe('WallPage', () => {
     await screen.findByTestId('wall-slide')
 
     const visited: (string | null)[] = [theWall().getAttribute('data-wall-layout')]
-    for (let press = 0; press < 6; press += 1) {
+    for (let press = 0; press < 7; press += 1) {
       await userEvent.keyboard('l')
       visited.push(theWall().getAttribute('data-wall-layout'))
     }
 
-    // The two layouts 2.0 shipped, then the four 2.3 added — not sorted by slot count,
-    // so that the first press still lands where every host's hand expects it. What this
-    // protects is the wrap: the seventh press comes home rather than stranding somebody
-    // on a layout they cannot get out of.
+    // The two layouts 2.0 shipped, then the four 2.3 added, then the clothesline — not
+    // sorted by slot count, so that the first press still lands where every host's hand
+    // expects it. What this protects is the wrap: the eighth press comes home rather than
+    // stranding somebody on a layout they cannot get out of.
     expect(visited).toEqual([
       'spotlight',
       'mosaic',
@@ -632,11 +632,12 @@ describe('WallPage', () => {
       'filmstrip',
       'collage',
       'split',
+      'clothesline',
       'spotlight',
     ])
   })
 
-  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split'])(
+  it.each<WallLayout>(['polaroid', 'filmstrip', 'collage', 'split', 'clothesline'])(
     'renders %s itself rather than falling back to the layout nearest to it',
     async (layout) => {
       // Every name in the contract is now built. A layout that silently rendered its

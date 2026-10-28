@@ -11,7 +11,8 @@ export type PhotoStatus = 'pending' | 'published' | 'rejected' | 'hidden'
 export type EventStatus = 'draft' | 'live' | 'closed' | 'archived'
 export type ModerationDecision = 'publish' | 'reject' | 'hide'
 export type ReactionKind = 'love' | 'laugh' | 'wow' | 'cheers' | 'clap'
-export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split'
+export type WallLayout =
+  'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split' | 'clothesline'
 /**
  * The language an event's projected wall speaks (roadmap 1.5).
  *
