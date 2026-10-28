@@ -40,7 +40,7 @@
   --text-muted: oklch(66% 0.018 45);
   /* The safelight. Ornament only: a gradient behind the page, never under text, never on
      the wall while it is showing photographs (principle 1). */
-  --safelight: oklch(30% 0.12 26);
+  --safelight: oklch(22% 0.08 26);
   /* Numbers that are counted or copied: frame numbers, times, the join code. */
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
 
@@ -302,6 +302,8 @@
   --font-display: 'Shrikhand', ui-serif, Georgia, serif;
   --font-heading: 'Bricolage Grotesque', var(--font-sans);
   --radius-md: var(--radius-lg);
+  /* Shrikhand is already compact; tightening it fuses the letters. */
+  --tracking-tight: 0;
   /* Ornament, never a control: the pennants and the gingham. */
   --decor-1: oklch(58% 0.16 32);
   --decor-2: oklch(74% 0.09 175);

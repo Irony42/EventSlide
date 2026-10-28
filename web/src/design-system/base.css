@@ -192,6 +192,11 @@ body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::after
   z-index: var(--z-toast);
 }
 
+/* Room for the pennants, so they never sit over the header's controls. */
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])) {
+  padding-block: var(--space-5) var(--space-4);
+}
+
 body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::before {
   inset-block-start: 0;
   block-size: 20px;
