@@ -3,14 +3,12 @@
 ## Status
 
 Proposed, with a prototype on `feat/ambiances-proto`. The field, its storage, its wire shape, the
-picker, the root palette and one festive ambiance (Guinguette) are built and tested. **Not built**, and
-said so: the ambiance-specific wall layouts (the Guinguette's clothesline, the Chambre noire's
-contact sheet), the ornaments on the wall's join card, the marker strokes in the moderation console,
+picker, the root palette and one festive ambiance (Guinguette) are built and tested, and so are the Guinguette's clothesline
+layout and its visual baselines. **Not built**, and said so: the Chambre noire's contact sheet, the ornaments on the wall's join card, the marker strokes in the moderation console,
 the derivation of the Guinguette's glass alphas (set conservatively above the root's for now), a
 measurement of text over the photographed ground (the grade is chosen, not derived: a node test
 sampling the WebP per band is the honest version), a contrast check of the kraft texture under its
-label, and
-the visual baselines, which this change moves and does not yet re-record.
+label.
 
 ## Date
 
@@ -72,6 +70,19 @@ ground, kraft, filament bulbs, linen gingham). Pierre asked whether several coul
 9. **What the Chambre noire wears beyond its palette**: the event's name in Instrument Serif at
    display size on the guest's phone, a film grain over the page ground, and two safelight leaks
    drifting behind every page but the wall, stopped by reduced motion.
+
+10. **The Guinguette's wall layout is the clothesline** (amended 28/10). `clothesline` is a seventh
+    layout in the domain's closed vocabulary: up to five cream-bordered prints pegged to a twine by
+    wooden clothespins, tilted by a hash of the photo id like the polaroid, swaying 1.5 degrees about
+    the pin, the newest hung larger. It works in every ambiance; the twine and the pins are tokens,
+    drawn over a print's top mat and never over a photograph. It is the Guinguette's **default**, and
+    that is a suggestion made at the screen and not a setting: the layout belongs to the projector, the
+    wall response carries none of the event's own, so `web/src/features/wall/ambianceLayout.ts` maps
+    an ambiance to an optional layout and `WallPage` resolves the `L` key, then `?layout=`, then
+    that suggestion, then the response's default. No API changed; a kiosk that names its layout keeps
+    it. The sway is the second animation that loops on the wall (after Ken Burns): declared from
+    `data-motion`, withheld under reduced motion and on a wall that is not advancing, and shed by
+    both rungs of the frame-budget ladder.
 
 ## Consequences
 
