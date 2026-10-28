@@ -351,7 +351,7 @@
   position: absolute;
   inset: 0;
   display: grid;
-  align-content: start;
+  align-content: center;
   padding-block: var(--wall-safe);
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
