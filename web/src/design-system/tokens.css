@@ -752,7 +752,7 @@
   --text-muted: oklch(77% 0.03 var(--ground-hue));
   /* The accent is the root's derivation (72% lightness, a dark label), from the host's hue. The
      default hue is what an event that chose none presses. */
-  --accent-hue: 255;
+  --accent-hue: 305;
   --accent: oklch(72% 0.17 var(--accent-hue));
   --accent-strong: oklch(64% 0.19 var(--accent-hue));
   --accent-contrast: oklch(18% 0.02 var(--accent-hue));
@@ -800,7 +800,7 @@
   --text-muted: oklch(40% 0.03 var(--ground-hue));
   /* The Noces' accent (40% lightness, a white label): a pastel on a pale ground is unreadable at
      any hue. */
-  --accent-hue: 255;
+  --accent-hue: 305;
   --accent: oklch(40% 0.15 var(--accent-hue));
   --accent-strong: oklch(33% 0.15 var(--accent-hue));
   --accent-contrast: oklch(99% 0.005 var(--accent-hue));
@@ -1065,6 +1065,17 @@
  * `app/glassBackdrop.ts` decides which addresses may claim it, and a test walks the real
  * import graph rather than trusting the claim.
  */
+/**
+ * A preview of an ambiance (the template preview, the Sur mesure editor's frames) is excluded from
+ * the :root:has() twins on purpose, so the root's --glass-tint was substituted with the root's own
+ * tint and every pane inside the frame kept it: a light ambiance previewed dark panes. The frame
+ * points the alias at its own named tint again; the fallbacks above still reach it, because they
+ * move the named tints on every [data-event-ambiance].
+ */
+[data-template-preview][data-event-ambiance] {
+  --glass-tint: var(--glass-tint-photo);
+}
+
 [data-glass='ground'] {
   --glass-tint: var(--glass-tint-ground);
 }

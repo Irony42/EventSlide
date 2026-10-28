@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 // `import.meta.url` is not a `file:` URL and `fileURLToPath` throws. This also keeps the
 // test reading the same file the bundle does.
 import TOKENS from './tokens.css?raw'
+import { DEFAULT_EVENT_THEME } from './eventTheme'
 // The wall's caption styles, for the one failure mode a colour pair cannot express.
 import CAPTIONS from '../features/wall/components/SlideCaption.module.css?raw'
 import {
@@ -1516,5 +1517,24 @@ describe('the faces a Sur mesure event borrows (ADR 0011)', () => {
       expect([...(declarations ?? '').matchAll(/(--[a-z-]+):/g)].map((match) => match[1])).toEqual([
         ...FACE_PROPERTIES,
       ])
+  })
+})
+
+describe('the accent a Sur mesure event presses when the host chose none (ADR 0011)', () => {
+  // themeSurfaceProps emits no inline --accent-hue for the default angle, so the block's own
+  // default is what the screens wear; the editor's slider starts on DEFAULT_EVENT_THEME.accentHue.
+  // Were they two numbers, the slider would say one hue and the preview show another.
+  it.each(CUSTOM_POLARITIES)('is the default event accent in the %s block', (polarity) => {
+    expect(CUSTOM_DEFAULT_ACCENT[polarity]).toBe(DEFAULT_EVENT_THEME.accentHue)
+  })
+})
+
+describe('an ambiance previewed inside the console', () => {
+  // The previews are excluded from the :root:has() twins, so --glass-tint, substituted once on
+  // the root, would keep the root's tint inside the frame: a light ambiance with dark panes.
+  it('points the glass alias at the frame’s own tint again', () => {
+    expect(TOKENS).toMatch(
+      /\[data-template-preview\]\[data-event-ambiance\]\s*\{\s*--glass-tint:\s*var\(--glass-tint-photo\);/,
+    )
   })
 })
