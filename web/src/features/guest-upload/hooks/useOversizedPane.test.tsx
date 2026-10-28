@@ -20,7 +20,12 @@ const observers: FakeResizeObserver[] = []
 class FakeResizeObserver {
   readonly disconnect = vi.fn()
   /** Like the real one, it reports the starting size as soon as it is asked to watch. */
-  readonly observe = vi.fn(() => this.callback())
+  readonly observe = vi.fn(() => {
+    // Real observers report after layout, a moment after the commit that mounted the pane: a
+    // test that cares says so, and the rest take the report at once.
+    if (reportLate.value) queueMicrotask(() => this.callback())
+    else this.callback()
+  })
   readonly unobserve = vi.fn()
   constructor(private readonly callback: () => void) {
     observers.push(this)
@@ -31,6 +36,7 @@ class FakeResizeObserver {
   }
 }
 
+const reportLate = { value: false }
 const scrollIntoView = vi.fn()
 
 const state = { paneHeight: 0, paneBottom: 0 }
@@ -83,6 +89,7 @@ describe('useOversizedPane', () => {
     state.paneHeight = 400
     state.paneBottom = 900
     scrollIntoView.mockClear()
+    reportLate.value = false
     Element.prototype.scrollIntoView = scrollIntoView
   })
 
@@ -180,11 +187,14 @@ describe('useOversizedPane', () => {
     expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
-  it('does not scroll a page that opens with a pane that is already too tall', () => {
+  it('does not scroll a page that opens with a pane that is already too tall', async () => {
     state.paneHeight = 650
     state.paneBottom = 1500
+    reportLate.value = true
 
-    render(<Pane />)
+    await act(async () => {
+      render(<Pane />)
+    })
 
     expect(isOversized()).toBe(true)
     expect(scrollIntoView).not.toHaveBeenCalled()
