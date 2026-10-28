@@ -775,6 +775,33 @@ describe('SqliteEventRepository', () => {
       })
     })
 
+    it.each([
+      { holds: 'a custom object that is not an object', custom: 'sombre' },
+      { holds: 'an unknown polarity', custom: { ground: 'grey', groundHue: 1, faces: 'noces' } },
+      { holds: 'unknown faces', custom: { ground: 'dark', groundHue: 1, faces: 'disco' } },
+      {
+        holds: 'a hue that is not a number',
+        custom: { ground: 'dark', groundHue: 'x', faces: 'noces' },
+      },
+    ])('refuses a theme whose custom ambiance holds $holds', async ({ custom }) => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'custom',
+            custom,
+          },
+        }),
+        'evt-1',
+      )
+
+      await expect(repo.findById(asEventId('evt-1'))).rejects.toThrow()
+    })
+
     it('renders an event themed before ambiances existed in the product’s own look', async () => {
       // ADR 0010: no migration, for the material's reason. A theme with four keys has been
       // rendering the root look since it was written, and that is what `darkroom` is.

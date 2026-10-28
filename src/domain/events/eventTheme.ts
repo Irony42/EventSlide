@@ -154,8 +154,39 @@ export const THEME_AMBIANCES = [
   'bivouac',
   'cabaret',
   'noces',
+  'custom',
 ] as const
 export type ThemeAmbiance = (typeof THEME_AMBIANCES)[number]
+
+/**
+ * The ambiances whose faces, display weight and control radius a `custom` one may borrow:
+ * every designed one (docs/adr/0011-custom-ambiance.md, decision 1). Spelled out rather than
+ * filtered, so a new designed ambiance is a deliberate line here.
+ */
+export const THEME_FACES = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+] as const satisfies readonly ThemeAmbiance[]
+export type ThemeFaces = (typeof THEME_FACES)[number]
+
+/** The polarity of a custom ambiance's surfaces and inks. */
+export const THEME_GROUNDS = ['light', 'dark'] as const
+export type ThemeGround = (typeof THEME_GROUNDS)[number]
+
+/**
+ * What a host chooses in « Sur mesure »: a polarity, a tint and a borrowed set of faces.
+ * `groundHue` is an angle like the accent; no colour crosses the wire.
+ */
+export interface ThemeCustom {
+  readonly ground: ThemeGround
+  /** Degrees on the oklch hue circle, 0-359. */
+  readonly groundHue: number
+  readonly faces: ThemeFaces
+}
 
 /**
  * Names an ambiance used to go by, read as what replaced it.
@@ -198,6 +229,11 @@ export interface EventThemeProps {
   readonly material: ThemeMaterial
   /** The pack of surfaces and ornaments this event wears. See `THEME_AMBIANCES`. */
   readonly ambiance: ThemeAmbiance
+  /**
+   * The host's own ambiance (ADR 0011): **required when `ambiance` is `custom`, refused
+   * otherwise**, so a stored theme never carries one half of the pair.
+   */
+  readonly custom?: ThemeCustom
 }
 
 /**
@@ -340,10 +376,39 @@ export const isThemeMaterial = (value: unknown): value is ThemeMaterial =>
 export const isThemeAmbiance = (value: unknown): value is ThemeAmbiance =>
   typeof value === 'string' && (THEME_AMBIANCES as readonly string[]).includes(value)
 
-/** Is this a point on the hue circle at all — a question of shape, not of taste. */
-const shapeFailure = ({ accentHue }: EventThemeProps): DomainError | null =>
-  Number.isInteger(accentHue) && accentHue >= HUE_RANGE.min && accentHue <= HUE_RANGE.max
-    ? null
+export const isThemeFaces = (value: unknown): value is ThemeFaces =>
+  typeof value === 'string' && (THEME_FACES as readonly string[]).includes(value)
+
+export const isThemeGround = (value: unknown): value is ThemeGround =>
+  typeof value === 'string' && (THEME_GROUNDS as readonly string[]).includes(value)
+
+const isHue = (value: number): boolean =>
+  Number.isInteger(value) && value >= HUE_RANGE.min && value <= HUE_RANGE.max
+
+/**
+ * The pairing of `ambiance: 'custom'` with its object, and the object's own shape.
+ *
+ * No legibility is judged: every ground hue at both polarities is proven by a sweep in
+ * `tokens.contrast.test.ts` (ADR 0011, decision 3), so the only way to refuse is a
+ * malformed or misplaced object.
+ */
+const customFailure = ({ ambiance, custom }: EventThemeProps): DomainError | null => {
+  if (ambiance !== 'custom') {
+    return custom === undefined
+      ? null
+      : DomainError.invalid('eventTheme.customNotAllowed', { ambiance })
+  }
+  if (custom === undefined) return DomainError.invalid('eventTheme.customRequired')
+  if (!isThemeGround(custom.ground) || !isHue(custom.groundHue) || !isThemeFaces(custom.faces)) {
+    return DomainError.invalid('eventTheme.customInvalid', { ...HUE_RANGE })
+  }
+  return null
+}
+
+/** Is this a point on the hue circle at all, and is `custom` paired right: shape, not taste. */
+const shapeFailure = (props: EventThemeProps): DomainError | null =>
+  isHue(props.accentHue)
+    ? customFailure(props)
     : DomainError.invalid('eventTheme.accentHueInvalid', HUE_RANGE)
 
 /**

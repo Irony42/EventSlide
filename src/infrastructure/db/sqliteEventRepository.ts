@@ -27,9 +27,12 @@ import {
   isThemeMaterial,
   currentAmbianceName,
   isThemeAmbiance,
+  isThemeFaces,
+  isThemeGround,
   type EventThemeProps,
   type ThemeMaterial,
   type ThemeAmbiance,
+  type ThemeCustom,
 } from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
 import { DomainError } from '../../domain/shared/errors'
@@ -318,6 +321,22 @@ const settingsAmbianceAddedLater = (value: unknown): ThemeAmbiance => {
 }
 
 /**
+ * The host's own ambiance (ADR 0011), absent on every theme written before it and on every
+ * theme that does not wear it. Present but malformed is corruption, like its neighbours; whether
+ * it is *paired* with `ambiance: 'custom'` is the domain's question, which `restore` answers
+ * leniently.
+ */
+const settingsCustomAddedLater = (value: unknown): ThemeCustom | undefined => {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw corrupt('settings', 'theme.custom is not a JSON object')
+  const ground = value['ground']
+  if (!isThemeGround(ground)) throw corrupt('settings', 'unknown custom ground')
+  const faces = value['faces']
+  if (!isThemeFaces(faces)) throw corrupt('settings', 'unknown custom faces')
+  return { ground, groundHue: settingsInteger(value['groundHue'], 'theme.custom.groundHue'), faces }
+}
+
+/**
  * The event's theme, added by roadmap 2.2, and the second field to need the treatment
  * above.
  *
@@ -357,12 +376,14 @@ const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
   const frame = value['frame']
   if (!isThemeFrame(frame)) throw corrupt('settings', 'unknown theme frame style')
 
+  const custom = settingsCustomAddedLater(value['custom'])
   return {
     accentHue: settingsInteger(value['accentHue'], 'theme.accentHue'),
     fonts,
     frame,
     material: settingsMaterialAddedLater(value['material']),
     ambiance: settingsAmbianceAddedLater(value['ambiance']),
+    ...(custom === undefined ? {} : { custom }),
   }
 }
 

@@ -212,6 +212,30 @@ export const eventRepositoryContract = (
       })
     })
 
+    it('round-trips the host’s own ambiance, « Sur mesure »', async () => {
+      const custom = { ground: 'light', groundHue: 40, faces: 'noces' } as const
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          settings: {
+            theme: {
+              accentHue: 250,
+              fonts: 'sans',
+              frame: 'soft',
+              material: 'glass',
+              ambiance: 'custom',
+              custom,
+            },
+          },
+        }),
+      )
+
+      const stored = await repo.findById(asEventId('evt-1'))
+
+      expect(stored?.settings.theme.ambiance).toBe('custom')
+      expect(stored?.settings.theme.custom).toEqual(custom)
+    })
+
     it('round-trips an unscheduled, never-closed event as two nulls', async () => {
       await repo.save(anEvent({ id: 'evt-1', status: 'draft' }))
 
