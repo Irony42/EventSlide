@@ -273,6 +273,16 @@
  * the same paint. A template preview inside the console is excluded by its marker, or
  * previewing a festive template would re-skin the moderation console.
  *
+ * **The `:has()` argument sits inside `:where()` so that the two selectors weigh the same.**
+ * A `:has()` takes the specificity of its argument, so `:root:has([a]:not([b]))` weighs
+ * (0,3,0) and the surface selector (0,1,0). The production build merges the two into one
+ * `:is(...)` — whose weight is its heaviest member — and every element carrying an ambiance
+ * then outweighed `[data-event-accent]` and `[data-venue-ground]`, which are declared after it
+ * precisely to win: the host's chosen accent was ignored under any ambiance but the root look.
+ * jsdom computes no cascade and the source order read right; only Chromium on the bundle
+ * showed it (`template-theme-preview.spec.ts`).
+ *
+ *
  * Every block restates everything it moves, and `--accent-texture` and `--button-radius`
  * too, because the root has kraft fibres and a rounded control. The two named glass tints
  * are restated and the tiers that alias them (--glass-tint, --glass-opaque) are not: on
@@ -453,7 +463,7 @@
 /* Riviera: dinner on a terrace facing the sea at sunset. Navy and a sail's white, a pill to
    press, a breton stripe along the top and bottom of the page. */
 [data-event-ambiance='riviera'],
-:root:has([data-event-ambiance='riviera']:not([data-template-preview])) {
+:root:has(:where([data-event-ambiance='riviera']:not([data-template-preview]))) {
   --surface-base: oklch(17% 0.05 255);
   --surface-raised: oklch(22% 0.055 255);
   --surface-overlay: oklch(26% 0.058 255);
@@ -498,7 +508,7 @@
 
 /* Champs d'or: golden hour in the tall grass. Earth and honey, linen along the bottom. */
 [data-event-ambiance='champs'],
-:root:has([data-event-ambiance='champs']:not([data-template-preview])) {
+:root:has(:where([data-event-ambiance='champs']:not([data-template-preview]))) {
   --surface-base: oklch(16% 0.03 60);
   --surface-raised: oklch(21% 0.035 60);
   --surface-overlay: oklch(25% 0.038 60);
@@ -543,7 +553,7 @@
 
 /* Bivouac: a campfire under a sky full of stars. Night blue and ember, a strip of tartan wool. */
 [data-event-ambiance='bivouac'],
-:root:has([data-event-ambiance='bivouac']:not([data-template-preview])) {
+:root:has(:where([data-event-ambiance='bivouac']:not([data-template-preview]))) {
   --surface-base: oklch(16% 0.035 255);
   --surface-raised: oklch(21% 0.04 255);
   --surface-overlay: oklch(25% 0.042 255);
@@ -592,7 +602,7 @@
 /* Cabaret: velvet curtain, gold light, the twenties. Ebony and champagne, an art-deco fan line
    on top and a double rule at the bottom. */
 [data-event-ambiance='cabaret'],
-:root:has([data-event-ambiance='cabaret']:not([data-template-preview])) {
+:root:has(:where([data-event-ambiance='cabaret']:not([data-template-preview]))) {
   --surface-base: oklch(15% 0.015 70);
   --surface-raised: oklch(20% 0.02 70);
   --surface-overlay: oklch(24% 0.022 70);
@@ -757,7 +767,7 @@
      fallback that only reached :root would lose to it. */
   :root,
   [data-event-ambiance],
-  :root:has([data-event-ambiance]:not([data-template-preview])) {
+  :root:has(:where([data-event-ambiance]:not([data-template-preview]))) {
     --glass-filter: none;
     --glass-tint-photo: var(--glass-opaque);
     --glass-tint-ground: var(--glass-opaque);
@@ -775,7 +785,7 @@
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root,
   [data-event-ambiance],
-  :root:has([data-event-ambiance]:not([data-template-preview])) {
+  :root:has(:where([data-event-ambiance]:not([data-template-preview]))) {
     --glass-filter: none;
     --glass-tint-photo: var(--glass-opaque);
     --glass-tint-ground: var(--glass-opaque);

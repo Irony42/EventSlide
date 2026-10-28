@@ -191,6 +191,20 @@ describe('themeSurfaceProps', () => {
     expect(rule?.[1]?.replace(/\s+/g, '')).toBe('background:none;')
   })
 
+  it('keeps the page-wide ambiance selector as light as the surface one', async () => {
+    // `:root:has(X)` weighs :root plus X, and a bundler that merges it with the surface
+    // selector into `:is()` hands every ambiance element that weight, so it beats the accent
+    // and the venue photograph declared after it. `:where()` around X makes it free.
+    const { default: tokens } = await import('./tokens.css?raw')
+    const heavy = (css: string): string[] =>
+      css.match(/:root:has\((?!:where\()[^{,]*data-event-ambiance[^{,]*/g) ?? []
+
+    expect(heavy(tokens)).toEqual([])
+    // Known positives: the detector sees the heavy spelling and lets the light one pass.
+    expect(heavy(":root:has([data-event-ambiance='champs']:not([x])) {")).toHaveLength(1)
+    expect(heavy(":root:has(:where([data-event-ambiance='champs']:not([x]))) {")).toEqual([])
+  })
+
   it('emits no ambiance for the product’s own look', () => {
     expect(themeSurfaceProps(aTheme(), 'wall')).not.toHaveProperty('data-event-ambiance')
     expect(themeSurfaceProps(aTheme(), 'guest')).not.toHaveProperty('data-event-ambiance')
