@@ -335,6 +335,24 @@ describe('setVenuePhoto', () => {
       expect(media.objectCount).toBe(0)
     })
 
+    it('keeps the file the event already shows when it was archived while the same photograph was sent again', async () => {
+      await setVenuePhoto({ eventId: WEDDING, actorId: OWNER, bytes: tagBytes('same') })
+      duringTheWrite(async () => {
+        const archived = (await events.findById(WEDDING))?.archive(AT)
+        if (archived === undefined || !archived.ok) throw new Error('fixture')
+        await events.save(archived.value)
+      })
+
+      const result = await setVenuePhoto({
+        eventId: WEDDING,
+        actorId: OWNER,
+        bytes: tagBytes('same'),
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.immutable')
+      expect(media.variantsOf(WEDDING, digestOf('same'))).toEqual(['ground'])
+    })
+
     it('removes the file when the event was archived in the meantime', async () => {
       duringTheWrite(async () => {
         const archived = (await events.findById(WEDDING))?.archive(AT)

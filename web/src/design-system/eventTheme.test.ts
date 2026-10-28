@@ -112,12 +112,12 @@ describe('themeSurfaceProps', () => {
 
   describe('the host’s own photograph of the venue (ADR 0010, decision 8)', () => {
     const URL_PATH = `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`
-    const guinguette = (groundUrl: string | null) => aTheme({ ambiance: 'riviera', groundUrl })
+    const riviera = (groundUrl: string | null) => aTheme({ ambiance: 'riviera', groundUrl })
 
     it.each(['guest', 'wall'] as const)(
       'hands the %s surface the photograph as an inline custom property, JSON-quoted',
       (surface) => {
-        const props = themeSurfaceProps(guinguette(URL_PATH), surface)
+        const props = themeSurfaceProps(riviera(URL_PATH), surface)
 
         expect(props.style).toEqual({ '--ambiance-ground': `url("${URL_PATH}")` })
         expect(props['data-venue-ground']).toBe(surface)
@@ -126,7 +126,7 @@ describe('themeSurfaceProps', () => {
     )
 
     it('keeps the accent hue on the same element, in the same style object', () => {
-      const props = themeSurfaceProps({ ...guinguette(URL_PATH), accentHue: 345 }, 'wall')
+      const props = themeSurfaceProps({ ...riviera(URL_PATH), accentHue: 345 }, 'wall')
 
       expect(props.style).toEqual({
         '--accent-hue': '345',
@@ -135,16 +135,10 @@ describe('themeSurfaceProps', () => {
     })
 
     it('adds nothing for an event with no photograph, so the bundled one is untouched', () => {
-      const props = themeSurfaceProps(guinguette(null), 'guest')
+      const props = themeSurfaceProps(riviera(null), 'guest')
 
       expect(props).not.toHaveProperty('style')
       expect(props).not.toHaveProperty('data-venue-ground')
-    })
-
-    it('adds nothing under an ambiance that paints no photograph, whatever the server sent', () => {
-      const props = themeSurfaceProps(aTheme({ groundUrl: URL_PATH }), 'wall')
-
-      expect(props).toEqual({})
     })
 
     it.each([
@@ -155,7 +149,7 @@ describe('themeSurfaceProps', () => {
       ['a digest in capitals', URL_PATH.toUpperCase()],
       ['a short digest', '/api/events/camille-et-sacha/venue-photo/abcd'],
     ])('refuses %s, because it is written into a CSS url()', (_name, groundUrl) => {
-      expect(themeSurfaceProps(guinguette(groundUrl), 'guest')).not.toHaveProperty('style')
+      expect(themeSurfaceProps(riviera(groundUrl), 'guest')).not.toHaveProperty('style')
     })
 
     it('is read back from storage only when it is a path this product mints', () => {

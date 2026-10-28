@@ -31,12 +31,7 @@ export interface VenuePhotoFieldProps {
  * language by code. The control is a real `<input type="file">` under its label, as the guest
  * picker is, so a keyboard reaches it.
  */
-export function VenuePhotoField({
-  slug,
-  groundUrl,
-  disabled,
-  onChanged,
-}: VenuePhotoFieldProps) {
+export function VenuePhotoField({ slug, groundUrl, disabled, onChanged }: VenuePhotoFieldProps) {
   const t = useTranslations()
   const toast = useToast()
   const upload = useUploadVenuePhoto()
