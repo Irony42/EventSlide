@@ -41,6 +41,7 @@ class FakeResizeObserver {
   }
   observe(): void {
     this.watching = true
+    this.callback()
   }
   unobserve(): void {}
   disconnect(): void {}

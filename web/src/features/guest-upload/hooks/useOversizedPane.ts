@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 /**
  * Whether a pane is too tall to be pinned to the bottom of the screen.
@@ -35,33 +35,48 @@ const shareFor = (pane: Element): number | null => {
 
 export const useOversizedPane = (pane: RefObject<HTMLElement | null>): boolean => {
   const [oversized, setOversized] = useState(false)
+  const bringIntoView = useRef(false)
 
-  // A layout effect: the first answer lands in the commit that mounted the pane, so a pane that
-  // is too tall is never painted pinned for one frame and then dropped into the flow.
+  // Assumes the pane lives as long as the component that owns this hook, which it does: the
+  // screen that mounts it never mounts it again. (Layout effect so the first answer comes
+  // before the first paint; nothing tests that, and nothing depends on it.)
   useLayoutEffect(() => {
     const element = pane.current
     if (element === null) return
 
-    const measure = () => {
+    // The height of the screen, taken when the pane is mounted and again when the width changes,
+    // and not read afresh by every measurement. A phone whose address bar slides away, or whose
+    // keyboard opens under a caption being typed, changes `innerHeight` and nothing else — and a
+    // pane that is re-decided against that height drops out of the screen under the thumb that
+    // is typing. The pane growing (every photo picked, a larger text size) is what the observer
+    // reports; a rotation or a page zoom is what changes the width.
+    let viewportHeight = window.innerHeight
+    let width = window.innerWidth
+
+    const measure = (grew = false) => {
       const share = shareFor(element)
       // A stylesheet that does not declare the share is a stylesheet that never asked for the
       // rule: the pane stays as it was written, pinned.
       if (share === null) return
-      setOversized(exceedsShare(element.getBoundingClientRect().height, window.innerHeight, share))
+      const tooTall = exceedsShare(element.getBoundingClientRect().height, viewportHeight, share)
+      // Only a pane that grew under the guest's hands is brought back into view: not the first
+      // measurement of a page that has just opened, and not a rotation.
+      bringIntoView.current = grew && tooTall
+      setOversized(tooTall)
     }
 
-    // What follows the pane growing, which is what a guest picking photos does.
-    const observer = new ResizeObserver(measure)
+    // The first report of an observer is the size the pane started at, not a change.
+    let reported = false
+    const observer = new ResizeObserver(() => {
+      measure(reported)
+      reported = true
+    })
     observer.observe(element)
 
-    // Not every `resize`. A phone fires one each time its address bar slides away or its
-    // keyboard opens, which changes the height and nothing else — and re-deciding then would
-    // drop the pane out of the screen under the thumb that is typing a caption. A change of
-    // width is a rotation or a change of text size, and that is when the answer can change.
-    let width = window.innerWidth
     const onResize = () => {
       if (window.innerWidth === width) return
       width = window.innerWidth
+      viewportHeight = window.innerHeight
       measure()
     }
     window.addEventListener('resize', onResize)
@@ -72,6 +87,19 @@ export const useOversizedPane = (pane: RefObject<HTMLElement | null>): boolean =
       window.removeEventListener('resize', onResize)
     }
   }, [pane])
+
+  // A pane that leaves the bottom edge of the screen for its place in the flow can land below
+  // the fold, taking the send button with it — at the very moment the guest picked the photo
+  // that made it too tall. Its bottom is brought back into view, once, as it changes place.
+  // Never when it goes back to being pinned, which is already on screen.
+  useLayoutEffect(() => {
+    const element = pane.current
+    if (!oversized || !bringIntoView.current || element === null) return
+    bringIntoView.current = false
+    if (element.getBoundingClientRect().bottom > window.innerHeight) {
+      element.scrollIntoView?.({ block: 'end' })
+    }
+  }, [oversized, pane])
 
   return oversized
 }

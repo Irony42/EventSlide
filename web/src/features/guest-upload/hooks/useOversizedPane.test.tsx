@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { exceedsShare, MAX_SHARE_PROPERTY, useOversizedPane } from './useOversizedPane'
 import PAGE_CSS from '../GuestUploadPage.module.css?raw'
 import TOKENS_CSS from '../../../design-system/tokens.css?raw'
+import DESIGN_SYSTEM_MD from '../../../../../docs/DESIGN-SYSTEM.md?raw'
 
 /**
  * What decides whether the guest's upload pane stays pinned to the bottom of the screen.
@@ -18,7 +19,8 @@ const observers: FakeResizeObserver[] = []
 
 class FakeResizeObserver {
   readonly disconnect = vi.fn()
-  readonly observe = vi.fn()
+  /** Like the real one, it reports the starting size as soon as it is asked to watch. */
+  readonly observe = vi.fn(() => this.callback())
   readonly unobserve = vi.fn()
   constructor(private readonly callback: () => void) {
     observers.push(this)
@@ -29,7 +31,9 @@ class FakeResizeObserver {
   }
 }
 
-const state = { paneHeight: 0 }
+const scrollIntoView = vi.fn()
+
+const state = { paneHeight: 0, paneBottom: 0 }
 
 const setViewport = (width: number, height: number): void => {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -72,11 +76,14 @@ describe('useOversizedPane', () => {
     observers.length = 0
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      () => ({ height: state.paneHeight }) as DOMRect,
+      () => ({ height: state.paneHeight, bottom: state.paneBottom }) as DOMRect,
     )
     setViewport(375, 1000)
     setShare('0.5')
     state.paneHeight = 400
+    state.paneBottom = 900
+    scrollIntoView.mockClear()
+    Element.prototype.scrollIntoView = scrollIntoView
   })
 
   afterEach(() => {
@@ -91,7 +98,7 @@ describe('useOversizedPane', () => {
     expect(isOversized()).toBe(false)
   })
 
-  it('takes a pane taller than the share out of the pinned position as soon as it is on screen', () => {
+  it('takes a pane taller than the share out of the pinned position when it mounts', () => {
     state.paneHeight = 501
 
     render(<Pane />)
@@ -131,7 +138,18 @@ describe('useOversizedPane', () => {
     expect(isOversized()).toBe(false)
   })
 
-  it('re-decides when the width changes, which is a rotation or a change of text size', () => {
+  it('does not re-decide against a screen that got shorter while the pane itself changed size', () => {
+    // A keyboard opening under a caption: the caption grows the pane, and the screen has shrunk.
+    render(<Pane />)
+
+    setViewport(375, 600)
+    state.paneHeight = 420
+    paneChanged()
+
+    expect(isOversized()).toBe(false)
+  })
+
+  it('re-decides when the width changes, which is a rotation or a page zoom', () => {
     render(<Pane />)
 
     setViewport(667, 400)
@@ -140,6 +158,62 @@ describe('useOversizedPane', () => {
     })
 
     expect(isOversized()).toBe(true)
+  })
+
+  it('brings the bottom of the pane back into view when it grows past the share below the fold', () => {
+    render(<Pane />)
+
+    state.paneHeight = 650
+    state.paneBottom = 1500
+    paneChanged()
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'end' })
+  })
+
+  it('does not scroll a pane that is already in view when it leaves the pinned position', () => {
+    render(<Pane />)
+
+    state.paneHeight = 650
+    state.paneBottom = 950
+    paneChanged()
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('does not scroll a page that opens with a pane that is already too tall', () => {
+    state.paneHeight = 650
+    state.paneBottom = 1500
+
+    render(<Pane />)
+
+    expect(isOversized()).toBe(true)
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('does not scroll when the pane gets too tall for a rotation', () => {
+    render(<Pane />)
+
+    state.paneBottom = 1500
+    setViewport(667, 300)
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(isOversized()).toBe(true)
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('does not scroll when the pane goes back to being pinned', () => {
+    render(<Pane />)
+    state.paneHeight = 650
+    state.paneBottom = 1500
+    paneChanged()
+    scrollIntoView.mockClear()
+
+    state.paneHeight = 400
+    paneChanged()
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
   it('leaves the pane pinned when no share is declared', () => {
@@ -170,11 +244,14 @@ describe('what the stylesheets say about it', () => {
     expect(rule?.[1]).toMatch(/position:\s*static/)
   })
 
-  it('declares the share the hook reads, as a ratio of the viewport', () => {
-    const declared = new RegExp(`${MAX_SHARE_PROPERTY}:\\s*([0-9.]+);`).exec(TOKENS_CSS)
+  it('declares a share of at most 70% of the screen for a pinned pane, and the docs say the same', () => {
+    const declared = (css: string) =>
+      Number(new RegExp(`${MAX_SHARE_PROPERTY}:\\s*([0-9.]+);`).exec(css)?.[1])
 
-    const share = Number(declared?.[1])
+    const share = declared(TOKENS_CSS)
+
     expect(share).toBeGreaterThan(0)
-    expect(share).toBeLessThan(1)
+    expect(share).toBeLessThanOrEqual(0.7)
+    expect(declared(DESIGN_SYSTEM_MD)).toBe(share)
   })
 })
