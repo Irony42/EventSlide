@@ -9,6 +9,29 @@ import { MyPhotos } from './MyPhotos'
 import styles from './MyPhotos.module.css'
 
 describe('MyPhotos', () => {
+  it('shows a photo awaiting the host as its negative, and only that one (ADR 0010)', () => {
+    renderWithProviders(
+      <MyPhotos
+        photos={[
+          aGuestPhoto({ id: 'photo-1', status: 'pending' }),
+          aGuestPhoto({ id: 'photo-2', status: 'published' }),
+        ]}
+        loading={false}
+        error={null}
+        onRetry={vi.fn()}
+        onDelete={vi.fn(() => Promise.resolve())}
+      />,
+    )
+
+    const thumbs = [...document.querySelectorAll('img')]
+    expect(thumbs.map((thumb) => classesOf(thumb))).toEqual([
+      [cls(styles, 'thumb'), cls(styles, 'negative')],
+      [cls(styles, 'thumb')],
+    ])
+    // The filter is never the only signal: the words are still there.
+    expect(screen.getByText(fr.upload.statusPending)).toBeInTheDocument()
+  })
+
   it('gives a clip’s row its own class after the row class, and a photo’s row only the row class', () => {
     renderWithProviders(
       <MyPhotos

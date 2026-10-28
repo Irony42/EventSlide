@@ -77,6 +77,9 @@
   --font-display: var(--font-sans);
   /* Page and card headings on the guest's phone. The system face until an ambiance names one. */
   --font-heading: var(--font-sans);
+  /* The weight the display face is set in. Heavy for the system face; an ambiance whose
+     display face ships a single weight sets that one, so nothing is synthesised. */
+  --font-display-weight: 800;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -237,9 +240,11 @@
  * the same paint. A template preview inside the console is excluded by its marker, or
  * previewing a festive template would re-skin the moderation console.
  *
- * Every derived custom property is restated, because a property that references another
- * is substituted where it is declared (see the accent block below): the glass tints and
- * the opaque fallback would otherwise keep the Chambre noire's raised black.
+ * The two named glass tints are restated, and the tiers that alias them (--glass-tint,
+ * --glass-opaque) are not: on :root:has() they re-resolve with this block's raised colour,
+ * and restating them here would outrank the shell's opaque tier and the fallbacks below,
+ * which name the ambiance selectors for that reason. A template preview, which matches only
+ * the element, keeps the root's glass; it carries no glass pane.
  *
  * The faces are bundled (no CDN) and cost nothing until an element on screen uses them,
  * which only an ambiance that names them does. Licences: web/public/licenses/.
@@ -301,6 +306,7 @@
   --warning: oklch(88% 0.16 105);
   --font-display: 'Shrikhand', ui-serif, Georgia, serif;
   --font-heading: 'Bricolage Grotesque', var(--font-sans);
+  --font-display-weight: 400;
   --radius-md: var(--radius-lg);
   /* Shrikhand is already compact; tightening it fuses the letters. */
   --tracking-tight: 0;
@@ -309,14 +315,11 @@
   --decor-2: oklch(74% 0.09 175);
   --decor-3: oklch(83% 0.15 78);
   --decor-4: oklch(95% 0.025 88);
-  /* Not yet derived like the root pair: set above it on purpose until a sweep measures it. */
+  /* Measured over white by the ambiance tests; not yet stepped down to the lowest alpha. */
   --glass-tint-photo: oklch(24% 0.055 213 / 0.97);
   --glass-tint-ground: oklch(24% 0.055 213 / 0.95);
-  --glass-tint: var(--glass-tint-photo);
-  --glass-opaque: var(--surface-raised);
   --glass-border: oklch(95% 0.025 88 / 0.16);
   --glass-highlight: oklch(95% 0.025 88 / 0.1);
-  --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
 }
 
 [data-event-accent] {
@@ -397,7 +400,11 @@
  * surface where most guests actually are.
  */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root {
+  /* The ambiance selectors too (ADR 0010): an ambiance restates the named tints, and a
+     fallback that only reached :root would lose to it. */
+  :root,
+  [data-event-ambiance],
+  :root:has([data-event-ambiance]:not([data-template-preview])) {
     --glass-filter: none;
     --glass-tint-photo: var(--glass-opaque);
     --glass-tint-ground: var(--glass-opaque);
@@ -413,7 +420,9 @@
  * this design system already ships, so neither is a degraded look.
  */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :root {
+  :root,
+  [data-event-ambiance],
+  :root:has([data-event-ambiance]:not([data-template-preview])) {
     --glass-filter: none;
     --glass-tint-photo: var(--glass-opaque);
     --glass-tint-ground: var(--glass-opaque);

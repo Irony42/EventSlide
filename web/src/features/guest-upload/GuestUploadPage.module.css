@@ -20,7 +20,8 @@
   /* The event's name in the ambiance's display face: heavy and tight in the Chambre noire. */
   font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: 800;
+  font-weight: var(--font-display-weight);
+  font-synthesis: none;
   letter-spacing: var(--tracking-tight);
 }
 

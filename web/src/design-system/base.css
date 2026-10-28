@@ -176,15 +176,20 @@ a {
 
 /**
  * The Guinguette's two ornaments (ADR 0010): a string of pennants along the top edge and a
- * strip of gingham along the bottom. Painted by the page, behind nothing a guest has to
+ * strip of gingham along the bottom, on the guest's phone only: the wall is excluded by its
+ * layout marker, because a fixed strip there would sit over every photograph (principle 1). Painted by the page, behind nothing a guest has to
  * read, and never a control. `:has()` for the same reason the tokens use it: the
  * ambiance is decided by the surface inside, and the page around it follows in one paint.
  *
  * The pennant is a conic mask: a triangle whose apex is the bottom centre of each 28px
  * cell, spanning the angle from that apex to the two top corners (atan(14 / 20) = 35deg).
  */
-body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::before,
-body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::after {
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
+    :has([data-wall-layout])
+  )::before,
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
+    :has([data-wall-layout])
+  )::after {
   content: '';
   position: fixed;
   inset-inline: 0;
@@ -193,11 +198,15 @@ body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::after
 }
 
 /* Room for the pennants, so they never sit over the header's controls. */
-body:has([data-event-ambiance='guinguette']:not([data-template-preview])) {
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
+    :has([data-wall-layout])
+  ) {
   padding-block: var(--space-5) var(--space-4);
 }
 
-body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::before {
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
+    :has([data-wall-layout])
+  )::before {
   inset-block-start: 0;
   block-size: 20px;
   background: repeating-linear-gradient(
@@ -211,7 +220,9 @@ body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::befor
     repeat-x;
 }
 
-body:has([data-event-ambiance='guinguette']:not([data-template-preview]))::after {
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
+    :has([data-wall-layout])
+  )::after {
   inset-block-end: 0;
   block-size: 12px;
   background:

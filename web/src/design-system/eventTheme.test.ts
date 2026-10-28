@@ -75,6 +75,17 @@ describe('themeSurfaceProps', () => {
     expect(themeSurfaceProps(theme, 'guest')['data-event-ambiance']).toBe('guinguette')
   })
 
+  it('keeps the guest ornaments off the wall, which carries its layout marker', async () => {
+    // ADR 0010: a fixed strip of pennants over a projected photograph is the one place the
+    // ornament would break principle 1, so the selector must exclude the wall.
+    const { default: base } = await import('./base.css?raw')
+    const selectors = base.match(/body:has\(\[data-event-ambiance[^{]*\{/g) ?? []
+    expect(selectors.length).toBeGreaterThan(0)
+    for (const selector of selectors) {
+      expect(selector.replace(/\s+/g, '')).toContain(':not(:has([data-wall-layout]))')
+    }
+  })
+
   it('emits no ambiance for the product’s own look', () => {
     expect(themeSurfaceProps(aTheme(), 'wall')).not.toHaveProperty('data-event-ambiance')
     expect(themeSurfaceProps(aTheme(), 'guest')).not.toHaveProperty('data-event-ambiance')

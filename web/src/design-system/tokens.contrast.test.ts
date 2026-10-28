@@ -165,6 +165,23 @@ describe.each([['guinguette']])('the %s ambiance', (name) => {
     expect(contrast(of('--accent-contrast'), of('--accent-strong'))).toBeGreaterThanOrEqual(4.5)
   })
 
+  it.each(['--success', '--danger', '--warning'] as const)(
+    'keeps %s visible as a glyph on every surface it declares',
+    (status) => {
+      const ink = own.get(status) ?? token(status)
+      for (const surface of SURFACES) expect(contrast(ink, of(surface))).toBeGreaterThanOrEqual(3)
+    },
+  )
+
+  it.each([
+    ['--text-primary', 12],
+    ['--text-secondary', 7],
+    ['--text-muted', 4.5],
+  ] as const)('keeps %s above its bar on its glass over a white photograph', (ink, bar) => {
+    const pane = composite(of('--glass-tint-photo'), WHITE)
+    expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(bar)
+  })
+
   it('keeps its accent readable from the back of the room', () => {
     expect(contrast(of('--accent'), of('--surface-base'))).toBeGreaterThanOrEqual(7)
   })
@@ -267,7 +284,7 @@ describe('token contrast', () => {
     expect(declarations).toEqual([])
   })
 
-  it('resolves the accent from the hue an unthemed event renders', () => {
+  it('resolves the event accent from the hue the root declares', () => {
     // The substitution above is load-bearing: if it ever stopped matching, `--accent`
     // would fall out of the map and the three assertions about it would throw instead of
     // measuring anything. Naming the value also pins the default — this is the hue
