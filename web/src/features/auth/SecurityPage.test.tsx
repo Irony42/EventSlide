@@ -111,10 +111,12 @@ describe('SecurityPage', () => {
       render(api)
       await start()
       await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '123456')
+      // The server has the authenticator from the moment the code is accepted, and the page reads
+      // its session again then; the codes stay on screen across that read.
+      vi.mocked(api.session).mockResolvedValue(signedIn(status({ enrolled: true, verified: true })))
       await userEvent.click(screen.getByRole('button', { name: fr.auth.setupConfirm }))
       await screen.findByText(CODE)
 
-      vi.mocked(api.session).mockResolvedValue(signedIn(status({ enrolled: true, verified: true })))
       await userEvent.click(screen.getByRole('button', { name: fr.auth.recoveryCodesSaved }))
 
       expect(screen.queryByText(CODE)).toBeNull()
