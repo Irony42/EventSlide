@@ -138,6 +138,18 @@ export type ThemeFrame = (typeof THEME_FRAMES)[number]
 export const THEME_MATERIALS = ['glass', 'plain'] as const
 export type ThemeMaterial = (typeof THEME_MATERIALS)[number]
 
+/**
+ * The event's ambiance: a closed, reviewed pack of surfaces, inks, display face and
+ * ornaments that the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md).
+ *
+ * `darkroom` is the product's own look, so it is the default and emits nothing; every
+ * other entry is a block in `tokens.css` with its own contrast test. The host's console
+ * never wears one. The accent hue, the font pairing, the frame and the material still
+ * apply on top, so an ambiance chooses a world and the host still chooses a colour in it.
+ */
+export const THEME_AMBIANCES = ['darkroom', 'guinguette'] as const
+export type ThemeAmbiance = (typeof THEME_AMBIANCES)[number]
+
 export interface EventThemeProps {
   /** Degrees on the oklch hue circle, 0-359. */
   readonly accentHue: number
@@ -159,6 +171,8 @@ export interface EventThemeProps {
    * afford.
    */
   readonly material: ThemeMaterial
+  /** The pack of surfaces and ornaments this event wears. See `THEME_AMBIANCES`. */
+  readonly ambiance: ThemeAmbiance
 }
 
 /**
@@ -179,6 +193,7 @@ export const DEFAULT_EVENT_THEME: EventThemeProps = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
+  ambiance: 'darkroom',
 })
 
 /**
@@ -296,6 +311,9 @@ export const isThemeFrame = (value: unknown): value is ThemeFrame =>
 
 export const isThemeMaterial = (value: unknown): value is ThemeMaterial =>
   typeof value === 'string' && (THEME_MATERIALS as readonly string[]).includes(value)
+
+export const isThemeAmbiance = (value: unknown): value is ThemeAmbiance =>
+  typeof value === 'string' && (THEME_AMBIANCES as readonly string[]).includes(value)
 
 /** Is this a point on the hue circle at all — a question of shape, not of taste. */
 const shapeFailure = ({ accentHue }: EventThemeProps): DomainError | null =>

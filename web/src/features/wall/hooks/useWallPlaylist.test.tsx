@@ -231,11 +231,23 @@ describe('useWallPlaylist', () => {
       wall: reads(
         aWallResponse({
           revision: 'rev-1',
-          theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
         }),
         aWallResponse({
           revision: 'rev-1',
-          theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 345,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
         }),
       ),
     })
@@ -259,12 +271,24 @@ describe('useWallPlaylist', () => {
         aWallResponse({
           revision: 'rev-1',
           items,
-          theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
         }),
         aWallResponse({
           revision: 'rev-1',
           items: [...items],
-          theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 345,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
         }),
       ),
     })

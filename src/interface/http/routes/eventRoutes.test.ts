@@ -919,7 +919,13 @@ describe('the host event routes', () => {
         moderation: 'manual',
         retentionDays: null,
         maxPhotosPerGuest: null,
-        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
       })
     })
 
@@ -953,6 +959,7 @@ describe('the host event routes', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
+        ambiance: 'darkroom',
       })
     })
 
@@ -1096,7 +1103,13 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
         wallLanguage: 'en',
       })
 
@@ -1110,7 +1123,13 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
         wallLanguage: 'en',
       })
     })
@@ -1123,9 +1142,15 @@ describe('the host event routes', () => {
       // and "published" would be the same signal to a room ten metres away.
       const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' } })
+      const response = await agent.patch(`/api/events/${SLUG}/settings`).send({
+        theme: {
+          accentHue: 160,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
+      })
 
       expect(response.status).toBe(400)
       expect(response.body.error.code).toBe('eventTheme.accentTooCloseToStatus')
@@ -1141,15 +1166,22 @@ describe('the host event routes', () => {
       // what lets the console show the failure beside the values it is still holding.
       const agent = await signedIn(world, 'owner')
 
-      await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 160, fonts: 'serif', frame: 'round', material: 'glass' } })
+      await agent.patch(`/api/events/${SLUG}/settings`).send({
+        theme: {
+          accentHue: 160,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
+      })
 
       expect((await world.events.findById(WEDDING))?.settings.theme).toEqual({
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
+        ambiance: 'darkroom',
       })
     })
 
@@ -1188,9 +1220,15 @@ describe('the host event routes', () => {
       // phones will not.
       const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'plain' } })
+      const response = await agent.patch(`/api/events/${SLUG}/settings`).send({
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'plain',
+          ambiance: 'darkroom',
+        },
+      })
 
       expect(response.status).toBe(200)
       expect(response.body.settings.theme.material).toBe('plain')
@@ -1226,6 +1264,7 @@ describe('the host event routes', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
+        ambiance: 'darkroom',
       })
     })
   })

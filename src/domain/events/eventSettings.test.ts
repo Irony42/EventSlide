@@ -42,6 +42,7 @@ describe('EventSettings defaults', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'darkroom',
     })
   })
 
@@ -88,7 +89,13 @@ describe('EventSettings.create', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
         maxPhotosPerGuest: 20,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
         wallLanguage: 'de',
       }),
     )
@@ -102,7 +109,13 @@ describe('EventSettings.create', () => {
       guestSelfDeleteGraceSeconds: 60,
       retentionDays: 30,
       maxPhotosPerGuest: 20,
-      theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+      theme: {
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'darkroom',
+      },
       wallLanguage: 'de',
     })
   })
@@ -246,21 +259,47 @@ describe('EventSettings.with', () => {
     // together, so a patch carrying only a hue must not leave a font behind from before.
     const before = unwrap(
       EventSettings.create({
-        theme: { accentHue: 250, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 250,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
       }),
     )
 
     const after = unwrap(
-      before.with({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' } }),
+      before.with({
+        theme: {
+          accentHue: 345,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
+      }),
     )
 
-    expect(after.theme).toEqual({ accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' })
+    expect(after.theme).toEqual({
+      accentHue: 345,
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'glass',
+      ambiance: 'darkroom',
+    })
   })
 
   it('keeps the theme when the patch does not mention it', () => {
     const before = unwrap(
       EventSettings.create({
-        theme: { accentHue: 250, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 250,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
       }),
     )
 
@@ -271,7 +310,13 @@ describe('EventSettings.with', () => {
 
   it('refuses a theme the legibility rule rejects, and says which rule', () => {
     const result = EventSettings.default().with({
-      theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' },
+      theme: {
+        accentHue: 160,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'darkroom',
+      },
     })
 
     expect(!result.ok && result.error.code).toBe('eventTheme.accentTooCloseToStatus')
@@ -304,7 +349,13 @@ describe('a theme the current rule would refuse, on an event that already has on
    * eight degrees from `--danger`, which `restore` accepts on shape and `create`
    * refuses on legibility.
    */
-  const stored = { accentHue: 30, fonts: 'sans', frame: 'soft', material: 'glass' } as const
+  const stored = {
+    accentHue: 30,
+    fonts: 'sans',
+    frame: 'soft',
+    material: 'glass',
+    ambiance: 'darkroom',
+  } as const
 
   it('is read back without being re-judged', () => {
     const restored = EventSettings.restore({
@@ -332,7 +383,13 @@ describe('a theme the current rule would refuse, on an event that already has on
     )
 
     const chosen = settings.with({
-      theme: { accentHue: 30, fonts: 'serif', frame: 'soft', material: 'glass' },
+      theme: {
+        accentHue: 30,
+        fonts: 'serif',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'darkroom',
+      },
     })
 
     expect(chosen.ok).toBe(false)

@@ -141,6 +141,7 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // four presets has an opinion about it: a preset is an occasion, and no occasion
       // implies a surface finish the way a wedding implies a serif.
       material: 'glass',
+      ambiance: 'darkroom',
     },
   },
 
@@ -166,6 +167,8 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // a photo album rather than a feed, which is what a family evening's wall is.
       frame: 'round',
       material: 'glass',
+      // The first festive ambiance (ADR 0010): a birthday is the evening it was drawn for.
+      ambiance: 'guinguette',
     },
   },
 
@@ -202,6 +205,7 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // knows neither: the host's console runs on the same laptop whatever the occasion,
       // and the projector has already given the material up (DESIGN-SYSTEM.md §13).
       material: 'glass',
+      ambiance: 'darkroom',
     },
   },
 
@@ -233,6 +237,7 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'darkroom',
     },
   },
 }

@@ -692,7 +692,7 @@ export const it: UiText = {
       'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',
     themeAccent: 'Colore',
     themeAccentNames: {
-      violet: 'Viola',
+      violet: 'Carta (predefinita)',
       rose: 'Rosa',
       azure: 'Blu',
       teal: 'Turchese',
@@ -715,6 +715,13 @@ export const it: UiText = {
     themeMaterialNames: {
       glass: 'Vetro smerigliato',
       plain: 'Superficie piena',
+    },
+    themeAmbiance: 'Atmosfera',
+    themeAmbianceHint:
+      'Il mondo che indossano i telefoni dei vostri ospiti e lo schermo della sala. La vostra console non cambia.',
+    themeAmbianceNames: {
+      darkroom: 'Camera oscura',
+      guinguette: 'Guinguette',
     },
     template: 'Tipo di evento',
     templateHint:

@@ -15,6 +15,7 @@ import {
   THEME_FONTS,
   THEME_FRAMES,
   THEME_MATERIALS,
+  THEME_AMBIANCES,
 } from '../../../domain/events/eventTheme'
 
 /**
@@ -416,6 +417,8 @@ export const updateSettingsBody = z.strictObject({
       fonts: z.enum(THEME_FONTS),
       frame: z.enum(THEME_FRAMES),
       material: z.enum(THEME_MATERIALS),
+      // Required for the reason `material` gives above: an old tab must not undo a choice.
+      ambiance: z.enum(THEME_AMBIANCES),
     })
     .optional(),
   /**

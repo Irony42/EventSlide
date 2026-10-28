@@ -328,7 +328,13 @@ describe('POST /api/join', () => {
         allowClips: true,
         maxClipBytes: 80_000_000,
         maxClipSeconds: 15,
-        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
       },
       privacyNotice: {
         notice: {
@@ -726,6 +732,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'darkroom',
     })
   })
 
@@ -743,7 +750,15 @@ describe('GET /api/events/:eventSlug/wall', () => {
         name: 'Camille & Sacha',
         joinCode: 'H7K2QM',
         status: 'live',
-        settings: { theme: { accentHue: 345, fonts: 'serif', frame: 'square', material: 'glass' } },
+        settings: {
+          theme: {
+            accentHue: 345,
+            fonts: 'serif',
+            frame: 'square',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
+        },
       }),
     )
 
@@ -754,6 +769,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
       fonts: 'serif',
       frame: 'square',
       material: 'glass',
+      ambiance: 'darkroom',
     })
   })
 

@@ -10,7 +10,12 @@
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import type { EventStatus } from '../../../domain/events/eventStatus'
-import type { ThemeFonts, ThemeFrame, ThemeMaterial } from '../../../domain/events/eventTheme'
+import type {
+  ThemeAmbiance,
+  ThemeFonts,
+  ThemeFrame,
+  ThemeMaterial,
+} from '../../../domain/events/eventTheme'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { MissionScope } from '../../../domain/missions/missionScope'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
@@ -70,6 +75,8 @@ export interface EventThemeDto {
    * machine can hold it".
    */
   readonly material: ThemeMaterial
+  /** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
+  readonly ambiance: ThemeAmbiance
 }
 
 export interface PublicEventDto {

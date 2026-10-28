@@ -677,7 +677,7 @@ export const en: UiText = {
       'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
     themeAccent: 'Colour',
     themeAccentNames: {
-      violet: 'Purple',
+      violet: 'Paper (default)',
       rose: 'Pink',
       azure: 'Blue',
       teal: 'Teal',
@@ -701,6 +701,13 @@ export const en: UiText = {
     themeMaterialNames: {
       glass: 'Frosted glass',
       plain: 'Plain surface',
+    },
+    themeAmbiance: 'Ambiance',
+    themeAmbianceHint:
+      'The world your guests’ phones and the room’s screen wear. Your console does not change.',
+    themeAmbianceNames: {
+      darkroom: 'Darkroom',
+      guinguette: 'Guinguette',
     },
 
     template: 'Type of event',

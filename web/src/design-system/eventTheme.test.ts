@@ -68,12 +68,30 @@ describe('themeSurfaceProps', () => {
     })
   })
 
+  it('dresses both surfaces in a festive ambiance (ADR 0010)', () => {
+    const theme = aTheme({ ambiance: 'guinguette' })
+
+    expect(themeSurfaceProps(theme, 'wall')['data-event-ambiance']).toBe('guinguette')
+    expect(themeSurfaceProps(theme, 'guest')['data-event-ambiance']).toBe('guinguette')
+  })
+
+  it('emits no ambiance for the product’s own look', () => {
+    expect(themeSurfaceProps(aTheme(), 'wall')).not.toHaveProperty('data-event-ambiance')
+    expect(themeSurfaceProps(aTheme(), 'guest')).not.toHaveProperty('data-event-ambiance')
+  })
+
   it('gives the guest the colour and not the typography', () => {
     // The honest scope of the pairing: a display face buys nothing on a screen whose
     // largest type is `--text-lg`, and had the pairings been bundled rather than built
     // from system faces this is the surface that would have paid the bytes.
     const props = themeSurfaceProps(
-      aTheme({ accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' }),
+      aTheme({
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'darkroom',
+      }),
       'guest',
     )
 
@@ -90,9 +108,11 @@ describe('themeSurfaceProps', () => {
     // across many events, and a toolbar that changes material per event is the screen
     // where consistency beats personality — §12's argument, unchanged by the knob being a
     // surface finish rather than a colour.
-    expect(themeSurfaceProps(aTheme({ material: 'plain' }), surface)).toEqual({
-      'data-glass': 'opaque',
-    })
+    expect(themeSurfaceProps(aTheme({ material: 'plain', ambiance: 'darkroom' }), surface)).toEqual(
+      {
+        'data-glass': 'opaque',
+      },
+    )
   })
 
   it.each(['wall', 'guest'] as const)(
@@ -102,7 +122,9 @@ describe('themeSurfaceProps', () => {
       // of the shell, where the machine's own answer is declared, and a tier declared on a
       // descendant wins for its subtree — so `data-glass="ground"` here would put a blur
       // back on a projector and on any machine the budget had already taken it from.
-      expect(themeSurfaceProps(aTheme({ material: 'glass' }), surface)).toEqual({})
+      expect(
+        themeSurfaceProps(aTheme({ material: 'glass', ambiance: 'darkroom' }), surface),
+      ).toEqual({})
     },
   )
 })
@@ -126,36 +148,58 @@ describe('the picker’s catalogue', () => {
 describe('readEventTheme', () => {
   it('accepts a theme as the server sends it', () => {
     expect(
-      readEventTheme({ accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' }),
+      readEventTheme({
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'darkroom',
+      }),
     ).toEqual({
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
+      ambiance: 'darkroom',
     })
   })
 
   it.each([
     ['nothing at all', undefined],
     ['a string where the object goes', 'rose'],
-    ['a hue that is text', { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass' }],
+    [
+      'a hue that is text',
+      { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+    ],
     [
       'a hue that is not a number at all',
-      { accentHue: Number.NaN, fonts: 'sans', frame: 'soft', material: 'glass' },
+      {
+        accentHue: Number.NaN,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'darkroom',
+      },
     ],
-    ['a hue past the circle', { accentHue: 4000, fonts: 'sans', frame: 'soft', material: 'glass' }],
-    ['a negative hue', { accentHue: -1, fonts: 'sans', frame: 'soft', material: 'glass' }],
+    [
+      'a hue past the circle',
+      { accentHue: 4000, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+    ],
+    [
+      'a negative hue',
+      { accentHue: -1, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
+    ],
     [
       'a hue between two degrees',
-      { accentHue: 305.5, fonts: 'sans', frame: 'soft', material: 'glass' },
+      { accentHue: 305.5, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
     ],
     [
       'a font pairing this build never shipped',
-      { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass' },
+      { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass', ambiance: 'darkroom' },
     ],
     [
       'a frame style this build never shipped',
-      { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass' },
+      { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass', ambiance: 'darkroom' },
     ],
   ])('refuses %s', (_case, value) => {
     // A hue that is not a number reaches `--accent-hue` as something the browser cannot
@@ -172,7 +216,20 @@ describe('readEventTheme', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
+      ambiance: 'darkroom',
     })
+  })
+
+  it('refuses an ambiance this build never shipped rather than filling one in', () => {
+    expect(
+      readEventTheme({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'disco',
+      }),
+    ).toBeNull()
   })
 
   it('refuses a material this build never shipped rather than filling one in', () => {

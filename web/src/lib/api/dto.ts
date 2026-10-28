@@ -47,6 +47,8 @@ export type ThemeFonts = 'sans' | 'serif'
 export type ThemeFrame = 'soft' | 'square' | 'round'
 /** The material its panes are made of (roadmap 11.5). Both renderings already ship. */
 export type ThemeMaterial = 'glass' | 'plain'
+/** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
+export type ThemeAmbiance = 'darkroom' | 'guinguette'
 
 /**
  * The preset an event's settings are created from (roadmap 3.5).
@@ -89,6 +91,7 @@ export interface EventThemeDto {
    * device that cannot afford the filter or to a budget that has shed it.
    */
   readonly material: ThemeMaterial
+  readonly ambiance: ThemeAmbiance
 }
 
 /** What a guest may know about an event before and after joining. */

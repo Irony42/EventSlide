@@ -544,19 +544,37 @@ describe('SqliteEventRepository', () => {
       {
         holds: 'an unknown font pairing',
         stored: json({
-          theme: { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 305,
+            fonts: 'comic',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
         }),
       },
       {
         holds: 'an unknown frame style',
         stored: json({
-          theme: { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass' },
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'oval',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
         }),
       },
       {
         holds: 'a hue that is not a number',
         stored: json({
-          theme: { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 'rose',
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
         }),
       },
       {
@@ -567,6 +585,19 @@ describe('SqliteEventRepository', () => {
         holds: 'an unknown material',
         stored: json({
           theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'opaque' },
+        }),
+      },
+      {
+        // ADR 0010, the same reading as the material: present and unknown is corruption.
+        holds: 'an unknown ambiance',
+        stored: json({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'disco',
+          },
         }),
       },
     ])('refuses to hydrate an event whose stored settings hold $holds', async ({ stored }) => {
@@ -583,7 +614,15 @@ describe('SqliteEventRepository', () => {
       // event over a colour, including the page its host would use to pick another one.
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 400, fonts: 'sans', frame: 'soft', material: 'glass' } }),
+        json({
+          theme: {
+            accentHue: 400,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
+        }),
         'evt-1',
       )
 
@@ -675,7 +714,15 @@ describe('SqliteEventRepository', () => {
       // 160 degrees is inside `--success`: a hue `EventSettings.create` refuses outright.
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' } }),
+        json({
+          theme: {
+            accentHue: 160,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
+        }),
         'evt-1',
       )
 
@@ -699,7 +746,45 @@ describe('SqliteEventRepository', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
+        ambiance: 'darkroom',
       })
+    })
+
+    it('renders an event themed before ambiances existed in the product’s own look', async () => {
+      // ADR 0010: no migration, for the material's reason. A theme with four keys has been
+      // rendering the root look since it was written, and that is what `darkroom` is.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ theme: { accentHue: 250, fonts: 'sans', frame: 'square', material: 'plain' } }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
+        accentHue: 250,
+        fonts: 'sans',
+        frame: 'square',
+        material: 'plain',
+        ambiance: 'darkroom',
+      })
+    })
+
+    it('keeps a chosen ambiance across a save and a read', async () => {
+      const event = anEvent({ id: 'evt-1' })
+      await repo.save(event)
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'round',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
+        }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme.ambiance).toBe('guinguette')
     })
 
     it('renders an event themed before the material existed exactly as it rendered then', async () => {
@@ -719,6 +804,7 @@ describe('SqliteEventRepository', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
+        ambiance: 'darkroom',
       })
     })
 

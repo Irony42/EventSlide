@@ -3,12 +3,15 @@ import {
   accentNameFor,
   CURATED_ACCENT_HUES,
   CURATED_ACCENT_NAMES,
+  DEFAULT_EVENT_THEME,
   isThemeFonts,
   isThemeFrame,
   isThemeMaterial,
+  isThemeAmbiance,
   THEME_FONTS,
   THEME_FRAMES,
   THEME_MATERIALS,
+  THEME_AMBIANCES,
   type CuratedAccent,
 } from '../../../design-system/eventTheme'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -65,6 +68,11 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
     label: t.admin.themeFrameNames[value],
   }))
 
+  const ambianceOptions = THEME_AMBIANCES.map((value) => ({
+    value,
+    label: t.admin.themeAmbianceNames[value],
+  }))
+
   const materialOptions = THEME_MATERIALS.map((value) => ({
     value,
     label: t.admin.themeMaterialNames[value],
@@ -94,7 +102,12 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
           <label
             key={name}
             className={styles['choice']}
-            data-event-accent={String(CURATED_ACCENT_HUES[name])}
+            // ADR 0010: the default hue is the paper, which is what the root already paints.
+            data-event-accent={
+              CURATED_ACCENT_HUES[name] === DEFAULT_EVENT_THEME.accentHue
+                ? undefined
+                : String(CURATED_ACCENT_HUES[name])
+            }
             style={swatchStyle(CURATED_ACCENT_HUES[name])}
           >
             <input
@@ -113,6 +126,18 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
           </label>
         ))}
       </fieldset>
+
+      {/* First, because it is the largest decision: the world the other choices sit in. */}
+      <SelectField
+        label={t.admin.themeAmbiance}
+        hint={t.admin.themeAmbianceHint}
+        value={theme.ambiance}
+        options={ambianceOptions}
+        disabled={disabled}
+        onChange={(value) => {
+          if (isThemeAmbiance(value)) onChange({ ...theme, ambiance: value })
+        }}
+      />
 
       <SelectField
         label={t.admin.themeFonts}

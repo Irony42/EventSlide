@@ -12,6 +12,7 @@ import {
   THEME_FONTS,
   THEME_FRAMES,
   THEME_MATERIALS,
+  THEME_AMBIANCES,
 } from '../../../domain/events/eventTheme'
 
 /**
@@ -51,7 +52,13 @@ const declaration = (name: string): { l: number; c: number; hue: string } => {
   const pattern = new RegExp(
     `${name}:\\s*oklch\\(\\s*([\\d.]+)%\\s+([\\d.]+)\\s+(var\\([^)]*\\)|[\\d.]+)\\s*\\)\\s*;`,
   )
-  const found = pattern.exec(TOKENS)
+  // The accent trio is read from the block an event's hue lands on: since ADR 0010 the
+  // root declares the paper there, with no hue at all, and the derivation lives on
+  // `[data-event-accent]` alone.
+  const source = name.startsWith('--accent')
+    ? TOKENS.slice(TOKENS.indexOf('\n[data-event-accent] {'))
+    : TOKENS
+  const found = pattern.exec(source)
   if (found?.[1] === undefined || found[2] === undefined || found[3] === undefined) {
     throw new Error(`${name} is not an oklch declaration in tokens.css — was it renamed?`)
   }
@@ -180,7 +187,7 @@ describe('the accent derivation', () => {
     // element it is declared on, so an `--accent` declared only for `:root` keeps the
     // product's hue however far down the tree `--accent-hue` moves — the palette simply
     // never changes, with nothing in any build to say why.
-    expect(TOKENS).toMatch(/:root,\s*\[data-event-accent\]\s*\{/)
+    expect(TOKENS).toMatch(/\n\[data-event-accent\]\s*\{/)
   })
 
   it.each(Object.entries(STATUS_HUES))(
@@ -199,6 +206,13 @@ describe('the vocabularies a theme selects from', () => {
     const themed = THEME_FONTS.filter((value) => value !== DEFAULT_EVENT_THEME.fonts)
 
     expect([...themedValues('fonts')].sort()).toEqual([...themed].sort())
+  })
+
+  it('declares a block for every ambiance except the default', () => {
+    // ADR 0010: the product's own look is the root, so only the others need a block.
+    const themed = THEME_AMBIANCES.filter((value) => value !== DEFAULT_EVENT_THEME.ambiance)
+
+    expect([...new Set(themedValues('ambiance'))].sort()).toEqual([...themed].sort())
   })
 
   it('declares a block for every frame style except the default', () => {
@@ -237,6 +251,7 @@ describe('the picker the host actually uses', () => {
       fonts: client.get('fonts'),
       frame: client.get('frame'),
       material: client.get('material'),
+      ambiance: client.get('ambiance'),
     }).toEqual(DEFAULT_EVENT_THEME)
   })
 
@@ -244,6 +259,7 @@ describe('the picker the host actually uses', () => {
     ['THEME_FONTS', THEME_FONTS],
     ['THEME_FRAMES', THEME_FRAMES],
     ['THEME_MATERIALS', THEME_MATERIALS],
+    ['THEME_AMBIANCES', THEME_AMBIANCES],
   ])('offers exactly the %s the domain accepts', (name, vocabulary) => {
     // The two closed vocabularies. An option in the picker the schema refuses is a
     // control that answers 400 whatever the host does with it, and a value the domain

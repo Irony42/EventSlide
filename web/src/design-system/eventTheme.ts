@@ -1,5 +1,11 @@
 import type { CSSProperties } from 'react'
-import type { EventThemeDto, ThemeFonts, ThemeFrame, ThemeMaterial } from '../lib/api/dto'
+import type {
+  EventThemeDto,
+  ThemeAmbiance,
+  ThemeFonts,
+  ThemeFrame,
+  ThemeMaterial,
+} from '../lib/api/dto'
 import { glassMaterialProps, type GlassMaterialProps } from './glass'
 
 /**
@@ -46,6 +52,7 @@ export const DEFAULT_EVENT_THEME: EventThemeDto = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
+  ambiance: 'darkroom',
 })
 
 /**
@@ -84,6 +91,7 @@ export const CURATED_ACCENT_NAMES = Object.keys(CURATED_ACCENT_HUES) as readonly
 export const THEME_FONTS: readonly ThemeFonts[] = ['sans', 'serif']
 export const THEME_FRAMES: readonly ThemeFrame[] = ['soft', 'square', 'round']
 export const THEME_MATERIALS: readonly ThemeMaterial[] = ['glass', 'plain']
+export const THEME_AMBIANCES: readonly ThemeAmbiance[] = ['darkroom', 'guinguette']
 
 export const isThemeFonts = (value: string): value is ThemeFonts =>
   (THEME_FONTS as readonly string[]).includes(value)
@@ -93,6 +101,9 @@ export const isThemeFrame = (value: string): value is ThemeFrame =>
 
 export const isThemeMaterial = (value: string): value is ThemeMaterial =>
   (THEME_MATERIALS as readonly string[]).includes(value)
+
+export const isThemeAmbiance = (value: string): value is ThemeAmbiance =>
+  (THEME_AMBIANCES as readonly string[]).includes(value)
 
 /** The name of a hue, when it is one of the four. `null` for an angle set over the API. */
 export const accentNameFor = (hue: number): CuratedAccent | null =>
@@ -125,6 +136,8 @@ export interface ThemeSurfaceProps extends GlassMaterialProps {
   readonly 'data-event-accent'?: string
   readonly 'data-event-fonts'?: EventThemeDto['fonts']
   readonly 'data-event-frame'?: EventThemeDto['frame']
+  /** The ambiance block `tokens.css` selects. Absent for the product's own, `darkroom`. */
+  readonly 'data-event-ambiance'?: EventThemeDto['ambiance']
 }
 
 /**
@@ -164,12 +177,16 @@ export const themeSurfaceProps = (
   // surface below the shell may declare, and its return type is what stops this file
   // helpfully emitting the tier in full and putting a blur back on a machine that shed it.
   const material = glassMaterialProps(theme.material)
+  // Both surfaces wear the ambiance: it is the world the guest's phone and the room share.
+  const ambiance: ThemeSurfaceProps =
+    theme.ambiance === DEFAULT_EVENT_THEME.ambiance ? {} : { 'data-event-ambiance': theme.ambiance }
 
-  if (surface === 'guest') return { ...accent, ...material }
+  if (surface === 'guest') return { ...accent, ...material, ...ambiance }
 
   return {
     ...accent,
     ...material,
+    ...ambiance,
     ...(theme.fonts === DEFAULT_EVENT_THEME.fonts ? {} : { 'data-event-fonts': theme.fonts }),
     ...(theme.frame === DEFAULT_EVENT_THEME.frame ? {} : { 'data-event-frame': theme.frame }),
   }
@@ -191,6 +208,16 @@ export const themeSurfaceProps = (
 const readThemeMaterial = (value: unknown): ThemeMaterial | null => {
   if (value === undefined) return DEFAULT_EVENT_THEME.material
   if (typeof value !== 'string' || !isThemeMaterial(value)) return null
+  return value
+}
+
+/**
+ * The ambiance, for a theme written before ambiances existed: absent is the product's own,
+ * present and unknown is refused, exactly as for the material above.
+ */
+const readThemeAmbiance = (value: unknown): ThemeAmbiance | null => {
+  if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
+  if (typeof value !== 'string' || !isThemeAmbiance(value)) return null
   return value
 }
 
@@ -217,5 +244,8 @@ export const readEventTheme = (value: unknown): EventThemeDto | null => {
   const material = readThemeMaterial(Reflect.get(value, 'material'))
   if (material === null) return null
 
-  return { accentHue: hue, fonts, frame, material }
+  const ambiance = readThemeAmbiance(Reflect.get(value, 'ambiance'))
+  if (ambiance === null) return null
+
+  return { accentHue: hue, fonts, frame, material, ambiance }
 }

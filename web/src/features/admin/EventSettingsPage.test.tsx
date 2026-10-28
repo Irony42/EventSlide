@@ -314,7 +314,13 @@ describe('EventSettingsPage', () => {
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
       expect.objectContaining({
-        theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'darkroom',
+        },
       }),
     )
   })
@@ -331,7 +337,13 @@ describe('EventSettingsPage', () => {
       getEvent: vi.fn(async () =>
         anEventDto({
           settings: eventSettings({
-            theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+            theme: {
+              accentHue: 345,
+              fonts: 'serif',
+              frame: 'round',
+              material: 'glass',
+              ambiance: 'darkroom',
+            },
           }),
         }),
       ),
@@ -343,14 +355,16 @@ describe('EventSettingsPage', () => {
     expect(document.querySelectorAll('[data-event-fonts]')).toHaveLength(0)
     expect(document.querySelectorAll('[data-event-frame]')).toHaveLength(0)
 
+    expect(document.querySelectorAll('[data-event-ambiance]')).toHaveLength(0)
+
     // Nothing carries the event's hue except the picker's own rows — and they carry one
-    // option's hue each, which is never the event's.
+    // option's hue each, which is never the event's. The default row carries none: since
+    // ADR 0010 it previews the paper the root already paints.
     const picker = screen.getByTestId('theme-accents')
     const marked = [...document.querySelectorAll('[data-event-accent]')]
-    expect(marked).toHaveLength(4)
+    expect(marked).toHaveLength(3)
     for (const row of marked) expect(picker.contains(row)).toBe(true)
     expect(marked.map((row) => row.getAttribute('data-event-accent'))).toEqual([
-      '305',
       '345',
       '250',
       '195',
@@ -362,7 +376,13 @@ describe('EventSettingsPage', () => {
       getEvent: vi.fn(async () =>
         anEventDto({
           settings: eventSettings({
-            theme: { accentHue: 250, fonts: 'serif', frame: 'square', material: 'glass' },
+            theme: {
+              accentHue: 250,
+              fonts: 'serif',
+              frame: 'square',
+              material: 'glass',
+              ambiance: 'darkroom',
+            },
           }),
         }),
       ),

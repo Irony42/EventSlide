@@ -10,6 +10,8 @@ import {
   isThemeFonts,
   isThemeFrame,
   isThemeMaterial,
+  isThemeAmbiance,
+  THEME_AMBIANCES,
   restoreEventTheme,
   THEME_FONTS,
   THEME_FRAMES,
@@ -239,6 +241,7 @@ describe('the shipped hues', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'darkroom',
     })
     expect(CURATED_ACCENT_HUES['violet']).toBe(DEFAULT_EVENT_THEME.accentHue)
   })
@@ -293,6 +296,25 @@ describe('narrowing a value read back from storage', () => {
   )
 })
 
+describe('the ambiance an event wears (ADR 0010)', () => {
+  it('ships on the product’s own look, so an unthemed event emits nothing', () => {
+    expect(DEFAULT_EVENT_THEME.ambiance).toBe('darkroom')
+  })
+
+  it.each(THEME_AMBIANCES)('recognises %s as an ambiance', (value) => {
+    expect(isThemeAmbiance(value)).toBe(true)
+  })
+
+  it.each([['violet'], ['Guinguette'], [null], [3], [undefined]])(
+    'refuses %s as an ambiance',
+    (value) => {
+      // Case matters: the value reaches an attribute selector, where `Guinguette` matches
+      // no block and renders the product's look under a host who chose the other one.
+      expect(isThemeAmbiance(value)).toBe(false)
+    },
+  )
+})
+
 describe('the material a host chooses for their panes', () => {
   it('ships on, because that is what every event already renders', () => {
     // The same promise the accent, the pairing and the frame make: an event that chose
@@ -312,15 +334,19 @@ describe('the material a host chooses for their panes', () => {
     // close they come to exactly this surface. A hue the rule refuses is refused whichever
     // material it is wearing, and a hue it accepts is accepted the same way: the two
     // decisions are independent, and a rule that made them interact would be inventing one.
-    expect(createEventTheme(aTheme({ accentHue: 160, material: 'plain' })).ok).toBe(false)
-    expect(createEventTheme(aTheme({ accentHue: 250, material: 'plain' })).ok).toBe(true)
+    expect(
+      createEventTheme(aTheme({ accentHue: 160, material: 'plain', ambiance: 'darkroom' })).ok,
+    ).toBe(false)
+    expect(
+      createEventTheme(aTheme({ accentHue: 250, material: 'plain', ambiance: 'darkroom' })).ok,
+    ).toBe(true)
   })
 
   it('keeps a stored choice on the read path rather than resetting it', () => {
     // `restoreEventTheme` is lenient about the *hue* and about nothing else. A host who
     // turned the material off did so on purpose, and a rule tightened on Tuesday must not
     // put a blur back on their wedding on Saturday.
-    const restored = restoreEventTheme(aTheme({ material: 'plain' }))
+    const restored = restoreEventTheme(aTheme({ material: 'plain', ambiance: 'darkroom' }))
 
     expect(restored.ok && restored.value.material).toBe('plain')
   })
@@ -331,7 +357,9 @@ describe('the material a host chooses for their panes', () => {
     // with it. That is right — a blob that shape-fails was not written by this product, so
     // there is no host choice in it to keep — but it is worth a test saying which way it
     // goes, because the alternative reading is "keep the parts that still parse".
-    const restored = restoreEventTheme(aTheme({ accentHue: 400, material: 'plain' }))
+    const restored = restoreEventTheme(
+      aTheme({ accentHue: 400, material: 'plain', ambiance: 'darkroom' }),
+    )
 
     expect(restored.ok && restored.value).toEqual(DEFAULT_EVENT_THEME)
   })

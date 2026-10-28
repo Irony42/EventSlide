@@ -967,7 +967,13 @@ describe('WallPage', () => {
       const api = fakeApi({
         wall: wallSequence(
           aPopulatedWall({
-            theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' },
+            theme: {
+              accentHue: 345,
+              fonts: 'sans',
+              frame: 'soft',
+              material: 'glass',
+              ambiance: 'darkroom',
+            },
           }),
         ),
       })
@@ -988,7 +994,13 @@ describe('WallPage', () => {
       const api = fakeApi({
         wall: wallSequence(
           aPopulatedWall({
-            theme: { accentHue: 305, fonts: 'serif', frame: 'square', material: 'glass' },
+            theme: {
+              accentHue: 305,
+              fonts: 'serif',
+              frame: 'square',
+              material: 'glass',
+              ambiance: 'darkroom',
+            },
           }),
         ),
       })
@@ -1007,7 +1019,13 @@ describe('WallPage', () => {
       const api = fakeApi({
         wall: wallSequence(
           aPopulatedWall({
-            theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+            theme: {
+              accentHue: 305,
+              fonts: 'sans',
+              frame: 'soft',
+              material: 'glass',
+              ambiance: 'darkroom',
+            },
           }),
         ),
       })
@@ -1032,7 +1050,13 @@ describe('WallPage', () => {
       const api = fakeApi({
         wall: wallSequence(
           aPopulatedWall({
-            theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'plain' },
+            theme: {
+              accentHue: 305,
+              fonts: 'sans',
+              frame: 'soft',
+              material: 'plain',
+              ambiance: 'darkroom',
+            },
           }),
         ),
       })
@@ -1071,7 +1095,13 @@ describe('WallPage', () => {
       await act(async () => {
         pending.arrives(
           aPopulatedWall({
-            theme: { accentHue: 345, fonts: 'serif', frame: 'soft', material: 'glass' },
+            theme: {
+              accentHue: 345,
+              fonts: 'serif',
+              frame: 'soft',
+              material: 'glass',
+              ambiance: 'darkroom',
+            },
           }),
         )
       })

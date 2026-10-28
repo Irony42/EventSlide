@@ -162,6 +162,7 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.theme?.fonts === fresh.theme?.fonts &&
   kept.theme?.frame === fresh.theme?.frame &&
   kept.theme?.material === fresh.theme?.material &&
+  kept.theme?.ambiance === fresh.theme?.ambiance &&
   // The language the room's screen speaks (roadmap 1.5). Compared for the reason the
   // theme is, and with a sharper failure: a host who realises mid-reception that the wall
   // is in the wrong language changes it on the settings page, which moves no photograph —

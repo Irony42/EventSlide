@@ -24,8 +24,10 @@ import {
   isThemeFonts,
   isThemeFrame,
   isThemeMaterial,
+  isThemeAmbiance,
   type EventThemeProps,
   type ThemeMaterial,
+  type ThemeAmbiance,
 } from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
 import { DomainError } from '../../domain/shared/errors'
@@ -301,6 +303,17 @@ const settingsMaterialAddedLater = (value: unknown): ThemeMaterial => {
 }
 
 /**
+ * The ambiance a themed event wears, for a `theme` object written before ambiances existed
+ * (docs/adr/0010-event-ambiances.md). Absent is the product's own look, which is what that
+ * blob has been rendering; present but unknown is corruption, like the material above.
+ */
+const settingsAmbianceAddedLater = (value: unknown): ThemeAmbiance => {
+  if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
+  if (!isThemeAmbiance(value)) throw corrupt('settings', 'unknown theme ambiance')
+  return value
+}
+
+/**
  * The event's theme, added by roadmap 2.2, and the second field to need the treatment
  * above.
  *
@@ -345,6 +358,7 @@ const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
     fonts,
     frame,
     material: settingsMaterialAddedLater(value['material']),
+    ambiance: settingsAmbianceAddedLater(value['ambiance']),
   }
 }
 

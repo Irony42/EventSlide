@@ -41,6 +41,7 @@ import type {
   ThemeFonts,
   ThemeFrame,
   ThemeMaterial,
+  ThemeAmbiance,
   WallLayout,
 } from '../api/dto'
 
@@ -804,7 +805,7 @@ export const fr = {
       'Visible par vos invités et sur l’écran de la salle. Les couleurs proposées restent lisibles à dix mètres.',
     themeAccent: 'Couleur',
     themeAccentNames: {
-      violet: 'Violet',
+      violet: 'Papier (par défaut)',
       rose: 'Rose',
       azure: 'Bleu',
       teal: 'Turquoise',
@@ -840,6 +841,13 @@ export const fr = {
       glass: 'Verre dépoli',
       plain: 'Surface unie',
     } satisfies Record<ThemeMaterial, string>,
+    themeAmbiance: 'Ambiance',
+    themeAmbianceHint:
+      'L’univers que portent l’écran de vos invités et celui de la salle. Votre console ne change pas.',
+    themeAmbianceNames: {
+      darkroom: 'Chambre noire',
+      guinguette: 'Guinguette',
+    } satisfies Record<ThemeAmbiance, string>,
 
     /* ---- Event templates (roadmap 3.5). The names of the four evenings, plus the two
             sentences that carry the whole feature: a template is a starting point, and

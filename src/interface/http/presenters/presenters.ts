@@ -210,6 +210,7 @@ export const toEventThemeDto = (theme: EventThemeProps): EventThemeDto => ({
   fonts: theme.fonts,
   frame: theme.frame,
   material: theme.material,
+  ambiance: theme.ambiance,
 })
 
 export const toEventSettingsDto = (settings: EventSettings): EventSettingsDto => ({
