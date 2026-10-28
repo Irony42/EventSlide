@@ -22,8 +22,12 @@ import {
  *
  * So this reads each WebP itself, crops it the way `background-size: cover` does on a phone in
  * portrait, applies the grade the stylesheet declares at each row, and holds the three inks to
- * the product's own bars against the 99th percentile of the result: the brightest ground a
- * line of text can realistically land on, ignoring the few pixels at the core of a bulb.
+ * the product's own bars against a percentile of the result that depends on the **polarity**:
+ * light inks on a dark grade are held against the 99th percentile, the brightest ground a line of
+ * text can realistically land on, ignoring the few pixels at the core of a bulb; dark inks on a
+ * light grade (the Noces) are held against the 1st, the darkest, ignoring the few pixels of a
+ * shadow. The worst case is the end of the photograph that is nearest the ink, and which end
+ * that is follows from whether the ink is lighter or darker than the grade's own colour.
  */
 
 const ROOT = process.cwd()
@@ -106,6 +110,20 @@ const phoneCrop = async (name: string) => {
     .toBuffer({ resolveWithObject: true })
 }
 
+/**
+ * Which end of the photograph is the worst case for an ink: the ink's luminance against the
+ * grade colour's decides. A light ink on a dark grade fears the brightest pixels, a dark ink on a
+ * light grade the darkest.
+ */
+const polarityOf = (inkColour: Oklch, grade: Grade): 'light-ink' | 'dark-ink' =>
+  luminanceOf(srgb(inkColour)) > luminanceOf(grade.colour) ? 'light-ink' : 'dark-ink'
+
+/** The percentile of the sorted luminances that bounds the worst realistic ground for a polarity. */
+const worstGround = (sorted: readonly number[], polarity: 'light-ink' | 'dark-ink'): number =>
+  polarity === 'light-ink'
+    ? (sorted[Math.floor(sorted.length * 0.99)] ?? 1)
+    : (sorted[Math.floor(sorted.length * 0.01)] ?? 0)
+
 /** The graded ground's luminances in a band of the page, sorted. */
 const groundLuminances = async (
   name: string,
@@ -160,8 +178,10 @@ describe.each(AMBIANCES)('text over the %s’s photographed ground', (name) => {
       ),
     }
     const luminances = await groundLuminances(name, shifted, ...BAND)
-    const p99 = luminances[Math.floor(luminances.length * 0.99)] ?? 1
-    return INKS.every((token) => ratio(luminanceOf(srgb(ink(token))), p99) >= 4.5)
+    return INKS.every((token) => {
+      const worst = worstGround(luminances, polarityOf(ink(token), grade))
+      return ratio(luminanceOf(srgb(ink(token))), worst) >= 4.5
+    })
   }
 
   it('ships a photograph and declares it', () => {
@@ -169,13 +189,18 @@ describe.each(AMBIANCES)('text over the %s’s photographed ground', (name) => {
   })
 
   it.each(INKS)(
-    'keeps %s above 4.5:1 on the 99th percentile of the graded photograph',
+    'keeps %s above 4.5:1 on the worst percentile of the graded photograph (99th for a light ink, 1st for a dark one)',
     async (token) => {
       const luminances = await groundLuminances(name, grade, ...BAND)
-      const p99 = luminances[Math.floor(luminances.length * 0.99)] ?? 1
-      expect(ratio(luminanceOf(srgb(ink(token))), p99)).toBeGreaterThanOrEqual(4.5)
+      const worst = worstGround(luminances, polarityOf(ink(token), grade))
+      expect(ratio(luminanceOf(srgb(ink(token))), worst)).toBeGreaterThanOrEqual(4.5)
     },
   )
+
+  it('keeps all three inks on one side of the grade, so one polarity is measured per ambiance', () => {
+    const polarities = new Set(INKS.map((token) => polarityOf(ink(token), grade)))
+    expect(polarities.size).toBe(1)
+  })
 
   it(
     FLOORED[name] === undefined
@@ -195,11 +220,12 @@ describe.each(AMBIANCES)('text over the %s’s photographed ground', (name) => {
 
 /**
  * A host's own photograph of their venue (ADR 0010, decision 8a) is nobody's measured
- * photograph, so the claim cannot be "the 99th percentile passes": it has to hold for **any**
+ * photograph, so the claim cannot be "the worst percentile passes": it has to hold for **any**
  * photograph. It does, and for the simplest reason. The venue grade is the ambiance's own grade
- * plus one more coat of its own surface colour, and under that the inks pass over a ground that is
- * **pure white**, the brightest thing a photograph can be, in every ambiance. A photograph that
- * is not white is only darker.
+ * plus one more coat of its own surface colour, and under that the inks pass over the extreme
+ * photograph on the side the ink fears: **pure white** for a light ink on a dark grade (nothing
+ * is brighter), **pure black** for a dark ink on a light grade (nothing is darker). Any other
+ * photograph lies between the two and is kinder.
  */
 describe.each(AMBIANCES)('text over a host’s own photograph, under the %s', (name) => {
   const ink = inksOf(name)
@@ -231,23 +257,32 @@ describe.each(AMBIANCES)('text over a host’s own photograph, under the %s', (n
     )
   })
 
-  it.each(INKS)('keeps %s above 4.5:1 even over a pure white photograph', (token) => {
-    const [gr, gg, gb] = grade.colour
-    const [sr, sg, sb] = srgb(ink('--surface-base'))
-    let worst = Number.POSITIVE_INFINITY
-    // Every row of the top half of the page, where the text sits on the ground itself.
-    for (let step = 0; step <= 50; step++) {
-      const a = alphaAt(grade, step / 100)
-      // The grade over white, then the venue coat over that, in encoded sRGB like the browser.
-      const g: Srgb = [gr * a + (1 - a), gg * a + (1 - a), gb * a + (1 - a)]
-      const s = scrimAlpha
-      const graded: Srgb = [
-        sr * s + g[0] * (1 - s),
-        sg * s + g[1] * (1 - s),
-        sb * s + g[2] * (1 - s),
-      ]
-      worst = Math.min(worst, ratio(luminanceOf(srgb(ink(token))), luminanceOf(graded)))
-    }
-    expect(worst).toBeGreaterThanOrEqual(4.5)
-  })
+  it.each(INKS)(
+    'keeps %s above 4.5:1 even over the worst pure photograph (white, or black under a light grade)',
+    (token) => {
+      const [gr, gg, gb] = grade.colour
+      const [sr, sg, sb] = srgb(ink('--surface-base'))
+      let worst = Number.POSITIVE_INFINITY
+      // The photograph the ink fears: white under a light ink, black under a dark one.
+      const photo = polarityOf(ink(token), grade) === 'light-ink' ? 1 : 0
+      // Every row of the top half of the page, where the text sits on the ground itself.
+      for (let step = 0; step <= 50; step++) {
+        const a = alphaAt(grade, step / 100)
+        // The grade over the photograph, then the venue coat over that, in encoded sRGB like the browser.
+        const g: Srgb = [
+          gr * a + photo * (1 - a),
+          gg * a + photo * (1 - a),
+          gb * a + photo * (1 - a),
+        ]
+        const s = scrimAlpha
+        const graded: Srgb = [
+          sr * s + g[0] * (1 - s),
+          sg * s + g[1] * (1 - s),
+          sb * s + g[2] * (1 - s),
+        ]
+        worst = Math.min(worst, ratio(luminanceOf(srgb(ink(token))), luminanceOf(graded)))
+      }
+      expect(worst).toBeGreaterThanOrEqual(4.5)
+    },
+  )
 })
