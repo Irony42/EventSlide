@@ -420,7 +420,9 @@ describe('SecurityPage: coming and going', () => {
       await userEvent.click(screen.getByRole('button', { name: fr.auth.recoveryCodesSaved }))
 
       // Still on the page: its own confirmation is asked again, which is how it has always ended.
+      // The enrolment's own ending (its toast, and the way back) is not run for a renewal.
       expect(await screen.findByRole('button', { name: fr.auth.stepUpSubmit })).toBeVisible()
+      expect(screen.queryByText(fr.auth.secondFactorEnabled)).toBeNull()
       expect(screen.queryByText(AUDIT)).toBeNull()
     })
   })

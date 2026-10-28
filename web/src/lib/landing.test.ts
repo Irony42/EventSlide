@@ -126,6 +126,13 @@ describe('where somebody lands after accepting an invitation', () => {
     expect(afterInvitationPath({ kind: 'client', role, eventSlug: null }, true)).toBe('/admin')
   })
 
+  it('opens the list of events for a client invitation even when the answer carries an event', () => {
+    // The server sends none for a client; the rule is about the kind, not about what else is there.
+    expect(
+      afterInvitationPath({ kind: 'client', role: 'owner', eventSlug: 'mariage' }, false),
+    ).toBe('/admin')
+  })
+
   it('opens the event’s page for any other role on an event', () => {
     expect(afterInvitationPath({ kind: 'event', role: 'owner', eventSlug: 'mariage' }, false)).toBe(
       '/admin/events/mariage',
