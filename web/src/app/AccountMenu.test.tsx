@@ -603,7 +603,13 @@ describe('AccountMenu: a link to the page you are on (H14)', () => {
     await open()
     await userEvent.click(screen.getByRole('link', { name: fr.auth.changePassword }))
 
-    // From the page itself the link hands nothing new on: not `{ from: '/admin/password' }`.
-    expect(await screen.findByTestId('arrival')).not.toHaveTextContent('/admin/password')
+    // The menu has closed on the press, so the navigation has been made: what the page now holds is
+    // what it was given, and not `{ from: '/admin/password' }`, which would make Annuler a no-op.
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: fr.auth.changePassword })).toBeNull(),
+    )
+    expect(screen.getByTestId('arrival')).toHaveTextContent(
+      JSON.stringify({ from: '/admin/events/mariage' }),
+    )
   })
 })
