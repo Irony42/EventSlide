@@ -117,14 +117,14 @@ function Trail({
           </Link>
         </li>
         {name === null ? null : page === 'event' ? (
-          <Crumb>
+          <Crumb shrinks>
             <span className={cx(styles['here'], styles['name'])} aria-current="page">
               {name}
             </span>
           </Crumb>
         ) : (
           <>
-            <Crumb>
+            <Crumb shrinks>
               <Link className={cx(styles['link'], styles['name'])} to={eventPath}>
                 {name}
               </Link>
@@ -144,9 +144,16 @@ function Trail({
 }
 
 /** One item after the first, with the separator that is only there to the eye. */
-function Crumb({ children }: { readonly children: ReactNode }) {
+function Crumb({
+  children,
+  shrinks = false,
+}: {
+  readonly children: ReactNode
+  /** The item that holds the event's name, the one that may be too long for the line. */
+  readonly shrinks?: boolean
+}) {
   return (
-    <li className={styles['item']}>
+    <li className={cx(styles['item'], shrinks && styles['shrinks'])}>
       <span className={styles['separator']} aria-hidden="true">
         ›
       </span>
