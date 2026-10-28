@@ -151,7 +151,35 @@ describe('the way back from an event page', () => {
       'href',
       '/admin',
     )
-    expect(within(nav).queryByRole('link', { name: NAME })).toBeNull()
+    // Nothing else: the page already failed to read the event, so the trail names no event, offers
+    // no link to the very page that failed, and does not ask the network a second time.
+    expect(within(nav).getAllByRole('link')).toHaveLength(1)
+    expect(api.getEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('still offers the way out when the settings could not be read', async () => {
+    const api = signedIn({
+      getEvent: vi.fn(async () => {
+        throw ApiError.network()
+      }),
+    })
+    at(api, `/admin/events/${SLUG}/settings`)
+
+    const nav = await trail()
+
+    expect(within(nav).getByRole('link', { name: fr.admin.events })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
+    expect(within(nav).getAllByRole('link')).toHaveLength(1)
+    expect(api.getEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the settings page one link to the event: the trail is it, not a second one beside it', async () => {
+    at(signedIn(), `/admin/events/${SLUG}/settings`)
+    await within(await trail()).findByRole('link', { name: NAME })
+
+    expect(screen.getAllByRole('link', { name: NAME })).toHaveLength(1)
   })
 
   it('still offers the event on the console when the name could not be read', async () => {
