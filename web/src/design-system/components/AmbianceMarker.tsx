@@ -1,5 +1,6 @@
 import type { ThemeAmbiance, ThemeCustom } from '../../lib/api/dto'
 import { customGroundProps, DEFAULT_EVENT_THEME, venueGroundProps } from '../eventTheme'
+import { useRootGroundHue } from '../useRootGroundHue'
 
 export interface AmbianceMarkerProps {
   /** The ambiance of the event the page is about, or nothing while it is not known yet. */
@@ -30,6 +31,8 @@ export interface AmbianceMarkerProps {
  * ambiance, which is what keeps the moderation queue's vocabulary readable when it is dressed.
  */
 export function AmbianceMarker({ ambiance, groundUrl, custom }: AmbianceMarkerProps) {
+  // The page around it reads the hue on the root (see useRootGroundHue).
+  useRootGroundHue(ambiance, custom)
   // Nothing while the event is not known yet.
   if (ambiance === null || ambiance === undefined) return null
 

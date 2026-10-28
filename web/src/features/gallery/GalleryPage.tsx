@@ -9,6 +9,7 @@ import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { TextInput } from '../../design-system/components/TextInput'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
+import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { formatDateTime } from '../../lib/format'
 import { messageForError } from '../../lib/i18n/translations'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
@@ -155,6 +156,7 @@ export function GalleryPage() {
 
   return (
     <div {...themeSurfaceProps(gallery.theme, 'guest')} className={styles['page']}>
+      <RootGroundHue theme={gallery.theme} />
       <Robots />
       <header className={styles['header']}>
         {/* Content: the host's own name for their evening. */}

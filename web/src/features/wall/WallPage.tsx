@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { wallBudgetProps } from '../../design-system/budget'
 import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
+import { useRootGroundHue } from '../../design-system/useRootGroundHue'
 import { Button } from '../../design-system/components/Button'
 import { Dialog } from '../../design-system/components/Dialog'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -191,6 +192,7 @@ export function WallPage() {
    */
   const eventTheme = readEventTheme(wall?.theme ?? null)
   const ambianceLayout = eventTheme === null ? null : AMBIANCE_LAYOUT[eventTheme.ambiance]
+  useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
 
   /**

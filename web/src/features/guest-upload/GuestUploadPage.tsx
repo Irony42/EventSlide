@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
+import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { CaptionField } from './components/CaptionField'
@@ -267,6 +268,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
      * is already the new one.
      */
     <div {...themeSurfaceProps(mine.theme ?? event.theme, 'guest')} className={styles['page']}>
+      <RootGroundHue theme={mine.theme ?? event.theme} />
       <header className={styles['header']}>
         {/* The event name, on the screen the guest actually uploads from. 1.0 read the
             event from a query parameter the QR page never set, so every photo went to
