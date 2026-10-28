@@ -722,4 +722,47 @@ test.describe('the projected wall @visual', () => {
       animations: 'disabled',
     })
   })
+
+  /**
+   * The Noces, ADR 0010 — red roses on a wine-black grade, an ivory double rule on the
+   * guest's pages and a rose-red join card. The ambiance is the only variable, as for the
+   * Guinguette's shots above.
+   */
+  test('the Noces’s empty wall', async ({ app, surfaces }) => {
+    const event = await app.seedEvent({ slug: 'noces-vide', name: 'Camille & Sacha' })
+    const { host, projector } = surfaces
+
+    await signInAsHost(host, app)
+    await applyTheme(host, app, event.slug, { ambiance: 'Noces' })
+
+    await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
+    await expect(projector.getByTestId('wall-empty')).toBeVisible()
+    await expect(projector.locator('[data-event-ambiance]')).toHaveAttribute(
+      'data-event-ambiance',
+      'noces',
+    )
+
+    await expect(projector).toHaveScreenshot('wall-empty-noces.png', { animations: 'disabled' })
+  })
+
+  test('the Noces’s spotlight', async ({ app, surfaces }) => {
+    const event = await seedAlbum(app, surfaces, 'noces-plein-ecran')
+    const { host, projector } = surfaces
+
+    await applyTheme(host, app, event.slug, { ambiance: 'Noces' })
+
+    await projector.goto(
+      wallUrl(app, event.slug, { layout: 'spotlight', intervalMs: 0, transitionMs: 0 }),
+    )
+    await expect(projector.locator('[data-wall-layout]')).toHaveAttribute(
+      'data-wall-layout',
+      'spotlight',
+    )
+    await expect(projector.getByTestId('wall-slide')).toHaveCount(1)
+    await expect(projector.getByTestId('wall-slide')).toHaveAttribute('data-motion', 'still')
+
+    await expect(projector).toHaveScreenshot('wall-spotlight-noces.png', {
+      animations: 'disabled',
+    })
+  })
 })
