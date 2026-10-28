@@ -59,18 +59,14 @@ export const useOversizedPane = (pane: RefObject<HTMLElement | null>): boolean =
       // rule: the pane stays as it was written, pinned.
       if (share === null) return
       const tooTall = exceedsShare(element.getBoundingClientRect().height, viewportHeight, share)
-      // Only a pane that grew under the guest's hands is brought back into view: not the first
-      // measurement of a page that has just opened, and not a rotation.
+      // Only a pane that grew under the guest's hands is brought back into view, not one that
+      // a rotation or the first measurement of a page just opened has dropped into the flow.
       bringIntoView.current = grew && tooTall
       setOversized(tooTall)
     }
 
-    // The first report of an observer is the size the pane started at, not a change.
-    let reported = false
-    const observer = new ResizeObserver(() => {
-      measure(reported)
-      reported = true
-    })
+    // What follows the pane growing, which is what a guest picking photos does.
+    const observer = new ResizeObserver(() => measure(true))
     observer.observe(element)
 
     const onResize = () => {
