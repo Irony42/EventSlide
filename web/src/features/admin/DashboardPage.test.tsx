@@ -25,6 +25,7 @@ const aSummary = (overrides: Partial<EventSummaryDto> = {}): EventSummaryDto => 
   guestCount: 18,
   usedBytes: 2_400_000,
   createdAt: '2026-06-20T21:04:11.031Z',
+  role: 'owner',
   ...overrides,
 })
 
@@ -108,6 +109,58 @@ describe('DashboardPage', () => {
     // A draft has nothing to close and nothing to show on the projector yet.
     expect(screen.queryByRole('button', { name: fr.admin.closeEvent })).toBeNull()
     expect(screen.queryByRole('link', { name: fr.admin.openWall })).toBeNull()
+  })
+
+  it('offers a moderator no lifecycle button: every one would be answered 403', async () => {
+    const api = fakeApi({
+      listEvents: vi.fn(async () => ({
+        items: [aSummary({ status: 'live', role: 'moderator', pendingCount: 3 })],
+      })),
+    })
+
+    renderDashboard(api)
+
+    expect(await screen.findByRole('link', { name: 'Camille & Sacha' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.admin.closeEvent })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.admin.archiveEvent })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.admin.goLive })).toBeNull()
+    // What a moderator is there for stays.
+    expect(screen.getByRole('link', { name: fr.admin.openModeration })).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.admin.openWall })).toBeVisible()
+  })
+
+  it('decides each event by the role the caller holds in it, in one list', async () => {
+    const api = fakeApi({
+      listEvents: vi.fn(async () => ({
+        items: [
+          aSummary({ id: 'e1', slug: 'mariage', name: 'Mariage', status: 'draft', role: 'owner' }),
+          aSummary({ id: 'e2', slug: 'gala', name: 'Gala', status: 'draft', role: 'moderator' }),
+        ],
+      })),
+    })
+
+    renderDashboard(api)
+
+    await screen.findByRole('link', { name: 'Gala' })
+    // One "Passer en direct" for the two events: the owner's.
+    expect(screen.getAllByRole('button', { name: fr.admin.goLive })).toHaveLength(1)
+  })
+
+  it('opens the wall in a tab of its own, and says so without renaming the link', async () => {
+    const api = fakeApi({
+      listEvents: vi.fn(async () => ({ items: [aSummary({ status: 'live' })] })),
+    })
+
+    renderDashboard(api)
+
+    const wall = await screen.findByRole('link', { name: fr.admin.openWall })
+    expect(wall).toHaveAttribute('target', '_blank')
+    expect(wall).toHaveAttribute('rel', 'noopener')
+    expect(wall).toHaveAccessibleDescription(fr.about.opensInNewTab)
+    // The moderation queue stays in the console's own tab.
+    expect(screen.getByRole('link', { name: fr.admin.openModeration })).not.toHaveAttribute(
+      'target',
+    )
   })
 
   it('opens an event to guests and refreshes the figures from the server', async () => {
@@ -237,6 +290,16 @@ describe('DashboardPage: a client’s limits', () => {
       'href',
       '/admin/client',
     )
+  })
+
+  it('does not lead an account with no client to a client space it does not have', async () => {
+    // `SITE_ADMIN=on`, an account that belongs to no client: the link would open a space that
+    // has nothing to say to it.
+    renderDashboard(onBox([]))
+
+    expect(await screen.findByText(fr.admin.eventsEmpty)).toBeVisible()
+    expect(screen.queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
+    expect(screen.queryByText(fr.clientSpace.noLimits)).toBeNull()
   })
 
   it('shows nothing of a client under its lines, but still leads to its space', async () => {

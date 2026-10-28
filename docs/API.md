@@ -2461,7 +2461,8 @@ like a broken page on a host's first login.
       "pendingCount": 12,
       "guestCount": 74,
       "usedBytes": 1840293012,
-      "createdAt": "2026-06-20T17:00:00.000Z"
+      "createdAt": "2026-06-20T17:00:00.000Z",
+      "role": "owner"
     }
   ]
 }
@@ -2469,6 +2470,14 @@ like a broken page on a host's first login.
 
 A summary carries no join code and no settings. `GET /api/events/:slug` is where those
 live, and it needs a role in the event to answer.
+
+`role` is **what the caller is in that event** (`owner` or `moderator`), the same word
+`EventDto.role` carries. It is the caller's own membership of that event: another account's
+membership of it, or the caller's of another event, never colours a row, and no event outside
+the caller's own list appears whatever role is asked about. A row the caller reaches through
+the `owner_id` column with no membership row is the owner's. The console reads it to leave
+out the lifecycle buttons (go live, close, archive) that a moderator's request would be
+refused with `403 auth.forbidden`; the server still decides every one of those requests.
 
 `usedBytes` is **the same sum the upload paths enforce the event's quota against**:
 photographs of every status **plus** the staged sources of clips still waiting to be

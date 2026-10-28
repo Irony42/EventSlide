@@ -5,8 +5,25 @@
   max-inline-size: var(--container-guest);
 }
 
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
 .title {
   font-size: var(--text-xl);
+}
+
+/* The size of the dashboard's own links, so the two homes feel like one place. */
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .client {

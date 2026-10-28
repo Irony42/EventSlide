@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
+import { HostEventsLink } from '../../app/HostEventsLink'
+import { LoadFailure } from '../../design-system/components/Async'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
@@ -202,15 +205,12 @@ export function MobileModerationPage() {
             <Spinner size="lg" label={t.app.loading} />
           </div>
         ) : queue.error !== null && queue.items.length === 0 ? (
-          <EmptyState
+          <LoadFailure
             as="h2"
             title={t.moderation.loadFailed}
-            description={messageForError(queue.error, t)}
-            action={
-              <Button variant="primary" onClick={queue.refresh}>
-                {t.app.retry}
-              </Button>
-            }
+            message={messageForError(queue.error, t)}
+            onRetry={queue.refresh}
+            secondaryAction={<HostEventsLink />}
           />
         ) : current === null ? (
           <EmptyState as="h2" title={t.moderation.empty} description={t.moderation.emptyHint} />
@@ -354,6 +354,11 @@ export function MobileModerationPage() {
         {!queue.canUndo && lastDecision === 'reject' ? (
           <p className={styles['undoHint']}>{t.mobileModeration.undoUnavailable}</p>
         ) : null}
+        {/* Below the thumb's work, not among it: a host who has put the phone down and sat at
+            the laptop wants the grid, and nobody wants it by mistake mid-swipe. */}
+        <Link className={styles['otherConsole']} to={`/admin/events/${slug}/moderation`}>
+          {t.mobileModeration.openConsole}
+        </Link>
       </div>
     </div>
   )

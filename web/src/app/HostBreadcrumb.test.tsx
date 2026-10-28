@@ -35,6 +35,7 @@ const summary: EventSummaryDto = {
   guestCount: 0,
   usedBytes: 0,
   createdAt: '2026-06-20T21:04:11.031Z',
+  role: 'owner',
 }
 
 /** A signed-in account, the events it owns or moderates, and the one event's answer. */

@@ -5,7 +5,8 @@ import type { Guest } from '../../../domain/guests/guest'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
 import type { User } from '../../../domain/users/user'
-import type { EventCounts, EventSummary } from '../../../application/ports/eventRepository'
+import type { EventCounts } from '../../../application/ports/eventRepository'
+import type { HostEventSummary } from '../../../application/usecases/events/listEventsForHost'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { EventThemeProps } from '../../../domain/events/eventTheme'
@@ -287,7 +288,7 @@ export const toPrivacyNoticeStateDto = ({
   acknowledgement,
 })
 
-export const toEventSummaryDto = (summary: EventSummary): EventSummaryDto => ({
+export const toEventSummaryDto = (summary: HostEventSummary): EventSummaryDto => ({
   id: summary.id,
   slug: summary.slug,
   name: summary.name,
@@ -297,6 +298,7 @@ export const toEventSummaryDto = (summary: EventSummary): EventSummaryDto => ({
   guestCount: summary.guestCount,
   usedBytes: summary.usedBytes,
   createdAt: iso(summary.createdAt),
+  role: summary.role,
 })
 
 export interface EventDtoInput {

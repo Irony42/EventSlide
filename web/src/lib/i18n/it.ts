@@ -482,6 +482,8 @@ export const it: UiText = {
 
   moderation: {
     title: 'Moderazione',
+    // Navigation pass, batch C: the way to the other console.
+    openMobile: 'Versione per telefono, una foto alla volta',
     intro: 'Nulla appare sullo schermo senza la sua approvazione.',
     pending: (count: number) =>
       t.count(count, {
@@ -890,6 +892,11 @@ export const it: UiText = {
     shareLinkUrl: 'Indirizzo del link',
     shareLinkCopy: 'Copia il link',
     shareLinkCopied: 'Link copiato.',
+    // Navigation pass, batch C: a copy that failed, and the link that is never shown again.
+    shareLinkCopyFailed:
+      'Copia non riuscita. L’indirizzo è selezionato: lo copi con Ctrl+C (o con una pressione lunga su un telefono).',
+    shareLinkLeaveWarning:
+      'Questo indirizzo non verrà più mostrato e non l’ha copiato. Uscire comunque dalla pagina?',
     shareLinkRevoke: 'Disattiva il link',
     shareLinkRevokeTitle: 'Disattivare questo link?',
     shareLinkRevokeHint:
@@ -1001,6 +1008,8 @@ export const it: UiText = {
 
   mobileModeration: {
     title: 'Moderazione da telefono',
+    // Navigation pass, batch C: the way to the other console.
+    openConsole: 'Console completa, per computer',
     intro: 'Trascini la foto verso destra per pubblicare, verso sinistra per rifiutare.',
     releaseToPublish: 'Rilasci per pubblicare',
     releaseToReject: 'Rilasci per rifiutare',
@@ -1084,6 +1093,10 @@ export const it: UiText = {
     spaceTitle: 'Area cliente',
     limitsTitle: 'Limiti e utilizzo',
     noLimits: 'Il suo operatore non ha fissato alcun limite sul suo account.',
+    // Navigation pass, batch C: an account that belongs to no client.
+    noClient: 'Il suo account non appartiene ad alcun cliente.',
+    noClientHint:
+      'Qui non ci sono quindi né limiti né utilizzo da consultare. I suoi eventi sono nella pagina «I suoi eventi».',
     roleOwner: 'Proprietario',
     roleMember: 'Membro',
     pendingTitle: 'In attesa della sua approvazione',

@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
 import { useToast } from '../../design-system/components/useToast'
 import { cx } from '../../design-system/classNames'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
+import { HostEventsLink } from '../../app/HostEventsLink'
 import { useAbout } from '../../app/useAbout'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
@@ -21,7 +22,13 @@ import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
 import { ShareLinkPanel } from './ShareLinkPanel'
-import { allowsModeration, isMutable, lifecycleActions, offersSupport } from './eventLifecycle'
+import {
+  allowsModeration,
+  canManageEvent,
+  isMutable,
+  lifecycleActions,
+  offersSupport,
+} from './eventLifecycle'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
 import { usePurgeEvent, useRotateJoinCode, useStatusChange } from './hooks/useEventActions'
 import styles from './EventPage.module.css'
@@ -91,12 +98,17 @@ export function EventPage() {
     return (
       <div className={styles['page']}>
         <HostBreadcrumb slug={slug} page="event" eventName={null} />
-        <LoadFailure message={error ?? t.errors.unknown} onRetry={reload} as="h1" />
+        <LoadFailure
+          message={error ?? t.errors.unknown}
+          onRetry={reload}
+          as="h1"
+          secondaryAction={<HostEventsLink />}
+        />
       </div>
     )
   }
 
-  const isOwner = event.role === 'owner'
+  const isOwner = canManageEvent(event.role)
 
   return (
     <div className={styles['page']}>
@@ -136,7 +148,12 @@ export function EventPage() {
           </Card>
 
           <Card as="h2" title={t.admin.eventControls}>
-            <EventActionLinks slug={event.slug} status={event.status} albumUrl={albumUrl} />
+            <EventActionLinks
+              slug={event.slug}
+              status={event.status}
+              role={event.role}
+              albumUrl={albumUrl}
+            />
             <StorageMeter usedBytes={event.usedBytes} quotaBytes={event.quotaBytes} />
             {event.liveWindowEnd === undefined ? null : (
               <p className={styles['liveWindow']}>

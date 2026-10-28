@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, Route, Routes } from 'react-router-dom'
 import { EventPage } from './EventPage'
@@ -62,6 +62,23 @@ describe('EventPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
 
     expect(await screen.findByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+  })
+
+  it('offers the list of events inside the failure itself, beside the retry', async () => {
+    renderPage(
+      fakeApi({ getEvent: vi.fn(() => Promise.reject(new ApiError(404, 'event.notFound'))) }),
+    )
+
+    await screen.findByRole('alert')
+
+    // The failure's own way out, beside Réessayer and not only in the trail above it: an address
+    // that does not exist or an access that was withdrawn is not mended by asking again.
+    const failure = screen.getByRole('alert')
+    expect(within(failure).getByRole('button', { name: fr.app.retry })).toBeVisible()
+    expect(within(failure).getByRole('link', { name: fr.admin.events })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
   })
 
   it('shows the join code, its link and a QR code drawn in the page', async () => {

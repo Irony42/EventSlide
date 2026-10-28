@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
+import { HostEventsLink } from '../../app/HostEventsLink'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
 import { useToast } from '../../design-system/components/useToast'
@@ -203,7 +204,12 @@ export function EventSettingsPage() {
     return (
       <div className={styles['page']}>
         <HostBreadcrumb slug={slug} page="settings" eventName={null} />
-        <LoadFailure message={error ?? t.errors.unknown} onRetry={reload} as="h1" />
+        <LoadFailure
+          message={error ?? t.errors.unknown}
+          onRetry={reload}
+          as="h1"
+          secondaryAction={<HostEventsLink />}
+        />
       </div>
     )
   }

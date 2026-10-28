@@ -347,6 +347,7 @@ describe('the toast region', () => {
     guestCount: 0,
     usedBytes: 0,
     createdAt: '2026-06-20T21:04:11.031Z',
+    role: 'owner',
   })
 
   it('speaks the host’s own language on the host console', async () => {

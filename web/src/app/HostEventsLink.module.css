@@ -1,0 +1,19 @@
+/* The secondary button's look (Button.module.css `.secondary`, `.md`) on a link, because a link
+   is what it is: it navigates, so it has an address and middle-click works. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.link:hover {
+  background: var(--surface-overlay);
+}

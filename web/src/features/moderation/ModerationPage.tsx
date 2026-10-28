@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
-import { Button } from '../../design-system/components/Button'
+import { HostEventsLink } from '../../app/HostEventsLink'
+import { LoadFailure } from '../../design-system/components/Async'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Spinner } from '../../design-system/components/Spinner'
 import { messageForError } from '../../lib/i18n/translations'
@@ -115,6 +117,10 @@ export function ModerationPage() {
       <header className={styles['intro']}>
         <h1 className={styles['title']}>{t.moderation.title}</h1>
         <p className={styles['lead']}>{t.moderation.intro}</p>
+        {/* The same queue, one photograph at a time: the two consoles used to share no link. */}
+        <Link className={styles['otherConsole']} to={`/admin/events/${slug}/moderation/mobile`}>
+          {t.moderation.openMobile}
+        </Link>
       </header>
 
       <ModerationToolbar
@@ -144,15 +150,12 @@ export function ModerationPage() {
           <Spinner size="lg" label={t.app.loading} />
         </div>
       ) : queue.error !== null && queue.items.length === 0 ? (
-        <EmptyState
+        <LoadFailure
           as="h2"
           title={t.moderation.loadFailed}
-          description={messageForError(queue.error, t)}
-          action={
-            <Button variant="primary" onClick={queue.refresh}>
-              {t.app.retry}
-            </Button>
-          }
+          message={messageForError(queue.error, t)}
+          onRetry={queue.refresh}
+          secondaryAction={<HostEventsLink />}
         />
       ) : queue.items.length === 0 ? (
         // Never a bare empty grid: 1.0 showed one before the first photo arrived, which
