@@ -90,15 +90,17 @@ describe('CustomAmbiancePage', () => {
     expect(cabaret.parentElement?.querySelector('[data-ambiance-faces="cabaret"]')).not.toBeNull()
   })
 
-  it('lets nothing but the saved event’s marker dress the page with a face', async () => {
+  it('lets nothing but the saved event’s marker dress the page: faces, swatch, presets', async () => {
     renderPage(fakeApi({ getEvent: vi.fn(async () => eventWith(DEFAULT_EVENT_THEME)) }))
     await screen.findByRole('radio', { name: fr.admin.themeAmbianceNames.cabaret })
 
     // tokens.css dresses the root through :root:has([data-ambiance-faces]:not([data-template-preview])),
     // so a sample of a face that is not marked as a preview would restyle the whole console.
-    const dressing = [...document.querySelectorAll('[data-ambiance-faces]')].filter(
-      (element) => element.closest('[data-template-preview]') === null,
-    )
+    const dressing = [
+      ...document.querySelectorAll(
+        '[data-ambiance-faces], [data-event-ambiance], [data-ambiance-ground]',
+      ),
+    ].filter((element) => element.closest('[data-template-preview]') === null)
     expect(dressing).toEqual([])
   })
 
@@ -151,7 +153,7 @@ describe('CustomAmbiancePage', () => {
     await screen.findByRole('heading', { name: fr.admin.customAmbianceTitle })
     const swatch = () =>
       document.querySelector<HTMLElement>(
-        '[data-event-accent][aria-hidden="true"]:not([data-template-preview])',
+        'span[data-template-preview="accent"][aria-hidden="true"]',
       )
 
     // tokens.css derives the accent per polarity on [data-event-ambiance='custom'][data-ambiance-ground].

@@ -9,7 +9,6 @@ import { useToast } from '../../design-system/components/useToast'
 import {
   CURATED_ACCENT_HUES,
   CURATED_ACCENT_NAMES,
-  DEFAULT_EVENT_THEME,
   THEME_FACES,
   THEME_GROUNDS,
 } from '../../design-system/eventTheme'
@@ -177,11 +176,13 @@ export function CustomAmbiancePage() {
                 variant="ghost"
                 disabled={readOnly}
                 aria-pressed={draft.accentHue === CURATED_ACCENT_HUES[name]}
-                data-event-accent={
-                  CURATED_ACCENT_HUES[name] === DEFAULT_EVENT_THEME.accentHue
-                    ? undefined
-                    : String(CURATED_ACCENT_HUES[name])
-                }
+                // Drawn in the chosen polarity's tone, like the swatch, and marked as a preview so
+                // it never dresses the console through the :root:has() twins.
+                data-event-accent={String(CURATED_ACCENT_HUES[name])}
+                data-event-ambiance="custom"
+                data-ambiance-ground={draft.custom.ground}
+                data-template-preview="accent"
+                style={swatchStyle(CURATED_ACCENT_HUES[name])}
                 onClick={() => {
                   setFailure(null)
                   setDraft({ ...draft, accentHue: CURATED_ACCENT_HUES[name] })
@@ -296,6 +297,7 @@ function HueSlider({ label, hint, value, disabled, onChange, swatchGround }: Hue
             data-event-accent={String(value)}
             data-event-ambiance="custom"
             data-ambiance-ground={swatchGround}
+            data-template-preview="accent"
             style={swatchStyle(value)}
           />
         ) : null}
