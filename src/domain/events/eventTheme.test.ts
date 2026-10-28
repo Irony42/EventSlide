@@ -12,6 +12,8 @@ import {
   isThemeMaterial,
   isThemeAmbiance,
   THEME_AMBIANCES,
+  AMBIANCES_WITH_PHOTOGRAPHED_GROUND,
+  hasPhotographedGround,
   restoreEventTheme,
   THEME_FONTS,
   THEME_FRAMES,
@@ -313,6 +315,19 @@ describe('the ambiance an event wears (ADR 0010)', () => {
       expect(isThemeAmbiance(value)).toBe(false)
     },
   )
+})
+
+describe('which ambiances photograph their ground (ADR 0010, decision 8)', () => {
+  it('offers the Guinguette, whose ground is a photograph, and not the Chambre noire', () => {
+    expect(hasPhotographedGround('guinguette')).toBe(true)
+    expect(hasPhotographedGround('darkroom')).toBe(false)
+  })
+
+  it('lists only ambiances that exist, so a typo cannot offer an upload that shows nowhere', () => {
+    for (const ambiance of AMBIANCES_WITH_PHOTOGRAPHED_GROUND) {
+      expect(THEME_AMBIANCES).toContain(ambiance)
+    }
+  })
 })
 
 describe('the material a host chooses for their panes', () => {

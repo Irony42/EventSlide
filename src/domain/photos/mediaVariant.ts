@@ -52,10 +52,20 @@ export const SERVED_VARIANTS = [...MEDIA_VARIANTS, ...CLIP_VARIANTS] as const
 
 export type ServedVariant = PhotoVariant | ClipVariant
 
-export type MediaVariant = ServedVariant | typeof STAGED_SOURCE
+/**
+ * A host's own photograph of their venue, the ground of an ambiance that photographs its own
+ * (ADR 0010). One per event, named by the event's settings rather than by a `photos` row.
+ *
+ * Outside {@link SERVED_VARIANTS} for the staged source's reason, turned the other way: the
+ * photo route takes a `ServedVariant`, so no value a client can put in that URL reaches this
+ * rendition. It has a route of its own, which checks the event's settings name the digest.
+ */
+export const VENUE_GROUND = 'ground'
+
+export type MediaVariant = ServedVariant | typeof STAGED_SOURCE | typeof VENUE_GROUND
 
 /** Everything the store can hold, for the operations that must cover all of it. */
-export const ALL_MEDIA_VARIANTS = [...SERVED_VARIANTS, STAGED_SOURCE] as const
+export const ALL_MEDIA_VARIANTS = [...SERVED_VARIANTS, STAGED_SOURCE, VENUE_GROUND] as const
 
 /**
  * Which renditions a row of each kind actually has.

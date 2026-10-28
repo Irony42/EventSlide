@@ -16,6 +16,7 @@ describe('mediaObjectPath', () => {
     ['video', `${EVENT}/video/ab/${HASH}.mp4`],
     ['poster', `${EVENT}/poster/ab/${HASH}.jpg`],
     ['source', `${EVENT}/source/ab/${HASH}.bin`],
+    ['ground', `${EVENT}/ground/ab/${HASH}.webp`],
   ] as const)('lays a %s down at %s', (variant, path) => {
     expect(mediaObjectPath(EVENT, HASH, variant)).toBe(path)
   })
@@ -36,6 +37,7 @@ describe('mediaObjectPath', () => {
       video: 'video/mp4',
       poster: 'image/jpeg',
       source: 'application/octet-stream',
+      ground: 'image/webp',
     })
   })
 

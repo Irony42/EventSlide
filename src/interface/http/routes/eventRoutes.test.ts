@@ -300,6 +300,9 @@ const buildWorld = ({
         }),
         purgeEvent: makePurgeEvent({ events, memberships, media }),
         renameEvent: makeRenameEvent({ events, memberships, bus: deps.bus }),
+        setVenuePhoto: absent('setVenuePhoto'),
+        removeVenuePhoto: absent('removeVenuePhoto'),
+        getVenuePhotoMedia: absent('getVenuePhotoMedia'),
         listModerators: makeListModerators({ memberships }),
         revokeModerator: makeRevokeModerator({ events, memberships }),
 

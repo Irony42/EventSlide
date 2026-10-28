@@ -678,6 +678,31 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wallLanguage).toBe('fr')
     })
 
+    it('reads an event that never uploaded a venue photograph as having none', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ venuePhoto: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.venuePhoto).toBeNull()
+    })
+
+    it.each([[42], ['../../etc/passwd'], ['AB'.repeat(5)], [{ value: 'x' }]])(
+      'reads a venue photograph that is not a digest (%o) as none, and does not take the event down',
+      async (stored) => {
+        // A cosmetic field: the theme's own rule one field over. A hand-edited column loses a
+        // decoration; it must never fail findById and with it the wall and the settings page.
+        await repo.save(anEvent({ id: 'evt-1' }))
+        db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+          json({ venuePhoto: stored }),
+          'evt-1',
+        )
+
+        expect((await repo.findById(asEventId('evt-1')))?.settings.venuePhoto).toBeNull()
+      },
+    )
+
     it('keeps a wall language the host did choose', async () => {
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(

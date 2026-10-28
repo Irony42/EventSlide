@@ -367,6 +367,32 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    it('accounts for a host’s venue photograph, which an event’s settings name and no row does', async () => {
+      // ADR 0010, decision 8. Without the events read every backup taken after a host
+      // uploaded one reported it as an unreferenced file, the number an operator is told
+      // to investigate as a leak.
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      const venueHash = hashOf('a-venue-photo')
+      db.prepare('UPDATE events SET settings = json_set(settings, ?, ?) WHERE id = ?').run(
+        '$.venuePhoto',
+        venueHash,
+        EVENT,
+      )
+      db.close()
+
+      await writeMedia(EVENT, venueHash, 'ground', 'the venue, as a WebP')
+      await writeMedia(EVENT, hashOf('an-old-venue-photo'), 'ground', 'a replaced photograph')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(2)
+      // Only the one nobody names any more.
+      expect(manifest.unreferencedMediaFiles).toBe(1)
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('says nothing about a source a finished job has already given back', async () => {
       // The other side of it. A `done` job's bytes are gone on purpose, and naming them
       // would turn a correct archive into a `missingMedia` report about a clip that was

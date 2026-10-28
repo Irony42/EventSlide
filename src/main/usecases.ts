@@ -68,6 +68,9 @@ import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
 import { makeRenameEvent } from '../application/usecases/events/renameEvent'
 import { makeRevokeModerator } from '../application/usecases/events/revokeModerator'
 import { makePurgeExpiredEvents } from '../application/usecases/events/purgeExpiredEvents'
+import { makeGetVenuePhotoMedia } from '../application/usecases/venue/getVenuePhotoMedia'
+import { makeRemoveVenuePhoto } from '../application/usecases/venue/removeVenuePhoto'
+import { makeSetVenuePhoto } from '../application/usecases/venue/setVenuePhoto'
 import { makeSweepOrphanedMedia } from '../application/usecases/media/sweepOrphanedMedia'
 import { makeResolveJoinCode } from '../application/usecases/events/resolveJoinCode'
 import { makeRotateJoinCode } from '../application/usecases/events/rotateJoinCode'
@@ -551,7 +554,27 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
      * rely on. None of those deletes media itself any more, because deleting by digest can
      * destroy a byte-identical file somebody else owns.
      */
+    // The host's own venue photograph (ADR 0010, decision 8).
+    setVenuePhoto: makeSetVenuePhoto({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      media: adapters.media,
+      imageProcessor: adapters.imageProcessor,
+      hasher: adapters.contentHasher,
+      bus: adapters.bus,
+      logger: adapters.logger,
+      limits: { maxPixels: policy.maxImagePixels },
+    }),
+    removeVenuePhoto: makeRemoveVenuePhoto({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      media: adapters.media,
+      bus: adapters.bus,
+      logger: adapters.logger,
+    }),
+    getVenuePhotoMedia: makeGetVenuePhotoMedia({ media: adapters.media }),
     sweepOrphanedMedia: makeSweepOrphanedMedia({
+      events: adapters.events,
       photos: adapters.photos,
       clips: adapters.clips,
       media: adapters.media,

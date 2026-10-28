@@ -43,6 +43,9 @@ import type { CreateEvent } from '../../application/usecases/events/createEvent'
 import type { GetEventBySlug } from '../../application/usecases/events/getEventBySlug'
 import type { ListEventsForHost } from '../../application/usecases/events/listEventsForHost'
 import type { ListModerators } from '../../application/usecases/events/listModerators'
+import type { GetVenuePhotoMedia } from '../../application/usecases/venue/getVenuePhotoMedia'
+import type { RemoveVenuePhoto } from '../../application/usecases/venue/removeVenuePhoto'
+import type { SetVenuePhoto } from '../../application/usecases/venue/setVenuePhoto'
 import type { RenameEvent } from '../../application/usecases/events/renameEvent'
 import type { RevokeModerator } from '../../application/usecases/events/revokeModerator'
 import type { PurgeEvent } from '../../application/usecases/events/purgeEvent'
@@ -177,6 +180,10 @@ export interface HttpUseCases {
   readonly scheduleEvent: ScheduleEvent
   readonly purgeEvent: PurgeEvent
   readonly renameEvent: RenameEvent
+  // the host's own venue photograph (ADR 0010)
+  readonly setVenuePhoto: SetVenuePhoto
+  readonly removeVenuePhoto: RemoveVenuePhoto
+  readonly getVenuePhotoMedia: GetVenuePhotoMedia
   readonly listModerators: ListModerators
   readonly revokeModerator: RevokeModerator
 

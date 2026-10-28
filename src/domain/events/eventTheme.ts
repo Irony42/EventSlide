@@ -150,6 +150,18 @@ export type ThemeMaterial = (typeof THEME_MATERIALS)[number]
 export const THEME_AMBIANCES = ['darkroom', 'guinguette'] as const
 export type ThemeAmbiance = (typeof THEME_AMBIANCES)[number]
 
+/**
+ * The ambiances whose ground is a photograph, and so the ones a host may replace with a
+ * photograph of their own venue (ADR 0010, decision 8). `darkroom` paints no photograph.
+ *
+ * A closed list rather than `ambiance !== 'darkroom'`: the next ambiance may well be a pure
+ * palette, and it would then silently offer an upload that changes nothing.
+ */
+export const AMBIANCES_WITH_PHOTOGRAPHED_GROUND: readonly ThemeAmbiance[] = ['guinguette']
+
+export const hasPhotographedGround = (ambiance: ThemeAmbiance): boolean =>
+  AMBIANCES_WITH_PHOTOGRAPHED_GROUND.includes(ambiance)
+
 export interface EventThemeProps {
   /** Degrees on the oklch hue circle, 0-359. */
   readonly accentHue: number

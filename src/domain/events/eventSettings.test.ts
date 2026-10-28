@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ContentHash } from '../photos/contentHash'
 import type { DomainError } from '../shared/errors'
 import type { Result } from '../shared/result'
 import { EventSettings, isModerationMode } from './eventSettings'
@@ -117,6 +118,7 @@ describe('EventSettings.create', () => {
         ambiance: 'darkroom',
       },
       wallLanguage: 'de',
+      venuePhoto: null,
     })
   })
 
@@ -306,6 +308,36 @@ describe('EventSettings.with', () => {
     const after = unwrap(before.with({ allowCaptions: false }))
 
     expect(after.theme.accentHue).toBe(250)
+  })
+
+  it('holds no venue photograph until one is set, and clears it on null', () => {
+    const digest = ContentHash.create('cd'.repeat(32))
+    if (!digest.ok) throw new Error('fixture digest')
+    const settings = EventSettings.default()
+    expect(settings.venuePhoto).toBeNull()
+
+    const named = unwrap(settings.with({ venuePhoto: digest.value }))
+    const cleared = unwrap(named.with({ venuePhoto: null }))
+
+    expect(named.venuePhoto?.value).toBe(digest.value.value)
+    expect(cleared.venuePhoto).toBeNull()
+  })
+
+  it('keeps the venue photograph when the host saves something else, a theme included', () => {
+    // The photograph arrives by its own route, so a settings save that never mentions it
+    // must not be able to drop it: that is the whole reason it sits beside the theme.
+    const digest = ContentHash.create('cd'.repeat(32))
+    if (!digest.ok) throw new Error('fixture digest')
+    const named = unwrap(EventSettings.default().with({ venuePhoto: digest.value }))
+
+    const after = unwrap(
+      named.with({
+        allowCaptions: false,
+        theme: { ...DEFAULT_EVENT_THEME, ambiance: 'guinguette' },
+      }),
+    )
+
+    expect(after.venuePhoto?.value).toBe(digest.value.value)
   })
 
   it('refuses a theme the legibility rule rejects, and says which rule', () => {

@@ -33,6 +33,8 @@ export const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   // Never served (`source` is outside `SERVED_VARIANTS`), so the honest answer is "some
   // bytes" rather than a type that would invite something to open them.
   source: 'application/octet-stream',
+  // A host's venue photograph, always re-encoded to WebP by `setVenuePhoto`.
+  ground: 'image/webp',
 }
 
 export const EXTENSION: Readonly<Record<MediaVariant, string>> = {
@@ -42,6 +44,7 @@ export const EXTENSION: Readonly<Record<MediaVariant, string>> = {
   video: 'mp4',
   poster: 'jpg',
   source: 'bin',
+  ground: 'webp',
 }
 
 /** The characters of the shard directory: the first two of the hash. */

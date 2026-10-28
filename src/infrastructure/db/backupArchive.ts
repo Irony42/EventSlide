@@ -15,7 +15,7 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { z } from 'zod'
-import { MEDIA_VARIANTS, STAGED_SOURCE } from '../../application/ports/mediaStore'
+import { MEDIA_VARIANTS, STAGED_SOURCE, VENUE_GROUND } from '../../application/ports/mediaStore'
 import { mediaObjectPath } from '../media/mediaLayout'
 import { HOLDING_BYTES_SQL } from './clipJobStatusSql'
 import { closeDatabase, openDatabase, type Db } from './connection'
@@ -440,6 +440,12 @@ interface StagedClipRow {
   readonly sourceHash: string
 }
 
+/** An event whose settings name a host's own venue photograph (ADR 0010). */
+interface VenuePhotoRow {
+  readonly eventId: string
+  readonly hash: string
+}
+
 interface LedgerRow {
   readonly id: number
   readonly name: string
@@ -491,6 +497,7 @@ const readSnapshot = (
   counts: BackupManifest['counts']
   photos: PhotoRow[]
   stagedClips: StagedClipRow[]
+  venuePhotos: VenuePhotoRow[]
 } => {
   const db = openDatabase({ path, readonly: true })
   try {
@@ -526,9 +533,21 @@ const readSnapshot = (
       )
       .all() as StagedClipRow[]
 
+    // A host's own venue photograph is named by an event's settings rather than by a `photos`
+    // row (ADR 0010); without this it would be reported as an unreferenced file, the number an
+    // operator is told means a leak.
+    const venuePhotos = db
+      .prepare(
+        `SELECT id AS eventId, json_extract(settings, '$.venuePhoto') AS hash
+           FROM events
+          WHERE json_extract(settings, '$.venuePhoto') IS NOT NULL`,
+      )
+      .all() as VenuePhotoRow[]
+
     return {
       integrityCheck: verdict,
       stagedClips,
+      venuePhotos,
       migrations: migrationRows,
       counts: {
         users: countRows(db, 'users'),
@@ -777,6 +796,11 @@ const writeArchive = async ({
   // everything anybody will ever need.
   for (const clip of snapshot.stagedClips) {
     expected.add(mediaObjectPath(clip.eventId, clip.sourceHash, STAGED_SOURCE))
+  }
+
+  // The host's own venue photographs, named by an event's settings (ADR 0010).
+  for (const venue of snapshot.venuePhotos) {
+    expected.add(mediaObjectPath(venue.eventId, venue.hash, VENUE_GROUND))
   }
 
   const unreferencedMediaFiles = entries.filter((entry) => !expected.has(entry.path)).length
