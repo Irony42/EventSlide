@@ -72,9 +72,7 @@ test('the installed app reopens the event the phone joined, and lets the guest l
   await launched.goto(app.url('/join'))
 
   await expect(launched).toHaveURL(new RegExp(`/e/${event.slug}/upload$`))
-  await expect(
-    launched.getByRole('heading', { level: 1, name: 'Kermesse de juin' }),
-  ).toBeVisible()
+  await expect(launched.getByRole('heading', { level: 1, name: 'Kermesse de juin' })).toBeVisible()
   // Nothing was typed and nobody was joined again: the cookie the phone already holds is the guest.
   expect(joinRequests).toEqual([])
 
