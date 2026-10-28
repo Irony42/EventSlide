@@ -16,6 +16,8 @@ import {
   THEME_FRAMES,
   THEME_MATERIALS,
   THEME_AMBIANCES,
+  THEME_FACES,
+  THEME_GROUNDS,
 } from '../../../domain/events/eventTheme'
 
 /**
@@ -426,6 +428,16 @@ export const updateSettingsBody = z.strictObject({
       material: z.enum(THEME_MATERIALS),
       // Required for the reason `material` gives above: an old tab must not undo a choice.
       ambiance: z.enum(THEME_AMBIANCES),
+      // The host's own ambiance (ADR 0011). Optional here, and the domain pairs it with
+      // `ambiance: 'custom'`: required then, refused otherwise (`eventTheme.customRequired`,
+      // `eventTheme.customNotAllowed`). Shape only; no legibility is judged.
+      custom: z
+        .strictObject({
+          ground: z.enum(THEME_GROUNDS),
+          groundHue: z.number().int().min(accentHueRange.min).max(accentHueRange.max),
+          faces: z.enum(THEME_FACES),
+        })
+        .optional(),
       // **Read and ignored.** It is what `GET` answers in the theme (the host's own venue photograph,
       // ADR 0010), so a client that sends the theme back as it received it, such as a tab left open
       // across the deploy, must not be answered 400 for it. It names nothing: the route forwards the

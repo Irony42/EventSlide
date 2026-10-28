@@ -170,6 +170,25 @@ describe('toPublicEventDto', () => {
     })
   })
 
+  it('puts the host’s own ambiance on the wire when the event wears it, and nothing otherwise', () => {
+    const custom = { ground: 'dark', groundHue: 200, faces: 'cabaret' } as const
+    const worn = anEvent({
+      settings: {
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'custom',
+          custom,
+        },
+      },
+    })
+
+    expect(toPublicEventDto(worn, context, true).theme.custom).toEqual(custom)
+    expect(toPublicEventDto(event, context, true).theme).not.toHaveProperty('custom')
+  })
+
   it('carries the clip limits the upload will actually be judged against', () => {
     // Not decoration and not a duplicate of the assertion above: these are the numbers
     // the guest's picker refuses on, and a refusal that arrives *before* eighty
