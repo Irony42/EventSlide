@@ -253,6 +253,10 @@
      whose width follows the longest prompt a host happened to type would move every time
      they edited one, and the room would see the photographs shift with it. */
   --wall-mission-panel: 24rem;
+  /* The most of the viewport a pane pinned to the bottom edge may take (the guest's upload
+     composer). Past it the pane stays in the flow, because what scrolls behind a taller one
+     is covered more than it is seen. A ratio, read by useOversizedPane. */
+  --sticky-pane-max-share: 0.66;
   --z-wall-caption: 10;
   --z-dialog: 50;
   --z-toast: 60;

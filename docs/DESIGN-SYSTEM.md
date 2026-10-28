@@ -141,6 +141,10 @@ token exactly.
   --container-host: 78rem; /* moderation console, admin */
   --wall-safe: 4%; /* projector overscan inset */
   --wall-join-card: 26rem; /* the corner invitation: declared, so layouts can reserve it */
+  /* The most of the viewport a pane pinned to the bottom edge may take (the guest's upload
+     composer). Past it the pane stays in the flow, because what scrolls behind a taller one
+     is covered more than it is seen. A ratio, read by useOversizedPane. */
+  --sticky-pane-max-share: 0.66;
   --z-wall-caption: 10;
   --z-dialog: 50;
   --z-toast: 60;
