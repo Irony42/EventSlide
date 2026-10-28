@@ -156,3 +156,43 @@ test('a pane that fits the screen stays pinned to the bottom of it', async ({
 
   await context.close()
 })
+
+test('picking the photos that make a pinned pane too tall does not take the send button off the screen', async ({
+  app,
+  browser,
+}, testInfo) => {
+  // Tall enough that the empty pane is pinned, short enough that three rows tip it over: the pane
+  // then moves from the bottom edge of the screen to its place at the end of the page, and with
+  // nobody scrolling it could land below the fold with the button in it.
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 900 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-tip-${testInfo.workerIndex}`)
+  const pane = page.getByTestId('upload-composer')
+  expect((await pinnedShare(pane)).sticky).toBe(true)
+
+  const photos = await Promise.all([1, 2, 3].map((index) => aPhoto(`pane-tip-${index}`, 800, 600)))
+  await page.getByTestId('photo-input').setInputFiles(photos)
+
+  await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(false)
+  // Without a scroll of the test's own. `poll`: the page smooth-scrolls, so the button arrives a
+  // moment after the pane has moved.
+  const send = page.getByRole('button', { name: /^Envoyer/i })
+  await expect
+    .poll(() =>
+      send.evaluate((element) => {
+        const box = element.getBoundingClientRect()
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        return hit !== null && element.contains(hit)
+      }),
+    )
+    .toBe(true)
+
+  await context.close()
+})
