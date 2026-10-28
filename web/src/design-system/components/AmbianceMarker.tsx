@@ -12,8 +12,8 @@ export interface AmbianceMarkerProps {
  * `tokens.css` re-skins the page through `:root:has([data-event-ambiance])`, so a page that is
  * about one event only has to carry the attribute somewhere for the body, the header and every
  * primitive to follow, in the same paint. That is what this renders: an empty, hidden element
- * and nothing else. The product's own look emits nothing, so a page about a Chambre noire event
- * is byte for byte the page it was.
+ * and nothing else. The product's own look, the Guinguette, emits nothing, so a page about a
+ * Guinguette event is byte for byte the page it was.
  *
  * Used where a page knows its event but is not a themed surface itself: the guest's welcome
  * after a scan, and the host's pages under one event. The semantic colours stay fixed in every

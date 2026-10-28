@@ -8,6 +8,7 @@ import {
   luminanceOf,
   parseOklchTokens,
   srgb,
+  withoutAmbiances,
   type Oklch,
 } from '../design-system/testing/srgb'
 
@@ -129,7 +130,11 @@ if (DECLARED_HUE === undefined) {
   throw new Error('tokens.css declares no --accent-hue; the accent tokens cannot be resolved.')
 }
 
-const tokens = parseOklchTokens(TOKENS.replaceAll('var(--accent-hue)', DECLARED_HUE))
+// The root look only: an ambiance re-declares every surface and ink, and the last one in the
+// file would otherwise be measured as if it were what a `ground` route renders.
+const tokens = parseOklchTokens(
+  withoutAmbiances(TOKENS).replaceAll('var(--accent-hue)', DECLARED_HUE),
+)
 
 const token = (name: string): Oklch => {
   const found = tokens.get(name)
@@ -185,25 +190,41 @@ const backgroundValues = (css: string): readonly string[] =>
   )
 
 /**
- * Layers that are not a colour and paint nothing at the root (ADR 0010).
+ * Layers that are not a colour and cannot brighten what they sit on (ADR 0010).
  *
- * `--accent-texture` is `none` at the root, which is the only palette a `ground` route
- * renders: the textures belong to an ambiance, and an ambiance only dresses the guest's
- * phone and the wall, both of them on the strict floor. Asserted below rather than assumed.
+ * `--accent-texture` is the kraft fibres at the root, and the root is the palette every
+ * `ground` route renders. The fibres are a dark brown at an alpha of 0.3 painted over the
+ * accent, so they can only take light away from the field the floor was derived against.
+ * Asserted below rather than assumed, and the event's own accent drops them.
  */
-const ROOT_NONE_LAYERS = new Set(['--accent-texture'])
+const DARKENING_LAYERS = new Set(['--accent-texture'])
 
 /** Background fills a stylesheet paints, as token names. */
 const fillsIn = (css: string): readonly string[] =>
   backgroundValues(css)
     .flatMap((value) => [...value.matchAll(/var\(\s*(--[\w-]+)/g)])
     .flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
-    .filter((name) => !ROOT_NONE_LAYERS.has(name))
+    .filter((name) => !DARKENING_LAYERS.has(name))
 
 describe('the layers the floor check skips', () => {
-  it.each([...ROOT_NONE_LAYERS])('declares %s as none at the root', (name) => {
-    const root = /:root \{[\s\S]*?\n\}/.exec(TOKENS)?.[0] ?? ''
-    expect(root).toMatch(new RegExp(`${name}:\\s*none;`))
+  it.each([...DARKENING_LAYERS])('only ever darkens the field it is painted over: %s', (name) => {
+    // The fibres are an feColorMatrix noise: one colour whose alpha tops out at the matrix's
+    // own A. The brightest field a primary control can be is its accent with that colour over
+    // it, and a colour darker than the accent can only lower it.
+    const root = /:root \{[\s\S]*?\n\}/.exec(withoutAmbiances(TOKENS))?.[0] ?? ''
+    const texture = new RegExp(`${name}:\\s*url\\("([^"]*)"\\)`).exec(root)?.[1]
+    if (texture === undefined) throw new Error(`the root declares no ${name} to measure`)
+    const values = /values='([^']*)'/.exec(texture)?.[1]?.split(/\s+/).map(Number) ?? []
+    expect(values).toHaveLength(20)
+    const fibre = luminanceOf([values[4] ?? 1, values[9] ?? 1, values[14] ?? 1])
+
+    expect(fibre).toBeLessThan(fieldLuminance('--accent', token('--accent')))
+    expect(values[18] ?? 1).toBeLessThan(1)
+  })
+
+  it.each([...DARKENING_LAYERS])('is dropped by an event that chose its own accent: %s', (name) => {
+    const derived = /\n\[data-event-accent\] \{[^}]*\}/.exec(TOKENS)?.[0] ?? ''
+    expect(derived).toMatch(new RegExp(`${name}:\\s*none;`))
   })
 })
 

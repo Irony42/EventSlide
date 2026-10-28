@@ -714,7 +714,7 @@ describe('sending a video', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     })
     renderUpload(fakeApi())
@@ -738,7 +738,7 @@ describe('sending a video', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     })
     renderUpload(fakeApi())
@@ -779,7 +779,7 @@ describe('sending a video', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'plain',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     })
     renderUpload(fakeApi())
@@ -799,7 +799,7 @@ describe('sending a video', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'darkroom',
+        ambiance: 'guinguette',
       },
     })
     renderUpload(fakeApi())
@@ -817,14 +817,14 @@ describe('sending a video', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     } as const
     const ROSE = {
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
       material: 'plain',
-      ambiance: 'darkroom',
+      ambiance: 'guinguette',
     } as const
 
     const answeringWith = (theme: unknown): Partial<Api> => ({

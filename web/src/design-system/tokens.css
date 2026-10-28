@@ -3,11 +3,12 @@
   color-scheme: dark;
 
   /* ---- Surfaces. Dark by default: the room is dark and phones are held in it. ---- */
-  /* ADR 0010: the product's own look is the Chambre noire, a velvet black warmed by the
-     safelight, where the paper is the only light thing. */
-  --surface-base: oklch(11% 0.006 25); /* page background, wall letterbox */
-  --surface-raised: oklch(16% 0.014 25); /* Card, toolbar, moderation tile */
-  --surface-overlay: oklch(21% 0.02 25); /* Dialog, Toast, popover */
+  /* ADR 0010: the product's own look is the Guinguette, dinner under the string lights in a
+     garden at dusk: warm wood-brown surfaces, cream inks, kraft to press. It is the root, so
+     it is what every page wears when an event names no other ambiance. */
+  --surface-base: oklch(16% 0.016 70); /* page background, wall letterbox */
+  --surface-raised: oklch(21% 0.02 70); /* Card, toolbar, moderation tile */
+  --surface-overlay: oklch(25% 0.022 70); /* Dialog, Toast, popover */
   /* ---- Two translucent blacks, because they were one and they are two different jobs.
 
          `--surface-scrim` is a **ground**: text sits on it, over a photograph nobody has
@@ -15,15 +16,15 @@
          at which every ink the wall paints clears section 8's "anything on the wall ≥ 7:1
          regardless of size" over a white dress in full sun. At the 0.55 it carried since
          2.0 that sentence was false: `--text-primary` measured 4.36:1 and
-         `--text-secondary` 2.38:1. 0.83 is where both hold and 0.82 is where they stop,
+         `--text-secondary` 2.38:1. 0.82 is where every wall ink holds 7:1 and the clip badge's --text-primary holds 12:1, and 0.81 is where they stop,
          which `tokens.contrast.test.ts` asserts in both directions — a scrim is a grey slab
          over somebody's photograph, so it may not be one point denser than it has to be.
 
          `--surface-dim` dims the page behind a modal and carries no text at all. It has no
          contrast contract, which is why it could keep the 0.55 the scrim had to leave: a
-         `Dialog` backdrop at 83% would have made every modal on a guest's phone a black
+         `Dialog` backdrop at 82% would have made every modal on a guest's phone a black
          screen to buy legibility for text that is not on it. ---- */
-  --surface-scrim: oklch(0% 0 0 / 0.83); /* behind wall captions, over photos */
+  --surface-scrim: oklch(0% 0 0 / 0.82); /* behind wall captions, over photos */
   --surface-dim: oklch(0% 0 0 / 0.55); /* behind a Dialog, over the page */
   /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
          on. It is the one light ground in a dark palette, so it gets its own ink token
@@ -32,39 +33,54 @@
   --text-print: oklch(30% 0.02 85); /* the caption written on the mat */
   --text-print-secondary: oklch(40% 0.02 85); /* the credit under it */
   /* ---- Borders ---- */
-  --border-subtle: oklch(27% 0.02 25); /* default hairline */
-  --border-strong: oklch(54% 0.02 40); /* input rest state, focused card */
+  --border-subtle: oklch(32% 0.025 70); /* default hairline */
+  --border-strong: oklch(58% 0.03 70); /* input rest state, focused card */
   /* ---- Text ---- */
-  --text-primary: oklch(95% 0.01 85); /* silver-gelatin paper */
-  --text-secondary: oklch(78% 0.016 65);
-  --text-muted: oklch(66% 0.018 45);
-  /* The safelight. Ornament only: a gradient behind the page, never under text, never on
-     the wall while it is showing photographs (principle 1). */
-  --safelight: oklch(22% 0.08 26);
-  /* The page's moving light: two leaks of the safelight that drift behind everything, and
-     the film grain over the ground. Ornament only, never under a photograph. */
-  --leak-1: oklch(38% 0.15 27 / 0.55);
-  --leak-2: oklch(42% 0.14 50 / 0.35);
+  --text-primary: oklch(96% 0.022 85); /* cream */
+  --text-secondary: oklch(85% 0.03 80);
+  --text-muted: oklch(75% 0.035 75);
+  /* A fine grain over a woven ornament (the linen strips). Ornament only, never under a
+     photograph. */
   --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  /* What a primary control is made of, under its colour. Nothing at the root. */
-  --accent-texture: none;
+  /* What a primary control is made of, under its colour: kraft fibres at the root, nothing in
+     an ambiance that names none. Their darkest pixel is measured under the label
+     (tokens.contrast.test.ts). */
+  --accent-texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.035 .6' numOctaves='4'/><feColorMatrix values='0 0 0 0 .25 0 0 0 0 .16 0 0 0 0 .08 0 0 0 .3 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
   /* A photograph of the place, behind the page and the wall, with the grade that keeps text
-     legible over it. Nothing at the root. */
-  --ambiance-ground: none;
-  --ambiance-grade: linear-gradient(transparent, transparent);
+     legible over it: the garden at dusk at the root, and every ambiance names its own. */
+  --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
+  /* Derived, not chosen: the lowest top alpha at which --text-muted keeps 4.5:1 over the 99th
+     percentile of the photograph as a phone crops it (scripts/ambianceGround.test.ts); 0.79 fails. */
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(16% 0.016 70 / 0.8),
+    oklch(16% 0.016 70 / 0.78) 30%,
+    oklch(16% 0.016 70 / 0.86) 65%,
+    oklch(16% 0.016 70 / 0.96)
+  );
   /* What the wall's layouts paint behind and between the slides. Substituted where it is
-     declared, so an ambiance that moves --surface-base must restate it, as the Guinguette does. */
-  --wall-ground: var(--surface-base);
-  /* The Chambre noire's wall (ADR 0010): the photograph on screen, blurred and darkened, fills
-     the letterbox instead of black, under a safelight vignette and the grain. An ambiance with
-     a photographed ground of its own switches it off. */
-  --wall-ambient: block;
-  --wall-ambient-edge: oklch(20% 0.09 26 / 0.85);
-  /* The join card is a sleeve of photographic paper. */
-  --wall-card-bg: var(--surface-print);
-  --wall-card-texture: none;
-  --wall-card-ink: var(--text-print);
-  --wall-card-ink-2: var(--text-print-secondary);
+     declared, so an ambiance that moves --surface-base must restate it, as each one does. */
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  /* A blurred copy of the photograph on screen in the wall's letterbox. Switched off: every
+     ambiance paints a photographed ground of its own. The layer itself (features/wall/components/
+     SlideLayer) is left for the wall's own change to delete. */
+  --wall-ambient: none;
+  --wall-ambient-edge: oklch(0% 0 0 / 0.6);
+  /* The join card is a kraft ticket, or the ambiance's own accent paper. */
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: var(--accent-texture);
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
+  /* Ornament, never a control. base.css draws it on the guest's pages and the console, never
+     on the wall: the Guinguette's bulbs and gingham, and the woven strips the others add. */
+  --decor-gingham: oklch(55% 0.14 32);
+  --decor-bulb: oklch(90% 0.1 85);
+  --decor-glow: oklch(80% 0.14 70 / 0.55);
+  --decor-wire: oklch(14% 0.01 60);
+  --decor-cloth: oklch(93% 0.02 85);
+  /* The primary control's corner: an ambiance has a shape to press. */
+  --button-radius: var(--radius-md);
   /* Numbers that are counted or copied: frame numbers, times, the join code. */
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
 
@@ -76,6 +92,12 @@
          derived from it are declared just below this block rather than here — see the
          comment there, it is not a style choice. ---- */
   --accent-hue: 305;
+  /* The kraft the root presses. With no event accent this is the action; an event that chose a
+     hue gets the derivation declared below the ambiances, on the surface that carries it. */
+  --accent: oklch(74% 0.09 68);
+  --accent-strong: oklch(72% 0.09 64); /* hover / pressed */
+  --accent-contrast: oklch(20% 0.04 55); /* text on top of --accent */
+  --focus-ring: 0 0 0 3px oklch(85% 0.12 80 / 0.7);
   /* ---- Semantic. Fixed hues: an event's accent may not crowd them, or "press this"
          and "that went wrong" become one signal to a room ten metres away. ---- */
   --success: oklch(76% 0.16 155);
@@ -98,10 +120,10 @@
     'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   /* The face for --text-display and --text-xl on the wall. The same stack as --font-sans
      until an event asks for the other pairing, so an unthemed wall is unchanged. */
-  /* ADR 0010: the Chambre noire's display face is an editorial serif, bundled. */
+  /* ADR 0010: the Guinguette's display face is an editorial serif, bundled. */
   --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
-  /* Page and card headings on the guest's phone. The system face until an ambiance names one. */
-  --font-heading: var(--font-sans);
+  /* Page and card headings on the guest's phone, and the label of a control. */
+  --font-heading: 'Bricolage Grotesque', var(--font-sans);
   /* The weight the display face is set in. Heavy for the system face; an ambiance whose
      display face ships a single weight sets that one, so nothing is synthesised. */
   --font-display-weight: 400;
@@ -149,12 +171,12 @@
 
          - **Over an unknown photograph**, the brightest possible backdrop is pure white:
            a white dress in full sun, and also the ceiling of the sRGB gamut, so nothing a
-           camera can produce is worse. 0.96 is the lowest alpha that holds there (0.95 on the slate before ADR 0010).
+           camera can produce is worse. 0.96 is the lowest alpha that holds there on the Guinguette (0.95 on the slate before ADR 0010).
          - **Over our own ground**, the backdrop is a colour this product chose, so the
            worst case is enumerable instead of unbounded: the brightest *field* a
            stylesheet paints on a non-wall surface, which today is a primary button's
            `--accent` at whichever of the 360 hues an event may pick renders lightest.
-           0.96 since ADR 0010, because the paper button is as bright as white (0.92 before).
+           0.93 on the Guinguette (0.92 on the slate before ADR 0010): the kraft button is darker than white, so the split buys three points again.
 
          Both are derived against the same bar, so the only thing that differs between
          them is the backdrop: the lowest alpha at which the material is at least as good
@@ -181,8 +203,8 @@
      blur: a filter that runs still promotes a compositing layer, and the point of the
      fallback is to stop paying for one. */
   --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  --glass-tint-photo: oklch(16% 0.014 25 / 0.96); /* --surface-raised, over a photograph */
-  --glass-tint-ground: oklch(16% 0.014 25 / 0.96); /* --surface-raised, over our own ground */
+  --glass-tint-photo: oklch(21% 0.02 70 / 0.96); /* --surface-raised, over a photograph */
+  --glass-tint-ground: oklch(21% 0.02 70 / 0.93); /* --surface-raised, over our own ground */
   /* The tint in force, and the conservative one by default: a surface that declares
      nothing at all is held to the floor that survives an unknown photograph. Every tier
      below is an alias of one of the two above, so a raw alpha exists once. */
@@ -191,8 +213,8 @@
   /* The edge and the highlight are the product's own light at a hairline's strength —
      `--text-primary`'s colour, not a new one. Glass is lit from the top, so the
      highlight is inset and the border is not. */
-  --glass-border: oklch(95% 0.01 85 / 0.16);
-  --glass-highlight: oklch(95% 0.01 85 / 0.1);
+  --glass-border: oklch(96% 0.022 85 / 0.16);
+  --glass-highlight: oklch(96% 0.022 85 / 0.1);
   --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
 
   /* ---- Motion ---- */
@@ -226,54 +248,30 @@
 }
 
 /**
- * The accent, derived from whichever hue is in force where it is read.
- *
- * **The two selectors are one rule, and splitting this out of `:root` is a correctness
- * fix rather than a tidy-up.** A custom property that references another is resolved at
- * computed-value time *on the element it is declared on*, and what descendants inherit is
- * the already-substituted result. So `--accent` declared only on `:root` would keep
- * `oklch(72% 0.17 305)` forever, however far down the tree an event moved `--accent-hue`
- * — which is exactly what happened the first time this was written, and what a Chromium
- * end-to-end check caught. Re-declaring the derivation on the element that carries the
- * event's hue is what makes the substitution run again, there, with that hue.
- *
- * Nothing is duplicated to achieve it: one declaration block, two selectors, one set of
- * raw values. `src/domain/events/eventTheme.ts` holds the rule that decides which hues
- * may reach `--accent-hue` at all, and `eventThemeContract.test.ts` fails if the
- * lightness and chroma here and the ones that rule computes with ever disagree.
- */
-/**
- * ADR 0010: **with no event accent, the action is the paper.** The Chambre noire has no
- * colour to press: the primary button is a print, the one light surface on the screen, and
- * a link is paper-white underlined. An event that chose a hue still gets the derivation
- * below, on the surface that carries it, exactly as before.
- */
-:root {
-  --accent: oklch(93% 0.012 85);
-  --accent-strong: oklch(84% 0.014 80); /* hover / pressed */
-  --accent-contrast: oklch(11% 0.006 25); /* text on top of --accent */
-  --focus-ring: 0 0 0 3px oklch(93% 0.012 85 / 0.65);
-}
-
-/**
- * Ambiances, ADR 0010. A closed pack of surfaces, inks, faces and ornaments that the
- * guest's phone and the wall wear; the console never does. Declared before the event
- * accent so a hue the host chose still wins on the same element.
+ * Ambiances, ADR 0010. A closed pack of surfaces, inks, faces, a photographed ground and
+ * ornaments. The Guinguette is the root look and needs no block; the four below are the
+ * others an event can choose, worn by the guest's phone, the wall, and every console page
+ * about that one event. Declared before the event accent so a hue the host chose still wins
+ * on the same element.
  *
  * Two selectors, one block: the surface element carries the attribute, and `:root:has()`
  * lets the page around it (body background, header, the ornaments in base.css) follow in
  * the same paint. A template preview inside the console is excluded by its marker, or
  * previewing a festive template would re-skin the moderation console.
  *
- * The two named glass tints are restated, and the tiers that alias them (--glass-tint,
- * --glass-opaque) are not: on :root:has() they re-resolve with this block's raised colour,
- * and restating them here would outrank the shell's opaque tier and the fallbacks below,
- * which name the ambiance selectors for that reason. A template preview, which matches only
- * the element, keeps the root's glass; it carries no glass pane.
+ * Every block restates everything it moves, and `--accent-texture` and `--button-radius`
+ * too, because the root has kraft fibres and a rounded control. The two named glass tints
+ * are restated and the tiers that alias them (--glass-tint, --glass-opaque) are not: on
+ * `:root:has()` they re-resolve with this block's raised colour, and restating them here
+ * would outrank the shell's opaque tier and the fallbacks below, which name the ambiance
+ * selectors for that reason. A template preview, which matches only the element, keeps the
+ * root's glass; it carries no glass pane.
  *
  * The faces are bundled (no CDN) and cost nothing until an element on screen uses them.
- * Instrument Serif is the root's display face (the event's name, the wall's captions);
- * Bricolage Grotesque is the Guinguette's heading face. Licences: web/public/licenses/.
+ * Instrument Serif is the root's display face and Bricolage Grotesque its heading face;
+ * Playfair Display, Fraunces and Poiret One belong to the Riviera, Champs d'or and Cabaret.
+ * The faces that ship one instance are declared over a weight range, so a bold label never
+ * asks the browser to synthesise one. Licences: web/public/licenses/.
  */
 @font-face {
   font-family: 'Instrument Serif';
@@ -332,64 +330,317 @@
     U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
     U+A720-A7FF;
 }
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('./fonts/PlayfairDisplay-normal-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('./fonts/PlayfairDisplay-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('./fonts/PlayfairDisplay-italic-latin.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('./fonts/PlayfairDisplay-italic-latin-ext.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('./fonts/Fraunces-normal-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('./fonts/Fraunces-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('./fonts/Fraunces-italic-latin.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('./fonts/Fraunces-italic-latin-ext.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 500 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Poiret One';
+  src: url('./fonts/PoiretOne-normal-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Poiret One';
+  src: url('./fonts/PoiretOne-normal-latin-ext.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
 
-/* Guinguette champêtre: dinner under the string lights in a garden at dusk. A photographed
-   ground, warm wood-brown surfaces, cream inks, kraft to press. */
-[data-event-ambiance='guinguette'],
-:root:has([data-event-ambiance='guinguette']:not([data-template-preview])) {
-  --surface-base: oklch(16% 0.016 70);
-  --surface-raised: oklch(21% 0.02 70);
-  --surface-overlay: oklch(25% 0.022 70);
-  --border-subtle: oklch(32% 0.025 70);
-  --border-strong: oklch(58% 0.03 70);
-  --text-primary: oklch(96% 0.022 85);
-  --text-secondary: oklch(85% 0.03 80);
-  --text-muted: oklch(75% 0.035 75);
-  --safelight: oklch(30% 0.06 70);
-  --leak-1: transparent;
-  --leak-2: transparent;
-  --accent: oklch(74% 0.09 68);
-  --accent-strong: oklch(72% 0.09 64);
-  --accent-contrast: oklch(20% 0.04 55);
-  --accent-texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.035 .6' numOctaves='4'/><feColorMatrix values='0 0 0 0 .25 0 0 0 0 .16 0 0 0 0 .08 0 0 0 .3 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
-  --focus-ring: 0 0 0 3px oklch(85% 0.12 80 / 0.7);
-  --font-heading: 'Bricolage Grotesque', var(--font-sans);
-  --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
-  /* Derived, not chosen: the lowest top alpha at which --text-muted keeps 4.5:1 over the 99th
-     percentile of the photograph as a phone crops it (scripts/ambianceGround.test.ts); 0.79 fails. */
+/* Riviera: dinner on a terrace facing the sea at sunset. Navy and a sail's white, a pill to
+   press, a breton stripe along the top and bottom of the page. */
+[data-event-ambiance='riviera'],
+:root:has([data-event-ambiance='riviera']:not([data-template-preview])) {
+  --surface-base: oklch(17% 0.05 255);
+  --surface-raised: oklch(22% 0.055 255);
+  --surface-overlay: oklch(26% 0.058 255);
+  --border-subtle: oklch(31% 0.05 255);
+  --border-strong: oklch(62% 0.05 250);
+  --text-primary: oklch(97% 0.015 85);
+  --text-secondary: oklch(89% 0.025 80);
+  --text-muted: oklch(80% 0.03 85);
+  --accent: oklch(96% 0.015 85);
+  --accent-strong: oklch(88% 0.03 80);
+  --accent-contrast: oklch(27% 0.07 258);
+  --accent-texture: none;
+  --focus-ring: 0 0 0 3px oklch(72% 0.14 40 / 0.8);
+  --font-heading: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display-weight: 500;
+  --button-radius: var(--radius-full);
+  --ambiance-ground: url('./ambiances/riviera-ground-1600.webp');
+  /* Derived, not chosen: the lowest top alpha that holds --text-muted at 4.5:1 over the photograph. */
   --ambiance-grade: linear-gradient(
     180deg,
-    oklch(16% 0.016 70 / 0.8),
-    oklch(16% 0.016 70 / 0.78) 30%,
-    oklch(16% 0.016 70 / 0.86) 65%,
-    oklch(16% 0.016 70 / 0.96)
+    oklch(17% 0.05 255 / 0.67),
+    oklch(17% 0.05 255 / 0.65) 30%,
+    oklch(17% 0.05 255 / 0.73) 65%,
+    oklch(17% 0.05 255 / 0.96)
   );
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
-  --wall-ambient: none;
-  /* The join card is a kraft ticket. */
   --wall-card-bg: var(--accent);
   --wall-card-texture: var(--accent-texture);
   --wall-card-ink: var(--accent-contrast);
   --wall-card-ink-2: var(--accent-contrast);
-  /* Ornament, never a control: the bulbs and the linen. */
-  --decor-1: oklch(55% 0.14 32);
-  --decor-bulb: oklch(90% 0.1 85);
-  --decor-glow: oklch(80% 0.14 70 / 0.55);
-  --decor-wire: oklch(14% 0.01 60);
-  --decor-4: oklch(93% 0.02 85);
-  /* Measured over white by the ambiance tests; not yet stepped down to the lowest alpha. */
-  --glass-tint-photo: oklch(21% 0.02 70 / 0.97);
-  --glass-tint-ground: oklch(21% 0.02 70 / 0.95);
-  --glass-border: oklch(96% 0.022 85 / 0.16);
-  --glass-highlight: oklch(96% 0.022 85 / 0.1);
+  --decor-stripe: oklch(27% 0.07 258);
+  --decor-cloth: oklch(96% 0.015 85);
+  --glass-tint-photo: oklch(22% 0.055 255 / 0.96);
+  --glass-tint-ground: oklch(22% 0.055 255 / 0.96);
+  --glass-border: oklch(97% 0.015 85 / 0.16);
+  --glass-highlight: oklch(97% 0.015 85 / 0.1);
 }
 
+/* Champs d'or: golden hour in the tall grass. Earth and honey, linen along the bottom. */
+[data-event-ambiance='champs'],
+:root:has([data-event-ambiance='champs']:not([data-template-preview])) {
+  --surface-base: oklch(16% 0.03 60);
+  --surface-raised: oklch(21% 0.035 60);
+  --surface-overlay: oklch(25% 0.038 60);
+  --border-subtle: oklch(30% 0.035 60);
+  --border-strong: oklch(62% 0.05 70);
+  --text-primary: oklch(98% 0.02 85);
+  --text-secondary: oklch(89% 0.04 80);
+  --text-muted: oklch(80% 0.045 78);
+  --accent: oklch(87% 0.1 88);
+  --accent-strong: oklch(80% 0.11 80);
+  --accent-contrast: oklch(25% 0.05 60);
+  --accent-texture: none;
+  --focus-ring: 0 0 0 3px oklch(90% 0.12 90 / 0.8);
+  --font-heading: 'Fraunces', ui-serif, Georgia, serif;
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-display-weight: 500;
+  --button-radius: var(--radius-full);
+  --ambiance-ground: url('./ambiances/champs-ground-1600.webp');
+  /* Derived, not chosen: the lowest top alpha that holds --text-muted at 4.5:1 over the photograph. */
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(16% 0.03 60 / 0.75),
+    oklch(16% 0.03 60 / 0.73) 30%,
+    oklch(16% 0.03 60 / 0.81) 65%,
+    oklch(16% 0.03 60 / 0.96)
+  );
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: var(--accent-texture);
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
+  --decor-cloth: oklch(92% 0.04 85);
+  --decor-weave: oklch(87% 0.045 82);
+  --glass-tint-photo: oklch(21% 0.035 60 / 0.96);
+  --glass-tint-ground: oklch(21% 0.035 60 / 0.96);
+  --glass-border: oklch(98% 0.02 85 / 0.16);
+  --glass-highlight: oklch(98% 0.02 85 / 0.1);
+}
+
+/* Bivouac: a campfire under a sky full of stars. Night blue and ember, a strip of tartan wool. */
+[data-event-ambiance='bivouac'],
+:root:has([data-event-ambiance='bivouac']:not([data-template-preview])) {
+  --surface-base: oklch(16% 0.035 255);
+  --surface-raised: oklch(21% 0.04 255);
+  --surface-overlay: oklch(25% 0.042 255);
+  --border-subtle: oklch(30% 0.04 255);
+  --border-strong: oklch(60% 0.04 250);
+  --text-primary: oklch(96% 0.012 85);
+  --text-secondary: oklch(87% 0.02 240);
+  --text-muted: oklch(78% 0.025 240);
+  --accent: oklch(78% 0.13 65);
+  --accent-strong: oklch(72% 0.14 60);
+  --accent-contrast: oklch(20% 0.03 70);
+  --accent-texture: none;
+  --focus-ring: 0 0 0 3px oklch(85% 0.12 70 / 0.8);
+  --font-heading: 'Bricolage Grotesque', var(--font-sans);
+  --font-display: 'Bricolage Grotesque', var(--font-sans);
+  --font-display-weight: 800;
+  --button-radius: var(--radius-sm);
+  --ambiance-ground: url('./ambiances/bivouac-ground-1600.webp');
+  /* The night sky is dark already: --text-muted holds at 4.5:1 with a top alpha of 0.05, and
+     0.30 is a floor chosen for the wall's centre, where a flame can sit under the event's name. */
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(16% 0.035 255 / 0.3),
+    oklch(16% 0.035 255 / 0.28) 30%,
+    oklch(16% 0.035 255 / 0.36) 65%,
+    oklch(16% 0.035 255 / 0.96)
+  );
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: var(--accent-texture);
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
+  --decor-warp: oklch(76% 0.13 65 / 0.75);
+  --decor-weft: oklch(55% 0.06 150 / 0.85);
+  --decor-weft-dark: oklch(16% 0.035 255 / 0.9);
+  --glass-tint-photo: oklch(21% 0.04 255 / 0.96);
+  --glass-tint-ground: oklch(21% 0.04 255 / 0.96);
+  --glass-border: oklch(96% 0.012 85 / 0.16);
+  --glass-highlight: oklch(96% 0.012 85 / 0.1);
+}
+
+/* Cabaret: velvet curtain, gold light, the twenties. Ebony and champagne, an art-deco fan line
+   on top and a double rule at the bottom. */
+[data-event-ambiance='cabaret'],
+:root:has([data-event-ambiance='cabaret']:not([data-template-preview])) {
+  --surface-base: oklch(15% 0.015 70);
+  --surface-raised: oklch(20% 0.02 70);
+  --surface-overlay: oklch(24% 0.022 70);
+  --border-subtle: oklch(30% 0.025 70);
+  --border-strong: oklch(60% 0.07 85);
+  --text-primary: oklch(97% 0.025 90);
+  --text-secondary: oklch(88% 0.05 85);
+  --text-muted: oklch(78% 0.06 85);
+  --accent: oklch(79% 0.09 85);
+  --accent-strong: oklch(72% 0.095 80);
+  --accent-contrast: oklch(20% 0.02 80);
+  --accent-texture: none;
+  --focus-ring: 0 0 0 3px oklch(88% 0.12 90 / 0.8);
+  --font-heading: 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display: 'Poiret One', 'Playfair Display', ui-serif, Georgia, serif;
+  --font-display-weight: 400;
+  --button-radius: var(--radius-none);
+  --ambiance-ground: url('./ambiances/cabaret-ground-1600.webp');
+  /* Derived, not chosen: the lowest top alpha that holds --text-muted at 4.5:1 over the photograph. */
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(15% 0.015 70 / 0.72),
+    oklch(15% 0.015 70 / 0.7) 30%,
+    oklch(15% 0.015 70 / 0.78) 65%,
+    oklch(15% 0.015 70 / 0.96)
+  );
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: var(--accent-texture);
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
+  --decor-gold: oklch(77% 0.09 85);
+  --glass-tint-photo: oklch(20% 0.02 70 / 0.97);
+  --glass-tint-ground: oklch(20% 0.02 70 / 0.97);
+  --glass-border: oklch(97% 0.025 90 / 0.16);
+  --glass-highlight: oklch(97% 0.025 90 / 0.1);
+}
+
+/**
+ * The accent, derived from whichever hue is in force where it is read.
+ *
+ * **The two selectors are one rule, and splitting this out of `:root` is a correctness
+ * fix rather than a tidy-up.** A custom property that references another is resolved at
+ * computed-value time *on the element it is declared on*, and what descendants inherit is
+ * the already-substituted result. So `--accent` declared only on `:root` would keep
+ * `oklch(72% 0.17 305)` forever, however far down the tree an event moved `--accent-hue`
+ * — which is exactly what happened the first time this was written, and what a Chromium
+ * end-to-end check caught. Re-declaring the derivation on the element that carries the
+ * event's hue is what makes the substitution run again, there, with that hue.
+ *
+ * Nothing is duplicated to achieve it: one declaration block, two selectors, one set of
+ * raw values. `src/domain/events/eventTheme.ts` holds the rule that decides which hues
+ * may reach `--accent-hue` at all, and `eventThemeContract.test.ts` fails if the
+ * lightness and chroma here and the ones that rule computes with ever disagree.
+ *
+ * The ambiance's kraft fibres are not repainted over a hue they were not measured on, so the
+ * texture goes, and the wall's join card, which is the accent paper, is re-derived with it.
+ */
 [data-event-accent] {
   --accent: oklch(72% 0.17 var(--accent-hue));
   --accent-strong: oklch(64% 0.19 var(--accent-hue)); /* hover / pressed */
   --accent-contrast: oklch(18% 0.02 var(--accent-hue)); /* text on top of --accent */
+  --accent-texture: none;
   --focus-ring: 0 0 0 3px oklch(72% 0.17 var(--accent-hue) / 0.65);
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: var(--accent-texture);
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
 }
 
 /**

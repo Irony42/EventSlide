@@ -6,6 +6,7 @@ import TOKENS from './tokens.css?raw'
 // The wall's caption styles, for the one failure mode a colour pair cannot express.
 import CAPTIONS from '../features/wall/components/SlideCaption.module.css?raw'
 import {
+  ambianceBlock,
   composite,
   lightestHue,
   luminanceOf,
@@ -14,6 +15,7 @@ import {
   srgb,
   toLinearSrgb,
   WHITE,
+  withoutAmbiances,
   type Oklch,
   type Srgb,
 } from './testing/srgb'
@@ -57,17 +59,16 @@ const DEFAULT_HUE = Number(DECLARED_HUE[1])
 /**
  * The product's own palette, without the ambiance blocks (ADR 0010).
  *
- * The parser keeps the last declaration of a name, and an ambiance re-declares every
- * surface and ink, so reading the whole file would quietly measure the Guinguette as if it
- * were the root. The ambiances are cut out here and measured on their own below. What is
- * left still ends on the `[data-event-accent]` derivation, which is what every sweep in
- * this file is about; the root's own paper accent is measured separately.
+ * The Guinguette is the root, and the four other ambiances re-declare every surface and ink.
+ * The parser keeps the last declaration of a name, so reading the whole file would quietly
+ * measure the last ambiance as if it were the root: they are cut out here and measured on
+ * their own below. What is left still ends on the `[data-event-accent]` derivation, which is
+ * what every sweep in this file is about; the root's own kraft accent is measured separately.
  */
-const AMBIANCE_BLOCKS = /\/\*\*\n \* Ambiances, ADR 0010[\s\S]*?(?=\n\[data-event-accent\] \{)/
-if (!AMBIANCE_BLOCKS.test(TOKENS)) {
-  throw new Error('tokens.css no longer opens its ambiances with the ADR 0010 comment')
-}
-const ROOT_TOKENS = TOKENS.replace(AMBIANCE_BLOCKS, '')
+const ROOT_TOKENS = withoutAmbiances(TOKENS)
+
+/** The root block alone: the Guinguette's own declarations, before any derivation. */
+const ROOT_BLOCK = /:root \{[\s\S]*?\n\}/.exec(ROOT_TOKENS)?.[0] ?? ''
 
 const tokens = parseOklchTokens(ROOT_TOKENS.replaceAll('var(--accent-hue)', DECLARED_HUE[1]))
 
@@ -129,7 +130,9 @@ const worst = (measure: (hue: number) => number): { hue: number; ratio: number }
  * silently measured at full strength is a ring that passes a test it should fail.
  */
 const FOCUS_RING_ALPHA = ((): number => {
-  const found = /--focus-ring:[^;]*\/\s*([\d.]+)\s*\)/.exec(TOKENS)
+  // The derivation's own ring: the first `--focus-ring` in the file is the kraft root's.
+  const derived = /\n\[data-event-accent\] \{[^}]*\}/.exec(TOKENS)?.[0] ?? ''
+  const found = /--focus-ring:[^;]*\/\s*([\d.]+)\s*\)/.exec(derived)
   if (found?.[1] === undefined) {
     throw new Error('--focus-ring declares no alpha in tokens.css — did its shape change?')
   }
@@ -138,13 +141,15 @@ const FOCUS_RING_ALPHA = ((): number => {
 
 /**
  * The ambiances, measured on their own (ADR 0010): each block is the same contract as the
- * root, at the same bars, over its own surfaces. A new ambiance is not shippable until it
- * passes the same five pairs.
+ * root's, at the same bars, over its own surfaces. A new ambiance is not shippable until it
+ * passes the same pairs. The Guinguette is the root look, so its declarations are the root
+ * block's; the others are their own `[data-event-ambiance]` block.
  */
-describe.each([['guinguette']])('the %s ambiance', (name) => {
-  const block = new RegExp(`\\[data-event-ambiance='${name}'\\][^{]*\\{([^}]*)\\}`).exec(TOKENS)
-  if (block?.[1] === undefined) throw new Error(`tokens.css declares no ${name} block`)
-  const own = parseOklchTokens(`:root {${block[1]}}`)
+const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret'] as const
+
+describe.each(AMBIANCES)('the %s ambiance', (name) => {
+  const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+  const own = parseOklchTokens(`:root {${body}}`)
   const of = (token: string): Oklch => {
     const value = own.get(token)
     if (value === undefined) throw new Error(`the ${name} block does not restate ${token}`)
@@ -160,20 +165,26 @@ describe.each([['guinguette']])('the %s ambiance', (name) => {
       expect(contrast(of(ink), of(surface))).toBeGreaterThanOrEqual(bar)
   })
 
+  it.each(SURFACES)('keeps its --border-strong visible on %s', (surface) => {
+    expect(contrast(of('--border-strong'), of(surface))).toBeGreaterThanOrEqual(3)
+  })
+
   it('keeps the label on its accent readable at rest and under a finger', () => {
     expect(contrast(of('--accent-contrast'), of('--accent'))).toBeGreaterThanOrEqual(7)
     expect(contrast(of('--accent-contrast'), of('--accent-strong'))).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('keeps the label readable where the kraft fibres are darkest (ADR 0010)', () => {
-    // The texture is a noise layer under the label, read out of the token rather than copied:
-    // its feColorMatrix paints one brown at an alpha that tops out at the matrix's own A.
-    // The worst pixel is that brown at that alpha over the accent, at rest and pressed.
-    const texture = /--accent-texture:\s*url\("([^"]*)"\)/.exec(block[1] ?? '')?.[1]
-    if (texture === undefined) throw new Error('the ambiance declares no kraft texture to measure')
+  it('keeps the label readable where the texture under it is darkest, if it has one', () => {
+    // A texture is a noise layer under the label, read out of the token rather than copied:
+    // its feColorMatrix paints one colour at an alpha that tops out at the matrix's own A.
+    // The worst pixel is that colour at that alpha over the accent, at rest and pressed.
+    const declared = /--accent-texture:\s*(none|url\("([^"]*)"\))/.exec(body)
+    if (declared === null) throw new Error(`the ${name} block declares no --accent-texture`)
+    const texture = declared[2]
+    if (texture === undefined) return
+
     const values = /values='([^']*)'/.exec(texture)?.[1]?.split(/\s+/).map(Number) ?? []
-    if (values.length !== 20)
-      throw new Error('the kraft texture no longer declares a 4x5 colour matrix')
+    if (values.length !== 20) throw new Error('the texture no longer declares a 4x5 colour matrix')
     const fibre: Srgb = [values[4] ?? 0, values[9] ?? 0, values[14] ?? 0]
     const alpha = values[18] ?? 0
     const over = (field: Oklch): Srgb => {
@@ -187,6 +198,13 @@ describe.each([['guinguette']])('the %s ambiance', (name) => {
     const label = srgb(of('--accent-contrast'))
     expect(ratioOf(label, over(of('--accent')))).toBeGreaterThanOrEqual(4.5)
     expect(ratioOf(label, over(of('--accent-strong')))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('keeps a texture to the Guinguette alone, or says so', () => {
+    // Every other ambiance presses a flat colour, and says `none` rather than inheriting the
+    // root's fibres under a label they were never measured on.
+    if (name === 'guinguette') expect(body).toMatch(/--accent-texture:\s*url\(/)
+    else expect(body).toMatch(/--accent-texture:\s*none;/)
   })
 
   it.each(['--success', '--danger', '--warning'] as const)(
@@ -204,26 +222,96 @@ describe.each([['guinguette']])('the %s ambiance', (name) => {
   ] as const)('keeps %s above its bar on its glass over a white photograph', (ink, bar) => {
     const pane = composite(of('--glass-tint-photo'), WHITE)
     expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(bar)
+    // And no worse than on the darkest surface this palette lets text sit on.
+    expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(
+      ratioOf(srgb(of(ink)), srgb(of('--surface-overlay'))),
+    )
+  })
+
+  it('declares the lowest photo alpha that holds over white, so the number is derived', () => {
+    // The shape the root's tiers use: a value is only a floor if the step below it fails. The
+    // bars are the pane's: the three inks at their targets and no worse than on the overlay,
+    // the status glyphs, and the accent as a link.
+    const tint = of('--glass-tint-photo')
+    const holds = (alpha: number): boolean => {
+      const pane = composite({ ...tint, alpha }, WHITE)
+      for (const [ink, bar] of [
+        ['--text-primary', 12],
+        ['--text-secondary', 7],
+        ['--text-muted', 4.5],
+      ] as const) {
+        const ratio = ratioOf(srgb(of(ink)), pane)
+        if (ratio < bar) return false
+        if (ratio < ratioOf(srgb(of(ink)), srgb(of('--surface-overlay')))) return false
+      }
+      for (const status of ['--success', '--danger', '--warning'] as const) {
+        if (ratioOf(srgb(own.get(status) ?? token(status)), pane) < 3) return false
+      }
+      return ratioOf(srgb(of('--accent')), pane) >= 4.5
+    }
+
+    expect(holds(tint.alpha)).toBe(true)
+    expect(holds(Number((tint.alpha - 0.01).toFixed(2)))).toBe(false)
   })
 
   it('keeps its accent readable from the back of the room', () => {
     expect(contrast(of('--accent'), of('--surface-base'))).toBeGreaterThanOrEqual(7)
   })
+
+  it('keeps the default focus ring visible on every surface it declares', () => {
+    const ring = /--focus-ring:\s*0 0 0 3px oklch\(([^)]*)\)/.exec(body)?.[1]
+    if (ring === undefined) throw new Error(`the ${name} block declares no focus ring`)
+    const colour = parseOklchTokens(`:root {
+  --r: oklch(${ring});
+}`).get('--r')
+    if (colour === undefined) throw new Error('the focus ring is not an oklch colour')
+    for (const surface of SURFACES) {
+      const ground = srgb(of(surface))
+      expect(ratioOf(composite(colour, ground), ground)).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('holds the event accent to the same bars on its surfaces, at every angle', () => {
+    // A host can pick any of the 360 hues in any ambiance, and the derived accent is drawn on
+    // this ambiance's surfaces: the root's sweep above measures it on the root's alone.
+    const worstOf = (measure: (hue: number) => number): { hue: number; ratio: number } =>
+      HUES.map((hue) => ({ hue, ratio: measure(hue) })).reduce((low, next) =>
+        next.ratio < low.ratio ? next : low,
+      )
+    const base = worstOf((h) => contrast(atHue('--accent', h), of('--surface-base')))
+    expect(base.ratio, `on --surface-base, worst at hue ${base.hue}`).toBeGreaterThanOrEqual(7)
+
+    for (const surface of ['--surface-raised', '--surface-overlay'] as const) {
+      const link = worstOf((h) => contrast(atHue('--accent', h), of(surface)))
+      expect(link.ratio, `on ${surface}, worst at hue ${link.hue}`).toBeGreaterThanOrEqual(4.5)
+    }
+    for (const surface of SURFACES) {
+      const ring = worstOf((h) => {
+        const ground = srgb(of(surface))
+        return ratioOf(
+          composite({ ...atHue('--accent', h), alpha: FOCUS_RING_ALPHA }, ground),
+          ground,
+        )
+      })
+      expect(ring.ratio, `ring on ${surface}, worst at hue ${ring.hue}`).toBeGreaterThanOrEqual(3)
+    }
+  })
 })
 
-describe('the paper the root presses (ADR 0010)', () => {
-  const root = parseOklchTokens(/:root \{\n {2}--accent:[^}]*\}/.exec(TOKENS)?.[0] ?? '')
-  const paper = root.get('--accent')
+describe('the kraft the root presses (ADR 0010)', () => {
+  const root = parseOklchTokens(ROOT_BLOCK)
+  const kraft = root.get('--accent')
   const ink = root.get('--accent-contrast')
 
   it('is declared as the root accent, without a hue to move', () => {
-    expect(paper).toBeDefined()
+    expect(kraft).toBeDefined()
   })
 
   it('carries its label at the accent’s own bar', () => {
-    if (paper === undefined || ink === undefined) throw new Error('no paper accent at the root')
-    expect(contrast(ink, paper)).toBeGreaterThanOrEqual(7)
-    expect(contrast(paper, token('--surface-overlay'))).toBeGreaterThanOrEqual(7)
+    if (kraft === undefined || ink === undefined) throw new Error('no kraft accent at the root')
+    expect(contrast(ink, kraft)).toBeGreaterThanOrEqual(7)
+    expect(contrast(kraft, token('--surface-base'))).toBeGreaterThanOrEqual(7)
+    expect(contrast(kraft, token('--surface-overlay'))).toBeGreaterThanOrEqual(4.5)
   })
 })
 
@@ -659,14 +747,12 @@ describe('the glass material over an unknown photograph', () => {
  */
 describe('the glass material over our own ground', () => {
   /** The backdrop the ground floor is derived against. See `lightestHue`. */
-  // ADR 0010: the root's own primary button is the paper, brighter than any hue an event
-  // can carry, so it is the field the ground floor has to hold over.
-  const PAPER = parseOklchTokens(/:root \{\n {2}--accent:[^}]*\}/.exec(TOKENS)?.[0] ?? '').get(
-    '--accent',
-  )
-  if (PAPER === undefined) throw new Error('tokens.css declares no paper accent at the root')
+  // ADR 0010: the root's own primary button is the kraft. It is the field the ground floor
+  // has to hold over when it is brighter than the lightest hue an event can carry.
+  const KRAFT = parseOklchTokens(ROOT_BLOCK).get('--accent')
+  if (KRAFT === undefined) throw new Error('tokens.css declares no kraft accent at the root')
   const LIGHTEST_HUE = srgb(lightestHue(token('--accent')))
-  const CEILING = luminanceOf(srgb(PAPER)) > luminanceOf(LIGHTEST_HUE) ? srgb(PAPER) : LIGHTEST_HUE
+  const CEILING = luminanceOf(srgb(KRAFT)) > luminanceOf(LIGHTEST_HUE) ? srgb(KRAFT) : LIGHTEST_HUE
 
   const groundPane = (alpha: number): Srgb =>
     composite({ ...token('--glass-tint-ground'), alpha }, CEILING)
@@ -755,7 +841,7 @@ describe('the glass material over our own ground', () => {
     // ADR 0010 moved the numbers: on the Chambre noire's darker raised black the photograph
     // floor sits at 0.96 and our own ground at 0.93, and the paper button takes the split to nothing (see the tier test above).
     expect(Math.round(photo * 100)).toBe(4)
-    expect(Math.round(ground * 100)).toBe(4)
+    expect(Math.round(ground * 100)).toBe(7)
   })
 })
 
@@ -874,7 +960,10 @@ describe('the wall reads from the back of the room, over any photograph', () => 
     // over somebody's photograph, so the alpha is the lowest one at which section 8's
     // sentence is true and not a point more — and asserting that the step below it fails
     // is what makes this a derivation rather than a value with a comment beside it.
+    // Both of its contracts: the wall's 7:1 for every ink it declares, and the clip badge on the
+    // host console, which reads at body text's own 12:1 for --text-primary (tested below).
     const holds = (alpha: number): boolean =>
+      ratioOf(srgb(token('--text-primary')), scrimAt(alpha)) >= 12 &&
       declaredInks
         .filter((ink) => !onPaper(ink))
         .every((ink) => ratioOf(srgb(token(ink)), scrimAt(alpha)) >= WALL_TARGET)
