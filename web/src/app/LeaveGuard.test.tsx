@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Link, Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { fr } from '../lib/i18n/fr'
 import { renderWithProviders } from '../testing/renderWithProviders'
 import { LeaveGuard } from './LeaveGuard'
@@ -12,6 +12,11 @@ import { LeaveGuard } from './LeaveGuard'
  */
 
 const TITLE = 'Quitter ?'
+
+/** Shows what the page a link opened was handed. */
+function Arrival() {
+  return <p data-testid="arrival">{JSON.stringify(useLocation().state)}</p>
+}
 
 const renderGuard = (when: boolean) => {
   // The router here is in memory; the guard compares with the address the browser is at.
@@ -31,6 +36,10 @@ const renderGuard = (when: boolean) => {
             />
             <Link to="/ailleurs">dans l’appli</Link>
             <a href="/ici">cette page</a>
+            <a href="/ici#bas">plus bas</a>
+            <Link to="/avec-etat" state={{ from: '/ici' }} replace>
+              avec état
+            </Link>
             <a href="https://autre.example/page">autre site</a>
             <a href="/ailleurs" target="_blank" rel="noreferrer">
               autre onglet
@@ -42,6 +51,7 @@ const renderGuard = (when: boolean) => {
         }
       />
       <Route path="/ailleurs" element={<p>Arrivé ailleurs</p>} />
+      <Route path="/avec-etat" element={<Arrival />} />
     </Routes>,
     { route: '/ici' },
   )
@@ -132,5 +142,49 @@ describe('LeaveGuard', () => {
 
     expect(await screen.findByRole('button', { name: 'Partir' })).toBeVisible()
     expect(screen.queryByRole('button', { name: fr.app.confirm })).toBeNull()
+  })
+})
+
+describe('LeaveGuard: what it leaves alone, and what it hands on', () => {
+  it('opens the link the way the link was written, with its state, when the person leaves anyway', async () => {
+    renderGuard(true)
+    await userEvent.click(screen.getByRole('link', { name: 'avec état' }))
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Partir' }))
+
+    // A bare `navigate(path)` would have dropped the `from` the link carried.
+    expect(await screen.findByTestId('arrival')).toHaveTextContent(JSON.stringify({ from: '/ici' }))
+  })
+
+  it('does not stop a link to another part of the page that is already open', () => {
+    renderGuard(true)
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
+
+    screen.getByRole('link', { name: 'plus bas' }).dispatchEvent(click)
+
+    expect(click.defaultPrevented).toBe(false)
+  })
+
+  it('does not stop a middle click, which opens another tab', () => {
+    renderGuard(true)
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 1 })
+
+    screen.getByRole('link', { name: 'dans l’appli' }).dispatchEvent(click)
+
+    expect(click.defaultPrevented).toBe(false)
+  })
+
+  it('stops stopping when the page it guards is gone, or has nothing to lose any more', () => {
+    const { unmount } = renderGuard(true)
+    const link = screen.getByRole('link', { name: 'dans l’appli' })
+    unmount()
+    document.body.append(link)
+
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
+    link.dispatchEvent(click)
+
+    // A listener left on the document would freeze every link of the app behind a dialog that
+    // is no longer drawn.
+    expect(click.defaultPrevented).toBe(false)
   })
 })

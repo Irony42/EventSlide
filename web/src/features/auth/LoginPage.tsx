@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAbout, useAboutHeard } from '../../app/useAbout'
+import { useAbout, useAboutAnswered, useAboutHeard } from '../../app/useAbout'
 import { useApi } from '../../app/useApi'
 import { Field } from '../../design-system/components/Field'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -41,8 +41,12 @@ function AlreadySignedIn({ canOperateSite }: { readonly canOperateSite: boolean 
   const navigate = useNavigate()
   const { state } = useLocation()
   const resolveLanding = useResolveLanding()
+  // The rules ask whether the box has a console, which is the build's guess until the box has
+  // answered: deciding before it has would send an operator with nothing to the list of events.
+  const aboutAnswered = useAboutAnswered()
 
   useEffect(() => {
+    if (!aboutAnswered) return
     let live = true
     void resolveLanding({ state, canOperateSite }).then((path) => {
       if (live) navigate(path, { replace: true })
@@ -50,7 +54,7 @@ function AlreadySignedIn({ canOperateSite }: { readonly canOperateSite: boolean 
     return () => {
       live = false
     }
-  }, [resolveLanding, navigate, state, canOperateSite])
+  }, [aboutAnswered, resolveLanding, navigate, state, canOperateSite])
 
   return <Spinner size="lg" label={t.auth.alreadySignedIn} />
 }

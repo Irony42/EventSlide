@@ -6,7 +6,7 @@ import { Field } from '../../design-system/components/Field'
 import { TextInput } from '../../design-system/components/TextInput'
 import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { ADMIN_HOME, fromOf } from '../../lib/landing'
+import { ADMIN_HOME, forcedByGate, fromOf } from '../../lib/landing'
 import { AuthForm } from './components/AuthForm'
 import { useChangePassword } from './hooks/useAuthActions'
 import { useResolveLanding } from './hooks/useLanding'
@@ -30,11 +30,11 @@ export function ChangePasswordPage() {
   const { state } = useLocation()
   const { session } = useSession()
   const resolveLanding = useResolveLanding()
-  // Latched: choosing the password makes the session forget itself, and the sentence that
-  // explained the change must not vanish in the moment before the page leaves.
+  // The session says so, and so does the gate that sent the person here (see `forcedByGate`):
+  // choosing the password makes the session forget itself, the gate shows its wait, and this page
+  // is mounted again before it leaves, when the session no longer says the change was forced.
   const mustChange = session !== null && session.authenticated && session.user.mustChangePassword
-  const [forced, setForced] = useState(mustChange)
-  if (mustChange && !forced) setForced(true)
+  const forced = mustChange || forcedByGate(state)
 
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')

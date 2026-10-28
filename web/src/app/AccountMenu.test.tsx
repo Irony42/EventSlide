@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AccountMenu } from './AccountMenu'
 import { ApiError } from '../lib/http'
 import { fr } from '../lib/i18n/fr'
@@ -571,5 +571,39 @@ describe('AccountMenu: security, the current page and a forced password change',
 
       expect(api.myLimits).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('AccountMenu: a link to the page you are on (H14)', () => {
+  function Arrival() {
+    return <p data-testid="arrival">{JSON.stringify(useLocation().state)}</p>
+  }
+
+  it('hands on the page the person came from, not the page itself, so Annuler does not lead back to itself', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/depart"
+          element={
+            <Navigate to="/admin/password" replace state={{ from: '/admin/events/mariage' }} />
+          }
+        />
+        <Route
+          path="/admin/password"
+          element={
+            <>
+              <AccountMenu />
+              <Arrival />
+            </>
+          }
+        />
+      </Routes>,
+      { api: signedIn(), route: '/depart' },
+    )
+    await open()
+    await userEvent.click(screen.getByRole('link', { name: fr.auth.changePassword }))
+
+    // From the page itself the link hands nothing new on: not `{ from: '/admin/password' }`.
+    expect(await screen.findByTestId('arrival')).not.toHaveTextContent('/admin/password')
   })
 })

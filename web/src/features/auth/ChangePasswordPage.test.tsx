@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { ChangePasswordPage } from './ChangePasswordPage'
+import { MustChangePasswordGate } from './MustChangePasswordGate'
 import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
@@ -221,9 +222,10 @@ describe('ChangePasswordPage: coming and going (H14)', () => {
     expect(await screen.findByText(DASHBOARD)).toBeVisible()
   })
 
-  it('keeps saying why once the change is made, while the page is still on screen', async () => {
-    // Choosing the password makes the session forget itself, which is what turns "forced" off. The
-    // sentence goes with the page and not a moment before: here the landing never arrives.
+  it('keeps saying why once the change is made, through the gate that unmounts the page', async () => {
+    // Choosing the password makes the session forget itself, the gate shows its wait, and the page
+    // is mounted again: it has to be told by the state the gate wrote, not by what it remembers.
+    // Here the landing never arrives, so the page is still the one on screen.
     let session: SessionResponse = {
       authenticated: true,
       user: aSessionUser({ mustChangePassword: true }),
@@ -235,12 +237,21 @@ describe('ChangePasswordPage: coming and going (H14)', () => {
       }),
       listEvents: vi.fn(() => new Promise<never>(() => undefined)),
     })
-    enter(api, undefined)
+    renderWithProviders(
+      <Routes>
+        <Route element={<MustChangePasswordGate />}>
+          <Route path="/admin" element={<p>{DASHBOARD}</p>} />
+          <Route path="/admin/password" element={<ChangePasswordPage />} />
+        </Route>
+      </Routes>,
+      { api, route: '/admin' },
+    )
     await screen.findByText(new RegExp(fr.auth.changePasswordForced))
 
     await change()
 
     await waitFor(() => expect(api.listEvents).toHaveBeenCalled())
-    expect(screen.getByText(new RegExp(fr.auth.changePasswordForced))).toBeVisible()
+    expect(await screen.findByText(new RegExp(fr.auth.changePasswordForced))).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.app.cancel })).toBeNull()
   })
 })

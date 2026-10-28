@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { LeaveGuard } from '../../app/LeaveGuard'
 import { useApi } from '../../app/useApi'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
@@ -50,6 +49,8 @@ export function ClientsPage() {
         {creating ? null : (
           <Button
             variant="primary"
+            // Not while the only copy of a link is on screen: opening the form would drop it.
+            disabled={opened?.invitation.delivery === 'link'}
             onClick={() => {
               setOpened(null)
               setCreating(true)
@@ -64,17 +65,6 @@ export function ClientsPage() {
       {creating ? (
         <NewClientForm onOpened={handleOpened} onCancel={() => setCreating(false)} />
       ) : null}
-
-      {/* The invitation link of a box with no mail is shown here once and held nowhere else, and the
-          client's own link is on this very screen: following it, or any other link, would lose
-          the only copy. Ask first (the box that says "Fermer" is the way to be done with it). */}
-      <LeaveGuard
-        when={opened?.invitation.delivery === 'link'}
-        title={t.site.invitationLeaveTitle}
-        description={t.site.invitationLeaveHint}
-        stayLabel={t.site.invitationLeaveStay}
-        leaveLabel={t.site.invitationLeaveGo}
-      />
 
       {opened === null ? null : (
         <section className={styles['opened']} aria-label={t.site.clientCreated}>

@@ -357,6 +357,22 @@ describe('the console’s accounts: resetting a password', () => {
     expect(screen.queryByText(/password\/reset/)).toBeNull()
   })
 
+  it('asks before the operator leaves the page while the reset link is the only copy', async () => {
+    const siteResetPassword = vi.fn<Api['siteResetPassword']>().mockResolvedValue({
+      delivery: 'link',
+      link: 'https://photos.example.test/password/reset/UN-JETON',
+      expiresAt: '2026-06-20T22:00:00.000Z',
+    })
+    open(withAccounts([aSiteAccount()], { siteResetPassword }))
+    await pressReset()
+    await screen.findByText('https://photos.example.test/password/reset/UN-JETON')
+
+    await userEvent.click(screen.getByRole('link', { name: fr.site.navAudit }))
+
+    expect(await screen.findByRole('dialog', { name: fr.site.linkLeaveTitle })).toBeVisible()
+    expect(screen.getByText('https://photos.example.test/password/reset/UN-JETON')).toBeVisible()
+  })
+
   it('says what the server said when there is no mailer, and shows no link', async () => {
     const siteResetPassword = vi
       .fn<Api['siteResetPassword']>()

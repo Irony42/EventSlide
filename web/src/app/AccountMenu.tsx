@@ -107,6 +107,11 @@ export function AccountMenu() {
 
   if (session === null || !session.authenticated) return null
 
+  // What a link to `target` is handed: where the person is, to come back to. From `target` itself
+  // it hands on what the page was given, so "Annuler" does not lead back to the page it is on.
+  const carry = (target: string) =>
+    location.pathname === target ? location.state : { from: hereAsFrom(location) }
+
   const leave = (result: Awaited<ReturnType<typeof signOut>>) => {
     if (result.ok) {
       navigate('/login', { replace: true })
@@ -204,7 +209,7 @@ export function AccountMenu() {
                 <Link
                   className={styles['item']}
                   to="/admin/security"
-                  state={{ from: hereAsFrom(location) }}
+                  state={carry('/admin/security')}
                   aria-current={location.pathname === '/admin/security' ? 'page' : undefined}
                   onClick={() => setOpen(false)}
                 >
@@ -214,7 +219,7 @@ export function AccountMenu() {
               <Link
                 className={styles['item']}
                 to="/admin/password"
-                state={{ from: hereAsFrom(location) }}
+                state={carry('/admin/password')}
                 aria-current={location.pathname === '/admin/password' ? 'page' : undefined}
                 onClick={() => setOpen(false)}
               >

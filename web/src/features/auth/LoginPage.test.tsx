@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { LoginPage } from './LoginPage'
+import { LANDING_TIMEOUT_MS } from './hooks/useLanding'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -594,5 +595,84 @@ describe('LoginPage: the small ways out (H16)', () => {
       )
       expect(screen.getByLabelText(fr.auth.password)).toBeVisible()
     })
+  })
+})
+
+describe('LoginPage: the landing of a session that is still good (H13), on the details', () => {
+  const operator = () =>
+    vi.fn(async (): Promise<SessionResponse> => ({
+      authenticated: true,
+      user: aSessionUser({ canOperateSite: true }),
+    }))
+
+  const render = (api: Api) =>
+    renderWithProviders(
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/admin" element={<p>Arrivé /admin</p>} />
+        <Route path="/admin/site" element={<p>Arrivé /admin/site</p>} />
+      </Routes>,
+      { api, route: '/login' },
+    )
+
+  it('sends an operator with nothing of their own to the console', async () => {
+    render(
+      fakeApi({
+        session: operator(),
+        about: vi.fn(async () => anAbout({ features: { siteAdmin: true, forgotPassword: false } })),
+      }),
+    )
+
+    expect(await screen.findByText('Arrivé /admin/site')).toBeVisible()
+  })
+
+  it('waits for the box to say whether it has a console before deciding, which is a guess until then', async () => {
+    const api = fakeApi({
+      session: operator(),
+      about: vi.fn(() => new Promise<never>(() => undefined)),
+    })
+    render(api)
+
+    await waitFor(() => expect(api.session).toHaveBeenCalled())
+    // Let the page settle: an absence checked before it could have appeared proves nothing.
+    expect(await screen.findByRole('status')).toHaveTextContent(fr.auth.alreadySignedIn)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(api.listEvents).not.toHaveBeenCalled()
+  })
+
+  it('sends them to the list of events when the reads never answer, instead of leaving a spinner', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const api = fakeApi({
+        session: operator(),
+        listEvents: vi.fn(() => new Promise<never>(() => undefined)),
+      })
+      render(api)
+      await waitFor(() => expect(api.listEvents).toHaveBeenCalled())
+
+      await vi.advanceTimersByTimeAsync(LANDING_TIMEOUT_MS)
+
+      expect(await screen.findByText('Arrivé /admin')).toBeVisible()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not hold the form busy for a destination that is the sign-in page itself', async () => {
+    renderWithProviders(
+      <Routes>
+        <Route
+          path="/depart"
+          element={<Navigate to="/login" replace state={{ from: '/login' }} />}
+        />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/admin" element={<p>Arrivé /admin</p>} />
+      </Routes>,
+      { api: fakeApi(), route: '/depart' },
+    )
+    await signIn()
+
+    expect(await screen.findByText('Arrivé /admin')).toBeVisible()
   })
 })

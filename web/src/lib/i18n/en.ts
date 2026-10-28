@@ -1299,11 +1299,11 @@ export const en: UiText = {
     noClient: 'None',
     auditFilteredFor: (name: string) => `Log of the client “${name}”.`,
     auditToClient: 'See this client',
-    invitationLeaveTitle: 'Leave without copying the link?',
-    invitationLeaveHint:
-      'No e-mail went out: this invitation link is shown only here, once. If you leave this page you can no longer copy it; you can issue a new one from the client’s page.',
-    invitationLeaveStay: 'Stay and copy the link',
-    invitationLeaveGo: 'Leave anyway',
+    linkLeaveTitle: 'Leave without copying the link?',
+    linkLeaveHint:
+      'No e-mail went out: this link is shown only here, once. If you leave this page you can no longer copy it; you will have to issue a new one.',
+    linkLeaveStay: 'Stay and copy the link',
+    linkLeaveGo: 'Leave anyway',
     auditReason: (reason: string) => `Reason: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
     actors: {

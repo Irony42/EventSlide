@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   afterInvitationPath,
   chosenPath,
+  forcedByGate,
   fromOf,
   hereAsFrom,
   landingPath,
@@ -57,6 +58,28 @@ describe('the page somebody was heading for', () => {
     expect(hereAsFrom({ pathname: '/admin/site/audit', search: '?clientId=c-1' })).toBe(
       '/admin/site/audit?clientId=c-1',
     )
+  })
+})
+
+describe('the sign-in page as a destination', () => {
+  it.each(['/login', '/login?x=1', '/login/', '/login#haut'])(
+    'is no destination, since the person is already there: %s',
+    (path) => {
+      expect(fromOf({ from: path })).toBeNull()
+    },
+  )
+
+  it('is not confused with an address that only starts like it', () => {
+    expect(fromOf({ from: '/loginfo' })).toBe('/loginfo')
+  })
+})
+
+describe('the change of password the gate forced', () => {
+  it('is read from the state the gate writes, and from nothing else', () => {
+    expect(forcedByGate({ from: '/admin/x', forced: true })).toBe(true)
+    expect(forcedByGate({ from: '/admin/x' })).toBe(false)
+    expect(forcedByGate({ forced: 'yes' })).toBe(false)
+    expect(forcedByGate(null)).toBe(false)
   })
 })
 

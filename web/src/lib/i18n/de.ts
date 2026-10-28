@@ -1358,11 +1358,11 @@ export const de: UiText = {
     noClient: 'Keine',
     auditFilteredFor: (name: string) => `Protokoll des Kunden „${name}“.`,
     auditToClient: 'Diesen Kunden ansehen',
-    invitationLeaveTitle: 'Verlassen, ohne den Link kopiert zu haben?',
-    invitationLeaveHint:
-      'Es wurde keine E-Mail gesendet: Dieser Einladungslink wird nur hier angezeigt, ein einziges Mal. Wenn Sie die Seite verlassen, können Sie ihn nicht mehr kopieren; auf der Seite des Kunden können Sie einen neuen ausstellen.',
-    invitationLeaveStay: 'Bleiben und Link kopieren',
-    invitationLeaveGo: 'Trotzdem verlassen',
+    linkLeaveTitle: 'Verlassen, ohne den Link kopiert zu haben?',
+    linkLeaveHint:
+      'Es wurde keine E-Mail gesendet: Dieser Link wird nur hier angezeigt, ein einziges Mal. Wenn Sie die Seite verlassen, können Sie ihn nicht mehr kopieren; Sie müssen einen neuen ausstellen.',
+    linkLeaveStay: 'Bleiben und Link kopieren',
+    linkLeaveGo: 'Trotzdem verlassen',
     auditReason: (reason: string) => `Grund: ${reason}`,
     auditAccount: (short: string) => `Konto ${short}`,
     actors: {

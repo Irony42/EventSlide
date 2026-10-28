@@ -370,14 +370,9 @@ export function SecurityPage() {
             return
           }
           toast.show(t.auth.secondFactorEnabled, { tone: 'success' })
-          if (from !== null) {
-            // The answer the console would read is the one from before the enrolment: drop it
-            // and let the page that is opened ask.
-            forgetSession()
-            navigate(from, { replace: true })
-            return
-          }
-          refresh()
+          // The session was read again when the code was accepted (below), so what the next page
+          // reads is already true: nothing to forget here, and the way back is the page it came from.
+          if (from !== null) navigate(from, { replace: true })
         }}
       />
     )
@@ -417,7 +412,15 @@ export function SecurityPage() {
       {enrolled ? (
         <Manage onCodes={(list) => setCodes({ list, enrolment: false })} onDisabled={refresh} />
       ) : (
-        <Enrol onEnrolled={(list) => setCodes({ list, enrolment: true })} />
+        <Enrol
+          onEnrolled={(list) => {
+            // The authenticator is in place the moment the code is accepted, whatever the person
+            // does with the codes next (note them, or leave through the guard): the shared answer
+            // that still says "not enrolled" would offer the enrolment again to the next page.
+            forgetSession()
+            setCodes({ list, enrolment: true })
+          }}
+        />
       )}
     </>
   )

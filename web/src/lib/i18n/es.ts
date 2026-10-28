@@ -1345,11 +1345,11 @@ export const es: UiText = {
     noClient: 'Ninguno',
     auditFilteredFor: (name: string) => `Registro del cliente «${name}».`,
     auditToClient: 'Ver este cliente',
-    invitationLeaveTitle: '¿Salir sin haber copiado el enlace?',
-    invitationLeaveHint:
-      'No ha salido ningún correo: este enlace de invitación solo se muestra aquí, una vez. Si sale de esta página, ya no podrá copiarlo; podrá emitir uno nuevo desde la página del cliente.',
-    invitationLeaveStay: 'Quedarme y copiar el enlace',
-    invitationLeaveGo: 'Salir de todos modos',
+    linkLeaveTitle: '¿Salir sin haber copiado el enlace?',
+    linkLeaveHint:
+      'No ha salido ningún correo: este enlace solo se muestra aquí, una vez. Si sale de esta página, ya no podrá copiarlo; tendrá que emitir uno nuevo.',
+    linkLeaveStay: 'Quedarme y copiar el enlace',
+    linkLeaveGo: 'Salir de todos modos',
     auditReason: (reason: string) => `Motivo: ${reason}`,
     auditAccount: (short: string) => `cuenta ${short}`,
     actors: {

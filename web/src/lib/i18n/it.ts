@@ -1011,7 +1011,7 @@ export const it: UiText = {
     recoveryCodesLeaveHint:
       'Questi codici vengono mostrati una sola volta: uscendo da questa pagina non potrà più leggerli. Per ottenerne di nuovi dovrà confermare di nuovo la sua identità.',
     recoveryCodesLeaveStay: 'Restare e annotare i codici',
-    recoveryCodesLeaveGo: 'Esci comunque',
+    recoveryCodesLeaveGo: 'Uscire comunque',
     deadInvitationSignIn: 'Se l’ha già accettato, il suo account esiste: acceda.',
     deadInvitationSignedIn:
       'Ha già effettuato l’accesso: se l’ha accettato con questo account, i suoi eventi sono lì.',
@@ -1315,11 +1315,11 @@ export const it: UiText = {
     noClient: 'Nessuno',
     auditFilteredFor: (name: string) => `Registro del cliente «${name}».`,
     auditToClient: 'Vedi questo cliente',
-    invitationLeaveTitle: 'Uscire senza aver copiato il link?',
-    invitationLeaveHint:
-      'Non è partita nessuna e-mail: questo link d’invito è mostrato solo qui, una volta. Uscendo da questa pagina non potrà più copiarlo; ne potrà emettere uno nuovo dalla pagina del cliente.',
-    invitationLeaveStay: 'Restare e copiare il link',
-    invitationLeaveGo: 'Esci comunque',
+    linkLeaveTitle: 'Uscire senza aver copiato il link?',
+    linkLeaveHint:
+      'Non è partita nessuna e-mail: questo link è mostrato solo qui, una volta. Uscendo da questa pagina non potrà più copiarlo; dovrà emetterne uno nuovo.',
+    linkLeaveStay: 'Restare e copiare il link',
+    linkLeaveGo: 'Uscire comunque',
     auditReason: (reason: string) => `Motivo: ${reason}`,
     auditAccount: (short: string) => `account ${short}`,
     actors: {

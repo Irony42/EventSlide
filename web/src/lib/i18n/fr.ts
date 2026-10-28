@@ -1954,11 +1954,11 @@ export const fr = {
     noClient: 'Aucun',
     auditFilteredFor: (name: string) => `Journal du client « ${name} ».`,
     auditToClient: 'Voir ce client',
-    invitationLeaveTitle: 'Quitter sans avoir copié le lien ?',
-    invitationLeaveHint:
-      'Aucun e-mail n’est parti : ce lien d’invitation n’est affiché qu’ici, une seule fois. En quittant cette page, vous ne pourrez plus le copier ; vous pourrez en émettre un nouveau depuis la page du client.',
-    invitationLeaveStay: 'Rester et copier le lien',
-    invitationLeaveGo: 'Quitter quand même',
+    linkLeaveTitle: 'Quitter sans avoir copié le lien ?',
+    linkLeaveHint:
+      'Aucun e-mail n’est parti : ce lien n’est affiché qu’ici, une seule fois. En quittant cette page, vous ne pourrez plus le copier ; il faudra en émettre un nouveau.',
+    linkLeaveStay: 'Rester et copier le lien',
+    linkLeaveGo: 'Quitter quand même',
     auditReason: (reason: string) => `Motif : ${reason}`,
     auditAccount: (short: string) => `compte ${short}`,
     actors: {

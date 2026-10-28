@@ -464,6 +464,22 @@ describe('SecurityPage: coming and going', () => {
       expect(await screen.findByText(`${ELSEWHERE} atteint`)).toBeVisible()
     })
 
+    it('reads the session again as soon as the code is accepted, whatever is done with the codes', async () => {
+      const api = enrolling()
+      enter(api)
+      await enrol()
+
+      // Not on pressing "J'ai noté mes codes": leaving through the guard never presses it, and
+      // the next page must not be told the account has no authenticator.
+      await userEvent.click(screen.getByRole('link', { name: ELSEWHERE }))
+      await userEvent.click(
+        within(await prompt()).getByRole('button', { name: fr.auth.recoveryCodesLeaveGo }),
+      )
+
+      await screen.findByText(`${ELSEWHERE} atteint`)
+      expect(vi.mocked(api.session).mock.calls.length).toBeGreaterThanOrEqual(2)
+    })
+
     it('asks nothing once the codes are noted', async () => {
       enter(enrolling())
       await enrol()

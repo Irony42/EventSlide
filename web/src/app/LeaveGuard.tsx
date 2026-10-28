@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '../design-system/components/ConfirmDialog'
 
 export interface LeaveGuardProps {
@@ -13,8 +12,8 @@ export interface LeaveGuardProps {
   readonly leaveLabel: string
 }
 
-/** The address a click on this anchor would open inside the app, or `null` when it is not ours. */
-const inAppTarget = (event: MouseEvent): string | null => {
+/** The anchor a click would follow inside this tab and this app, or `null` when it is not ours. */
+const inAppAnchor = (event: MouseEvent): HTMLAnchorElement | null => {
   // A click that does something other than "go there in this tab" is not a way off the page.
   if (event.defaultPrevented || event.button !== 0) return null
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null
@@ -28,7 +27,7 @@ const inAppTarget = (event: MouseEvent): string | null => {
   const here = `${window.location.pathname}${window.location.search}`
   const target = `${url.pathname}${url.search}`
   // The page you are on is not a way off it.
-  return target === here ? null : `${target}${url.hash}`
+  return target === here ? null : anchor
 }
 
 /**
@@ -43,7 +42,9 @@ const inAppTarget = (event: MouseEvent): string | null => {
  *
  * - **A link inside the app** (menu, breadcrumb, footer): stopped in the capture phase, before the
  *   router sees it, and put to the person in a dialog whose safe choice is to stay. Leaving
- *   navigates to the address that was clicked.
+ *   **clicks that same link again**, so the router handles it exactly as it would have: with the
+ *   `state` (`from`) and the `replace` the link was written with, which a bare `navigate(path)`
+ *   would have dropped.
  * - **Closing the tab, reloading, a link to another site**: the browser's own prompt
  *   (`beforeunload`). Its wording is the browser's and cannot be changed.
  * - **Back and Forward, and the sign-out button**: **not stopped.** `BrowserRouter` has no way to
@@ -51,8 +52,11 @@ const inAppTarget = (event: MouseEvent): string | null => {
  *   explicit act. This is a known limit, not a promise.
  */
 export function LeaveGuard({ when, title, description, stayLabel, leaveLabel }: LeaveGuardProps) {
-  const navigate = useNavigate()
-  const [pending, setPending] = useState<string | null>(null)
+  const [asking, setAsking] = useState(false)
+  // The link the person pressed, kept to be pressed again if they choose to leave; and whether
+  // the next click is that second one, which must not be stopped again.
+  const pressed = useRef<HTMLAnchorElement | null>(null)
+  const replaying = useRef(false)
 
   useEffect(() => {
     if (!when) return
@@ -63,11 +67,16 @@ export function LeaveGuard({ when, title, description, stayLabel, leaveLabel }: 
       event.returnValue = ''
     }
     const onClick = (event: MouseEvent) => {
-      const target = inAppTarget(event)
-      if (target === null) return
+      if (replaying.current) {
+        replaying.current = false
+        return
+      }
+      const anchor = inAppAnchor(event)
+      if (anchor === null) return
       event.preventDefault()
       event.stopPropagation()
-      setPending(target)
+      pressed.current = anchor
+      setAsking(true)
     }
 
     window.addEventListener('beforeunload', onBeforeUnload)
@@ -80,16 +89,21 @@ export function LeaveGuard({ when, title, description, stayLabel, leaveLabel }: 
 
   return (
     <ConfirmDialog
-      open={when && pending !== null}
+      open={when && asking}
       title={title}
       description={description}
       cancelLabel={stayLabel}
       confirmLabel={leaveLabel}
-      onCancel={() => setPending(null)}
+      onCancel={() => setAsking(false)}
       onConfirm={() => {
-        const target = pending
-        setPending(null)
-        if (target !== null) navigate(target)
+        const anchor = pressed.current
+        pressed.current = null
+        setAsking(false)
+        if (anchor === null) return
+        replaying.current = true
+        anchor.click()
+        // A link that was taken out of the page meanwhile never reaches the listener.
+        replaying.current = false
       }}
     />
   )

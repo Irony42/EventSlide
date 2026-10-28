@@ -45,7 +45,13 @@ export function MustChangePasswordGate({ children }: MustChangePasswordGateProps
 
   if (mustChange && location.pathname !== CHANGE_PASSWORD_PATH) {
     // Where they were going rides along, so choosing the password returns them there.
-    return <Navigate to={CHANGE_PASSWORD_PATH} replace state={{ from: hereAsFrom(location) }} />
+    return (
+      <Navigate
+        to={CHANGE_PASSWORD_PATH}
+        replace
+        state={{ from: hereAsFrom(location), forced: true }}
+      />
+    )
   }
 
   return children === undefined ? <Outlet /> : <>{children}</>

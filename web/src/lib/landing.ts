@@ -31,8 +31,20 @@ export const fromOf = (state: unknown): string | null => {
   if (typeof state !== 'object' || state === null || !('from' in state)) return null
   const from = state.from
   const inAppPath = /^\/(?![/\\])/
-  return typeof from === 'string' && inAppPath.test(from) ? from : null
+  // The sign-in page is where the person is: a `from` that names it is no destination, and
+  // honouring it would leave the form open under a navigation that goes nowhere.
+  const signIn = /^\/login(?:[/?#]|$)/
+  return typeof from === 'string' && inAppPath.test(from) && !signIn.test(from) ? from : null
 }
+
+/**
+ * Whether the navigation state says the change of password was **forced** by the gate, which
+ * writes it. The page reads it besides the session: choosing the password makes the session
+ * forget itself, the gate shows its wait and the page is mounted again, and for that moment the
+ * session no longer says the change was forced while the explanation must not vanish.
+ */
+export const forcedByGate = (state: unknown): boolean =>
+  typeof state === 'object' && state !== null && 'forced' in state && state.forced === true
 
 /**
  * The page the person chose, if they chose one: `fromOf`, except for the dashboard itself.

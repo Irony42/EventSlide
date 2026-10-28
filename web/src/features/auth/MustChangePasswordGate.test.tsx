@@ -119,7 +119,7 @@ describe('MustChangePasswordGate: where the person was going (H14)', () => {
     )
 
     expect(await screen.findByTestId('arrival')).toHaveTextContent(
-      JSON.stringify({ from: '/admin/site/audit?clientId=c-1' }),
+      JSON.stringify({ from: '/admin/site/audit?clientId=c-1', forced: true }),
     )
   })
 })

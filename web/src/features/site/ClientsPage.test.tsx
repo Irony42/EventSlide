@@ -373,7 +373,7 @@ describe('opening a client', () => {
       return api
     }
 
-    const prompt = () => screen.findByRole('dialog', { name: fr.site.invitationLeaveTitle })
+    const prompt = () => screen.findByRole('dialog', { name: fr.site.linkLeaveTitle })
 
     /** The link under "Client ouvert", the one the operator follows to look at what they just made. */
     const clientLink = () =>
@@ -387,7 +387,7 @@ describe('opening a client', () => {
       await userEvent.click(clientLink())
 
       const dialog = await prompt()
-      expect(within(dialog).getByText(fr.site.invitationLeaveHint)).toBeVisible()
+      expect(within(dialog).getByText(fr.site.linkLeaveHint)).toBeVisible()
       // Still here, with the link on screen to copy.
       expect(screen.getByText('https://photos.example.test/invite/UN-JETON')).toBeVisible()
     })
@@ -397,7 +397,7 @@ describe('opening a client', () => {
       await userEvent.click(clientLink())
 
       await userEvent.click(
-        within(await prompt()).getByRole('button', { name: fr.site.invitationLeaveStay }),
+        within(await prompt()).getByRole('button', { name: fr.site.linkLeaveStay }),
       )
 
       expect(screen.getByText('https://photos.example.test/invite/UN-JETON')).toBeVisible()
@@ -409,7 +409,7 @@ describe('opening a client', () => {
       await userEvent.click(clientLink())
 
       await userEvent.click(
-        within(await prompt()).getByRole('button', { name: fr.site.invitationLeaveGo }),
+        within(await prompt()).getByRole('button', { name: fr.site.linkLeaveGo }),
       )
 
       expect(await screen.findByRole('heading', { level: 1, name: NAME })).toBeVisible()
@@ -558,5 +558,29 @@ describe('opening a client', () => {
 
     expect(screen.queryByRole('heading', { name: fr.site.newClientTitle })).toBeNull()
     expect(api.siteProvisionClient).not.toHaveBeenCalled()
+  })
+})
+
+describe('the button that would drop the only copy of a link', () => {
+  it('waits while the invitation link is on screen, and is back once the box is closed', async () => {
+    const api = consoleApi({
+      siteClientDefaults: vi.fn(async () => aSiteClientDefaults()),
+      siteProvisionClient: vi.fn(async () => ({
+        clientId: CLIENT_ID,
+        invitation: aLinkInvitation('https://photos.example.test/invite/UN-JETON'),
+      })),
+    })
+    openConsole('/admin/site', api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.site.newClient }))
+    await userEvent.type(await screen.findByLabelText(fr.site.clientName), 'Atelier Alpha')
+    await userEvent.type(screen.getByLabelText(fr.site.ownerEmail), 'camille@example.com')
+    await userEvent.click(screen.getByRole('button', { name: fr.site.createClient }))
+    await screen.findByText(fr.site.invitationLinkTitle)
+
+    expect(screen.getByRole('button', { name: fr.site.newClient })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.close }))
+
+    expect(screen.getByRole('button', { name: fr.site.newClient })).toBeEnabled()
   })
 })
