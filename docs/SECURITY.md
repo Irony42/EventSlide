@@ -3502,15 +3502,29 @@ guest upload's controls and a few of its own.
 | Serving             | Through the application, never `express.static`. The URL names a digest and **the event's settings must name the same one**, so a replaced or removed photograph is `404` at once. Public and guests only while the event serves its wall; a moderator at any time. `nosniff`, `inline`, immutable private cache.                                                                                                                                                      | `getVenuePhotoMedia.test.ts`, `venuePhotoRoutes.test.ts`                                                                                        |
 | Tenant isolation    | The lookup is `(event, digest)` with the digest read from **this** event's settings. Another event's digest, an unknown slug, a malformed digest and a draft are the same `404 venuePhoto.notFound`: no oracle. The media store keys by event, so equal bytes in two events are two objects.                                                                                                                                                                           | `getVenuePhotoMedia.test.ts`, `venuePhotoRoutes.test.ts`, the e2e journey                                                                       |
 | Data loss           | Bytes first, row second: a failed save removes what the request wrote and never what the stored settings name; a replaced file is deleted only after the save succeeded; a removal is row first, bytes second. A leak is collected by `sweepOrphanedMedia`, which now **reads the settings**, as do the backup (it is not an "unreferenced file") and `scripts/purge.ts` (which would otherwise have deleted it). The event's purge removes the whole event directory. | `setVenuePhoto.test.ts`, `removeVenuePhoto.test.ts`, `sweepOrphanedMedia.test.ts`, `backupArchive.test.ts`, `eventHostRoutes.container.test.ts` |
-| Client side         | `theme.groundUrl` is written into a CSS `url()`, so a client takes it only if it matches `/api/events/<slug>/venue-photo/<64 hex>`, JSON-quoted. The settings schema is strict and refuses `groundUrl`, so a save cannot point an event's ground at a path.                                                                                                                                                                                                            | `eventTheme.test.ts`, `settingsPayload.test.ts`, `eventHostRoutes.container.test.ts`                                                            |
+| Client side         | `theme.groundUrl` is written into a CSS `url()`, so a client takes it only if it matches `/api/events/<slug>/venue-photo/<64 hex>`, JSON-quoted. The settings route reads `groundUrl` and ignores it (it rebuilds the theme from its five fields), so a save cannot point an event's ground at a path.                                                                                                                                                                 | `eventTheme.test.ts`, `settingsPayload.test.ts`, `eventHostRoutes.container.test.ts`                                                            |
 
 **Not counted against the byte quota, deliberately.** The quota protects the disk from guests and is
 enforced in the transaction that inserts their photographs. This file is one per event, replaced in
 place and refused above 1 MiB, so it adds at most 1 MiB per event, and counting it would let a
 decoration refuse a guest's photograph. The disk guard still applies to the upload.
 
-**Known limits.** A concurrent settings save and a photograph upload on the same event race on the
-whole-row save the repository does for every settings write (last writer wins); the loser's file is
-collected by the sweep. The shared gallery does not show the photograph. A rate limit and a pixel
-budget bound the CPU one account can spend on the box, not the account of a client who owns many
-events.
+**Known limits.**
+
+- The upload re-reads the event after the decode and re-encode and saves with no await between that
+  read and the write, because `events.save` rewrites the whole row and the copy read at the start is
+  seconds old. What remains is the ordinary window every settings write has (last writer wins, as the
+  repository documents): a settings save that read just before the upload's save and writes just after
+  it drops the photograph, whose file the sweep then collects.
+- The shared gallery does not show the photograph.
+- A projector that is already running learns of a new, replaced or removed photograph at its next
+  playlist change or reload until `sameSettings` in the wall's playlist hook compares
+  `theme.groundUrl` (recorded in the pull request: that hook belongs to the wall's own change).
+- The 10-an-hour budget counts refused attempts too, since it runs before the parser. A host who
+  retries a wrong file ten times waits for the hour; the pixel budget and the size limit bound the
+  CPU, not the number of events one client owns.
+- A `ground` file shares its digest-addressed name with a photograph's renditions if the same bytes
+  were ever uploaded as a guest photograph, and `MediaStore.delete` removes every variant under a
+  digest. Reachable only by uploading the served WebP back as a guest photo.
+- A restored backup whose archive lacks a named ground file leaves the settings naming bytes that are
+  gone: the route answers 404 and the page shows the grade over no photograph until the host removes it.

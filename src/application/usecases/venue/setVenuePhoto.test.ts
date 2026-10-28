@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
+import { EventName } from '../../../domain/events/eventName'
 import { asEventId, asUserId, type EventId } from '../../../domain/shared/ids'
 import { AT, anEvent, type EventInput } from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
@@ -302,6 +303,68 @@ describe('setVenuePhoto', () => {
       await setVenuePhoto({ eventId: WEDDING, actorId: OWNER, bytes: tagBytes('other') })
 
       expect(media.variantsOf(OTHER, digestOf('pic'))).toEqual(['ground'])
+    })
+  })
+
+  describe('while the file is being processed', () => {
+    /** Something else happens to the event during the write: the seconds an upload really takes. */
+    const duringTheWrite = (act: () => Promise<void>): void => {
+      const put = media.put.bind(media)
+      media.put = async (...args) => {
+        await put(...args)
+        await act()
+      }
+    }
+
+    it('keeps what the host or the schedule did to the event meanwhile, and does not save a stale copy', async () => {
+      duringTheWrite(async () => {
+        const current = await events.findById(WEDDING)
+        const name = EventName.create('Un autre nom')
+        const renamed = name.ok ? current?.rename(name.value) : undefined
+        if (renamed === undefined || !renamed.ok) throw new Error('fixture')
+        await events.save(renamed.value)
+      })
+
+      const result = await setVenuePhoto({
+        eventId: WEDDING,
+        actorId: OWNER,
+        bytes: tagBytes('pic'),
+      })
+
+      expect(result.ok).toBe(true)
+      const stored = await events.findById(WEDDING)
+      expect(stored?.name.value).toBe('Un autre nom')
+      expect(stored?.settings.venuePhoto?.value).toBe(digestOf('pic').value)
+    })
+
+    it('removes the file when the event was purged in the meantime', async () => {
+      duringTheWrite(() => events.delete(WEDDING))
+
+      const result = await setVenuePhoto({
+        eventId: WEDDING,
+        actorId: OWNER,
+        bytes: tagBytes('pic'),
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+      expect(media.objectCount).toBe(0)
+    })
+
+    it('removes the file when the event was archived in the meantime', async () => {
+      duringTheWrite(async () => {
+        const archived = (await events.findById(WEDDING))?.archive(AT)
+        if (archived === undefined || !archived.ok) throw new Error('fixture')
+        await events.save(archived.value)
+      })
+
+      const result = await setVenuePhoto({
+        eventId: WEDDING,
+        actorId: OWNER,
+        bytes: tagBytes('pic'),
+      })
+
+      expect(!result.ok && result.error.code).toBe('event.immutable')
+      expect(media.objectCount).toBe(0)
     })
   })
 

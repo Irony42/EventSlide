@@ -49,6 +49,7 @@ export function VenuePhotoField({
   const remove = useRemoveVenuePhoto()
   const [failure, setFailure] = useState<string | null>(null)
   const inputId = useId()
+  const saveFirstId = useId()
 
   const busy = upload.busy || remove.busy
   const closed = disabled || ambianceUnsaved
@@ -94,7 +95,11 @@ export function VenuePhotoField({
         <p className={styles['hint']}>{t.admin.venuePhotoDefault}</p>
       )}
 
-      {ambianceUnsaved ? <p className={styles['hint']}>{t.admin.venuePhotoSaveFirst}</p> : null}
+      {ambianceUnsaved ? (
+        <p id={saveFirstId} className={styles['hint']}>
+          {t.admin.venuePhotoSaveFirst}
+        </p>
+      ) : null}
 
       <div className={styles['actions']}>
         <label className={styles['pick']} htmlFor={inputId}>
@@ -103,6 +108,7 @@ export function VenuePhotoField({
             id={inputId}
             className={styles['input']}
             data-testid="venue-photo-input"
+            aria-describedby={ambianceUnsaved ? saveFirstId : undefined}
             type="file"
             accept="image/*"
             disabled={closed || busy}

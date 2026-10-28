@@ -426,6 +426,11 @@ export const updateSettingsBody = z.strictObject({
       material: z.enum(THEME_MATERIALS),
       // Required for the reason `material` gives above: an old tab must not undo a choice.
       ambiance: z.enum(THEME_AMBIANCES),
+      // **Read and ignored.** It is what `GET` answers in the theme (the host's own venue photograph,
+      // ADR 0010), so a client that sends the theme back as it received it, such as a tab left open
+      // across the deploy, must not be answered 400 for it. It names nothing: the route forwards the
+      // five fields above and never this one, and the photograph has routes of its own.
+      groundUrl: z.string().max(200).nullable().optional(),
     })
     .optional(),
   /**

@@ -218,10 +218,10 @@ export const makeSweepOrphanedMedia = ({
     let skippedEvents = 0
     const failed: EventId[] = []
 
-    const events = [...(await media.listEvents())].sort()
+    const stored = [...(await media.listEvents())].sort()
     const after = resumeAfter
-    const from = after === null ? 0 : Math.max(0, events.findIndex((id) => id > after))
-    const ordered = [...events.slice(from), ...events.slice(0, from)]
+    const from = after === null ? 0 : Math.max(0, stored.findIndex((id) => id > after))
+    const ordered = [...stored.slice(from), ...stored.slice(0, from)]
 
     /** True once the budget is spent: everything after this is counted, not walked. */
     let exhausted = false

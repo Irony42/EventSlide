@@ -78,7 +78,7 @@ own pages, and removing it brings the bundled one back.
 - _Where it lives._ `EventSettings.venuePhoto`, a SHA-256 digest **beside the theme**, not in it:
   a theme is replaced whole by `PATCH /settings`, and a host changing an accent must not be able
   to drop a photograph that arrives by its own route. The wire carries it as
-  `theme.groundUrl`, which the settings schema refuses to read back.
+  `theme.groundUrl`, which a settings save reads and ignores (a client echoing the theme back is not refused).
 - _The file._ The existing upload safety, unchanged in kind: format by magic bytes, pixel budget
   from the header, `rotate()` before resize, **all metadata stripped** (a venue photograph carries
   the venue's GPS position), 1600 px WebP at quality 60, re-encoded and never passed through,

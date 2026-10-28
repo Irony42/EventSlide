@@ -253,10 +253,10 @@ describe('the host’s own venue photograph, through the real container (ADR 001
     expect(resaved.body.settings.theme.groundUrl).toBe(url)
   })
 
-  it('refuses a theme that tries to name the photograph itself', async () => {
+  it('reads and ignores a photograph URL echoed in a theme, and stores nothing of it', async () => {
     const { agent, csrf } = await signedInOwner()
 
-    const refused = await agent
+    const saved = await agent
       .patch(`/api/events/${SLUG}/settings`)
       .set(CSRF_HEADER, csrf())
       .send({
@@ -270,7 +270,12 @@ describe('the host’s own venue photograph, through the real container (ADR 001
         },
       })
 
-    expect([refused.status, refused.body.error.code]).toEqual([400, 'request.invalid'])
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200)
+    expect(saved.body.settings.theme.groundUrl).toBeNull()
+    const stored = container?.db
+      .prepare<[string], { readonly settings: string }>('SELECT settings FROM events WHERE slug = ?')
+      .get(SLUG)
+    expect(stored?.settings).not.toContain('anything')
   })
 
   it('is taken down by the host: the URL answers 404 at once and the file is gone', async () => {

@@ -2825,18 +2825,18 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 }
 ```
 
-| Field                         | Accepted                                                                                                                     |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `moderation`                  | `manual` \| `auto`                                                                                                           |
-| `allowCaptions`               | boolean                                                                                                                      |
-| `allowReactions`              | boolean                                                                                                                      |
-| `allowClips`                  | boolean — see below                                                                                                          |
-| `allowGuestSelfDelete`        | boolean                                                                                                                      |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                                                                                                             |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"                                                                                        |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                     |
-| `theme`                       | object — all five keys required, see below; **no `groundUrl`** (a strict object: it is read-only, set by `PUT /venue-photo`) |
-| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                             |
+| Field                         | Accepted                                                                                                                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `moderation`                  | `manual` \| `auto`                                                                                                                                                                                  |
+| `allowCaptions`               | boolean                                                                                                                                                                                             |
+| `allowReactions`              | boolean                                                                                                                                                                                             |
+| `allowClips`                  | boolean — see below                                                                                                                                                                                 |
+| `allowGuestSelfDelete`        | boolean                                                                                                                                                                                             |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                                                                                                                                                                                    |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"                                                                                                                                                               |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                            |
+| `theme`                       | object — all five keys required, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`) |
+| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                    |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
 **refused** where creation reduces — shortening what a host just typed would tell them they got

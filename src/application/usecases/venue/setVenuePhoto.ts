@@ -153,8 +153,6 @@ export const makeSetVenuePhoto = ({
       return err(DomainError.unexpected('photo.hashFailed'))
     }
 
-    const previous = event.settings.venuePhoto
-
     // Written before the row names it. If this throws, nothing names the file, and the sweep
     // collects whatever landed.
     try {
@@ -164,11 +162,25 @@ export const makeSetVenuePhoto = ({
       return err(DomainError.unexpected('photo.mediaWriteFailed'))
     }
 
-    // An archived event is refused here, by the entity, for every kind of edit.
-    const updated = event.withSettings(event.settings.withVenuePhoto(digest.value))
-    if (!updated.ok) return updated
-
+    // **Read again, here, and saved with no await between.** The entity read at the top is
+    // seconds old (a decode and a re-encode ago), and `events.save` rewrites the whole row: saving
+    // that copy would undo whatever the host or the schedule sweep did meanwhile (a status, a
+    // rotated join code, a rename, a settings save), and a settings save that read before this
+    // one would drop the photograph in turn.
+    const current = await events.findById(eventId)
+    if (current === null) {
+      await discard(eventId, digest.value)
+      return err(DomainError.notFound('event.notFound'))
+    }
+    const previous = current.settings.venuePhoto
     const replacesItself = previous !== null && previous.equals(digest.value)
+
+    // An archived event is refused here, by the entity, for every kind of edit.
+    const updated = current.withSettings(current.settings.withVenuePhoto(digest.value))
+    if (!updated.ok) {
+      if (!replacesItself) await discard(eventId, digest.value)
+      return updated
+    }
 
     try {
       await events.save(updated.value)

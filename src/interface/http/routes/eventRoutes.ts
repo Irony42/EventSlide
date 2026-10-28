@@ -230,7 +230,19 @@ export const eventRoutes = ({
           // and `eventTheme.ts` judges them together. Nothing here decides whether the
           // palette is legible — that is the domain's answer, and this handler only
           // carries the question.
-          ...(body.theme === undefined ? {} : { theme: body.theme }),
+          // Rebuilt from the five fields a theme is, so nothing else the body carried (the
+          // photograph's URL, which is read-only here) can reach the domain or the stored JSON.
+          ...(body.theme === undefined
+            ? {}
+            : {
+                theme: {
+                  accentHue: body.theme.accentHue,
+                  fonts: body.theme.fonts,
+                  frame: body.theme.frame,
+                  material: body.theme.material,
+                  ambiance: body.theme.ambiance,
+                },
+              }),
           ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),
         },
       })
