@@ -32,8 +32,6 @@ body {
   background:
     var(--grain),
     radial-gradient(120% 50% at 50% -12%, var(--safelight), transparent 62%) no-repeat,
-    var(--ambiance-grade) fixed,
-    var(--ambiance-ground) center / cover no-repeat fixed,
     var(--surface-base);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -178,8 +176,9 @@ a {
 }
 
 /**
- * The safelight's moving leaks behind every page (ADR 0010). Fixed, behind the content,
- * slow, and stopped by reduced motion; the wall paints its own ground over them.
+ * The safelight's moving leaks behind every page but the wall (ADR 0010). Fixed, behind the
+ * content, slow, and stopped by reduced motion. No `filter`: the gradients are soft already,
+ * and a blurred layer bigger than the viewport is what a phone pays for all evening.
  */
 body::before {
   content: '';
@@ -188,9 +187,29 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(40% 35% at 20% 15%, var(--leak-1), transparent 70%),
-    radial-gradient(35% 30% at 85% 40%, var(--leak-2), transparent 70%);
-  filter: blur(40px);
+    radial-gradient(40% 35% at 20% 15%, var(--leak-1), transparent 85%),
+    radial-gradient(35% 30% at 85% 40%, var(--leak-2), transparent 85%);
+}
+
+/* The wall paints its own ground; the layer is not created there at all. */
+body:has([data-wall-layout])::before {
+  content: none;
+}
+
+/**
+ * An ambiance's photographed ground (ADR 0010), on a fixed layer of its own rather than as a
+ * fixed body background: iOS treats `background-attachment: fixed` as `scroll` and would
+ * stretch the photograph down the whole page, and a fixed body background repaints on scroll.
+ */
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    var(--ambiance-grade),
+    var(--ambiance-ground) center / cover no-repeat;
 }
 
 /* Only for someone who has not asked for less motion, and never under the bulbs. */

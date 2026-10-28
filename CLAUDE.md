@@ -300,17 +300,12 @@ that renders guest-supplied content. The short version:
   other way, or answers a dead link differently, is the defect.
 - `helmet` sets a strict CSP. There is **no CDN** — Bootstrap is gone and the CSS is
   bundled. Do not reintroduce a remote `<script>` or `<link>`.
-- **Two OFL faces ship since ADR 0010.** Instrument Serif (about 65 kB for both styles and both
-  subsets) is the display face of every evening: the event's name and the wall's captions.
-  Bricolage Grotesque (about 56 kB) is the Guinguette's heading face. A browser fetches a face
-  only when an element on screen uses it. The history below is kept for the argument. This file used to say fonts were bundled; nothing in the
-  tree ever loaded one — there is no `.woff2`, no `fonts/` directory and no
-  `@font-face` anywhere. `--font-sans` opens with `'InterVariable', 'Inter'`, which is
-  opportunistic rather than a dependency: it picks those up on a machine that already
-  has them installed and falls through to `ui-sans-serif`/`system-ui` everywhere else,
-  which is what every guest actually sees. Bundling one is a real decision with a real
-  cost — roughly 100 kB per family against a 245 kB initial bundle, on a phone over
-  venue Wi-Fi — so it gets argued, not assumed.
+- **Two OFL faces ship since ADR 0010**, argued there rather than assumed: Instrument Serif
+  (about 65 kB for both styles and both subsets) is the display face of every evening — the
+  event's name and the wall's captions — and Bricolage Grotesque (about 56 kB) is the
+  Guinguette's heading face. They live in `web/src/design-system/fonts/`, with their licences in
+  `web/public/licenses/`. A browser fetches a face only when an element on screen uses it. Body
+  text stays on the system stack, on purpose: it is what every guest reads on venue Wi-Fi.
 
 ---
 

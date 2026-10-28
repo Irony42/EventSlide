@@ -688,7 +688,7 @@ export const en: UiText = {
     /** The honest scope, said once: the phone of a guest downloads nothing for this. */
     themeFontsHint: 'Applied to the screen in the room only.',
     themeFontsNames: {
-      sans: 'Modern',
+      sans: 'Editorial',
       serif: 'Classic',
     },
     themeFrame: 'Photo frame',

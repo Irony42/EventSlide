@@ -6,7 +6,10 @@ Proposed, with a prototype on `feat/ambiances-proto`. The field, its storage, it
 picker, the root palette and one festive ambiance (Guinguette) are built and tested. **Not built**, and
 said so: the ambiance-specific wall layouts (the Guinguette's clothesline, the Chambre noire's
 contact sheet), the ornaments on the wall's join card, the marker strokes in the moderation console,
-the derivation of the Guinguette's glass alphas (set conservatively above the root's for now), and
+the derivation of the Guinguette's glass alphas (set conservatively above the root's for now), a
+measurement of text over the photographed ground (the grade is chosen, not derived: a node test
+sampling the WebP per band is the honest version), a contrast check of the kraft texture under its
+label, and
 the visual baselines, which this change moves and does not yet re-record.
 
 ## Date
@@ -30,8 +33,8 @@ back in the host's hands, which is what 2.2 refused to do.
 
 Two looks came out of the review as the strongest: the **Chambre noire** (a photographer's darkroom:
 velvet black, a safelight glow, paper as the only light thing, a photo that develops from its negative)
-and the **Guinguette** (a French summer dance by the water: duck-blue night, pennants, gingham,
-lampions, raffle tickets). Pierre asked whether several could be offered side by side.
+and the **Guinguette champêtre** (dinner under string lights in a garden at dusk: a photographed
+ground, kraft, filament bulbs, linen gingham). Pierre asked whether several could be offered side by side.
 
 ## Decision
 
@@ -62,6 +65,10 @@ lampions, raffle tickets). Pierre asked whether several could be offered side by
    in WebP) behind the guest's page and the wall, under a grade that keeps text legible. A host
    uploading a photograph of their own venue is the natural next step and is not built.
 
+9. **What the Chambre noire wears beyond its palette**: the event's name in Instrument Serif at
+   display size on the guest's phone, a film grain over the page ground, and two safelight leaks
+   drifting behind every page but the wall, stopped by reduced motion.
+
 ## Consequences
 
 ### Positive
@@ -90,7 +97,7 @@ lampions, raffle tickets). Pierre asked whether several could be offered side by
 - No migration: `settings` is opaque JSON and an absent `ambiance` reads as the root look, which is
   what every stored theme has been rendering.
 - The birthday template starts on the Guinguette; the other three templates keep the root.
-- Decorative colours (pennants, gingham) are tokens of their ambiance and never mark a control, so the
+- Decorative colours (bulbs, gingham) are tokens of their ambiance and never mark a control, so the
   "one accent, reserved for the action" rule still holds for every control on screen.
 
 ## Alternatives considered

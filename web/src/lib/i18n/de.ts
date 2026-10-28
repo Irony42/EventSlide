@@ -734,7 +734,7 @@ export const de: UiText = {
     themeFonts: 'Schrift',
     themeFontsHint: 'Gilt nur für die Leinwand im Saal.',
     themeFontsNames: {
-      sans: 'Modern',
+      sans: 'Redaktionell',
       serif: 'Klassisch',
     },
     themeFrame: 'Fotorahmen',

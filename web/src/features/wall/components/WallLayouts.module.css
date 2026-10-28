@@ -143,8 +143,7 @@
   overflow: hidden;
   aspect-ratio: 4 / 5;
   border-radius: var(--radius-sm);
-  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
-  background: var(--wall-ground);
+  background: var(--surface-base);
 }
 
 .printImage {

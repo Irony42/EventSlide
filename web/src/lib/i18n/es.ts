@@ -721,7 +721,7 @@ export const es: UiText = {
     /** The honest scope, said once: a guest phone downloads nothing for this. */
     themeFontsHint: 'Se aplica solo a la pantalla de la sala.',
     themeFontsNames: {
-      sans: 'Moderna',
+      sans: 'Editorial',
       serif: 'Clásica',
     },
     themeFrame: 'Marco de las fotos',

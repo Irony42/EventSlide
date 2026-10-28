@@ -702,7 +702,7 @@ export const it: UiText = {
     themeFonts: 'Tipografia',
     themeFontsHint: 'Applicata solo allo schermo in sala.',
     themeFontsNames: {
-      sans: 'Moderna',
+      sans: 'Editoriale',
       serif: 'Classica',
     },
     themeFrame: 'Cornice delle foto',

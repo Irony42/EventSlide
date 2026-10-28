@@ -52,7 +52,8 @@
      legible over it. Nothing at the root. */
   --ambiance-ground: none;
   --ambiance-grade: linear-gradient(transparent, transparent);
-  /* What the wall's layouts paint behind and between the slides. */
+  /* What the wall's layouts paint behind and between the slides. Substituted where it is
+     declared, so an ambiance that moves --surface-base must restate it, as the Guinguette does. */
   --wall-ground: var(--surface-base);
   /* Numbers that are counted or copied: frame numbers, times, the join code. */
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
@@ -346,8 +347,8 @@
   --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
   --ambiance-grade: linear-gradient(
     180deg,
-    oklch(16% 0.016 70 / 0.55),
-    oklch(16% 0.016 70 / 0.62) 30%,
+    oklch(16% 0.016 70 / 0.72),
+    oklch(16% 0.016 70 / 0.7) 30%,
     oklch(16% 0.016 70 / 0.86) 65%,
     oklch(16% 0.016 70 / 0.96)
   );

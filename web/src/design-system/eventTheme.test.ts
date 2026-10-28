@@ -76,7 +76,7 @@ describe('themeSurfaceProps', () => {
   })
 
   it('keeps the guest ornaments off the wall, which carries its layout marker', async () => {
-    // ADR 0010: a fixed strip of pennants over a projected photograph is the one place the
+    // ADR 0010: a fixed string of bulbs over a projected photograph is the one place the
     // ornament would break principle 1, so the selector must exclude the wall.
     const { default: base } = await import('./base.css?raw')
     const selectors = base.match(/body:has\(\[data-event-ambiance[^{]*\{/g) ?? []

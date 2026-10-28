@@ -816,7 +816,7 @@ export const fr = {
     /** The honest scope, said once: a guest's phone downloads nothing for this. */
     themeFontsHint: 'Appliquée à l’écran de la salle uniquement.',
     themeFontsNames: {
-      sans: 'Moderne',
+      sans: 'Éditoriale',
       serif: 'Classique',
     } satisfies Record<ThemeFonts, string>,
     themeFrame: 'Cadre des photos',

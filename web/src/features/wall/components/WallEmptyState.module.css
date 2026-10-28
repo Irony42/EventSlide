@@ -29,8 +29,8 @@
   color: var(--accent);
 }
 
-/* The event's own name, in the event's own face. `--font-display` is `--font-sans` until
-   a host picks the other pairing (roadmap 2.2), so an unthemed wall is unchanged — and
+/* The event's own name, in the event's own face. `--font-display` is Instrument Serif since
+   ADR 0010 (the default pairing), Georgia for the other one (roadmap 2.2) — and
    the pairing is applied here, at `--text-display` on a projector, because that is the
    one place in the product where a second face is large enough to be worth having. */
 .name {
