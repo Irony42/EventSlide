@@ -144,6 +144,21 @@ export function SlideLayer({
             {...(isFront ? {} : { 'aria-hidden': true })}
           >
             {showsItem && item !== null ? (
+              // ADR 0010: the same photograph, blurred, behind itself, so the letterbox is
+              // the photo's own light rather than black. The thumbnail is enough for a blur
+              // and painted as a background, so it is not a second <img> on the wall; the ambiance decides whether
+              // it shows at all.
+              <span
+                className={styles['ambient']}
+                aria-hidden="true"
+                // A computed value, so an inline custom property is the legitimate carrier;
+                // JSON quoting keeps the URL a single CSS string.
+                style={{
+                  ['--wall-ambient-image' as string]: `url(${JSON.stringify(item.thumbUrl)})`,
+                }}
+              />
+            ) : null}
+            {showsItem && item !== null ? (
               <WallMedia
                 // Keyed by the photo so the element is remade per slide: that is what
                 // restarts the Ken Burns animation. The bytes are already in cache from

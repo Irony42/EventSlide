@@ -55,6 +55,16 @@
   /* What the wall's layouts paint behind and between the slides. Substituted where it is
      declared, so an ambiance that moves --surface-base must restate it, as the Guinguette does. */
   --wall-ground: var(--surface-base);
+  /* The Chambre noire's wall (ADR 0010): the photograph on screen, blurred and darkened, fills
+     the letterbox instead of black, under a safelight vignette and the grain. An ambiance with
+     a photographed ground of its own switches it off. */
+  --wall-ambient: block;
+  --wall-ambient-edge: oklch(20% 0.09 26 / 0.85);
+  /* The join card is a sleeve of photographic paper. */
+  --wall-card-bg: var(--surface-print);
+  --wall-card-texture: none;
+  --wall-card-ink: var(--text-print);
+  --wall-card-ink-2: var(--text-print-secondary);
   /* Numbers that are counted or copied: frame numbers, times, the join code. */
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Consolas, monospace;
 
@@ -354,6 +364,12 @@
   );
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  --wall-ambient: none;
+  /* The join card is a kraft ticket. */
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: var(--accent-texture);
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
   /* Ornament, never a control: the bulbs and the linen. */
   --decor-1: oklch(55% 0.14 32);
   --decor-bulb: oklch(90% 0.1 85);

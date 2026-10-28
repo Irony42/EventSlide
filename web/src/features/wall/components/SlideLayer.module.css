@@ -29,6 +29,38 @@
 }
 
 /**
+ * The photograph's own light in its letterbox (ADR 0010). Static per slide, so the blur is
+ * computed once and composited, never per frame; the Ken Burns zoom runs on the photograph
+ * above it, not on this. A vignette in the safelight and the film grain sit on top of the blur
+ * and never on the photograph.
+ */
+.ambient {
+  display: var(--wall-ambient);
+  z-index: 0;
+  position: absolute;
+  inset: -8%;
+  background: var(--wall-ambient-image) center / cover no-repeat;
+  filter: blur(48px) saturate(1.25) brightness(0.45);
+}
+
+.slide::before {
+  content: '';
+  display: var(--wall-ambient);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    var(--grain), radial-gradient(75% 75% at 50% 50%, transparent 35%, var(--wall-ambient-edge));
+}
+
+/* The photograph stays above its own blur and the vignette. */
+.image {
+  position: relative;
+  z-index: 2;
+}
+
+/**
  * The image box is the photo, not the screen.
  *
  * `max-*` with `auto` sizing rather than a stretched box with `object-fit`, so the
