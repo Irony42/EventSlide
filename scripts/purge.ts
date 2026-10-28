@@ -113,6 +113,9 @@ const main = async (): Promise<number> => {
       }
 
       const sweep = makeSweepOrphanedMedia({
+        // The settings name a host's venue photograph, which no row of either kind does: without
+        // this the script would collect it (ADR 0010, decision 8).
+        events,
         photos: new SqlitePhotoRepository(db),
         clips: new SqliteClipJobRepository(db),
         media,
