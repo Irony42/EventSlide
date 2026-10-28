@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { Button } from '../../design-system/components/Button'
 import { Notice } from '../../design-system/components/Notice'
 import { useToast } from '../../design-system/components/useToast'
@@ -199,7 +200,12 @@ export function EventSettingsPage() {
    */
   if (event === null || draft === null) {
     if (loading) return <Pending label={t.admin.eventLoading} />
-    return <LoadFailure message={error ?? t.errors.unknown} onRetry={reload} as="h1" />
+    return (
+      <div className={styles['page']}>
+        <HostBreadcrumb slug={slug} page="settings" eventName={null} />
+        <LoadFailure message={error ?? t.errors.unknown} onRetry={reload} as="h1" />
+      </div>
+    )
   }
 
   // Two reasons a form cannot be saved, and the person is told which: the event is archived, or the
@@ -275,10 +281,10 @@ export function EventSettingsPage() {
 
   return (
     <div className={styles['page']}>
+      {/* Replaces the bare link to the event that stood under the heading: the trail is that link
+          and the way to the list. */}
+      <HostBreadcrumb slug={event.slug} page="settings" eventName={event.name} />
       <h1 className={styles['title']}>{t.admin.settings}</h1>
-      <p>
-        <Link to={`/admin/events/${event.slug}`}>{event.name}</Link>
-      </p>
 
       {readOnly ? (
         <p className={styles['notice']}>

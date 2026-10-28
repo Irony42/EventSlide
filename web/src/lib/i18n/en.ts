@@ -614,6 +614,7 @@ export const en: UiText = {
 
   admin: {
     events: 'Your events',
+    breadcrumbLabel: 'Breadcrumb',
     newEvent: 'New event',
     eventName: 'Event name',
     eventNameHint: 'Visible to your guests, for example “Camille & Sacha”.',

@@ -102,6 +102,31 @@ describe('AccountMenu: what it offers', () => {
     expect(screen.getByRole('button', { name: fr.auth.logoutEverywhere })).toBeVisible()
   })
 
+  it('offers the list of events, the way to a new one, from any page of the console', async () => {
+    renderMenu(signedIn())
+    await open()
+
+    expect(screen.getByRole('link', { name: fr.admin.events })).toHaveAttribute('href', '/admin')
+  })
+
+  it('offers the list of events to an account that only moderates, and nothing it cannot open', async () => {
+    // A moderator holds no client and does not operate the box: the list is theirs all the same,
+    // because it holds the events they moderate, so it is the one entry above the password page.
+    renderMenu(
+      signedIn({
+        session: vi.fn(async (): Promise<SessionResponse> => ({
+          authenticated: true,
+          user: aSessionUser({ email: 'moderateur@example.org', canOperateSite: false }),
+        })),
+      }),
+    )
+    await open()
+
+    expect(screen.getByRole('link', { name: fr.admin.events })).toHaveAttribute('href', '/admin')
+    expect(screen.queryByRole('link', { name: fr.site.menuLink })).toBeNull()
+    expect(screen.queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
+  })
+
   it('opens and closes from the control that owns it, and says which list it controls', async () => {
     renderMenu(signedIn())
     const button = await trigger()
@@ -130,6 +155,7 @@ describe('AccountMenu: what it offers', () => {
   it('closes on Escape and gives the keyboard back to the control that opened it', async () => {
     renderMenu(signedIn())
     await open()
+    await userEvent.tab() // the list of events
     await userEvent.tab()
     expect(screen.getByRole('link', { name: fr.auth.changePassword })).toHaveFocus()
 
@@ -161,6 +187,7 @@ describe('AccountMenu: what it offers', () => {
     renderMenu(signedIn())
     await open()
 
+    await userEvent.tab() // the list of events
     await userEvent.tab() // password link
     await userEvent.tab() // sign out
     await userEvent.tab() // sign out everywhere

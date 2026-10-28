@@ -660,6 +660,7 @@ export const de: UiText = {
 
   admin: {
     events: 'Ihre Veranstaltungen',
+    breadcrumbLabel: 'Brotkrumennavigation',
     newEvent: 'Neue Veranstaltung',
     eventName: 'Name der Veranstaltung',
     eventNameHint: 'Für Ihre Gäste sichtbar, zum Beispiel „Camille & Sacha“.',

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
@@ -153,6 +154,8 @@ export function MobileModerationPage() {
 
   return (
     <div className={styles['page']}>
+      {/* Compact: this screen spends every line, and its own heading is right below. */}
+      <HostBreadcrumb slug={slug} page="mobileModeration" compact />
       <header className={styles['head']}>
         <h1 className={styles['title']}>{t.mobileModeration.title}</h1>
         <div className={styles['badges']}>

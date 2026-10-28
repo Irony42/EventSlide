@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -110,6 +111,7 @@ export function ModerationPage() {
 
   return (
     <div className={styles['page']}>
+      <HostBreadcrumb slug={slug} page="moderation" />
       <header className={styles['intro']}>
         <h1 className={styles['title']}>{t.moderation.title}</h1>
         <p className={styles['lead']}>{t.moderation.intro}</p>
