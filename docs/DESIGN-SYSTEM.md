@@ -947,11 +947,11 @@ only" does not license.
 > dress, the aurora, a button) is at most that grey, and the worst case the floors are derived
 > against is `0.32` of white and not white. Same bars, same sweep, same "one point thinner fails":
 >
-> | Tier                  | Alpha | Derived against                              | Backdrop showing |
-> | --------------------- | ----- | -------------------------------------------- | ---------------- |
-> | `--glass-tint-photo`  | 0.80  | white, dimmed to 0.32                        | 20%              |
-> | `--glass-tint-ground` | 0.61  | the lightest accent field or the aurora's    | 39%              |
-> |                       |       | brightest pixel, dimmed to 0.32              |                  |
+> | Tier                  | Alpha | Derived against                           | Backdrop showing |
+> | --------------------- | ----- | ----------------------------------------- | ---------------- |
+> | `--glass-tint-photo`  | 0.80  | white, dimmed to 0.32                     | 20%              |
+> | `--glass-tint-ground` | 0.61  | the lightest accent field or the aurora's | 39%              |
+> |                       |       | brightest pixel, dimmed to 0.32           |                  |
 >
 > The ambiances inherit the dimming and keep the tints they had: those are derived over undimmed
 > white, a bound dimming can only make conservative for a light ink and cannot move for a dark one
@@ -1247,8 +1247,8 @@ wants a glass toast moves the tier, or the region, first.
    `backdrop-filter` reads `none`, which is the difference you should see side by side with « Verre
    dépoli ».
 5. **Turning the effect off is on purpose, not a bug**: with reduced transparency (OS setting, or
-   DevTools → Rendering → *Emulate CSS media feature prefers-reduced-transparency*) or more contrast
-   (*prefers-contrast: more*), the filter reads `none` and the tint is opaque. So is the wall, always,
+   DevTools → Rendering → _Emulate CSS media feature prefers-reduced-transparency_) or more contrast
+   (_prefers-contrast: more_), the filter reads `none` and the tint is opaque. So is the wall, always,
    and any machine whose frame budget gave up the material.
 
 ### What is measured and what is asserted
