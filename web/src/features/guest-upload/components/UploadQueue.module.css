@@ -28,7 +28,8 @@
 }
 
 .live {
-  flex: 1 1 var(--tile-min-width);
+  composes: chip from '../../../design-system/glass.module.css';
+  flex: 0 1 auto;
   min-width: 0;
 }
 

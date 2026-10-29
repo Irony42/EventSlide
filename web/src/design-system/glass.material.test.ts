@@ -59,7 +59,7 @@ const TOKENS_FILE = 'design-system/tokens.css'
  * The surfaces wearing the material, listed so that adding one is a deliberate edit.
  *
  * "A material nobody can see is not reviewable; a material applied everywhere is not
- * reviewable either." Three sheets, and they are the same sheet three times: **a sticky pane
+ * reviewable either." Three panes (two of them clear glass, in the prototype), and they are the same pane three times: **a sticky pane
  * with the reader's own content moving underneath it.** The guest's composer sits over the
  * photographs they just sent; the host's toolbar sits over the queue scrolling under it; the
  * shared gallery's download bar (roadmap §4.1) sits over the album scrolling under it.
@@ -89,7 +89,7 @@ const MATERIAL_PROPERTIES = ['background', 'border', 'box-shadow', 'backdrop-fil
  * that matched only one would let a new surface in unseen — which is exactly the half of
  * "and no others" that is worth having.
  */
-const WEARS_THE_MATERIAL = /composes:\s*sheet\s+from\s+['"][^'"]*glass\.module\.css['"]/
+const WEARS_THE_MATERIAL = /composes:\s*(?:sheet|clear)\s+from\s+['"][^'"]*glass\.module\.css['"]/
 
 describe('the glass material is defined once', () => {
   it('sweeps the stylesheets the app actually ships', () => {
@@ -162,8 +162,8 @@ describe('the glass material is defined once', () => {
 describe('a surface wearing the material leaves it alone', () => {
   /** The class names that ask for the material, per file. */
   const wearerClasses = (css: string): readonly string[] =>
-    [...css.matchAll(/\.([A-Za-z][\w-]*)\s*\{[^{}]*composes:\s*sheet\s+from/g)].flatMap((match) =>
-      match[1] === undefined ? [] : [match[1]],
+    [...css.matchAll(/\.([A-Za-z][\w-]*)\s*\{[^{}]*composes:\s*(?:sheet|clear)\s+from/g)].flatMap(
+      (match) => (match[1] === undefined ? [] : [match[1]]),
     )
 
   /**

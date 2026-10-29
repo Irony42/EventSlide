@@ -134,7 +134,7 @@ export function ComposerOptions({
       </div>
 
       {captions ? (
-        <div id={captionPanelId} hidden={!captionOpen}>
+        <div id={captionPanelId} className={styles['panel']} hidden={!captionOpen}>
           <CaptionField value={caption} onChange={onCaptionChange} inputRef={captionInput} />
         </div>
       ) : null}

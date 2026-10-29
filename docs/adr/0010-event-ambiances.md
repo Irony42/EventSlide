@@ -275,3 +275,35 @@ not migrated.
 
 **Not done, said so.** The ambiances keep the 0.96 and 0.93 tints
 they had; making them as visible is a per-ambiance derivation.
+
+## Proposed amendment (30/10), not merged: clear glass, the bar moves from the pane to the content
+
+Status: **proposed on `exp/glass-visible`, a prototype for Pierre to validate.** Nothing above is changed.
+
+**The problem the 3.2.0 measurements showed.** The rule above measures legibility where the pane
+is: text sits on the tint, so the tint must hold every ink at its bar over the worst backdrop, which
+puts it at 0.80 to 0.96. A pane that is 80 to 96 per cent opaque shows 0.3 to 0.7 per cent of its
+backdrop (`glass-check`), which nobody reads as glass.
+
+**The change.** Flip the rule, as Apple does. The pane becomes genuinely transparent
+(`--glass-clear-*`: blur 28 px, saturation 170 %, `--surface-raised` at 34 % on dark ambiances and
+20 % on the two light ones, a white sheen of 16 % / 5 %, a 1 px lit edge and an inner highlight), and
+legibility moves onto the content: every word on the pane stands on an opaque chip, either a
+control's own fill or `.chip` (`--surface-raised`, no alpha) or a card of its own (the unfolded
+caption and video sections, the privacy notice). No text is ever measured against the backdrop, so
+the backdrop can be anything, and no tint has to be derived against a worst photograph.
+
+**Bars are not weakened, they are measured elsewhere.** The inks keep 12 / 7 / 4.5:1, on
+`--surface-raised`, which `tokens.contrast.test.ts` already holds for every ambiance and
+`glass.clear.test.ts` restates for the chip. The browser half (every text node of the composer has an
+opaque painted ancestor inside the pane, in the gated, empty, unfolded, queued and sent states, in
+three ambiances) is `tests/e2e/journeys/glass-chips.spec.ts`. The old tints and their sweeps are
+untouched and still govern `.sheet` (the moderation toolbar).
+
+**Unchanged.** `plain` and `data-glass='opaque'`, `prefers-reduced-transparency`,
+`prefers-contrast: more` and a browser with no `backdrop-filter` all set the clear alpha to 100 %,
+the filter to none and the sheen to 0, so the pane is the same opaque surface as before. A browser
+without `color-mix` keeps an opaque first `background`.
+
+**Cost.** Every new text on a clear pane needs a chip, and the walker is what notices a forgotten
+one. The composer and the gallery's download bar wear it; the moderation toolbar stays on `.sheet`.

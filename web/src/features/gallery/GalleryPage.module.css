@@ -106,7 +106,7 @@
  * tint floor were designed for (roadmap 11.1).
  */
 .bar {
-  composes: sheet from '../../design-system/glass.module.css';
+  composes: clear from '../../design-system/glass.module.css';
   position: sticky;
   inset-block-end: var(--space-2);
   margin-block-start: auto;

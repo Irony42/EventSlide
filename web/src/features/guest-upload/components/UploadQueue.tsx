@@ -142,7 +142,7 @@ export function UploadQueue({
             )}
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               aria-expanded={detailsOpen}
               aria-controls={listId}
               onClick={() => setDetailsOpen((open) => !open)}

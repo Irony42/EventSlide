@@ -41,3 +41,13 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/**
+ * An unfolded caption field stands on a card of its own (clear glass: no text sits on the pane).
+ * No `display` here, so `hidden` still folds it away.
+ */
+.panel {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}

@@ -70,7 +70,7 @@
  * cannot land in by mistake.
  */
 .composer {
-  composes: sheet from '../../design-system/glass.module.css';
+  composes: clear from '../../design-system/glass.module.css';
   position: sticky;
   inset-block-end: var(--space-2);
   margin-block-start: auto;
@@ -116,10 +116,23 @@
  * screen: it is a confirmation of something the guest just did, not an instruction.
  */
 .missionNotice {
+  composes: chip from '../../design-system/glass.module.css';
+  align-self: center;
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   color: var(--text-secondary);
   text-align: center;
+}
+
+/**
+ * The privacy notice, while it stands in for the picker: on a clear pane no text sits on the pane
+ * itself, so the whole card is one opaque surface.
+ */
+.composer[data-gated] > [data-testid='privacy-notice'] {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  /* `background-color`: this paints the card inside the pane, not the pane (glass.material.test.ts). */
+  background-color: var(--surface-raised);
 }
 
 /**

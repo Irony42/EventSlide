@@ -62,3 +62,48 @@
    */
   box-shadow: var(--glass-shadow), var(--sheet-lift, var(--elevation-flat));
 }
+
+/**
+ * Clear glass — PROTOTYPE (ADR 0010, "Proposed amendment, not merged").
+ *
+ * The other half of the flip described in `tokens.css`: this pane is transparent, and text
+ * never sits on it. Whatever it holds that is not already a filled control wears `chip`.
+ *
+ * The tint is composed here and not in a token because `color-mix` has to see the surface
+ * colour of the element that wears it (an ambiance restates `--surface-raised` on a
+ * descendant of `:root`). The first `background` is the browser that has no `color-mix`:
+ * an opaque pane, which is what the tiers fall back to anyway.
+ */
+.clear {
+  background: var(--surface-raised);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, white var(--glass-clear-sheen), transparent),
+      transparent 70%
+    ),
+    color-mix(in oklab, var(--surface-raised) var(--glass-clear-alpha), transparent);
+  -webkit-backdrop-filter: var(--glass-clear-filter);
+  backdrop-filter: var(--glass-clear-filter);
+  border: 1px solid color-mix(in oklab, var(--text-primary) var(--glass-clear-edge), transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklab, white var(--glass-clear-lit), transparent),
+    inset 0 18px 22px -18px color-mix(in oklab, white var(--glass-clear-lit), transparent),
+    var(--shadow-lg),
+    var(--sheet-lift, var(--elevation-flat));
+}
+
+/**
+ * The surface a piece of text stands on when its pane is clear: opaque, so the bar is measured
+ * against `--surface-raised` and never against the backdrop. A small pill; it takes the width
+ * of its words and no more. Kept off controls, which already carry a fill of their own.
+ */
+.chip {
+  display: inline-block;
+  max-inline-size: 100%;
+  inline-size: fit-content;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+}

@@ -9,6 +9,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  /* A card of its own: on a clear pane no text sits on the pane itself. */
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
 }
 
 /* `display` above would win over the browser's own `[hidden]` rule, and a section that is
