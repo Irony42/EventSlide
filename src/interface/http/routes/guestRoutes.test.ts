@@ -1173,6 +1173,40 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     expect(response.headers['retry-after']).toBe('60')
   })
 
+  it('gives a second guest behind the same address a reaction budget of their own (review S1)', async () => {
+    // The per-guest figure is one and the address ceiling is the default 600: the first guest spends
+    // their tap, and a guest on the same address must still be able to react.
+    const subject = buildSubject({
+      config: {
+        rateLimits: {
+          uploadPerMinute: 12,
+          uploadPerIpPerMinute: 300,
+          joinPerMinute: 20,
+          loginPerMinute: 10,
+          reactionPerMinute: 1,
+          reactionPerIpPerMinute: 600,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
+          guestWritePerMinute: 300,
+        },
+      },
+    })
+    const other = subject.harness.issueGuestToken(WEDDING, OTHER_GUEST)
+    const react = (token: string, kind: string, photo = OTHERS_PUBLISHED) =>
+      request(subject.app)
+        .post(`${BASE}/photos/${photo}/reactions`)
+        .set('Cookie', cookie(token))
+        .send({ kind })
+
+    await react(subject.token, 'love').expect(204)
+    expect((await react(subject.token, 'clap')).status).toBe(429)
+
+    expect((await react(other, 'love', PUBLISHED)).status).toBe(204)
+  })
+
   it('answers 429 once the per-minute limit for this address and event is spent', async () => {
     // The coarse control, in front of the use case and apart from the guest's own budget:
     // the budget here is generous, so only the limiter can refuse the second tap. A phone
