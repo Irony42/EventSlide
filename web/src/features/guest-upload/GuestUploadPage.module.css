@@ -79,6 +79,10 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-lg);
+  /* Pinned, so it is a layer above the photographs scrolling under it: a lit rim, a shadow cast
+     upward and a fade of the ground over what is about to go beneath it (`--elevation-sheet`). The
+     material reads it; drawn outside the box, so the pane does not grow. */
+  --sheet-lift: var(--elevation-sheet);
 }
 
 /* A link, not a button: it navigates. Sized to the touch floor all the same. */
@@ -130,6 +134,19 @@
  */
 .composer[data-gated] {
   position: static;
+  --sheet-lift: var(--elevation-flat);
+}
+
+/**
+ * Forced colours remove every shadow and set every surface to the same Canvas, so the lift above
+ * is gone and the pane would be one more bordered box in the list. A pinned pane keeps a line of
+ * its own, drawn outside the box (an outline takes no room, so nothing moves); one in the flow is
+ * content again and does not.
+ */
+@media (forced-colors: active) {
+  .composer:not([data-gated]):not([data-oversized]) {
+    outline: var(--space-1) solid CanvasText;
+  }
 }
 
 /**
@@ -145,6 +162,7 @@
  */
 .composer[data-oversized] {
   position: static;
+  --sheet-lift: var(--elevation-flat);
 }
 
 /**

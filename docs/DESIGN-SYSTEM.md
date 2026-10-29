@@ -128,6 +128,23 @@ token exactly.
   --glass-highlight: oklch(97% 0.005 265 / 0.1);
   --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
 
+  /* ---- Sheet elevation. A pane pinned over content that scrolls under it reads as a layer
+         above it: a lit top rim, a shadow cast upward and a fade of the ground over what is
+         about to go beneath it, all outside the box so the pane does not grow. Worn only while
+         pinned (a consumer sets --sheet-lift to --elevation-sheet, and back to
+         --elevation-flat when the pane is in the flow). An ambiance restates --sheet-rim (all
+         of them) and --sheet-shade (the light ones, which ink instead of casting black).
+         --sheet-fade is a color-mix(), so on Safari before 16.2 the whole list is invalid and
+         the pane keeps the plain glass shadow: no elevation, nothing broken. The material
+         draws it as a second box-shadow layer, `var(--sheet-lift, var(--elevation-flat))`. ---- */
+  --sheet-rim: oklch(96% 0.022 85 / 0.45);
+  --sheet-shade: oklch(0% 0 0 / 0.75);
+  --sheet-fade: color-mix(in oklch, var(--surface-base) 85%, transparent);
+  --elevation-sheet:
+    0 -1px 0 0 var(--sheet-rim), 0 -8px 18px -4px var(--sheet-shade),
+    0 -32px 28px -14px var(--sheet-fade);
+  --elevation-flat: 0 0 0 0 transparent;
+
   /* ---- Motion ---- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* things entering */
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* things moving */

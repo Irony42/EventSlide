@@ -609,3 +609,65 @@ test('320x568, text at 200%: the summary line wraps, and nothing is wider than t
 
   await context.close()
 })
+
+/**
+ * The pinned pane is a layer above the guest's own photographs, and only while it is pinned.
+ *
+ * "On ne voit pas assez la différence entre le truc au premier plan et le reste": the pane's
+ * surface, border and radius are the list card's own, so what set it apart was a shadow that fell
+ * downward. A pinned pane now wears an elevation (`--elevation-sheet`: a lit rim, a shadow cast
+ * upward, a fade over what goes under it), drawn outside the box. The assertion is the computed
+ * `box-shadow`, not a pixel: it differs from the card's, and it is gone when the pane drops into
+ * the flow — which is content again, and must not look raised.
+ */
+test('375x667: a pinned pane is raised above the list under it, and is not once it is in the flow', async ({
+  app,
+  browser,
+}, testInfo) => {
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 667 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-raised-${testInfo.workerIndex}`)
+  const pane = page.getByTestId('upload-composer')
+  await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(true)
+
+  await page.getByTestId('photo-input').setInputFiles(await aPhoto('pane-raised-one', 800, 600))
+  await page.getByRole('button', { name: /^Envoyer/i }).click()
+  await expect(page.getByText(fr.upload.queueDone(1, 0))).toBeVisible()
+  const heading = page.getByRole('heading', { name: fr.upload.mine })
+  await expect(heading).toBeVisible()
+
+  const shadowOf = (target: Locator): Promise<string> =>
+    target.evaluate((element) => getComputedStyle(element).boxShadow)
+  // The card is the nearest ancestor of its own heading that draws a border.
+  const cardShadow = await heading.evaluate((element) => {
+    let node: Element | null = element
+    while (node !== null && getComputedStyle(node).borderTopWidth === '0px') {
+      node = node.parentElement
+    }
+    return node === null ? '' : getComputedStyle(node).boxShadow
+  })
+
+  expect((await pinnedShare(pane)).sticky).toBe(true)
+  const pinned = await shadowOf(pane)
+  expect(pinned, 'the pinned pane has an elevation of its own').not.toBe(cardShadow)
+  expect(pinned).not.toBe('none')
+  // The lift is cast upward, onto the rows passing under the pane: some layer is offset above it.
+  expect(pinned).toMatch(/\) 0px -\d+px \d+px/)
+
+  // Rows enough to tip it past the share the hook allows: it is in the flow, and flat again.
+  const more = await Promise.all([1, 2, 3, 4].map((n) => aPhoto(`pane-raised-${n}`, 800, 600)))
+  await page.getByTestId('photo-input').setInputFiles(more)
+  await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(false)
+  const flowing = await shadowOf(pane)
+  expect(flowing, 'a pane in the flow is not raised').not.toBe(pinned)
+  expect(flowing).not.toMatch(/\) 0px -\d+px \d+px/)
+
+  await context.close()
+})

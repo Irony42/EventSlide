@@ -350,3 +350,35 @@ describe('the glass budget switches the whole material off, every way it can be 
     expect(MATERIAL_RULES).toMatch(/\n\s*backdrop-filter:\s*var\(--glass-filter\)/)
   })
 })
+
+/**
+ * The sheet elevation (a pinned pane's lit rim, upward shadow and fade) is restated per ambiance,
+ * like the rest of the material's colours: a dark ambiance lights its rim and a light one inks it.
+ */
+describe('every ambiance carries the sheet elevation colours', () => {
+  const blocks = withoutComments(TOKENS)
+    .split('}')
+    .filter((block) => /--glass-highlight:/.test(block))
+
+  it('finds the root look and the ambiances, rather than sweeping nothing', () => {
+    expect(blocks.length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('gives each block that restates the glass highlight a rim of its own', () => {
+    expect(blocks.filter((block) => !/--sheet-rim:/.test(block))).toEqual([])
+  })
+
+  it('has a light ambiance cast its own ink instead of black', () => {
+    const light = blocks.filter((block) => {
+      const lightness = /--surface-base:\s*oklch\((\d+(?:\.\d+)?)%/.exec(block)?.[1]
+      return lightness !== undefined && Number(lightness) >= 60
+    })
+
+    expect(light.length).toBeGreaterThanOrEqual(2)
+    expect(light.filter((block) => !/--sheet-shade:/.test(block))).toEqual([])
+  })
+
+  it('is read by the material, which draws it as a layer of its own', () => {
+    expect(MATERIAL_RULES).toMatch(/var\(--sheet-lift,/)
+  })
+})
