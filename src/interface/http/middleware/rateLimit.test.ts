@@ -35,7 +35,6 @@ import {
   uploadGuestLimiter,
   uploadLimiter,
 } from './rateLimit'
-import { loadConfig } from '../../../infrastructure/config/env'
 import type { GuestPrincipal } from '../types'
 
 /** A logger nobody reads: these tests are about keying, never about what gets logged. */
@@ -359,15 +358,14 @@ describe('the guest key and the address ceiling of uploads and reactions', () =>
 
 describe('the join budget', () => {
   it('lets 200 requests a minute through from one address and refuses the 201st', async () => {
-    // The default, read from the configuration rather than restated: a venue behind one address
-    // sends two requests per guest (the lookup and the join) and 150 guests arrive within minutes.
-    const perMinute = loadConfig({ NODE_ENV: 'development' }).rateLimits.joinPerMinute
+    // The default budget (`env.test.ts` pins it to the same 200): a venue behind one address sends two
+    // requests per guest (the lookup and the join) and 150 guests arrive within minutes.
+    const perMinute = 200
     const app = behindOneProxy((subject) => {
       subject.post('/join', joinLimiter(perMinute), noContent)
     })
     const hit = () => request(app).post('/join').set('X-Forwarded-For', '203.0.113.7')
 
-    expect(perMinute).toBe(200)
     for (let i = 0; i < 200; i += 1) {
       expect((await hit()).status).toBe(204)
     }
