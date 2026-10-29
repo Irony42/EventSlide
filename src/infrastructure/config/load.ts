@@ -228,6 +228,11 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       defaultEventQuotaBytes: raw.DEFAULT_EVENT_QUOTA_BYTES,
       maxEventQuotaBytes: raw.MAX_EVENT_QUOTA_BYTES ?? null,
       maxConcurrentRequests: raw.MAX_CONCURRENT_UPLOAD_REQUESTS,
+      // Absent is one less than the box-wide ceiling, never below one: see the schema.
+      maxConcurrentRequestsPerEvent:
+        raw.MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT ??
+        Math.max(1, raw.MAX_CONCURRENT_UPLOAD_REQUESTS - 1),
+      bodyTimeoutMs: raw.UPLOAD_BODY_TIMEOUT_SECONDS * 1000,
     },
 
     clips: {

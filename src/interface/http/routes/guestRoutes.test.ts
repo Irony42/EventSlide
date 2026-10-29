@@ -364,12 +364,20 @@ describe('POST /api/events/:eventSlug/photos', () => {
   })
 
   it('answers 429 upload.busy once the shared upload concurrency cap is reached (G3-06)', async () => {
-    // The semaphore runs ahead of `requireGuest`, so a 401 below means "the slot was
-    // available"; what is under test here is only the cap itself, at a limit this test
-    // can actually reach. A route-level mutation (sharing this limiter with the clip
+    // The semaphore runs after `requireGuest`, so this request carries a valid token;
+    // what is under test here is only the cap itself, at a limit this test can
+    // actually reach. A route-level mutation (sharing this limiter with the clip
     // route) is covered at `server.ts` wiring level, not here.
     const subject = buildSubject({
-      config: { uploads: { maxBytes: 25_000_000, maxFiles: 20, maxConcurrentRequests: 0 } },
+      config: {
+        uploads: {
+          maxBytes: 25_000_000,
+          maxFiles: 20,
+          maxConcurrentRequests: 0,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
     })
 
     const response = await request(subject.app)
@@ -380,6 +388,30 @@ describe('POST /api/events/:eventSlug/photos', () => {
     expect(response.status).toBe(429)
     expect(response.body.error.code).toBe('upload.busy')
     expect(response.headers['retry-after']).toBe('2')
+  })
+
+  it('takes no upload slot for a request without a valid guest token, whatever the cap', async () => {
+    // Review S2: the slot used to be taken before `requireGuest`, so anyone, with no token
+    // at all, could hold one. With a cap of zero every request that reaches the semaphore is
+    // refused 429, so a 401 here proves the request never got that far.
+    const subject = buildSubject({
+      config: {
+        uploads: {
+          maxBytes: 25_000_000,
+          maxFiles: 20,
+          maxConcurrentRequests: 0,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
+    })
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos`)
+      .attach('photos', Buffer.from('first-bytes'), 'first.jpg')
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
   })
 
   it('hands the use case the received bytes, the resolved event and the guest author', async () => {
@@ -513,7 +545,15 @@ describe('POST /api/events/:eventSlug/photos', () => {
 
   it('answers 413 for a file over the configured byte limit', async () => {
     const subject = buildSubject({
-      config: { uploads: { maxBytes: 8, maxFiles: 20, maxConcurrentRequests: 1000 } },
+      config: {
+        uploads: {
+          maxBytes: 8,
+          maxFiles: 20,
+          maxConcurrentRequests: 1000,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
     })
 
     const response = await request(subject.app)
@@ -531,7 +571,15 @@ describe('POST /api/events/:eventSlug/photos', () => {
     // container given 1 GB. Both files here are well under `maxBytes`, which is exactly
     // why nothing refused them before.
     const subject = buildSubject({
-      config: { uploads: { maxBytes: 64, maxFiles: 20, maxConcurrentRequests: 1000 } },
+      config: {
+        uploads: {
+          maxBytes: 64,
+          maxFiles: 20,
+          maxConcurrentRequests: 1000,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
       maxUploadBytesPerRequest: 100,
     })
 
@@ -552,7 +600,15 @@ describe('POST /api/events/:eventSlug/photos', () => {
 
   it('accepts a batch that fills the per-request budget exactly, so the bound is a ceiling and not a fence', async () => {
     const subject = buildSubject({
-      config: { uploads: { maxBytes: 64, maxFiles: 20, maxConcurrentRequests: 1000 } },
+      config: {
+        uploads: {
+          maxBytes: 64,
+          maxFiles: 20,
+          maxConcurrentRequests: 1000,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
       maxUploadBytesPerRequest: 128,
     })
     subject.upload.succeedsWith(stored(0, PENDING), stored(1, PUBLISHED))
@@ -572,7 +628,15 @@ describe('POST /api/events/:eventSlug/photos', () => {
     // with itself: the guest refused at a size the same operator had just permitted,
     // with no way to send one photo at all.
     const subject = buildSubject({
-      config: { uploads: { maxBytes: 64, maxFiles: 20, maxConcurrentRequests: 1000 } },
+      config: {
+        uploads: {
+          maxBytes: 64,
+          maxFiles: 20,
+          maxConcurrentRequests: 1000,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
       maxUploadBytesPerRequest: 8,
     })
     subject.upload.succeedsWith(stored(0, PENDING))
@@ -587,7 +651,15 @@ describe('POST /api/events/:eventSlug/photos', () => {
 
   it('answers 400 for more files than the deployment allows in one request', async () => {
     const subject = buildSubject({
-      config: { uploads: { maxBytes: 25_000_000, maxFiles: 1, maxConcurrentRequests: 1000 } },
+      config: {
+        uploads: {
+          maxBytes: 25_000_000,
+          maxFiles: 1,
+          maxConcurrentRequests: 1000,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
     })
 
     const response = await request(subject.app)
@@ -741,7 +813,13 @@ describe('POST /api/events/:slug/photos: the two rate stages (review S1)', () =>
     const subject = buildSubject({
       config: {
         ...limits(1, 300),
-        uploads: { maxBytes: 64, maxFiles: 20, maxConcurrentRequests: 1000 },
+        uploads: {
+          maxBytes: 64,
+          maxFiles: 20,
+          maxConcurrentRequests: 1000,
+          maxConcurrentRequestsPerEvent: 1000,
+          bodyTimeoutMs: 600_000,
+        },
       },
       maxUploadBytesPerRequest: 100,
     })
