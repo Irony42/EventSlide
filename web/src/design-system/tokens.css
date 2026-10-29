@@ -245,10 +245,10 @@
          and casts black, a light one inks the rim and casts its own ink. ---- */
   --sheet-rim: oklch(96% 0.022 85 / 0.45);
   --sheet-shade: oklch(0% 0 0 / 0.75);
-  --sheet-fade: color-mix(in oklch, var(--surface-base) 96%, transparent);
+  --sheet-fade: color-mix(in oklch, var(--surface-base) 85%, transparent);
   --elevation-sheet:
     0 -1px 0 0 var(--sheet-rim), 0 -8px 18px -4px var(--sheet-shade),
-    0 -36px 32px -14px var(--sheet-fade);
+    0 -32px 28px -14px var(--sheet-fade);
   /* The same shadow list with nothing in it: a layer that is off must still be a valid one. */
   --elevation-flat: 0 0 0 0 transparent;
 
