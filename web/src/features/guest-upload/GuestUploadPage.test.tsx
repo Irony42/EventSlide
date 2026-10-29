@@ -362,9 +362,16 @@ describe('GuestUploadPage', () => {
     expect(revoke).toHaveBeenCalledWith(preview)
   })
 
-  it('offers a caption when the host allows one', () => {
+  it('offers a caption when the host allows one, as a button that unfolds the field', async () => {
     havingJoined({ allowCaptions: true })
     renderUpload(fakeApi(withPhotos()))
+
+    // On screen from the start, and the field is not: it took a row of the pane before a guest
+    // had picked anything.
+    expect(screen.getByRole('button', { name: fr.upload.captionLabel })).toBeVisible()
+    expect(screen.getByLabelText(/Légende/)).not.toBeVisible()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.captionLabel }))
 
     expect(screen.getByLabelText(/Légende/)).toBeVisible()
   })
@@ -375,6 +382,7 @@ describe('GuestUploadPage', () => {
     renderUpload(fakeApi(withPhotos()))
 
     expect(screen.queryByLabelText(/Légende/)).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.upload.captionLabel })).toBeNull()
   })
 
   it('sends the batch caption with the photos', async () => {
@@ -386,6 +394,7 @@ describe('GuestUploadPage', () => {
     renderUpload(api)
 
     await pickPhotos(aPhotoFile('confettis.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.captionLabel }))
     await userEvent.type(screen.getByLabelText(/Légende/), 'Les confettis')
     await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
 
@@ -533,6 +542,20 @@ describe('sending a video', () => {
     renderUpload(fakeApi())
 
     expect(screen.queryByLabelText(fr.upload.addClip)).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.upload.clipSection })).toBeNull()
+  })
+
+  it('offers video as a button that unfolds the pickers, not as two pickers always on screen', async () => {
+    havingJoined({ allowClips: true })
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('button', { name: fr.upload.clipSection })).toBeVisible()
+    // The input is transparent over its label, so what is on screen is the label's words.
+    expect(screen.getByText(fr.upload.addClip)).not.toBeVisible()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSection }))
+
+    expect(screen.getByText(fr.upload.addClip)).toBeVisible()
   })
 
   it('lets the guest watch back the video they sent, and says how long it is', async () => {
@@ -557,12 +580,15 @@ describe('sending a video', () => {
     expect(screen.getByText(fr.moderation.videoLength(8))).toBeVisible()
   })
 
-  it('says what the limits are before the picker is opened', () => {
+  it('says what the limits are before the picker is opened', async () => {
     havingJoined({ allowClips: true, maxClipBytes: 80_000_000, maxClipSeconds: 15 })
     renderUpload(fakeApi())
 
+    // Unfolding the section is what brings the numbers on screen, and the guest does that
+    // before the picker, so they are read before anything is chosen.
     // The numbers come from the event, not from this bundle: a guest who reads them
     // films a shorter sequence instead of losing four minutes to a refusal.
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSection }))
     expect(screen.getByText(fr.upload.clipHint(15, 80))).toBeVisible()
   })
 

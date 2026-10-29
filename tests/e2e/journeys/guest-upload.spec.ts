@@ -1,5 +1,5 @@
 import { expect, test, wallUrl } from '../fixtures/app'
-import { passPrivacyNotice } from '../fixtures/guest'
+import { passPrivacyNotice, writeCaption } from '../fixtures/guest'
 import { jpegWithOrientation, theSamePhotoTwice } from '../fixtures/media'
 
 /**
@@ -36,7 +36,7 @@ test('a photo from a phone reaches the wall once the host approves it @smoke', a
 
   // Orientation 6: the stored pixels are landscape, the correct rendering is portrait.
   await guest.getByTestId('photo-input').setInputFiles(await jpegWithOrientation(6))
-  await guest.getByLabel(/Légende/i).fill('Les confettis')
+  await writeCaption(guest, 'Les confettis')
   await guest.getByRole('button', { name: /Envoyer/i }).click()
   await expect(guest.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done')
 
