@@ -68,8 +68,8 @@ before upgrading". There is no migration, no new environment variable and nothin
 
 - **A seventh layout, `clothesline`** (#254): up to five prints hung on a twine by wooden pins, each
   cropped to a print's 4:5 window and captioned on its mat, the newest a little larger. A video clip
-  shows its poster, as in the polaroid layout. `?layout=clothesline` selects it, and without
-  `?layout=` an event on the Guinguette opens on it (`docs/API.md`).
+  shows its poster, as in the polaroid layout. `?layout=clothesline` or the `L` key selects it;
+  no ambiance makes it the default, so a wall opens on the layout its host chose (`docs/API.md`).
 - **Every ambiance paints a ground of its own on the wall** (#254), under a legibility grade that a
   test measures against the shipped photograph.
 
