@@ -59,7 +59,7 @@ describe('a guest on the narrowest phone, or with large text', () => {
   )
 
   it('lets the badge of a field label drop under a long label instead of past the screen', () => {
-    expect(declarationsOf(FIELD_CSS, '.label')).toMatch(/flex-wrap:s*wrap/)
+    expect(declarationsOf(FIELD_CSS, '.label')).toMatch(/flex-wrap:\s*wrap/)
   })
 
   it('lets a row of the queue wrap its thumbnail, name and controls', () => {
