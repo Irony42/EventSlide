@@ -234,6 +234,9 @@ html::before {
  *   would dress the moderation console in its strips.
  *
  * Nothing here moves, so there is nothing for `prefers-reduced-motion` to stop.
+ *
+ * Sur mesure (ADR 0011, `data-event-ambiance='custom'`) is deliberately in neither list: it has no
+ * ornaments, so its pages wear no strip at all.
  */
 :is(
     body:not(:has([data-event-ambiance]:not([data-template-preview]))),

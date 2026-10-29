@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventSettingsPage } from './EventSettingsPage'
 import { toLocalInput } from './eventSchedule'
+import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -902,5 +903,29 @@ describe('EventSettingsPage', () => {
       await screen.findByText(fr.admin.venuePhoto)
       expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
     })
+  })
+
+  it('offers the editor of the host’s own ambiance, worded by whether one exists, and not to a moderator', async () => {
+    const custom = {
+      ...DEFAULT_EVENT_THEME,
+      ambiance: 'custom' as const,
+      custom: { ground: 'dark' as const, groundHue: 200, faces: 'riviera' as const },
+    }
+    const first = renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }))
+    const create = await screen.findByRole('link', { name: fr.admin.customAmbianceCreate })
+    expect(create).toHaveAttribute('href', '/admin/events/camille-et-sacha/settings/ambiance')
+    first.unmount()
+
+    const second = renderPage(
+      fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ theme: custom }) })),
+      }),
+    )
+    expect(await screen.findByRole('link', { name: fr.admin.customAmbianceEdit })).toBeVisible()
+    second.unmount()
+
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) }))
+    await screen.findByRole('heading', { name: fr.admin.settings })
+    expect(screen.queryByRole('link', { name: fr.admin.customAmbianceCreate })).toBeNull()
   })
 })

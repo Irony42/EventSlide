@@ -2,8 +2,11 @@ import type { CSSProperties } from 'react'
 import type {
   EventThemeDto,
   ThemeAmbiance,
+  ThemeCustom,
+  ThemeFaces,
   ThemeFonts,
   ThemeFrame,
+  ThemeGround,
   ThemeMaterial,
 } from '../lib/api/dto'
 import { glassMaterialProps, type GlassMaterialProps } from './glass'
@@ -98,7 +101,17 @@ export const THEME_AMBIANCES: readonly ThemeAmbiance[] = [
   'bivouac',
   'cabaret',
   'noces',
+  'custom',
 ]
+export const THEME_FACES: readonly ThemeFaces[] = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+]
+export const THEME_GROUNDS: readonly ThemeGround[] = ['light', 'dark']
 
 /**
  * The only shape a venue photograph's URL may have: a path under this origin that names a
@@ -144,6 +157,36 @@ export const venueGroundProps = (
   }
 }
 
+export const isThemeFaces = (value: unknown): value is ThemeFaces =>
+  typeof value === 'string' && (THEME_FACES as readonly string[]).includes(value)
+
+export const isThemeGround = (value: unknown): value is ThemeGround =>
+  typeof value === 'string' && (THEME_GROUNDS as readonly string[]).includes(value)
+
+/**
+ * What a custom ambiance carries (ADR 0011): the polarity and the faces to borrow as attributes
+ * `tokens.css` selects on, and the ground's tint as an inline **angle**, the one kind of custom
+ * property JavaScript may set (`--accent-hue`'s sibling). `null` for any other ambiance or while
+ * the object is missing: a theme that says `custom` without it is shown as the product's own.
+ */
+export interface CustomGroundProps {
+  readonly style: CSSProperties & { readonly '--ground-hue': string }
+  readonly 'data-ambiance-ground': ThemeGround
+  readonly 'data-ambiance-faces': ThemeFaces
+}
+
+export const customGroundProps = (
+  ambiance: ThemeAmbiance | null | undefined,
+  custom: ThemeCustom | null | undefined,
+): CustomGroundProps | null => {
+  if (ambiance !== 'custom' || custom === null || custom === undefined) return null
+  return {
+    style: { '--ground-hue': `${custom.groundHue}deg` },
+    'data-ambiance-ground': custom.ground,
+    'data-ambiance-faces': custom.faces,
+  }
+}
+
 export const isThemeFonts = (value: string): value is ThemeFonts =>
   (THEME_FONTS as readonly string[]).includes(value)
 
@@ -162,6 +205,7 @@ export const accentNameFor = (hue: number): CuratedAccent | null =>
 
 type AccentStyle = CSSProperties & {
   readonly '--accent-hue'?: string
+  readonly '--ground-hue'?: string
   readonly '--ambiance-ground'?: string
 }
 
@@ -192,6 +236,9 @@ export interface ThemeSurfaceProps extends GlassMaterialProps {
   readonly 'data-event-frame'?: EventThemeDto['frame']
   /** The ambiance block `tokens.css` selects. Absent for the product's own, `guinguette`. */
   readonly 'data-event-ambiance'?: EventThemeDto['ambiance']
+  /** A custom ambiance's polarity and borrowed faces; see {@link customGroundProps}. */
+  readonly 'data-ambiance-ground'?: ThemeGround
+  readonly 'data-ambiance-faces'?: ThemeFaces
   /** Present when the host's own photograph is the ground; see {@link venueGroundProps}. */
   readonly 'data-venue-ground'?: ThemedSurface
 }
@@ -240,12 +287,19 @@ export const themeSurfaceProps = (
   // Merged with the accent's style rather than beside it: both are inline custom properties on
   // the one element, and a second `style` key would silently replace the first.
   const venue = venueGroundProps(theme, surface)
+  const custom = customGroundProps(theme.ambiance, theme.custom)
   const ground: ThemeSurfaceProps =
-    venue === null
+    venue === null && custom === null
       ? {}
       : {
-          style: { ...accent.style, ...venue.style },
-          'data-venue-ground': venue['data-venue-ground'],
+          style: { ...accent.style, ...custom?.style, ...venue?.style },
+          ...(venue === null ? {} : { 'data-venue-ground': venue['data-venue-ground'] }),
+          ...(custom === null
+            ? {}
+            : {
+                'data-ambiance-ground': custom['data-ambiance-ground'],
+                'data-ambiance-faces': custom['data-ambiance-faces'],
+              }),
         }
 
   if (surface === 'guest') return { ...accent, ...material, ...ambiance, ...ground }
@@ -294,6 +348,26 @@ const readThemeAmbiance = (value: unknown): ThemeAmbiance | null => {
 }
 
 /**
+ * The host's own ambiance (ADR 0011), read against the ambiance it belongs to. `undefined` is
+ * "none"; an object that is present but malformed is `null`, like any other present-and-wrong
+ * value; one sent with an ambiance that does not wear it is dropped rather than worn.
+ */
+const readThemeCustom = (
+  value: unknown,
+  ambiance: ThemeAmbiance,
+): ThemeCustom | null | undefined => {
+  if (ambiance !== 'custom') return undefined
+  if (typeof value !== 'object' || value === null) return null
+  const ground: unknown = Reflect.get(value, 'ground')
+  const groundHue: unknown = Reflect.get(value, 'groundHue')
+  const faces: unknown = Reflect.get(value, 'faces')
+  if (!isThemeGround(ground) || !isThemeFaces(faces)) return null
+  if (typeof groundHue !== 'number' || !Number.isInteger(groundHue)) return null
+  if (groundHue < 0 || groundHue > 359) return null
+  return { ground, groundHue, faces }
+}
+
+/**
  * Narrows a theme off the wire, or off a `sessionStorage` entry an older build wrote.
  *
  * `null` means "render the product's own look", which is also what the server sends for
@@ -322,8 +396,17 @@ export const readEventTheme = (value: unknown): EventThemeDto | null => {
   // Present only when it is a path this product mints. Anything else is the bundled ground,
   // never a refusal: a photograph is a decoration, and a stored entry that carried an odd one
   // must not send a guest back to the join screen mid-evening.
+  const custom = readThemeCustom(Reflect.get(value, 'custom'), ambiance)
+  if (custom === null) return null
+
   const groundUrl: unknown = Reflect.get(value, 'groundUrl')
-  return isVenueGroundUrl(groundUrl)
-    ? { accentHue: hue, fonts, frame, material, ambiance, groundUrl }
-    : { accentHue: hue, fonts, frame, material, ambiance }
+  return {
+    accentHue: hue,
+    fonts,
+    frame,
+    material,
+    ambiance,
+    ...(custom === undefined ? {} : { custom }),
+    ...(isVenueGroundUrl(groundUrl) ? { groundUrl } : {}),
+  }
 }

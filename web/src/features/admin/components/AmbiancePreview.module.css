@@ -1,0 +1,97 @@
+/**
+ * The frames. Every colour, face and corner below resolves through the attributes the theme
+ * puts on the frame itself (`AmbiancePreview.tsx`); nothing here chooses one.
+ */
+.previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* A phone: about 360 by 640 CSS pixels, in rem. */
+.phone {
+  position: relative;
+  overflow: hidden;
+  inline-size: 22.5rem;
+  max-inline-size: 100%;
+  block-size: 40rem;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background:
+    var(--venue-scrim-layer, linear-gradient(transparent, transparent)),
+    var(--ambiance-grade),
+    var(--ambiance-ground) center / cover no-repeat,
+    var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  user-select: none;
+  pointer-events: none;
+}
+
+.guestPage {
+  composes: page from '../../guest-upload/GuestUploadPage.module.css';
+}
+
+.guestHeader {
+  composes: header from '../../guest-upload/GuestUploadPage.module.css';
+}
+
+.guestTitle {
+  composes: title from '../../guest-upload/GuestUploadPage.module.css';
+}
+
+.guestIntro {
+  composes: intro from '../../guest-upload/GuestUploadPage.module.css';
+}
+
+.guestSignature {
+  composes: signature from '../../guest-upload/GuestUploadPage.module.css';
+}
+
+.composer {
+  composes: composer from '../../guest-upload/GuestUploadPage.module.css';
+}
+
+/* The wall: a 16:9 window onto a stage drawn at the projector's own size. */
+.wallFrame {
+  position: relative;
+  overflow: hidden;
+  inline-size: 40rem;
+  max-inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  user-select: none;
+}
+
+.wallStage {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  overflow: hidden;
+  inline-size: 120rem;
+  block-size: 67.5rem;
+  transform: scale(var(--preview-scale, 0.3));
+  transform-origin: top left;
+  background: var(--wall-ground);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  /* What WallPage reserves for the join card, so a caption lays out beside it. */
+  --wall-chrome-inline-end: calc(var(--wall-join-card) + var(--space-6));
+}

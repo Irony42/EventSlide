@@ -12,8 +12,10 @@ import type { EventLanguage } from '../../../domain/events/eventLanguage'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type {
   ThemeAmbiance,
+  ThemeFaces,
   ThemeFonts,
   ThemeFrame,
+  ThemeGround,
   ThemeMaterial,
 } from '../../../domain/events/eventTheme'
 import type { EventRole } from '../../../domain/events/eventRole'
@@ -78,12 +80,25 @@ export interface EventThemeDto {
   /** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
   readonly ambiance: ThemeAmbiance
   /**
+   * The host's own ambiance (ADR 0011), present only when `ambiance` is `custom`: absent from the
+   * wire otherwise, never `null`.
+   */
+  readonly custom?: ThemeCustomDto
+  /**
    * Where the host's own photograph of their venue is served, replacing the ambiance's bundled
    * ground; `null` when they have not uploaded one, when the ambiance paints no photograph, and
    * on the shared gallery. A path on this origin that names the photograph's digest, so it
    * changes when the photograph does.
    */
   readonly groundUrl: string | null
+}
+
+/** The host's own ambiance as it travels (ADR 0011): two angles' worth of freedom and borrowed faces. */
+export interface ThemeCustomDto {
+  readonly ground: ThemeGround
+  /** Degrees on the oklch hue circle, 0-359. */
+  readonly groundHue: number
+  readonly faces: ThemeFaces
 }
 
 export interface PublicEventDto {

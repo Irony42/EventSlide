@@ -64,6 +64,25 @@ describe('every field of the wall response is accounted for', () => {
     expect(sameSettings(withPhoto, kept)).toBe(false)
   })
 
+  it.each([
+    ['ground', { ground: 'light', groundHue: 40, faces: 'noces' }],
+    ['groundHue', { ground: 'dark', groundHue: 41, faces: 'noces' }],
+    ['faces', { ground: 'dark', groundHue: 40, faces: 'cabaret' }],
+  ] as const)('notices a change to theme.custom.%s', (_key, moved) => {
+    // `custom` is not a key of DEFAULT_EVENT_THEME, so the sweep below cannot see it.
+    const base = { ground: 'dark', groundHue: 40, faces: 'noces' } as const
+    const themed = (custom: typeof base | typeof moved): EventThemeDto => ({
+      ...DEFAULT_EVENT_THEME,
+      ambiance: 'custom',
+      custom,
+    })
+    const kept = { ...aWallResponse(), theme: themed(base) }
+    const changed = { ...aWallResponse(), theme: themed(moved) }
+
+    expect(sameSettings(kept, changed)).toBe(false)
+    expect(sameSettings(kept, { ...aWallResponse(), theme: themed(base) })).toBe(true)
+  })
+
   it.each(Object.keys(DEFAULT_EVENT_THEME))('notices a change to theme.%s', (key) => {
     const kept = aWallResponse()
     const theme: Record<string, unknown> = { ...DEFAULT_EVENT_THEME }

@@ -241,6 +241,15 @@ export const eventRoutes = ({
                   frame: body.theme.frame,
                   material: body.theme.material,
                   ambiance: body.theme.ambiance,
+                  ...(body.theme.custom === undefined
+                    ? {}
+                    : {
+                        custom: {
+                          ground: body.theme.custom.ground,
+                          groundHue: body.theme.custom.groundHue,
+                          faces: body.theme.custom.faces,
+                        },
+                      }),
                 },
               }),
           ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),

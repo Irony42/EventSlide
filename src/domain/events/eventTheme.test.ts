@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { contrastRatio } from './contrast'
 import {
+  accentContrastFailure,
   accentFailure,
   accentHueRange,
   accentPalette,
@@ -12,6 +13,10 @@ import {
   isThemeMaterial,
   currentAmbianceName,
   isThemeAmbiance,
+  isThemeFaces,
+  isThemeGround,
+  THEME_FACES,
+  THEME_GROUNDS,
   THEME_AMBIANCES,
   restoreEventTheme,
   THEME_FONTS,
@@ -310,6 +315,7 @@ describe('the ambiance an event wears (ADR 0010)', () => {
       'bivouac',
       'cabaret',
       'noces',
+      'custom',
     ])
     expect(isThemeAmbiance('darkroom')).toBe(false)
   })
@@ -407,5 +413,111 @@ describe('a stored theme this product did not write', () => {
   it('still refuses the same value from a host who is choosing it', () => {
     // The asymmetry is the point: lenient on read, strict on write.
     expect(createEventTheme({ ...DEFAULT_EVENT_THEME, accentHue: 400 }).ok).toBe(false)
+  })
+})
+
+describe('the host’s own ambiance, « Sur mesure » (ADR 0011)', () => {
+  const custom = { ground: 'dark', groundHue: 40, faces: 'cabaret' } as const
+  const theme = (patch: Partial<EventThemeProps> = {}): EventThemeProps =>
+    aTheme({ ambiance: 'custom', custom, ...patch })
+
+  it('is the last of the vocabulary, after the six designed worlds', () => {
+    expect(THEME_AMBIANCES.at(-1)).toBe('custom')
+  })
+
+  it('lets only a designed ambiance lend its faces, never custom itself', () => {
+    expect(THEME_FACES).not.toContain('custom')
+    expect(THEME_FACES).toHaveLength(THEME_AMBIANCES.length - 1)
+    expect(isThemeFaces('noces')).toBe(true)
+    expect(isThemeFaces('custom')).toBe(false)
+    expect(isThemeFaces(3)).toBe(false)
+  })
+
+  it('knows its two polarities', () => {
+    expect([...THEME_GROUNDS]).toEqual(['light', 'dark'])
+    expect(isThemeGround('light')).toBe(true)
+    expect(isThemeGround('grey')).toBe(false)
+    expect(isThemeGround(undefined)).toBe(false)
+  })
+
+  it('accepts the custom ambiance with its object, at both ends of the hue circle', () => {
+    expect(createEventTheme(theme()).ok).toBe(true)
+    expect(
+      createEventTheme(theme({ custom: { ...custom, ground: 'light', groundHue: 0 } })).ok,
+    ).toBe(true)
+    expect(createEventTheme(theme({ custom: { ...custom, groundHue: 359 } })).ok).toBe(true)
+  })
+
+  it('requires the object when the ambiance is custom', () => {
+    const { custom: _dropped, ...without } = theme()
+    const result = createEventTheme(without)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('eventTheme.customRequired')
+  })
+
+  it('refuses the object when the ambiance is any other', () => {
+    const result = createEventTheme(aTheme({ ambiance: 'noces', custom }))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('eventTheme.customNotAllowed')
+  })
+
+  it.each([
+    ['a ground hue off the circle', { ...custom, groundHue: 360 }],
+    ['a fractional ground hue', { ...custom, groundHue: 10.5 }],
+    ['a negative ground hue', { ...custom, groundHue: -1 }],
+    ['an unknown polarity', { ...custom, ground: 'grey' }],
+    ['custom borrowing custom', { ...custom, faces: 'custom' }],
+  ])('refuses %s', (_name, bad) => {
+    const result = createEventTheme(theme({ custom: bad as never }))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('eventTheme.customInvalid')
+  })
+
+  it.each(['dark', 'light'] as const)(
+    'accepts every accent hue on a custom %s ground: the status distance does not apply (ADR 0011, decision 8)',
+    (ground) => {
+      for (let hue = 0; hue <= 359; hue += 1) {
+        const result = createEventTheme(theme({ accentHue: hue, custom: { ...custom, ground } }))
+        expect(result.ok, `hue ${hue}`).toBe(true)
+      }
+    },
+  )
+
+  it.each([
+    ['red', 22],
+    ['green', 155],
+    ['yellow', 85],
+  ])('refuses %s for a designed ambiance, the full rule being unchanged there', (_name, hue) => {
+    for (const ambiance of ['guinguette', 'noces', 'cabaret'] as const) {
+      const result = createEventTheme(aTheme({ ambiance, accentHue: hue }))
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.code).toBe('eventTheme.accentTooCloseToStatus')
+    }
+  })
+
+  it('still refuses an accent hue off the circle on a custom ambiance', () => {
+    const result = createEventTheme(theme({ accentHue: 360 }))
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('eventTheme.accentHueInvalid')
+  })
+
+  it('still holds a custom accent to the contrast bars', () => {
+    expect(accentContrastFailure(aPalette({ ink: { l: 0.7, c: 0.02, h: 22 } }))?.code).toBe(
+      'eventTheme.accentUnreadable',
+    )
+    expect(accentContrastFailure(accentPalette(22))).toBeNull()
+  })
+
+  it('renders the default rather than reading a stored pairing that is wrong', () => {
+    const { custom: _dropped, ...without } = theme()
+
+    expect(restoreEventTheme(theme())).toEqual({ ok: true, value: theme() })
+    expect(restoreEventTheme(without)).toEqual({ ok: true, value: DEFAULT_EVENT_THEME })
+    expect(restoreEventTheme(aTheme({ custom }))).toEqual({ ok: true, value: DEFAULT_EVENT_THEME })
   })
 })

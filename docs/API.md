@@ -941,6 +941,9 @@ which is allowed.
 Only what a guest may know before joining. The owner, the quota, the counts and the
 settings that are none of their business are absent.
 
+`theme.custom` (`{ground, groundHue, faces}`, ADR 0011) is present only when `theme.ambiance` is
+`custom`, and absent otherwise.
+
 `theme.groundUrl` is the host's own photograph of the venue (§7, `PUT /venue-photo`): a path on this
 origin naming the photograph's digest, or `null` for the ambiance's bundled ground, and always `null`
 on the shared gallery. A client takes it only if it matches
@@ -2824,18 +2827,18 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 }
 ```
 
-| Field                         | Accepted                                                                                                                                                                                            |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `moderation`                  | `manual` \| `auto`                                                                                                                                                                                  |
-| `allowCaptions`               | boolean                                                                                                                                                                                             |
-| `allowReactions`              | boolean                                                                                                                                                                                             |
-| `allowClips`                  | boolean — see below                                                                                                                                                                                 |
-| `allowGuestSelfDelete`        | boolean                                                                                                                                                                                             |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                                                                                                                                                                                    |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"                                                                                                                                                               |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                            |
-| `theme`                       | object — all five keys required, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`) |
-| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                    |
+| Field                         | Accepted                                                                                                                                                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `moderation`                  | `manual` \| `auto`                                                                                                                                                                                                                               |
+| `allowCaptions`               | boolean                                                                                                                                                                                                                                          |
+| `allowReactions`              | boolean                                                                                                                                                                                                                                          |
+| `allowClips`                  | boolean — see below                                                                                                                                                                                                                              |
+| `allowGuestSelfDelete`        | boolean                                                                                                                                                                                                                                          |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                                                                                                                                                                                                                                 |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"                                                                                                                                                                                                            |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                                                                         |
+| `theme`                       | object — all five keys required, plus `custom` when the ambiance is `custom`, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`) |
+| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                                                                 |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
 **refused** where creation reduces — shortening what a host just typed would tell them they got
@@ -2908,6 +2911,26 @@ is for an absent `material` to mean something, the only sane meaning is `glass`,
 who chose `plain` would then have it silently undone by a stale tab saving an unrelated
 checkbox. A refusal a reload fixes beats a choice quietly reverted.
 
+`ambiance` (ADR 0010) is one of `guinguette | riviera | champs | bivouac | cabaret | noces | custom`,
+and, like the other keys, is required (a request without it is `400 request.invalid`).
+
+**`custom`, « Sur mesure » (ADR 0011).** `ambiance: "custom"` carries a sixth key, an object:
+
+```
+"custom": { "ground": "light" | "dark", "groundHue": 0..359,
+            "faces": "guinguette" | "riviera" | "champs" | "bivouac" | "cabaret" | "noces" }
+```
+
+It is **required when `ambiance` is `custom` and refused otherwise**: `400 eventTheme.customRequired`
+for the first, `400 eventTheme.customNotAllowed {ambiance}` for the second, and
+`400 eventTheme.customInvalid {min, max}` for a polarity, hue or faces the domain does not know.
+The object is a strict one: an unknown key, a non-integer or out-of-range hue and `faces: "custom"`
+are `400 request.invalid`. `groundHue` is an angle like `accentHue`; no colour crosses the wire,
+and no legibility is judged here (every ground hue is proven by a test sweep, so the accent rule
+below is the only one that applies). `GET` answers `theme.custom` only when the ambiance is
+`custom`; otherwise the key is **absent**, never `null`. Switching to another ambiance means
+sending the theme without `custom`.
+
 `accentHue` is a **hue angle**, not a colour: the lightness and chroma are the design
 system's and cannot be moved, which is the whole reason a host cannot make the wall
 unreadable. No colour is ever sent or received by this API.
@@ -2954,7 +2977,8 @@ before a change learns of it on the next read.
 **200** with the event. **Errors** — `409 event.immutable`,
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,
 `400 eventSettings.maxPhotosPerGuestInvalid`, `400 eventTheme.accentHueInvalid`,
-`400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus`.
+`400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus` (never for `ambiance: "custom"`, ADR 0011 decision 8),
+`400 eventTheme.customRequired`, `400 eventTheme.customNotAllowed`, `400 eventTheme.customInvalid`.
 
 There is no per-event wall `layout` here, and no API accepts one anywhere: the layout is
 chosen at the screen — `?layout=` on the display URL, or the host's `L` key — and

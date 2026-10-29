@@ -464,7 +464,7 @@ export const es: UiText = {
     'eventTheme.accentUnreadable':
       'Ese color no sería legible en la pantalla de la sala. Elija uno de la lista.',
     'eventTheme.accentTooCloseToStatus':
-      'Ese color se parece demasiado a los colores de estado de la aplicación. Elija otro.',
+      'Ese color se parece demasiado a los colores de estado de la aplicación. Elija otro matiz.',
     'gallery.notAvailable': 'Este enlace ya no está disponible.',
     'gallery.passwordRequired': 'Este álbum está protegido con contraseña.',
     'gallery.wrongPassword': 'Contraseña incorrecta.',
@@ -752,6 +752,7 @@ export const es: UiText = {
       bivouac: 'Vivac',
       cabaret: 'Cabaret',
       noces: 'Boda',
+      custom: 'A medida',
     },
 
     template: 'Tipo de evento',
@@ -967,6 +968,34 @@ export const es: UiText = {
     venuePhotoBusy: 'Enviando la foto…',
     venuePhotoSaved: 'La foto de su local está guardada.',
     venuePhotoRemoved: 'Se ha restablecido la foto por defecto.',
+    customAmbianceCreate: 'Crear mi ambiente (A medida)',
+    customAmbianceEdit: 'Modificar mi ambiente',
+    customAmbianceEntryHint:
+      'Su propio fondo, claro u oscuro, con el matiz que prefiera: lo ve en pantallas reales antes de guardar.',
+    customAmbianceTitle: 'Su ambiente a medida',
+    customAmbianceCrumb: 'A medida',
+    customAmbianceIntro:
+      'Elija un fondo claro u oscuro, su matiz, su color de acento y una tipografía. Las vistas previas muestran las pantallas reales con su elección, y no se guarda nada hasta pulsar «Guardar».',
+    customGround: 'Fondo',
+    customGroundNames: { light: 'Claro', dark: 'Oscuro' },
+    customGroundHue: 'Matiz del fondo',
+    customGroundHueHint:
+      'De 0° a 359°: usted solo elige el matiz; la luminosidad es fija para que todo siga siendo legible.',
+    customAccentHue: 'Color de acento',
+    customAccentHueHint:
+      'Se permite cualquier matiz, incluso los que recuerdan al verde, el amarillo o el rojo de la aplicación: el texto del botón sigue siendo legible en todos, y una alerta siempre lleva un icono y una palabra.',
+    customFaces: 'Tipografía',
+    customFacesHint:
+      'Las fuentes y las esquinas de los botones de uno de los seis ambientes, cada uno mostrado con su propia fuente.',
+    customPreview: 'Vista previa',
+    customPreviewHint:
+      'Una ilustración de lo que verán sus invitados y la sala, con fotos de ejemplo.',
+    customPreviewPhone: 'Pantalla de sus invitados',
+    customPreviewWall: 'Pantalla de la sala',
+    customPreviewCaption: '¡Qué noche tan bonita!',
+    customPreviewAuthor: 'Lea',
+    customKept: 'Su elección se conserva tal como la dejó: modifíquela y guarde de nuevo.',
+    customSaved: 'Su ambiente está guardado.',
   },
 
   auth: {
@@ -1492,6 +1521,7 @@ export const es: UiText = {
     moderation: 'Moderación',
     mobileModeration: 'Moderación en el teléfono',
     settings: 'Ajustes del evento',
+    customAmbiance: 'Ambiente a medida',
     clientSpace: 'Espacio de cliente',
     site: 'Consola del operador',
     siteClient: 'Cliente',

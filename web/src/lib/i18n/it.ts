@@ -476,7 +476,7 @@ export const it: UiText = {
     'eventTheme.accentUnreadable':
       'Questo colore non sarebbe leggibile sullo schermo in sala. Scegline uno dall’elenco.',
     'eventTheme.accentTooCloseToStatus':
-      'Questo colore somiglia troppo ai colori di stato dell’applicazione. Scegline un altro.',
+      'Questo colore somiglia troppo ai colori di stato dell’applicazione. Scegli un’altra tinta.',
     'gallery.notAvailable': 'Questo link non è più disponibile.',
     'gallery.passwordRequired': 'Questo album è protetto da password.',
     'gallery.wrongPassword': 'Password errata.',
@@ -734,6 +734,7 @@ export const it: UiText = {
       bivouac: 'Bivacco',
       cabaret: 'Cabaret',
       noces: 'Nozze',
+      custom: 'Su misura',
     },
     template: 'Tipo di evento',
     templateHint:
@@ -946,6 +947,34 @@ export const it: UiText = {
     venuePhotoBusy: 'Invio della foto…',
     venuePhotoSaved: 'La foto del vostro locale è salvata.',
     venuePhotoRemoved: 'La foto predefinita è stata ripristinata.',
+    customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
+    customAmbianceEdit: 'Modifica la mia atmosfera',
+    customAmbianceEntryHint:
+      'Il tuo sfondo, chiaro o scuro, con la tinta che preferisci: lo vedi su schermi reali prima di salvare.',
+    customAmbianceTitle: 'La tua atmosfera su misura',
+    customAmbianceCrumb: 'Su misura',
+    customAmbianceIntro:
+      'Scegli uno sfondo chiaro o scuro, la sua tinta, il colore d’accento e un carattere. Le anteprime mostrano gli schermi reali con le tue scelte e nulla viene salvato finché non premi «Salva».',
+    customGround: 'Sfondo',
+    customGroundNames: { light: 'Chiaro', dark: 'Scuro' },
+    customGroundHue: 'Tinta dello sfondo',
+    customGroundHueHint:
+      'Da 0° a 359°: scegli solo la tinta, la luminosità è fissa perché tutto resti leggibile.',
+    customAccentHue: 'Colore d’accento',
+    customAccentHueHint:
+      'Ogni tinta è permessa, comprese quelle vicine al verde, al giallo o al rosso dell’applicazione: il testo del pulsante resta leggibile su ciascuna, e un avviso porta sempre un’icona e una parola.',
+    customFaces: 'Carattere',
+    customFacesHint:
+      'I font e gli angoli dei pulsanti di una delle sei atmosfere, ciascuna mostrata nel proprio font.',
+    customPreview: 'Anteprima',
+    customPreviewHint:
+      'Un’illustrazione di ciò che vedranno i tuoi ospiti e la sala, con foto di esempio.',
+    customPreviewPhone: 'Schermo dei tuoi ospiti',
+    customPreviewWall: 'Schermo della sala',
+    customPreviewCaption: 'Che bella serata!',
+    customPreviewAuthor: 'Lea',
+    customKept: 'La tua scelta resta com’era: modificala e salva di nuovo.',
+    customSaved: 'La tua atmosfera è salvata.',
   },
 
   auth: {
@@ -1464,6 +1493,7 @@ export const it: UiText = {
     moderation: 'Moderazione',
     mobileModeration: 'Moderazione da telefono',
     settings: 'Impostazioni dell’evento',
+    customAmbiance: 'Atmosfera su misura',
     clientSpace: 'Area cliente',
     site: 'Console dell’operatore',
     siteClient: 'Cliente',

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 // `import.meta.url` is not a `file:` URL and `fileURLToPath` throws. This also keeps the
 // test reading the same file the bundle does.
 import TOKENS from './tokens.css?raw'
+import { DEFAULT_EVENT_THEME } from './eventTheme'
 // The wall's caption styles, for the one failure mode a colour pair cannot express.
 import CAPTIONS from '../features/wall/components/SlideCaption.module.css?raw'
 import {
@@ -149,6 +150,71 @@ const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret', 'noc
 
 /** The darkest photograph there is: nothing is darker, as nothing is brighter than WHITE. */
 const BLACK: Srgb = [0, 0, 0]
+
+/**
+ * Sur mesure (ADR 0011): a host's own ground, derived from two angles at fixed lightness and chroma.
+ * The two blocks read `var(--ground-hue)` and `var(--accent-hue)`, which the browser substitutes on
+ * the element that carries them; the sweeps below do the same, once per hue pair.
+ */
+const CUSTOM_POLARITIES = ['dark', 'light'] as const
+type CustomPolarity = (typeof CUSTOM_POLARITIES)[number]
+
+/**
+ * Every degree, 0 to 359: the whole of what the domain accepts. A « Sur mesure » accent answers to
+ * no status distance (ADR 0011, decision 8), so these bars are the only thing between any host's
+ * angle and an unreadable button, and a narrow bad band must not hide between grid points.
+ */
+const GRID: readonly number[] = [...Array.from({ length: 360 }, (_unused, step) => step)]
+/** The ground is swept at every degree: its tones are cheap to measure, and a narrow bad band must not hide between grid points. */
+const GROUND_HUES: readonly number[] = Array.from({ length: 360 }, (_unused, hue) => hue)
+
+const customBody = (polarity: CustomPolarity): string => {
+  const found = new RegExp(
+    String.raw`\[data-event-ambiance='custom'\]\[data-ambiance-ground='${polarity}'\][^{]*\{([^}]*)\}`,
+  ).exec(TOKENS)
+  if (found?.[1] === undefined) throw new Error(`tokens.css declares no custom ${polarity} block`)
+  return found[1]
+}
+
+/** The hue an event that chose no accent presses, read out of each block rather than copied. */
+const CUSTOM_DEFAULT_ACCENT: Readonly<Record<CustomPolarity, number>> = {
+  dark: Number(/--accent-hue:\s*(\d+);/.exec(customBody('dark'))?.[1]),
+  light: Number(/--accent-hue:\s*(\d+);/.exec(customBody('light'))?.[1]),
+}
+
+for (const polarity of CUSTOM_POLARITIES)
+  if (!Number.isInteger(CUSTOM_DEFAULT_ACCENT[polarity]))
+    throw new Error(`the custom ${polarity} block declares no default --accent-hue`)
+
+const customCache = new Map<string, ReadonlyMap<string, Oklch>>()
+
+/** The block's tokens at one ground hue and one accent hue, the way the browser would resolve them. */
+const customTokens = (
+  polarity: CustomPolarity,
+  ground: number,
+  accent: number,
+): ReadonlyMap<string, Oklch> => {
+  const key = `${polarity}/${ground}/${accent}`
+  const cached = customCache.get(key)
+  if (cached !== undefined) return cached
+  const resolved = customBody(polarity)
+    .replaceAll('var(--ground-hue)', String(ground))
+    .replaceAll('var(--accent-hue)', String(accent))
+  // The ring is a shadow, which the token parser skips: its colour is read out and declared apart.
+  const ring = /--focus-ring:\s*0 0 0 3px oklch\(([^)]*)\)/.exec(resolved)?.[1]
+  if (ring === undefined) throw new Error(`the custom ${polarity} block declares no focus ring`)
+  const parsed = parseOklchTokens(
+    `:root {
+${resolved}
+  --focus-ring-colour: oklch(${ring});
+}`,
+  )
+  customCache.set(key, parsed)
+  return parsed
+}
+
+/** What a custom block does not restate, it inherits from the root. */
+const ROOT_FALLBACK = tokens
 
 describe.each(AMBIANCES)('the %s ambiance', (name) => {
   const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
@@ -1137,6 +1203,342 @@ describe('the wall reads from the back of the room, over any photograph', () => 
       () => {
         expect(holds(Number((scrim.alpha - 0.01).toFixed(2)))).toBe(false)
       },
+    )
+  })
+
+  /**
+   * Sur mesure (ADR 0011), on the wall: the same two polarities as above, at every ground hue.
+   * The captions sit on `--surface-scrim`, tinted by the ground, over the worst photograph.
+   */
+  describe.each(CUSTOM_POLARITIES)('in the custom %s ambiance, at every ground hue', (polarity) => {
+    const worstPhoto: Srgb = polarity === 'dark' ? WHITE : BLACK
+    const wallInks = declaredInks.filter((ink) => !onPaper(ink))
+    const inkOf = (t: ReadonlyMap<string, Oklch>, name: string): Oklch => t.get(name) ?? token(name)
+    const atGround = (hue: number) => customTokens(polarity, hue, CUSTOM_DEFAULT_ACCENT[polarity])
+    const scrimOver = (t: ReadonlyMap<string, Oklch>, alpha: number): Srgb =>
+      composite({ ...inkOf(t, '--surface-scrim'), alpha }, worstPhoto)
+    const holds = (t: ReadonlyMap<string, Oklch>, alpha: number): boolean =>
+      ratioOf(srgb(inkOf(t, '--text-primary')), scrimOver(t, alpha)) >= 12 &&
+      wallInks.every((ink) => ratioOf(srgb(inkOf(t, ink)), scrimOver(t, alpha)) >= WALL_TARGET)
+
+    it('every ink the wall declares clears 7:1 on both surfaces it paints', () => {
+      for (const hue of GROUND_HUES) {
+        const t = atGround(hue)
+        for (const surface of ['--surface-base', '--surface-raised'] as const)
+          for (const ink of wallInks)
+            expect(
+              contrast(inkOf(t, ink), inkOf(t, surface)),
+              `${ink} on ${surface} at ground hue ${hue}`,
+            ).toBeGreaterThanOrEqual(WALL_TARGET)
+      }
+    })
+
+    it('clears 7:1 for every ink on its scrim over the worst photograph, and 12:1 for the badge', () => {
+      for (const hue of GROUND_HUES)
+        expect(
+          holds(atGround(hue), atGround(hue).get('--surface-scrim')?.alpha ?? 0),
+          `ground ${hue}`,
+        ).toBe(true)
+    })
+
+    it('declares the lowest scrim alpha that holds at the hue that needs it most', () => {
+      const alpha = atGround(0).get('--surface-scrim')?.alpha ?? 0
+      const below = Number((alpha - 0.01).toFixed(2))
+      expect(GROUND_HUES.some((hue) => !holds(atGround(hue), below))).toBe(true)
+    })
+  })
+})
+
+/**
+ * Sur mesure, ADR 0011 decision 3: the proof is a sweep.
+ *
+ * Both polarities, every bar the per-ambiance suites above hold, at **every ground hue** on a
+ * 15 degree grid (0 to 345, and 359 to close the circle) crossed with **every accent hue** on the
+ * same grid plus the block's own default. The domain refuses an accent only for crowding a status
+ * colour, never for legibility, so measuring all of them is a superset of the hues it accepts:
+ * nothing it could accept is unmeasured. `var(--ground-hue)` and `var(--accent-hue)` are resolved
+ * by substitution, which is what the browser does on the element that carries them.
+ *
+ * Never weaken a bar here: a tone that cannot hold at some hue is changed in tokens.css.
+ */
+describe.each(CUSTOM_POLARITIES)(
+  'the custom %s ambiance, at every ground hue (ADR 0011)',
+  (polarity) => {
+    const worstPhoto: Srgb = polarity === 'dark' ? WHITE : BLACK
+    const body = customBody(polarity)
+    const defaultAccent = CUSTOM_DEFAULT_ACCENT[polarity]
+    const accents = [...new Set([...GRID, defaultAccent])]
+    const at = (ground: number, accent: number = defaultAccent) =>
+      customTokens(polarity, ground, accent)
+    const of = (t: ReadonlyMap<string, Oklch>, name: string): Oklch => {
+      const value = t.get(name) ?? ROOT_FALLBACK.get(name)
+      if (value === undefined)
+        throw new Error(`the custom ${polarity} block does not restate ${name}`)
+      return value
+    }
+
+    /** The lowest ratio of `measure` over a set of hues, with where it happened. */
+    const lowest = (
+      measure: (t: ReadonlyMap<string, Oklch>) => number,
+      pairs: boolean,
+    ): { ratio: number; where: string } => {
+      let low = { ratio: Number.POSITIVE_INFINITY, where: '' }
+      for (const ground of GRID)
+        for (const accent of pairs ? accents : [defaultAccent]) {
+          const ratio = measure(at(ground, accent))
+          if (ratio < low.ratio)
+            low = { ratio, where: `ground hue ${ground}, accent hue ${accent}` }
+        }
+      return low
+    }
+    const expectAtLeast = (
+      label: string,
+      bar: number,
+      measure: (t: ReadonlyMap<string, Oklch>) => number,
+      pairs = false,
+    ): void => {
+      const { ratio, where } = lowest(measure, pairs)
+      expect(ratio, `${label}: worst ${ratio.toFixed(2)} at ${where}`).toBeGreaterThanOrEqual(bar)
+    }
+
+    it('sweeps every one of the 360 ground hues and crosses them with every accent hue, reds included', () => {
+      expect(GRID).toHaveLength(360)
+      expect(GRID[0]).toBe(0)
+      expect(GRID[359]).toBe(359)
+      expect(accents.length).toBeGreaterThanOrEqual(360)
+      expect(accents).toContain(22)
+      expect(accents).toContain(defaultAccent)
+    })
+
+    it('has its own block, whose lightness and chroma are fixed and whose hues are the variables', () => {
+      // Nothing in the block spells a hue of its own except the semantic colours and the default
+      // accent: every surface and ink reads the ground hue, every accent token the accent hue.
+      for (const name of [
+        '--surface-base',
+        '--surface-raised',
+        '--surface-overlay',
+        '--border-subtle',
+        '--border-strong',
+        '--text-primary',
+        '--text-secondary',
+        '--text-muted',
+        '--surface-scrim',
+        '--glass-tint-photo',
+        '--glass-tint-ground',
+      ])
+        expect(body, name).toMatch(
+          new RegExp(`${name}:\\s*oklch\\([\\d.]+% [\\d.]+ var\\(--ground-hue\\)`),
+        )
+      for (const name of ['--accent', '--accent-strong', '--accent-contrast'])
+        expect(body, name).toMatch(
+          new RegExp(`${name}:\\s*oklch\\([\\d.]+% [\\d.]+ var\\(--accent-hue\\)`),
+        )
+      expect(body).toMatch(/--accent-texture:\s*none;/)
+      expect(body).toMatch(/--ambiance-ground:\s*none;/)
+    })
+
+    it.each([
+      ['--text-primary', 12],
+      ['--text-secondary', 7],
+      ['--text-muted', 4.5],
+    ] as const)('keeps %s above its bar on every surface it declares', (ink, bar) => {
+      for (const surface of SURFACES)
+        expectAtLeast(`${ink} on ${surface}`, bar, (t) => contrast(of(t, ink), of(t, surface)))
+    })
+
+    it.each(SURFACES)('keeps its --border-strong visible on %s', (surface) => {
+      expectAtLeast(`--border-strong on ${surface}`, 3, (t) =>
+        contrast(of(t, '--border-strong'), of(t, surface)),
+      )
+    })
+
+    it.each(['--success', '--danger', '--warning'] as const)(
+      'keeps %s readable as text on --surface-raised and as a glyph on every surface',
+      (status) => {
+        expectAtLeast(`${status} on --surface-raised`, 4.5, (t) =>
+          contrast(of(t, status), of(t, '--surface-raised')),
+        )
+        for (const surface of SURFACES)
+          expectAtLeast(`${status} glyph on ${surface}`, 3, (t) =>
+            contrast(of(t, status), of(t, surface)),
+          )
+      },
+    )
+
+    it('keeps the label on its accent readable at rest and under a finger, at every accent hue', () => {
+      expectAtLeast(
+        'label on --accent',
+        7,
+        (t) => contrast(of(t, '--accent-contrast'), of(t, '--accent')),
+        true,
+      )
+      expectAtLeast(
+        'label on --accent-strong',
+        4.5,
+        (t) => contrast(of(t, '--accent-contrast'), of(t, '--accent-strong')),
+        true,
+      )
+    })
+
+    it('keeps the accent readable from the back of the room, and as a link on the other surfaces', () => {
+      expectAtLeast(
+        '--accent on --surface-base',
+        7,
+        (t) => contrast(of(t, '--accent'), of(t, '--surface-base')),
+        true,
+      )
+      for (const surface of ['--surface-raised', '--surface-overlay'] as const)
+        expectAtLeast(
+          `--accent on ${surface}`,
+          4.5,
+          (t) => contrast(of(t, '--accent'), of(t, surface)),
+          true,
+        )
+    })
+
+    it('keeps the focus ring visible on every surface, for every accent hue', () => {
+      for (const surface of SURFACES)
+        expectAtLeast(
+          `focus ring on ${surface}`,
+          3,
+          (t) => {
+            const ground = srgb(of(t, surface))
+            return ratioOf(composite(of(t, '--focus-ring-colour'), ground), ground)
+          },
+          true,
+        )
+    })
+
+    it.each([
+      ['--text-primary', 12],
+      ['--text-secondary', 7],
+      ['--text-muted', 4.5],
+    ] as const)(
+      'keeps %s above its bar on its glass over the worst photograph, and no worse than on the overlay',
+      (ink, bar) => {
+        expectAtLeast(`${ink} on glass`, bar, (t) =>
+          ratioOf(srgb(of(t, ink)), composite(of(t, '--glass-tint-photo'), worstPhoto)),
+        )
+        expectAtLeast(
+          `${ink} on glass vs overlay`,
+          1,
+          (t) =>
+            ratioOf(srgb(of(t, ink)), composite(of(t, '--glass-tint-photo'), worstPhoto)) /
+            ratioOf(srgb(of(t, ink)), srgb(of(t, '--surface-overlay'))),
+        )
+      },
+    )
+
+    it('declares the lowest glass alpha that holds, at the hue that needs it most', () => {
+      const holds = (t: ReadonlyMap<string, Oklch>, alpha: number): boolean => {
+        const pane = composite({ ...of(t, '--glass-tint-photo'), alpha }, worstPhoto)
+        for (const [ink, bar] of [
+          ['--text-primary', 12],
+          ['--text-secondary', 7],
+          ['--text-muted', 4.5],
+        ] as const) {
+          const ratio = ratioOf(srgb(of(t, ink)), pane)
+          if (ratio < bar) return false
+          if (ratio < ratioOf(srgb(of(t, ink)), srgb(of(t, '--surface-overlay')))) return false
+        }
+        for (const status of ['--success', '--danger', '--warning'] as const)
+          if (ratioOf(srgb(of(t, status)), pane) < 3) return false
+        return ratioOf(srgb(of(t, '--accent')), pane) >= 4.5
+      }
+      const alpha = of(at(0), '--glass-tint-photo').alpha
+      for (const ground of GRID)
+        for (const accent of accents)
+          expect(holds(at(ground, accent), alpha), `ground ${ground}, accent ${accent}`).toBe(true)
+      const below = Number((alpha - 0.01).toFixed(2))
+      expect(
+        GRID.some((ground) => accents.some((accent) => !holds(at(ground, accent), below))),
+      ).toBe(true)
+    })
+
+    it('keeps the join card and the QR at the wall’s bar, at every ground and accent hue', () => {
+      const resolve = (t: ReadonlyMap<string, Oklch>, property: string): Oklch => {
+        const declared = new RegExp(`${property}:\\s*([^;]+);`).exec(body)?.[1]?.trim()
+        if (declared === undefined) throw new Error(`the block declares no ${property}`)
+        const reference = /^var\((--[a-z-]+)\)$/.exec(declared)?.[1]
+        return of(t, reference ?? property)
+      }
+      for (const ink of ['--wall-card-ink', '--wall-card-ink-2'] as const)
+        expectAtLeast(
+          `${ink} on its paper`,
+          7,
+          (t) => contrast(resolve(t, ink), resolve(t, '--wall-card-bg')),
+          true,
+        )
+      expectAtLeast('QR dark on light', 7, (t) =>
+        contrast(resolve(t, '--qr-ink'), resolve(t, '--qr-field')),
+      )
+      for (const hue of GRID) {
+        const t = at(hue)
+        expect(luminance(resolve(t, '--qr-ink'))).toBeLessThan(luminance(resolve(t, '--qr-field')))
+      }
+    })
+
+    it('restates the semantic colours darker in the light block, and keeps the root’s in the dark one', () => {
+      if (polarity === 'light') expect(body).toMatch(/--success:[\s\S]*--danger:[\s\S]*--warning:/)
+      else expect(body).not.toMatch(/--(success|danger|warning):/)
+    })
+
+    it('wears no photograph of its own, and the polarity of its scheme is declared', () => {
+      expect(body).toMatch(/--ambiance-ground:\s*none;/)
+      if (polarity === 'light') expect(body).toMatch(/color-scheme:\s*light;/)
+      else expect(body).not.toMatch(/color-scheme:/)
+    })
+  },
+)
+
+describe('the faces a Sur mesure event borrows (ADR 0011)', () => {
+  const FACE_PROPERTIES = [
+    '--font-heading',
+    '--font-display',
+    '--font-display-weight',
+    '--button-radius',
+  ] as const
+  const valueIn = (css: string, property: string): string | undefined =>
+    new RegExp(`${property}:\\s*([^;]+);`).exec(css)?.[1]?.trim()
+
+  it.each(AMBIANCES)(
+    'restates the %s’s faces, display weight and control radius exactly',
+    (name) => {
+      const rule = new RegExp(`\\n\\[data-ambiance-faces='${name}'\\][^{]*\\{([^}]*)\\}`).exec(
+        TOKENS,
+      )?.[1]
+      if (rule === undefined) throw new Error(`tokens.css declares no faces block for ${name}`)
+      const owner = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+      for (const property of FACE_PROPERTIES)
+        expect(valueIn(rule, property), `${property} of ${name}`).toBe(valueIn(owner, property))
+    },
+  )
+
+  it('moves nothing but those four properties', () => {
+    const rules = [...TOKENS.matchAll(/\n\[data-ambiance-faces='[a-z]+'\][^{]*\{([^}]*)\}/g)]
+    expect(rules).toHaveLength(AMBIANCES.length)
+    for (const [, declarations] of rules)
+      expect([...(declarations ?? '').matchAll(/(--[a-z-]+):/g)].map((match) => match[1])).toEqual([
+        ...FACE_PROPERTIES,
+      ])
+  })
+})
+
+describe('the accent a Sur mesure event presses when the host chose none (ADR 0011)', () => {
+  // themeSurfaceProps emits no inline --accent-hue for the default angle, so the block's own
+  // default is what the screens wear; the editor's slider starts on DEFAULT_EVENT_THEME.accentHue.
+  // Were they two numbers, the slider would say one hue and the preview show another.
+  it.each(CUSTOM_POLARITIES)('is the default event accent in the %s block', (polarity) => {
+    expect(CUSTOM_DEFAULT_ACCENT[polarity]).toBe(DEFAULT_EVENT_THEME.accentHue)
+  })
+})
+
+describe('an ambiance previewed inside the console', () => {
+  // The previews are excluded from the :root:has() twins, so --glass-tint, substituted once on
+  // the root, would keep the root's tint inside the frame: a light ambiance with dark panes.
+  it('points the glass alias at the frame’s own tint again', () => {
+    expect(TOKENS).toMatch(
+      /\[data-template-preview\]\[data-event-ambiance\]\s*\{\s*--glass-tint:\s*var\(--glass-tint-photo\);/,
     )
   })
 })

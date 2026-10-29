@@ -13,6 +13,8 @@ import {
   THEME_FRAMES,
   THEME_MATERIALS,
   THEME_AMBIANCES,
+  THEME_FACES,
+  THEME_GROUNDS,
 } from '../../../domain/events/eventTheme'
 
 /**
@@ -260,6 +262,8 @@ describe('the picker the host actually uses', () => {
     ['THEME_FRAMES', THEME_FRAMES],
     ['THEME_MATERIALS', THEME_MATERIALS],
     ['THEME_AMBIANCES', THEME_AMBIANCES],
+    ['THEME_FACES', THEME_FACES],
+    ['THEME_GROUNDS', THEME_GROUNDS],
   ])('offers exactly the %s the domain accepts', (name, vocabulary) => {
     // The two closed vocabularies. An option in the picker the schema refuses is a
     // control that answers 400 whatever the host does with it, and a value the domain

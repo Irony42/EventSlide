@@ -6,6 +6,7 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { Notice } from '../../design-system/components/Notice'
 import { Spinner } from '../../design-system/components/Spinner'
 import { themeSurfaceProps } from '../../design-system/eventTheme'
+import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { photoAlt } from '../../lib/photoAlt'
 import { useTranslations } from '../../lib/i18n/useTranslations'
@@ -98,6 +99,7 @@ function FeedScreen({ slug, event }: FeedScreenProps) {
     // The wall's answer once it has one, the join's stored copy until then: a host's later change
     // reaches a guest who joined before it on this read, which the feed makes anyway.
     <div {...themeSurfaceProps(feed.theme ?? event.theme, 'guest')} className={styles['page']}>
+      <RootGroundHue theme={feed.theme ?? event.theme} />
       <header className={styles['header']}>
         <h1 className={styles['title']}>{t.feed.title}</h1>
         <p className={styles['event']}>{event.name}</p>

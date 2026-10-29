@@ -49,7 +49,19 @@ export type ThemeFrame = 'soft' | 'square' | 'round'
 /** The material its panes are made of (roadmap 11.5). Both renderings already ship. */
 export type ThemeMaterial = 'glass' | 'plain'
 /** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
-export type ThemeAmbiance = 'guinguette' | 'riviera' | 'champs' | 'bivouac' | 'cabaret' | 'noces'
+export type ThemeAmbiance =
+  'guinguette' | 'riviera' | 'champs' | 'bivouac' | 'cabaret' | 'noces' | 'custom'
+/** The designed ambiances a custom one may borrow its faces from (ADR 0011). */
+export type ThemeFaces = Exclude<ThemeAmbiance, 'custom'>
+/** The polarity of a custom ambiance's surfaces and inks. */
+export type ThemeGround = 'light' | 'dark'
+/** The host's own ambiance (ADR 0011): a polarity, a tint angle and borrowed faces. */
+export interface ThemeCustom {
+  readonly ground: ThemeGround
+  /** Degrees on the oklch hue circle, 0-359. */
+  readonly groundHue: number
+  readonly faces: ThemeFaces
+}
 
 /**
  * The preset an event's settings are created from (roadmap 3.5).
@@ -93,6 +105,8 @@ export interface EventThemeDto {
    */
   readonly material: ThemeMaterial
   readonly ambiance: ThemeAmbiance
+  /** Present exactly when `ambiance` is `custom` (ADR 0011); absent from the wire otherwise. */
+  readonly custom?: ThemeCustom
   /**
    * Where the host's own photograph of their venue is served, replacing the ambiance's bundled
    * ground (ADR 0010, decision 8), or `null`. A path on this origin that names the photograph's

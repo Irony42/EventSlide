@@ -1244,6 +1244,81 @@ describe('the host event routes', () => {
       })
     })
 
+    describe('the host’s own ambiance (ADR 0011)', () => {
+      const custom = { ground: 'light', groundHue: 40, faces: 'noces' }
+      const theme = (extra: Record<string, unknown>) => ({
+        accentHue: 345,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ...extra,
+      })
+
+      it('stores it and answers it on the wire', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'custom', custom }) })
+
+        expect(response.status).toBe(200)
+        expect(response.body.settings.theme.custom).toEqual(custom)
+        expect((await world.events.findById(WEDDING))?.settings.theme.custom).toEqual(custom)
+      })
+
+      it.each([22, 155, 85])(
+        'accepts accent hue %i, a status-like colour, on a custom ambiance (ADR 0011, decision 8)',
+        async (accentHue) => {
+          const agent = await signedIn(world, 'owner')
+
+          const response = await agent
+            .patch(`/api/events/${SLUG}/settings`)
+            .send({ theme: theme({ accentHue, ambiance: 'custom', custom }) })
+
+          expect(response.status).toBe(200)
+          expect(response.body.settings.theme.accentHue).toBe(accentHue)
+        },
+      )
+
+      it('answers 400 eventTheme.customRequired when the ambiance is custom without it', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'custom' }) })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('eventTheme.customRequired')
+      })
+
+      it('answers 400 eventTheme.customNotAllowed when another ambiance carries it', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'noces', custom }) })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('eventTheme.customNotAllowed')
+      })
+
+      it.each([
+        ['a hue off the circle', { ...custom, groundHue: 360 }],
+        ['an unknown polarity', { ...custom, ground: 'grey' }],
+        ['custom borrowing custom', { ...custom, faces: 'custom' }],
+        ['an extra key', { ...custom, accent: 'red' }],
+      ])('refuses %s at the boundary', async (_name, bad) => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'custom', custom: bad }) })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('request.invalid')
+      })
+    })
+
     it('refuses half a theme rather than merging one', async () => {
       // `.strict()` plus four required keys. A patch carrying only a hue would make the
       // server pair it with whatever face happened to be stored, which is a palette

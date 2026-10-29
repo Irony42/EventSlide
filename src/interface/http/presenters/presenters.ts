@@ -1,6 +1,7 @@
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
+import type { ThemeCustom } from '../../../domain/events/eventTheme'
 import type { Guest } from '../../../domain/guests/guest'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
@@ -27,6 +28,7 @@ import type {
   EventSettingsDto,
   EventSummaryDto,
   EventThemeDto,
+  ThemeCustomDto,
   GalleryDto,
   GalleryPageDto,
   GalleryPhotoDto,
@@ -198,6 +200,12 @@ export const toMediaFacetDto = (
 export const joinUrl = (publicUrl: string, joinCode: string): string =>
   `${publicUrl}/join/${encodeURIComponent(joinCode)}`
 
+const toThemeCustomDto = (custom: ThemeCustom): ThemeCustomDto => ({
+  ground: custom.ground,
+  groundHue: custom.groundHue,
+  faces: custom.faces,
+})
+
 /**
  * The event's look, copied field for field.
  *
@@ -219,6 +227,10 @@ export const toEventThemeDto = (
   frame: settings.theme.frame,
   material: settings.theme.material,
   ambiance: settings.theme.ambiance,
+  // Copied field for field, like the rest, and only when present.
+  ...(settings.theme.custom === undefined
+    ? {}
+    : { custom: toThemeCustomDto(settings.theme.custom) }),
   groundUrl: venueGroundUrl(settings, slug),
 })
 

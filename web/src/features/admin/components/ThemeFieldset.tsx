@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { Link } from 'react-router-dom'
 import {
   accentNameFor,
   CURATED_ACCENT_HUES,
@@ -45,11 +46,18 @@ const swatchStyle = (hue: number): SwatchStyle => ({ '--accent-hue': String(hue)
 
 export interface ThemeFieldsetProps {
   readonly theme: EventThemeDto
+  /** Where the editor of the host's own ambiance is; the link is withheld while the form is read-only. */
+  readonly customAmbiancePath?: string
   readonly disabled: boolean
   readonly onChange: (theme: EventThemeDto) => void
 }
 
-export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps) {
+export function ThemeFieldset({
+  theme,
+  customAmbiancePath,
+  disabled,
+  onChange,
+}: ThemeFieldsetProps) {
   const t = useTranslations()
   const selected: CuratedAccent | null = accentNameFor(theme.accentHue)
 
@@ -68,7 +76,12 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
     label: t.admin.themeFrameNames[value],
   }))
 
-  const ambianceOptions = THEME_AMBIANCES.map((value) => ({
+  // `custom` is chosen on its own page, where its object is made (ADR 0011): a plain option here
+  // would send `ambiance: 'custom'` with no object, which the server refuses. It is listed only
+  // while it is the current value, so the select still says what the event wears.
+  const ambianceOptions = THEME_AMBIANCES.filter(
+    (value) => value !== 'custom' || theme.ambiance === 'custom',
+  ).map((value) => ({
     value,
     label: t.admin.themeAmbianceNames[value],
   }))
@@ -135,9 +148,23 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
         options={ambianceOptions}
         disabled={disabled}
         onChange={(value) => {
-          if (isThemeAmbiance(value)) onChange({ ...theme, ambiance: value })
+          if (!isThemeAmbiance(value) || value === 'custom') return
+          // Leaving `custom` drops its object: the server refuses one beside another ambiance.
+          const { custom: _dropped, ...rest } = theme
+          onChange({ ...rest, ambiance: value })
         }}
       />
+
+      {customAmbiancePath === undefined || disabled ? null : (
+        <p className={styles['hint']}>
+          <Link to={customAmbiancePath}>
+            {theme.ambiance === 'custom'
+              ? t.admin.customAmbianceEdit
+              : t.admin.customAmbianceCreate}
+          </Link>{' '}
+          {t.admin.customAmbianceEntryHint}
+        </p>
+      )}
 
       <SelectField
         label={t.admin.themeFonts}

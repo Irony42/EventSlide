@@ -497,7 +497,7 @@ export const de: UiText = {
     'eventTheme.accentUnreadable':
       'Diese Farbe wäre auf der Leinwand im Saal nicht lesbar. Wählen Sie eine aus der Liste.',
     'eventTheme.accentTooCloseToStatus':
-      'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie eine andere.',
+      'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie einen anderen Farbton.',
     'gallery.notAvailable': 'Dieser Link ist nicht mehr verfügbar.',
     'gallery.passwordRequired': 'Dieses Album ist durch ein Passwort geschützt.',
     'gallery.wrongPassword': 'Falsches Passwort.',
@@ -765,6 +765,7 @@ export const de: UiText = {
       bivouac: 'Biwak',
       cabaret: 'Kabarett',
       noces: 'Hochzeit',
+      custom: 'Maßgeschneidert',
     },
 
     template: 'Art der Veranstaltung',
@@ -983,6 +984,35 @@ export const de: UiText = {
     venuePhotoBusy: 'Foto wird gesendet…',
     venuePhotoSaved: 'Das Foto Ihrer Location ist gespeichert.',
     venuePhotoRemoved: 'Das Standardfoto ist wieder da.',
+    customAmbianceCreate: 'Meine eigene Stimmung erstellen',
+    customAmbianceEdit: 'Meine Stimmung bearbeiten',
+    customAmbianceEntryHint:
+      'Ihr eigener Hintergrund, hell oder dunkel, nach Ihrem Geschmack getönt: Sie sehen ihn vor dem Speichern auf echten Bildschirmen.',
+    customAmbianceTitle: 'Ihre eigene Stimmung',
+    customAmbianceCrumb: 'Eigene Stimmung',
+    customAmbianceIntro:
+      'Wählen Sie einen hellen oder dunklen Hintergrund, seine Tönung, Ihre Akzentfarbe und eine Schrift. Die Vorschauen zeigen die echten Bildschirme mit Ihrer Auswahl; gespeichert wird erst mit „Speichern“.',
+    customGround: 'Hintergrund',
+    customGroundNames: { light: 'Hell', dark: 'Dunkel' },
+    customGroundHue: 'Tönung des Hintergrunds',
+    customGroundHueHint:
+      'Von 0° bis 359°: Sie wählen nur die Tönung, die Helligkeit ist fest, damit alles lesbar bleibt.',
+    customAccentHue: 'Akzentfarbe',
+    customAccentHueHint:
+      'Alle Farbtöne sind erlaubt, auch solche, die an das Grün, Gelb oder Rot der Anwendung erinnern: Die Schrift auf der Schaltfläche bleibt bei jedem lesbar, und eine Warnung trägt immer ein Symbol und ein Wort.',
+    customFaces: 'Schrift',
+    customFacesHint:
+      'Die Schriften und Schaltflächenecken einer der sechs Stimmungen, jede in ihrer eigenen Schrift gezeigt.',
+    customPreview: 'Vorschau',
+    customPreviewHint:
+      'Eine Illustration dessen, was Ihre Gäste und der Saal sehen werden, mit Beispielfotos.',
+    customPreviewPhone: 'Bildschirm Ihrer Gäste',
+    customPreviewWall: 'Bildschirm im Saal',
+    customPreviewCaption: 'Was für ein schöner Abend!',
+    customPreviewAuthor: 'Lea',
+    customKept:
+      'Ihre Auswahl bleibt so, wie Sie sie verlassen haben: ändern Sie sie und speichern Sie erneut.',
+    customSaved: 'Ihre Stimmung ist gespeichert.',
   },
 
   auth: {
@@ -1508,6 +1538,7 @@ export const de: UiText = {
     moderation: 'Moderation',
     mobileModeration: 'Moderation am Telefon',
     settings: 'Einstellungen der Veranstaltung',
+    customAmbiance: 'Eigene Stimmung',
     clientSpace: 'Kundenbereich',
     site: 'Betreiber-Konsole',
     siteClient: 'Kunde',

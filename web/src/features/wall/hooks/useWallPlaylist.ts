@@ -163,6 +163,10 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.theme?.frame === fresh.theme?.frame &&
   kept.theme?.material === fresh.theme?.material &&
   kept.theme?.ambiance === fresh.theme?.ambiance &&
+  // The host's own ambiance (ADR 0011): re-tinting the wall mid-evening moves no photograph.
+  kept.theme?.custom?.ground === fresh.theme?.custom?.ground &&
+  kept.theme?.custom?.groundHue === fresh.theme?.custom?.groundHue &&
+  kept.theme?.custom?.faces === fresh.theme?.custom?.faces &&
   // The host's venue photo: replaced or taken down mid-evening, the wall must follow.
   kept.theme?.groundUrl === fresh.theme?.groundUrl &&
   // The language the room's screen speaks (roadmap 1.5). Compared for the reason the
