@@ -813,7 +813,13 @@ describe('POST /api/events/:slug/photos: the two rate stages (review S1)', () =>
     const subject = buildSubject({
       config: {
         ...limits(1, 300),
-        uploads: { maxBytes: 64, maxFiles: 20, maxConcurrentRequests: 1000 },
+        uploads: {
+          maxBytes: 64,
+          maxFiles: 20,
+          maxConcurrentRequests: 1000,
+          maxConcurrentRequestsPerEvent: 1000,
+          bodyTimeoutMs: 600_000,
+        },
       },
       maxUploadBytesPerRequest: 100,
     })
