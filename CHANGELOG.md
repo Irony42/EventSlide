@@ -22,12 +22,27 @@ In an entry:
 
 ## [3.2.0] - 2026-10-29
 
-Everything merged to `main` after the tag `v3.1.0`: pull requests #261, #263, #265, #266, #264 and
-#267. This is a minor release: it adds four settings and changes what the guest limits count, and it
-breaks nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to
+Everything merged to `main` after the tag `v3.1.0`: pull requests #261, #263, #265, #266, #264, #267
+and #269. This is a minor release: it adds four settings, changes what the guest limits count and
+brings back the violet as the product's own look, and it breaks nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to
 keep. There is no migration and nothing has to change in `.env`, but read "Behaviour changes to check
 before upgrading" and [Upgrading to 3.2](docs/UPGRADING.md#upgrading-to-32) if you set any upload,
 reaction or join limit.
+
+### Look
+
+- **The violet « EventSlide » is the product's own look again** (#269, ADR 0010 amended 29/10): the
+  3.0 palette (a slate ground, a lavender accent), now an ambiance of its own, `eventslide`, first in
+  the list and the default. The Guinguette stays, as an ambiance a host picks like the others.
+- **The glass shows** (#269): the default look paints a static aurora (violet, indigo, plum) behind
+  the page, and its panes are translucent over it: the tint is the lowest that keeps every text bar
+  (0.80 over a photograph, 0.61 over the aurora, where 3.1 had 0.96 and 0.93), and the backdrop is
+  dimmed before the blur (`--glass-brightness`, 0.32) so that a bright photograph behind a pane
+  cannot defeat it. The light ambiances (Noces, a light « Sur mesure ») do not dim. Réglages → Matière
+  now shows a clear difference between glass and opaque, and reduced transparency or more contrast
+  still make every pane opaque.
+- **A full-width button wraps its label and a badge is never wider than its row** (#269), so the
+  guest's page stays inside a 320 px screen with text at 200 % in the system face.
 
 ### Guest
 
@@ -62,6 +77,13 @@ reaction or join limit.
   `UPLOAD_BODY_TIMEOUT_SECONDS` (default 600) answers `408 upload.timedOut` and closes the connection,
   so a slow or stalled guest gives its slot back; the guest's phone sends it again. Behind a reverse
   proxy, give the proxy a body read timeout above this figure.
+- **Every screen goes back to the violet** (#269). An event whose theme names no ambiance (every event
+  created before 3.1.0), or the prototype's `darkroom`, reads as `eventslide`. An event saved on
+  3.1.0 names `guinguette` explicitly, even if its host never chose it, because the Guinguette was
+  3.1's default: it stays on the Guinguette until its host picks another ambiance in Réglages →
+  Ambiance. The birthday and conference templates start on `eventslide` again.
+- **A host's venue photograph under the default look is heavily veiled** (#269): the coat over it is the
+  lowest that keeps the inks legible over a white photograph, 90 % of the surface colour.
 - **No migration runs, and the schema is the one of 3.0.0.**
 
 ### Documentation, tests and dependencies
