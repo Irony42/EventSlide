@@ -52,7 +52,9 @@ const FLOORED: Readonly<Record<string, string>> = {
 /** An ambiance's own block; EventSlide's is the root's. */
 const blockOf = (name: string): string =>
   name === 'eventslide'
-    ? (/:root \{[\s\S]*?\n\}/.exec(withoutAmbiances(TOKENS))?.[0] ?? '')
+    ? (/:root,\n\[data-event-ambiance='eventslide'\] \{[\s\S]*?\n\}/.exec(
+        withoutAmbiances(TOKENS),
+      )?.[0] ?? '')
     : ambianceBlock(TOKENS, name)
 
 const inksOf = (name: string): ((token: string) => Oklch) => inksFrom(blockOf(name), name)

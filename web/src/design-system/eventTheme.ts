@@ -264,9 +264,16 @@ export interface ThemeSurfaceProps extends GlassMaterialProps {
  */
 export type ThemedSurface = 'wall' | 'guest'
 
+/**
+ * `preview: true` is for a miniature drawn **inside a page that may wear another ambiance** (the
+ * template picker, the settings page's two frames): it names the ambiance even when it is the
+ * default, because `tokens.css` has an `eventslide` block for exactly that and a miniature that
+ * emitted nothing would inherit whatever the page around it wears.
+ */
 export const themeSurfaceProps = (
   theme: EventThemeDto | null,
   surface: ThemedSurface,
+  options: { readonly preview?: boolean } = {},
 ): ThemeSurfaceProps => {
   if (theme === null) return {}
 
@@ -284,7 +291,9 @@ export const themeSurfaceProps = (
   const material = glassMaterialProps(theme.material)
   // Both surfaces wear the ambiance: it is the world the guest's phone and the room share.
   const ambiance: ThemeSurfaceProps =
-    theme.ambiance === DEFAULT_EVENT_THEME.ambiance ? {} : { 'data-event-ambiance': theme.ambiance }
+    theme.ambiance === DEFAULT_EVENT_THEME.ambiance && options.preview !== true
+      ? {}
+      : { 'data-event-ambiance': theme.ambiance }
 
   // Merged with the accent's style rather than beside it: both are inline custom properties on
   // the one element, and a second `style` key would silently replace the first.

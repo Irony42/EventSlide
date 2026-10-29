@@ -69,7 +69,8 @@ const DEFAULT_HUE = Number(DECLARED_HUE[1])
 const ROOT_TOKENS = withoutAmbiances(TOKENS)
 
 /** The root block alone: the Guinguette's own declarations, before any derivation. */
-const ROOT_BLOCK = /:root \{[\s\S]*?\n\}/.exec(ROOT_TOKENS)?.[0] ?? ''
+const ROOT_BLOCK =
+  /:root,\n\[data-event-ambiance='eventslide'\] \{[\s\S]*?\n\}/.exec(ROOT_TOKENS)?.[0] ?? ''
 
 /** The same, with the accent's hue substituted the way the browser does at the root. */
 const ROOT_RESOLVED = ROOT_BLOCK.replaceAll('var(--accent-hue)', DECLARED_HUE[1])
@@ -1616,10 +1617,11 @@ describe('the aurora the root look paints', () => {
     expect(ground).not.toMatch(/url\(|oklch\(/)
   })
 
-  it('is static: nothing animates it', () => {
-    const ground = /--ambiance-ground:([\s\S]*?);/.exec(ROOT_BLOCK)?.[1] ?? ''
-    expect(ground).not.toMatch(/animation|@keyframes/)
-    expect(TOKENS).not.toMatch(/@keyframes[^{]*aurora/i)
+  it('is static: the rule that paints it carries no animation or transition', async () => {
+    const { default: base } = await import('./base.css?raw')
+    const rule = /html::before {([^}]*)}/.exec(base)?.[1] ?? ''
+    expect(rule).toContain('var(--ambiance-ground)')
+    expect(rule).not.toMatch(/animation|transition|will-change/)
   })
 
   it('gives the glass something to show: the brightest glow is lighter than the raised surface', () => {
@@ -1643,5 +1645,36 @@ describe('the glass of the root look, as a host and a person can switch it off',
     expect(media).toMatch(/--glass-filter:\s*none;/)
     expect(media).toMatch(/--glass-tint-photo:\s*var\(--glass-opaque\);/)
     expect(media).toMatch(/--glass-tint-ground:\s*var\(--glass-opaque\);/)
+  })
+})
+
+describe('the glass of a light ambiance is not dimmed', () => {
+  const lightBlocks = {
+    noces: ambianceBlock(TOKENS, 'noces'),
+    'custom light': customBody('light'),
+  }
+  it.each(Object.entries(lightBlocks))(
+    '%s restates brightness 1 and the filter that reads it',
+    (_name, block) => {
+      // Their worst photograph is black, which dimming cannot move; a dimmed bright backdrop only
+      // greys the light pane. The filter is substituted where declared, so it is restated too.
+      expect(block).toMatch(/--glass-brightness:\s*1;/)
+      expect(block).toMatch(
+        /--glass-filter:\s*blur\(var\(--glass-blur\)\)\s*saturate\(var\(--glass-saturate\)\)\s*brightness\(var\(--glass-brightness\)\);/,
+      )
+    },
+  )
+})
+
+describe('a miniature inside a page that wears another ambiance', () => {
+  it('has an eventslide block to take the root look back, sharing the root declarations', () => {
+    expect(TOKENS).toMatch(/:root,\n\[data-event-ambiance='eventslide'\] \{/)
+  })
+
+  it('has the Guinguette restate what its previews inherit from the root otherwise', () => {
+    const block = ambianceBlock(TOKENS, 'guinguette')
+    expect(block).toMatch(/--qr-field:\s*var\(--text-primary\);/)
+    expect(block).toMatch(/--qr-ink:\s*var\(--surface-base\);/)
+    expect(block).toMatch(/--glass-opaque:\s*var\(--surface-raised\);/)
   })
 })

@@ -279,6 +279,15 @@ describe('the picker’s catalogue', () => {
   })
 })
 
+describe('themeSurfaceProps for a preview', () => {
+  it('names the default ambiance too, so a miniature does not inherit the page around it', () => {
+    expect(themeSurfaceProps(aTheme({}), 'wall', { preview: true })['data-event-ambiance']).toBe(
+      'eventslide',
+    )
+    expect(themeSurfaceProps(aTheme({}), 'wall')['data-event-ambiance']).toBeUndefined()
+  })
+})
+
 describe('readEventTheme', () => {
   it('accepts a theme as the server sends it', () => {
     expect(

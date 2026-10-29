@@ -262,7 +262,16 @@ decision 2 above and nothing else; every other decision of this ADR stands.
    thinner fails): this palette's dim inks ask for more of it than the Guinguette's warm ones, so
    the photograph is mostly veiled there.
 
-**Not done, said so.** A settings preview of the root look inside a page that already wears another
-ambiance still shows the surrounding ambiance, because the root emits no attribute to select a
-block (the same limit the Guinguette had as the root). The ambiances keep the 0.96 and 0.93 tints
+**Follow-ups on review (29/10).** Noces and Sur mesure light restate `--glass-brightness: 1` and the
+filter that reads it (their worst photograph is black, which dimming cannot move; a dimmed bright
+backdrop would grey a light pane). A miniature (template preview, the settings frames) always
+carries `data-event-ambiance`, the default included, and `:root` and
+`[data-event-ambiance='eventslide']` share one declaration block, so a preview of the violet inside
+a page that wears another ambiance takes the root look back. The Guinguette restates `--qr-field`,
+`--qr-ink` and `--glass-opaque` for the same reason. **`--surface-scrim` moves from 0.82 to 0.83 in
+Riviera, Champs d'or, Bivouac and Cabaret**, which inherited the root's: one point denser, held by
+the same wall bars; the Guinguette restates its own 0.82. Events saved as `guinguette` on 3.1.0 are
+not migrated.
+
+**Not done, said so.** The ambiances keep the 0.96 and 0.93 tints
 they had; making them as visible is a per-ambiance derivation.

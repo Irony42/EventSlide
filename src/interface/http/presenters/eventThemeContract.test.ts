@@ -210,11 +210,11 @@ describe('the vocabularies a theme selects from', () => {
     expect([...themedValues('fonts')].sort()).toEqual([...themed].sort())
   })
 
-  it('declares a block for every ambiance except the default', () => {
-    // ADR 0010: the product's own look is the root, so only the others need a block.
-    const themed = THEME_AMBIANCES.filter((value) => value !== DEFAULT_EVENT_THEME.ambiance)
-
-    expect([...new Set(themedValues('ambiance'))].sort()).toEqual([...themed].sort())
+  it('declares a block for every ambiance, the default sharing the root’s', () => {
+    // ADR 0010: the product's own look is the root, and its block is the root's own, so a
+    // miniature that names it takes the root look back inside a page wearing another ambiance.
+    expect(DEFAULT_EVENT_THEME.ambiance).toBe('eventslide')
+    expect([...new Set(themedValues('ambiance'))].sort()).toEqual([...THEME_AMBIANCES].sort())
   })
 
   it('declares a block for every frame style except the default', () => {

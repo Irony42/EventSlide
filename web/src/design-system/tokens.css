@@ -1,5 +1,9 @@
 /* Generated from docs/DESIGN-SYSTEM.md section 2 — keep the two in sync. */
-:root {
+/* The element selector is for a miniature (a template preview, the settings frames) drawn inside a
+   page that wears another ambiance: it carries data-event-ambiance="eventslide" and takes the root
+   look back, custom properties re-resolved on it. Nothing else emits that attribute. */
+:root,
+[data-event-ambiance='eventslide'] {
   color-scheme: dark;
 
   /* ---- Surfaces. Dark by default: the room is dark and phones are held in it. ---- */
@@ -559,6 +563,9 @@
   --decor-glow: oklch(80% 0.14 70 / 0.55);
   --decor-wire: oklch(14% 0.01 60);
   --decor-cloth: oklch(93% 0.02 85);
+  --qr-field: var(--text-primary);
+  --qr-ink: var(--surface-base);
+  --glass-opaque: var(--surface-raised);
   --glass-tint-photo: oklch(21% 0.02 70 / 0.96);
   --glass-tint-ground: oklch(21% 0.02 70 / 0.93);
   --glass-border: oklch(96% 0.022 85 / 0.16);
@@ -762,6 +769,11 @@
 [data-event-ambiance='noces'],
 :root:has(:where([data-event-ambiance='noces']:not([data-template-preview]))) {
   color-scheme: light;
+  /* A light pane's worst photograph is black, which dimming cannot move; a dimmed bright backdrop
+     would only make it greyer than the page. Restated whole: the filter is substituted where declared. */
+  --glass-brightness: 1;
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
   --surface-base: oklch(97.5% 0.008 85);
   --surface-raised: oklch(100% 0 0);
   --surface-overlay: oklch(95.5% 0.01 80);
@@ -896,6 +908,9 @@
 [data-event-ambiance='custom'][data-ambiance-ground='light'],
 :root:has(:where([data-event-ambiance='custom'][data-ambiance-ground='light']:not([data-template-preview]))) {
   color-scheme: light;
+  --glass-brightness: 1;
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
   --surface-base: oklch(97.5% 0.01 var(--ground-hue));
   --surface-raised: oklch(99.5% 0.004 var(--ground-hue));
   --surface-overlay: oklch(95% 0.015 var(--ground-hue));
