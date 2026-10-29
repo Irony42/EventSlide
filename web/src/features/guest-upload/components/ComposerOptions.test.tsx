@@ -284,7 +284,8 @@ describe('ComposerOptions', () => {
       )
       expect(screen.getByTestId('clip-state')).toBeVisible()
 
-      // Cleared from a button inside the section: folding it now would drop focus on <body>.
+      // Cleared from a button inside the section, and the section stays: it is the guest's, and
+      // folding it on its own would take the pickers away the moment the recording is.
       rerender(<ComposerOptions {...props} clip={aClipUpload()} />)
       expect(clipButton()).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByText(fr.upload.clipHint(15, 80))).toBeVisible()
@@ -294,6 +295,9 @@ describe('ComposerOptions', () => {
   describe('what the event allows', () => {
     it('shows nothing at all when the event allows neither a caption nor a video', () => {
       const { container } = render(<Harness captions={false} clips={false} />)
+
+      // Not even an empty wrapper: it would be a flex item of the pane, and cost a gap.
+      expect(container.querySelector('[class*="options"]')).toBeNull()
 
       // Only the sentinel that follows it.
       expect(container.querySelectorAll('button')).toHaveLength(1)

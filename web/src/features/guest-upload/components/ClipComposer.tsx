@@ -31,7 +31,7 @@ export interface ClipComposerProps {
   readonly caption: string | null
   /**
    * What the section is named by: the control that reveals it (`ComposerOptions`'s "Vidéo"
-   * button), which is also the only heading it has. The three below are that arrangement's
+   * button), which is its accessible name. The three below are that arrangement's
    * hooks: the id the button's `aria-controls` points at, whether the section is folded away
    * (the `hidden` attribute: out of the tab order and the accessibility tree, state kept), and
    * the first picker, which focus moves to when the section is revealed.

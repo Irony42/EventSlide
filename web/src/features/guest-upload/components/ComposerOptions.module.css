@@ -28,6 +28,9 @@
 .toggles > .toggle {
   flex: 1 1 var(--tile-min-width);
   white-space: normal;
+  /* A single long word ("Bildunterschrift") has no space to wrap at, and at a guest's own text
+     size on the narrowest phone it is wider than the screen. */
+  overflow-wrap: anywhere;
   line-height: var(--leading-snug);
   padding-block: var(--space-2);
 }

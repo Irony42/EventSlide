@@ -592,6 +592,25 @@ describe('sending a video', () => {
     expect(screen.getByText(fr.upload.clipHint(15, 80))).toBeVisible()
   })
 
+  it('sends the trimmed caption the guest wrote along with the video', async () => {
+    // A guest who wrote one and then sent a video must not lose it.
+    havingJoined({ allowClips: true, allowCaptions: true })
+    const api = fakeApi({ uploadClip: vi.fn(async () => aClipJob({ status: 'done' })) })
+    renderUpload(api)
+
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.captionLabel }))
+    await userEvent.type(screen.getByLabelText(/Légende/), '  La première danse  ')
+    await userEvent.upload(screen.getByLabelText(fr.upload.addClip), aClipFile())
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.clipSend }))
+
+    await waitFor(() =>
+      expect(api.uploadClip).toHaveBeenCalledWith(
+        SLUG,
+        expect.objectContaining({ caption: 'La première danse' }),
+      ),
+    )
+  })
+
   it('refuses a recording heavier than the limit without contacting the server', async () => {
     havingJoined({ allowClips: true })
     const api = fakeApi()

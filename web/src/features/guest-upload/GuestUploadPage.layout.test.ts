@@ -4,6 +4,7 @@ import OPTIONS_CSS from './components/ComposerOptions.module.css?raw'
 import CLIP_CSS from './components/ClipComposer.module.css?raw'
 import PICKER_CSS from './components/PhotoPicker.module.css?raw'
 import QUEUE_CSS from './components/UploadQueue.module.css?raw'
+import FIELD_CSS from '../../design-system/components/Field.module.css?raw'
 import TOKENS_CSS from '../../design-system/tokens.css?raw'
 import DESIGN_SYSTEM_MD from '../../../../docs/DESIGN-SYSTEM.md?raw'
 
@@ -38,6 +39,8 @@ describe('a guest on the narrowest phone, or with large text', () => {
   it('lets the caption and video buttons wrap, and sit on separate lines when they must', () => {
     expect(declarationsOf(OPTIONS_CSS, '.toggles')).toMatch(/flex-wrap:\s*wrap/)
     expect(declarationsOf(OPTIONS_CSS, '.toggles > .toggle')).toMatch(/white-space:\s*normal/)
+    // And breaks inside a word, for a language whose word for a caption is one long one.
+    expect(declarationsOf(OPTIONS_CSS, '.toggles > .toggle')).toMatch(/overflow-wrap:\s*anywhere/)
   })
 
   it.each([
@@ -54,6 +57,10 @@ describe('a guest on the narrowest phone, or with large text', () => {
       expect(rule).not.toMatch(/grid-template-columns:\s*1fr 1fr/)
     },
   )
+
+  it('lets the badge of a field label drop under a long label instead of past the screen', () => {
+    expect(declarationsOf(FIELD_CSS, '.label')).toMatch(/flex-wrap:s*wrap/)
+  })
 
   it('lets a row of the queue wrap its thumbnail, name and controls', () => {
     expect(declarationsOf(QUEUE_CSS, '.item')).toMatch(/flex-wrap:\s*wrap/)

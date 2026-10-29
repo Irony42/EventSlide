@@ -5,6 +5,7 @@ import { aPhoto } from '../fixtures/media'
 import { sessionOn, succeeded } from '../fixtures/session'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
+import { de } from '../../../web/src/lib/i18n/de'
 
 /**
  * The upload pane on a small phone, after the guest has sent several photos.
@@ -415,3 +416,44 @@ for (const ambiance of ['guinguette', 'cabaret'] as const)
 
     await context.close()
   })
+
+test('320x568, text at 200%, in German: the longest word of the two buttons does not push the page wider', async ({
+  app,
+  browser,
+}, testInfo) => {
+  // "Bildunterschrift" is one word of sixteen letters: it has no space to wrap at, so it is the
+  // case where letting a button's label wrap is not enough.
+  const context = await browser.newContext({
+    viewport: { width: 320, height: 568 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+    bypassCSP: true,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-de-${testInfo.workerIndex}`)
+  // The reader's own preference, as the language picker writes it, then a real reload.
+  await page.evaluate(() => localStorage.setItem('eventslide.locale', 'de'))
+  await page.reload()
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' })
+  await expect(
+    page.getByRole('button', { name: de.upload.captionLabel, exact: true }),
+  ).toBeVisible()
+
+  const widths = () =>
+    page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    }))
+  expect((await widths()).scrollWidth, 'folded').toBeLessThanOrEqual(320)
+
+  await page.getByRole('button', { name: de.upload.captionLabel, exact: true }).click()
+  await page.getByRole('button', { name: de.upload.clipSection, exact: true }).click()
+  const open = await widths()
+  expect(open.innerWidth, 'the layout viewport').toBe(320)
+  expect(open.scrollWidth, 'both options open').toBeLessThanOrEqual(320)
+
+  await context.close()
+})
