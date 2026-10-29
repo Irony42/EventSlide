@@ -232,6 +232,26 @@
   --glass-highlight: oklch(96% 0.022 85 / 0.1);
   --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
 
+  /* ---- Sheet elevation. A pane pinned over content that scrolls under it must read as a
+         layer *above* that content, and the glass material alone does not say so: its shadow
+         falls downward (`--shadow-lg` is offset 24px and pulled in 12px), so nothing is cast
+         onto the rows passing beneath its top edge, and its surface is the card's own colour.
+         Three parts, all drawn outside the box so the pane's height does not move:
+         a lit rim along the top edge, a tight shadow cast upward, and a wide fade in the
+         ground's own colour that dims whatever is about to disappear under the pane. They are
+         one value, `--elevation-sheet`, worn by a pane only while it is pinned (the guest's
+         composer sets `--sheet-lift` to it, and back to `--elevation-flat` when it drops into
+         the flow). The three colours are what an ambiance restates: a dark one lights the rim
+         and casts black, a light one inks the rim and casts its own ink. ---- */
+  --sheet-rim: oklch(96% 0.022 85 / 0.45);
+  --sheet-shade: oklch(0% 0 0 / 0.75);
+  --sheet-fade: color-mix(in oklch, var(--surface-base) 85%, transparent);
+  --elevation-sheet:
+    0 -1px 0 0 var(--sheet-rim), 0 -8px 18px -4px var(--sheet-shade),
+    0 -32px 28px -14px var(--sheet-fade);
+  /* The same shadow list with nothing in it: a layer that is off must still be a valid one. */
+  --elevation-flat: 0 0 0 0 transparent;
+
   /* ---- Motion ---- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* things entering */
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* things moving */
@@ -518,6 +538,7 @@
   --glass-tint-ground: oklch(22% 0.055 255 / 0.96);
   --glass-border: oklch(97% 0.015 85 / 0.16);
   --glass-highlight: oklch(97% 0.015 85 / 0.1);
+  --sheet-rim: oklch(97% 0.015 85 / 0.45);
 }
 
 /* Champs d'or: golden hour in the tall grass. Earth and honey, linen along the bottom. */
@@ -563,6 +584,7 @@
   --glass-tint-ground: oklch(21% 0.035 60 / 0.96);
   --glass-border: oklch(98% 0.02 85 / 0.16);
   --glass-highlight: oklch(98% 0.02 85 / 0.1);
+  --sheet-rim: oklch(98% 0.02 85 / 0.45);
 }
 
 /* Bivouac: a campfire under a sky full of stars. Night blue and ember, a strip of tartan wool. */
@@ -611,6 +633,7 @@
   --glass-tint-ground: oklch(21% 0.04 255 / 0.96);
   --glass-border: oklch(96% 0.012 85 / 0.16);
   --glass-highlight: oklch(96% 0.012 85 / 0.1);
+  --sheet-rim: oklch(96% 0.012 85 / 0.45);
 }
 
 /* Cabaret: velvet curtain, gold light, the twenties. Ebony and champagne, an art-deco fan line
@@ -656,6 +679,7 @@
   --glass-tint-ground: oklch(20% 0.02 70 / 0.97);
   --glass-border: oklch(97% 0.025 90 / 0.16);
   --glass-highlight: oklch(97% 0.025 90 / 0.1);
+  --sheet-rim: oklch(97% 0.025 90 / 0.45);
 }
 
 /* Noces: red roses and a white tablecloth, a wedding in red and white. The one LIGHT ambiance:
@@ -718,6 +742,8 @@
   --glass-tint-ground: oklch(99% 0.005 85 / 0.96);
   --glass-border: oklch(21% 0.03 10 / 0.14);
   --glass-highlight: oklch(100% 0 0 / 0.6);
+  --sheet-rim: oklch(21% 0.03 10 / 0.45);
+  --sheet-shade: oklch(21% 0.03 10 / 0.3);
 }
 
 /* A host's chosen hue in the Noces. The generic derivation below is a pastel (72% lightness)
@@ -791,6 +817,7 @@
   --glass-tint-ground: oklch(20% 0.024 var(--ground-hue) / 0.97);
   --glass-border: oklch(96% 0.012 var(--ground-hue) / 0.16);
   --glass-highlight: oklch(96% 0.012 var(--ground-hue) / 0.1);
+  --sheet-rim: oklch(96% 0.012 var(--ground-hue) / 0.45);
 }
 
 /* prettier-ignore */
@@ -844,6 +871,8 @@
   --glass-tint-ground: oklch(99.5% 0.004 var(--ground-hue) / 0.95);
   --glass-border: oklch(21% 0.03 var(--ground-hue) / 0.14);
   --glass-highlight: oklch(100% 0 0 / 0.6);
+  --sheet-rim: oklch(21% 0.03 var(--ground-hue) / 0.45);
+  --sheet-shade: oklch(21% 0.03 var(--ground-hue) / 0.3);
 }
 
 /* The faces a Sur mesure event borrows (`custom.faces`), restated from the ambiance that owns
