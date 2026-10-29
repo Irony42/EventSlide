@@ -495,3 +495,28 @@ how every screen looks, and you will want to see that before an event rather tha
 **How to tell it worked.** The first boot logs no migration, and `GET /api/health` answers
 `"version": "3.1.0"` and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.2
+
+Not released yet. This section is written ahead of the tag so that the change below is announced
+with the code that makes it.
+
+**Who is affected.** Anyone who set `UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_MINUTE` or
+`JOIN_RATE_LIMIT_PER_MINUTE`, and everyone who hosts a room behind one Wi-Fi network.
+
+1. **`UPLOAD_RATE_LIMIT_PER_MINUTE` (12) and `REACTION_RATE_LIMIT_PER_MINUTE` (30) now count per
+   guest and event, not per client address and event.** Through 3.1 a whole venue behind one public
+   address shared twelve sends and thirty reactions a minute. The default figures are unchanged; what
+   they bound is one guest.
+2. **Two new settings bound the address instead**, as a flood ceiling checked before the guest is
+   identified: `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` (default 300) and
+   `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE` (default 600), each a whole number from 1 to 6000. Left unset,
+   each is raised to the per-guest figure if you set that higher, so a box that raised the old
+   per-address figure is never tightened by the upgrade.
+3. **`JOIN_RATE_LIMIT_PER_MINUTE` defaults to 200** (it was 20). Each guest costs two requests (the lookup
+   and the join). At 200 a minute one address still needs about ten years to try every code of the
+   default length. A value you set yourself is kept.
+
+No limit became tighter for anyone, so this is a minor change and nothing has to be changed in `.env`.
+An override of `JOIN_RATE_LIMIT_PER_MINUTE=20` that you copied from `.env.example` is worth removing before
+an event with more than ten guests arriving together.

@@ -718,9 +718,11 @@ describe('the shared gallery over HTTP', () => {
 /** The harness defaults, for a test that lowers one of them. */
 const limits = () => ({
   uploadPerMinute: 12,
+  uploadPerIpPerMinute: 300,
   joinPerMinute: 20,
   loginPerMinute: 10,
   reactionPerMinute: 30,
+  reactionPerIpPerMinute: 600,
   guestWritePerMinute: 300,
   galleryPerMinute: 60,
   galleryMediaPerMinute: 600,
