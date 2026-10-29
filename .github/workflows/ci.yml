@@ -1,9 +1,15 @@
 name: CI
 
 on:
+  # A push runs the suite on `main` only. A work branch is tested through its pull request: with
+  # every branch here too, each commit on an open pull request ran the whole suite twice, in two
+  # concurrency groups (`refs/heads/…` and `refs/pull/…`) that cannot cancel each other, and the
+  # two runs queued against the same runners. A branch with no pull request yet can still be run
+  # by hand from the Actions tab.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
