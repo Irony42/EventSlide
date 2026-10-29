@@ -9,6 +9,8 @@
   font-weight: 600;
   line-height: var(--leading-snug);
   white-space: nowrap;
+  /* Never wider than the box it sits in: a status beside a narrow row wraps instead. */
+  max-inline-size: 100%;
   /* Counts sit in badges next to labels; without this the digits reflow as a pending
      count ticks up over SSE. */
   font-variant-numeric: tabular-nums;

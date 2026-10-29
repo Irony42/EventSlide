@@ -28,7 +28,7 @@ describe('AmbianceMarker', () => {
     })
 
     it('is rendered for the product’s own look too, which has no ambiance attribute', () => {
-      const { container } = render(<AmbianceMarker ambiance="guinguette" groundUrl={URL_PATH} />)
+      const { container } = render(<AmbianceMarker ambiance="eventslide" groundUrl={URL_PATH} />)
       const marker = container.querySelector('[data-ambiance-marker]')
 
       expect(marker).toHaveAttribute('data-venue-ground', 'guest')
@@ -58,7 +58,7 @@ describe('AmbianceMarker', () => {
     })
   })
 
-  it.each([['guinguette'], [null], [undefined]] as const)(
+  it.each([['eventslide'], [null], [undefined]] as const)(
     'renders nothing for %s, so the product’s own look is the page it was',
     (ambiance) => {
       const { container } = render(<AmbianceMarker ambiance={ambiance} />)

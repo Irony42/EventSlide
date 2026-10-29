@@ -94,7 +94,7 @@ describe('ThemeFieldset', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 
@@ -111,7 +111,7 @@ describe('ThemeFieldset', () => {
       fonts: 'serif',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 
@@ -125,7 +125,7 @@ describe('ThemeFieldset', () => {
       fonts: 'sans',
       frame: 'square',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 
@@ -145,7 +145,7 @@ describe('ThemeFieldset', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'plain',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 

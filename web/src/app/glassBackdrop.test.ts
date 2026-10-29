@@ -4,6 +4,7 @@ import { withoutComments } from '../testing/withoutComments'
 import TOKENS from '../design-system/tokens.css?raw'
 import { glassBackdropFor, ROUTE_BACKDROPS } from './glassBackdrop'
 import {
+  ambianceBlock,
   lightestHue,
   luminanceOf,
   parseOklchTokens,
@@ -192,8 +193,7 @@ const backgroundValues = (css: string): readonly string[] =>
 /**
  * Layers that are not a colour and cannot brighten what they sit on (ADR 0010).
  *
- * `--accent-texture` is the kraft fibres at the root, and the root is the palette every
- * `ground` route renders. The fibres are a dark brown at an alpha of 0.3 painted over the
+ * `--accent-texture` is the Guinguette's kraft fibres, the one ambiance that has them. The fibres are a dark brown at an alpha of 0.3 painted over the
  * accent, so they can only take light away from the field the floor was derived against.
  * Asserted below rather than assumed, and the event's own accent drops them.
  */
@@ -211,9 +211,9 @@ describe('the layers the floor check skips', () => {
     // The fibres are an feColorMatrix noise: one colour whose alpha tops out at the matrix's
     // own A. The brightest field a primary control can be is its accent with that colour over
     // it, and a colour darker than the accent can only lower it.
-    const root = /:root \{[\s\S]*?\n\}/.exec(withoutAmbiances(TOKENS))?.[0] ?? ''
+    const root = ambianceBlock(TOKENS, 'guinguette')
     const texture = new RegExp(`${name}:\\s*url\\("([^"]*)"\\)`).exec(root)?.[1]
-    if (texture === undefined) throw new Error(`the root declares no ${name} to measure`)
+    if (texture === undefined) throw new Error(`the Guinguette declares no ${name} to measure`)
     const values = /values='([^']*)'/.exec(texture)?.[1]?.split(/\s+/).map(Number) ?? []
     expect(values).toHaveLength(20)
     const fibre = luminanceOf([values[4] ?? 1, values[9] ?? 1, values[14] ?? 1])

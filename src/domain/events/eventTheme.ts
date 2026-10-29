@@ -142,12 +142,13 @@ export type ThemeMaterial = (typeof THEME_MATERIALS)[number]
  * The event's ambiance: a closed, reviewed pack of surfaces, inks, display face and
  * ornaments that the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md).
  *
- * `guinguette` is the product's own look, so it is the default and emits nothing; every
- * other entry is a block in `tokens.css` with its own contrast test. The accent hue, the
+ * `eventslide` is the product's own look (the violet of 3.0), so it is the default and emits
+ * nothing; every other entry, the Guinguette included, is a block in `tokens.css` with its own contrast test. The accent hue, the
  * font pairing, the frame and the material still apply on top, so an ambiance chooses a
  * world and the host still chooses a colour in it.
  */
 export const THEME_AMBIANCES = [
+  'eventslide',
   'guinguette',
   'riviera',
   'champs',
@@ -164,6 +165,7 @@ export type ThemeAmbiance = (typeof THEME_AMBIANCES)[number]
  * filtered, so a new designed ambiance is a deliberate line here.
  */
 export const THEME_FACES = [
+  'eventslide',
   'guinguette',
   'riviera',
   'champs',
@@ -191,14 +193,14 @@ export interface ThemeCustom {
 /**
  * Names an ambiance used to go by, read as what replaced it.
  *
- * `darkroom` was the Chambre noire, the product's look before 28/10, which Pierre abandoned
- * for the Guinguette. A theme stored while it existed (a host's settings row, a guest's
- * `sessionStorage`) still says so, and the closed vocabulary above no longer does: refusing
- * it would be corruption, and it is not. It is read as the Guinguette and written back as
- * that the next time the settings are saved. Nothing new may be added here for an ordinary
+ * `darkroom` was the Chambre noire, the product's look before 28/10: a dark slate with a
+ * lavender accent, which is what `eventslide` is again (ADR 0010, amendment of 29/10). A theme
+ * stored while it existed (a host's settings row, a guest's `sessionStorage`) still says so, and
+ * the closed vocabulary above no longer does: refusing it would be corruption, and it is not. It
+ * is read as `eventslide` and written back as that the next time the settings are saved. Nothing new may be added here for an ordinary
  * rename: this is for data already written.
  */
-const LEGACY_AMBIANCES: Readonly<Record<string, ThemeAmbiance>> = { darkroom: 'guinguette' }
+const LEGACY_AMBIANCES: Readonly<Record<string, ThemeAmbiance>> = { darkroom: 'eventslide' }
 
 /** A stored ambiance, with a legacy name replaced by the one that took its place. */
 export const currentAmbianceName = (value: unknown): unknown =>
@@ -254,7 +256,7 @@ export const DEFAULT_EVENT_THEME: EventThemeProps = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
-  ambiance: 'guinguette',
+  ambiance: 'eventslide',
 })
 
 /**

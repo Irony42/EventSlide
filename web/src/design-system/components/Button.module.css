@@ -103,4 +103,8 @@
 
 .block {
   width: 100%;
+  /* A full-width button is already as wide as it can be: its label wraps rather than push the
+     page wider (320 px, text at 200%, the system face). */
+  white-space: normal;
+  text-align: center;
 }

@@ -59,7 +59,7 @@ export function TemplateThemePreview({ template }: TemplateThemePreviewProps) {
 
   return (
     <div
-      {...themeSurfaceProps(theme, 'wall')}
+      {...themeSurfaceProps(theme, 'wall', { preview: true })}
       className={styles['stage']}
       aria-hidden="true"
       data-template-preview={template ?? 'none'}

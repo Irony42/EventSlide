@@ -46,8 +46,8 @@ test('a host puts up a photograph of their venue and the room and a guest wear i
   // Before: the bundled photograph, on the wall and on the guest's welcome.
   await projector.goto(`/e/${event.slug}/display`)
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
-  expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).toContain(
-    'guinguette-ground',
+  expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).not.toContain(
+    '/venue-photo/',
   )
 
   // A phone photograph with a device name and a GPS block, sideways.
@@ -65,9 +65,6 @@ test('a host puts up a photograph of their venue and the room and a guest wear i
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).toContain(
     '/venue-photo/',
-  )
-  expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).not.toContain(
-    'guinguette-ground-1600',
   )
 
   // The guest's welcome wears it on a fixed layer of its own, and the root's bundled one is off.
@@ -97,12 +94,13 @@ test('a host puts up a photograph of their venue and the room and a guest wear i
   await expect(host.getByText('Aucune photo de votre lieu', { exact: false })).toBeVisible()
   await projector.reload()
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
-  expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).toContain(
-    'guinguette-ground',
+  expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).not.toContain(
+    '/venue-photo/',
   )
   await guest.reload()
   await expect(guest.locator('[data-venue-ground]')).toHaveCount(0)
-  expect(await backgroundOf(guest, 'html', '::before')).toContain('guinguette-ground')
+  expect(await backgroundOf(guest, 'html', '::before')).not.toContain('/venue-photo/')
+  expect(await backgroundOf(guest, 'html', '::before')).not.toBe('none')
   expect((await projector.request.get(url)).status()).toBe(404)
 })
 

@@ -1,14 +1,19 @@
 /* Generated from docs/DESIGN-SYSTEM.md section 2 — keep the two in sync. */
-:root {
+/* The element selector is for a miniature (a template preview, the settings frames) drawn inside a
+   page that wears another ambiance: it carries data-event-ambiance="eventslide" and takes the root
+   look back, custom properties re-resolved on it. Nothing else emits that attribute. */
+:root,
+[data-event-ambiance='eventslide'] {
   color-scheme: dark;
 
   /* ---- Surfaces. Dark by default: the room is dark and phones are held in it. ---- */
-  /* ADR 0010: the product's own look is the Guinguette, dinner under the string lights in a
-     garden at dusk: warm wood-brown surfaces, cream inks, kraft to press. It is the root, so
-     it is what every page wears when an event names no other ambiance. */
-  --surface-base: oklch(16% 0.016 70); /* page background, wall letterbox */
-  --surface-raised: oklch(21% 0.02 70); /* Card, toolbar, moderation tile */
-  --surface-overlay: oklch(25% 0.022 70); /* Dialog, Toast, popover */
+  /* ADR 0010, amendment of 29/10: the product's own look is EventSlide again, the violet of 3.0
+     (a slate ground at hue 265, a lavender accent at 305, the system face), over a soft aurora
+     that the glass can show. It is the root, so it is what every page wears when an event names
+     no other ambiance; the Guinguette and the others are blocks below. */
+  --surface-base: oklch(16% 0.02 265); /* page background, wall letterbox */
+  --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
+  --surface-overlay: oklch(26% 0.03 265); /* Dialog, Toast, popover */
   /* ---- Two translucent blacks, because they were one and they are two different jobs.
 
          `--surface-scrim` is a **ground**: text sits on it, over a photograph nobody has
@@ -16,15 +21,15 @@
          at which every ink the wall paints clears section 8's "anything on the wall ≥ 7:1
          regardless of size" over a white dress in full sun. At the 0.55 it carried since
          2.0 that sentence was false: `--text-primary` measured 4.36:1 and
-         `--text-secondary` 2.38:1. 0.82 is where every wall ink holds 7:1 and the clip badge's --text-primary holds 12:1, and 0.81 is where they stop,
+         `--text-secondary` 2.38:1. 0.83 is where every wall ink holds 7:1 and the clip badge's --text-primary holds 12:1, and 0.82 is where they stop,
          which `tokens.contrast.test.ts` asserts in both directions — a scrim is a grey slab
          over somebody's photograph, so it may not be one point denser than it has to be.
 
          `--surface-dim` dims the page behind a modal and carries no text at all. It has no
          contrast contract, which is why it could keep the 0.55 the scrim had to leave: a
-         `Dialog` backdrop at 82% would have made every modal on a guest's phone a black
+         `Dialog` backdrop at 83% would have made every modal on a guest's phone a black
          screen to buy legibility for text that is not on it. ---- */
-  --surface-scrim: oklch(0% 0 0 / 0.82); /* behind wall captions, over photos */
+  --surface-scrim: oklch(0% 0 0 / 0.83); /* behind wall captions, over photos */
   --surface-dim: oklch(0% 0 0 / 0.55); /* behind a Dialog, over the page */
   /* ---- Print. A material, not a panel: the paper the polaroid layout mounts a photo
          on. It is the one light ground in a dark palette, so it gets its own ink token
@@ -40,35 +45,40 @@
   --clothespin-wood-shade: oklch(50% 0.09 60);
   --clothesline-newest-scale: 1.08; /* the newest print hangs this much larger */
   /* ---- Borders ---- */
-  --border-subtle: oklch(32% 0.025 70); /* default hairline */
-  --border-strong: oklch(58% 0.03 70); /* input rest state, focused card */
+  --border-subtle: oklch(30% 0.02 265); /* default hairline */
+  --border-strong: oklch(54% 0.02 265); /* input rest state, focused card */
   /* ---- Text ---- */
-  --text-primary: oklch(96% 0.022 85); /* cream */
-  --text-secondary: oklch(85% 0.03 80);
-  --text-muted: oklch(75% 0.035 75);
+  --text-primary: oklch(97% 0.005 265);
+  --text-secondary: oklch(78% 0.015 265);
+  --text-muted: oklch(64% 0.02 265);
   /* A fine grain over a woven ornament (the linen strips). Ornament only, never under a
      photograph. */
   --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  /* What a primary control is made of, under its colour: kraft fibres at the root, nothing in
-     an ambiance that names none. Their darkest pixel is measured under the label
-     (tokens.contrast.test.ts). */
-  --accent-texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.035 .6' numOctaves='4'/><feColorMatrix values='0 0 0 0 .25 0 0 0 0 .16 0 0 0 0 .08 0 0 0 .3 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
-  /* A photograph of the place, behind the page and the wall, with the grade that keeps text
-     legible over it: the garden at dusk at the root, and every ambiance names its own. */
-  --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
-  /* Derived, not chosen: the lowest top alpha at which --text-muted keeps 4.5:1 over the 99th
-     percentile of the photograph as a phone crops it (scripts/ambianceGround.test.ts); 0.79 fails. */
-  --ambiance-grade: linear-gradient(
-    180deg,
-    oklch(16% 0.016 70 / 0.8),
-    oklch(16% 0.016 70 / 0.78) 30%,
-    oklch(16% 0.016 70 / 0.86) 65%,
-    oklch(16% 0.016 70 / 0.96)
-  );
+  /* What a primary control is made of, under its colour: the Guinguette's kraft fibres, nothing
+     here and in every ambiance that names none. */
+  --accent-texture: none;
+  /* The ground of the product's own look: no photograph, a soft aurora. Three large radial
+     glows in the violet, indigo and lavender family over the slate base, static, painted on
+     `html::before` and behind the wall like every other ground. Its only job is to give the
+     glass something to show, so it is a colour field and not a picture: each glow's peak is a
+     token below, held by tokens.contrast.test.ts to the bars text has on the base itself, because
+     text sits on it directly. */
+  --aurora-violet: oklch(24.5% 0.12 305);
+  --aurora-indigo: oklch(24% 0.11 275);
+  --aurora-lavender: oklch(24.5% 0.09 325);
+  --ambiance-ground:
+    radial-gradient(70% 55% at 12% 6%, var(--aurora-violet), transparent 70%),
+    radial-gradient(60% 50% at 92% 28%, var(--aurora-indigo), transparent 70%),
+    radial-gradient(80% 55% at 42% 104%, var(--aurora-lavender), transparent 72%);
+  /* No grade over the aurora: it is dark enough to carry text. It stays a (clear) gradient so a
+     host's own photograph, which replaces the ground, is covered by the coat below. */
+  --ambiance-grade: linear-gradient(oklch(16% 0.02 265 / 0), oklch(16% 0.02 265 / 0));
   /* What the wall's layouts paint behind and between the slides. Substituted where it is
      declared, so an ambiance that moves --surface-base must restate it, as each one does. */
-  /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
-  --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  /* The coat a host's own photograph gets (ADR 0010, 8a). The grade above is clear here, so the
+     coat alone holds the three inks over pure white: the lowest share that does (scripts/
+     ambianceGround.test.ts). Dim inks on a slate ground ask for more of it than a warm one. */
+  --ambiance-scrim: color-mix(in oklch, var(--surface-base) 90%, transparent);
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   /* A blurred copy of the photograph on screen in the wall's letterbox. Switched off: every
@@ -85,13 +95,9 @@
      ambiances that is the ink on the base; in the Noces, whose inks are dark, it is the other way. */
   --qr-field: var(--text-primary);
   --qr-ink: var(--surface-base);
-  /* Ornament, never a control. base.css draws it on the guest's pages and the console, never
-     on the wall: the Guinguette's bulbs and gingham, and the woven strips the others add. */
-  --decor-gingham: oklch(55% 0.14 32);
-  --decor-bulb: oklch(90% 0.1 85);
-  --decor-glow: oklch(80% 0.14 70 / 0.55);
-  --decor-wire: oklch(14% 0.01 60);
-  --decor-cloth: oklch(93% 0.02 85);
+  /* Ornament, never a control: an ambiance that has one declares its colours in its own block,
+     and base.css draws it on the guest's pages and the console, never on the wall. The product's
+     own look has none. */
   /* The primary control's corner: an ambiance has a shape to press. */
   --button-radius: var(--radius-md);
   /* Numbers that are counted or copied: frame numbers, times, the join code. */
@@ -107,12 +113,12 @@
   --accent-hue: 305;
   /* The tint of a Sur mesure ground (ADR 0011): an angle, set inline where it applies. */
   --ground-hue: 255deg;
-  /* The kraft the root presses. With no event accent this is the action; an event that chose a
-     hue gets the derivation declared below the ambiances, on the surface that carries it. */
-  --accent: oklch(74% 0.09 68);
-  --accent-strong: oklch(72% 0.09 64); /* hover / pressed */
-  --accent-contrast: oklch(20% 0.04 55); /* text on top of --accent */
-  --focus-ring: 0 0 0 3px oklch(85% 0.12 80 / 0.7);
+  /* The lavender the root presses. An event that chose a hue gets the same derivation declared
+     below the ambiances, on the surface that carries it. */
+  --accent: oklch(72% 0.17 var(--accent-hue));
+  --accent-strong: oklch(64% 0.19 var(--accent-hue)); /* hover / pressed */
+  --accent-contrast: oklch(18% 0.02 var(--accent-hue)); /* text on top of --accent */
+  --focus-ring: 0 0 0 3px oklch(72% 0.17 var(--accent-hue) / 0.65);
   /* ---- Semantic. Fixed hues: an event's accent may not crowd them, or "press this"
          and "that went wrong" become one signal to a room ten metres away. ---- */
   --success: oklch(76% 0.16 155);
@@ -135,13 +141,13 @@
     'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   /* The face for --text-display and --text-xl on the wall. The same stack as --font-sans
      until an event asks for the other pairing, so an unthemed wall is unchanged. */
-  /* ADR 0010: the Guinguette's display face is an editorial serif, bundled. */
-  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
-  /* Page and card headings on the guest's phone, and the label of a control. */
-  --font-heading: 'Bricolage Grotesque', var(--font-sans);
+  --font-display: var(--font-sans);
+  /* Page and card headings on the guest's phone, and the label of a control: the system face
+     until an ambiance names one. */
+  --font-heading: var(--font-sans);
   /* The weight the display face is set in. Heavy for the system face; an ambiance whose
      display face ships a single weight sets that one, so nothing is synthesised. */
-  --font-display-weight: 400;
+  --font-display-weight: 650;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -186,12 +192,15 @@
 
          - **Over an unknown photograph**, the brightest possible backdrop is pure white:
            a white dress in full sun, and also the ceiling of the sRGB gamut, so nothing a
-           camera can produce is worse. 0.96 is the lowest alpha that holds there on the Guinguette (0.95 on the slate before ADR 0010).
+           camera can produce is worse. Held at the filter's own ceiling (the dimming below),
+           0.80 is the lowest alpha that holds there on the violet; 0.96 on the Guinguette
+           and 0.95 on the 3.0 slate, which dimmed nothing.
          - **Over our own ground**, the backdrop is a colour this product chose, so the
            worst case is enumerable instead of unbounded: the brightest *field* a
            stylesheet paints on a non-wall surface, which today is a primary button's
            `--accent` at whichever of the 360 hues an event may pick renders lightest.
-           0.93 on the Guinguette (0.92 on the slate before ADR 0010): the kraft button is darker than white, so the split buys three points again.
+           0.61 on the violet, whose lightest field is the lavender button; 0.93 on the
+           Guinguette, whose kraft button is darker than white.
 
          Both are derived against the same bar, so the only thing that differs between
          them is the backdrop: the lowest alpha at which the material is at least as good
@@ -201,12 +210,19 @@
          their own bars. `tokens.contrast.test.ts` measures every one of those pairs, for
          both tints, over all 360 accents an event can carry.
 
-         **Two floors three points apart is the measurement, not a disappointment**, and
-         it says where the opacity actually comes from: `--text-muted` cleared 4.62:1 on
-         `--surface-overlay` against a 4.5 target, so the whole palette has about a tenth
-         of a ratio point of headroom before a translucent ground stops being one this
-         product would accept. Removing the photograph from the worst case buys three
-         points of alpha; nothing buys more without moving an ink.
+         **Why the glass of the root look is dimmed (29/10, ADR 0010 amendment).** Both floors
+         above are about how bright the thing *behind* the pane can be, and the palette has
+         about a tenth of a ratio point of headroom there: `--text-muted` clears 4.62:1 on
+         `--surface-overlay` against a 4.5 target. Over white that left 0.95, a pane with five
+         per cent of the world showing through, which nobody reads as glass. The lever that is
+         left is the backdrop itself: `--glass-brightness` is the last function of the filter,
+         so whatever is behind the pane (a photograph, the aurora, a button) is scaled to at most
+         that grey *before* the tint is laid on it, and the worst case the floors are derived
+         against is that grey and not white. It is a number the test reads out of this file,
+         derived alpha and all, so it cannot be nudged without the floors following. The
+         ambiances inherit the dimming and keep the tints they had: those are measured over
+         white, a bound that dimming can only make conservative for a light ink, and one it
+         cannot move for a dark one, whose worst photograph is black.
 
          The colour is `--surface-raised` in every tier, and that is what makes the no-blur
          fallback honest: `--glass-opaque` is not a new shade invented for a degraded mode,
@@ -217,9 +233,11 @@
   /* Declared whole so a tier can switch it off in one word. `none` is not a zero-radius
      blur: a filter that runs still promotes a compositing layer, and the point of the
      fallback is to stop paying for one. */
-  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  --glass-tint-photo: oklch(21% 0.02 70 / 0.96); /* --surface-raised, over a photograph */
-  --glass-tint-ground: oklch(21% 0.02 70 / 0.93); /* --surface-raised, over our own ground */
+  --glass-brightness: 0.32;
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
+  --glass-tint-photo: oklch(21% 0.025 265 / 0.8); /* --surface-raised, over a photograph */
+  --glass-tint-ground: oklch(21% 0.025 265 / 0.61); /* --surface-raised, over our own ground */
   /* The tint in force, and the conservative one by default: a surface that declares
      nothing at all is held to the floor that survives an unknown photograph. Every tier
      below is an alias of one of the two above, so a raw alpha exists once. */
@@ -228,8 +246,8 @@
   /* The edge and the highlight are the product's own light at a hairline's strength —
      `--text-primary`'s colour, not a new one. Glass is lit from the top, so the
      highlight is inset and the border is not. */
-  --glass-border: oklch(96% 0.022 85 / 0.16);
-  --glass-highlight: oklch(96% 0.022 85 / 0.1);
+  --glass-border: oklch(97% 0.005 265 / 0.16);
+  --glass-highlight: oklch(97% 0.005 265 / 0.1);
   --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
 
   /* ---- Sheet elevation. A pane pinned over content that scrolls under it must read as a
@@ -243,7 +261,7 @@
          composer sets `--sheet-lift` to it, and back to `--elevation-flat` when it drops into
          the flow). The three colours are what an ambiance restates: a dark one lights the rim
          and casts black, a light one inks the rim and casts its own ink. ---- */
-  --sheet-rim: oklch(96% 0.022 85 / 0.45);
+  --sheet-rim: oklch(97% 0.005 265 / 0.45);
   --sheet-shade: oklch(0% 0 0 / 0.75);
   --sheet-fade: color-mix(in oklch, var(--surface-base) 85%, transparent);
   --elevation-sheet:
@@ -297,9 +315,9 @@
 
 /**
  * Ambiances, ADR 0010. A closed pack of surfaces, inks, faces, a photographed ground and
- * ornaments. The Guinguette is the root look and needs no block; the four below are the
- * others an event can choose, worn by the guest's phone, the wall, and every console page
- * about that one event. Declared before the event accent so a hue the host chose still wins
+ * ornaments. EventSlide (the violet) is the root look and needs no block; the six below, the
+ * Guinguette first, are the others an event can choose, worn by the guest's phone, the wall,
+ * and every console page about that one event. Declared before the event accent so a hue the host chose still wins
  * on the same element.
  *
  * Two selectors, one block: the surface element carries the attribute, and `:root:has()`
@@ -318,7 +336,7 @@
  *
  *
  * Every block restates everything it moves, and `--accent-texture` and `--button-radius`
- * too, because the root has kraft fibres and a rounded control. The two named glass tints
+ * too, because the root has no fibres and a rounded control. The two named glass tints
  * are restated and the tiers that alias them (--glass-tint, --glass-opaque) are not: on
  * `:root:has()` they re-resolve with this block's raised colour, and restating them here
  * would outrank the shell's opaque tier and the fallbacks below, which name the ambiance
@@ -492,6 +510,67 @@
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
     U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
     U+A720-A7FF;
+}
+
+/* Guinguette: dinner under the string lights in a garden at dusk. Warm wood-brown surfaces, cream
+   inks, kraft to press, filament bulbs along the top and gingham along the bottom. It was the
+   product's own look from 3.1.0 to 29/10 and is an ordinary ambiance since (ADR 0010, amendment):
+   everything the root carried then is restated here. */
+[data-event-ambiance='guinguette'],
+:root:has(:where([data-event-ambiance='guinguette']:not([data-template-preview]))) {
+  --surface-base: oklch(16% 0.016 70);
+  --surface-raised: oklch(21% 0.02 70);
+  --surface-overlay: oklch(25% 0.022 70);
+  --surface-scrim: oklch(0% 0 0 / 0.82);
+  --border-subtle: oklch(32% 0.025 70);
+  --border-strong: oklch(58% 0.03 70);
+  --text-primary: oklch(96% 0.022 85); /* cream */
+  --text-secondary: oklch(85% 0.03 80);
+  --text-muted: oklch(75% 0.035 75);
+  /* Kraft fibres under the primary control: the only ambiance that has them. Their darkest pixel
+     is measured under the label (tokens.contrast.test.ts). */
+  --accent-texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.035 .6' numOctaves='4'/><feColorMatrix values='0 0 0 0 .25 0 0 0 0 .16 0 0 0 0 .08 0 0 0 .3 0'/></filter><rect width='100%' height='100%' filter='url(%23f)'/></svg>");
+  /* The kraft is the action when no accent is chosen. */
+  --accent: oklch(74% 0.09 68);
+  --accent-strong: oklch(72% 0.09 64);
+  --accent-contrast: oklch(20% 0.04 55);
+  --focus-ring: 0 0 0 3px oklch(85% 0.12 80 / 0.7);
+  --font-heading: 'Bricolage Grotesque', var(--font-sans);
+  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-display-weight: 400;
+  --button-radius: var(--radius-md);
+  --ambiance-ground: url('./ambiances/guinguette-ground-1600.webp');
+  /* Derived, not chosen: the lowest top alpha at which --text-muted keeps 4.5:1 over the 99th
+     percentile of the photograph as a phone crops it (scripts/ambianceGround.test.ts); 0.79 fails. */
+  --ambiance-grade: linear-gradient(
+    180deg,
+    oklch(16% 0.016 70 / 0.8),
+    oklch(16% 0.016 70 / 0.78) 30%,
+    oklch(16% 0.016 70 / 0.86) 65%,
+    oklch(16% 0.016 70 / 0.96)
+  );
+  /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
+  --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --wall-ground:
+    var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
+  /* The join card is a kraft ticket. */
+  --wall-card-bg: var(--accent);
+  --wall-card-texture: var(--accent-texture);
+  --wall-card-ink: var(--accent-contrast);
+  --wall-card-ink-2: var(--accent-contrast);
+  --decor-gingham: oklch(55% 0.14 32);
+  --decor-bulb: oklch(90% 0.1 85);
+  --decor-glow: oklch(80% 0.14 70 / 0.55);
+  --decor-wire: oklch(14% 0.01 60);
+  --decor-cloth: oklch(93% 0.02 85);
+  --qr-field: var(--text-primary);
+  --qr-ink: var(--surface-base);
+  --glass-opaque: var(--surface-raised);
+  --glass-tint-photo: oklch(21% 0.02 70 / 0.96);
+  --glass-tint-ground: oklch(21% 0.02 70 / 0.93);
+  --glass-border: oklch(96% 0.022 85 / 0.16);
+  --glass-highlight: oklch(96% 0.022 85 / 0.1);
+  --sheet-rim: oklch(96% 0.022 85 / 0.45);
 }
 
 /* Riviera: dinner on a terrace facing the sea at sunset. Navy and a sail's white, a pill to
@@ -690,6 +769,11 @@
 [data-event-ambiance='noces'],
 :root:has(:where([data-event-ambiance='noces']:not([data-template-preview]))) {
   color-scheme: light;
+  /* A light pane's worst photograph is black, which dimming cannot move; a dimmed bright backdrop
+     would only make it greyer than the page. Restated whole: the filter is substituted where declared. */
+  --glass-brightness: 1;
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
   --surface-base: oklch(97.5% 0.008 85);
   --surface-raised: oklch(100% 0 0);
   --surface-overlay: oklch(95.5% 0.01 80);
@@ -824,6 +908,9 @@
 [data-event-ambiance='custom'][data-ambiance-ground='light'],
 :root:has(:where([data-event-ambiance='custom'][data-ambiance-ground='light']:not([data-template-preview]))) {
   color-scheme: light;
+  --glass-brightness: 1;
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
+    brightness(var(--glass-brightness));
   --surface-base: oklch(97.5% 0.01 var(--ground-hue));
   --surface-raised: oklch(99.5% 0.004 var(--ground-hue));
   --surface-overlay: oklch(95% 0.015 var(--ground-hue));
@@ -879,6 +966,14 @@
    them: faces, display weight and the control's corner, nothing else. One small block per face
    set, so the six are not six copies of whole ambiances; tokens.contrast.test.ts holds each to
    the values its own ambiance declares. */
+[data-ambiance-faces='eventslide'],
+:root:has(:where([data-ambiance-faces='eventslide']:not([data-template-preview]))) {
+  --font-heading: var(--font-sans);
+  --font-display: var(--font-sans);
+  --font-display-weight: 650;
+  --button-radius: var(--radius-md);
+}
+
 [data-ambiance-faces='guinguette'],
 :root:has(:where([data-ambiance-faces='guinguette']:not([data-template-preview]))) {
   --font-heading: 'Bricolage Grotesque', var(--font-sans);

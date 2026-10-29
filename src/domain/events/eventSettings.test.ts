@@ -43,7 +43,7 @@ describe('EventSettings defaults', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 

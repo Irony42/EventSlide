@@ -981,7 +981,7 @@ describe('the host event routes', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'guinguette',
+          ambiance: 'eventslide',
         },
       })
     })
@@ -1240,7 +1240,7 @@ describe('the host event routes', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       })
     })
 
@@ -1398,7 +1398,7 @@ describe('the host event routes', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
         groundUrl: null,
       })
     })
