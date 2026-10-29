@@ -6,6 +6,7 @@ import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { prefersReducedMotion } from '../../lib/prefersReducedMotion'
 import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { MissionChecklist } from './components/MissionChecklist'
@@ -227,6 +228,29 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   const composer = useRef<HTMLDivElement | null>(null)
   const oversized = useOversizedPane(composer)
 
+  /**
+   * "Voir mes envois", on the summary line of the queue: the guest's photos have moved to the
+   * list above, and this is the way there. The page owns it because it is the page that holds
+   * both ends (the pane and the list).
+   *
+   * Scrolls to the heading (smooth, unless the guest asked for less motion), moves focus to it —
+   * the only place focus is moved for this feature, and only because the guest pressed the button
+   * — and flashes the photos of the batch that is on screen, by the ids the server answered with.
+   */
+  const mineHeading = useRef<HTMLHeadingElement | null>(null)
+  const [highlighted, setHighlighted] = useState<readonly string[]>([])
+  const batchPhotoIds = queue.batch.photoIds
+  const viewMine = useCallback(() => {
+    const heading = mineHeading.current
+    if (heading === null) return
+    const calm = prefersReducedMotion()
+    heading.focus({ preventScroll: true })
+    heading.scrollIntoView?.({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+    // No flash for a guest who asked for no motion: the list is where they were taken.
+    setHighlighted(calm ? [] : batchPhotoIds)
+  }, [batchPhotoIds])
+  const endHighlight = useCallback(() => setHighlighted([]), [])
+
   const installSlot = useRef<HTMLDivElement | null>(null)
   const dismissInstall = () => {
     install.dismiss()
@@ -343,6 +367,9 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           error={mine.error}
           onRetry={mine.refresh}
           onDelete={mine.remove}
+          headingRef={mineHeading}
+          highlighted={highlighted}
+          onHighlightEnd={endHighlight}
         />
       )}
 
@@ -382,7 +409,15 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
             onSendNow={outbox.drain}
           />
         ) : null}
-        <UploadQueue items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
+        <UploadQueue
+          items={queue.items}
+          batch={queue.batch}
+          onRetry={queue.retry}
+          onRemove={queue.remove}
+          onDismiss={queue.clearSettled}
+          // Not once the server has stopped serving the gallery: there is no list to go to.
+          onViewMine={mine.unavailable ? undefined : viewMine}
+        />
         {/*
           The notice, in the place the picker will be, until this device has read the one
           in force. Everything below it picks or sends a new photo, so all of it waits;

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode, messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { shouldQueue } from '../../../lib/offline/outboxPolicy'
 import { downscaleImage } from './downscaleImage'
+import { summarizeBatch, type BatchSummary } from './queueBatch'
 import type { DrainReport } from '../../../lib/offline/drainOutbox'
 
 /**
@@ -83,11 +84,15 @@ export interface UploadQueueOptions {
 
 export interface UploadQueue {
   readonly items: readonly UploadItem[]
+  /** Whether the rows are finished and all of them arrived, and the counts. See `summarizeBatch`. */
+  readonly batch: BatchSummary
   readonly sending: boolean
   /** How many photos a press of "Envoyer" would actually send. */
   readonly sendableCount: number
   readonly add: (files: readonly File[]) => void
   readonly remove: (id: string) => void
+  /** Drops every row that has arrived, as picking the next photos would. Never one that has not. */
+  readonly clearSettled: () => void
   readonly retry: (id: string) => void
   readonly send: (caption: string | null, missionId: string | null) => void
   /**
@@ -101,6 +106,14 @@ export interface UploadQueue {
 }
 
 const SETTLED: readonly UploadItemState[] = ['done', 'duplicate']
+
+/** The rows still owed something, with the previews of the arrived ones let go of. */
+const withoutSettled = (items: readonly UploadItem[]): readonly UploadItem[] =>
+  items.filter((item) => {
+    if (!SETTLED.includes(item.state)) return true
+    URL.revokeObjectURL(item.previewUrl)
+    return false
+  })
 
 export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   const { slug, resize = downscaleImage, onSettled, outbox } = options
@@ -162,16 +175,14 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       // A photo that arrived is listed under "Vos envois" now, so leaving it here
       // would report it twice — and would shift every `upload-item-<n>` that the
       // guest and the e2e suite read positionally.
-      const kept = itemsRef.current.filter((item) => {
-        if (!SETTLED.includes(item.state)) return true
-        URL.revokeObjectURL(item.previewUrl)
-        return false
-      })
-
-      commit([...kept, ...arrived])
+      commit([...withoutSettled(itemsRef.current), ...arrived])
     },
     [commit],
   )
+
+  const clearSettled = useCallback(() => {
+    commit(withoutSettled(itemsRef.current))
+  }, [commit])
 
   const remove = useCallback(
     (id: string) => {
@@ -377,12 +388,16 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
     }
   }, [])
 
+  const batch = useMemo(() => summarizeBatch(items), [items])
+
   return {
     items,
+    batch,
     sending,
     sendableCount: items.filter((item) => item.state === 'pending').length,
     add,
     remove,
+    clearSettled,
     retry,
     send,
     settle,

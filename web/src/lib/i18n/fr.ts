@@ -121,7 +121,6 @@ export const fr = {
     statusHidden: 'Retirée de l’écran',
     deleteOwn: 'Supprimer',
     deleteOwnConfirm: 'Supprimer cette photo ? Cette action est définitive.',
-    thanks: 'Merci, vos photos sont bien arrivées.',
 
     /* ---------- guest surface: features/join + features/guest-upload ---------- */
 
@@ -137,6 +136,32 @@ export const fr = {
         one: 'Un envoi a échoué.',
         other: `${t.number(count)} envois ont échoué.`,
       }),
+    /**
+     * What the pane says once every photo of the batch has arrived, in one line: how many, and
+     * how many of them the event already held. The rows behind it keep each photo's own word.
+     * Counted by `t.count`, so the agreement is the language's own, zero included.
+     */
+    queueDone: (arrived: number, already: number) => {
+      if (already > 0 && already === arrived) {
+        return t.count(arrived, {
+          one: 'Cette photo était déjà là',
+          other: `Ces ${t.number(arrived)} photos étaient déjà là`,
+        })
+      }
+      const sent = t.count(arrived, {
+        one: `${t.number(arrived)} photo envoyée`,
+        other: `${t.number(arrived)} photos envoyées`,
+      })
+      if (already === 0) return sent
+      const there = t.count(already, {
+        one: `${t.number(already)} était déjà là`,
+        other: `${t.number(already)} étaient déjà là`,
+      })
+      return `${sent} (${there})`
+    },
+    queueViewMine: 'Voir mes envois',
+    queueDetails: 'Détails',
+    queueDismiss: 'Masquer le récapitulatif',
     itemAlt: (position: number) => `Photo ${position} à envoyer`,
     itemProgress: (position: number) => `Envoi de la photo ${position}`,
     removeItem: (position: number) => `Retirer la photo ${position}`,

@@ -306,6 +306,7 @@ const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
   'design-system/components/Dialog.module.css': 'no-preference',
   'design-system/components/Spinner.module.css': 'reduce-branch',
   'design-system/components/Toast.module.css': 'no-preference',
+  'features/guest-upload/components/MyPhotos.module.css': 'no-preference',
   'features/guest-upload/components/UploadQueue.module.css': 'no-preference',
   'features/moderation/components/ModerationGrid.module.css': 'no-preference',
   'features/wall/WallPage.module.css': 'survives-collapsed',
