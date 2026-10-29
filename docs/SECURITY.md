@@ -1076,17 +1076,20 @@ spend a colleague's allowance; `EVENT_CREATION_RATE_LIMIT_PER_HOUR` (default **2
 `event.creationRateLimited` are in `env.ts` and `middleware/rateLimit.ts` (P4-09 / D-14,
 roadmap G3-05).
 
-**(defect)** The two upload rows describe three independent limits and there is one.
+**(defect)** The two upload rows describe three independent limits and there are two.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by
 `clientKey:eventSlug` at `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` (default **300** per minute, a flood
 ceiling) and `uploadGuestLimiter` a second, keyed by the guest `requireGuest` verified, at
 `UPLOAD_RATE_LIMIT_PER_MINUTE` (default **12**), mounted right after `requireGuest` and so before the
 body is read (3.2, review S1; through 3.1 the 12 was per address and a whole venue shared it).
 Both upload routes share both — deliberately, because a guest sending a photo and a clip is
-one guest and two buckets would be twice the allowance. There is no per-guest-token
-limiter at all. The numbers above were never implemented; the intent — a limit that a
-whole table of guests behind one venue access point does not trip on somebody else's
-behalf — is served by the composite key rather than by three tiers.
+one guest and two buckets would be twice the allowance. The per-guest stage is fairness, not
+abuse control: `POST /api/join` is public, so a script can mint guests, each with a fresh budget.
+What bounds one address is the first stage (300 uploads a minute per event, up from 12 through 3.1),
+with the event's byte quota and the upload concurrency limiter behind it, and the join budget
+(200 a minute) bounds how fast guests can be minted. The numbers above were never implemented; the
+intent — a limit that a whole table of guests behind one venue access point does not trip on
+somebody else's behalf — is served by the two stages rather than by three tiers.
 
 **The five other guest writes** — a caption, taking a photo back, withdrawing a reaction,
 renaming oneself and acknowledging the privacy notice — spend **one** bucket keyed by `clientKey:eventSlug`,

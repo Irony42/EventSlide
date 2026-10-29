@@ -1207,10 +1207,9 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
     expect((await react(other, 'love', PUBLISHED)).status).toBe(204)
   })
 
-  it('answers 429 once the per-minute limit for this address and event is spent', async () => {
-    // The coarse control, in front of the use case and apart from the guest's own budget:
-    // the budget here is generous, so only the limiter can refuse the second tap. A phone
-    // that taps at the speed of a thumb is what the limiter exists to slow down.
+  it("answers 429 once this guest's per-minute reaction limit is spent", async () => {
+    // The guest limiter, in front of the use case and apart from the guest's own domain budget: the
+    // budget here is generous, so only the limiter can refuse the second tap.
     const subject = buildSubject({
       config: {
         rateLimits: {

@@ -273,6 +273,8 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       joinPerMinute: raw.JOIN_RATE_LIMIT_PER_MINUTE,
       loginPerMinute: raw.LOGIN_RATE_LIMIT_PER_MINUTE,
       reactionPerMinute: raw.REACTION_RATE_LIMIT_PER_MINUTE,
+      // Inert today: the schema caps REACTION_RATE_LIMIT_PER_MINUTE at 600, the default ceiling. Kept
+      // so that the two lines stay alike if either figure moves.
       reactionPerIpPerMinute:
         raw.REACTION_RATE_LIMIT_PER_IP_PER_MINUTE ??
         Math.max(DEFAULT_REACTION_PER_IP_PER_MINUTE, raw.REACTION_RATE_LIMIT_PER_MINUTE),

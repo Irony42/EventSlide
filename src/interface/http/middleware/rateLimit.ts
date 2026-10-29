@@ -116,7 +116,7 @@ const limiter = (perMinute: number, code: string, keyBy?: (req: Request) => stri
  * join), so a venue behind one address admits about a hundred guests a minute. What the number
  * must still bound is guessing: at the default length a code is one of 32^6 = 1,073,741,824, so
  * one address sweeping the whole space at 200 a minute needs 5.4 million minutes, about ten
- * years, and finds one particular active code after five on average; ten characters is 32^10,
+ * years, and finds one particular active code after five years on average; ten characters is 32^10,
  * about 1.1e15. A botnet spreads the rate over addresses, which the code's length and its
  * rotation are for; there is deliberately no bucket per code.
  *
