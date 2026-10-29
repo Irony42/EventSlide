@@ -155,8 +155,14 @@ describe('GuestUploadPage: after a batch has arrived', () => {
     // Bubbling, as a browser's `animationend` does. jsdom has no `AnimationEvent`, so React listens
     // there for the old prefixed name: both are sent, and only the one it listens for is heard.
     const flash = document.querySelector('[data-highlight]') as Element
-    fireEvent(flash, new Event('animationend', { bubbles: true }))
-    fireEvent(flash, new Event('webkitAnimationEnd', { bubbles: true }))
+    const end = (name: string, type: string) =>
+      fireEvent(flash, Object.assign(new Event(type, { bubbles: true }), { animationName: name }))
+    // Another animation ending inside a row does not end the flash.
+    end('rise', 'animationend')
+    end('rise', 'webkitAnimationEnd')
+    expect(flashed()).toHaveLength(2)
+    end('sent-flash', 'animationend')
+    end('sent-flash', 'webkitAnimationEnd')
     expect(flashed()).toHaveLength(0)
 
     await userEvent.click(screen.getByRole('button', { name: fr.upload.queueViewMine }))

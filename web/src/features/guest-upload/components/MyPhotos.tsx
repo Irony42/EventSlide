@@ -110,7 +110,12 @@ export function MyPhotos({
       ) : null}
 
       {photos.length === 0 ? null : (
-        <ul className={styles['list']} onAnimationEnd={onHighlightEnd}>
+        <ul
+          className={styles['list']} // Only the flash's own end: `animationend` bubbles from any animation inside a row.
+          onAnimationEnd={(event) => {
+            if (event.animationName.includes('sent-flash')) onHighlightEnd?.()
+          }}
+        >
           {photos.map((photo, index) => (
             <li
               key={photo.id}
