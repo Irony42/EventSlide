@@ -47,13 +47,13 @@ const PHONES: readonly Phone[] = [
  * into view as the page allows. `behavior: 'instant'` because the page smooth-scrolls, and a
  * measurement taken mid-scroll is a measurement of nothing.
  */
-const reachable = (target: Locator): Promise<boolean> =>
-  target.evaluate((element) => {
-    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+const reachable = (target: Locator, block: 'center' | 'start' = 'center'): Promise<boolean> =>
+  target.evaluate((element, where) => {
+    element.scrollIntoView({ block: where, behavior: 'instant' })
     const box = element.getBoundingClientRect()
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
     return hit !== null && element.contains(hit)
-  })
+  }, block)
 
 /** What the pane is doing to the viewport right now. */
 const pinnedShare = (
@@ -132,7 +132,8 @@ for (const phone of PHONES) {
     await page.getByRole('button', { name: /^Envoyer/i }).click()
 
     // They have all arrived, and the guest's own list says so: that list is the thing under test.
-    await expect(page.getByText(fr.upload.thanks)).toBeVisible()
+    // The queue has folded into its one line saying the same (`queue-summary` below is about it).
+    await expect(page.getByText(fr.upload.queueDone(PHOTOS, 0))).toBeVisible()
     const mine = page.locator('li').filter({
       has: page.getByRole('img', { name: fr.upload.mineAlt }),
     })
@@ -146,7 +147,11 @@ for (const phone of PHONES) {
     if (sticky) expect(share).toBeLessThanOrEqual(MAX_PINNED_SHARE)
 
     for (let index = 0; index < PHOTOS; index += 1) {
-      expect(await reachable(mine.nth(index)), `"Vos envois", photo ${index + 1}`).toBe(true)
+      // `start`: a folded pane is pinned, about half of the screen, and a photo centred on the screen
+      // sits at its very edge. What the guest needs is a scroll position where it is not under it.
+      expect(await reachable(mine.nth(index), 'start'), `"Vos envois", photo ${index + 1}`).toBe(
+        true,
+      )
     }
 
     // And the controls can still be reached: the picker is the top of the pane, and the send
@@ -456,6 +461,151 @@ test('320x568, text at 200%, in German: the longest word of the two buttons does
   const open = await widths()
   expect(open.innerWidth, 'the layout viewport').toBe(320)
   expect(open.scrollWidth, 'both options open').toBeLessThanOrEqual(320)
+
+  await context.close()
+})
+
+/**
+ * After a batch of seven photos has arrived, the queue is one line, and the guest is shown where
+ * their photos went.
+ *
+ * Seven rows of "Envoyée" took the whole screen of a phone, and the guest never saw that their
+ * photos had moved to "Vos envois" above: the rows said nothing about it, and the answer to
+ * "did it work?" was out of sight. The rows fold into one line with a way to the list ("Voir mes
+ * envois") and a disclosure that brings the rows back ("Détails"). What is asserted is geometry
+ * (the share of the screen the pane takes, and what a touch at the middle of the first photo of
+ * the batch would hit), never a pixel.
+ *
+ * A pane of one line and the picker is not the 40% of the *empty* pane: the line is a row of 44 px
+ * targets on top of it. Just over half the screen is the ceiling here (measured 47%; a few points of margin for the fonts CI measures with), against 1.0's 164% for six rows.
+ */
+const SUMMARY_PANE_MOST = 0.55
+
+const BATCH = 7
+
+for (const ambiance of ['guinguette', 'cabaret'] as const)
+  test(`375x667, ${ambiance}: after ${BATCH} photos the pane is one line, and "Voir mes envois" brings the batch on screen`, async ({
+    app,
+    browser,
+  }, testInfo) => {
+    const context = await browser.newContext({
+      viewport: { width: 375, height: 667 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+      locale: SUITE_LOCALE,
+      baseURL: app.baseUrl,
+    })
+    const page = await context.newPage()
+    await openUploadScreen(page, app, `pane-summary-${testInfo.workerIndex}-${ambiance}`, {
+      ambiance,
+    })
+    const photos = await Promise.all(
+      Array.from({ length: BATCH }, (_unused, index) =>
+        aPhoto(`pane-summary-${index + 1}`, 800, 600),
+      ),
+    )
+    await page.getByTestId('photo-input').setInputFiles(photos)
+    // While photos are queued every row is shown, with its progress: the pane is the tall one.
+    await expect(page.getByTestId(`upload-item-${BATCH - 1}`)).toBeVisible()
+    await page.getByRole('button', { name: /^Envoyer/i }).click()
+
+    // The rows keep their testid and their state (the contract the other journeys read) ...
+    await expect(page.getByTestId(`upload-item-${BATCH - 1}`)).toHaveAttribute('data-state', 'done')
+    // ... and the pane is one line.
+    const pane = page.getByTestId('upload-composer')
+    const summary = page.getByText(fr.upload.queueDone(BATCH, 0))
+    await expect(summary).toBeVisible()
+    await expect
+      .poll(async () => (await pinnedShare(pane)).share)
+      .toBeLessThanOrEqual(SUMMARY_PANE_MOST)
+    expect(await summary.isVisible(), 'the summary line').toBe(true)
+    // Folded rows are out of the screen and the accessibility tree, not out of the page.
+    await expect(page.getByTestId('upload-item-0')).toBeHidden()
+    await expect(page.getByRole('img', { name: fr.upload.itemAlt(1) })).toHaveCount(0)
+
+    // "Vos envois" holds the batch, newest first.
+    const mine = page.locator('li').filter({
+      has: page.getByRole('img', { name: fr.upload.mineAlt }),
+    })
+    await expect(mine).toHaveCount(BATCH)
+    const first = mine.first()
+
+    // Not yet where a thumb would see it: the page is where the guest left it, at the bottom.
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight }))
+
+    await page.getByRole('button', { name: fr.upload.queueViewMine }).click()
+
+    // The first photo of the batch is inside the screen, and what a touch at its middle reaches.
+    // `poll`: the scroll is smooth.
+    await expect
+      .poll(() =>
+        first.evaluate((element) => {
+          const box = element.getBoundingClientRect()
+          const x = box.left + box.width / 2
+          const y = box.top + box.height / 2
+          if (y < 0 || y > window.innerHeight || x < 0 || x > window.innerWidth) return 'off screen'
+          const hit = document.elementFromPoint(x, y)
+          return hit !== null && element.contains(hit) ? 'reachable' : 'covered'
+        }),
+      )
+      .toBe('reachable')
+    // And it is the heading that has focus, so a screen reader reads on from "Vos envois".
+    await expect(page.getByRole('heading', { level: 2, name: fr.upload.mine })).toBeFocused()
+
+    // The rows are one press away, with the word of each state.
+    const details = page.getByRole('button', { name: fr.upload.queueDetails })
+    await expect(details).toHaveAttribute('aria-expanded', 'false')
+    await details.click()
+    await expect(details).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByTestId('upload-item-0')).toBeVisible()
+
+    await context.close()
+  })
+
+test('320x568, text at 200%: the summary line wraps, and nothing is wider than the screen', async ({
+  app,
+  browser,
+}, testInfo) => {
+  const context = await browser.newContext({
+    viewport: { width: 320, height: 568 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+    bypassCSP: true,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-summary-wide-${testInfo.workerIndex}`)
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' })
+  await page
+    .getByTestId('photo-input')
+    .setInputFiles(
+      await Promise.all([1, 2, 3].map((n) => aPhoto(`pane-summary-wide-${n}`, 800, 600))),
+    )
+  await page.getByRole('button', { name: /^Envoyer/i }).click()
+  await expect(page.getByText(fr.upload.queueDone(3, 0))).toBeVisible()
+
+  const widths = () =>
+    page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    }))
+  const folded = await widths()
+  expect(folded.innerWidth, 'the layout viewport').toBe(320)
+  expect(folded.scrollWidth, 'folded').toBeLessThanOrEqual(320)
+
+  // Every control of the line has its own box, inside the screen.
+  for (const name of [fr.upload.queueViewMine, fr.upload.queueDetails, fr.upload.queueDismiss]) {
+    const box = await page.getByRole('button', { name }).boundingBox()
+    expect(box, name).not.toBeNull()
+    expect(box?.x ?? -1).toBeGreaterThanOrEqual(0)
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320)
+  }
+
+  await page.getByRole('button', { name: fr.upload.queueDetails }).click()
+  expect((await widths()).scrollWidth, 'rows back').toBeLessThanOrEqual(320)
 
   await context.close()
 })

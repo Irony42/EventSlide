@@ -122,6 +122,10 @@ test('the same photo sent twice is reported as already sent, not duplicated', as
   await guest.getByTestId('photo-input').setInputFiles(second)
   await guest.getByRole('button', { name: /Envoyer/i }).click()
   await expect(guest.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'duplicate')
+  // The batch is finished and all of it was already there: the rows are folded into one line saying
+  // so, and each photo's own word is one press of "Détails" away.
+  await expect(guest.getByText(/Cette photo était déjà là/i)).toBeVisible()
+  await guest.getByRole('button', { name: /^Détails$/i }).click()
   await expect(guest.getByText(/Déjà envoyée/i)).toBeVisible()
 })
 

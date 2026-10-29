@@ -23,6 +23,11 @@ const COUNTED: readonly CountedPhrase[] = [
   ['upload.sendCount', fr.upload.sendCount],
   ['upload.queueSummary', (count) => fr.upload.queueSummary(count, 3)],
   ['upload.queueFailed', fr.upload.queueFailed],
+  // The two counts of the summary line, one at a time: the photos that arrived, then how many of them
+  // were already there (a partial overlap, so neither phrase is the all-duplicates one).
+  ['upload.queueDone', (count) => fr.upload.queueDone(count, 0)],
+  ['upload.queueDone, already there', (count) => fr.upload.queueDone(5, count)],
+  ['upload.queueDone, all already there', (count) => fr.upload.queueDone(count, count)],
   ['upload.offlineTitle', fr.upload.offlineTitle],
   // The server's own `Retry-After`, which is one second at its floor: "réessayez dans 1
   // secondes" on the one screen a guest reads while standing in a room.

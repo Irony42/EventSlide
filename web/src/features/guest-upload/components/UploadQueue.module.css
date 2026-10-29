@@ -12,6 +12,40 @@
   font-variant-numeric: tabular-nums;
 }
 
+/**
+ * The summary line, and what can be done from it once the batch has arrived.
+ *
+ * It wraps, for a guest who has turned their text up on the narrowest phone: the sentence takes
+ * a line, the buttons the next, and a button's own label can break rather than push the page
+ * wider than the screen (the rule the composer's two toggles follow).
+ */
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.live {
+  flex: 1 1 var(--tile-min-width);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  max-inline-size: 100%;
+}
+
+.actions > button {
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .list {
   display: flex;
   flex-direction: column;
@@ -19,6 +53,12 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* `display: flex` above would beat the browser's own `[hidden] { display: none }`, which is
+   what folds the rows once the batch has arrived. */
+.list[hidden] {
+  display: none;
 }
 
 .item {
