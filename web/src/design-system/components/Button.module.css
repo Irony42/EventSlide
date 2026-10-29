@@ -3,7 +3,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  border-radius: var(--radius-md);
+  /* The ambiance's shape to press (ADR 0010): rounded, a pill, or square-cornered. */
+  border-radius: var(--button-radius);
+  /* The ambiance's heading face, which is the root's Bricolage Grotesque unless it names one. */
+  font-family: var(--font-heading);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -35,12 +38,14 @@
 /* ---------------------------------------------------------------- variants -- */
 
 .primary {
-  background: var(--accent);
+  /* Kraft fibres at the root, nothing in an ambiance that names none (ADR 0010). */
+  background-image: var(--accent-texture);
+  background-color: var(--accent);
   color: var(--accent-contrast);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background-color: var(--accent-strong);
 }
 
 .secondary {

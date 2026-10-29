@@ -11,7 +11,8 @@ export type PhotoStatus = 'pending' | 'published' | 'rejected' | 'hidden'
 export type EventStatus = 'draft' | 'live' | 'closed' | 'archived'
 export type ModerationDecision = 'publish' | 'reject' | 'hide'
 export type ReactionKind = 'love' | 'laugh' | 'wow' | 'cheers' | 'clap'
-export type WallLayout = 'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split'
+export type WallLayout =
+  'spotlight' | 'mosaic' | 'polaroid' | 'filmstrip' | 'collage' | 'split' | 'clothesline'
 /**
  * The language an event's projected wall speaks (roadmap 1.5).
  *
@@ -47,6 +48,20 @@ export type ThemeFonts = 'sans' | 'serif'
 export type ThemeFrame = 'soft' | 'square' | 'round'
 /** The material its panes are made of (roadmap 11.5). Both renderings already ship. */
 export type ThemeMaterial = 'glass' | 'plain'
+/** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
+export type ThemeAmbiance =
+  'guinguette' | 'riviera' | 'champs' | 'bivouac' | 'cabaret' | 'noces' | 'custom'
+/** The designed ambiances a custom one may borrow its faces from (ADR 0011). */
+export type ThemeFaces = Exclude<ThemeAmbiance, 'custom'>
+/** The polarity of a custom ambiance's surfaces and inks. */
+export type ThemeGround = 'light' | 'dark'
+/** The host's own ambiance (ADR 0011): a polarity, a tint angle and borrowed faces. */
+export interface ThemeCustom {
+  readonly ground: ThemeGround
+  /** Degrees on the oklch hue circle, 0-359. */
+  readonly groundHue: number
+  readonly faces: ThemeFaces
+}
 
 /**
  * The preset an event's settings are created from (roadmap 3.5).
@@ -89,6 +104,18 @@ export interface EventThemeDto {
    * device that cannot afford the filter or to a budget that has shed it.
    */
   readonly material: ThemeMaterial
+  readonly ambiance: ThemeAmbiance
+  /** Present exactly when `ambiance` is `custom` (ADR 0011); absent from the wire otherwise. */
+  readonly custom?: ThemeCustom
+  /**
+   * Where the host's own photograph of their venue is served, replacing the ambiance's bundled
+   * ground (ADR 0010, decision 8), or `null`. A path on this origin that names the photograph's
+   * digest, so it changes when the photograph does.
+   *
+   * Optional on the client alone, and only because a theme a tab stored before this field
+   * existed has none: the server always sends it. `readEventTheme` is what lets one through.
+   */
+  readonly groundUrl?: string | null
 }
 
 /** What a guest may know about an event before and after joining. */

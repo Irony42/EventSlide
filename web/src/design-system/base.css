@@ -27,6 +27,8 @@ body {
   font-size: var(--text-base);
   line-height: var(--leading-normal);
   color: var(--text-primary);
+  /* The photographed ground is a layer of its own (html::before below); this is the colour
+     it grades towards. The wall paints its own ground over both. */
   background: var(--surface-base);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -168,4 +170,269 @@ a {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+/**
+ * The ambiance's photographed ground (ADR 0010), on a fixed layer of its own rather than as a
+ * fixed body background: iOS treats `background-attachment: fixed` as `scroll` and would
+ * stretch the photograph down the whole page, and a fixed body background repaints on scroll.
+ */
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    var(--ambiance-grade),
+    var(--ambiance-ground) center / cover no-repeat;
+}
+
+/**
+ * A host's own photograph of their venue in place of an ambiance's bundled ground (ADR 0010,
+ * decision 8a). `html::before` above can only read the root's custom properties, and the photograph
+ * arrives as an inline one on the surface (or the marker) that is dressed, so that element paints
+ * its own fixed layer instead: the same layer, the same stack position, the same cover, one coat
+ * darker (`--venue-scrim-layer`, `tokens.css`). The root's is emptied so the bundled photograph is
+ * neither drawn under it nor downloaded.
+ *
+ * Painted in the same render as the element, so there is no frame in which the bundled photograph
+ * shows first. The template preview is excluded, as it is from every ambiance rule: it never
+ * carries a photograph, but it is the one place this must not be able to leak into.
+ */
+:root:has([data-venue-ground='guest']:not([data-template-preview]))::before {
+  background: none;
+}
+
+[data-venue-ground='guest']:not([data-template-preview])::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    var(--venue-scrim-layer),
+    var(--ambiance-grade),
+    var(--ambiance-ground) center / cover no-repeat;
+}
+
+/* The marker is an element to hang the layer on and takes no room of its own. */
+[data-ambiance-marker][data-venue-ground] {
+  display: contents;
+}
+
+/**
+ * The ornaments (ADR 0010): a woven or lit strip along the edge of the page, on the guest's
+ * pages and on the console, never on the wall. The wall is excluded by its layout marker,
+ * because a fixed strip there would sit over every photograph (principle 1).
+ *
+ * Which strip a page wears is decided by the ambiance that is mounted on it, so the six are
+ * one skeleton and six sets of paint:
+ *
+ * - the Guinguette is the root look, so it is every page that has no ambiance marker;
+ * - a template preview in the console does not count as one, or previewing a festive template
+ *   would dress the moderation console in its strips.
+ *
+ * Nothing here moves, so there is nothing for `prefers-reduced-motion` to stop.
+ *
+ * Sur mesure (ADR 0011, `data-event-ambiance='custom'`) is deliberately in neither list: it has no
+ * ornaments, so its pages wear no strip at all.
+ */
+:is(
+    body:not(:has([data-event-ambiance]:not([data-template-preview]))),
+    body:has([data-event-ambiance='riviera']:not([data-template-preview])),
+    body:has([data-event-ambiance='champs']:not([data-template-preview])),
+    body:has([data-event-ambiance='bivouac']:not([data-template-preview])),
+    body:has([data-event-ambiance='cabaret']:not([data-template-preview])),
+    body:has([data-event-ambiance='noces']:not([data-template-preview]))
+  ):not(:has([data-wall-layout], [data-ornament-free]))::before,
+:is(
+    body:not(:has([data-event-ambiance]:not([data-template-preview]))),
+    body:has([data-event-ambiance='riviera']:not([data-template-preview])),
+    body:has([data-event-ambiance='champs']:not([data-template-preview])),
+    body:has([data-event-ambiance='bivouac']:not([data-template-preview])),
+    body:has([data-event-ambiance='cabaret']:not([data-template-preview])),
+    body:has([data-event-ambiance='noces']:not([data-template-preview]))
+  ):not(:has([data-wall-layout], [data-ornament-free]))::after {
+  position: fixed;
+  inset-inline: 0;
+  /* Under the sticky bars, the toasts and the dialogs, which must stay readable over a strip. */
+  z-index: var(--z-wall-caption);
+  pointer-events: none;
+}
+
+/* ---- The Guinguette: a string of filament bulbs along the top, linen gingham below. ---- */
+body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::before {
+  content: '';
+  inset-block-start: 0;
+  block-size: 44px;
+  background:
+    radial-gradient(7px 9px at 32px 26px, var(--decor-bulb) 60%, transparent 100%) 0 0 / 64px 44px
+      repeat-x,
+    radial-gradient(22px 22px at 32px 26px, var(--decor-glow), transparent 100%) 0 0 / 64px 44px
+      repeat-x,
+    linear-gradient(var(--decor-wire), var(--decor-wire)) 0 14px / 100% 2px no-repeat;
+}
+
+body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::after {
+  content: '';
+  inset-block-end: 0;
+  block-size: 16px;
+  background:
+    var(--grain),
+    linear-gradient(
+        90deg,
+        color-mix(in oklch, var(--decor-gingham) 55%, transparent) 50%,
+        transparent 0
+      )
+      0 0 / 14px 14px,
+    linear-gradient(color-mix(in oklch, var(--decor-gingham) 55%, transparent) 50%, transparent 0) 0
+      0 / 14px 14px,
+    var(--decor-cloth);
+}
+
+/* Room for the ornaments, so they never sit over the header or the last control. */
+body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
+  padding-block: var(--space-6) var(--space-5);
+}
+
+/* ---- Riviera: a breton stripe along the top and the bottom. ---- */
+body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::before,
+body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::after {
+  content: '';
+  block-size: 12px;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--decor-stripe) 0 3px,
+    var(--decor-cloth) 3px 6px
+  );
+}
+
+body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::before {
+  inset-block-start: 0;
+}
+
+body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::after {
+  inset-block-end: 0;
+}
+
+body:has([data-event-ambiance='riviera']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
+  padding-block: var(--space-4);
+}
+
+/* ---- Champs d'or: a strip of linen along the bottom. ---- */
+body:has([data-event-ambiance='champs']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::after {
+  content: '';
+  inset-block-end: 0;
+  block-size: 16px;
+  background:
+    var(--grain),
+    repeating-linear-gradient(90deg, var(--decor-cloth) 0 2px, var(--decor-weave) 2px 4px);
+}
+
+body:has([data-event-ambiance='champs']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
+  padding-block-end: var(--space-5);
+}
+
+/* ---- Bivouac: a strip of tartan wool along the bottom. ---- */
+body:has([data-event-ambiance='bivouac']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::after {
+  content: '';
+  inset-block-end: 0;
+  block-size: 18px;
+  background:
+    repeating-linear-gradient(90deg, var(--decor-warp) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(0deg, var(--decor-weft) 0 6px, var(--decor-weft-dark) 6px 18px);
+}
+
+body:has([data-event-ambiance='bivouac']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
+  padding-block-end: var(--space-5);
+}
+
+/* ---- Cabaret: an art-deco fan line along the top, a double rule along the bottom. ---- */
+body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::before {
+  content: '';
+  inset-block-start: 14px;
+  block-size: 20px;
+  background: radial-gradient(
+      circle at 50% 100%,
+      transparent 9px,
+      var(--decor-gold) 9.5px,
+      var(--decor-gold) 10.5px,
+      transparent 11px
+    )
+    0 0 / 22px 20px repeat-x;
+}
+
+body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::after {
+  content: '';
+  inset-block-end: 12px;
+  inset-inline: 22px;
+  block-size: 6px;
+  border-block: 1px solid var(--decor-gold);
+}
+
+body:has([data-event-ambiance='cabaret']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
+  padding-block: var(--space-8) var(--space-5);
+}
+
+/* ---- Noces: a thin double rule along the top, a line of rose petals along the bottom. ---- */
+body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::before {
+  content: '';
+  inset-block-start: 12px;
+  inset-inline: 22px;
+  block-size: 5px;
+  border-block: 1px solid var(--decor-rule);
+}
+
+body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  )::after {
+  content: '';
+  inset-block-end: 10px;
+  block-size: 10px;
+  background: radial-gradient(
+      ellipse 5px 3px at 50% 50%,
+      var(--decor-petal) 0,
+      var(--decor-petal) 90%,
+      transparent 100%
+    )
+    0 0 / 26px 10px repeat-x;
+}
+
+body:has([data-event-ambiance='noces']:not([data-template-preview])):not(
+    :has([data-wall-layout], [data-ornament-free])
+  ) {
+  padding-block: var(--space-6) var(--space-5);
 }

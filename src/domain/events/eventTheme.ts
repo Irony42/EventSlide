@@ -138,6 +138,74 @@ export type ThemeFrame = (typeof THEME_FRAMES)[number]
 export const THEME_MATERIALS = ['glass', 'plain'] as const
 export type ThemeMaterial = (typeof THEME_MATERIALS)[number]
 
+/**
+ * The event's ambiance: a closed, reviewed pack of surfaces, inks, display face and
+ * ornaments that the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md).
+ *
+ * `guinguette` is the product's own look, so it is the default and emits nothing; every
+ * other entry is a block in `tokens.css` with its own contrast test. The accent hue, the
+ * font pairing, the frame and the material still apply on top, so an ambiance chooses a
+ * world and the host still chooses a colour in it.
+ */
+export const THEME_AMBIANCES = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+  'custom',
+] as const
+export type ThemeAmbiance = (typeof THEME_AMBIANCES)[number]
+
+/**
+ * The ambiances whose faces, display weight and control radius a `custom` one may borrow:
+ * every designed one (docs/adr/0011-custom-ambiance.md, decision 1). Spelled out rather than
+ * filtered, so a new designed ambiance is a deliberate line here.
+ */
+export const THEME_FACES = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+] as const satisfies readonly ThemeAmbiance[]
+export type ThemeFaces = (typeof THEME_FACES)[number]
+
+/** The polarity of a custom ambiance's surfaces and inks. */
+export const THEME_GROUNDS = ['light', 'dark'] as const
+export type ThemeGround = (typeof THEME_GROUNDS)[number]
+
+/**
+ * What a host chooses in « Sur mesure »: a polarity, a tint and a borrowed set of faces.
+ * `groundHue` is an angle like the accent; no colour crosses the wire.
+ */
+export interface ThemeCustom {
+  readonly ground: ThemeGround
+  /** Degrees on the oklch hue circle, 0-359. */
+  readonly groundHue: number
+  readonly faces: ThemeFaces
+}
+
+/**
+ * Names an ambiance used to go by, read as what replaced it.
+ *
+ * `darkroom` was the Chambre noire, the product's look before 28/10, which Pierre abandoned
+ * for the Guinguette. A theme stored while it existed (a host's settings row, a guest's
+ * `sessionStorage`) still says so, and the closed vocabulary above no longer does: refusing
+ * it would be corruption, and it is not. It is read as the Guinguette and written back as
+ * that the next time the settings are saved. Nothing new may be added here for an ordinary
+ * rename: this is for data already written.
+ */
+const LEGACY_AMBIANCES: Readonly<Record<string, ThemeAmbiance>> = { darkroom: 'guinguette' }
+
+/** A stored ambiance, with a legacy name replaced by the one that took its place. */
+export const currentAmbianceName = (value: unknown): unknown =>
+  typeof value === 'string' && Object.hasOwn(LEGACY_AMBIANCES, value)
+    ? LEGACY_AMBIANCES[value]
+    : value
+
 export interface EventThemeProps {
   /** Degrees on the oklch hue circle, 0-359. */
   readonly accentHue: number
@@ -159,6 +227,13 @@ export interface EventThemeProps {
    * afford.
    */
   readonly material: ThemeMaterial
+  /** The pack of surfaces and ornaments this event wears. See `THEME_AMBIANCES`. */
+  readonly ambiance: ThemeAmbiance
+  /**
+   * The host's own ambiance (ADR 0011): **required when `ambiance` is `custom`, refused
+   * otherwise**, so a stored theme never carries one half of the pair.
+   */
+  readonly custom?: ThemeCustom
 }
 
 /**
@@ -179,6 +254,7 @@ export const DEFAULT_EVENT_THEME: EventThemeProps = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
+  ambiance: 'guinguette',
 })
 
 /**
@@ -265,7 +341,7 @@ const statusClash = (accent: Oklch): DomainError | null => {
  * nudged a lightness so one screen looked better" — that section 8 says is how contrast
  * regresses.
  */
-export const accentFailure = (palette: AccentPalette): DomainError | null => {
+export const accentContrastFailure = (palette: AccentPalette): DomainError | null => {
   const onAccent = contrastRatio(palette.ink, palette.accent)
   if (onAccent < INK_ON_ACCENT_MIN) {
     return DomainError.invalid('eventTheme.accentUnreadable', {
@@ -284,8 +360,16 @@ export const accentFailure = (palette: AccentPalette): DomainError | null => {
     })
   }
 
-  return statusClash(palette.accent)
+  return null
 }
+
+/**
+ * The full rule, for every designed ambiance: the two contrast bars, then the distance to
+ * the status colours. A theme a host makes in « Sur mesure » answers to the first half only
+ * (ADR 0011, decision 8; `createEventTheme`).
+ */
+export const accentFailure = (palette: AccentPalette): DomainError | null =>
+  accentContrastFailure(palette) ?? statusClash(palette.accent)
 
 /** Narrows a value read back from the `settings` JSON column or from a form. */
 export const isThemeFonts = (value: unknown): value is ThemeFonts =>
@@ -297,10 +381,42 @@ export const isThemeFrame = (value: unknown): value is ThemeFrame =>
 export const isThemeMaterial = (value: unknown): value is ThemeMaterial =>
   typeof value === 'string' && (THEME_MATERIALS as readonly string[]).includes(value)
 
-/** Is this a point on the hue circle at all — a question of shape, not of taste. */
-const shapeFailure = ({ accentHue }: EventThemeProps): DomainError | null =>
-  Number.isInteger(accentHue) && accentHue >= HUE_RANGE.min && accentHue <= HUE_RANGE.max
-    ? null
+export const isThemeAmbiance = (value: unknown): value is ThemeAmbiance =>
+  typeof value === 'string' && (THEME_AMBIANCES as readonly string[]).includes(value)
+
+export const isThemeFaces = (value: unknown): value is ThemeFaces =>
+  typeof value === 'string' && (THEME_FACES as readonly string[]).includes(value)
+
+export const isThemeGround = (value: unknown): value is ThemeGround =>
+  typeof value === 'string' && (THEME_GROUNDS as readonly string[]).includes(value)
+
+const isHue = (value: number): boolean =>
+  Number.isInteger(value) && value >= HUE_RANGE.min && value <= HUE_RANGE.max
+
+/**
+ * The pairing of `ambiance: 'custom'` with its object, and the object's own shape.
+ *
+ * No legibility is judged: every ground hue at both polarities is proven by a sweep in
+ * `tokens.contrast.test.ts` (ADR 0011, decision 3), so the only way to refuse is a
+ * malformed or misplaced object.
+ */
+const customFailure = ({ ambiance, custom }: EventThemeProps): DomainError | null => {
+  if (ambiance !== 'custom') {
+    return custom === undefined
+      ? null
+      : DomainError.invalid('eventTheme.customNotAllowed', { ambiance })
+  }
+  if (custom === undefined) return DomainError.invalid('eventTheme.customRequired')
+  if (!isThemeGround(custom.ground) || !isHue(custom.groundHue) || !isThemeFaces(custom.faces)) {
+    return DomainError.invalid('eventTheme.customInvalid', { ...HUE_RANGE })
+  }
+  return null
+}
+
+/** Is this a point on the hue circle at all, and is `custom` paired right: shape, not taste. */
+const shapeFailure = (props: EventThemeProps): DomainError | null =>
+  isHue(props.accentHue)
+    ? customFailure(props)
     : DomainError.invalid('eventTheme.accentHueInvalid', HUE_RANGE)
 
 /**
@@ -319,7 +435,14 @@ const shapeFailure = ({ accentHue }: EventThemeProps): DomainError | null =>
  * this file already refuses to write.
  */
 export const createEventTheme = (props: EventThemeProps): Result<EventThemeProps, DomainError> => {
-  const failure = shapeFailure(props) ?? accentFailure(accentPalette(props.accentHue))
+  const palette = accentPalette(props.accentHue)
+  // « Sur mesure » is the host's own theme: any accent hue is theirs to choose, so it answers
+  // to the contrast bars only and not to the status distance (ADR 0011, decision 8). Colour is
+  // never the sole carrier of a status (DESIGN-SYSTEM section 8), so a red accent cannot pass
+  // for an alert. Every designed ambiance keeps the whole rule.
+  const failure =
+    shapeFailure(props) ??
+    (props.ambiance === 'custom' ? accentContrastFailure(palette) : accentFailure(palette))
   return failure === null ? ok(props) : err(failure)
 }
 

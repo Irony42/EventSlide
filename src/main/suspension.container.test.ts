@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import sharp from 'sharp'
 import request from 'supertest'
 import { afterEach, describe, expect, it } from 'vitest'
 import { loadConfig } from '../infrastructure/config/env'
@@ -85,6 +86,9 @@ const aBrowser = async (container: Container) => {
       note(await agent.patch(path).set(CSRF_HEADER, csrf).send(body)),
     delete: async (path: string, body: object = {}) =>
       note(await agent.delete(path).set(CSRF_HEADER, csrf).send(body)),
+    /** One multipart part, for the one write that is a file. */
+    putFile: async (path: string, field: string, bytes: Buffer) =>
+      note(await agent.put(path).set(CSRF_HEADER, csrf).attach(field, bytes, 'lieu.jpg')),
   }
 }
 
@@ -376,7 +380,12 @@ describe('a suspended client, through the real composition root', () => {
     { method: 'delete', path: '/api/events/:eventSlug/photos/:photoId', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/share-link', body: {} },
     { method: 'delete', path: '/api/events/:eventSlug/share-link', body: {} },
+    // The host's own photograph of the venue (ADR 0010): the removal here, the upload below.
+    { method: 'delete', path: '/api/events/:eventSlug/venue-photo', body: {} },
   ]
+
+  /** The one host write that is a file, so it needs a body this loop cannot send. */
+  const HOST_FILE_WRITES: readonly string[] = ['PUT /api/events/:eventSlug/venue-photo']
 
   /** The guest's own writes: a guest's device token, never a host's session, and a suspended client's guests are the 404 above. */
   const GUEST_WRITES: readonly string[] = [
@@ -405,6 +414,52 @@ describe('a suspended client, through the real composition root', () => {
     }
   })
 
+  it('refuses a host’s venue photograph on a frozen event with 403 client.suspended', async () => {
+    const s = await scene()
+    await suspend(s)
+    // A real image: the refusal is the use case's, which is asked before a byte is decoded, so
+    // what is sent only has to get past the route's own file check.
+    const photo = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .jpeg()
+      .toBuffer()
+
+    const refused = await s.operator.putFile(`/api/events/${SLUG}/venue-photo`, 'photo', photo)
+
+    expect([refused.status, refused.body.error?.code]).toEqual([403, 'client.suspended'])
+  })
+
+  it('stops serving a suspended client’s venue photograph to the public, and still shows it to its host', async () => {
+    const s = await scene()
+    const look = {
+      theme: {
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
+    }
+    expect((await s.operator.patch(`/api/events/${SLUG}/settings`, look)).status).toBe(200)
+    const photo = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .jpeg()
+      .toBuffer()
+    const put = await s.operator.putFile(`/api/events/${SLUG}/venue-photo`, 'photo', photo)
+    expect(put.status, JSON.stringify(put.body)).toBe(200)
+    const url = put.body.settings.theme.groundUrl as string
+
+    expect((await s.stranger.get(url)).status).toBe(200)
+    await suspend(s)
+
+    const refused = await s.stranger.get(url)
+    expect([refused.status, refused.body.error?.code]).toEqual([404, 'venuePhoto.notFound'])
+    expect((await s.guest.get(url)).status).toBe(404)
+    expect((await s.operator.get(url)).status).toBe(200)
+  })
+
   it('names every non-GET route under an event: a host write above, or a guest write', async () => {
     // The routers, not the product: `buildServerHarness` mounts the same ones and no web client, whose
     // `app.get(['/g', '/g/*splat'])` has an array path the walk refuses, and which exists only once
@@ -421,6 +476,7 @@ describe('a suspended client, through the real composition root', () => {
     const named = new Set([
       ...HOST_WRITES.map((write) => `${write.method.toUpperCase()} ${write.path}`),
       ...GUEST_WRITES,
+      ...HOST_FILE_WRITES,
     ])
 
     expect(mounted.filter((route) => !named.has(route))).toEqual([])

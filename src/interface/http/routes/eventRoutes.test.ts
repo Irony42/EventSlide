@@ -300,6 +300,9 @@ const buildWorld = ({
         }),
         purgeEvent: makePurgeEvent({ events, memberships, media }),
         renameEvent: makeRenameEvent({ events, memberships, bus: deps.bus }),
+        setVenuePhoto: absent('setVenuePhoto'),
+        removeVenuePhoto: absent('removeVenuePhoto'),
+        getVenuePhotoMedia: absent('getVenuePhotoMedia'),
         listModerators: makeListModerators({ memberships }),
         revokeModerator: makeRevokeModerator({ events, memberships }),
 
@@ -556,6 +559,17 @@ const ROUTES: readonly RouteCase[] = [
     requires: 'owner',
     call: (client, slug) =>
       client.post(`/api/events/${slug}/moderators`).send({ email: 'lea@example.test' }),
+  },
+  {
+    // The upload: refused before a byte is buffered, so no body is needed to prove it.
+    name: 'PUT /events/:slug/venue-photo',
+    requires: 'owner',
+    call: (client, slug) => client.put(`/api/events/${slug}/venue-photo`),
+  },
+  {
+    name: 'DELETE /events/:slug/venue-photo',
+    requires: 'owner',
+    call: (client, slug) => client.delete(`/api/events/${slug}/venue-photo`),
   },
   {
     name: 'DELETE /events/:slug/moderators/:userId',
@@ -962,7 +976,13 @@ describe('the host event routes', () => {
         moderation: 'manual',
         retentionDays: null,
         maxPhotosPerGuest: null,
-        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' },
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
       })
     })
 
@@ -996,6 +1016,8 @@ describe('the host event routes', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
+        ambiance: 'champs',
+        groundUrl: null,
       })
     })
 
@@ -1139,7 +1161,13 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
         wallLanguage: 'en',
       })
 
@@ -1153,7 +1181,14 @@ describe('the host event routes', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
         maxPhotosPerGuest: 5,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'guinguette',
+          groundUrl: null,
+        },
         wallLanguage: 'en',
       })
     })
@@ -1166,9 +1201,15 @@ describe('the host event routes', () => {
       // and "published" would be the same signal to a room ten metres away.
       const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' } })
+      const response = await agent.patch(`/api/events/${SLUG}/settings`).send({
+        theme: {
+          accentHue: 160,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
+      })
 
       expect(response.status).toBe(400)
       expect(response.body.error.code).toBe('eventTheme.accentTooCloseToStatus')
@@ -1184,15 +1225,97 @@ describe('the host event routes', () => {
       // what lets the console show the failure beside the values it is still holding.
       const agent = await signedIn(world, 'owner')
 
-      await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 160, fonts: 'serif', frame: 'round', material: 'glass' } })
+      await agent.patch(`/api/events/${SLUG}/settings`).send({
+        theme: {
+          accentHue: 160,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
+      })
 
       expect((await world.events.findById(WEDDING))?.settings.theme).toEqual({
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
+        ambiance: 'guinguette',
+      })
+    })
+
+    describe('the host’s own ambiance (ADR 0011)', () => {
+      const custom = { ground: 'light', groundHue: 40, faces: 'noces' }
+      const theme = (extra: Record<string, unknown>) => ({
+        accentHue: 345,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ...extra,
+      })
+
+      it('stores it and answers it on the wire', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'custom', custom }) })
+
+        expect(response.status).toBe(200)
+        expect(response.body.settings.theme.custom).toEqual(custom)
+        expect((await world.events.findById(WEDDING))?.settings.theme.custom).toEqual(custom)
+      })
+
+      it.each([22, 155, 85])(
+        'accepts accent hue %i, a status-like colour, on a custom ambiance (ADR 0011, decision 8)',
+        async (accentHue) => {
+          const agent = await signedIn(world, 'owner')
+
+          const response = await agent
+            .patch(`/api/events/${SLUG}/settings`)
+            .send({ theme: theme({ accentHue, ambiance: 'custom', custom }) })
+
+          expect(response.status).toBe(200)
+          expect(response.body.settings.theme.accentHue).toBe(accentHue)
+        },
+      )
+
+      it('answers 400 eventTheme.customRequired when the ambiance is custom without it', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'custom' }) })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('eventTheme.customRequired')
+      })
+
+      it('answers 400 eventTheme.customNotAllowed when another ambiance carries it', async () => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'noces', custom }) })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('eventTheme.customNotAllowed')
+      })
+
+      it.each([
+        ['a hue off the circle', { ...custom, groundHue: 360 }],
+        ['an unknown polarity', { ...custom, ground: 'grey' }],
+        ['custom borrowing custom', { ...custom, faces: 'custom' }],
+        ['an extra key', { ...custom, accent: 'red' }],
+      ])('refuses %s at the boundary', async (_name, bad) => {
+        const agent = await signedIn(world, 'owner')
+
+        const response = await agent
+          .patch(`/api/events/${SLUG}/settings`)
+          .send({ theme: theme({ ambiance: 'custom', custom: bad }) })
+
+        expect(response.status).toBe(400)
+        expect(response.body.error.code).toBe('request.invalid')
       })
     })
 
@@ -1231,9 +1354,15 @@ describe('the host event routes', () => {
       // phones will not.
       const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'plain' } })
+      const response = await agent.patch(`/api/events/${SLUG}/settings`).send({
+        theme: {
+          accentHue: 305,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'plain',
+          ambiance: 'guinguette',
+        },
+      })
 
       expect(response.status).toBe(200)
       expect(response.body.settings.theme.material).toBe('plain')
@@ -1269,6 +1398,8 @@ describe('the host event routes', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
+        ambiance: 'guinguette',
+        groundUrl: null,
       })
     })
   })

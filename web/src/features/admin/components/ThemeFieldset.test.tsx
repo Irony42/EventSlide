@@ -27,6 +27,30 @@ const renderFieldset = (theme: EventThemeDto, disabled = false) => {
 }
 
 describe('ThemeFieldset', () => {
+  it('does not offer « Sur mesure » as a plain option: its object is made on its own page', () => {
+    renderFieldset(aTheme())
+
+    const select = screen.getByLabelText(fr.admin.themeAmbiance)
+    const options = Array.from(select.querySelectorAll('option')).map((option) => option.value)
+
+    expect(options).not.toContain('custom')
+    expect(options).toContain('noces')
+  })
+
+  it('lists « Sur mesure » while it is the event’s own, and leaving it drops its object', async () => {
+    const custom = { ground: 'dark', groundHue: 40, faces: 'noces' } as const
+    const onChange = renderFieldset(aTheme({ ambiance: 'custom', custom }))
+
+    const select = screen.getByLabelText(fr.admin.themeAmbiance)
+    expect(select).toHaveValue('custom')
+    await userEvent.selectOptions(select, 'riviera')
+
+    expect(onChange).toHaveBeenCalledOnce()
+    const sent: unknown = onChange.mock.calls[0]?.[0]
+    expect(sent).toMatchObject({ ambiance: 'riviera' })
+    expect(sent).not.toHaveProperty('custom')
+  })
+
   it('offers a short list of named colours rather than a colour input', () => {
     // The decision this component exists to encode: a host setting up a wedding at 18:00
     // cannot judge contrast, and a picker that lets them try guarantees a support queue.
@@ -70,6 +94,7 @@ describe('ThemeFieldset', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 
@@ -86,6 +111,7 @@ describe('ThemeFieldset', () => {
       fonts: 'serif',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 
@@ -99,6 +125,7 @@ describe('ThemeFieldset', () => {
       fonts: 'sans',
       frame: 'square',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 
@@ -118,6 +145,7 @@ describe('ThemeFieldset', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'plain',
+      ambiance: 'guinguette',
     })
   })
 

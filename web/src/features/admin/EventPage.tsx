@@ -112,7 +112,14 @@ export function EventPage() {
 
   return (
     <div className={styles['page']}>
-      <HostBreadcrumb slug={event.slug} page="event" eventName={event.name} />
+      <HostBreadcrumb
+        slug={event.slug}
+        page="event"
+        eventName={event.name}
+        ambiance={event.settings.theme.ambiance}
+        custom={event.settings.theme.custom}
+        groundUrl={event.settings.theme.groundUrl}
+      />
       <header className={styles['header']}>
         <h1 className={styles['title']}>{event.name}</h1>
         <div className={styles['facts']}>

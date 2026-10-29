@@ -118,6 +118,15 @@ describe('MobileModerationPage', () => {
     expect(screen.queryByText(fr.moderation.empty)).toBeNull()
   })
 
+  it('keeps the ambiance ornaments off a one-thumb screen', async () => {
+    // base.css draws its strips, and pads the body for them, only where no [data-ornament-free]
+    // is on the page; on an iPhone the padding pushed a photo’s caption under the fold.
+    renderPhone(fakeApi())
+    await screen.findByRole('heading', { name: fr.moderation.empty })
+
+    expect(document.querySelector('[data-ornament-free]')).not.toBeNull()
+  })
+
   it('says the queue is empty and that no reload is needed', async () => {
     renderPhone(fakeApi())
 

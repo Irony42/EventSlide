@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useLoader } from '../lib/useLoader'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { cx } from '../design-system/classNames'
+import { AmbianceMarker } from '../design-system/components/AmbianceMarker'
+import type { ThemeAmbiance, ThemeCustom } from '../lib/api/dto'
 import { useApi } from './useApi'
 import styles from './HostBreadcrumb.module.css'
 
@@ -10,7 +12,7 @@ import styles from './HostBreadcrumb.module.css'
 const EVENTS_PATH = '/admin'
 
 /** The host pages under one event. The page names itself, so a caller never writes a label. */
-export type HostEventPage = 'event' | 'moderation' | 'mobileModeration' | 'settings'
+export type HostEventPage = 'event' | 'moderation' | 'mobileModeration' | 'settings' | 'ambiance'
 
 export interface HostBreadcrumbProps {
   readonly slug: string
@@ -27,6 +29,16 @@ export interface HostBreadcrumbProps {
    * because the page's own heading directly below already names where the host is.
    */
   readonly compact?: boolean
+  /**
+   * The event's ambiance, when the page already has the event (ADR 0010): the trail is on every
+   * page under one event, so it is where the console is dressed in it. Left out, the trail
+   * reads it with the event's name.
+   */
+  readonly ambiance?: ThemeAmbiance
+  /** The host's own ambiance, when `ambiance` is `custom` (ADR 0011). */
+  readonly custom?: ThemeCustom | undefined
+  /** The host's own photograph of the venue, when the page has the event (ADR 0010, decision 8). */
+  readonly groundUrl?: string | null | undefined
 }
 
 /**
@@ -51,9 +63,27 @@ export interface HostBreadcrumbProps {
  * links, in a `nav` that names itself, and the current page marked `aria-current="page"` — and
  * not a link, because a link to the page you are on is a control that does nothing.
  */
-export function HostBreadcrumb({ slug, page, eventName, compact = false }: HostBreadcrumbProps) {
+export function HostBreadcrumb({
+  slug,
+  page,
+  eventName,
+  compact = false,
+  ambiance,
+  custom,
+  groundUrl,
+}: HostBreadcrumbProps) {
   if (eventName === undefined) return <FetchedTrail slug={slug} page={page} compact={compact} />
-  return <Trail slug={slug} page={page} name={eventName} compact={compact} />
+  return (
+    <Trail
+      slug={slug}
+      page={page}
+      name={eventName}
+      compact={compact}
+      ambiance={ambiance}
+      custom={custom}
+      groundUrl={groundUrl}
+    />
+  )
 }
 
 /**
@@ -79,7 +109,17 @@ function FetchedTrail({
   const load = useCallback((signal: AbortSignal) => api.getEvent(slug, signal), [api, slug])
   const { data, loading } = useLoader(load)
   const name = data !== null ? data.name : loading ? null : t.titles.event
-  return <Trail slug={slug} page={page} name={name} compact={compact} />
+  return (
+    <Trail
+      slug={slug}
+      page={page}
+      name={name}
+      compact={compact}
+      ambiance={data?.settings.theme.ambiance}
+      custom={data?.settings.theme.custom}
+      groundUrl={data?.settings.theme.groundUrl}
+    />
+  )
 }
 
 function Trail({
@@ -87,12 +127,18 @@ function Trail({
   page,
   name,
   compact,
+  ambiance,
+  custom,
+  groundUrl,
 }: {
   readonly slug: string
   readonly page: HostEventPage
   /** `null`: nothing to name, so the trail is only its first item. */
   readonly name: string | null
   readonly compact: boolean
+  readonly ambiance: ThemeAmbiance | undefined
+  readonly custom: ThemeCustom | undefined
+  readonly groundUrl: string | null | undefined
 }) {
   const t = useTranslations()
   const eventPath = `${EVENTS_PATH}/events/${slug}`
@@ -100,46 +146,50 @@ function Trail({
     moderation: t.moderation.title,
     mobileModeration: t.mobileModeration.title,
     settings: t.admin.settings,
+    ambiance: t.admin.customAmbianceCrumb,
   }
 
   return (
-    <nav
-      aria-label={t.admin.breadcrumbLabel}
-      className={cx(styles['nav'], compact && styles['compact'])}
-    >
-      <ol className={styles['list']}>
-        <li className={styles['item']}>
-          <Link className={styles['link']} to={EVENTS_PATH}>
-            {/* The arrow is the same decoration the label has in the copy: the link is named
+    <>
+      <AmbianceMarker ambiance={ambiance} custom={custom} groundUrl={groundUrl} />
+      <nav
+        aria-label={t.admin.breadcrumbLabel}
+        className={cx(styles['nav'], compact && styles['compact'])}
+      >
+        <ol className={styles['list']}>
+          <li className={styles['item']}>
+            <Link className={styles['link']} to={EVENTS_PATH}>
+              {/* The arrow is the same decoration the label has in the copy: the link is named
                 "Vos évènements", not "flèche, Vos évènements". */}
-            <span aria-hidden="true">←&nbsp;</span>
-            {t.admin.events}
-          </Link>
-        </li>
-        {name === null ? null : page === 'event' ? (
-          <Crumb shrinks>
-            <span className={cx(styles['here'], styles['name'])} aria-current="page">
-              {name}
-            </span>
-          </Crumb>
-        ) : (
-          <>
+              <span aria-hidden="true">←&nbsp;</span>
+              {t.admin.events}
+            </Link>
+          </li>
+          {name === null ? null : page === 'event' ? (
             <Crumb shrinks>
-              <Link className={cx(styles['link'], styles['name'])} to={eventPath}>
+              <span className={cx(styles['here'], styles['name'])} aria-current="page">
                 {name}
-              </Link>
+              </span>
             </Crumb>
-            {compact ? null : (
-              <Crumb>
-                <span className={styles['here']} aria-current="page">
-                  {here[page]}
-                </span>
+          ) : (
+            <>
+              <Crumb shrinks>
+                <Link className={cx(styles['link'], styles['name'])} to={eventPath}>
+                  {name}
+                </Link>
               </Crumb>
-            )}
-          </>
-        )}
-      </ol>
-    </nav>
+              {compact ? null : (
+                <Crumb>
+                  <span className={styles['here']} aria-current="page">
+                    {here[page]}
+                  </span>
+                </Crumb>
+              )}
+            </>
+          )}
+        </ol>
+      </nav>
+    </>
   )
 }
 

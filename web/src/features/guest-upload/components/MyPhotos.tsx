@@ -124,7 +124,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
                 /* The caption is the photo's own description; without one the fallback
                    says what it is rather than reading a filename aloud. */
                 <img
-                  className={styles['thumb']}
+                  className={cx(styles['thumb'], photo.status === 'pending' && styles['negative'])}
                   src={photo.thumbUrl}
                   alt={photo.caption ?? t.upload.mineAlt}
                 />

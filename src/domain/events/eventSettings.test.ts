@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ContentHash } from '../photos/contentHash'
 import type { DomainError } from '../shared/errors'
 import type { Result } from '../shared/result'
 import { EventSettings, isModerationMode } from './eventSettings'
@@ -42,6 +43,7 @@ describe('EventSettings defaults', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 
@@ -88,7 +90,13 @@ describe('EventSettings.create', () => {
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
         maxPhotosPerGuest: 20,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
         wallLanguage: 'de',
       }),
     )
@@ -102,8 +110,15 @@ describe('EventSettings.create', () => {
       guestSelfDeleteGraceSeconds: 60,
       retentionDays: 30,
       maxPhotosPerGuest: 20,
-      theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+      theme: {
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
       wallLanguage: 'de',
+      venuePhoto: null,
     })
   })
 
@@ -246,21 +261,47 @@ describe('EventSettings.with', () => {
     // together, so a patch carrying only a hue must not leave a font behind from before.
     const before = unwrap(
       EventSettings.create({
-        theme: { accentHue: 250, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 250,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
       }),
     )
 
     const after = unwrap(
-      before.with({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' } }),
+      before.with({
+        theme: {
+          accentHue: 345,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
+      }),
     )
 
-    expect(after.theme).toEqual({ accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' })
+    expect(after.theme).toEqual({
+      accentHue: 345,
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'glass',
+      ambiance: 'guinguette',
+    })
   })
 
   it('keeps the theme when the patch does not mention it', () => {
     const before = unwrap(
       EventSettings.create({
-        theme: { accentHue: 250, fonts: 'serif', frame: 'round', material: 'glass' },
+        theme: {
+          accentHue: 250,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
       }),
     )
 
@@ -269,9 +310,60 @@ describe('EventSettings.with', () => {
     expect(after.theme.accentHue).toBe(250)
   })
 
+  it('holds no venue photograph until one is set, and clears it on null', () => {
+    const digest = ContentHash.create('cd'.repeat(32))
+    if (!digest.ok) throw new Error('fixture digest')
+    const settings = EventSettings.default()
+    expect(settings.venuePhoto).toBeNull()
+
+    const named = unwrap(settings.with({ venuePhoto: digest.value }))
+    const cleared = unwrap(named.with({ venuePhoto: null }))
+
+    expect(named.venuePhoto?.value).toBe(digest.value.value)
+    expect(cleared.venuePhoto).toBeNull()
+  })
+
+  it('names and clears the venue photograph without touching a single other setting', () => {
+    const digest = ContentHash.create('cd'.repeat(32))
+    if (!digest.ok) throw new Error('fixture digest')
+    const before = unwrap(EventSettings.create({ retentionDays: 30, allowCaptions: false }))
+
+    const named = before.withVenuePhoto(digest.value)
+    const cleared = named.withVenuePhoto(null)
+
+    expect(named.venuePhoto?.value).toBe(digest.value.value)
+    expect({ ...named.toProps(), venuePhoto: null }).toEqual(before.toProps())
+    expect(cleared.toProps()).toEqual(before.toProps())
+    // A new value: the original is not edited under whoever holds it.
+    expect(before.venuePhoto).toBeNull()
+  })
+
+  it('keeps the venue photograph when the host saves something else, a theme included', () => {
+    // The photograph arrives by its own route, so a settings save that never mentions it
+    // must not be able to drop it: that is the whole reason it sits beside the theme.
+    const digest = ContentHash.create('cd'.repeat(32))
+    if (!digest.ok) throw new Error('fixture digest')
+    const named = unwrap(EventSettings.default().with({ venuePhoto: digest.value }))
+
+    const after = unwrap(
+      named.with({
+        allowCaptions: false,
+        theme: { ...DEFAULT_EVENT_THEME, ambiance: 'guinguette' },
+      }),
+    )
+
+    expect(after.venuePhoto?.value).toBe(digest.value.value)
+  })
+
   it('refuses a theme the legibility rule rejects, and says which rule', () => {
     const result = EventSettings.default().with({
-      theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' },
+      theme: {
+        accentHue: 160,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
     })
 
     expect(!result.ok && result.error.code).toBe('eventTheme.accentTooCloseToStatus')
@@ -304,7 +396,13 @@ describe('a theme the current rule would refuse, on an event that already has on
    * eight degrees from `--danger`, which `restore` accepts on shape and `create`
    * refuses on legibility.
    */
-  const stored = { accentHue: 30, fonts: 'sans', frame: 'soft', material: 'glass' } as const
+  const stored = {
+    accentHue: 30,
+    fonts: 'sans',
+    frame: 'soft',
+    material: 'glass',
+    ambiance: 'guinguette',
+  } as const
 
   it('is read back without being re-judged', () => {
     const restored = EventSettings.restore({
@@ -332,7 +430,13 @@ describe('a theme the current rule would refuse, on an event that already has on
     )
 
     const chosen = settings.with({
-      theme: { accentHue: 30, fonts: 'serif', frame: 'soft', material: 'glass' },
+      theme: {
+        accentHue: 30,
+        fonts: 'serif',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
     })
 
     expect(chosen.ok).toBe(false)

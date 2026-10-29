@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { wallBudgetProps } from '../../design-system/budget'
 import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
+import { useRootGroundHue } from '../../design-system/useRootGroundHue'
 import { Button } from '../../design-system/components/Button'
 import { Dialog } from '../../design-system/components/Dialog'
 import { Spinner } from '../../design-system/components/Spinner'
@@ -14,6 +15,7 @@ import { useAnnounceLocale } from '../../lib/i18n/deferredLocale'
 import { parseLocale } from '../../lib/i18n/locale'
 import { messageForCode } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { AMBIANCE_LAYOUT } from './ambianceLayout'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
@@ -39,10 +41,10 @@ const NO_ITEMS: readonly WallItemDto[] = []
  * hour, and `?layout=` on the display URL is the same change made in advance, for a
  * projector nobody is standing at.
  *
- * The order is the two layouts 2.0 shipped, then the four 2.3 added. It is not sorted by
- * anything — by slot count it would read 1, 6, 3, 5, 12, 2 — and the reason it is not is
- * that the first press has always landed on the mosaic, in every host's hands and in the
- * visual suite. Re-sorting the cycle to make a comment true would move that for no gain.
+ * The order is the two layouts 2.0 shipped, then the four 2.3 added, then the clothesline.
+ * It is not sorted by anything — by slot count it would read 1, 6, 3, 5, 12, 2, 5 — and the
+ * reason it is not is that the first press has always landed on the mosaic, in every host's
+ * hands and in the visual suite. Re-sorting the cycle to make a comment true would move that for no gain.
  * The help dialog reads the order off this array, so a layout added here cannot fall out
  * of the copy that names it.
  */
@@ -53,6 +55,7 @@ const LAYOUT_CYCLE: readonly WallLayout[] = [
   'filmstrip',
   'collage',
   'split',
+  'clothesline',
 ]
 
 /**
@@ -158,10 +161,11 @@ export function WallPage() {
   const slideshow = useSlideshow({ items, intervalMs: wall?.slideIntervalMs ?? 0 })
 
   /**
-   * Three sources, in the order a room means them: the key somebody just pressed, then
-   * the display URL the projector was launched on, then the layout the wall response
-   * carries. Derived rather than seeded into the state, so `L` is still the only thing
-   * that writes here and there is no copy of the URL to fall out of date.
+   * Four sources, in the order a room means them: the key somebody just pressed, then
+   * the display URL the projector was launched on, then the layout the event's ambiance
+   * suggests (`ambianceLayout.ts`), then the layout the wall response carries. Derived
+   * rather than seeded into the state, so `L` is still the only thing that writes here and
+   * there is no copy of the URL to fall out of date.
    */
   const [layoutOverride, setLayoutOverride] = useState<WallLayout | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
@@ -181,6 +185,14 @@ export function WallPage() {
   const [joinCardDismissed, setJoinCardDismissed] = useState(false)
 
   const serverLayout = wall?.layout
+
+  /**
+   * The event's own look, narrowed. Read once, here, because two things want it: the
+   * surface that wears it below and the layout its ambiance suggests.
+   */
+  const eventTheme = readEventTheme(wall?.theme ?? null)
+  const ambianceLayout = eventTheme === null ? null : AMBIANCE_LAYOUT[eventTheme.ambiance]
+  useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
 
   /**
@@ -191,7 +203,7 @@ export function WallPage() {
    * showing" — and that is the question a second projector is compared on, and the one a
    * wall that quietly fell back to the spotlight answers wrongly.
    */
-  const layout = layoutOverride ?? urlLayout ?? serverLayout ?? null
+  const layout = layoutOverride ?? urlLayout ?? ambianceLayout ?? serverLayout ?? null
 
   useWallKeyboard({
     onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
@@ -199,7 +211,7 @@ export function WallPage() {
     onToggleFullscreen: toggleFullscreen,
     onCycleLayout: () =>
       setLayoutOverride((current) =>
-        nextLayout(current ?? urlLayout ?? serverLayout ?? 'spotlight'),
+        nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
     onDismiss: () => {
@@ -256,7 +268,7 @@ export function WallPage() {
   // the projector runs unattended, and a hue the wire says is 4000 makes
   // `oklch(72% 0.17 var(--accent-hue))` invalid at computed-value time, which strips the
   // colour from every `--accent` consumer on the wall rather than failing loudly.
-  const theme = themeSurfaceProps(readEventTheme(wall?.theme ?? null), 'wall')
+  const theme = themeSurfaceProps(eventTheme, 'wall')
 
   return (
     <div

@@ -11,6 +11,16 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   test: {
+    // No on-disk module cache. Vitest 5 turns it on by itself and keys an entry by the
+    // module's own text, but the guards read the tree with an eager `import.meta.glob`, whose
+    // result depends on which files exist and not on the text of the module holding it. A
+    // cached entry written before a file was added (or in another worktree sharing
+    // `node_modules`) is served unchanged: `keysRead.guard.test.ts` then failed with every
+    // `admin.venuePhoto*` sentence "unread" while `VenuePhotoField.tsx` read them, and any edit
+    // to the guard made it pass. The opposite is worse: a guard stays green after someone adds
+    // the file it exists to catch. A clean CI checkout never sees this, so nothing there
+    // would have said so.
+    fsModuleCache: false,
     projects: [
       {
         test: {

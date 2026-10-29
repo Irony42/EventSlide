@@ -5,6 +5,7 @@ import type { Logger } from '../../ports/logger'
 import { holdsStagedBytes } from '../../../domain/clips/clipJobStatus'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { MediaStore, StoredObject } from '../../ports/mediaStore'
+import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 
 /**
@@ -78,6 +79,8 @@ export interface SweepOrphanedMediaPolicy {
 }
 
 export interface SweepOrphanedMediaDeps {
+  /** For the one digest an event's own settings name: its host's venue photograph. */
+  readonly events: EventRepository
   readonly photos: PhotoRepository
   readonly clips: ClipJobRepository
   readonly media: MediaStore
@@ -107,6 +110,7 @@ export interface SweepOrphanedMediaReport {
 export type SweepOrphanedMedia = () => Promise<SweepOrphanedMediaReport>
 
 export const makeSweepOrphanedMedia = ({
+  events,
   photos,
   clips,
   media,
@@ -133,6 +137,10 @@ export const makeSweepOrphanedMedia = ({
     // Only jobs that are still holding their bytes: a `done` job gave its source back
     // when the transcode finished, and a `failed` one is not coming back for it.
     for (const job of await clips.listStagedSources(eventId)) named.add(job)
+    // The host's venue photograph is named by the event's settings and by no row of either
+    // kind (ADR 0010), so without this the sweep would collect it an hour after it was set.
+    const venue = (await events.findById(eventId))?.settings.venuePhoto ?? null
+    if (venue !== null) named.add(venue.value)
     return named
   }
 
@@ -161,6 +169,10 @@ export const makeSweepOrphanedMedia = ({
 
     const job = await clips.findBySourceHash(eventId, hash)
     if (job !== null && holdsStagedBytes(job.status)) return false
+
+    // And the settings, asked again for the same reason: a host replacing their photograph
+    // between the snapshot and the unlink has just made this digest the one in use.
+    if ((await events.findById(eventId))?.settings.venuePhoto?.equals(hash) === true) return false
 
     // **The disk is asked last, so that it is asked with nothing after it.** Each of
     // these is an `await`, and a re-upload landing between the stat and the unlink is
@@ -206,10 +218,10 @@ export const makeSweepOrphanedMedia = ({
     let skippedEvents = 0
     const failed: EventId[] = []
 
-    const events = [...(await media.listEvents())].sort()
+    const stored = [...(await media.listEvents())].sort()
     const after = resumeAfter
-    const from = after === null ? 0 : Math.max(0, events.findIndex((id) => id > after))
-    const ordered = [...events.slice(from), ...events.slice(0, from)]
+    const from = after === null ? 0 : Math.max(0, stored.findIndex((id) => id > after))
+    const ordered = [...stored.slice(from), ...stored.slice(0, from)]
 
     /** True once the budget is spent: everything after this is counted, not walked. */
     let exhausted = false

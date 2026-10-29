@@ -15,6 +15,9 @@ import {
   THEME_FONTS,
   THEME_FRAMES,
   THEME_MATERIALS,
+  THEME_AMBIANCES,
+  THEME_FACES,
+  THEME_GROUNDS,
 } from '../../../domain/events/eventTheme'
 
 /**
@@ -121,6 +124,13 @@ const instant = ({ offset }: { readonly offset: boolean }) =>
 export const eventSlugParams = z.object({ eventSlug: slug })
 
 export const photoParams = z.object({ eventSlug: slug, photoId: uuid })
+
+/**
+ * A host's venue photograph is named by the SHA-256 of its stored bytes: 64 lowercase hex
+ * characters and nothing else, which is what keeps a path component from ever being a path.
+ * Not parsed with `.parse` by the route: a malformed digest is the same 404 as an unknown one.
+ */
+export const venuePhotoDigest = z.string().regex(/^[0-9a-f]{64}$/)
 
 /**
  * The renditions a client may ask for.
@@ -416,6 +426,23 @@ export const updateSettingsBody = z.strictObject({
       fonts: z.enum(THEME_FONTS),
       frame: z.enum(THEME_FRAMES),
       material: z.enum(THEME_MATERIALS),
+      // Required for the reason `material` gives above: an old tab must not undo a choice.
+      ambiance: z.enum(THEME_AMBIANCES),
+      // The host's own ambiance (ADR 0011). Optional here, and the domain pairs it with
+      // `ambiance: 'custom'`: required then, refused otherwise (`eventTheme.customRequired`,
+      // `eventTheme.customNotAllowed`). Shape only; no legibility is judged.
+      custom: z
+        .strictObject({
+          ground: z.enum(THEME_GROUNDS),
+          groundHue: z.number().int().min(accentHueRange.min).max(accentHueRange.max),
+          faces: z.enum(THEME_FACES),
+        })
+        .optional(),
+      // **Read and ignored.** It is what `GET` answers in the theme (the host's own venue photograph,
+      // ADR 0010), so a client that sends the theme back as it received it, such as a tab left open
+      // across the deploy, must not be answered 400 for it. It names nothing: the route forwards the
+      // five fields above and never this one, and the photograph has routes of its own.
+      groundUrl: z.string().max(200).nullable().optional(),
     })
     .optional(),
   /**

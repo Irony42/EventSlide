@@ -737,7 +737,15 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
     // the field and never fills it. The join's copy of the theme is a snapshot and the upload
     // screen has no other read that could learn the host changed it.
     const subject = buildSubject({
-      settings: { theme: { accentHue: 345, fonts: 'serif', frame: 'square', material: 'plain' } },
+      settings: {
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'square',
+          material: 'plain',
+          ambiance: 'guinguette',
+        },
+      },
     })
 
     const response = await request(subject.app)
@@ -750,6 +758,8 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       fonts: 'serif',
       frame: 'square',
       material: 'plain',
+      ambiance: 'guinguette',
+      groundUrl: null,
     })
   })
 
@@ -765,6 +775,8 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'guinguette',
+      groundUrl: null,
     })
   })
 

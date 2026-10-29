@@ -151,3 +151,18 @@ export const useRevokeShareLink = (): ActionState<[string], void> => {
   const api = useApi()
   return useAction(useCallback((slug: string) => api.revokeShareLink(slug), [api]))
 }
+
+/**
+ * The host's own photograph of their venue (ADR 0010, decision 8): put up or replaced, and
+ * taken down. Two endpoints, each answering the event, so the settings page shows the
+ * photograph's URL (or its absence) with no second read.
+ */
+export const useUploadVenuePhoto = (): ActionState<[string, File], EventDto> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string, file: File) => api.putVenuePhoto(slug, file), [api]))
+}
+
+export const useRemoveVenuePhoto = (): ActionState<[string], EventDto> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string) => api.removeVenuePhoto(slug), [api]))
+}

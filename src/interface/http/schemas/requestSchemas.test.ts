@@ -37,7 +37,12 @@ import {
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
 import { EmailAddress } from '../../../domain/users/emailAddress'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
-import { THEME_FONTS, THEME_FRAMES, THEME_MATERIALS } from '../../../domain/events/eventTheme'
+import {
+  THEME_AMBIANCES,
+  THEME_FONTS,
+  THEME_FRAMES,
+  THEME_MATERIALS,
+} from '../../../domain/events/eventTheme'
 import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
 import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
@@ -560,6 +565,18 @@ describe('unknown keys, decided per schema', () => {
     },
   )
 
+  it('refuses the retired darkroom on the way in: legacy names are read, never written', () => {
+    const theme = {
+      accentHue: 200,
+      fonts: THEME_FONTS[0],
+      frame: THEME_FRAMES[0],
+      material: THEME_MATERIALS[0],
+      ambiance: 'darkroom',
+    }
+
+    expect(updateSettingsBody.safeParse({ theme }).success).toBe(false)
+  })
+
   it('refuses a key the theme does not declare, inside a settings body that is otherwise fine', () => {
     // zod 4 keeps `.strict()` as a legacy method and spells it `z.strictObject`; a nested object
     // that quietly went back to stripping would save a theme the host never chose.
@@ -568,6 +585,7 @@ describe('unknown keys, decided per schema', () => {
       fonts: THEME_FONTS[0],
       frame: THEME_FRAMES[0],
       material: THEME_MATERIALS[0],
+      ambiance: THEME_AMBIANCES[0],
     }
 
     expect(updateSettingsBody.safeParse({ theme }).success).toBe(true)

@@ -11,7 +11,8 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
-  background: var(--surface-base);
+  /* ADR 0010: an ambiance may put a photograph of the place behind the slides. */
+  background: var(--wall-ground);
 
   /**
    * How much of the end edge is spoken for by chrome.

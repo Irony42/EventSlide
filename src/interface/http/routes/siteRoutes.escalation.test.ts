@@ -51,6 +51,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   missionId: '33333333-3333-4333-8333-333333333333',
   linkId: '33333333-3333-4333-8333-333333333333',
   variant: 'display',
+  hash: '0'.repeat(64),
   kind: 'love',
   token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
 }
@@ -105,6 +106,7 @@ const OPEN_FOR_EVERYBODY = 'get /api/events/:eventSlug/stream'
 const PUBLIC_AND_UNWIRED: ReadonlySet<string> = new Set([
   'get /api/events/:eventSlug/wall',
   'get /api/events/:eventSlug/photos/:photoId/:variant',
+  'get /api/events/:eventSlug/venue-photo/:hash',
 ])
 
 const isLeftOut = (route: Route): boolean =>

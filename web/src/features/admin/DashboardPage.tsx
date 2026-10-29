@@ -12,7 +12,8 @@ import { CeilingBanner } from './components/CeilingBanner'
 import { StorageMeter } from './components/StorageMeter'
 import { SuspensionScreen } from './components/SuspensionScreen'
 import { allowsModeration, canManageEvent, lifecycleActions, servesWall } from './eventLifecycle'
-import { useEventList } from './hooks/useEventData'
+import { useEvent, useEventList } from './hooks/useEventData'
+import { AmbianceMarker } from '../../design-system/components/AmbianceMarker'
 import { useStatusChange } from './hooks/useEventActions'
 import { useClientLimits } from './hooks/useClientLimits'
 import styles from './DashboardPage.module.css'
@@ -96,85 +97,107 @@ export function DashboardPage() {
         }
       >
         {(list) => (
-          <ul className={styles['list']}>
-            {list.map((event) => (
-              <li key={event.id}>
-                <Card
-                  title={
-                    // The card itself is never clickable — 1.0's tile was a
-                    // `div role="button"` with a nested button inside it. The name is
-                    // the link, so it has an address and answers the keyboard.
-                    <Link className={styles['eventLink']} to={`/admin/events/${event.slug}`}>
-                      {event.name}
-                    </Link>
-                  }
-                  footer={
-                    <>
-                      {/* The owner's: a moderator's request to change the lifecycle is answered 403, so
+          <>
+            {/* A host with one evening sees the dashboard in its ambiance too (ADR 0010, 28/10). */}
+            {list.length === 1 && list[0] !== undefined ? (
+              <SingleEventAmbiance slug={list[0].slug} />
+            ) : null}
+            <ul className={styles['list']}>
+              {list.map((event) => (
+                <li key={event.id}>
+                  <Card
+                    title={
+                      // The card itself is never clickable — 1.0's tile was a
+                      // `div role="button"` with a nested button inside it. The name is
+                      // the link, so it has an address and answers the keyboard.
+                      <Link className={styles['eventLink']} to={`/admin/events/${event.slug}`}>
+                        {event.name}
+                      </Link>
+                    }
+                    footer={
+                      <>
+                        {/* The owner's: a moderator's request to change the lifecycle is answered 403, so
                           the buttons are not offered to them. The server still decides. */}
-                      {(canManageEvent(event.role) ? lifecycleActions(event.status, t) : []).map(
-                        (action) => (
-                          <Button
-                            key={action.to}
-                            variant={action.primary ? 'primary' : 'secondary'}
-                            size="sm"
-                            loading={statusChange.pending === `${event.slug}:${action.to}`}
-                            disabled={statusChange.busy}
-                            onClick={() => changeStatus(event, action.to)}
-                          >
-                            {action.label}
-                          </Button>
-                        ),
-                      )}
-                      {allowsModeration(event.status) ? (
-                        <Link
-                          className={styles['actionLink']}
-                          to={`/admin/events/${event.slug}/moderation`}
-                        >
-                          {t.admin.openModeration}
-                        </Link>
-                      ) : null}
-                      {servesWall(event.status) ? (
-                        <>
-                          {/* A tab of its own, like the event page's tile: the wall has no way back to
-                              the console. The hint describes the link without joining its name. */}
+                        {(canManageEvent(event.role) ? lifecycleActions(event.status, t) : []).map(
+                          (action) => (
+                            <Button
+                              key={action.to}
+                              variant={action.primary ? 'primary' : 'secondary'}
+                              size="sm"
+                              loading={statusChange.pending === `${event.slug}:${action.to}`}
+                              disabled={statusChange.busy}
+                              onClick={() => changeStatus(event, action.to)}
+                            >
+                              {action.label}
+                            </Button>
+                          ),
+                        )}
+                        {allowsModeration(event.status) ? (
                           <Link
                             className={styles['actionLink']}
-                            to={`/e/${event.slug}/display`}
-                            target="_blank"
-                            rel="noopener"
-                            aria-describedby={`wall-hint-${event.id}`}
+                            to={`/admin/events/${event.slug}/moderation`}
                           >
-                            {t.admin.openWall}
+                            {t.admin.openModeration}
                           </Link>
-                          <VisuallyHidden id={`wall-hint-${event.id}`}>
-                            {t.about.opensInNewTab}
-                          </VisuallyHidden>
-                        </>
+                        ) : null}
+                        {servesWall(event.status) ? (
+                          <>
+                            {/* A tab of its own, like the event page's tile: the wall has no way back to
+                              the console. The hint describes the link without joining its name. */}
+                            <Link
+                              className={styles['actionLink']}
+                              to={`/e/${event.slug}/display`}
+                              target="_blank"
+                              rel="noopener"
+                              aria-describedby={`wall-hint-${event.id}`}
+                            >
+                              {t.admin.openWall}
+                            </Link>
+                            <VisuallyHidden id={`wall-hint-${event.id}`}>
+                              {t.about.opensInNewTab}
+                            </VisuallyHidden>
+                          </>
+                        ) : null}
+                      </>
+                    }
+                  >
+                    <div className={styles['facts']}>
+                      <EventStatusBadge status={event.status} />
+                      <span>{t.admin.photos(event.photoCount)}</span>
+                      <span>{t.admin.guests(event.guestCount)}</span>
+                      {event.pendingCount > 0 ? (
+                        <Badge tone="warning">{t.moderation.pending(event.pendingCount)}</Badge>
                       ) : null}
-                    </>
-                  }
-                >
-                  <div className={styles['facts']}>
-                    <EventStatusBadge status={event.status} />
-                    <span>{t.admin.photos(event.photoCount)}</span>
-                    <span>{t.admin.guests(event.guestCount)}</span>
-                    {event.pendingCount > 0 ? (
-                      <Badge tone="warning">{t.moderation.pending(event.pendingCount)}</Badge>
-                    ) : null}
-                  </div>
-                  {/*
+                    </div>
+                    {/*
                   No bar here: `GET /api/events` answers with summaries that carry no
                   quota, and a bar drawn against a ceiling the client invented would be
                   a number a host makes decisions on. The event page has the quota.
                 */}
-                  <StorageMeter usedBytes={event.usedBytes} quotaBytes={null} />
-                </Card>
-              </li>
-            ))}
-          </ul>
+                    <StorageMeter usedBytes={event.usedBytes} quotaBytes={null} />
+                  </Card>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </Async>
     </div>
+  )
+}
+
+/**
+ * The ambiance of the host's only event, read with the event itself: the summaries the list
+ * carries hold no theme, and one more read on a one-event dashboard is cheaper than widening
+ * every summary on the wire. Nothing renders while it loads or if it fails.
+ */
+function SingleEventAmbiance({ slug }: { readonly slug: string }) {
+  const event = useEvent(slug)
+  return (
+    <AmbianceMarker
+      ambiance={event.data?.settings.theme.ambiance}
+      custom={event.data?.settings.theme.custom}
+      groundUrl={event.data?.settings.theme.groundUrl}
+    />
   )
 }

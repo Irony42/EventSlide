@@ -544,19 +544,37 @@ describe('SqliteEventRepository', () => {
       {
         holds: 'an unknown font pairing',
         stored: json({
-          theme: { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 305,
+            fonts: 'comic',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
         }),
       },
       {
         holds: 'an unknown frame style',
         stored: json({
-          theme: { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass' },
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'oval',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
         }),
       },
       {
         holds: 'a hue that is not a number',
         stored: json({
-          theme: { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass' },
+          theme: {
+            accentHue: 'rose',
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
         }),
       },
       {
@@ -567,6 +585,19 @@ describe('SqliteEventRepository', () => {
         holds: 'an unknown material',
         stored: json({
           theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'opaque' },
+        }),
+      },
+      {
+        // ADR 0010, the same reading as the material: present and unknown is corruption.
+        holds: 'an unknown ambiance',
+        stored: json({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'disco',
+          },
         }),
       },
     ])('refuses to hydrate an event whose stored settings hold $holds', async ({ stored }) => {
@@ -583,7 +614,15 @@ describe('SqliteEventRepository', () => {
       // event over a colour, including the page its host would use to pick another one.
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 400, fonts: 'sans', frame: 'soft', material: 'glass' } }),
+        json({
+          theme: {
+            accentHue: 400,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
+        }),
         'evt-1',
       )
 
@@ -639,6 +678,31 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wallLanguage).toBe('fr')
     })
 
+    it('reads an event that never uploaded a venue photograph as having none', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ venuePhoto: undefined }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.venuePhoto).toBeNull()
+    })
+
+    it.each([[42], ['../../etc/passwd'], ['AB'.repeat(5)], [{ value: 'x' }]])(
+      'reads a venue photograph that is not a digest (%o) as none, and does not take the event down',
+      async (stored) => {
+        // A cosmetic field: the theme's own rule one field over. A hand-edited column loses a
+        // decoration; it must never fail findById and with it the wall and the settings page.
+        await repo.save(anEvent({ id: 'evt-1' }))
+        db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+          json({ venuePhoto: stored }),
+          'evt-1',
+        )
+
+        expect((await repo.findById(asEventId('evt-1')))?.settings.venuePhoto).toBeNull()
+      },
+    )
+
     it('keeps a wall language the host did choose', async () => {
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
@@ -675,7 +739,15 @@ describe('SqliteEventRepository', () => {
       // 160 degrees is inside `--success`: a hue `EventSettings.create` refuses outright.
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 160, fonts: 'sans', frame: 'soft', material: 'glass' } }),
+        json({
+          theme: {
+            accentHue: 160,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
+        }),
         'evt-1',
       )
 
@@ -699,7 +771,98 @@ describe('SqliteEventRepository', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
+        ambiance: 'guinguette',
       })
+    })
+
+    it.each([
+      { holds: 'a custom object that is not an object', custom: 'sombre' },
+      { holds: 'an unknown polarity', custom: { ground: 'grey', groundHue: 1, faces: 'noces' } },
+      { holds: 'unknown faces', custom: { ground: 'dark', groundHue: 1, faces: 'disco' } },
+      {
+        holds: 'a hue that is not a number',
+        custom: { ground: 'dark', groundHue: 'x', faces: 'noces' },
+      },
+    ])('refuses a theme whose custom ambiance holds $holds', async ({ custom }) => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'custom',
+            custom,
+          },
+        }),
+        'evt-1',
+      )
+
+      await expect(repo.findById(asEventId('evt-1'))).rejects.toThrow()
+    })
+
+    it('renders an event themed before ambiances existed in the product’s own look', async () => {
+      // ADR 0010: no migration, for the material's reason. A theme with four keys has been
+      // rendering the root look since it was written, and that is what `darkroom` is.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ theme: { accentHue: 250, fonts: 'sans', frame: 'square', material: 'plain' } }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
+        accentHue: 250,
+        fonts: 'sans',
+        frame: 'square',
+        material: 'plain',
+        ambiance: 'guinguette',
+      })
+    })
+
+    it('reads a theme stored as darkroom, the retired Chambre noire, as the Guinguette', async () => {
+      // Pierre's local database holds events themed while the Chambre noire existed. Refusing
+      // them would be reporting corruption that is not there.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({
+          theme: {
+            accentHue: 345,
+            fonts: 'serif',
+            frame: 'round',
+            material: 'glass',
+            ambiance: 'darkroom',
+          },
+        }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'guinguette',
+      })
+    })
+
+    it('keeps a chosen ambiance across a save and a read', async () => {
+      const event = anEvent({ id: 'evt-1' })
+      await repo.save(event)
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'round',
+            material: 'glass',
+            ambiance: 'riviera',
+          },
+        }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme.ambiance).toBe('riviera')
     })
 
     it('renders an event themed before the material existed exactly as it rendered then', async () => {
@@ -719,6 +882,7 @@ describe('SqliteEventRepository', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
+        ambiance: 'guinguette',
       })
     })
 

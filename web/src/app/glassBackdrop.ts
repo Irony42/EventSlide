@@ -95,10 +95,18 @@ export const ROUTE_BACKDROPS: readonly RouteBackdrop[] = [
     backdrop: 'photo',
     page: 'features/moderation/MobileModerationPage.tsx',
   },
+  // A preview of the host's own photograph of the venue (ADR 0010, decision 8): a picture they
+  // chose and nobody measured, so the strict floor. The guard below found it, as it should.
   {
     path: '/admin/events/:slug/settings',
-    backdrop: 'ground',
+    backdrop: 'photo',
     page: 'features/admin/EventSettingsPage.tsx',
+  },
+  // The simulation of a host's own ambiance: the venue photograph and sample photographs in frames.
+  {
+    path: '/admin/events/:slug/settings/ambiance',
+    backdrop: 'photo',
+    page: 'features/admin/CustomAmbiancePage.tsx',
   },
   { path: '/admin/client', backdrop: 'ground', page: 'features/admin/ClientSpacePage.tsx' },
   // The operator's console: tables and sentences of shapes and sizes. Nothing a person uploaded can

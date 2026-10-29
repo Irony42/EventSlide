@@ -15,6 +15,7 @@ export {
   SERVED_VARIANTS,
   STAGED_SOURCE,
   VARIANTS_BY_KIND,
+  VENUE_GROUND,
 } from '../../domain/photos/mediaVariant'
 export type {
   ClipVariant,

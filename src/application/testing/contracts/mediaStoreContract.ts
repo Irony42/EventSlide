@@ -51,6 +51,7 @@ const CONTENT_TYPES: readonly (readonly [MediaVariant, string])[] = [
   ['video', 'video/mp4'],
   ['poster', 'image/jpeg'],
   ['source', 'application/octet-stream'],
+  ['ground', 'image/webp'],
 ]
 
 const collect = async (chunks: AsyncIterable<Uint8Array> | null): Promise<number[]> => {

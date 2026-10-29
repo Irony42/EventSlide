@@ -176,7 +176,8 @@ test.describe('the glass budget', () => {
     await joinAsGuest(guest, app, event.joinCode, 'Léa')
     await expect(guest.getByTestId('upload-composer')).toBeVisible()
 
-    expect(await guest.locator('[data-glass]').count()).toBe(0)
+    // Retried: the join screen's marked shell is still being replaced when the composer shows.
+    await expect(guest.locator('[data-glass]')).toHaveCount(0)
 
     const composer = await glassTintOn(guest, '[data-testid="upload-composer"]')
     const ground = await glassTintOn(guest, 'body')

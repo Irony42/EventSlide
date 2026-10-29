@@ -54,23 +54,47 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
     wedding: {
       guestSelfDeleteGraceSeconds: 3600,
       retentionDays: 365,
-      theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+      theme: {
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'champs',
+      },
     },
     birthday: {
       moderation: 'auto',
       retentionDays: 90,
-      theme: { accentHue: 305, fonts: 'sans', frame: 'round', material: 'glass' },
+      theme: {
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
     },
     conference: {
       allowClips: false,
       retentionDays: 30,
       maxPhotosPerGuest: 25,
-      theme: { accentHue: 250, fonts: 'sans', frame: 'square', material: 'glass' },
+      theme: {
+        accentHue: 250,
+        fonts: 'sans',
+        frame: 'square',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
     },
     party: {
       moderation: 'auto',
       retentionDays: 30,
-      theme: { accentHue: 195, fonts: 'sans', frame: 'soft', material: 'glass' },
+      theme: {
+        accentHue: 195,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'bivouac',
+      },
     },
   }
 
@@ -118,6 +142,10 @@ const themeLine = (theme: EventSettingsDto['theme'], text: UiText): string | nul
     ...(theme.material === DEFAULT_EVENT_THEME.material
       ? []
       : [text.admin.themeMaterialNames[theme.material]]),
+    // The world the evening wears, when it is not the product's own (ADR 0010).
+    ...(theme.ambiance === DEFAULT_EVENT_THEME.ambiance
+      ? []
+      : [text.admin.themeAmbianceNames[theme.ambiance]]),
   ]
 
   return parts.length === 0 ? null : `${text.admin.theme} : ${parts.join(', ')}`

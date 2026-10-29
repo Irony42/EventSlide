@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EventSettingsPage } from './EventSettingsPage'
 import { toLocalInput } from './eventSchedule'
+import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -331,7 +332,13 @@ describe('EventSettingsPage', () => {
     expect(api.updateSettings).toHaveBeenCalledWith(
       'camille-et-sacha',
       expect.objectContaining({
-        theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' },
+        theme: {
+          accentHue: 345,
+          fonts: 'sans',
+          frame: 'soft',
+          material: 'glass',
+          ambiance: 'guinguette',
+        },
       }),
     )
   })
@@ -348,7 +355,13 @@ describe('EventSettingsPage', () => {
       getEvent: vi.fn(async () =>
         anEventDto({
           settings: eventSettings({
-            theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' },
+            theme: {
+              accentHue: 345,
+              fonts: 'serif',
+              frame: 'round',
+              material: 'glass',
+              ambiance: 'guinguette',
+            },
           }),
         }),
       ),
@@ -360,18 +373,48 @@ describe('EventSettingsPage', () => {
     expect(document.querySelectorAll('[data-event-fonts]')).toHaveLength(0)
     expect(document.querySelectorAll('[data-event-frame]')).toHaveLength(0)
 
+    expect(document.querySelectorAll('[data-event-ambiance]')).toHaveLength(0)
+
     // Nothing carries the event's hue except the picker's own rows — and they carry one
-    // option's hue each, which is never the event's.
+    // option's hue each, which is never the event's. The default row carries none: since
+    // ADR 0010 it previews the paper the root already paints.
     const picker = screen.getByTestId('theme-accents')
     const marked = [...document.querySelectorAll('[data-event-accent]')]
-    expect(marked).toHaveLength(4)
+    expect(marked).toHaveLength(3)
     for (const row of marked) expect(picker.contains(row)).toBe(true)
     expect(marked.map((row) => row.getAttribute('data-event-accent'))).toEqual([
-      '305',
       '345',
       '250',
       '195',
     ])
+  })
+
+  it('dresses the console in the event’s ambiance, and only in that (ADR 0010, 28/10)', async () => {
+    // Pierre's call on 28/10: an event in the Riviera is a Riviera in the console too.
+    // The accent, the pairing and the frame still stay off the console: the ambiance is the
+    // world, the hue is the event's, and the moderation queue's status colours are fixed.
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({
+          settings: eventSettings({
+            theme: {
+              accentHue: 345,
+              fonts: 'serif',
+              frame: 'round',
+              material: 'glass',
+              ambiance: 'riviera',
+            },
+          }),
+        }),
+      ),
+    })
+
+    renderPage(api)
+    await screen.findByRole('heading', { name: fr.admin.settings })
+
+    const dressed = [...document.querySelectorAll('[data-event-ambiance]')]
+    expect(dressed.map((node) => node.getAttribute('data-event-ambiance'))).toEqual(['riviera'])
+    expect(document.querySelectorAll('[data-event-fonts]')).toHaveLength(0)
   })
 
   it('shows the theme the server already holds', async () => {
@@ -379,7 +422,13 @@ describe('EventSettingsPage', () => {
       getEvent: vi.fn(async () =>
         anEventDto({
           settings: eventSettings({
-            theme: { accentHue: 250, fonts: 'serif', frame: 'square', material: 'glass' },
+            theme: {
+              accentHue: 250,
+              fonts: 'serif',
+              frame: 'square',
+              material: 'glass',
+              ambiance: 'guinguette',
+            },
           }),
         }),
       ),
@@ -765,5 +814,118 @@ describe('EventSettingsPage', () => {
 
       expect(await screen.findByText(fr.admin.wallLanguageHint)).toBeVisible()
     })
+  })
+
+  describe('the host’s own photograph of the venue (ADR 0010, decision 8)', () => {
+    const URL_PATH = `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`
+    const guinguette = (groundUrl: string | null, role: EventDto['role'] = 'owner'): EventDto =>
+      anEventDto({
+        role,
+        settings: eventSettings({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+            groundUrl,
+          },
+        }),
+      })
+
+    it('is offered under an ambiance whose ground is a photograph', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(null)) }))
+
+      expect(await screen.findByText(fr.admin.venuePhoto)).toBeVisible()
+      expect(screen.getByTestId('venue-photo-input')).toBeEnabled()
+    })
+
+    it('shows the photograph that is stored', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH)) }))
+
+      expect(
+        await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt }),
+      ).toHaveAttribute('src', URL_PATH)
+    })
+
+    it('shows the new photograph as soon as the upload is answered, with no second read', async () => {
+      const putVenuePhoto = vi.fn(async () => guinguette(URL_PATH))
+      const getEvent = vi.fn(async () => guinguette(null))
+      renderPage(fakeApi({ getEvent, putVenuePhoto }))
+      await screen.findByText(fr.admin.venuePhoto)
+      const reads = getEvent.mock.calls.length
+
+      await userEvent.upload(
+        screen.getByTestId('venue-photo-input'),
+        new File(['x'], 'lieu.jpg', { type: 'image/jpeg' }),
+      )
+
+      expect(
+        await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt }),
+      ).toHaveAttribute('src', URL_PATH)
+      expect(getEvent.mock.calls.length).toBe(reads)
+    })
+
+    it('does not throw away what the host typed in the form when a photograph arrives', async () => {
+      const getEvent = vi.fn(async () => guinguette(null))
+      renderPage(fakeApi({ getEvent, putVenuePhoto: vi.fn(async () => guinguette(URL_PATH)) }))
+      await userEvent.selectOptions(await screen.findByLabelText(fr.admin.maxPhotosPerGuest), '25')
+
+      await userEvent.upload(
+        screen.getByTestId('venue-photo-input'),
+        new File(['x'], 'lieu.jpg', { type: 'image/jpeg' }),
+      )
+      await screen.findByRole('img', { name: fr.admin.venuePhotoPreviewAlt })
+
+      expect(screen.getByLabelText(fr.admin.maxPhotosPerGuest)).toHaveValue('25')
+    })
+
+    it('never sends the photograph’s URL with the settings, which the server would refuse', async () => {
+      const api = fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH)) })
+
+      renderPage(api)
+      await screen.findByText(fr.admin.venuePhoto)
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent?.theme).toEqual({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      })
+    })
+
+    it('is closed to a moderator, who may read but not change', async () => {
+      renderPage(fakeApi({ getEvent: vi.fn(async () => guinguette(URL_PATH, 'moderator')) }))
+
+      await screen.findByText(fr.admin.venuePhoto)
+      expect(screen.getByTestId('venue-photo-input')).toBeDisabled()
+    })
+  })
+
+  it('offers the editor of the host’s own ambiance, worded by whether one exists, and not to a moderator', async () => {
+    const custom = {
+      ...DEFAULT_EVENT_THEME,
+      ambiance: 'custom' as const,
+      custom: { ground: 'dark' as const, groundHue: 200, faces: 'riviera' as const },
+    }
+    const first = renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }))
+    const create = await screen.findByRole('link', { name: fr.admin.customAmbianceCreate })
+    expect(create).toHaveAttribute('href', '/admin/events/camille-et-sacha/settings/ambiance')
+    first.unmount()
+
+    const second = renderPage(
+      fakeApi({
+        getEvent: vi.fn(async () => anEventDto({ settings: eventSettings({ theme: custom }) })),
+      }),
+    )
+    expect(await screen.findByRole('link', { name: fr.admin.customAmbianceEdit })).toBeVisible()
+    second.unmount()
+
+    renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) }))
+    await screen.findByRole('heading', { name: fr.admin.settings })
+    expect(screen.queryByRole('link', { name: fr.admin.customAmbianceCreate })).toBeNull()
   })
 })

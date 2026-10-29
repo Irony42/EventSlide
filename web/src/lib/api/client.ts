@@ -590,6 +590,24 @@ export const createApi = (transport: Transport) => ({
   updateSettings: (slug: string, settings: Partial<EventSettingsDto>): Promise<EventDto> =>
     transport.patch(`/api/events/${encode(slug)}/settings`, settings),
 
+  /**
+   * Puts up, or replaces, the host's own photograph of their venue (ADR 0010, decision 8).
+   *
+   * A multipart `PUT` with one part, `photo`, and answers the event: its theme now carries the
+   * photograph's URL. Over `fetch` and not `upload`, which is a guest's `POST` with progress: this
+   * file is one phone photograph, and the CSRF retry the plain transport has is worth more here
+   * than a progress bar. The name and type the browser attaches are the server's to ignore.
+   */
+  putVenuePhoto: (slug: string, file: File): Promise<EventDto> => {
+    const form = new FormData()
+    form.append('photo', file)
+    return transport.put(`/api/events/${encode(slug)}/venue-photo`, form)
+  },
+
+  /** Takes it down: the ambiance shows its bundled ground again. Idempotent. */
+  removeVenuePhoto: (slug: string): Promise<EventDto> =>
+    transport.del(`/api/events/${encode(slug)}/venue-photo`),
+
   setEventStatus: (slug: string, status: EventStatus): Promise<EventDto> =>
     transport.post(`/api/events/${encode(slug)}/status`, { status }),
 

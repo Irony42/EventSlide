@@ -450,7 +450,7 @@ export const en: UiText = {
     'eventTheme.accentUnreadable':
       'That colour would not be readable on the screen in the room. Choose one from the list.',
     'eventTheme.accentTooCloseToStatus':
-      'That colour is too close to the application’s status colours. Choose another one.',
+      'That colour is too close to the application’s status colours. Choose another hue.',
     'gallery.notAvailable': 'This link is no longer available.',
     'gallery.passwordRequired': 'This album is protected by a password.',
     'gallery.wrongPassword': 'Incorrect password.',
@@ -460,6 +460,10 @@ export const en: UiText = {
 
     'upload.busy': 'A lot of uploads are in progress. Try again in a moment.',
     'storage.boxFull': 'There is no room left to save this file. Let the organiser know.',
+    /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
+    'venuePhoto.tooLarge': 'This photo is too heavy, even resized. Try another one.',
+    'venuePhoto.notFound': 'This photo no longer exists.',
+    'venuePhoto.saveFailed': 'The photo could not be saved. Try again.',
   },
 
   moderation: {
@@ -613,6 +617,7 @@ export const en: UiText = {
       filmstrip: 'Filmstrip',
       collage: 'Collage',
       split: 'Side by side',
+      clothesline: 'Clothesline',
     },
     layoutOrder: (names: readonly string[]) => `Layouts, in order: ${names.join(', ')}.`,
 
@@ -679,7 +684,7 @@ export const en: UiText = {
       'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
     themeAccent: 'Colour',
     themeAccentNames: {
-      violet: 'Purple',
+      violet: 'Kraft (default)',
       rose: 'Pink',
       azure: 'Blue',
       teal: 'Teal',
@@ -688,7 +693,7 @@ export const en: UiText = {
     /** The honest scope, said once: the phone of a guest downloads nothing for this. */
     themeFontsHint: 'Applied to the screen in the room only.',
     themeFontsNames: {
-      sans: 'Modern',
+      sans: 'Editorial',
       serif: 'Classic',
     },
     themeFrame: 'Photo frame',
@@ -703,6 +708,18 @@ export const en: UiText = {
     themeMaterialNames: {
       glass: 'Frosted glass',
       plain: 'Plain surface',
+    },
+    themeAmbiance: 'Ambiance',
+    themeAmbianceHint:
+      'The world your guests’ phones, the room’s screen and this event’s pages in your console wear.',
+    themeAmbianceNames: {
+      guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Golden fields',
+      bivouac: 'Bivouac',
+      cabaret: 'Cabaret',
+      noces: 'Wedding',
+      custom: 'Custom',
     },
 
     template: 'Type of event',
@@ -902,6 +919,47 @@ export const en: UiText = {
     shareLinkRevokeHint:
       'Nobody will be able to open the album with this link any more, even with the password. You can make a new one.',
     shareLinkRevoked: 'The link has been switched off.',
+
+    /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
+    venuePhoto: 'Photo of your venue',
+    venuePhotoHint:
+      'Replaces the ambiance’s photo behind your guests’ screen and the room’s. It is resized and stripped of its metadata, GPS position included, then veiled so the text stays readable.',
+    venuePhotoPreviewAlt: 'Preview of your venue photo',
+    venuePhotoDefault: 'No photo of your venue: the ambiance shows its default photo.',
+    venuePhotoChoose: 'Choose a photo',
+    venuePhotoReplace: 'Replace the photo',
+    venuePhotoRemove: 'Go back to the default photo',
+    venuePhotoBusy: 'Uploading the photo…',
+    venuePhotoSaved: 'Your venue photo is saved.',
+    venuePhotoRemoved: 'The default photo is back.',
+    customAmbianceCreate: 'Create my ambiance (Custom)',
+    customAmbianceEdit: 'Edit my ambiance',
+    customAmbianceEntryHint:
+      'Your own ground, light or dark, tinted to your taste: you see it on real screens before saving.',
+    customAmbianceTitle: 'Your custom ambiance',
+    customAmbianceCrumb: 'Custom',
+    customAmbianceIntro:
+      'Choose a light or dark ground, its tint, your accent colour and a typeface. The previews show the real screens with your choices, and nothing is saved until you press Save.',
+    customGround: 'Ground',
+    customGroundNames: { light: 'Light', dark: 'Dark' },
+    customGroundHue: 'Ground tint',
+    customGroundHueHint:
+      'From 0° to 359°: only the tint is yours to choose; the lightness is fixed so everything stays readable.',
+    customAccentHue: 'Accent colour',
+    customAccentHueHint:
+      'Every hue is allowed, including ones close to the application’s green, yellow or red: the label on the button stays readable on each, and an alert always carries an icon and a word.',
+    customFaces: 'Typeface',
+    customFacesHint:
+      'The fonts and button corners of one of the six ambiances, each shown in its own font.',
+    customPreview: 'Preview',
+    customPreviewHint:
+      'An illustration of what your guests and the room will see, with sample photos.',
+    customPreviewPhone: 'Your guests’ screen',
+    customPreviewWall: 'The room’s screen',
+    customPreviewCaption: 'What a lovely evening!',
+    customPreviewAuthor: 'Lea',
+    customKept: 'Your choice is kept as you left it: change it, then save again.',
+    customSaved: 'Your ambiance is saved.',
   },
 
   auth: {
@@ -1418,6 +1476,7 @@ export const en: UiText = {
     moderation: 'Moderation',
     mobileModeration: 'Moderation on a phone',
     settings: 'Event settings',
+    customAmbiance: 'Custom ambiance',
     clientSpace: 'Client space',
     site: 'Operator console',
     siteClient: 'Client',

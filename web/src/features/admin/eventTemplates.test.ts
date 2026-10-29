@@ -152,7 +152,15 @@ describe('the template summary', () => {
     // word the appearance section will use for the same choice.
     expect(
       templateSummary(
-        { theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' } },
+        {
+          theme: {
+            accentHue: 345,
+            fonts: 'serif',
+            frame: 'round',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
+        },
         fr,
       ),
     ).toEqual([
@@ -168,7 +176,13 @@ describe('the template summary', () => {
     // Coins très arrondis", two thirds of which is no change: the same "promises a change
     // and makes none" the catalogue's own rule 1 forbids, one level below where ring 1
     // can see it.
-    const frameOnly = { accentHue: 305, fonts: 'sans', frame: 'round', material: 'glass' } as const
+    const frameOnly = {
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'round',
+      material: 'glass',
+      ambiance: 'guinguette',
+    } as const
 
     expect(templateSummary({ theme: frameOnly }, fr)).toEqual([
       `${fr.admin.theme} : ${fr.admin.themeFrameNames.round}`,
@@ -181,7 +195,15 @@ describe('the template summary', () => {
     // dangling "Apparence : " on a card.
     expect(
       templateSummary(
-        { theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' } },
+        {
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
+        },
         fr,
       ),
     ).toEqual([])
@@ -214,6 +236,7 @@ describe('the template summary', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
+      ambiance: 'guinguette',
     }
 
     expect(templateSummary({ theme }, fr)).toEqual([

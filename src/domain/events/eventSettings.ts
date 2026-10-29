@@ -1,3 +1,4 @@
+import type { ContentHash } from '../photos/contentHash'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
 import { DEFAULT_EVENT_LANGUAGE, isEventLanguage, type EventLanguage } from './eventLanguage'
@@ -100,6 +101,19 @@ export interface EventSettingsProps {
    * prompts in English, and still read their own console in French.
    */
   readonly wallLanguage: EventLanguage
+  /**
+   * The digest of the host's own photograph of their venue, the ground of an ambiance that
+   * photographs its own (ADR 0010, decision 8), or `null` for the bundled one.
+   *
+   * **Beside the theme and not in it, on purpose.** A theme is one decision made on one form and
+   * replaced whole by `PATCH /settings`; the photograph arrives by its own route, as bytes, and
+   * a host saving a new accent hue must not be able to drop it. Only `setVenuePhoto` and
+   * `removeVenuePhoto` write it, and the settings route never forwards it.
+   *
+   * It is kept when the ambiance is changed away from one that shows it: the host's upload is
+   * theirs to remove, not a side effect of trying another look.
+   */
+  readonly venuePhoto: ContentHash | null
 }
 
 /**
@@ -120,6 +134,7 @@ const DEFAULTS: EventSettingsProps = {
   maxPhotosPerGuest: null,
   theme: DEFAULT_EVENT_THEME,
   wallLanguage: DEFAULT_EVENT_LANGUAGE,
+  venuePhoto: null,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -237,6 +252,7 @@ export class EventSettings {
       // nobody chose, and the rule below judges them together.
       theme: pick(patch.theme, base.theme),
       wallLanguage: pick(patch.wallLanguage, base.wallLanguage),
+      venuePhoto: pick(patch.venuePhoto, base.venuePhoto),
     }
 
     const failure =
@@ -308,6 +324,22 @@ export class EventSettings {
 
   get wallLanguage(): EventLanguage {
     return this.props.wallLanguage
+  }
+
+  get venuePhoto(): ContentHash | null {
+    return this.props.venuePhoto
+  }
+
+  /**
+   * The same settings with the host's venue photograph named, or cleared with `null`.
+   *
+   * Not `with`: that judges a whole merged set of fields, and this changes the one that has no
+   * range, no legibility rule and no relation to another field. The rest is already valid, since
+   * it is what this object holds, so there is nothing here that can fail and so no `Result` for a
+   * caller to carry a branch for that nothing can reach.
+   */
+  withVenuePhoto(venuePhoto: ContentHash | null): EventSettings {
+    return new EventSettings({ ...this.props, venuePhoto })
   }
 
   /** Snapshot for the repository to serialise into the `settings` JSON column. */

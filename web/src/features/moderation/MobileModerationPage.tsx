@@ -155,7 +155,8 @@ export function MobileModerationPage() {
   }
 
   return (
-    <div className={styles['page']}>
+    // `data-ornament-free`: the ambiance's strips and their padding stay off a one-thumb screen.
+    <div className={styles['page']} data-ornament-free="">
       {/* Compact: this screen spends every line, and its own heading is right below. */}
       <HostBreadcrumb slug={slug} page="mobileModeration" compact />
       <header className={styles['head']}>

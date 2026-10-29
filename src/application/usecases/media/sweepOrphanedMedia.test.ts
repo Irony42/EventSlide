@@ -50,6 +50,7 @@ const hashOf = (seed: string): ContentHash => {
 }
 
 describe('sweepOrphanedMedia', () => {
+  let events: FakeEventRepository
   let photos: FakePhotoRepository
   let clips: FakeClipJobRepository
   let media: InMemoryMediaStore
@@ -61,6 +62,7 @@ describe('sweepOrphanedMedia', () => {
 
   const build = (minimumAgeMs = FIFTEEN_MINUTES, maxDigestsPerPass = 50_000): void => {
     sweep = makeSweepOrphanedMedia({
+      events,
       photos,
       clips,
       media,
@@ -71,6 +73,7 @@ describe('sweepOrphanedMedia', () => {
   }
 
   beforeEach(() => {
+    events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     clips = new FakeClipJobRepository()
     written = new FakeClock(AT)
@@ -159,6 +162,68 @@ describe('sweepOrphanedMedia', () => {
 
       expect(report).toMatchObject({ scanned: 1, collected: 0 })
       expect(await media.exists(EVENT, photo.contentHash, 'display')).toBe(true)
+    })
+
+    it('keeps the venue photograph an event’s settings name, which no photo row does', async () => {
+      // ADR 0010, decision 8: named by the settings and by nothing else, so without the
+      // events read this pass would delete a host's photograph an hour after they set it.
+      events.seed(anEvent({ id: 'event-1', settings: { venuePhoto: hashOf('9a1') } }))
+      await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1, 2, 3))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ scanned: 1, collected: 0 })
+      expect(await media.exists(EVENT, hashOf('9a1'), 'ground')).toBe(true)
+    })
+
+    it('collects the photograph a host replaced, which the settings no longer name', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { venuePhoto: hashOf('9a2') } }))
+      await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1, 2, 3))
+      await media.put(EVENT, hashOf('9a2'), 'ground', Uint8Array.of(4))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ scanned: 2, collected: 1, bytes: 3 })
+      expect(await media.exists(EVENT, hashOf('9a1'), 'ground')).toBe(false)
+      expect(await media.exists(EVENT, hashOf('9a2'), 'ground')).toBe(true)
+    })
+
+    it('collects a ground when the event that named it is gone', async () => {
+      await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1))
+
+      expect((await sweep()).collected).toBe(1)
+    })
+
+    it('does not collect a ground a host chose after the listing was taken', async () => {
+      // The snapshot hazard from the venue side: the settings are read once per event, and a
+      // host replacing their photograph in that window has just made this digest the one in
+      // use. Freshness alone would not save it if the file is old, as a re-upload's is.
+      events.seed(anEvent({ id: 'event-1' }))
+      await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1))
+      // Hooked onto the confirmation, which runs after every batched read: the settings are
+      // read once for the bulk set and asked again here, and this is the window between them.
+      const realReferencing = photos.findIdsReferencing.bind(photos)
+      photos.findIdsReferencing = async (eventId, hash) => {
+        await events.save(anEvent({ id: 'event-1', settings: { venuePhoto: hashOf('9a1') } }))
+        return realReferencing(eventId, hash)
+      }
+
+      expect((await sweep()).collected).toBe(0)
+      expect(await media.exists(EVENT, hashOf('9a1'), 'ground')).toBe(true)
+    })
+
+    it('does not so much as ask about a digest the settings name, which the bulk pass settles', async () => {
+      // The performance half, as for every other filter in this file: the per-digest confirmation
+      // would also save it, so only the count of questions can tell the bulk set is doing its job.
+      events.seed(anEvent({ id: 'event-1', settings: { venuePhoto: hashOf('9a1') } }))
+      await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1))
+      const calls = new CallLog()
+      photos = calls.watch('photos', photos)
+      build()
+
+      await sweep()
+
+      expect(calls.sequenceOf('photos.findIdsReferencing')).toEqual([])
     })
 
     it('keeps a clip’s poster, which no row names as its content hash', async () => {
@@ -573,7 +638,6 @@ describe('what one pass costs', () => {
      * runs the real sweep over it.
      */
     it('collects what the worker deliberately left, and nothing that is still named', async () => {
-      const events = new FakeEventRepository()
       events.seed(anEvent({ id: 'event-1' }))
       const transcoder = new FakeVideoTranscoder()
       const hasher: ContentHasher = {

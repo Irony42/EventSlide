@@ -1,0 +1,142 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-inline-size: var(--container-host);
+}
+
+.title {
+  font-size: var(--text-xl);
+}
+
+.intro,
+.notice {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+
+.controls {
+  flex: 1 1 22rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.preview {
+  flex: 2 1 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.previewTitle {
+  font-size: var(--text-lg);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+  cursor: pointer;
+}
+
+.radio {
+  accent-color: var(--accent);
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  flex: none;
+  cursor: pointer;
+}
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.slider {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--touch-min);
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.value {
+  min-inline-size: var(--space-8);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: inline-block;
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  flex: none;
+}
+
+/* A face's name in its own display face, which is what the option is for. */
+.faceName {
+  font-family: var(--font-display);
+  font-weight: var(--font-display-weight);
+  font-size: var(--text-lg);
+  font-synthesis: none;
+}
+
+.faceSample {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.face {
+  display: flex;
+  flex-direction: column;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}

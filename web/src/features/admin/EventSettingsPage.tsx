@@ -13,7 +13,9 @@ import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
+import { VenuePhotoField } from './components/VenuePhotoField'
 import { isMutable } from './eventLifecycle'
+import { toSettingsPatch } from './settingsPayload'
 import { toInstant, toLocalInput } from './eventSchedule'
 // Shared with the create form's template card, so the two screens cannot word the same
 // window differently.
@@ -113,6 +115,10 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.theme.fonts,
     settings.theme.frame,
     settings.theme.material,
+    settings.theme.ambiance,
+    settings.theme.custom?.ground ?? '',
+    settings.theme.custom?.groundHue ?? '',
+    settings.theme.custom?.faces ?? '',
     // The wall's language (roadmap 1.5). Flattened like the theme, and for the same
     // reason: a host who changed only this would otherwise have their unsaved choice
     // survive a background refresh that moved it underneath them.
@@ -228,7 +234,7 @@ export function EventSettingsPage() {
     submitEvent.preventDefault()
     setFailure(null)
 
-    void save.run('save', slug, settings).then((result) => {
+    void save.run('save', slug, toSettingsPatch(settings)).then((result) => {
       if (!result.ok) {
         setFailure(result.message)
         return
@@ -289,7 +295,14 @@ export function EventSettingsPage() {
     <div className={styles['page']}>
       {/* Replaces the bare link to the event that stood under the heading: the trail is that link
           and the way to the list. */}
-      <HostBreadcrumb slug={event.slug} page="settings" eventName={event.name} />
+      <HostBreadcrumb
+        slug={event.slug}
+        page="settings"
+        eventName={event.name}
+        ambiance={event.settings.theme.ambiance}
+        custom={event.settings.theme.custom}
+        groundUrl={event.settings.theme.groundUrl}
+      />
       <h1 className={styles['title']}>{t.admin.settings}</h1>
 
       {readOnly ? (
@@ -438,8 +451,21 @@ export function EventSettingsPage() {
         */}
         <ThemeFieldset
           theme={settings.theme}
+          customAmbiancePath={`/admin/events/${encodeURIComponent(slug)}/settings/ambiance`}
           disabled={readOnly}
           onChange={(theme) => update({ theme })}
+        />
+
+        {/*
+          The host's own photograph of the venue (ADR 0010, decision 8a): every ambiance paints a
+          photograph, so every ambiance can show theirs instead. It is its own request and does not
+          wait for the Save button below; the preview is the one the server stored.
+        */}
+        <VenuePhotoField
+          slug={slug}
+          groundUrl={event.settings.theme.groundUrl}
+          disabled={readOnly}
+          onChanged={replace}
         />
 
         {failure === null ? null : (

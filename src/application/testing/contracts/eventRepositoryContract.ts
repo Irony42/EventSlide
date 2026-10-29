@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ClientCeilings, type ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
 import { purgeDeadline } from '../../../domain/clients/purgeDeadline'
+import { ContentHash } from '../../../domain/photos/contentHash'
 import type { Event } from '../../../domain/events/event'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { JoinCode } from '../../../domain/shared/joinCode'
@@ -10,6 +11,13 @@ import type { EventRepository, PurgePolicy } from '../../ports/eventRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { AT, aClient, aClientCeilings, anEvent, atPlus } from '../builders'
+
+/** A digest to round-trip: the host's own venue photograph (ADR 0010). */
+const venueDigest = ((): ContentHash => {
+  const made = ContentHash.create('ab'.repeat(32))
+  if (!made.ok) throw new Error('fixture digest')
+  return made.value
+})()
 
 /**
  * The shared `EventRepository` contract.
@@ -160,15 +168,23 @@ export const eventRepositoryContract = (
             retentionDays: 30,
             maxPhotosPerGuest: 5,
             // A theme in which **every** field is off its default, so a store that dropped
-            // one would fail here rather than quietly agreeing with it. `material: 'plain'`
+            // one would fail here rather than quietly agreeing with it. `material: 'plain', ambiance: 'guinguette'`
             // is load-bearing for exactly that reason: `glass` is both the default and what
             // the SQLite adapter fills in for an absent key, so a store that never wrote
             // the field would have round-tripped clean.
-            theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' },
-            // Off the default for the same reason `material: 'plain'` is: `fr` is both the
+            theme: {
+              accentHue: 345,
+              fonts: 'serif',
+              frame: 'round',
+              material: 'plain',
+              ambiance: 'guinguette',
+            },
+            // Off the default for the same reason `material: 'plain', ambiance: 'guinguette'` is: `fr` is both the
             // domain's default and what the SQLite adapter fills in for an absent key, so
             // a store that never wrote this field would have round-tripped clean.
             wallLanguage: 'de',
+            // Off the default too: a store that dropped it would otherwise round-trip clean.
+            venuePhoto: venueDigest,
           },
         }),
       )
@@ -184,9 +200,40 @@ export const eventRepositoryContract = (
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
         maxPhotosPerGuest: 5,
-        theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' },
+        theme: {
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          material: 'plain',
+          ambiance: 'guinguette',
+        },
         wallLanguage: 'de',
+        venuePhoto: venueDigest,
       })
+    })
+
+    it('round-trips the host’s own ambiance, « Sur mesure »', async () => {
+      const custom = { ground: 'light', groundHue: 40, faces: 'noces' } as const
+      await repo.save(
+        anEvent({
+          id: 'evt-1',
+          settings: {
+            theme: {
+              accentHue: 250,
+              fonts: 'sans',
+              frame: 'soft',
+              material: 'glass',
+              ambiance: 'custom',
+              custom,
+            },
+          },
+        }),
+      )
+
+      const stored = await repo.findById(asEventId('evt-1'))
+
+      expect(stored?.settings.theme.ambiance).toBe('custom')
+      expect(stored?.settings.theme.custom).toEqual(custom)
     })
 
     it('round-trips an unscheduled, never-closed event as two nulls', async () => {

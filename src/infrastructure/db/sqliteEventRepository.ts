@@ -7,6 +7,7 @@ import type {
   PurgePolicy,
 } from '../../application/ports/eventRepository'
 import type { ClientCeilings } from '../../domain/clients/clientCeilings'
+import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName } from '../../domain/events/eventName'
 import {
@@ -24,8 +25,14 @@ import {
   isThemeFonts,
   isThemeFrame,
   isThemeMaterial,
+  currentAmbianceName,
+  isThemeAmbiance,
+  isThemeFaces,
+  isThemeGround,
   type EventThemeProps,
   type ThemeMaterial,
+  type ThemeAmbiance,
+  type ThemeCustom,
 } from '../../domain/events/eventTheme'
 import { isEventStatus, type EventStatus } from '../../domain/events/eventStatus'
 import { DomainError } from '../../domain/shared/errors'
@@ -301,6 +308,35 @@ const settingsMaterialAddedLater = (value: unknown): ThemeMaterial => {
 }
 
 /**
+ * The ambiance a themed event wears, for a `theme` object written before ambiances existed
+ * (docs/adr/0010-event-ambiances.md). Absent is the product's own look, which is what that
+ * blob has been rendering; present but unknown is corruption, like the material above.
+ */
+const settingsAmbianceAddedLater = (value: unknown): ThemeAmbiance => {
+  if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
+  // A theme stored while the Chambre noire existed says `darkroom`: it reads as the Guinguette.
+  const ambiance = currentAmbianceName(value)
+  if (!isThemeAmbiance(ambiance)) throw corrupt('settings', 'unknown theme ambiance')
+  return ambiance
+}
+
+/**
+ * The host's own ambiance (ADR 0011), absent on every theme written before it and on every
+ * theme that does not wear it. Present but malformed is corruption, like its neighbours; whether
+ * it is *paired* with `ambiance: 'custom'` is the domain's question, which `restore` answers
+ * leniently.
+ */
+const settingsCustomAddedLater = (value: unknown): ThemeCustom | undefined => {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw corrupt('settings', 'theme.custom is not a JSON object')
+  const ground = value['ground']
+  if (!isThemeGround(ground)) throw corrupt('settings', 'unknown custom ground')
+  const faces = value['faces']
+  if (!isThemeFaces(faces)) throw corrupt('settings', 'unknown custom faces')
+  return { ground, groundHue: settingsInteger(value['groundHue'], 'theme.custom.groundHue'), faces }
+}
+
+/**
  * The event's theme, added by roadmap 2.2, and the second field to need the treatment
  * above.
  *
@@ -340,11 +376,14 @@ const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
   const frame = value['frame']
   if (!isThemeFrame(frame)) throw corrupt('settings', 'unknown theme frame style')
 
+  const custom = settingsCustomAddedLater(value['custom'])
   return {
     accentHue: settingsInteger(value['accentHue'], 'theme.accentHue'),
     fonts,
     frame,
     material: settingsMaterialAddedLater(value['material']),
+    ambiance: settingsAmbianceAddedLater(value['ambiance']),
+    ...(custom === undefined ? {} : { custom }),
   }
 }
 
@@ -357,6 +396,20 @@ const settingsLanguageAddedLater = (value: unknown): EventLanguage => {
   if (value === undefined) return DEFAULT_EVENT_LANGUAGE
   if (!isEventLanguage(value)) throw corrupt('settings', 'unknown wall language')
   return value
+}
+
+/**
+ * The host's venue photograph, for a settings blob that has none — which is every blob written
+ * before ADR 0010's host photograph, and every event that never uploaded one.
+ *
+ * **Anything that is not a digest is the bundled photograph, and nothing throws.** It is the
+ * theme's own rule one field over: a cosmetic field must not be able to fail `findById` and take
+ * the wall, the join and the settings page down with it. A host who hand-edited the column to
+ * something else loses a decoration, and the settings page offers the upload again.
+ */
+const settingsVenuePhotoAddedLater = (value: unknown): ContentHash | null => {
+  const digest = ContentHash.create(value)
+  return digest.ok ? digest.value : null
 }
 
 const decodeJson = (raw: string): unknown => {
@@ -435,6 +488,8 @@ const settingsOf = (raw: string): EventSettings => {
      * the column. Both halves are pinned in `sqliteEventRepository.test.ts`.
      */
     wallLanguage: settingsLanguageAddedLater(decoded['wallLanguage']),
+    /** Added by the host's venue photograph (ADR 0010); absent and malformed both read as none. */
+    venuePhoto: settingsVenuePhotoAddedLater(decoded['venuePhoto']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the
@@ -500,6 +555,13 @@ const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id) A
               (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id)  AS guest_count,
               ${eventHoldingBytesSum('e.id')}                           AS used_bytes`
 
+/**
+ * The column's text. The digest is written as its hex string: `ContentHash` is a class, and
+ * `JSON.stringify` would write it as `{"value":"…"}`, which the read path would not recognise.
+ */
+const settingsJson = (props: EventSettingsProps): string =>
+  JSON.stringify({ ...props, venuePhoto: props.venuePhoto?.value ?? null })
+
 const toParams = (event: Event): EventParams => {
   const props = event.toProps()
   return {
@@ -509,7 +571,7 @@ const toParams = (event: Event): EventParams => {
     slug: props.slug.value,
     joinCode: props.joinCode.value,
     status: props.status,
-    settings: JSON.stringify(props.settings.toProps()),
+    settings: settingsJson(props.settings.toProps()),
     quotaBytes: props.quotaBytes,
     createdAt: toIsoText(props.createdAt),
     startsAt: props.startsAt === null ? null : toIsoText(props.startsAt),

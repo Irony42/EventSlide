@@ -708,7 +708,15 @@ describe('sending a video', () => {
     // out of the session the join wrote, and `sessionStorage` is synchronous. So the
     // colour is on the element the first time it renders, not one round trip later
     // under the guest's thumb.
-    havingJoined({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' } })
+    havingJoined({
+      theme: {
+        accentHue: 345,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
+    })
     renderUpload(fakeApi())
 
     const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
@@ -724,7 +732,15 @@ describe('sending a video', () => {
     // A display face is a projector decision: this screen's largest type is `--text-lg`,
     // and had the pairings been bundled rather than built from system faces, this is the
     // surface that would have paid for them.
-    havingJoined({ theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' } })
+    havingJoined({
+      theme: {
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
+    })
     renderUpload(fakeApi())
 
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
@@ -757,7 +773,15 @@ describe('sending a video', () => {
     // console, which is not themed. The marker goes on the page element — inside the shell
     // — so it inherits down to the composer without a second copy of the material and
     // without anything travelling back up the tree.
-    havingJoined({ theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'plain' } })
+    havingJoined({
+      theme: {
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'plain',
+        ambiance: 'guinguette',
+      },
+    })
     renderUpload(fakeApi())
 
     const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
@@ -769,7 +793,15 @@ describe('sending a video', () => {
     // The other half, and the one that keeps the choice one-way. `data-glass` here would
     // override whatever the shell decided for this machine, so a host who chose glass has
     // to spread nothing at all and let the shell's answer stand.
-    havingJoined({ theme: { accentHue: 345, fonts: 'sans', frame: 'soft', material: 'glass' } })
+    havingJoined({
+      theme: {
+        accentHue: 345,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      },
+    })
     renderUpload(fakeApi())
 
     const page = (await screen.findByRole('heading', { name: 'Camille & Sacha' })).closest('div')
@@ -780,8 +812,20 @@ describe('sending a video', () => {
   /* ---- A host who changes the look after a guest has joined. ---- */
 
   describe('a theme the host changed after the guest joined', () => {
-    const VIOLET = { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' } as const
-    const ROSE = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' } as const
+    const VIOLET = {
+      accentHue: 305,
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'glass',
+      ambiance: 'guinguette',
+    } as const
+    const ROSE = {
+      accentHue: 345,
+      fonts: 'serif',
+      frame: 'round',
+      material: 'plain',
+      ambiance: 'guinguette',
+    } as const
 
     const answeringWith = (theme: unknown): Partial<Api> => ({
       // Cast through unknown because a malformed or absent theme is the case under test.

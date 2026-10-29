@@ -12,6 +12,7 @@ import { isInstalled } from '../../lib/pwa/install'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { fromOf, useJoin } from './hooks/useJoin'
 import styles from './JoinPage.module.css'
+import { AmbianceMarker } from '../../design-system/components/AmbianceMarker'
 
 /**
  * The front door, on a phone. `/join/:code` and `/join`.
@@ -143,39 +144,47 @@ export function JoinPage() {
 
   if (event !== null) {
     return (
-      <Card as="h1" title={t.join.welcome(event.name)} className={styles['card']}>
-        <form className={styles['form']} onSubmit={handleSubmit} noValidate>
-          {/*
+      <>
+        {/* The welcome is the first screen of the event: it wears its ambiance (ADR 0010). */}
+        <AmbianceMarker
+          ambiance={event.theme.ambiance}
+          custom={event.theme.custom}
+          groundUrl={event.theme.groundUrl}
+        />
+        <Card as="h1" title={t.join.welcome(event.name)} className={styles['card']}>
+          <form className={styles['form']} onSubmit={handleSubmit} noValidate>
+            {/*
             The failure that belongs to the whole step rather than to one field: a name
             could not be recorded, or the connection dropped after the code had already
             resolved. A code that was refused is reported on the code field instead,
             where the correction has to happen.
           */}
-          {error === null ? null : (
-            <Notice tone="danger" role="alert" variant="boxed">
-              {error}
-            </Notice>
-          )}
-          {nameField}
-          {actions}
-          {/* A scan of somebody else's card, or last night's: the guest has no other way
+            {error === null ? null : (
+              <Notice tone="danger" role="alert" variant="boxed">
+                {error}
+              </Notice>
+            )}
+            {nameField}
+            {actions}
+            {/* A scan of somebody else's card, or last night's: the guest has no other way
               back to a code entry, and the code in the address would resolve again. */}
-          <Button
-            variant="ghost"
-            size="sm"
-            block
-            onClick={() => {
-              // The typed code is the one that led here: left in the box it would be offered again.
-              setCode('')
-              setName('')
-              setPressed(false)
-              leave(event.slug)
-            }}
-          >
-            {t.join.notYourEvening}
-          </Button>
-        </form>
-      </Card>
+            <Button
+              variant="ghost"
+              size="sm"
+              block
+              onClick={() => {
+                // The typed code is the one that led here: left in the box it would be offered again.
+                setCode('')
+                setName('')
+                setPressed(false)
+                leave(event.slug)
+              }}
+            >
+              {t.join.notYourEvening}
+            </Button>
+          </form>
+        </Card>
+      </>
     )
   }
 

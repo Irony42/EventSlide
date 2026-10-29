@@ -1,5 +1,14 @@
 import type { CSSProperties } from 'react'
-import type { EventThemeDto, ThemeFonts, ThemeFrame, ThemeMaterial } from '../lib/api/dto'
+import type {
+  EventThemeDto,
+  ThemeAmbiance,
+  ThemeCustom,
+  ThemeFaces,
+  ThemeFonts,
+  ThemeFrame,
+  ThemeGround,
+  ThemeMaterial,
+} from '../lib/api/dto'
 import { glassMaterialProps, type GlassMaterialProps } from './glass'
 
 /**
@@ -46,6 +55,7 @@ export const DEFAULT_EVENT_THEME: EventThemeDto = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
+  ambiance: 'guinguette',
 })
 
 /**
@@ -84,6 +94,98 @@ export const CURATED_ACCENT_NAMES = Object.keys(CURATED_ACCENT_HUES) as readonly
 export const THEME_FONTS: readonly ThemeFonts[] = ['sans', 'serif']
 export const THEME_FRAMES: readonly ThemeFrame[] = ['soft', 'square', 'round']
 export const THEME_MATERIALS: readonly ThemeMaterial[] = ['glass', 'plain']
+export const THEME_AMBIANCES: readonly ThemeAmbiance[] = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+  'custom',
+]
+export const THEME_FACES: readonly ThemeFaces[] = [
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+]
+export const THEME_GROUNDS: readonly ThemeGround[] = ['light', 'dark']
+
+/**
+ * The only shape a venue photograph's URL may have: a path under this origin that names a
+ * digest. Checked on the way in rather than trusted, because a theme is also read back from
+ * `sessionStorage`, and whatever passes this is written into a CSS `url()`.
+ */
+const VENUE_GROUND_PATH = /^\/api\/events\/[a-z0-9-]{2,64}\/venue-photo\/[0-9a-f]{64}$/
+
+export const isVenueGroundUrl = (value: unknown): value is string =>
+  typeof value === 'string' && VENUE_GROUND_PATH.test(value)
+
+/** `url("…")` with the path quoted as JSON, which is a valid CSS string for this alphabet. */
+const cssUrl = (path: string): string => `url(${JSON.stringify(path)})`
+
+/**
+ * What a surface (or the marker) carries to show the host's own ground: the photograph as an
+ * inline custom property, and the attribute `tokens.css` and `base.css` key on.
+ *
+ * **Inline, and on the element that is dressed.** The value is computed (a URL the server minted),
+ * so it is the one kind of thing an inline style is for; the colours of the grade that keeps text
+ * legible over it stay in `tokens.css`. Because it travels with the element in the same render,
+ * the ground and the page it sits behind are one paint: nothing is applied from an effect, so
+ * there is no frame in which the bundled photograph shows first.
+ *
+ * Every ambiance paints a photograph, the root look included (which carries no
+ * `data-event-ambiance`), so this needs nothing of the ambiance: the server sends a URL only for a
+ * photograph it holds, and the client takes it only if it is a path this product mints.
+ */
+export interface VenueGroundProps {
+  readonly style: CSSProperties & { readonly '--ambiance-ground': string }
+  readonly 'data-venue-ground': ThemedSurface
+}
+
+export const venueGroundProps = (
+  theme: { readonly groundUrl?: string | null | undefined } | null,
+  surface: ThemedSurface,
+): VenueGroundProps | null => {
+  if (theme === null) return null
+  if (!isVenueGroundUrl(theme.groundUrl)) return null
+  return {
+    style: { '--ambiance-ground': cssUrl(theme.groundUrl) },
+    'data-venue-ground': surface,
+  }
+}
+
+export const isThemeFaces = (value: unknown): value is ThemeFaces =>
+  typeof value === 'string' && (THEME_FACES as readonly string[]).includes(value)
+
+export const isThemeGround = (value: unknown): value is ThemeGround =>
+  typeof value === 'string' && (THEME_GROUNDS as readonly string[]).includes(value)
+
+/**
+ * What a custom ambiance carries (ADR 0011): the polarity and the faces to borrow as attributes
+ * `tokens.css` selects on, and the ground's tint as an inline **angle**, the one kind of custom
+ * property JavaScript may set (`--accent-hue`'s sibling). `null` for any other ambiance or while
+ * the object is missing: a theme that says `custom` without it is shown as the product's own.
+ */
+export interface CustomGroundProps {
+  readonly style: CSSProperties & { readonly '--ground-hue': string }
+  readonly 'data-ambiance-ground': ThemeGround
+  readonly 'data-ambiance-faces': ThemeFaces
+}
+
+export const customGroundProps = (
+  ambiance: ThemeAmbiance | null | undefined,
+  custom: ThemeCustom | null | undefined,
+): CustomGroundProps | null => {
+  if (ambiance !== 'custom' || custom === null || custom === undefined) return null
+  return {
+    style: { '--ground-hue': `${custom.groundHue}deg` },
+    'data-ambiance-ground': custom.ground,
+    'data-ambiance-faces': custom.faces,
+  }
+}
 
 export const isThemeFonts = (value: string): value is ThemeFonts =>
   (THEME_FONTS as readonly string[]).includes(value)
@@ -94,11 +196,18 @@ export const isThemeFrame = (value: string): value is ThemeFrame =>
 export const isThemeMaterial = (value: string): value is ThemeMaterial =>
   (THEME_MATERIALS as readonly string[]).includes(value)
 
+export const isThemeAmbiance = (value: string): value is ThemeAmbiance =>
+  (THEME_AMBIANCES as readonly string[]).includes(value)
+
 /** The name of a hue, when it is one of the four. `null` for an angle set over the API. */
 export const accentNameFor = (hue: number): CuratedAccent | null =>
   CURATED_ACCENT_NAMES.find((name) => CURATED_ACCENT_HUES[name] === hue) ?? null
 
-type AccentStyle = CSSProperties & { readonly '--accent-hue': string }
+type AccentStyle = CSSProperties & {
+  readonly '--accent-hue'?: string
+  readonly '--ground-hue'?: string
+  readonly '--ambiance-ground'?: string
+}
 
 /**
  * What a themed surface spreads onto its own root element.
@@ -125,6 +234,13 @@ export interface ThemeSurfaceProps extends GlassMaterialProps {
   readonly 'data-event-accent'?: string
   readonly 'data-event-fonts'?: EventThemeDto['fonts']
   readonly 'data-event-frame'?: EventThemeDto['frame']
+  /** The ambiance block `tokens.css` selects. Absent for the product's own, `guinguette`. */
+  readonly 'data-event-ambiance'?: EventThemeDto['ambiance']
+  /** A custom ambiance's polarity and borrowed faces; see {@link customGroundProps}. */
+  readonly 'data-ambiance-ground'?: ThemeGround
+  readonly 'data-ambiance-faces'?: ThemeFaces
+  /** Present when the host's own photograph is the ground; see {@link venueGroundProps}. */
+  readonly 'data-venue-ground'?: ThemedSurface
 }
 
 /**
@@ -164,12 +280,35 @@ export const themeSurfaceProps = (
   // surface below the shell may declare, and its return type is what stops this file
   // helpfully emitting the tier in full and putting a blur back on a machine that shed it.
   const material = glassMaterialProps(theme.material)
+  // Both surfaces wear the ambiance: it is the world the guest's phone and the room share.
+  const ambiance: ThemeSurfaceProps =
+    theme.ambiance === DEFAULT_EVENT_THEME.ambiance ? {} : { 'data-event-ambiance': theme.ambiance }
 
-  if (surface === 'guest') return { ...accent, ...material }
+  // Merged with the accent's style rather than beside it: both are inline custom properties on
+  // the one element, and a second `style` key would silently replace the first.
+  const venue = venueGroundProps(theme, surface)
+  const custom = customGroundProps(theme.ambiance, theme.custom)
+  const ground: ThemeSurfaceProps =
+    venue === null && custom === null
+      ? {}
+      : {
+          style: { ...accent.style, ...custom?.style, ...venue?.style },
+          ...(venue === null ? {} : { 'data-venue-ground': venue['data-venue-ground'] }),
+          ...(custom === null
+            ? {}
+            : {
+                'data-ambiance-ground': custom['data-ambiance-ground'],
+                'data-ambiance-faces': custom['data-ambiance-faces'],
+              }),
+        }
+
+  if (surface === 'guest') return { ...accent, ...material, ...ambiance, ...ground }
 
   return {
     ...accent,
     ...material,
+    ...ambiance,
+    ...ground,
     ...(theme.fonts === DEFAULT_EVENT_THEME.fonts ? {} : { 'data-event-fonts': theme.fonts }),
     ...(theme.frame === DEFAULT_EVENT_THEME.frame ? {} : { 'data-event-frame': theme.frame }),
   }
@@ -195,6 +334,40 @@ const readThemeMaterial = (value: unknown): ThemeMaterial | null => {
 }
 
 /**
+ * The ambiance, for a theme written before ambiances existed: absent is the product's own,
+ * present and unknown is refused, exactly as for the material above. The one name this build
+ * no longer ships, `darkroom`, is read as the Guinguette that replaced it.
+ */
+const readThemeAmbiance = (value: unknown): ThemeAmbiance | null => {
+  if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
+  // A tab that stored its session while the Chambre noire existed holds `darkroom`: that look
+  // was replaced by the Guinguette on 28/10, and refusing the entry would log the guest out.
+  const named = value === 'darkroom' ? 'guinguette' : value
+  if (typeof named !== 'string' || !isThemeAmbiance(named)) return null
+  return named
+}
+
+/**
+ * The host's own ambiance (ADR 0011), read against the ambiance it belongs to. `undefined` is
+ * "none"; an object that is present but malformed is `null`, like any other present-and-wrong
+ * value; one sent with an ambiance that does not wear it is dropped rather than worn.
+ */
+const readThemeCustom = (
+  value: unknown,
+  ambiance: ThemeAmbiance,
+): ThemeCustom | null | undefined => {
+  if (ambiance !== 'custom') return undefined
+  if (typeof value !== 'object' || value === null) return null
+  const ground: unknown = Reflect.get(value, 'ground')
+  const groundHue: unknown = Reflect.get(value, 'groundHue')
+  const faces: unknown = Reflect.get(value, 'faces')
+  if (!isThemeGround(ground) || !isThemeFaces(faces)) return null
+  if (typeof groundHue !== 'number' || !Number.isInteger(groundHue)) return null
+  if (groundHue < 0 || groundHue > 359) return null
+  return { ground, groundHue, faces }
+}
+
+/**
  * Narrows a theme off the wire, or off a `sessionStorage` entry an older build wrote.
  *
  * `null` means "render the product's own look", which is also what the server sends for
@@ -217,5 +390,23 @@ export const readEventTheme = (value: unknown): EventThemeDto | null => {
   const material = readThemeMaterial(Reflect.get(value, 'material'))
   if (material === null) return null
 
-  return { accentHue: hue, fonts, frame, material }
+  const ambiance = readThemeAmbiance(Reflect.get(value, 'ambiance'))
+  if (ambiance === null) return null
+
+  // Present only when it is a path this product mints. Anything else is the bundled ground,
+  // never a refusal: a photograph is a decoration, and a stored entry that carried an odd one
+  // must not send a guest back to the join screen mid-evening.
+  const custom = readThemeCustom(Reflect.get(value, 'custom'), ambiance)
+  if (custom === null) return null
+
+  const groundUrl: unknown = Reflect.get(value, 'groundUrl')
+  return {
+    accentHue: hue,
+    fonts,
+    frame,
+    material,
+    ambiance,
+    ...(custom === undefined ? {} : { custom }),
+    ...(isVenueGroundUrl(groundUrl) ? { groundUrl } : {}),
+  }
 }

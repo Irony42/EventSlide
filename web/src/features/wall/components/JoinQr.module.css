@@ -7,8 +7,8 @@
  */
 .plate {
   display: grid;
-  background: var(--text-primary);
-  color: var(--surface-base);
+  background: var(--qr-field);
+  color: var(--qr-ink);
   padding: var(--space-3);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
@@ -22,7 +22,8 @@
 /* Sized from the scale rather than from a chosen pixel count: the corner reminder is
    two space steps wide, the invitation takes a guest-column's worth of the screen. */
 .md {
-  inline-size: calc(var(--space-10) * 2);
+  /* 224 px at 1080p rather than 128: scannable from a table, inside the declared card. */
+  inline-size: calc(var(--space-10) * 3.5);
 }
 
 .lg {

@@ -13,7 +13,8 @@
   justify-content: center;
   gap: var(--space-10);
   padding: var(--wall-safe);
-  background: var(--surface-base);
+  /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
+  background: var(--wall-ground);
 }
 
 .copy {
@@ -28,8 +29,8 @@
   color: var(--accent);
 }
 
-/* The event's own name, in the event's own face. `--font-display` is `--font-sans` until
-   a host picks the other pairing (roadmap 2.2), so an unthemed wall is unchanged — and
+/* The event's own name, in the event's own face. `--font-display` is Instrument Serif since
+   ADR 0010 (the default pairing), Georgia for the other one (roadmap 2.2) — and
    the pairing is applied here, at `--text-display` on a projector, because that is the
    one place in the product where a second face is large enough to be worth having. */
 .name {
@@ -72,6 +73,9 @@
    host's choice of face is not worth a `1` that could be an `l`. The event's name beside
    it carries the pairing; the code carries the job. */
 .code {
+  /* ADR 0010: a fixed-width face, so a 0 and an O, a 1 and an l, sit apart. */
+  font-family: var(--font-mono);
+  letter-spacing: 0.12em;
   font-size: var(--text-display);
   line-height: var(--leading-tight);
   font-weight: 700;

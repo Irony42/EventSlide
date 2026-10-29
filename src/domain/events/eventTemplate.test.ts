@@ -146,6 +146,7 @@ describe('what a wedding starts from', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
+      ambiance: 'champs',
     })
   })
 })
@@ -159,12 +160,15 @@ describe('what a birthday starts from', () => {
     expect(settingsOf('birthday').retentionDays).toBe(90)
   })
 
-  it('keeps the product’s own colour and says so by moving only the frame', () => {
+  it('keeps the product’s own colour and moves the frame and the ambiance', () => {
+    // ADR 0010: the birthday is the evening the Guinguette was drawn for, and its default
+    // hue lets the ambiance's lampion be the colour rather than a hue on top of it.
     expect(settingsOf('birthday').theme).toEqual({
       accentHue: CURATED_ACCENT_HUES.violet,
       fonts: 'sans',
       frame: 'round',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 })
@@ -192,6 +196,7 @@ describe('what a conference starts from', () => {
       fonts: 'sans',
       frame: 'square',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 })
@@ -219,6 +224,7 @@ describe('what a party starts from', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'bivouac',
     })
   })
 })

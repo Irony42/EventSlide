@@ -8,6 +8,7 @@ const SLOT_COUNTS: [WallLayout, number][] = [
   ['filmstrip', 5],
   ['collage', 12],
   ['split', 2],
+  ['clothesline', 5],
 ]
 
 /**
@@ -62,7 +63,7 @@ describe('wallLayoutSpec', () => {
   it('hides captions in the layouts too small to read them across the room', () => {
     const captioned = WALL_LAYOUTS.filter((layout) => wallLayoutSpec(layout).showsCaption)
 
-    expect(captioned).toEqual(['spotlight', 'polaroid', 'split'])
+    expect(captioned).toEqual(['spotlight', 'polaroid', 'split', 'clothesline'])
   })
 
   it.each([...WALL_LAYOUTS])('keeps %s within the number of photos a room can read', (layout) => {

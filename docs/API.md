@@ -920,7 +920,9 @@ which is allowed.
       "accentHue": 345,
       "fonts": "serif",
       "frame": "round",
-      "material": "glass"
+      "material": "glass",
+      "ambiance": "guinguette",
+      "groundUrl": null
     }
   },
   "privacyNotice": {
@@ -938,6 +940,14 @@ which is allowed.
 
 Only what a guest may know before joining. The owner, the quota, the counts and the
 settings that are none of their business are absent.
+
+`theme.custom` (`{ground, groundHue, faces}`, ADR 0011) is present only when `theme.ambiance` is
+`custom`, and absent otherwise.
+
+`theme.groundUrl` is the host's own photograph of the venue (§7, `PUT /venue-photo`): a path on this
+origin naming the photograph's digest, or `null` for the ambiance's bundled ground, and always `null`
+on the shared gallery. A client takes it only if it matches
+`/api/events/<slug>/venue-photo/<64 hex>`.
 
 `theme` is not a permission like the two switches above it — it is what the host's event
 _looks_ like (§7), and the guest's phone is one of the three screens it looks like it on.
@@ -1139,10 +1149,10 @@ client-side concern. The projector reads `?layout=` off its own _display_ URL �
 `/e/:slug/display?layout=mosaic`, which is what a kiosk's autostart line can hold — and
 the host's `L` key cycles the same thing at the screen; both live in the browser
 (`web/src/features/wall/hooks/useLayoutParam.ts`) and neither is sent here. Names are
-`spotlight | mosaic | polaroid | filmstrip | collage | split`, and an unknown or
+`spotlight | mosaic | polaroid | filmstrip | collage | split | clothesline`, and an unknown or
 malformed one is ignored in favour of this response's value rather than raising
 anything: a projector rendering nothing for eight hours is the one failure this screen
-may not have. All six render themselves; none falls back to a neighbour. `L` walks them
+may not have. All seven render themselves; none falls back to a neighbour. Without `?layout=`, a Guinguette event opens on `clothesline` (ADR 0010, decided in the browser). `L` walks them
 in the order above and wraps.
 
 `joinCode` is present because the wall is also the invitation: it shows the code and a
@@ -2389,28 +2399,30 @@ The account budget is what bounds a distributed guesser against six digits.
 `:slug` scopes the role check: `requireRole('moderator')` means _moderator of this
 event_, never "is logged in".
 
-| Method   | Path                                       | Role      | OK  |                                                |
-| -------- | ------------------------------------------ | --------- | --- | ---------------------------------------------- |
-| `GET`    | `/api/events`                              | any       | 200 | Dashboard summaries                            |
-| `POST`   | `/api/events`                              | any       | 201 | Create; the creator becomes owner              |
-| `GET`    | `/api/events/:slug`                        | moderator | 200 | Full event including settings                  |
-| `PATCH`  | `/api/events/:slug`                        | owner     | 200 | Rename; answers the full event                 |
-| `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event               |
-| `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event |
-| `PATCH`  | `/api/events/:slug/schedule`               | owner     | 200 | Scheduled open/close; answers the full event   |
-| `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code       |
-| `DELETE` | `/api/events/:slug`                        | owner     | 204 | Purge: media first, then rows                  |
-| `GET`    | `/api/events/:slug/photos`                 | moderator | 200 | Paginated, filterable                          |
-| `GET`    | `/api/events/:slug/moderation`             | moderator | 200 | Queue + `pendingCount`                         |
-| `PATCH`  | `/api/events/:slug/photos/:photoId/status` | moderator | 204 | `{ "decision": "publish" }`                    |
-| `POST`   | `/api/events/:slug/moderation/bulk`        | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }`  |
-| `DELETE` | `/api/events/:slug/photos/:photoId`        | moderator | 204 | Delete any photo                               |
-| `GET`    | `/api/events/:slug/guests`                 | moderator | 200 | Guest list + active count                      |
-| `POST`   | `/api/events/:slug/guests/:guestId/revoke` | moderator | 204 | Remove a disruptive guest; idempotent          |
-| `GET`    | `/api/events/:slug/moderators`             | owner     | 200 | Memberships                                    |
-| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite **by link**; `{ "email" }`, no password |
-| `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                   |
-| `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                             |
+| Method   | Path                                       | Role      | OK  |                                                 |
+| -------- | ------------------------------------------ | --------- | --- | ----------------------------------------------- |
+| `GET`    | `/api/events`                              | any       | 200 | Dashboard summaries                             |
+| `POST`   | `/api/events`                              | any       | 201 | Create; the creator becomes owner               |
+| `GET`    | `/api/events/:slug`                        | moderator | 200 | Full event including settings                   |
+| `PATCH`  | `/api/events/:slug`                        | owner     | 200 | Rename; answers the full event                  |
+| `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event                |
+| `PUT`    | `/api/events/:slug/venue-photo`            | owner     | 200 | Own venue photograph; answers the full event    |
+| `DELETE` | `/api/events/:slug/venue-photo`            | owner     | 200 | Back to the bundled one; answers the full event |
+| `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event  |
+| `PATCH`  | `/api/events/:slug/schedule`               | owner     | 200 | Scheduled open/close; answers the full event    |
+| `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code        |
+| `DELETE` | `/api/events/:slug`                        | owner     | 204 | Purge: media first, then rows                   |
+| `GET`    | `/api/events/:slug/photos`                 | moderator | 200 | Paginated, filterable                           |
+| `GET`    | `/api/events/:slug/moderation`             | moderator | 200 | Queue + `pendingCount`                          |
+| `PATCH`  | `/api/events/:slug/photos/:photoId/status` | moderator | 204 | `{ "decision": "publish" }`                     |
+| `POST`   | `/api/events/:slug/moderation/bulk`        | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }`   |
+| `DELETE` | `/api/events/:slug/photos/:photoId`        | moderator | 204 | Delete any photo                                |
+| `GET`    | `/api/events/:slug/guests`                 | moderator | 200 | Guest list + active count                       |
+| `POST`   | `/api/events/:slug/guests/:guestId/revoke` | moderator | 204 | Remove a disruptive guest; idempotent           |
+| `GET`    | `/api/events/:slug/moderators`             | owner     | 200 | Memberships                                     |
+| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite **by link**; `{ "email" }`, no password  |
+| `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                    |
+| `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                              |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and
@@ -2743,6 +2755,52 @@ Rename. **200** with the event. **Errors** — `409 event.immutable` on an archi
 `400 eventName.empty`, `400 eventName.tooShort`, `400 eventName.tooLong`,
 `400 eventName.malformed` (a name with no letter or digit in it at all).
 
+### `PUT /api/events/:slug/venue-photo` and `DELETE`
+
+The host's own photograph of their venue, which replaces the bundled ground of an ambiance
+(every ambiance paints a photograph; ADR 0010, decision 11). **Owner only**, as
+`PATCH /settings` is: `401 auth.required`, `404 event.notFound` for a caller with no part in the
+event, `403 auth.forbidden` for its moderator, and `403 client.suspended` on a frozen client.
+All of it is decided before a byte is buffered.
+
+`PUT` takes `multipart/form-data` with **one** file part named `photo` and no text part. The format
+is identified from the bytes: the part's filename and `Content-Type` are never read. It answers
+the full event, whose `settings.theme.groundUrl` is now the photograph's URL.
+
+| Status | `error.code`                                                     | When                                                            |
+| ------ | ---------------------------------------------------------------- | --------------------------------------------------------------- |
+| 400    | `upload.noFiles`                                                 | no `photo` part                                                 |
+| 400    | `image.unsupportedFormat` \| `image.corrupt` \| `image.animated` | the bytes are not one still image the pipeline reads            |
+| 413    | `upload.tooLarge`                                                | above `MAX_UPLOAD_BYTES`, cut off at the byte that crosses it   |
+| 413    | `photo.pixelBudgetExceeded` \| `venuePhoto.tooLarge`             | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 1 MiB |
+| 429    | `rate.limited`                                                   | more than ten uploads an hour from one account                  |
+| 413    | `storage.boxFull`                                                | the disk guard, as for every upload                             |
+
+The stored file is the pipeline's output and never the upload: rotated upright, **every metadata
+block stripped** (the GPS position of the venue included), resized to at most 1600 px on its long
+side and re-encoded as WebP at quality 60. It is stored under the event, named by the SHA-256 of
+those bytes. It is **not** counted against the event's byte quota (one file per event, replaced in
+place, at most 1 MiB; docs/SECURITY.md says why). Replacing deletes the previous file; the same
+bytes sent twice are one file. `event.settingsChanged` is published, so the wall refetches.
+
+`DELETE` answers the full event with `groundUrl: null` and removes the file. It is **idempotent**:
+removing what is not there is a `200` that changes nothing.
+
+### `GET /api/events/:slug/venue-photo/:hash`
+
+The bytes, served through the application like every other media (never `express.static`).
+`:hash` is the 64-hex digest in `theme.groundUrl`, and the event's settings must name **that
+digest** — a replaced or removed photograph is a `404` at once, not when its file is collected.
+Readable by whoever may already see the event's wall: the projector with no credential and a
+guest while the event serves its wall (`live` or `closed`, and its client is not suspended), and
+a moderator or owner **at any time**, so a host sees what they uploaded on a draft.
+
+`Content-Type: image/webp`, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline`, a strong
+`ETag`, `Cache-Control: private, max-age=31536000, immutable` (safe: the name is the content),
+and `Range` is honoured (`206`, `416`) by the same code as a photograph's. **Every refusal is the
+same `404 venuePhoto.notFound`**: an unknown slug, a malformed digest, another event's digest and a
+draft are indistinguishable, so the route is not an oracle for which events or digests exist.
+
 ### `PATCH /api/events/:slug/settings`
 
 A **partial** update. Every field is optional, and an absent key means "leave it alone" —
@@ -2769,18 +2827,18 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 }
 ```
 
-| Field                         | Accepted                                         |
-| ----------------------------- | ------------------------------------------------ |
-| `moderation`                  | `manual` \| `auto`                               |
-| `allowCaptions`               | boolean                                          |
-| `allowReactions`              | boolean                                          |
-| `allowClips`                  | boolean — see below                              |
-| `allowGuestSelfDelete`        | boolean                                          |
-| `guestSelfDeleteGraceSeconds` | integer 0..86400                                 |
-| `retentionDays`               | integer 1..3650, or `null` for "keep"            |
-| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"         |
-| `theme`                       | object — all four keys required, see below       |
-| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below |
+| Field                         | Accepted                                                                                                                                                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `moderation`                  | `manual` \| `auto`                                                                                                                                                                                                                               |
+| `allowCaptions`               | boolean                                                                                                                                                                                                                                          |
+| `allowReactions`              | boolean                                                                                                                                                                                                                                          |
+| `allowClips`                  | boolean — see below                                                                                                                                                                                                                              |
+| `allowGuestSelfDelete`        | boolean                                                                                                                                                                                                                                          |
+| `guestSelfDeleteGraceSeconds` | integer 0..86400                                                                                                                                                                                                                                 |
+| `retentionDays`               | integer 1..3650, or `null` for "keep"                                                                                                                                                                                                            |
+| `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                                                                         |
+| `theme`                       | object — all five keys required, plus `custom` when the ambiance is `custom`, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`) |
+| `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                                                                 |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
 **refused** where creation reduces — shortening what a host just typed would tell them they got
@@ -2853,6 +2911,26 @@ is for an absent `material` to mean something, the only sane meaning is `glass`,
 who chose `plain` would then have it silently undone by a stale tab saving an unrelated
 checkbox. A refusal a reload fixes beats a choice quietly reverted.
 
+`ambiance` (ADR 0010) is one of `guinguette | riviera | champs | bivouac | cabaret | noces | custom`,
+and, like the other keys, is required (a request without it is `400 request.invalid`).
+
+**`custom`, « Sur mesure » (ADR 0011).** `ambiance: "custom"` carries a sixth key, an object:
+
+```
+"custom": { "ground": "light" | "dark", "groundHue": 0..359,
+            "faces": "guinguette" | "riviera" | "champs" | "bivouac" | "cabaret" | "noces" }
+```
+
+It is **required when `ambiance` is `custom` and refused otherwise**: `400 eventTheme.customRequired`
+for the first, `400 eventTheme.customNotAllowed {ambiance}` for the second, and
+`400 eventTheme.customInvalid {min, max}` for a polarity, hue or faces the domain does not know.
+The object is a strict one: an unknown key, a non-integer or out-of-range hue and `faces: "custom"`
+are `400 request.invalid`. `groundHue` is an angle like `accentHue`; no colour crosses the wire,
+and no legibility is judged here (every ground hue is proven by a test sweep, so the accent rule
+below is the only one that applies). `GET` answers `theme.custom` only when the ambiance is
+`custom`; otherwise the key is **absent**, never `null`. Switching to another ambiance means
+sending the theme without `custom`.
+
 `accentHue` is a **hue angle**, not a colour: the lightness and chroma are the design
 system's and cannot be moved, which is the whole reason a host cannot make the wall
 unreadable. No colour is ever sent or received by this API.
@@ -2899,7 +2977,8 @@ before a change learns of it on the next read.
 **200** with the event. **Errors** — `409 event.immutable`,
 `400 eventSettings.graceSecondsInvalid`, `400 eventSettings.retentionDaysInvalid`,
 `400 eventSettings.maxPhotosPerGuestInvalid`, `400 eventTheme.accentHueInvalid`,
-`400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus`.
+`400 eventTheme.accentUnreadable`, `400 eventTheme.accentTooCloseToStatus` (never for `ambiance: "custom"`, ADR 0011 decision 8),
+`400 eventTheme.customRequired`, `400 eventTheme.customNotAllowed`, `400 eventTheme.customInvalid`.
 
 There is no per-event wall `layout` here, and no API accepts one anywhere: the layout is
 chosen at the screen — `?layout=` on the display URL, or the host's `L` key — and

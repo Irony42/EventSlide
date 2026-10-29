@@ -83,6 +83,10 @@ const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
 }))
 
+const CustomAmbiancePage = lazy(async () => ({
+  default: (await import('../features/admin/CustomAmbiancePage')).CustomAmbiancePage,
+}))
+
 /**
  * The shared gallery (roadmap §4.1): a guest surface, and lazy all the same. The person
  * who opens it is not standing at the venue on its Wi-Fi with a photo to send — they are
@@ -474,6 +478,10 @@ export function AppRoutes() {
               <Route
                 path="/admin/events/:slug/settings"
                 element={titled('settings', <EventSettingsPage />)}
+              />
+              <Route
+                path="/admin/events/:slug/settings/ambiance"
+                element={titled('customAmbiance', <CustomAmbiancePage />)}
               />
               {siteAdmin ? (
                 <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />

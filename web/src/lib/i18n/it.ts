@@ -476,7 +476,7 @@ export const it: UiText = {
     'eventTheme.accentUnreadable':
       'Questo colore non sarebbe leggibile sullo schermo in sala. Scegline uno dall’elenco.',
     'eventTheme.accentTooCloseToStatus':
-      'Questo colore somiglia troppo ai colori di stato dell’applicazione. Scegline un altro.',
+      'Questo colore somiglia troppo ai colori di stato dell’applicazione. Scegli un’altra tinta.',
     'gallery.notAvailable': 'Questo link non è più disponibile.',
     'gallery.passwordRequired': 'Questo album è protetto da password.',
     'gallery.wrongPassword': 'Password errata.',
@@ -486,6 +486,11 @@ export const it: UiText = {
 
     'upload.busy': 'Sono in corso molti invii. Riprovi tra un momento.',
     'storage.boxFull': 'Non c’è più spazio per salvare questo file. Avvisi l’organizzatore.',
+    /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
+    'venuePhoto.tooLarge':
+      'Questa foto è troppo pesante, anche ridimensionata. Provatene un’altra.',
+    'venuePhoto.notFound': 'Questa foto non esiste più.',
+    'venuePhoto.saveFailed': 'Non è stato possibile salvare la foto. Riprovate.',
   },
 
   moderation: {
@@ -632,6 +637,7 @@ export const it: UiText = {
       filmstrip: 'Pellicola',
       collage: 'Collage',
       split: 'Affiancate',
+      clothesline: 'Filo del bucato',
     },
     layoutOrder: (names: readonly string[]) => `Disposizioni, in ordine: ${names.join(', ')}.`,
     videoBy: (name: string) => `Video inviato da ${name}`,
@@ -694,7 +700,7 @@ export const it: UiText = {
       'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',
     themeAccent: 'Colore',
     themeAccentNames: {
-      violet: 'Viola',
+      violet: 'Kraft (predefinito)',
       rose: 'Rosa',
       azure: 'Blu',
       teal: 'Turchese',
@@ -702,7 +708,7 @@ export const it: UiText = {
     themeFonts: 'Tipografia',
     themeFontsHint: 'Applicata solo allo schermo in sala.',
     themeFontsNames: {
-      sans: 'Moderna',
+      sans: 'Editoriale',
       serif: 'Classica',
     },
     themeFrame: 'Cornice delle foto',
@@ -717,6 +723,18 @@ export const it: UiText = {
     themeMaterialNames: {
       glass: 'Vetro smerigliato',
       plain: 'Superficie piena',
+    },
+    themeAmbiance: 'Atmosfera',
+    themeAmbianceHint:
+      'Il mondo che indossano i telefoni dei vostri ospiti, lo schermo della sala e le pagine di questo evento nella vostra console.',
+    themeAmbianceNames: {
+      guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Campi d’oro',
+      bivouac: 'Bivacco',
+      cabaret: 'Cabaret',
+      noces: 'Nozze',
+      custom: 'Su misura',
     },
     template: 'Tipo di evento',
     templateHint:
@@ -915,6 +933,48 @@ export const it: UiText = {
     shareLinkRevokeHint:
       'Nessuno potrà più aprire l’album con questo link, nemmeno con la password. Potrà crearne uno nuovo.',
     shareLinkRevoked: 'Il link è stato disattivato.',
+
+    /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
+    venuePhoto: 'Foto del vostro locale',
+    venuePhotoHint:
+      'Sostituisce la foto dell’atmosfera dietro lo schermo dei vostri ospiti e quello della sala. Viene ridimensionata e privata dei metadati, posizione GPS compresa, poi velata perché il testo resti leggibile.',
+    venuePhotoPreviewAlt: 'Anteprima della foto del vostro locale',
+    venuePhotoDefault:
+      'Nessuna foto del vostro locale: l’ambientazione mostra la sua foto predefinita.',
+    venuePhotoChoose: 'Scegli una foto',
+    venuePhotoReplace: 'Sostituisci la foto',
+    venuePhotoRemove: 'Torna alla foto predefinita',
+    venuePhotoBusy: 'Invio della foto…',
+    venuePhotoSaved: 'La foto del vostro locale è salvata.',
+    venuePhotoRemoved: 'La foto predefinita è stata ripristinata.',
+    customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
+    customAmbianceEdit: 'Modifica la mia atmosfera',
+    customAmbianceEntryHint:
+      'Il tuo sfondo, chiaro o scuro, con la tinta che preferisci: lo vedi su schermi reali prima di salvare.',
+    customAmbianceTitle: 'La tua atmosfera su misura',
+    customAmbianceCrumb: 'Su misura',
+    customAmbianceIntro:
+      'Scegli uno sfondo chiaro o scuro, la sua tinta, il colore d’accento e un carattere. Le anteprime mostrano gli schermi reali con le tue scelte e nulla viene salvato finché non premi «Salva».',
+    customGround: 'Sfondo',
+    customGroundNames: { light: 'Chiaro', dark: 'Scuro' },
+    customGroundHue: 'Tinta dello sfondo',
+    customGroundHueHint:
+      'Da 0° a 359°: scegli solo la tinta, la luminosità è fissa perché tutto resti leggibile.',
+    customAccentHue: 'Colore d’accento',
+    customAccentHueHint:
+      'Ogni tinta è permessa, comprese quelle vicine al verde, al giallo o al rosso dell’applicazione: il testo del pulsante resta leggibile su ciascuna, e un avviso porta sempre un’icona e una parola.',
+    customFaces: 'Carattere',
+    customFacesHint:
+      'I font e gli angoli dei pulsanti di una delle sei atmosfere, ciascuna mostrata nel proprio font.',
+    customPreview: 'Anteprima',
+    customPreviewHint:
+      'Un’illustrazione di ciò che vedranno i tuoi ospiti e la sala, con foto di esempio.',
+    customPreviewPhone: 'Schermo dei tuoi ospiti',
+    customPreviewWall: 'Schermo della sala',
+    customPreviewCaption: 'Che bella serata!',
+    customPreviewAuthor: 'Lea',
+    customKept: 'La tua scelta resta com’era: modificala e salva di nuovo.',
+    customSaved: 'La tua atmosfera è salvata.',
   },
 
   auth: {
@@ -1433,6 +1493,7 @@ export const it: UiText = {
     moderation: 'Moderazione',
     mobileModeration: 'Moderazione da telefono',
     settings: 'Impostazioni dell’evento',
+    customAmbiance: 'Atmosfera su misura',
     clientSpace: 'Area cliente',
     site: 'Console dell’operatore',
     siteClient: 'Cliente',

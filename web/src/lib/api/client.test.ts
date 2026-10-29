@@ -277,6 +277,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.updateSettings(SLUG, { allowCaptions: false }),
   },
   {
+    name: 'putVenuePhoto',
+    verb: 'put',
+    path: `/api/events/${SLUG}/venue-photo`,
+    invoke: (client) => client.putVenuePhoto(SLUG, new File(['x'], 'lieu.jpg')),
+  },
+  {
+    name: 'removeVenuePhoto',
+    verb: 'del',
+    path: `/api/events/${SLUG}/venue-photo`,
+    invoke: (client) => client.removeVenuePhoto(SLUG),
+  },
+  {
     name: 'setEventStatus',
     verb: 'post',
     path: `/api/events/${SLUG}/status`,
@@ -714,6 +726,17 @@ describe('request bodies', () => {
     await subject().updateSettings(SLUG, { moderation: 'auto' })
 
     expect(only().body).toEqual({ moderation: 'auto' })
+  })
+
+  it('sends the venue photograph as one multipart part named photo', async () => {
+    const file = new File(['bytes'], 'lieu.jpg', { type: 'image/jpeg' })
+
+    await subject().putVenuePhoto(SLUG, file)
+
+    const body = only().body
+    expect(body).toBeInstanceOf(FormData)
+    expect((body as FormData).get('photo')).toBe(file)
+    expect([...(body as FormData).keys()]).toEqual(['photo'])
   })
 
   it('sends the address and the page language with an invitation, and no password', async () => {

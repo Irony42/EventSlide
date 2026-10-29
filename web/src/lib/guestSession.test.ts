@@ -225,6 +225,7 @@ describe('guestSession', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 
@@ -246,6 +247,7 @@ describe('guestSession', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
+      ambiance: 'guinguette',
     })
   })
 
@@ -254,7 +256,13 @@ describe('guestSession', () => {
     // as a value the browser cannot parse, and every primary button on the screen —
     // which on this surface is the only control there is — loses its colour.
     const corrupted: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
-    corrupted['theme'] = { accentHue: 'rose', fonts: 'sans', frame: 'soft', material: 'glass' }
+    corrupted['theme'] = {
+      accentHue: 'rose',
+      fonts: 'sans',
+      frame: 'soft',
+      material: 'glass',
+      ambiance: 'guinguette',
+    }
     sessionStorage.setItem(
       'eventslide.guest.gala',
       JSON.stringify({ event: corrupted, displayName: null }),
@@ -563,7 +571,13 @@ describe('guestSession: the memory expires with the guest’s cookie', () => {
 
 describe('guestSession: a theme the server has since changed', () => {
   const HOUR = 60 * 60 * 1000
-  const ROSE = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' } as const
+  const ROSE = {
+    accentHue: 345,
+    fonts: 'serif',
+    frame: 'round',
+    material: 'plain',
+    ambiance: 'guinguette',
+  } as const
 
   const joined = (slug: string, now?: number) =>
     rememberGuestSession(

@@ -91,6 +91,11 @@ const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   'get /api/events/:eventSlug/photos/:photoId/:variant':
     'the bytes of a published photo, which the public wall renders; the policy for every ' +
     'other status is `getPhotoMedia`’s, and the operator arrives there as a member of the public',
+  'get /api/events/:eventSlug/venue-photo/:hash':
+    'the host’s own photograph of the venue, which the public wall and every guest paint ' +
+    'behind the evening; getVenuePhotoMedia serves the public only a digest the event’s ' +
+    'settings name right now and only while the event serves its wall, and the operator ' +
+    'arrives there as a member of the public',
   'post /api/join':
     'the join code **is** the credential, and a guest arrives holding nothing else — the ' +
     'route reaches an event, by a body field rather than by the path, so it is classified ' +
@@ -363,6 +368,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   clipJobId: A_PHOTO,
   missionId: A_PHOTO,
   variant: 'display',
+  hash: '0'.repeat(64),
   kind: 'love',
   token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   linkId: A_PHOTO,

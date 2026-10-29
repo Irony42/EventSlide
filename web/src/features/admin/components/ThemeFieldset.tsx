@@ -1,14 +1,18 @@
 import type { CSSProperties } from 'react'
+import { Link } from 'react-router-dom'
 import {
   accentNameFor,
   CURATED_ACCENT_HUES,
   CURATED_ACCENT_NAMES,
+  DEFAULT_EVENT_THEME,
   isThemeFonts,
   isThemeFrame,
   isThemeMaterial,
+  isThemeAmbiance,
   THEME_FONTS,
   THEME_FRAMES,
   THEME_MATERIALS,
+  THEME_AMBIANCES,
   type CuratedAccent,
 } from '../../../design-system/eventTheme'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -42,11 +46,18 @@ const swatchStyle = (hue: number): SwatchStyle => ({ '--accent-hue': String(hue)
 
 export interface ThemeFieldsetProps {
   readonly theme: EventThemeDto
+  /** Where the editor of the host's own ambiance is; the link is withheld while the form is read-only. */
+  readonly customAmbiancePath?: string
   readonly disabled: boolean
   readonly onChange: (theme: EventThemeDto) => void
 }
 
-export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps) {
+export function ThemeFieldset({
+  theme,
+  customAmbiancePath,
+  disabled,
+  onChange,
+}: ThemeFieldsetProps) {
   const t = useTranslations()
   const selected: CuratedAccent | null = accentNameFor(theme.accentHue)
 
@@ -63,6 +74,16 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
   const frameOptions = THEME_FRAMES.map((value) => ({
     value,
     label: t.admin.themeFrameNames[value],
+  }))
+
+  // `custom` is chosen on its own page, where its object is made (ADR 0011): a plain option here
+  // would send `ambiance: 'custom'` with no object, which the server refuses. It is listed only
+  // while it is the current value, so the select still says what the event wears.
+  const ambianceOptions = THEME_AMBIANCES.filter(
+    (value) => value !== 'custom' || theme.ambiance === 'custom',
+  ).map((value) => ({
+    value,
+    label: t.admin.themeAmbianceNames[value],
   }))
 
   const materialOptions = THEME_MATERIALS.map((value) => ({
@@ -94,7 +115,12 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
           <label
             key={name}
             className={styles['choice']}
-            data-event-accent={String(CURATED_ACCENT_HUES[name])}
+            // ADR 0010: the default hue is the paper, which is what the root already paints.
+            data-event-accent={
+              CURATED_ACCENT_HUES[name] === DEFAULT_EVENT_THEME.accentHue
+                ? undefined
+                : String(CURATED_ACCENT_HUES[name])
+            }
             style={swatchStyle(CURATED_ACCENT_HUES[name])}
           >
             <input
@@ -113,6 +139,32 @@ export function ThemeFieldset({ theme, disabled, onChange }: ThemeFieldsetProps)
           </label>
         ))}
       </fieldset>
+
+      {/* First, because it is the largest decision: the world the other choices sit in. */}
+      <SelectField
+        label={t.admin.themeAmbiance}
+        hint={t.admin.themeAmbianceHint}
+        value={theme.ambiance}
+        options={ambianceOptions}
+        disabled={disabled}
+        onChange={(value) => {
+          if (!isThemeAmbiance(value) || value === 'custom') return
+          // Leaving `custom` drops its object: the server refuses one beside another ambiance.
+          const { custom: _dropped, ...rest } = theme
+          onChange({ ...rest, ambiance: value })
+        }}
+      />
+
+      {customAmbiancePath === undefined || disabled ? null : (
+        <p className={styles['hint']}>
+          <Link to={customAmbiancePath}>
+            {theme.ambiance === 'custom'
+              ? t.admin.customAmbianceEdit
+              : t.admin.customAmbianceCreate}
+          </Link>{' '}
+          {t.admin.customAmbianceEntryHint}
+        </p>
+      )}
 
       <SelectField
         label={t.admin.themeFonts}

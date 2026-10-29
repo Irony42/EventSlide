@@ -497,7 +497,7 @@ export const de: UiText = {
     'eventTheme.accentUnreadable':
       'Diese Farbe wäre auf der Leinwand im Saal nicht lesbar. Wählen Sie eine aus der Liste.',
     'eventTheme.accentTooCloseToStatus':
-      'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie eine andere.',
+      'Diese Farbe ähnelt den Statusfarben der Anwendung zu sehr. Wählen Sie einen anderen Farbton.',
     'gallery.notAvailable': 'Dieser Link ist nicht mehr verfügbar.',
     'gallery.passwordRequired': 'Dieses Album ist durch ein Passwort geschützt.',
     'gallery.wrongPassword': 'Falsches Passwort.',
@@ -508,6 +508,10 @@ export const de: UiText = {
     'upload.busy': 'Es laufen gerade viele Uploads. Versuchen Sie es gleich noch einmal.',
     'storage.boxFull':
       'Es ist kein Speicherplatz mehr frei, um diese Datei zu speichern. Sagen Sie dem Veranstalter Bescheid.',
+    /* ---- The host's venue photograph (ADR 0010, decision 8). ---- */
+    'venuePhoto.tooLarge': 'Dieses Foto ist auch verkleinert zu groß. Versuchen Sie ein anderes.',
+    'venuePhoto.notFound': 'Dieses Foto gibt es nicht mehr.',
+    'venuePhoto.saveFailed': 'Das Foto konnte nicht gespeichert werden. Versuchen Sie es erneut.',
   },
 
   moderation: {
@@ -659,6 +663,7 @@ export const de: UiText = {
       filmstrip: 'Filmstreifen',
       collage: 'Collage',
       split: 'Nebeneinander',
+      clothesline: 'Wäscheleine',
     },
     layoutOrder: (names: readonly string[]) =>
       `Anordnungen, in dieser Reihenfolge: ${names.join(', ')}.`,
@@ -726,7 +731,7 @@ export const de: UiText = {
       'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',
     themeAccent: 'Farbe',
     themeAccentNames: {
-      violet: 'Violett',
+      violet: 'Kraftpapier (Standard)',
       rose: 'Rosa',
       azure: 'Blau',
       teal: 'Türkis',
@@ -734,7 +739,7 @@ export const de: UiText = {
     themeFonts: 'Schrift',
     themeFontsHint: 'Gilt nur für die Leinwand im Saal.',
     themeFontsNames: {
-      sans: 'Modern',
+      sans: 'Redaktionell',
       serif: 'Klassisch',
     },
     themeFrame: 'Fotorahmen',
@@ -749,6 +754,18 @@ export const de: UiText = {
     themeMaterialNames: {
       glass: 'Milchglas',
       plain: 'Einfarbige Fläche',
+    },
+    themeAmbiance: 'Ambiente',
+    themeAmbianceHint:
+      'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrer Konsole tragen.',
+    themeAmbianceNames: {
+      guinguette: 'Guinguette',
+      riviera: 'Riviera',
+      champs: 'Goldene Felder',
+      bivouac: 'Biwak',
+      cabaret: 'Kabarett',
+      noces: 'Hochzeit',
+      custom: 'Maßgeschneidert',
     },
 
     template: 'Art der Veranstaltung',
@@ -954,6 +971,48 @@ export const de: UiText = {
     shareLinkRevokeHint:
       'Niemand kann das Album mit diesem Link mehr öffnen, auch nicht mit dem Passwort. Sie können einen neuen erstellen.',
     shareLinkRevoked: 'Der Link wurde deaktiviert.',
+
+    /* ---- The host's own photograph of their venue (ADR 0010, decision 8). ---- */
+    venuePhoto: 'Foto Ihrer Location',
+    venuePhotoHint:
+      'Ersetzt das Foto des Ambientes hinter dem Bildschirm Ihrer Gäste und dem im Saal. Es wird verkleinert und von seinen Metadaten befreit, GPS-Position inklusive, und dann abgeschwächt, damit der Text lesbar bleibt.',
+    venuePhotoPreviewAlt: 'Vorschau des Fotos Ihrer Location',
+    venuePhotoDefault: 'Kein Foto Ihrer Location: Die Stimmung zeigt ihr Standardfoto.',
+    venuePhotoChoose: 'Foto auswählen',
+    venuePhotoReplace: 'Foto ersetzen',
+    venuePhotoRemove: 'Zurück zum Standardfoto',
+    venuePhotoBusy: 'Foto wird gesendet…',
+    venuePhotoSaved: 'Das Foto Ihrer Location ist gespeichert.',
+    venuePhotoRemoved: 'Das Standardfoto ist wieder da.',
+    customAmbianceCreate: 'Meine eigene Stimmung erstellen',
+    customAmbianceEdit: 'Meine Stimmung bearbeiten',
+    customAmbianceEntryHint:
+      'Ihr eigener Hintergrund, hell oder dunkel, nach Ihrem Geschmack getönt: Sie sehen ihn vor dem Speichern auf echten Bildschirmen.',
+    customAmbianceTitle: 'Ihre eigene Stimmung',
+    customAmbianceCrumb: 'Eigene Stimmung',
+    customAmbianceIntro:
+      'Wählen Sie einen hellen oder dunklen Hintergrund, seine Tönung, Ihre Akzentfarbe und eine Schrift. Die Vorschauen zeigen die echten Bildschirme mit Ihrer Auswahl; gespeichert wird erst mit „Speichern“.',
+    customGround: 'Hintergrund',
+    customGroundNames: { light: 'Hell', dark: 'Dunkel' },
+    customGroundHue: 'Tönung des Hintergrunds',
+    customGroundHueHint:
+      'Von 0° bis 359°: Sie wählen nur die Tönung, die Helligkeit ist fest, damit alles lesbar bleibt.',
+    customAccentHue: 'Akzentfarbe',
+    customAccentHueHint:
+      'Alle Farbtöne sind erlaubt, auch solche, die an das Grün, Gelb oder Rot der Anwendung erinnern: Die Schrift auf der Schaltfläche bleibt bei jedem lesbar, und eine Warnung trägt immer ein Symbol und ein Wort.',
+    customFaces: 'Schrift',
+    customFacesHint:
+      'Die Schriften und Schaltflächenecken einer der sechs Stimmungen, jede in ihrer eigenen Schrift gezeigt.',
+    customPreview: 'Vorschau',
+    customPreviewHint:
+      'Eine Illustration dessen, was Ihre Gäste und der Saal sehen werden, mit Beispielfotos.',
+    customPreviewPhone: 'Bildschirm Ihrer Gäste',
+    customPreviewWall: 'Bildschirm im Saal',
+    customPreviewCaption: 'Was für ein schöner Abend!',
+    customPreviewAuthor: 'Lea',
+    customKept:
+      'Ihre Auswahl bleibt so, wie Sie sie verlassen haben: ändern Sie sie und speichern Sie erneut.',
+    customSaved: 'Ihre Stimmung ist gespeichert.',
   },
 
   auth: {
@@ -1479,6 +1538,7 @@ export const de: UiText = {
     moderation: 'Moderation',
     mobileModeration: 'Moderation am Telefon',
     settings: 'Einstellungen der Veranstaltung',
+    customAmbiance: 'Eigene Stimmung',
     clientSpace: 'Kundenbereich',
     site: 'Betreiber-Konsole',
     siteClient: 'Kunde',

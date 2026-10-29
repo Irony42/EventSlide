@@ -31,13 +31,28 @@
   min-width: 0;
 }
 
+/* In every ambiance a sent photo is a print (ADR 0010): a cream border, a little tilt, a shadow. */
 .thumb {
   flex: none;
   inline-size: var(--space-10);
   block-size: var(--space-10);
   object-fit: cover;
-  border-radius: var(--radius-sm);
+  border: var(--space-1) solid var(--text-primary);
+  border-block-end-width: var(--space-3);
   background: var(--surface-overlay);
+  rotate: -2deg;
+  box-shadow: var(--shadow-md);
+  transition: filter var(--duration-slow) var(--ease-out);
+}
+
+/**
+ * ADR 0010: a photo still waiting for the host is shown as its negative, and it develops into
+ * the print when it reaches the screen. The badge beside it still says so in words
+ * (DESIGN-SYSTEM.md section 8), so the filter is never the only signal.
+ */
+
+.negative {
+  filter: invert(1) grayscale(0.35) contrast(0.9);
 }
 
 /**

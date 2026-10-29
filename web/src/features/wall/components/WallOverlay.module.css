@@ -24,6 +24,16 @@
   z-index: var(--z-wall-caption);
   align-items: center;
   box-shadow: var(--shadow-lg);
+  /* ADR 0010: a ticket of the ambiance's own paper (kraft in the Guinguette). Its inks are
+     the ones named for that ground. */
+  background-color: var(--wall-card-bg);
+  background-image: var(--wall-card-texture);
+  color: var(--wall-card-ink);
+  border-radius: var(--radius-sm);
+}
+
+.overlay button {
+  color: var(--wall-card-ink-2);
 }
 
 .header {
@@ -33,12 +43,16 @@
 }
 
 .prompt {
+  font-family: var(--font-display);
+  font-style: italic;
   font-size: var(--text-xl);
   line-height: var(--leading-tight);
-  color: var(--text-secondary);
+  color: var(--wall-card-ink);
 }
 
 .code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.14em;
   font-size: var(--text-xl);
   line-height: var(--leading-tight);
   font-weight: 700;

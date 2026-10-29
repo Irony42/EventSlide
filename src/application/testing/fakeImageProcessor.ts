@@ -4,6 +4,7 @@ import { ok, type Result } from '../../domain/shared/result'
 import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../ports/imageProcessor'
 import { MEDIA_VARIANTS, type PhotoVariant } from '../ports/mediaStore'
 import { VARIANT_SPECS } from '../usecases/photos/uploadPhotos'
+import { VENUE_GROUND_SPEC } from '../usecases/venue/setVenuePhoto'
 
 /** A file's bytes are its tag, so every double can answer deterministically for it. */
 export const tagBytes = (tag: string): Uint8Array =>
@@ -25,7 +26,13 @@ export interface ImageScript {
   readonly probeError?: DomainError
   readonly renderErrorAt?: PhotoVariant
   readonly byteSizes?: Readonly<Record<PhotoVariant, number>>
+  /** What the host's venue ground renders to; defaults to a plausible 200 kB. */
+  readonly groundByteSize?: number
+  /** Fail the venue ground's render, which is not one of the three photo variants. */
+  readonly groundRenderFails?: boolean
 }
+
+export const DEFAULT_GROUND_BYTES = 200_000
 
 /** Matched on the longest edge, so the double does not depend on object identity. */
 const variantFor = (spec: RenderSpec): PhotoVariant => {
@@ -64,7 +71,7 @@ export class FakeImageProcessor implements ImageProcessor {
   }
 
   /** The exact bytes `render` will produce, so a test can pre-compute a content hash. */
-  renderedBytes(tag: string, variant: PhotoVariant): Uint8Array {
+  renderedBytes(tag: string, variant: PhotoVariant | 'ground'): Uint8Array {
     return tagBytes(`${tag}/${variant}`)
   }
 
@@ -87,10 +94,26 @@ export class FakeImageProcessor implements ImageProcessor {
 
   async render(bytes: Uint8Array, spec: RenderSpec): Promise<Result<RenderedImage, DomainError>> {
     const tag = readTag(bytes)
+    const script = this.scripts.get(tag) ?? {}
+
+    // The host's venue ground is a fourth thing to render, in a different format and box.
+    if (spec.maxWidth === VENUE_GROUND_SPEC.maxWidth) {
+      this.calls.push(`render:${tag}:ground`)
+      if (script.groundRenderFails === true) {
+        return { ok: false, error: DomainError.invalid('image.renderFailed') }
+      }
+      return ok({
+        bytes: this.renderedBytes(tag, 'ground'),
+        dimensions: this.dimensionsOf(script).scaleToFit(
+          dimensionsFrom(spec.maxWidth, spec.maxHeight),
+        ),
+        byteSize: script.groundByteSize ?? DEFAULT_GROUND_BYTES,
+        format: spec.format,
+      })
+    }
+
     const variant = variantFor(spec)
     this.calls.push(`render:${tag}:${variant}`)
-
-    const script = this.scripts.get(tag) ?? {}
     if (script.renderErrorAt === variant) {
       return { ok: false, error: DomainError.invalid('image.renderFailed') }
     }

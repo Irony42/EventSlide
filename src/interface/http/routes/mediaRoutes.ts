@@ -5,13 +5,15 @@ import type { Logger } from '../../../application/ports/logger'
 import type { ByteRange } from '../../../application/ports/mediaStore'
 import type { PhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { DomainError } from '../../../domain/shared/errors'
+import { ContentHash } from '../../../domain/photos/contentHash'
 import { asPhotoId } from '../../../domain/shared/ids'
+import { Slug } from '../../../domain/shared/slug'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { guestTokenOf, requireRole, resolvePublicEvent } from '../middleware/authz'
 import { publicEventOf } from '../middleware/scope'
 import { contentRange, parseByteRange, unsatisfiedRange } from '../presenters/byteRange'
 import { errorBody, sendError } from '../presenters/send'
-import { photoVariantParams } from '../schemas/requestSchemas'
+import { photoVariantParams, venuePhotoDigest } from '../schemas/requestSchemas'
 import type { HttpUseCases, RouteDeps } from '../useCases'
 
 /**
@@ -45,7 +47,10 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * thirty unrelated use cases to exercise a photo download.
  */
 export type MediaRouteDeps = Pick<RouteDeps, 'deps'> & {
-  readonly usecases: Pick<HttpUseCases, 'exportAlbum' | 'getPhotoMedia' | 'identifyMediaViewer'>
+  readonly usecases: Pick<
+    HttpUseCases,
+    'exportAlbum' | 'getPhotoMedia' | 'getVenuePhotoMedia' | 'identifyMediaViewer'
+  >
 }
 
 /** A year. Safe only because the name is the content hash — see {@link etagFor}. */
@@ -60,6 +65,13 @@ const IMMUTABLE_CACHE = 'private, max-age=31536000, immutable'
  * as long as nothing ever compared validators across two of this photo's URLs.
  */
 const etagFor = (media: PhotoMedia): string => `"${media.contentHash.value}-${media.variant}"`
+
+/**
+ * What `sendMedia` needs of an object: the three facts it writes and the one function that
+ * opens its bytes. A photo's and a venue photograph's both satisfy it, so the two routes share
+ * the one place that decides 304, 206, 416 and when a descriptor is opened.
+ */
+type ServedObject = Pick<PhotoMedia, 'byteSize' | 'contentType' | 'open'>
 
 /**
  * Streams an iterable to the response, and abandons the connection if it fails.
@@ -105,12 +117,13 @@ export const streamOrAbandon = async (
 const sendMedia = async (
   req: Request,
   res: Response,
-  media: PhotoMedia,
+  media: ServedObject,
+  etag: string,
   range: ByteRange | null,
 ): Promise<void> => {
   // Set before the freshness check: a 304 must still carry the validator and the caching
   // policy, or a projector revalidates every slide for the rest of the night.
-  res.setHeader('ETag', etagFor(media))
+  res.setHeader('ETag', etag)
   res.setHeader('Cache-Control', IMMUTABLE_CACHE)
   // Never `attachment`: the wall, the moderation grid and the guest's own view all
   // render these in an `<img>` or a `<video>`.
@@ -220,7 +233,8 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
       res.setHeader('X-Content-Type-Options', 'nosniff')
 
       const verdict = parseByteRange(req.get('range'), media.value.byteSize)
-      if (verdict.kind === 'whole') return sendMedia(req, res, media.value, null)
+      const etag = etagFor(media.value)
+      if (verdict.kind === 'whole') return sendMedia(req, res, media.value, etag, null)
 
       if (verdict.kind === 'unsatisfiable') {
         /**
@@ -240,7 +254,60 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
         return res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
       }
 
-      return sendMedia(req, res, media.value, verdict.range)
+      return sendMedia(req, res, media.value, etag, verdict.range)
+    }),
+  )
+
+  /**
+   * The host's own photograph of their venue (ADR 0010, decision 8): what the guest's page and
+   * the wall paint behind the evening under an ambiance that photographs its ground.
+   *
+   * Not behind `resolvePublicEvent`, which refuses a draft: the host sets the look of an event
+   * before it opens and has to be able to see what they uploaded. The event is read here and the
+   * rule is the use case's — the public and a guest only while the event serves its wall, a
+   * moderator at any time, and only for the digest the event's settings name right now.
+   *
+   * **Every refusal is the same 404**, an unknown slug and a malformed digest included, so the
+   * route cannot be used to ask which events exist or which digests they once held.
+   */
+  router.get(
+    '/events/:eventSlug/venue-photo/:hash',
+    asyncHandler(async (req, res) => {
+      const refuse = (): void => sendError(res, DomainError.notFound('venuePhoto.notFound'))
+
+      const slug = Slug.create(req.params['eventSlug'])
+      const digest = venuePhotoDigest.safeParse(req.params['hash'])
+      const hash = digest.success ? ContentHash.create(digest.data) : null
+      if (!slug.ok || hash === null || !hash.ok) return refuse()
+
+      const event = await deps.events.findBySlug(slug.value)
+      if (event === null) return refuse()
+
+      const identified = await usecases.identifyMediaViewer({
+        event,
+        guestToken: guestTokenOf(req),
+        userId: req.context.user?.userId,
+      })
+      if (!identified.ok) return refuse()
+
+      const media = await usecases.getVenuePhotoMedia({
+        event,
+        hash: hash.value,
+        viewer: identified.value,
+      })
+      if (!media.ok) return sendError(res, media.error)
+
+      res.setHeader('X-Content-Type-Options', 'nosniff')
+
+      const verdict = parseByteRange(req.get('range'), media.value.byteSize)
+      const etag = `"${media.value.contentHash.value}-ground"`
+      if (verdict.kind === 'whole') return sendMedia(req, res, media.value, etag, null)
+      if (verdict.kind === 'unsatisfiable') {
+        res.setHeader('Accept-Ranges', 'bytes')
+        res.setHeader('Content-Range', unsatisfiedRange(media.value.byteSize))
+        return res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
+      }
+      return sendMedia(req, res, media.value, etag, verdict.range)
     }),
   )
 
