@@ -30,6 +30,7 @@ const STATUS_BY_KIND: Readonly<Record<DomainErrorKind, number>> = {
   forbidden: 403,
   notFound: 404,
   conflict: 409,
+  timedOut: 408,
   quotaExceeded: 413,
   rateLimited: 429,
   unexpected: 500,

@@ -244,6 +244,30 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * has to cover. See `compose.yaml`'s own budget comment for the rest of it.
        */
       MAX_CONCURRENT_UPLOAD_REQUESTS: positiveInt(4, 1_000),
+      /**
+       * How many of those slots one event may hold at once (review S2). The global figure
+       * bounds memory; this one bounds how much of it a single event can take from the
+       * others, so one event's slow phones, or one guest dripping a body, cannot answer
+       * `429 upload.busy` to every other event on the box.
+       *
+       * Absent is "one less than the global ceiling", resolved in `load.ts`: a box with one
+       * event (the self-hosted case) keeps almost all of its throughput, and no event can
+       * ever hold the last slot. An operator running many clients sets it lower. Blank is
+       * absent, for the reason written on `MAX_EVENT_QUOTA_BYTES`. Above the global ceiling
+       * is refused below: it could never be reached.
+       */
+      MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT: z.preprocess(
+        blankAsAbsent,
+        z.coerce.number().int().positive().max(1_000).optional(),
+      ),
+      /**
+       * How long a photo or clip upload may take to arrive in full, in seconds (review S2).
+       * `requestTimeout` is `0` (the streams and the ZIP export need it), so without this a
+       * body sent a byte at a time held an upload slot for as long as the socket stayed open.
+       * Ten minutes is a 5 MB photo at about 70 kbit/s, or an 80 MB clip at about 1.1 Mbit/s;
+       * a phone slower than that is better served by a retry than by a slot held all evening.
+       */
+      UPLOAD_BODY_TIMEOUT_SECONDS: positiveInt(600, 86_400),
 
       /**
        * Where the encoder is, when it is not simply on `PATH`.
@@ -545,6 +569,17 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
       REQUIRE_OPERATOR_2FA: requireOperator2fa,
     })
     .superRefine((raw, ctx) => {
+      if (
+        raw.MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT !== undefined &&
+        raw.MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT > raw.MAX_CONCURRENT_UPLOAD_REQUESTS
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT'],
+          message: `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT (${raw.MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT}) must not exceed MAX_CONCURRENT_UPLOAD_REQUESTS (${raw.MAX_CONCURRENT_UPLOAD_REQUESTS}): the box-wide ceiling binds first, so the per-event one could never be reached`,
+        })
+      }
+
       // The first owner is a pair, and half of one creates nothing. Before `""` meant
       // absent, the missing half reached `bootstrapOwner` as an empty string and was
       // refused into a log line; silently doing nothing instead would be no better, so

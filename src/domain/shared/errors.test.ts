@@ -15,6 +15,7 @@ const FACTORIES: readonly [DomainErrorKind, Factory][] = [
   ['forbidden', DomainError.forbidden],
   ['notFound', DomainError.notFound],
   ['conflict', DomainError.conflict],
+  ['timedOut', DomainError.timedOut],
   ['quotaExceeded', DomainError.quotaExceeded],
   ['rateLimited', DomainError.rateLimited],
   ['unexpected', DomainError.unexpected],

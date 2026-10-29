@@ -1378,7 +1378,11 @@ describe.each(CUSTOM_POLARITIES)(
         (t) => contrast(of(t, '--accent-contrast'), of(t, '--accent-strong')),
         true,
       )
-    })
+      // The heaviest sweep in the file: two pairs, each at all 360 ground hues crossed with every
+      // accent hue. It ran 11-12 s under coverage on CI once #266 added tokens, past vitest's 10 s
+      // default, and failed main without a single contrast falling short. The bound is the time
+      // it takes, not a rule; a real shortfall still fails on its assertion.
+    }, 30_000)
 
     it('keeps the accent readable from the back of the room, and as a link on the other surfaces', () => {
       expectAtLeast(

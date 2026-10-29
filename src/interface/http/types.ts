@@ -165,6 +165,10 @@ export interface HttpConfig {
     readonly maxFiles: number
     /** See `AppConfig.uploads.maxConcurrentRequests` in `env.ts` (G3-06 / P4-10). */
     readonly maxConcurrentRequests: number
+    /** How many of those one event may hold (review S2). */
+    readonly maxConcurrentRequestsPerEvent: number
+    /** How long an upload body has to arrive in full, in milliseconds (review S2). */
+    readonly bodyTimeoutMs: number
   }
   /**
    * The clip half, deliberately separate from `uploads`.

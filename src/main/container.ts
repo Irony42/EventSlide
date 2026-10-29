@@ -635,6 +635,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       maxBytes: config.uploads.maxBytes,
       maxFiles: config.uploads.maxFiles,
       maxConcurrentRequests: config.uploads.maxConcurrentRequests,
+      maxConcurrentRequestsPerEvent: config.uploads.maxConcurrentRequestsPerEvent,
+      bodyTimeoutMs: config.uploads.bodyTimeoutMs,
     },
     clips: {
       maxBytes: config.clips.maxBytes,

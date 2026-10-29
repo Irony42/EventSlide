@@ -517,6 +517,19 @@ with the code that makes it.
    and the join). At 200 a minute one address still needs about ten years to try every code of the
    default length. A value you set yourself is kept.
 
-No limit became tighter for anyone, so this is a minor change and nothing has to be changed in `.env`.
+No rate limit became tighter, and nothing has to be changed in `.env`.
 An override of `JOIN_RATE_LIMIT_PER_MINUTE=20` that you copied from `.env.example` is worth removing before
-an event with more than ten guests arriving together.
+an event with more than ten guests arriving together. 4. **Upload slots are counted per event, after the guest is identified.** `MAX_CONCURRENT_UPLOAD_REQUESTS`
+(default 4) still bounds the whole box, because every upload in flight holds memory. A request
+with no valid guest token no longer takes a slot, and one event can hold all but one of them: the
+new `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` defaults to one less than the box-wide figure (3 of
+4), at least 1, and the boot refuses a value above `MAX_CONCURRENT_UPLOAD_REQUESTS`. An event that
+asks for a fourth slot while its three are busy gets the same `429 upload.busy` as before. 5. **A body that does not finish arriving gives its slot back.** The new `UPLOAD_BODY_TIMEOUT_SECONDS`
+(default 600, a whole number from 1 to 86400) ends a photo or clip upload whose body is not fully
+received in time with `408 upload.timedOut` and closes the connection; the guest sends it again. If
+a reverse proxy sits in front, give it a body read timeout above this figure, so that the app
+answers first.
+
+Items 4 and 5 are the only ones that can refuse a request 3.1 accepted: an event alone on a box now
+gets three upload slots instead of four, and an upload still arriving after ten minutes is refused.
+Neither needs a change in `.env`; raise either setting if your events need more.

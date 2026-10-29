@@ -23,6 +23,8 @@ export type DomainErrorKind =
   | 'notFound'
   /** The action collides with existing state (duplicate slug, illegal transition). → 409 */
   | 'conflict'
+  /** The client took too long to finish sending its request (an upload body past its deadline). → 408 */
+  | 'timedOut'
   /** A limit deliberately stopped the action (event byte quota, file too large). → 413 */
   | 'quotaExceeded'
   /** Too many attempts. → 429 */
@@ -66,6 +68,10 @@ export class DomainError extends Error {
 
   static conflict(code: string, details: DomainErrorDetails = {}): DomainError {
     return new DomainError('conflict', code, details)
+  }
+
+  static timedOut(code: string, details: DomainErrorDetails = {}): DomainError {
+    return new DomainError('timedOut', code, details)
   }
 
   static quotaExceeded(code: string, details: DomainErrorDetails = {}): DomainError {

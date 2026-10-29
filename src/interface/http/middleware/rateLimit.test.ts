@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import http from 'node:http'
+import net from 'node:net'
 import type { AddressInfo } from 'node:net'
 import express, {
   type Express,
@@ -31,6 +32,7 @@ import {
   secondFactorAccountLimiter,
   secondFactorLimiter,
   streamConnectionLimiter,
+  uploadBodyDeadline,
   uploadConcurrencyLimiter,
   uploadGuestLimiter,
   uploadLimiter,
@@ -684,12 +686,25 @@ describe('uploadConcurrencyLimiter', () => {
     releaseOne(): void
   }
 
+  /**
+   * Stands in for `requireGuest`, which is what puts the event on the context in the real
+   * routes: the event is named by the `event` query parameter, and a request that names none
+   * is one with no valid token, which carries no event at all.
+   */
+  const asGuestOfEvent: RequestHandler = (req, _res, next) => {
+    const event = req.query['event']
+    req.context = (typeof event === 'string'
+      ? { event: { id: event } }
+      : {}) as unknown as typeof req.context
+    next()
+  }
+
   /** A route that waits for the test to let it finish, so several requests can be held "buffering" at once. */
-  const heldRoute = (max: number): HeldRoute => {
+  const heldRoute = (max: number, perEvent: number = max): HeldRoute => {
     routeCount += 1
     const path = `/upload-${routeCount}`
     const held: Array<() => void> = []
-    app.get(path, uploadConcurrencyLimiter(max), (_req, res) => {
+    app.get(path, asGuestOfEvent, uploadConcurrencyLimiter({ max, perEvent }), (_req, res) => {
       new Promise<void>((resolve) => held.push(resolve)).then(() => res.status(204).end())
     })
     return { path, pending: () => held.length, releaseOne: () => held.shift()?.() }
@@ -722,11 +737,11 @@ describe('uploadConcurrencyLimiter', () => {
   it('admits requests up to the limit and refuses the next with 429 upload.busy', async () => {
     const route = heldRoute(2)
 
-    const first = fetch(route.path)
-    const second = fetch(route.path)
+    const first = fetch(`${route.path}?event=a`)
+    const second = fetch(`${route.path}?event=a`)
     await expect.poll(() => route.pending()).toBe(2)
 
-    const third = await fetch(route.path)
+    const third = await fetch(`${route.path}?event=a`)
     expect(third.status).toBe(429)
     expect(JSON.parse(third.body).error.code).toBe('upload.busy')
     // Short on purpose: a slot frees as soon as a request already buffering finishes,
@@ -744,10 +759,10 @@ describe('uploadConcurrencyLimiter', () => {
     // streamConnectionLimiter's own "gives the slot back" test pins.
     const route = heldRoute(1)
 
-    const first = fetch(route.path)
+    const first = fetch(`${route.path}?event=a`)
     await expect.poll(() => route.pending()).toBe(1)
 
-    const refused = await fetch(route.path)
+    const refused = await fetch(`${route.path}?event=a`)
     expect(refused.status).toBe(429)
 
     route.releaseOne()
@@ -755,7 +770,7 @@ describe('uploadConcurrencyLimiter', () => {
 
     // Admitted, not refused — proven by reaching the handler and being held there, not
     // by letting it complete; nothing but this test's own `releaseOne` ever finishes it.
-    const afterward = fetch(route.path)
+    const afterward = fetch(`${route.path}?event=a`)
     await expect.poll(() => route.pending()).toBe(1)
 
     route.releaseOne()
@@ -790,19 +805,129 @@ describe('uploadConcurrencyLimiter', () => {
     }
   }
 
-  const callLimiter = (limiter: RequestHandler, res: FakeUploadResponse): { admitted: boolean } => {
+  const callLimiter = (
+    limiter: RequestHandler,
+    res: FakeUploadResponse,
+    eventId = 'event-1',
+  ): { admitted: boolean } => {
     const result = { admitted: false }
     const next: NextFunction = () => {
       result.admitted = true
     }
-    limiter({} as unknown as Request, res as unknown as Response, next)
+    limiter(
+      { context: { event: { id: eventId } } } as unknown as Request,
+      res as unknown as Response,
+      next,
+    )
     return result
   }
+
+  it('gives a request with no valid guest, hence no event, no slot and a 401', async () => {
+    // Behind `requireGuest` nobody reaches this without an event; a route mounted in the
+    // wrong order must fail closed instead of letting an anonymous request hold a slot.
+    const route = heldRoute(2)
+
+    const refused = await fetch(route.path)
+
+    expect(refused.status).toBe(401)
+    expect(route.pending()).toBe(0)
+    // And it took nothing: both slots are still there.
+    const first = fetch(`${route.path}?event=a`)
+    const second = fetch(`${route.path}?event=b`)
+    await expect.poll(() => route.pending()).toBe(2)
+    route.releaseOne()
+    route.releaseOne()
+    await first
+    await second
+  })
+
+  it('does not let one event take every slot while another event is sending', async () => {
+    const route = heldRoute(4, 3)
+
+    const held = [1, 2, 3].map(() => fetch(`${route.path}?event=a`))
+    await expect.poll(() => route.pending()).toBe(3)
+
+    const fourthOfA = await fetch(`${route.path}?event=a`)
+    expect(fourthOfA.status).toBe(429)
+    expect(JSON.parse(fourthOfA.body).error.code).toBe('upload.busy')
+
+    // The slot event a could not have is there for event b.
+    const forB = fetch(`${route.path}?event=b`)
+    await expect.poll(() => route.pending()).toBe(4)
+
+    for (let i = 0; i < 4; i += 1) route.releaseOne()
+    await Promise.all([...held, forB])
+  })
+
+  it('keeps the box-wide ceiling even when each event is under its own', async () => {
+    // Memory is what the global figure bounds: two events at two slots each is still four.
+    const route = heldRoute(3, 2)
+
+    const held = [
+      fetch(`${route.path}?event=a`),
+      fetch(`${route.path}?event=a`),
+      fetch(`${route.path}?event=b`),
+    ]
+    await expect.poll(() => route.pending()).toBe(3)
+
+    const refused = await fetch(`${route.path}?event=c`)
+    expect(refused.status).toBe(429)
+
+    for (let i = 0; i < 3; i += 1) route.releaseOne()
+    await Promise.all(held)
+  })
+
+  it('gives an event its slot back when a request ends, so the cap does not drift', async () => {
+    const route = heldRoute(4, 1)
+
+    const first = fetch(`${route.path}?event=a`)
+    await expect.poll(() => route.pending()).toBe(1)
+    route.releaseOne()
+    await first
+
+    const again = fetch(`${route.path}?event=a`)
+    await expect.poll(() => route.pending()).toBe(1)
+    route.releaseOne()
+    expect((await again).status).toBe(204)
+  })
+
+  it('gives the slot back whether the request succeeded, was refused downstream or failed', async () => {
+    routeCount += 1
+    const path = `/upload-outcomes-${routeCount}`
+    app.get(
+      path,
+      asGuestOfEvent,
+      uploadConcurrencyLimiter({ max: 1, perEvent: 1 }),
+      (req: Request, res: Response, next: NextFunction) => {
+        const outcome = req.query['outcome']
+        if (outcome === 'refuse') {
+          res.status(409).json({ refused: true })
+          return
+        }
+        if (outcome === 'fail') {
+          next(new Error('boom'))
+          return
+        }
+        res.status(204).end()
+      },
+      (_error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+        res.status(500).json({ failed: true })
+      },
+    )
+
+    const statuses: number[] = []
+    for (const outcome of ['ok', 'refuse', 'fail', 'ok', 'fail', 'refuse']) {
+      statuses.push((await fetch(`${path}?event=a&outcome=${outcome}`)).status)
+    }
+
+    // Never a 429: after every kind of ending the single slot was free again.
+    expect(statuses).toEqual([204, 409, 500, 204, 500, 409])
+  })
 
   it('never double-releases a slot when the same response fires close twice', () => {
     // One instance, one slot: everything below shares it, the same way one middleware
     // instance is shared by every request to a mounted route.
-    const limiter = uploadConcurrencyLimiter(1)
+    const limiter = uploadConcurrencyLimiter({ max: 1, perEvent: 1 })
 
     const held = new FakeUploadResponse()
     expect(callLimiter(limiter, held).admitted).toBe(true)
@@ -821,5 +946,149 @@ describe('uploadConcurrencyLimiter', () => {
     const second = new FakeUploadResponse()
     expect(callLimiter(limiter, second).admitted).toBe(false)
     expect(second.statusCode).toBe(429)
+  })
+})
+
+describe('uploadBodyDeadline', () => {
+  let server: http.Server
+  let app: Express
+  let port: number
+  let routeCount = 0
+
+  beforeAll(async () => {
+    app = express()
+    server = http.createServer(app)
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    port = (server.address() as AddressInfo).port
+  })
+
+  afterAll(async () => {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  })
+
+  const withEvent: RequestHandler = (req, _res, next) => {
+    req.context = { event: { id: 'a' } } as unknown as typeof req.context
+    next()
+  }
+
+  /** A route like the real ones: slot, deadline, then something that reads the whole body. */
+  const uploadRoute = (timeoutMs: number, afterBodyMs = 0): string => {
+    routeCount += 1
+    const path = `/deadline-${routeCount}`
+    app.post(
+      path,
+      withEvent,
+      uploadConcurrencyLimiter({ max: 1, perEvent: 1 }),
+      uploadBodyDeadline(timeoutMs),
+      (req, res) => {
+        req.on('data', () => undefined)
+        req.on('end', () => {
+          setTimeout(() => res.status(201).json({ ok: true }), afterBodyMs)
+        })
+      },
+    )
+    return path
+  }
+
+  interface Answer {
+    readonly status: number
+    readonly body: string
+    readonly connection: string | undefined
+  }
+
+  /** Sends `first`, then `rest` after `pauseMs` (never, when `rest` is undefined: the body just hangs). */
+  const post = (path: string, first: string, pauseMs: number, rest?: string): Promise<Answer> =>
+    new Promise((resolve, reject) => {
+      const outgoing = http.request(
+        {
+          host: '127.0.0.1',
+          port,
+          path,
+          method: 'POST',
+          agent: false,
+          headers: { 'content-length': '100' },
+        },
+        (incoming) => {
+          let body = ''
+          incoming.setEncoding('utf8')
+          incoming.on('data', (chunk: string) => {
+            body += chunk
+          })
+          incoming.on('end', () =>
+            resolve({
+              status: incoming.statusCode ?? 0,
+              body,
+              connection: incoming.headers.connection,
+            }),
+          )
+        },
+      )
+      outgoing.on('error', reject)
+      outgoing.write(first)
+      if (rest === undefined) return
+      setTimeout(() => outgoing.end(rest), pauseMs)
+    })
+
+  it('ends a body that is still arriving past the deadline with 408 upload.timedOut and frees the slot', async () => {
+    const path = uploadRoute(100)
+
+    const slow = await post(path, 'x'.repeat(10), 0)
+
+    expect(slow.status).toBe(408)
+    expect(JSON.parse(slow.body).error.code).toBe('upload.timedOut')
+    // Told to the client, so a proxy or phone does not try to reuse a connection mid-body.
+    expect(slow.connection).toBe('close')
+
+    // The single slot is free again: a complete upload is admitted, not refused 429.
+    const next = await post(path, 'y'.repeat(10), 0, 'z'.repeat(90))
+    expect(next.status).toBe(201)
+  })
+
+  it('closes the connection of a keep-alive client after the 408, so nothing keeps buffering behind a freed slot', async () => {
+    const path = uploadRoute(100)
+
+    // A raw socket that, like a browser or the proxy, asks for no `Connection: close`.
+    const outcome = await new Promise<{ head: string; closedByServer: boolean }>((resolve) => {
+      const socket = net.connect(port, '127.0.0.1')
+      let head = ''
+      socket.setEncoding('utf8')
+      socket.on('connect', () =>
+        socket.write(
+          [`POST ${path} HTTP/1.1`, 'Host: x', 'Content-Length: 100', '', 'x'.repeat(10)].join(
+            '\r\n',
+          ),
+        ),
+      )
+      socket.on('data', (chunk: string) => {
+        head += chunk
+      })
+      socket.on('close', () => resolve({ head, closedByServer: true }))
+      setTimeout(() => {
+        socket.destroy()
+        resolve({ head, closedByServer: false })
+      }, 2_000).unref()
+    })
+
+    expect(outcome.head).toContain('HTTP/1.1 408')
+    expect(outcome.head.toLowerCase()).toContain('connection: close')
+    expect(outcome.closedByServer).toBe(true)
+  })
+
+  it('lets a slow body that arrives inside the deadline through', async () => {
+    const path = uploadRoute(2_000)
+
+    const answer = await post(path, 'x'.repeat(10), 150, 'y'.repeat(90))
+
+    expect(answer.status).toBe(201)
+  })
+
+  it('does not cut off the work done after the body has fully arrived', async () => {
+    // The deadline is for reception. A decode that outlasts it must still answer.
+    const path = uploadRoute(100, 300)
+
+    const answer = await post(path, 'x'.repeat(10), 0, 'y'.repeat(90))
+
+    expect(answer.status).toBe(201)
   })
 })
