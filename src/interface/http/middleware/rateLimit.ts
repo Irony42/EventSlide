@@ -598,8 +598,8 @@ export const uploadConcurrencyLimiter = ({
  *
  * Mounted right after {@link uploadConcurrencyLimiter}, so the clock starts when a slot
  * is taken and covers the body, which is what the slot is held for. If the body has not
- * been fully received when it runs out: `408 upload.timedOut`, `Connection: close`, and the
- * socket is destroyed once the answer is flushed. A keep-alive client (a browser, the proxy)
+ * been fully received when it runs out: `408 upload.timedOut`, `Connection: close`, which makes Node
+ * end the socket once the answer is flushed. A keep-alive client (a browser, the proxy)
  * would otherwise leave the connection open, multer would go on buffering the rest of the
  * body behind a slot that was just given back, and a body completing late would be stored
  * for a request the client was told had failed. The slot goes with the response's `close`,
@@ -615,9 +615,6 @@ export const uploadBodyDeadline =
     const timer = setTimeout(() => {
       if (req.complete || res.headersSent) return
       res.setHeader('Connection', 'close')
-      res.once('finish', () => {
-        req.socket.destroy()
-      })
       sendError(res, DomainError.timedOut('upload.timedOut'))
     }, timeoutMs)
     // A pending deadline must never be what keeps the process alive at shutdown.
