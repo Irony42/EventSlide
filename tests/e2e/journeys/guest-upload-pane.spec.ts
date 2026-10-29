@@ -150,9 +150,12 @@ test('a pane that fits the screen stays pinned to the bottom of it', async ({
   const page = await context.newPage()
   await openUploadScreen(page, app, `pane-pinned-${testInfo.workerIndex}`)
 
-  const { sticky, share } = await pinnedShare(page.getByTestId('upload-composer'))
-  expect(share).toBeLessThanOrEqual(MAX_PINNED_SHARE)
-  expect(sticky).toBe(true)
+  // `poll`: until the guest accepts it, the privacy notice is a card inside the pane, and a tall
+  // one (an ambiance's display faces make it so) gets the pane measured as oversized. The pane
+  // shrinks when the card goes and is pinned again at the next observation, a moment later.
+  const pane = page.getByTestId('upload-composer')
+  await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(true)
+  expect((await pinnedShare(pane)).share).toBeLessThanOrEqual(MAX_PINNED_SHARE)
 
   await context.close()
 })
@@ -175,7 +178,8 @@ test('picking the photos that make a pinned pane too tall does not take the send
   const page = await context.newPage()
   await openUploadScreen(page, app, `pane-tip-${testInfo.workerIndex}`)
   const pane = page.getByTestId('upload-composer')
-  expect((await pinnedShare(pane)).sticky).toBe(true)
+  // `poll`, for the reason the pinned test gives: the notice card leaves the pane first.
+  await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(true)
 
   const photos = await Promise.all([1, 2, 3].map((index) => aPhoto(`pane-tip-${index}`, 800, 600)))
   await page.getByTestId('photo-input').setInputFiles(photos)
