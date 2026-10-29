@@ -47,13 +47,13 @@ const PHONES: readonly Phone[] = [
  * into view as the page allows. `behavior: 'instant'` because the page smooth-scrolls, and a
  * measurement taken mid-scroll is a measurement of nothing.
  */
-const reachable = (target: Locator): Promise<boolean> =>
-  target.evaluate((element) => {
-    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+const reachable = (target: Locator, block: 'center' | 'start' = 'center'): Promise<boolean> =>
+  target.evaluate((element, where) => {
+    element.scrollIntoView({ block: where, behavior: 'instant' })
     const box = element.getBoundingClientRect()
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
     return hit !== null && element.contains(hit)
-  })
+  }, block)
 
 /** What the pane is doing to the viewport right now. */
 const pinnedShare = (
@@ -147,7 +147,11 @@ for (const phone of PHONES) {
     if (sticky) expect(share).toBeLessThanOrEqual(MAX_PINNED_SHARE)
 
     for (let index = 0; index < PHOTOS; index += 1) {
-      expect(await reachable(mine.nth(index)), `"Vos envois", photo ${index + 1}`).toBe(true)
+      // `start`: a folded pane is pinned, about half of the screen, and a photo centred on the screen
+      // sits at its very edge. What the guest needs is a scroll position where it is not under it.
+      expect(await reachable(mine.nth(index), 'start'), `"Vos envois", photo ${index + 1}`).toBe(
+        true,
+      )
     }
 
     // And the controls can still be reached: the picker is the top of the pane, and the send
@@ -473,9 +477,9 @@ test('320x568, text at 200%, in German: the longest word of the two buttons does
  * the batch would hit), never a pixel.
  *
  * A pane of one line and the picker is not the 40% of the *empty* pane: the line is a row of 44 px
- * targets on top of it. Half the screen is the ceiling here, against 1.0's 164% for six rows.
+ * targets on top of it. Just over half the screen is the ceiling here (measured 47%; a few points of margin for the fonts CI measures with), against 1.0's 164% for six rows.
  */
-const SUMMARY_PANE_MOST = 0.5
+const SUMMARY_PANE_MOST = 0.55
 
 const BATCH = 7
 

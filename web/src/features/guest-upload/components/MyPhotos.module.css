@@ -128,3 +128,13 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/**
+ * A status badge is one line by design, and "En attente de validation" at 200% text on the
+ * narrowest phone is wider than the room beside a thumbnail: it let the whole page grow past the
+ * screen. Here, where the room is the row's, it may wrap.
+ */
+.detail > span {
+  white-space: normal;
+  max-inline-size: 100%;
+}
