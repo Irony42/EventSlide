@@ -467,3 +467,31 @@ and you will need it only to go back to 2.1.0.
 `"version": "3.0.0"` and `GET /api/ready` answers 200. If the boot exits with code 78, the log
 names the setting to fix. If anything else looks wrong, go back as [described above](#going-back):
 restore the archive you took before the upgrade, with 2.1.0.
+
+## Upgrading to 3.1
+
+3.1.0 is a minor release: it adds and breaks nothing the policy above promises to keep, so there
+is no `BREAKING` section and nothing to change in `.env`. This section is here because it changes
+how every screen looks, and you will want to see that before an event rather than during one.
+
+**Who is affected.** Everyone who upgrades from 3.0.x.
+
+1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)). 3.1.0
+   adds no migration: your database keeps the schema of 3.0.0, and the new data (an event's
+   ambiance, the host's own venue photograph) lives in fields of the settings JSON that the older
+   build does not read.
+2. **Take the steps of [Upgrading with Docker](#upgrading-with-docker)**, or
+   [without](#without-docker), with `vX.Y.Z` as `v3.1.0`. The image is
+   `ghcr.io/irony42/eventslide:3.1.0`.
+3. **Open an event you care about** on a phone, on the wall and in the console. Every event now wears
+   an ambiance, and an event that never chose one wears the Guinguette, which is also the new look of
+   the console and the sign-in page. An event that had the default accent shows the ambiance's own
+   accent where it showed violet. The host can choose another ambiance in the event's settings.
+4. **If a script writes an event's theme** (`PATCH /api/events/:slug/settings` with a `theme`), it must
+   now send `ambiance` too; a theme without it is refused with `400 request.invalid`.
+5. **If you restore a backup,** the host's venue photographs are in it with the media. A backup taken
+   by 3.0.x has none, which is not an error.
+
+**How to tell it worked.** The first boot logs no migration, and `GET /api/health` answers
+`"version": "3.1.0"` and `GET /api/ready` answers 200. If anything looks wrong, go back as
+[described above](#going-back): restore the archive you took before the upgrade.

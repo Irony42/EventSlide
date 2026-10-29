@@ -19,7 +19,7 @@
 services:
   eventslide:
     build: .
-    image: eventslide:3.0.0 # x-release-please-version
+    image: eventslide:3.1.0 # x-release-please-version
     # `up` without `--build` uses the image this checkout built last time and never goes to
     # the registry for the name above, which is not a published one.
     pull_policy: never

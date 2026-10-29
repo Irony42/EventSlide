@@ -2,12 +2,12 @@
 
 ## Status
 
-Proposed, with a prototype on `feat/ambiances-proto` and `feat/ambiances-five`. The field, its
-storage, its wire shape, the picker, the root look and four more ambiances are built and tested.
-**Not built**, and said so: ambiance-specific wall layouts (a clothesline is on its own branch),
-the ornaments on the wall's join card, the marker strokes in the moderation console, and a
-measurement of text over the photographs on the
-**wall** (the phone's top half is measured; the wall's centre is not).
+Accepted, shipped in 3.1.0 (#254). The field, its storage, its wire shape, the picker, the root
+look, six ambiances, the clothesline layout and the host's venue photograph are built and tested.
+**Not built**, and said so: ambiance-specific wall layouts (every ambiance has no opinion, and the
+clothesline is one `L` away), the ornaments on the wall's join card, the marker strokes in the
+moderation console, and a measurement of text over the photographs at the **wall**'s centre (the
+phone's top half is measured).
 
 ## Date
 

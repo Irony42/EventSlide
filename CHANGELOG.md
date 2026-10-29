@@ -20,6 +20,186 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.1.0] - 2026-10-29
+
+Everything merged to `main` after the tag `v3.0.0`: pull requests #244, #245, #246, #247, #248,
+#250, #251, #252, #249, #253, #258 and #254 (the last carrying #259, which was merged into it).
+This is a minor release: it adds, and it breaks nothing that
+[docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to keep. It is
+the first release since 3.0.0 to change how every screen looks, so read "Behaviour changes to check
+before upgrading". There is no migration, no new environment variable and nothing to set.
+
+### Ambiances
+
+- **Every event wears an ambiance** (#254, ADR 0010): a closed pack of surfaces, inks, display faces
+  and ornaments that the guest's phone, the wall and the host's pages for that event wear. An
+  event's theme gains a required `ambiance` beside the accent, the font pairing, the frame and the
+  material. Six are designed:
+  - **Guinguette**, the default and now the product's own look: wood-brown, cream and kraft, over a
+    photograph of a garden's string lights, with filament bulbs along the top of the guest's page,
+    gingham along the bottom and sent photos shown as tilted prints.
+  - **Riviera** (navy, a sail's white, a sea at sunset, breton stripes), **Champs d'or** (earth and
+    honey, tall grass in golden light, linen), **Bivouac** (night blue and ember, a campfire under
+    stars, tartan), **Cabaret** (ebony and champagne gold, a velvet curtain, art-deco lines) and
+    **Noces**, the one light ambiance (white and ivory, wine-grey inks, crimson, red roses on white
+    paper).
+  - The settings page picks one. Three event templates now choose one for the host: the wedding
+    starts on Champs d'or, the party on Bivouac, and the birthday and the conference on the
+    Guinguette.
+  - The accent hue, font pairing and frame a host chose still apply on top, and a chosen accent wins
+    over the ambiance's own. The status colours are the same in every ambiance.
+- **« Sur mesure », an ambiance the host makes** (#254, merged from #259, ADR 0011).
+  `ambiance: "custom"` carries a `custom` object, `{ "ground": "light" | "dark", "groundHue": 0 to
+359, "faces": one of the six }`, which is required with `custom` and refused with any other
+  ambiance (`400 eventTheme.customRequired`, `eventTheme.customNotAllowed`,
+  `eventTheme.customInvalid`). The host chooses on a simulation page,
+  `/admin/events/:slug/settings/ambiance`, which draws the real guest upload screen and the real wall
+  with the draft, and stores nothing until "Enregistrer". Every colour is derived from the two angles
+  at fixed lightness and chroma, and a test sweeps every ground hue at both polarities against the
+  contrast bars, so a host cannot make a screen unreadable. Any accent hue may be chosen on a
+  « Sur mesure » event: it answers to the contrast bars and not to the distance from the status
+  colours, which every designed ambiance keeps.
+- **Bundled faces and photographs** (#254): five open-licence (SIL OFL) families as `woff2` files in
+  the build, Bricolage Grotesque, Fraunces, Instrument Serif, Playfair Display and Poiret One, with
+  their licences in `web/public/licenses/`, and six photographs, one per designed ambiance (Unsplash
+  licence, credited in `web/public/licenses/PHOTOS.txt`). Nothing is fetched from another host.
+
+### Wall
+
+- **A seventh layout, `clothesline`** (#254): up to five prints hung on a twine by wooden pins, each
+  cropped to a print's 4:5 window and captioned on its mat, the newest a little larger. A video clip
+  shows its poster, as in the polaroid layout. `?layout=clothesline` or the `L` key selects it;
+  no ambiance makes it the default, so a wall opens on the layout its host chose (`docs/API.md`).
+- **Every ambiance paints a ground of its own on the wall** (#254), under a legibility grade that a
+  test measures against the shipped photograph.
+
+### Host console
+
+- **The host's own photograph of the venue** (#254, ADR 0010 decision 11, `docs/SECURITY.md` section
+  24). An owner may replace the ambiance's bundled photograph with one of their venue:
+  `PUT /api/events/:slug/venue-photo` (one `photo` part of a multipart request) and
+  `DELETE /api/events/:slug/venue-photo`, each answering the full event, and
+  `GET /api/events/:slug/venue-photo/:hash` for the bytes. The file is identified from its bytes,
+  rotated upright, stripped of every metadata block (its GPS position included), resized to at most
+  1600 px and stored as WebP of at most 1 MiB, named by its SHA-256. A host sees it on a draft; a
+  guest and the projector see it while the event serves its wall; every refusal on the read is the
+  same `404 venuePhoto.notFound`. An account may upload ten an hour (`429 rate.limited`). It is not
+  counted against the event's byte quota. `theme.groundUrl` says where it is.
+- **A way back to the events list from every host event page** (#247): a breadcrumb,
+  "Vos évènements" then the event then the page, on the event page, both moderation screens and the
+  settings page, and a "Vos évènements" entry first in the Compte menu. These pages, and the guest's
+  welcome after a scan, wear the event's ambiance (#254); the console takes its surfaces and inks, not
+  its accent, pairing or frame.
+- **The event page's actions are navigation tiles** (#246): "Ouvrir l'écran" and "Modérer" as two large
+  tiles, "Modération sur téléphone", "Réglages" and "Télécharger l'album" as three compact ones. Same
+  links, same names.
+- **Each event template previews its theme on the create form** (#245): a decorative miniature in the
+  template's accent, typography and corner radius.
+- **A moderator is no longer offered what would be refused** (#251). Each row of `GET /api/events`
+  carries the caller's `role` (`owner` or `moderator`), and the console leaves out the lifecycle
+  buttons (go live, close, archive) and the "Réglages" tile for a moderator.
+- **The console's pages lead to each other** (#251): the two moderation consoles link to one another, a
+  failed load offers the events list besides "Réessayer", a clipboard that refuses says so and selects
+  the address, and "Ouvrir l'écran" opens the wall in a tab of its own.
+- **Accounts and the operator console are reachable** (#252): "Sécurité du compte" in the Compte menu, a
+  warning before leaving the recovery codes or a once-only link, "Vos évènements" and "Espace client" in
+  the operator console's header, a landing that depends on the account (a moderator of one event opens
+  its queue, an operator with nothing else opens `/admin/site`), `/login` while signed in sending the
+  visitor on, and Back returning to the previous step of a sign-in.
+- **An expired session is said, not hidden** (#248): a `401 auth.required` raises a banner, "Votre
+  session a expiré", over the page, which stays where it was with its unsaved form.
+
+### Guest
+
+- **A guest who joined before a change of look sees it without joining again** (#253).
+  `GET /api/events/:slug/photos/mine` now carries the event's `theme`, read on every request, and the
+  upload screen and the guest feed repaint with it: one repaint if it differs, and no extra request.
+- **The installed app reopens on the evening** (#250). The device remembers the last event it joined,
+  and `/join` with no code resumes it in the installed app only; a browser tab still opens on an empty
+  code entry. "Ce n'est pas votre soirée ?" forgets it. What is stored is under "Behaviour changes".
+- **A guest is no longer left at a dead end** (#248, #250): a closed, archived or suspended gallery says
+  so instead of offering to retry, an invalid join code says the evening may not be open yet or may be
+  over, `/e/:slug` goes to the upload screen, the gallery viewer closes with the Back gesture, `/about`
+  has a Back control, and every crash screen has a way home. A stale bundle reloads the page once, and
+  the wall retries a crash by itself after 15 seconds.
+
+### Behaviour changes to check before upgrading
+
+- **Every screen changes its look, the console and the sign-in page included** (#254). The product's
+  own look moves from a slate ground and a lavender accent to the Guinguette. An event whose stored
+  theme names no ambiance, which is every event created before this release, reads as the
+  Guinguette, and so does one stored with `darkroom`, the name of a prototype: it is written back as
+  `guinguette` the next time its settings are saved. Nothing is migrated and nothing is lost, but the
+  guest's phone and the wall of an event you care about will look different at the next reload: open
+  it before the evening.
+- **The accent hue 305, the old violet, now means the ambiance's own accent** (#254). 305 is the
+  default hue, and the one the birthday template sets. An event that has it (every event that never
+  chose a colour) shows the Guinguette's kraft where it showed violet, and violet itself can no longer
+  be chosen. Any other hue is unchanged.
+- **`ambiance` is required in the `theme` of `PATCH /api/events/:slug/settings`** (#254), as `material`
+  is: a theme without it is `400 request.invalid`, so that a tab opened before the upgrade or a script
+  cannot undo the host's choice by omission. Send `ambiance` (`guinguette` is the default) and send
+  `custom` only with `ambiance: "custom"`. A settings request with no `theme` is unchanged, and
+  `groundUrl`, which `GET` now answers inside the theme, may be sent back and is ignored.
+- **No migration runs, and the schema is the one of 3.0.0.** The venue photograph is one more field of
+  the event's settings JSON (`venuePhoto`, a digest or `null`), and `ambiance` and `custom` are two
+  more fields of its theme: a row without them reads as no photograph and the default ambiance. Back
+  up before you upgrade, as always; the older build does not know the new fields.
+- **A new kind of file lives under an event's media** (#254): the venue photograph, at
+  `<event>/ground/<ab>/<digest>.webp`, the media variant `ground`. The backup counts it as referenced
+  and not as an unreferenced file, `npm run purge` and the hourly orphan sweep leave it alone while
+  the settings name it, and purging the event removes it. A restore from a backup that lacks the file
+  leaves settings that name bytes which are gone: the page then shows its grade over no photograph
+  until the host removes it.
+- **New answers on existing routes, all additive** (#251, #253, #254): `role` on each row of
+  `GET /api/events`; `theme` on `GET /api/events/:slug/photos/mine`; `ambiance`, `groundUrl` and, for
+  « Sur mesure », `custom` in every theme the API answers; and `clothesline` among the wall's layouts.
+  A client that rejects unknown fields or values must accept them.
+- **The guest's phone keeps one new entry in `localStorage`** (#250): `eventslide.guest.last`, which
+  holds what the session already holds in `sessionStorage` (the event's public settings, the display
+  name the guest gave or `null`, the state of the privacy notice) and the time it was written. Never
+  the device token. The next join replaces it, "Ce n'est pas votre soirée ?" or a `401` on the guest's
+  own read deletes it, and it expires after 36 hours, the guest cookie's life.
+- **Small changes to the web app's addresses and requests** (#247, #248, #251, #252): `/admin/events`
+  redirects to `/admin`, `/e/:slug` to `/e/:slug/upload`, "Ouvrir l'écran" opens a new tab, and the
+  sign-in page reads `GET /api/auth/me` once, to send a visitor who is signed in on.
+
+### Release pipeline
+
+- **The signature checks of the release have a limit and keep their evidence** (#244, #249). The step
+  "Verify what was just signed, as a user would" hung until the job's limit for `v3.0.0`, three times,
+  and a cancelled job keeps no log. Each `cosign verify` and `verify-attestation` now runs under
+  `timeout -k 10 300`, with `--verbose`, no stdin and all of its output in files under
+  `$RUNNER_TEMP/cosign-diag`; a snapshot of the process tree is taken after each check and at 240
+  seconds while one runs; the step has its own limit of 12 minutes, below the job's 15; and a last
+  step uploads that folder as the `cosign-diagnostics` artifact for 14 days, whatever happened. The
+  "Verification for" summary and the verified payload are printed as before, and `sign` and `attest`
+  are unchanged. `scripts/releasePipeline.test.ts` holds each of these.
+
+### Fixed
+
+- **The guest's upload pane no longer covers "Vos envois"** (#258). The pane at the bottom of the upload
+  screen (queue, picker, caption, video, send) was `position: sticky` and grew with every photograph:
+  on a 375 by 667 phone it was already as tall as the screen with one, so it covered every row and its
+  own top could not be reached. It stays pinned only while it fits, and is in the flow when it is too
+  tall.
+- **A guest's phone kept the old theme after the host changed it** (#253): the upload screen and the
+  guest feed painted the theme stored when the guest joined (see "Guest").
+- **Back after a crash lands on a screen that renders** (#248): the error boundary resets when the
+  address changes, and a lazy chunk that failed to load is retried by reloading, because `React.lazy`
+  caches a rejected import.
+
+### Documentation, tests and dependencies
+
+- ADR 0010 (event ambiances, and the Guinguette as the product's own look) and ADR 0011 (« Sur
+  mesure »); `docs/SECURITY.md` section 24 (the venue photograph as an upload surface); `docs/API.md`
+  (the venue-photo routes, `theme`, `role`); `docs/DESIGN-SYSTEM.md` (the ambiances, the clothesline,
+  the navigation tiles, the icon stroke token) (#245, #246, #254).
+- The ambiances are held to the root's contrast bars: a sweep of every « Sur mesure » ground hue at both
+  polarities in `tokens.contrast.test.ts`, and the text over each bundled photograph in
+  `scripts/ambianceGround.test.ts`. The wall's twelve visual baselines were re-rendered together in
+  #254. No dependency was added or changed.
+
 ## [3.0.0] - 2026-10-27
 
 Everything merged to `main` after 2.1.0: pull request #104 on, and three older ones that were
