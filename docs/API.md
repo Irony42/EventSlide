@@ -702,7 +702,7 @@ a health check that fails when the database is busy causes the restart it was me
 prevent.
 
 ```json
-{ "status": "ok", "version": "3.0.0", "uptimeSeconds": 4821 }
+{ "status": "ok", "version": "3.1.0", "uptimeSeconds": 4821 }
 ```
 
 ### `GET /api/ready`
@@ -783,9 +783,9 @@ when the session store is unusable.
 ```json
 {
   "name": "EventSlide",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "license": "AGPL-3.0-only",
-  "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v3.0.0",
+  "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v3.1.0",
   "links": {},
   "features": { "siteAdmin": false, "forgotPassword": false }
 }
@@ -1152,7 +1152,7 @@ the host's `L` key cycles the same thing at the screen; both live in the browser
 `spotlight | mosaic | polaroid | filmstrip | collage | split | clothesline`, and an unknown or
 malformed one is ignored in favour of this response's value rather than raising
 anything: a projector rendering nothing for eight hours is the one failure this screen
-may not have. All seven render themselves; none falls back to a neighbour. Without `?layout=`, a Guinguette event opens on `clothesline` (ADR 0010, decided in the browser). `L` walks them
+may not have. All seven render themselves; none falls back to a neighbour. Without `?layout=`, the wall opens on the layout the event's settings name: no ambiance chooses one (ADR 0010). `L` walks them
 in the order above and wraps.
 
 `joinCode` is present because the wall is also the invitation: it shows the code and a

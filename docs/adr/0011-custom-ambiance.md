@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed (28/10), on `feat/custom-ambiance`, stacked on `feat/ambiances-proto` (ADR 0010).
+Accepted, shipped in 3.1.0 (#259, merged with #254).
 
 ## Date
 
