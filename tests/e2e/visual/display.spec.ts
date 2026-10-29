@@ -660,9 +660,12 @@ test.describe('the projected wall @visual', () => {
 
     await projector.goto(wallUrl(app, event.slug, { transitionMs: 0 }))
     await expect(projector.getByTestId('wall-empty')).toBeVisible()
-    // The Guinguette is the root look since 28/10, so it emits no attribute: what dresses the
-    // wall is the root palette and its photographed ground.
-    await expect(projector.locator('[data-event-ambiance]')).toHaveCount(0)
+    // An ordinary ambiance since 29/10: it is named on the surface, and what dresses the wall is
+    // its own block, not the root's violet.
+    await expect(projector.locator('[data-event-ambiance]')).toHaveAttribute(
+      'data-event-ambiance',
+      'guinguette',
+    )
 
     // The whole frame, unlike the other empty baseline, which clips to the copy.
     // The copy is the subject there; here the subject is the ground the copy sits on — the
@@ -678,8 +681,7 @@ test.describe('the projected wall @visual', () => {
 
     await applyTheme(host, app, event.slug, { ambiance: 'Guinguette' })
 
-    // `?layout=spotlight` is named, because the Guinguette's own default is the clothesline
-    // and this shot is the one-photo layout on the photographed ground.
+    // `?layout=spotlight` is named, so this shot is the one-photo layout on the photographed ground.
     await projector.goto(
       wallUrl(app, event.slug, { layout: 'spotlight', intervalMs: 0, transitionMs: 0 }),
     )
@@ -701,7 +703,7 @@ test.describe('the projected wall @visual', () => {
 
     await applyTheme(host, app, event.slug, { ambiance: 'Guinguette' })
 
-    // The Guinguette is the default look since 28/10, so the layout is named by the address.
+    // The layout is named by the address: no ambiance proposes the clothesline.
     await projector.goto(
       wallUrl(app, event.slug, { layout: 'clothesline', intervalMs: 0, transitionMs: 0 }),
     )

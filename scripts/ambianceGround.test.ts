@@ -33,7 +33,11 @@ import {
 const ROOT = process.cwd()
 const TOKENS = readFileSync(join(ROOT, 'web/src/design-system/tokens.css'), 'utf8')
 
+/** The ambiances that photograph their ground. EventSlide paints an aurora, which is measured in tokens.contrast.test.ts. */
 const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret', 'noces'] as const
+
+/** Every ambiance a host's own venue photograph can sit under: the root look included. */
+const VENUE_AMBIANCES = ['eventslide', ...AMBIANCES] as const
 
 /**
  * Ambiances whose grade is deliberately denser than the lowest that holds on the phone, and
@@ -45,9 +49,9 @@ const FLOORED: Readonly<Record<string, string>> = {
   bivouac: 'a night sky is dark already (0.05 would hold), and a flame sits in the wall’s centre',
 }
 
-/** An ambiance's own block; the Guinguette's is the root's. */
+/** An ambiance's own block; EventSlide's is the root's. */
 const blockOf = (name: string): string =>
-  name === 'guinguette'
+  name === 'eventslide'
     ? (/:root \{[\s\S]*?\n\}/.exec(withoutAmbiances(TOKENS))?.[0] ?? '')
     : ambianceBlock(TOKENS, name)
 
@@ -231,7 +235,7 @@ describe.each(AMBIANCES)('text over the %s’s photographed ground', (name) => {
  * is brighter), **pure black** for a dark ink on a light grade (nothing is darker). Any other
  * photograph lies between the two and is kinder.
  */
-describe.each(AMBIANCES)('text over a host’s own photograph, under the %s', (name) => {
+describe.each(VENUE_AMBIANCES)('text over a host’s own photograph, under the %s', (name) => {
   const ink = inksOf(name)
   const grade = gradeOf(name)
 
@@ -260,6 +264,24 @@ describe.each(AMBIANCES)('text over a host’s own photograph, under the %s', (n
       /\[data-venue-ground='wall'\]\s*\{\s*--wall-ground:\s*var\(--venue-scrim-layer\),\s*var\(--ambiance-grade\)/,
     )
   })
+
+  // EventSlide has no bundled photograph and a clear grade, so its coat alone does the work and is
+  // derived like every grade is: one point thinner fails.
+  if (name === 'eventslide')
+    it('declares the lowest coat that holds all three inks over pure white, because it is derived', () => {
+      const holdsWith = (share: number): boolean =>
+        INKS.every((token) => {
+          const [sr, sg, sb] = srgb(ink('--surface-base'))
+          const backdrop: Srgb = [
+            sr * share + (1 - share),
+            sg * share + (1 - share),
+            sb * share + (1 - share),
+          ]
+          return ratio(luminanceOf(srgb(ink(token))), luminanceOf(backdrop)) >= 4.5
+        })
+      expect(holdsWith(scrimAlpha)).toBe(true)
+      expect(holdsWith(Number((scrimAlpha - 0.01).toFixed(2)))).toBe(false)
+    })
 
   it.each(INKS)(
     'keeps %s above 4.5:1 even over the worst pure photograph (white, or black under a light grade)',

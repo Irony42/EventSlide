@@ -20,7 +20,7 @@ export const initialCustom = (theme: EventThemeDto): ThemeCustom =>
   theme.custom ?? {
     ground: 'dark',
     groundHue: 265,
-    faces: theme.ambiance === 'custom' ? 'guinguette' : theme.ambiance,
+    faces: theme.ambiance === 'custom' ? 'eventslide' : theme.ambiance,
   }
 
 /** The theme the previews wear and the save sends: the event's own, made Sur mesure. */

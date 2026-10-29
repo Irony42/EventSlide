@@ -47,7 +47,7 @@ test('a host puts up a photograph of their venue and the room and a guest wear i
   await projector.goto(`/e/${event.slug}/display`)
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).toContain(
-    'guinguette-ground',
+    'radial-gradient',
   )
 
   // A phone photograph with a device name and a GPS block, sideways.
@@ -67,7 +67,7 @@ test('a host puts up a photograph of their venue and the room and a guest wear i
     '/venue-photo/',
   )
   expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).not.toContain(
-    'guinguette-ground-1600',
+    'radial-gradient',
   )
 
   // The guest's welcome wears it on a fixed layer of its own, and the root's bundled one is off.
@@ -98,11 +98,11 @@ test('a host puts up a photograph of their venue and the room and a guest wear i
   await projector.reload()
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   expect(await backgroundOf(projector, '[data-testid="wall-empty"]', null)).toContain(
-    'guinguette-ground',
+    'radial-gradient',
   )
   await guest.reload()
   await expect(guest.locator('[data-venue-ground]')).toHaveCount(0)
-  expect(await backgroundOf(guest, 'html', '::before')).toContain('guinguette-ground')
+  expect(await backgroundOf(guest, 'html', '::before')).toContain('radial-gradient')
   expect((await projector.request.get(url)).status()).toBe(404)
 })
 

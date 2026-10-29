@@ -37,9 +37,8 @@ test('each template card shows its own colour, typography and photo corners', as
   await expect(photo('wedding')).toHaveCount(3)
 
   // Colour: the accent re-derived on the miniature itself, so the wedding is rose and the
-  // conference azure. "Sans modèle" keeps the product's own accent, which is the Guinguette's
-  // kraft (ADR 0010) and no longer a violet derived from hue 305: that hue is the sentinel for
-  // "nothing chosen", so the miniature re-derives nothing and inherits the root's accent.
+  // conference azure. "Sans modèle" keeps the product's own accent, the root's lavender (ADR 0010): hue 305 is the
+  // sentinel for "nothing chosen", so the miniature re-derives nothing and inherits the root's.
   expect(await computed(preview('wedding'), '--accent')).toContain('345')
   expect(await computed(preview('conference'), '--accent')).toContain('250')
   const rootAccent = await host.evaluate(() =>

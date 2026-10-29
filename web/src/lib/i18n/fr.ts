@@ -874,6 +874,7 @@ export const fr = {
     themeAmbianceHint:
       'L’univers que portent l’écran de vos invités, celui de la salle et les pages de cet évènement dans votre console.',
     themeAmbianceNames: {
+      eventslide: 'EventSlide',
       guinguette: 'Guinguette',
       riviera: 'Riviera',
       champs: 'Champs d’or',

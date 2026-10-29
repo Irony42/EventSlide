@@ -337,7 +337,7 @@ describe('EventSettingsPage', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'guinguette',
+          ambiance: 'eventslide',
         },
       }),
     )
@@ -360,7 +360,7 @@ describe('EventSettingsPage', () => {
               fonts: 'serif',
               frame: 'round',
               material: 'glass',
-              ambiance: 'guinguette',
+              ambiance: 'eventslide',
             },
           }),
         }),
@@ -427,7 +427,7 @@ describe('EventSettingsPage', () => {
               fonts: 'serif',
               frame: 'square',
               material: 'glass',
-              ambiance: 'guinguette',
+              ambiance: 'eventslide',
             },
           }),
         }),
@@ -827,7 +827,7 @@ describe('EventSettingsPage', () => {
             fonts: 'sans',
             frame: 'soft',
             material: 'glass',
-            ambiance: 'guinguette',
+            ambiance: 'eventslide',
             groundUrl,
           },
         }),
@@ -893,7 +893,7 @@ describe('EventSettingsPage', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       })
     })
 

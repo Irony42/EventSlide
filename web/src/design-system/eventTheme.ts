@@ -55,7 +55,7 @@ export const DEFAULT_EVENT_THEME: EventThemeDto = Object.freeze({
   fonts: 'sans',
   frame: 'soft',
   material: 'glass',
-  ambiance: 'guinguette',
+  ambiance: 'eventslide',
 })
 
 /**
@@ -95,6 +95,7 @@ export const THEME_FONTS: readonly ThemeFonts[] = ['sans', 'serif']
 export const THEME_FRAMES: readonly ThemeFrame[] = ['soft', 'square', 'round']
 export const THEME_MATERIALS: readonly ThemeMaterial[] = ['glass', 'plain']
 export const THEME_AMBIANCES: readonly ThemeAmbiance[] = [
+  'eventslide',
   'guinguette',
   'riviera',
   'champs',
@@ -104,6 +105,7 @@ export const THEME_AMBIANCES: readonly ThemeAmbiance[] = [
   'custom',
 ]
 export const THEME_FACES: readonly ThemeFaces[] = [
+  'eventslide',
   'guinguette',
   'riviera',
   'champs',
@@ -136,7 +138,7 @@ const cssUrl = (path: string): string => `url(${JSON.stringify(path)})`
  * the ground and the page it sits behind are one paint: nothing is applied from an effect, so
  * there is no frame in which the bundled photograph shows first.
  *
- * Every ambiance paints a photograph, the root look included (which carries no
+ * Every ambiance paints a ground, the root look included (which carries no
  * `data-event-ambiance`), so this needs nothing of the ambiance: the server sends a URL only for a
  * photograph it holds, and the client takes it only if it is a path this product mints.
  */
@@ -234,7 +236,7 @@ export interface ThemeSurfaceProps extends GlassMaterialProps {
   readonly 'data-event-accent'?: string
   readonly 'data-event-fonts'?: EventThemeDto['fonts']
   readonly 'data-event-frame'?: EventThemeDto['frame']
-  /** The ambiance block `tokens.css` selects. Absent for the product's own, `guinguette`. */
+  /** The ambiance block `tokens.css` selects. Absent for the product's own, `eventslide`. */
   readonly 'data-event-ambiance'?: EventThemeDto['ambiance']
   /** A custom ambiance's polarity and borrowed faces; see {@link customGroundProps}. */
   readonly 'data-ambiance-ground'?: ThemeGround
@@ -336,13 +338,14 @@ const readThemeMaterial = (value: unknown): ThemeMaterial | null => {
 /**
  * The ambiance, for a theme written before ambiances existed: absent is the product's own,
  * present and unknown is refused, exactly as for the material above. The one name this build
- * no longer ships, `darkroom`, is read as the Guinguette that replaced it.
+ * no longer ships, `darkroom`, is read as EventSlide, the dark slate it was.
  */
 const readThemeAmbiance = (value: unknown): ThemeAmbiance | null => {
   if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
   // A tab that stored its session while the Chambre noire existed holds `darkroom`: that look
-  // was replaced by the Guinguette on 28/10, and refusing the entry would log the guest out.
-  const named = value === 'darkroom' ? 'guinguette' : value
+  // is the product's own look again under another name (ADR 0010, amendment of 29/10), and
+  // refusing the entry would log the guest out.
+  const named = value === 'darkroom' ? 'eventslide' : value
   if (typeof named !== 'string' || !isThemeAmbiance(named)) return null
   return named
 }

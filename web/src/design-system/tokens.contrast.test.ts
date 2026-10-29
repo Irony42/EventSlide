@@ -71,6 +71,9 @@ const ROOT_TOKENS = withoutAmbiances(TOKENS)
 /** The root block alone: the Guinguette's own declarations, before any derivation. */
 const ROOT_BLOCK = /:root \{[\s\S]*?\n\}/.exec(ROOT_TOKENS)?.[0] ?? ''
 
+/** The same, with the accent's hue substituted the way the browser does at the root. */
+const ROOT_RESOLVED = ROOT_BLOCK.replaceAll('var(--accent-hue)', DECLARED_HUE[1])
+
 const tokens = parseOklchTokens(ROOT_TOKENS.replaceAll('var(--accent-hue)', DECLARED_HUE[1]))
 
 const token = (name: string): Oklch => {
@@ -80,6 +83,20 @@ const token = (name: string): Oklch => {
   }
   return value
 }
+
+/**
+ * The brightest the aurora can be at any pixel, per channel: every pixel of it is a blend of the
+ * base and the three glows, so it is no brighter in any channel than the brightest of the four.
+ * Text sits on the aurora directly, so this bound is also held to the bars text has on the base
+ * (below), which is what makes it a ground and not a decoration.
+ */
+const AURORA_GLOWS = ['--aurora-violet', '--aurora-indigo', '--aurora-lavender'] as const
+const AURORA_PEAK: Srgb = ((): Srgb => {
+  const colours = [...AURORA_GLOWS.map((name) => srgb(token(name))), srgb(token('--surface-base'))]
+  return [0, 1, 2].map((channel) =>
+    Math.max(...colours.map((c) => c[channel] ?? 0)),
+  ) as unknown as Srgb
+})()
 
 /**
  * WCAG relative luminance.
@@ -146,10 +163,41 @@ const FOCUS_RING_ALPHA = ((): number => {
  * passes the same pairs. The Guinguette is the root look, so its declarations are the root
  * block's; the others are their own `[data-event-ambiance]` block.
  */
-const AMBIANCES = ['guinguette', 'riviera', 'champs', 'bivouac', 'cabaret', 'noces'] as const
+const AMBIANCES = [
+  'eventslide',
+  'guinguette',
+  'riviera',
+  'champs',
+  'bivouac',
+  'cabaret',
+  'noces',
+] as const
 
 /** The darkest photograph there is: nothing is darker, as nothing is brighter than WHITE. */
 const BLACK: Srgb = [0, 0, 0]
+
+/**
+ * What the glass filter does to the backdrop before the tint is laid on it (ADR 0010, amendment of
+ * 29/10): `brightness()` is the filter's last function, so whatever a pane meets is scaled, per
+ * channel and in encoded sRGB like every CSS filter function, to at most this grey. Read out of
+ * the declaration and required to be the last function, so the derivation below cannot be measured
+ * against a number the browser is not using.
+ */
+const GLASS_BRIGHTNESS = ((): number => {
+  const declared = /--glass-brightness:\s*([\d.]+)\s*;/.exec(ROOT_BLOCK)?.[1]
+  if (declared === undefined) throw new Error('the root declares no --glass-brightness')
+  expect(ROOT_BLOCK).toMatch(
+    /--glass-filter:\s*blur\(var\(--glass-blur\)\)\s*saturate\(var\(--glass-saturate\)\)\s*brightness\(var\(--glass-brightness\)\);/,
+  )
+  return Number(declared)
+})()
+
+/** A backdrop as the glass filter leaves it. */
+const dimmed = ([r, g, b]: Srgb): Srgb => [
+  r * GLASS_BRIGHTNESS,
+  g * GLASS_BRIGHTNESS,
+  b * GLASS_BRIGHTNESS,
+]
 
 /**
  * Sur mesure (ADR 0011): a host's own ground, derived from two angles at fixed lightness and chroma.
@@ -217,7 +265,7 @@ ${resolved}
 const ROOT_FALLBACK = tokens
 
 describe.each(AMBIANCES)('the %s ambiance', (name) => {
-  const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+  const body = name === 'eventslide' ? ROOT_RESOLVED : ambianceBlock(TOKENS, name)
   const own = parseOklchTokens(`:root {${body}}`)
   const of = (token: string): Oklch => {
     const value = own.get(token)
@@ -231,7 +279,9 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
    * one the darkest, black. Nothing is exempted by it; the same bars are held both ways.
    */
   const lightInk = luminance(of('--text-primary')) > luminance(of('--surface-base'))
-  const worstPhoto: Srgb = lightInk ? WHITE : BLACK
+  // The root look is measured as the browser paints it: dimmed. The ambiances keep the bound
+  // without the dimming, which is conservative for a light ink and moves nothing for a dark one.
+  const worstPhoto: Srgb = lightInk ? (name === 'eventslide' ? dimmed(WHITE) : WHITE) : BLACK
   /**
    * The accent a host's hue derives in this ambiance: its own derivation when it declares one
    * (`[data-event-ambiance='…'][data-event-accent]`), the generic one otherwise. Only the hue
@@ -420,7 +470,7 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
  * Noces, so the references are resolved against the block that declares them, not assumed.
  */
 describe.each(AMBIANCES)('the wall’s join card in the %s ambiance', (name) => {
-  const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+  const body = name === 'eventslide' ? ROOT_RESOLVED : ambianceBlock(TOKENS, name)
   const own = parseOklchTokens(`:root {${body}}`)
   const resolve = (property: string): Oklch => {
     const pattern = new RegExp(`${property}:\\s*([^;]+);`)
@@ -446,20 +496,22 @@ describe.each(AMBIANCES)('the wall’s join card in the %s ambiance', (name) => 
   })
 })
 
-describe('the kraft the root presses (ADR 0010)', () => {
-  const root = parseOklchTokens(ROOT_BLOCK)
+describe('the kraft the Guinguette presses (ADR 0010)', () => {
+  const root = parseOklchTokens(`:root {${ambianceBlock(TOKENS, 'guinguette')}}`)
   const kraft = root.get('--accent')
   const ink = root.get('--accent-contrast')
 
-  it('is declared as the root accent, without a hue to move', () => {
+  it('is declared as the Guinguette accent, without a hue to move', () => {
     expect(kraft).toBeDefined()
   })
 
   it('carries its label at the accent’s own bar', () => {
-    if (kraft === undefined || ink === undefined) throw new Error('no kraft accent at the root')
+    if (kraft === undefined || ink === undefined)
+      throw new Error('no kraft accent in the Guinguette')
+    const own = parseOklchTokens(`:root {${ambianceBlock(TOKENS, 'guinguette')}}`)
     expect(contrast(ink, kraft)).toBeGreaterThanOrEqual(7)
-    expect(contrast(kraft, token('--surface-base'))).toBeGreaterThanOrEqual(7)
-    expect(contrast(kraft, token('--surface-overlay'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(kraft, own.get('--surface-base') ?? kraft)).toBeGreaterThanOrEqual(7)
+    expect(contrast(kraft, own.get('--surface-overlay') ?? kraft)).toBeGreaterThanOrEqual(4.5)
   })
 })
 
@@ -722,7 +774,7 @@ describe('the glass material over an unknown photograph', () => {
    * white case already measured. So what follows is the tint's guarantee, which is the
    * one the alpha is chosen to make.
    */
-  const pane = (backdrop: Srgb): Srgb => composite(token('--glass-tint-photo'), backdrop)
+  const pane = (backdrop: Srgb): Srgb => composite(token('--glass-tint-photo'), dimmed(backdrop))
 
   /** The lightest the pane can ever be, and therefore the hardest ground it offers. */
   const lightestPane = (): Srgb => pane(WHITE)
@@ -895,12 +947,14 @@ describe('the glass material over an unknown photograph', () => {
  */
 describe('the glass material over our own ground', () => {
   /** The backdrop the ground floor is derived against. See `lightestHue`. */
-  // ADR 0010: the root's own primary button is the kraft. It is the field the ground floor
-  // has to hold over when it is brighter than the lightest hue an event can carry.
-  const KRAFT = parseOklchTokens(ROOT_BLOCK).get('--accent')
-  if (KRAFT === undefined) throw new Error('tokens.css declares no kraft accent at the root')
+  // The brightest field a pane on a ground route can meet: the lightest hue a primary button can
+  // take, or the brightest pixel the aurora paints, whichever is brighter. The aurora is bounded
+  // channel by channel by the lightest of its three glows, since every pixel of it is a convex
+  // blend of those and the base; the filter then dims whichever it is.
   const LIGHTEST_HUE = srgb(lightestHue(token('--accent')))
-  const CEILING = luminanceOf(srgb(KRAFT)) > luminanceOf(LIGHTEST_HUE) ? srgb(KRAFT) : LIGHTEST_HUE
+  const RAW_CEILING =
+    luminanceOf(LIGHTEST_HUE) > luminanceOf(AURORA_PEAK) ? LIGHTEST_HUE : AURORA_PEAK
+  const CEILING = dimmed(RAW_CEILING)
 
   const groundPane = (alpha: number): Srgb =>
     composite({ ...token('--glass-tint-ground'), alpha }, CEILING)
@@ -936,8 +990,8 @@ describe('the glass material over our own ground', () => {
     // true: the ceiling is an accent, and it is meaningfully darker than the photograph the
     // strict tier assumes. If a future palette made the accent as bright as white, the two
     // tiers would collapse into one and this is where that shows up.
-    expect(luminanceOf(CEILING)).toBeLessThan(luminanceOf(WHITE))
-    expect(luminanceOf(CEILING)).toBeGreaterThan(luminanceOf(srgb(token('--surface-overlay'))))
+    expect(luminanceOf(RAW_CEILING)).toBeLessThan(luminanceOf(WHITE))
+    expect(luminanceOf(RAW_CEILING)).toBeGreaterThan(luminanceOf(srgb(token('--surface-overlay'))))
   })
 
   it.each(TEXT_TARGETS)(
@@ -947,7 +1001,7 @@ describe('the glass material over our own ground', () => {
       const { hue, ratio } = worst((h) =>
         ratioOf(
           srgb(token(ink)),
-          composite(token('--glass-tint-ground'), srgb(atHue('--accent', h))),
+          composite(token('--glass-tint-ground'), dimmed(srgb(atHue('--accent', h)))),
         ),
       )
 
@@ -973,23 +1027,16 @@ describe('the glass material over our own ground', () => {
 
   it('states what the split actually bought, in the units a reader cares about', () => {
     /**
-     * Seven per cent of the backdrop against four (eight against five before ADR 0010), and it is recorded rather than
-     * celebrated.
-     *
-     * The gain is small because the photograph was never what made the material opaque.
-     * `--text-muted` clears 4.62:1 on `--surface-overlay` against a 4.5 target, so the
-     * palette has roughly a tenth of a ratio point of headroom before a translucent ground
-     * stops being one this design system would accept — and removing the unknown backdrop
-     * spends nearly all of it. Anything more transparent than this needs an ink moved, not
-     * a backdrop narrowed, and that is a different change with a different argument.
+     * Twenty per cent of the dimmed backdrop shows through a pane over a photograph, and thirty-nine
+     * over our own ground (ADR 0010, amendment of 29/10): five and seven before the glass dimmed what
+     * it sits on. Recorded rather than celebrated: it is what the dimming bought, and the only way
+     * to buy more is to dim further, which darkens every photograph under a pane.
      */
     const photo = 1 - token('--glass-tint-photo').alpha
     const ground = 1 - token('--glass-tint-ground').alpha
 
-    // ADR 0010 moved the numbers: on the Chambre noire's darker raised black the photograph
-    // floor sits at 0.96 and our own ground at 0.93, and the paper button takes the split to nothing (see the tier test above).
-    expect(Math.round(photo * 100)).toBe(4)
-    expect(Math.round(ground * 100)).toBe(7)
+    expect(Math.round(photo * 100)).toBe(20)
+    expect(Math.round(ground * 100)).toBe(39)
   })
 })
 
@@ -1170,7 +1217,7 @@ describe('the wall reads from the back of the room, over any photograph', () => 
    * Noces. An ambiance that declares no scrim of its own wears the root's, and is measured on it.
    */
   describe.each(AMBIANCES)('in the %s ambiance', (name) => {
-    const body = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+    const body = name === 'eventslide' ? ROOT_RESOLVED : ambianceBlock(TOKENS, name)
     const own = parseOklchTokens(`:root {${body}}`)
     const of = (property: string): Oklch => own.get(property) ?? token(property)
     const lightInk = luminance(of('--text-primary')) > luminance(of('--surface-base'))
@@ -1512,7 +1559,7 @@ describe('the faces a Sur mesure event borrows (ADR 0011)', () => {
         TOKENS,
       )?.[1]
       if (rule === undefined) throw new Error(`tokens.css declares no faces block for ${name}`)
-      const owner = name === 'guinguette' ? ROOT_BLOCK : ambianceBlock(TOKENS, name)
+      const owner = name === 'eventslide' ? ROOT_RESOLVED : ambianceBlock(TOKENS, name)
       for (const property of FACE_PROPERTIES)
         expect(valueIn(rule, property), `${property} of ${name}`).toBe(valueIn(owner, property))
     },
@@ -1544,5 +1591,57 @@ describe('an ambiance previewed inside the console', () => {
     expect(TOKENS).toMatch(
       /\[data-template-preview\]\[data-event-ambiance\]\s*\{\s*--glass-tint:\s*var\(--glass-tint-photo\);/,
     )
+  })
+})
+
+/**
+ * The aurora under the product's own look (ADR 0010, amendment of 29/10).
+ *
+ * It is a ground, so text sits on it directly, with no pane between: its brightest possible pixel
+ * is held to the bars the base itself is. Every pixel is a blend of the base and three glows, so
+ * the per-channel maximum of the four (`AURORA_PEAK`) is a bound, not a sample.
+ */
+describe('the aurora the root look paints', () => {
+  it.each([
+    ['--text-primary', 12],
+    ['--text-secondary', 7],
+    ['--text-muted', 4.5],
+  ] as const)('keeps %s above %d:1 on the brightest pixel the aurora can paint', (ink, bar) => {
+    expect(ratioOf(srgb(token(ink)), AURORA_PEAK)).toBeGreaterThanOrEqual(bar)
+  })
+
+  it('is the root’s ground, made of the three declared glows and nothing else', () => {
+    const ground = /--ambiance-ground:([\s\S]*?);/.exec(ROOT_BLOCK)?.[1] ?? ''
+    for (const glow of AURORA_GLOWS) expect(ground).toContain(`var(${glow})`)
+    expect(ground).not.toMatch(/url\(|oklch\(/)
+  })
+
+  it('is static: nothing animates it', () => {
+    const ground = /--ambiance-ground:([\s\S]*?);/.exec(ROOT_BLOCK)?.[1] ?? ''
+    expect(ground).not.toMatch(/animation|@keyframes/)
+    expect(TOKENS).not.toMatch(/@keyframes[^{]*aurora/i)
+  })
+
+  it('gives the glass something to show: the brightest glow is lighter than the raised surface', () => {
+    expect(luminanceOf(AURORA_PEAK)).toBeGreaterThan(luminanceOf(srgb(token('--surface-raised'))))
+  })
+})
+
+describe('the glass of the root look, as a host and a person can switch it off', () => {
+  it('has an opaque tier that is the raised surface itself', () => {
+    expect(TOKENS).toMatch(/--glass-opaque:\s*var\(--surface-raised\)\s*;/)
+    expect(TOKENS).toMatch(
+      /\[data-glass='opaque'\]\s*\{\s*--glass-filter:\s*none;\s*--glass-tint:\s*var\(--glass-opaque\);/,
+    )
+  })
+
+  it('falls back to opaque, with no filter, under reduced transparency and more contrast', () => {
+    const media =
+      /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{([\s\S]*?)\n\}/.exec(
+        TOKENS,
+      )?.[1] ?? ''
+    expect(media).toMatch(/--glass-filter:\s*none;/)
+    expect(media).toMatch(/--glass-tint-photo:\s*var\(--glass-opaque\);/)
+    expect(media).toMatch(/--glass-tint-ground:\s*var\(--glass-opaque\);/)
   })
 })

@@ -225,7 +225,7 @@ describe('guestSession', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 
@@ -247,7 +247,7 @@ describe('guestSession', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 
@@ -261,7 +261,7 @@ describe('guestSession', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     }
     sessionStorage.setItem(
       'eventslide.guest.gala',
@@ -576,7 +576,7 @@ describe('guestSession: a theme the server has since changed', () => {
     fonts: 'serif',
     frame: 'round',
     material: 'plain',
-    ambiance: 'guinguette',
+    ambiance: 'eventslide',
   } as const
 
   const joined = (slug: string, now?: number) =>

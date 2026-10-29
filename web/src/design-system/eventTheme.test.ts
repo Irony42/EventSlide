@@ -106,9 +106,11 @@ describe('themeSurfaceProps', () => {
     for (const selector of rules.flatMap(topLevelCommas)) {
       expect(selector).toContain(':not(:has([data-wall-layout],[data-ornament-free]))')
     }
-    // The root look has no marker of its own: it is the body that holds no ambiance at all.
+    // The root look wears no strip at all, and the Guinguette's are keyed on its own marker like
+    // every other ambiance's (ADR 0010, amendment of 29/10).
+    expect(base.replace(/\s+/g, '')).not.toContain('body:not(:has([data-event-ambiance]')
     expect(base.replace(/\s+/g, '')).toContain(
-      'body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(:has([data-wall-layout],[data-ornament-free]))::before',
+      "body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(:has([data-wall-layout],[data-ornament-free]))::before",
     )
   })
 
@@ -158,13 +160,13 @@ describe('themeSurfaceProps', () => {
       const stored = { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' }
 
       expect(
-        readEventTheme({ ...stored, ambiance: 'guinguette', groundUrl: URL_PATH })?.groundUrl,
+        readEventTheme({ ...stored, ambiance: 'eventslide', groundUrl: URL_PATH })?.groundUrl,
       ).toBe(URL_PATH)
       // Anything else is the bundled ground and never a refusal: a decoration must not send a
       // guest back to the join screen mid-evening.
       const odd = readEventTheme({
         ...stored,
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
         groundUrl: 'https://evil.example/x',
       })
       expect(odd).not.toBeNull()
@@ -222,7 +224,7 @@ describe('themeSurfaceProps', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       }),
       'guest',
     )
@@ -241,7 +243,7 @@ describe('themeSurfaceProps', () => {
     // where consistency beats personality — §12's argument, unchanged by the knob being a
     // surface finish rather than a colour.
     expect(
-      themeSurfaceProps(aTheme({ material: 'plain', ambiance: 'guinguette' }), surface),
+      themeSurfaceProps(aTheme({ material: 'plain', ambiance: 'eventslide' }), surface),
     ).toEqual({
       'data-glass': 'opaque',
     })
@@ -255,7 +257,7 @@ describe('themeSurfaceProps', () => {
       // descendant wins for its subtree — so `data-glass="ground"` here would put a blur
       // back on a projector and on any machine the budget had already taken it from.
       expect(
-        themeSurfaceProps(aTheme({ material: 'glass', ambiance: 'guinguette' }), surface),
+        themeSurfaceProps(aTheme({ material: 'glass', ambiance: 'eventslide' }), surface),
       ).toEqual({})
     },
   )
@@ -285,14 +287,14 @@ describe('readEventTheme', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       }),
     ).toEqual({
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 
@@ -306,7 +308,7 @@ describe('readEventTheme', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       },
     ],
     [
@@ -316,28 +318,28 @@ describe('readEventTheme', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       },
     ],
     [
       'a hue past the circle',
-      { accentHue: 4000, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
+      { accentHue: 4000, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
     ],
     [
       'a negative hue',
-      { accentHue: -1, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
+      { accentHue: -1, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
     ],
     [
       'a hue between two degrees',
-      { accentHue: 305.5, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
+      { accentHue: 305.5, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
     ],
     [
       'a font pairing this build never shipped',
-      { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass', ambiance: 'guinguette' },
+      { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
     ],
     [
       'a frame style this build never shipped',
-      { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass', ambiance: 'guinguette' },
+      { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass', ambiance: 'eventslide' },
     ],
   ])('refuses %s', (_case, value) => {
     // A hue that is not a number reaches `--accent-hue` as something the browser cannot
@@ -354,11 +356,11 @@ describe('readEventTheme', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
   })
 
-  it('reads a session stored as darkroom, the retired Chambre noire, as the Guinguette', () => {
+  it('reads a session stored as darkroom, the retired Chambre noire, as EventSlide', () => {
     // The tab was opened before 28/10: refusing the entry would send the guest back to the door.
     expect(
       readEventTheme({
@@ -368,7 +370,26 @@ describe('readEventTheme', () => {
         material: 'glass',
         ambiance: 'darkroom',
       })?.ambiance,
+    ).toBe('eventslide')
+  })
+
+  it('keeps a session that names the Guinguette on the Guinguette', () => {
+    // The default moved on 29/10: only an ambiance that is absent reads as the new one.
+    expect(
+      readEventTheme({
+        accentHue: 305,
+        fonts: 'sans',
+        frame: 'soft',
+        material: 'glass',
+        ambiance: 'guinguette',
+      })?.ambiance,
     ).toBe('guinguette')
+  })
+
+  it('reads a session with no ambiance as EventSlide', () => {
+    expect(
+      readEventTheme({ accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' })?.ambiance,
+    ).toBe('eventslide')
   })
 
   it('refuses an ambiance this build never shipped rather than filling one in', () => {

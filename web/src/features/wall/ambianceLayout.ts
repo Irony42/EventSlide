@@ -13,8 +13,10 @@ import type { ThemeAmbiance, WallLayout } from '../../lib/api/dto'
  * closed vocabulary, so adding an ambiance fails the build here until it answers.
  */
 export const AMBIANCE_LAYOUT: Readonly<Record<ThemeAmbiance, WallLayout | null>> = {
-  // The default look since 28/10, so it suggests nothing: an unthemed wall keeps the response's
-  // default (spotlight), and the clothesline stays one `L` press or `?layout=clothesline` away.
+  // The default look (the violet again since 29/10) suggests nothing: an unthemed wall keeps the
+  // response's default (spotlight), and the clothesline stays one `L` press or
+  // `?layout=clothesline` away.
+  eventslide: null,
   guinguette: null,
   riviera: null,
   champs: null,
