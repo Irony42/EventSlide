@@ -599,8 +599,8 @@ other limiters' bodies carry the header only.
 
 | Endpoint                                                           | Default       | Bucket                     | Code                               |
 | ------------------------------------------------------------------ | ------------- | -------------------------- | ---------------------------------- |
-| `POST /api/join`                                                   | 20            | client IP                  | `rate.limited`                     |
-| `GET /api/join/:code`                                              | 20            | client IP, same as join    | `rate.limited`                     |
+| `POST /api/join`                                                   | 200           | client IP                  | `rate.limited`                     |
+| `GET /api/join/:code`                                              | 200           | client IP, same as join    | `rate.limited`                     |
 | `POST /api/auth/login` †                                           | 10            | client IP                  | `rate.limited`                     |
 | `POST /api/auth/password-reset/request` †                          | 10            | client IP, own bucket      | `rate.limited`                     |
 | `POST /api/auth/password-reset/confirm`                            | 10            | client IP, own bucket      | `rate.limited`                     |
@@ -609,13 +609,22 @@ other limiters' bodies carry the header only.
 | the same four                                                      | 10 / 15 min   | **account**, failures only | `auth.tooManySecondFactorAttempts` |
 | `POST /api/events` (create)                                        | 20 / **hour** | account                    | `event.creationRateLimited`        |
 | `POST /api/events/:slug/moderators` (invite)                       | 30 / **hour** | account                    | `rate.limited`                     |
-| `POST /api/events/:slug/photos`                                    | 12            | client IP **and** event    | `rate.limited`                     |
-| `POST /api/events/:slug/clips`                                     | 12            | client IP **and** event    | `rate.limited`                     |
-| `POST /api/events/:slug/photos/:id/reactions`                      | 30            | client IP **and** event    | `reaction.rateLimited`             |
+| `POST /api/events/:slug/photos`, `…/clips` (flood ceiling) §       | 300           | client IP **and** event    | `rate.limited`                     |
+| the same two, photos and clips together §                          | 12            | **guest** and event        | `rate.limited`                     |
+| `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event    | `reaction.rateLimited`             |
+| the same reaction §                                                | 30            | **guest** and event        | `reaction.rateLimited`             |
 | the five other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                     |
 | `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
 | `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
 | `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
+
+§ **Two stages**, since 3.2. The first is a flood ceiling per client address and event
+(`UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE`), checked before the
+device token is verified; a venue is one address, so it sits far above what a room sends. The second is
+the guest's own budget (`UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_MINUTE`), keyed by the
+guest the token proves and checked right after it, before the body of an upload is read: two guests
+on one Wi-Fi each have their own. Both answer the same code with the same `Retry-After`. Through 3.1
+the two variables counted per client address and event.
 
 ‡ **One bucket, five routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
 their photo back), `DELETE …/photos/:id/reactions/:kind`, `PATCH …/guests/:guestId` (a guest renaming themself) and
@@ -1028,9 +1037,10 @@ or `archived`: the answer `POST /api/join` gives, for the reason it gives it (a 
 a `Retry-After`. It spends **the same per-address budget as `POST /api/join`** (§1 "Rate limits"):
 looking and joining answer one question, so they get one allowance, and exposing the lookup does
 not make codes testable any faster than they were. It also means a client that looks a code up and
-then joins spends **two** hits of that budget per guest, which the default (20 a minute for an
-address, and a venue is one address) allows for ten guests a minute: size `JOIN_RATE_LIMIT_PER_MINUTE`
-for it before a client does.
+then joins spends **two** hits of that budget per guest, which the default (200 a minute for an
+address, and a venue is one address) allows for a hundred guests a minute: size `JOIN_RATE_LIMIT_PER_MINUTE`
+for it before a client does. At 200 a minute one address needs about ten years to try every code of the
+default length (32^6 = 1,073,741,824).
 
 ### `GET /api/events/:slug/wall`
 

@@ -378,7 +378,12 @@ describe('every guest-token write under an event is rate-limited (HTTP-H-01)', (
     // Every limiter on these routes at one, so that the second request is over whichever one
     // the route carries. A **fresh server per route**: the five writes share one bucket, so on
     // one server the first of them would spend what the next is judged by.
-    const limits = { uploadPerMinute: 1, reactionPerMinute: 1 }
+    const limits = {
+      uploadPerMinute: 1,
+      uploadPerIpPerMinute: 1,
+      reactionPerMinute: 1,
+      reactionPerIpPerMinute: 1,
+    }
     const routes = mountedRoutes(buildSubject(1, 0, limits).harness.app).filter(
       (route) => route.method !== 'get' && route.path.includes('/:eventSlug/'),
     )

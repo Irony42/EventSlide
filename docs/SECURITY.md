@@ -1076,14 +1076,20 @@ spend a colleague's allowance; `EVENT_CREATION_RATE_LIMIT_PER_HOUR` (default **2
 `event.creationRateLimited` are in `env.ts` and `middleware/rateLimit.ts` (P4-09 / D-14,
 roadmap G3-05).
 
-**(defect)** The two upload rows describe three independent limits and there is one.
+**(defect)** The two upload rows describe three independent limits and there are two.
 `uploadLimiter` in `middleware/rateLimit.ts` mints a single bucket keyed by
-`clientKey:eventSlug` at `UPLOAD_RATE_LIMIT_PER_MINUTE` (default **12** per minute), and
-both upload routes share it — deliberately, because a guest sending a photo and a clip is
-one guest and two buckets would be twice the allowance. There is no per-guest-token
-limiter at all. The numbers above were never implemented; the intent — a limit that a
-whole table of guests behind one venue access point does not trip on somebody else's
-behalf — is served by the composite key rather than by three tiers.
+`clientKey:eventSlug` at `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` (default **300** per minute, a flood
+ceiling) and `uploadGuestLimiter` a second, keyed by the guest `requireGuest` verified, at
+`UPLOAD_RATE_LIMIT_PER_MINUTE` (default **12**), mounted right after `requireGuest` and so before the
+body is read (3.2, review S1; through 3.1 the 12 was per address and a whole venue shared it).
+Both upload routes share both — deliberately, because a guest sending a photo and a clip is
+one guest and two buckets would be twice the allowance. The per-guest stage is fairness, not
+abuse control: `POST /api/join` is public, so a script can mint guests, each with a fresh budget.
+What bounds one address is the first stage (300 uploads a minute per event, up from 12 through 3.1),
+with the event's byte quota and the upload concurrency limiter behind it, and the join budget
+(200 a minute) bounds how fast guests can be minted. The numbers above were never implemented; the
+intent — a limit that a whole table of guests behind one venue access point does not trip on
+somebody else's behalf — is served by the two stages rather than by three tiers.
 
 **The five other guest writes** — a caption, taking a photo back, withdrawing a reaction,
 renaming oneself and acknowledging the privacy notice — spend **one** bucket keyed by `clientKey:eventSlug`,
@@ -1100,7 +1106,9 @@ bucket and the key, and sweeps the route table so that a sixth guest write with 
   ring-4 test asserts the status; a limiter that silently allows everything is the
   classic dead control.
 - The join-code lookup (`GET /api/join/:code`) and the join itself spend **one** budget per
-  address, `JOIN_RATE_LIMIT_PER_MINUTE`, because they answer one question (is this a real, open
+  address, `JOIN_RATE_LIMIT_PER_MINUTE` (default **200**, from 20 through 3.1: a guest costs two
+  requests and a hundred and fifty arrive within minutes; one address sweeping the 32^6 codes of the
+  default length at that rate needs about ten years), because they answer one question (is this a real, open
   event) and a second bucket would have doubled the rate at which codes can be tried. A
   budget _per code_ as well, which a botnet spreading over addresses would meet, was planned and
   is not built.
@@ -2316,14 +2324,14 @@ upload, and it should be upgraded today.** A branch carrying the fix already exi
 
 The trace, byte by byte, with nothing omitted:
 
-| #   | Step                                                                                                                                | Where                                                                                                       |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 1   | A guest with the QR link posts multipart to `POST /api/events/:eventSlug/photos`, field `photos`, up to 20 files                    | `routes/guestRoutes.ts:322`                                                                                 |
-| 2   | `uploadLimiter` (12/min per IP and event) and `requireGuest` pass — a guest at the wedding satisfies both by design                 | `middleware/rateLimit.ts:93`, `middleware/authz.ts:112`                                                     |
-| 3   | multer buffers the file **in memory**, unmodified. No `fileFilter`, by decision (§4 step 3)                                         | `routes/guestRoutes.ts:302-309`                                                                             |
-| 4   | `probe()` calls `detectImageFormat`, which reads `ftyp` at offset 4 and **returns `'heif'` or `'avif'` for the HEIC/AVIF brands**   | `infrastructure/media/magicBytes.ts:74-77`, brand sets at `:44-45`                                          |
-| 5   | Those bytes, still unmodified, are handed to `sharp(...).metadata()` — the libvips HEIF loader, that is, **libheif 1.20.2**         | `infrastructure/media/sharpImageProcessor.ts:122`                                                           |
-| 6   | If the header survives, `renderVariants` decodes the **same original bytes three more times** for `display`, `thumb` and `original` | `usecases/photos/uploadPhotos.ts:268` to `:132`, `:135`, `:138`, each reaching `sharpImageProcessor.ts:181` |
+| #   | Step                                                                                                                                                               | Where                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| 1   | A guest with the QR link posts multipart to `POST /api/events/:eventSlug/photos`, field `photos`, up to 20 files                                                   | `routes/guestRoutes.ts:322`                                                                                 |
+| 2   | `uploadLimiter` (300/min per IP and event), `requireGuest` and `uploadGuestLimiter` (12/min per guest) pass — a guest at the wedding satisfies all three by design | `middleware/rateLimit.ts:93`, `middleware/authz.ts:112`                                                     |
+| 3   | multer buffers the file **in memory**, unmodified. No `fileFilter`, by decision (§4 step 3)                                                                        | `routes/guestRoutes.ts:302-309`                                                                             |
+| 4   | `probe()` calls `detectImageFormat`, which reads `ftyp` at offset 4 and **returns `'heif'` or `'avif'` for the HEIC/AVIF brands**                                  | `infrastructure/media/magicBytes.ts:74-77`, brand sets at `:44-45`                                          |
+| 5   | Those bytes, still unmodified, are handed to `sharp(...).metadata()` — the libvips HEIF loader, that is, **libheif 1.20.2**                                        | `infrastructure/media/sharpImageProcessor.ts:122`                                                           |
+| 6   | If the header survives, `renderVariants` decodes the **same original bytes three more times** for `display`, `thumb` and `original`                                | `usecases/photos/uploadPhotos.ts:268` to `:132`, `:135`, `:138`, each reaching `sharpImageProcessor.ts:181` |
 
 So libheif executes **four times per HEIC file**, on bytes the attacker fully controls, up
 to 20 files per request.
