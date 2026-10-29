@@ -23,7 +23,7 @@ In an entry:
 ## [3.2.0] - 2026-10-29
 
 Everything merged to `main` after the tag `v3.1.0`: pull requests #261, #263, #265, #266, #264 and
-#267. This is a minor release: it adds three settings and changes what the guest limits count, and it
+#267. This is a minor release: it adds four settings and changes what the guest limits count, and it
 breaks nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to
 keep. There is no migration and nothing has to change in `.env`, but read "Behaviour changes to check
 before upgrading" and [Upgrading to 3.2](docs/UPGRADING.md#upgrading-to-32) if you set any upload,
@@ -36,8 +36,9 @@ reaction or join limit.
   say what they hold, and a 320 px phone no longer scrolls sideways. A long word in a button or a
   label breaks instead of overflowing.
 - **A sent batch folds into one summary line** (#263): once every photo of a batch has arrived, the
-  queue shrinks to a line that says how many were sent and opens the list on a tap, so the guest sees
-  the new photos appear above it. Failures and photos still sending keep their own rows.
+  queue shrinks to a line that says how many were sent, with « Voir mes envois », which scrolls to the
+  guest's list and flashes the new photos there, and « Détails », which brings the rows back. A batch
+  folds only once every photo has arrived: while one is sending or has failed, every row stays.
 - **The pinned upload pane stands out from the list** (#266): a lit top edge, a shadow cast upward
   and the list fading under it, in light and dark ambiances, so it reads as above the page rather
   than mixed with it.

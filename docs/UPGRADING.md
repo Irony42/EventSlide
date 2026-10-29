@@ -498,9 +498,9 @@ how every screen looks, and you will want to see that before an event rather tha
 
 ## Upgrading to 3.2
 
-3.2.0 is a minor release: it adds and breaks nothing the policy above promises to keep, so there
+3.2.0 is a minor release: it breaks nothing the policy above promises to keep, so there
 is no `BREAKING` section and nothing has to change in `.env`. This section is here because it changes
-what the guest upload and reaction limits count, and adds three settings.
+what the guest upload and reaction limits count, and adds four settings.
 
 **Who is affected.** Anyone who set `UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_MINUTE`,
 `JOIN_RATE_LIMIT_PER_MINUTE` or `MAX_CONCURRENT_UPLOAD_REQUESTS`, and everyone who hosts a room behind
