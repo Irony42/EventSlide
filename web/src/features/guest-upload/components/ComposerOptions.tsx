@@ -67,11 +67,13 @@ export function ComposerOptions({
   const captionInput = useRef<HTMLTextAreaElement | null>(null)
   const clipInput = useRef<HTMLInputElement | null>(null)
 
-  const [captionOpen, setCaptionOpen] = useState(caption.length > 0)
-  const [clipOpen, setClipOpen] = useState(clip.stage !== 'idle')
+  const [captionOpen, setCaptionOpen] = useState(false)
+  const [clipOpen, setClipOpen] = useState(false)
 
   // Unfolded the moment there is something in them, and left unfolded: derived while rendering
-  // rather than in an effect, so there is no frame with a caption in a folded field.
+  // rather than in an effect, so there is no frame with a caption in a folded field. It is also
+  // what makes a press on a button whose section is held a no-op: the render that follows the
+  // fold unfolds it again.
   const captionHeld = caption.length > 0
   const clipHeld = clip.stage !== 'idle'
   if (captionHeld && !captionOpen) setCaptionOpen(true)
@@ -84,13 +86,11 @@ export function ComposerOptions({
    * is not rendered cannot take it, and a state update alone lands after this handler returns.
    */
   const toggleCaption = () => {
-    if (captionHeld) return
     const next = !captionOpen
     flushSync(() => setCaptionOpen(next))
     if (next) captionInput.current?.focus()
   }
   const toggleClip = () => {
-    if (clipHeld) return
     const next = !clipOpen
     flushSync(() => setClipOpen(next))
     if (next) clipInput.current?.focus()
