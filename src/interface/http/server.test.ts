@@ -499,8 +499,10 @@ describe('buildServer: which client a rate limit is counting', () => {
         rateLimits: {
           joinPerMinute: 1,
           uploadPerMinute: 12,
+          uploadPerIpPerMinute: 300,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          reactionPerIpPerMinute: 600,
           guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
@@ -550,9 +552,11 @@ describe('buildServer: which client a rate limit is counting', () => {
       config: {
         rateLimits: {
           joinPerMinute: 10,
-          uploadPerMinute: 1,
+          uploadPerMinute: 12,
+          uploadPerIpPerMinute: 1,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          reactionPerIpPerMinute: 600,
           guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
@@ -568,6 +572,49 @@ describe('buildServer: which client a rate limit is counting', () => {
       agent.post(`/api/events/mariage/${path}`).set(CSRF_HEADER, token).send()
 
     expect((await spend('photos')).status).toBe(401)
+
+    const clip = await spend('clips')
+
+    expect(clip.status).toBe(429)
+    expect(clip.body.error.code).toBe('rate.limited')
+  })
+
+  it("spends one guest's upload budget across photos and clips, not one each (review S1)", async () => {
+    // The per-guest stage is built once in `buildServer` for the reason above, and only this ring
+    // can see that. The address ceiling is out of the way (the default), and a guest with a real
+    // token is the one the second stage keys on. Nothing is attached: the stage sits ahead of the
+    // multipart parser, so the first request spends its hit and is answered 400 `upload.noFiles`.
+    const subject = buildServerHarness({
+      config: {
+        rateLimits: {
+          joinPerMinute: 10,
+          uploadPerMinute: 1,
+          uploadPerIpPerMinute: 300,
+          loginPerMinute: 10,
+          reactionPerMinute: 30,
+          reactionPerIpPerMinute: 600,
+          guestWritePerMinute: 300,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
+        },
+      },
+    })
+    subject.events.seed(anEvent({ slug: 'mariage' }))
+    subject.guests.seed(aGuest({ id: 'guest-1', eventId: 'event-1' }))
+    const guestToken = subject.issueGuestToken('event-1', 'guest-1')
+    const agent = request.agent(subject.app)
+    const token = csrfTokenFrom((await agent.get(ANY_GET)).headers)
+    const spend = (path: string): request.Test =>
+      agent
+        .post(`/api/events/mariage/${path}`)
+        .set('Cookie', `${GUEST_COOKIE}=${guestToken}`)
+        .set(CSRF_HEADER, token)
+        .send()
+
+    expect((await spend('photos')).status).toBe(400)
 
     const clip = await spend('clips')
 

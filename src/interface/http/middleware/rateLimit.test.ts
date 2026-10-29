@@ -26,13 +26,17 @@ import {
   joinLimiter,
   loginLimiter,
   passwordResetLimiter,
+  reactionGuestLimiter,
   reactionLimiter,
   secondFactorAccountLimiter,
   secondFactorLimiter,
   streamConnectionLimiter,
   uploadConcurrencyLimiter,
+  uploadGuestLimiter,
   uploadLimiter,
 } from './rateLimit'
+import { loadConfig } from '../../../infrastructure/config/env'
+import type { GuestPrincipal } from '../types'
 
 /** A logger nobody reads: these tests are about keying, never about what gets logged. */
 const noopLogger: Logger = {
@@ -251,6 +255,126 @@ describe('the upload key', () => {
       .set('X-Forwarded-For', SAME_SUBNET[0])
 
     expect(again.status).toBe(429)
+  })
+})
+
+/**
+ * The two stages of the upload and reaction limits (review S1).
+ *
+ * The first stage is the address-and-event flood ceiling (`uploadLimiter`, `reactionLimiter`), the
+ * second the verified guest's own budget, mounted after `requireGuest`. A venue is one public
+ * address, so the second is what lets a room of guests each send; the first is what a script meets.
+ * `as` stands in for `requireGuest`: it puts the principal on the request, from a header the
+ * test controls, the way the real middleware does from a verified token.
+ */
+describe('the guest key and the address ceiling of uploads and reactions', () => {
+  const as: RequestHandler = (req, _res, next) => {
+    const guest = req.header('x-test-guest')
+    const eventId = req.header('x-test-event') ?? 'event-1'
+    req.context = {
+      requestId: 'test',
+      logger: noopLogger,
+      ...(guest === undefined
+        ? {}
+        : { guest: { kind: 'guest', guest: { id: guest }, eventId } as unknown as GuestPrincipal }),
+    }
+    next()
+  }
+
+  const STAGES = [
+    ['uploads', uploadLimiter, uploadGuestLimiter],
+    ['reactions', reactionLimiter, reactionGuestLimiter],
+  ] as const
+
+  const send = (app: Express, guest: string, extra: Record<string, string> = {}) =>
+    request(app)
+      .post('/events/mariage/x')
+      .set('X-Forwarded-For', '203.0.113.7')
+      .set('x-test-guest', guest)
+      .set(extra)
+
+  const mounted = (ip: number, perGuest: number, stages: (typeof STAGES)[number]): Express =>
+    behindOneProxy((subject) => {
+      subject.post('/events/:eventSlug/x', stages[1](ip), as, stages[2](perGuest), noContent)
+    })
+
+  it.each(STAGES)(
+    'gives each of two guests behind one address their own %s budget',
+    async (...stages) => {
+      const app = mounted(100, 1, [stages[0], stages[1], stages[2]])
+
+      await send(app, 'guest-a').expect(204)
+      const other = await send(app, 'guest-b')
+
+      expect(other.status).toBe(204)
+    },
+  )
+
+  it.each(STAGES)('limits one guest to their own %s budget', async (...stages) => {
+    const app = mounted(100, 2, [stages[0], stages[1], stages[2]])
+
+    await send(app, 'guest-a').expect(204)
+    await send(app, 'guest-a').expect(204)
+    const third = await send(app, 'guest-a')
+
+    expect(third.status).toBe(429)
+    expect(third.headers['retry-after']).toBe('60')
+  })
+
+  it.each(STAGES)(
+    'holds the %s address ceiling however many guests share the address',
+    async (...stages) => {
+      const app = mounted(2, 100, [stages[0], stages[1], stages[2]])
+
+      await send(app, 'guest-a').expect(204)
+      await send(app, 'guest-b').expect(204)
+      const third = await send(app, 'guest-c')
+
+      expect(third.status).toBe(429)
+    },
+  )
+
+  it.each(STAGES)(
+    'keys a guest by the verified principal and not by the cookie they present (%s)',
+    async (...stages) => {
+      // A caller who rotates `es_guest` on every request must not get a fresh bucket each time.
+      const app = mounted(100, 1, [stages[0], stages[1], stages[2]])
+
+      await send(app, 'guest-a', { Cookie: 'es_guest=one' }).expect(204)
+      const rotated = await send(app, 'guest-a', { Cookie: 'es_guest=two' })
+
+      expect(rotated.status).toBe(429)
+    },
+  )
+
+  it.each(STAGES)('counts one guest id in two events apart (%s)', async (...stages) => {
+    const app = mounted(100, 1, [stages[0], stages[1], stages[2]])
+
+    await send(app, 'guest-a', { 'x-test-event': 'event-1' }).expect(204)
+    const other = await send(app, 'guest-a', { 'x-test-event': 'event-2' })
+
+    expect(other.status).toBe(204)
+  })
+})
+
+describe('the join budget', () => {
+  it('lets 200 requests a minute through from one address and refuses the 201st', async () => {
+    // The default, read from the configuration rather than restated: a venue behind one address
+    // sends two requests per guest (the lookup and the join) and 150 guests arrive within minutes.
+    const perMinute = loadConfig({ NODE_ENV: 'development' }).rateLimits.joinPerMinute
+    const app = behindOneProxy((subject) => {
+      subject.post('/join', joinLimiter(perMinute), noContent)
+    })
+    const hit = () => request(app).post('/join').set('X-Forwarded-For', '203.0.113.7')
+
+    expect(perMinute).toBe(200)
+    for (let i = 0; i < 200; i += 1) {
+      expect((await hit()).status).toBe(204)
+    }
+    const refused = await hit()
+
+    expect(refused.status).toBe(429)
+    expect(refused.headers['retry-after']).toBe('60')
   })
 })
 

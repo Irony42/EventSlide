@@ -8,6 +8,15 @@ import type { serverSchema } from './schema'
 import type { AppConfig } from './appConfig'
 
 /**
+ * The flood ceilings per client address and event when the operator names none: 300 uploads and
+ * 600 reactions a minute. Each is raised to the per-guest figure if that is larger, because the
+ * per-guest figure used to be the per-address one and an upgrade must not tighten a box that
+ * raised it.
+ */
+const DEFAULT_UPLOAD_PER_IP_PER_MINUTE = 300
+const DEFAULT_REACTION_PER_IP_PER_MINUTE = 600
+
+/**
  * From a parsed schema to `AppConfig`: the field-by-field mapping, the boot warnings, the
  * refusal that lists every problem at once, and the source link the AGPL offer points at.
  */
@@ -258,9 +267,15 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
 
     rateLimits: {
       uploadPerMinute: raw.UPLOAD_RATE_LIMIT_PER_MINUTE,
+      uploadPerIpPerMinute:
+        raw.UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE ??
+        Math.max(DEFAULT_UPLOAD_PER_IP_PER_MINUTE, raw.UPLOAD_RATE_LIMIT_PER_MINUTE),
       joinPerMinute: raw.JOIN_RATE_LIMIT_PER_MINUTE,
       loginPerMinute: raw.LOGIN_RATE_LIMIT_PER_MINUTE,
       reactionPerMinute: raw.REACTION_RATE_LIMIT_PER_MINUTE,
+      reactionPerIpPerMinute:
+        raw.REACTION_RATE_LIMIT_PER_IP_PER_MINUTE ??
+        Math.max(DEFAULT_REACTION_PER_IP_PER_MINUTE, raw.REACTION_RATE_LIMIT_PER_MINUTE),
       guestWritePerMinute: raw.GUEST_WRITE_RATE_LIMIT_PER_MINUTE,
       galleryPerMinute: raw.GALLERY_RATE_LIMIT_PER_MINUTE,
       galleryMediaPerMinute: raw.GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE,

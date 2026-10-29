@@ -144,10 +144,16 @@ export interface AppConfig {
   }
 
   readonly rateLimits: {
+    /** `UPLOAD_RATE_LIMIT_PER_MINUTE`: photos and clips together, per **guest** and event. */
     readonly uploadPerMinute: number
+    /** `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE`: the flood ceiling per client address and event. */
+    readonly uploadPerIpPerMinute: number
     readonly joinPerMinute: number
     readonly loginPerMinute: number
+    /** `REACTION_RATE_LIMIT_PER_MINUTE`: per **guest** and event. */
     readonly reactionPerMinute: number
+    /** `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE`: the flood ceiling per client address and event. */
+    readonly reactionPerIpPerMinute: number
     /** `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`: caption, delete, withdraw a reaction, rename, acknowledge the notice. Per client and event. */
     readonly guestWritePerMinute: number
     readonly galleryPerMinute: number

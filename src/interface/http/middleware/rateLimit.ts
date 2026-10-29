@@ -112,6 +112,14 @@ const limiter = (perMinute: number, code: string, keyBy?: (req: Request) => stri
  * The join endpoint is the one an attacker would enumerate, so it is limited hardest
  * relative to its legitimate use: a guest joins once.
  *
+ * Per address, 200 a minute by default, and each guest costs **two** hits (the lookup and the
+ * join), so a venue behind one address admits about a hundred guests a minute. What the number
+ * must still bound is guessing: at the default length a code is one of 32^6 = 1,073,741,824, so
+ * one address sweeping the whole space at 200 a minute needs 5.4 million minutes, about ten
+ * years, and finds one particular active code after five on average; ten characters is 32^10,
+ * about 1.1e15. A botnet spreads the rate over addresses, which the code's length and its
+ * rotation are for; there is deliberately no bucket per code.
+ *
  * `GET /join/:code` asks the same question, so `publicRoutes` mounts **one instance** of this on
  * both: two would be two budgets for testing codes.
  */
@@ -152,19 +160,57 @@ export const invitationLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited')
 
 /**
- * Uploads, keyed by IP **and** event.
+ * The **first stage** of the upload limit: a flood ceiling per IP **and** event, mounted ahead
+ * of `requireGuest` so that a flood is refused before it costs an HMAC verification and two
+ * repository reads.
  *
- * A whole table of guests at a wedding shares one access point and therefore one
- * public IP, so a per-IP-only limit would throttle the venue rather than an abuser.
- * Including the event keeps a burst on one event from affecting another on the same
- * box, and the byte quota is what actually bounds a determined guest.
+ * A whole table of guests at a wedding shares one access point and therefore one public IP, so
+ * this number must sit far above what a room sends (`UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE`,
+ * 300): it stops a script, not a venue. What one guest may send is the second stage,
+ * {@link uploadGuestLimiter}. Including the event keeps a burst on one event from affecting
+ * another on the same box, and the byte quota is what actually bounds a determined guest.
  */
 export const uploadLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited', (req) => `${clientKey(req)}:${eventKey(req)}`)
 
-/** Reactions are cheap but tappable at speed; the domain budget is the finer control. */
+/**
+ * The **first stage** of the reaction limit: a flood ceiling per IP **and** event, ahead of
+ * `requireGuest`, for the reason {@link uploadLimiter} gives
+ * (`REACTION_RATE_LIMIT_PER_IP_PER_MINUTE`). Reactions are cheap but tappable at speed; what one
+ * guest may tap is {@link reactionGuestLimiter} and then the domain budget.
+ */
 export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'reaction.rateLimited', (req) => `${clientKey(req)}:${eventKey(req)}`)
+
+/**
+ * The guest of this request, as a key: the event and the guest **`requireGuest` verified**, read
+ * from `req.context.guest` and never from the cookie, which where the first stage sits has not
+ * been checked and which a caller could change on every request to mint a fresh bucket.
+ *
+ * The fallback to the address and event is defensive only, reached if a limiter built on this
+ * were mounted ahead of `requireGuest` by mistake, and keeps it a limiter rather than a crash,
+ * as {@link accountKey} does.
+ */
+const guestKey = (req: Request): string => {
+  const principal = req.context.guest
+  return principal === undefined
+    ? `${clientKey(req)}:${eventKey(req)}`
+    : `guest:${principal.eventId}:${principal.guest.id}`
+}
+
+/**
+ * The **second stage** of the upload limit: photos and clips per **guest** and event
+ * (`UPLOAD_RATE_LIMIT_PER_MINUTE`, 12), mounted **right after `requireGuest`** and so ahead of
+ * the multipart parser: a refused request never has its body read. Keyed by the verified guest,
+ * so two guests behind one access point have a budget each, which the address-keyed first stage
+ * could never give them. Same code and `Retry-After` as that stage.
+ */
+export const uploadGuestLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', guestKey)
+
+/** The second stage of the reaction limit, per **guest** and event, after `requireGuest`. */
+export const reactionGuestLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'reaction.rateLimited', guestKey)
 
 /**
  * Every write a guest's device token can make that is not an upload or a reaction: a caption,
@@ -175,7 +221,9 @@ export const reactionLimiter = (perMinute: number): RateLimitRequestHandler =>
  * caller's intent, and a caption edit is announced to every screen holding the wall or a
  * moderation console open (`photo.captionChanged`), so a loop on one pending photo was a
  * stream of refetches for every watcher. Keyed by IP **and** event for the reason
- * {@link uploadLimiter} gives, and mounted ahead of `requireGuest` so a flood is dropped
+ * {@link uploadLimiter} gives, and **left per address on purpose**: these writes are rare and
+ * cheap, 300 a minute is five a second for a whole room, which a wedding does not approach, and
+ * a per-guest stage would add a variable with nothing to protect. Mounted ahead of `requireGuest` so a flood is dropped
  * before it costs an HMAC verification and two repository reads.
  *
  * **One bucket for all five routes, built once by the caller**: `express-rate-limit` mints a

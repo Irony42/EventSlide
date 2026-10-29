@@ -160,9 +160,11 @@ const cookieValue = (cookie: string): string =>
 const withJoinBudget = (joinPerMinute: number): Partial<HttpConfig> => ({
   rateLimits: {
     uploadPerMinute: 12,
+    uploadPerIpPerMinute: 300,
     joinPerMinute,
     loginPerMinute: 10,
     reactionPerMinute: 30,
+    reactionPerIpPerMinute: 600,
     guestWritePerMinute: 300,
     galleryPerMinute: 60,
     galleryMediaPerMinute: 600,
@@ -612,9 +614,11 @@ describe('POST /api/join', () => {
     const { subject } = world({
       rateLimits: {
         uploadPerMinute: 12,
+        uploadPerIpPerMinute: 300,
         joinPerMinute: 1,
         loginPerMinute: 10,
         reactionPerMinute: 30,
+        reactionPerIpPerMinute: 600,
         guestWritePerMinute: 300,
         galleryPerMinute: 60,
         galleryMediaPerMinute: 600,

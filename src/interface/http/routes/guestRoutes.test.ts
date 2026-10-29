@@ -651,14 +651,16 @@ describe('POST /api/events/:eventSlug/photos', () => {
     expect(response.body.error.code).toBe('event.notAcceptingUploads')
   })
 
-  it('answers 429 once the per-minute upload budget is spent', async () => {
+  it("answers 429 once this guest's per-minute upload budget is spent", async () => {
     const subject = buildSubject({
       config: {
         rateLimits: {
           uploadPerMinute: 1,
+          uploadPerIpPerMinute: 300,
           joinPerMinute: 20,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          reactionPerIpPerMinute: 600,
           guestWritePerMinute: 300,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
@@ -683,6 +685,77 @@ describe('POST /api/events/:eventSlug/photos', () => {
 
     expect(response.status).toBe(429)
     expect(response.body.error.code).toBe('rate.limited')
+  })
+})
+
+describe('POST /api/events/:slug/photos: the two rate stages (review S1)', () => {
+  const limits = (uploadPerMinute: number, uploadPerIpPerMinute: number) => ({
+    rateLimits: {
+      uploadPerMinute,
+      uploadPerIpPerMinute,
+      joinPerMinute: 20,
+      loginPerMinute: 10,
+      reactionPerMinute: 30,
+      reactionPerIpPerMinute: 600,
+      guestWritePerMinute: 300,
+      galleryPerMinute: 60,
+      galleryMediaPerMinute: 600,
+      galleryUnlockPerClient: 10,
+      galleryUnlockPerLink: 50,
+      eventCreationPerHour: 20,
+    },
+  })
+
+  const send = (subject: Subject, token: string, name: string) =>
+    request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(token))
+      .attach('photos', Buffer.from(name), `${name}.jpg`)
+
+  it('gives a second guest behind the same address a budget of their own', async () => {
+    const subject = buildSubject({ config: limits(1, 300) })
+    subject.upload.succeedsWith(stored(0, PENDING))
+    const other = subject.harness.issueGuestToken(WEDDING, OTHER_GUEST)
+
+    await send(subject, subject.token, 'one').expect(201)
+    expect((await send(subject, subject.token, 'two')).status).toBe(429)
+
+    expect((await send(subject, other, 'three')).status).toBe(201)
+  })
+
+  it('holds the per-address ceiling even when the guests behind it change', async () => {
+    const subject = buildSubject({ config: limits(12, 1) })
+    subject.upload.succeedsWith(stored(0, PENDING))
+    const other = subject.harness.issueGuestToken(WEDDING, OTHER_GUEST)
+
+    await send(subject, subject.token, 'one').expect(201)
+    const second = await send(subject, other, 'two')
+
+    expect(second.status).toBe(429)
+    expect(second.body.error.code).toBe('rate.limited')
+  })
+
+  it('refuses a guest over their budget before the body is read', async () => {
+    // The batch below is over the per-request byte bound, which multer answers 413 while it reads
+    // the body (see the test above). A 429 here is the proof that the guest's limiter ran first.
+    const subject = buildSubject({
+      config: {
+        ...limits(1, 300),
+        uploads: { maxBytes: 64, maxFiles: 20, maxConcurrentRequests: 1000 },
+      },
+      maxUploadBytesPerRequest: 100,
+    })
+    subject.upload.succeedsWith(stored(0, PENDING))
+    await send(subject, subject.token, 'one').expect(201)
+
+    const response = await request(subject.app)
+      .post(`${BASE}/photos`)
+      .set('Cookie', cookie(subject.token))
+      .attach('photos', Buffer.alloc(64, 0x41), 'first.jpg')
+      .attach('photos', Buffer.alloc(64, 0x42), 'second.jpg')
+
+    expect(response.status).toBe(429)
+    expect(response.headers['retry-after']).toBe('60')
   })
 })
 
@@ -1108,9 +1181,11 @@ describe('POST /api/events/:eventSlug/photos/:photoId/reactions', () => {
       config: {
         rateLimits: {
           uploadPerMinute: 12,
+          uploadPerIpPerMinute: 300,
           joinPerMinute: 20,
           loginPerMinute: 10,
           reactionPerMinute: 1,
+          reactionPerIpPerMinute: 600,
           galleryPerMinute: 60,
           galleryMediaPerMinute: 600,
           galleryUnlockPerClient: 10,

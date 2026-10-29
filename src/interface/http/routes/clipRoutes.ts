@@ -8,7 +8,11 @@ import { asClipJobId } from '../../../domain/shared/ids'
 import { requireGuest } from '../middleware/authz'
 import { withGuest } from '../middleware/scope'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
-import { uploadConcurrencyLimiter, uploadLimiter } from '../middleware/rateLimit'
+import {
+  uploadConcurrencyLimiter,
+  uploadGuestLimiter,
+  uploadLimiter,
+} from '../middleware/rateLimit'
 import { toClipJobDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { clipJobParams, clipUploadFields } from '../schemas/requestSchemas'
@@ -47,6 +51,8 @@ export interface ClipRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadRateLimiter?: RequestHandler
+  /** The second upload stage, per guest, shared with the photo route; see `guestRoutes`. */
+  readonly uploadGuestRateLimiter?: RequestHandler
   /**
    * The upload concurrency semaphore (G3-06 / P4-10), **shared with the photo route**
    * for the same reason `uploadRateLimiter` is: a guest sending a photo and a clip at
@@ -89,7 +95,8 @@ export const clipRoutes = ({
   usecases,
   uploadTempDir,
   maxClipBytes,
-  uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
+  uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerIpPerMinute),
+  uploadGuestRateLimiter = uploadGuestLimiter(deps.config.rateLimits.uploadPerMinute),
   uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter(
     deps.config.uploads.maxConcurrentRequests,
   ),
@@ -135,6 +142,7 @@ export const clipRoutes = ({
     concurrencyLimiter,
     diskSpaceGuard,
     requireGuest(deps),
+    uploadGuestRateLimiter,
     uploads.single(CLIP_FIELD),
     withGuest(async ({ event, guest }, req, res) => {
       const file = req.file
