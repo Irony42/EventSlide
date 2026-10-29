@@ -10,9 +10,11 @@ import { deferToHostSurface, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
 import {
   guestWriteLimiter,
+  reactionGuestLimiter,
   reactionLimiter,
   uploadBodyDeadline,
   uploadConcurrencyLimiter,
+  uploadGuestLimiter,
   uploadLimiter,
 } from '../middleware/rateLimit'
 import {
@@ -100,6 +102,11 @@ export interface GuestRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadRateLimiter?: RequestHandler
+  /**
+   * The second upload stage, per **guest** and event, mounted right after `requireGuest`. Built
+   * by the caller and shared with the clip route for the reason `uploadRateLimiter` gives.
+   */
+  readonly uploadGuestRateLimiter?: RequestHandler
   /**
    * The bucket for the guest's other writes (HTTP-H-01): a caption, taking a photo back,
    * withdrawing a reaction, renaming oneself - and, from `privacyNoticeRoutes`, acknowledging
@@ -253,7 +260,8 @@ export const guestRoutes = ({
   deps,
   usecases,
   maxUploadBytesPerRequest = MAX_UPLOAD_BYTES_PER_REQUEST,
-  uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
+  uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerIpPerMinute),
+  uploadGuestRateLimiter = uploadGuestLimiter(deps.config.rateLimits.uploadPerMinute),
   guestWriteRateLimiter = guestWriteLimiter(deps.config.rateLimits.guestWritePerMinute),
   uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter({
     max: deps.config.uploads.maxConcurrentRequests,
@@ -307,13 +315,14 @@ export const guestRoutes = ({
   /**
    * The upload. The only public write in the product.
    *
-   * The rate limiter runs before authorization on purpose: a flood must be dropped
-   * before it costs a token verification and two repository reads. The concurrency
-   * semaphore comes **after** `requireGuest` (review S2): it counts slots per event, and a
-   * request with no valid token must not be able to hold one. It and the body deadline and
-   * the disk-space guard (G3-06 / P4-10) still run ahead of the multipart parser: a box at
-   * its upload ceiling or nearly out of room refuses before a single byte of buffering,
-   * and a body that never finishes arriving gives its slot back.
+   * **Two rate stages.** The first, per address and event, runs before authorization on purpose:
+   * a flood must be dropped before it costs a token verification and two repository reads.
+   * The second, per guest, runs right after `requireGuest`: a guest over their budget is refused
+   * before taking an upload slot. The concurrency semaphore comes **after** both (review S2): it
+   * counts slots per event, and a request with no valid token must not be able to hold one. It,
+   * the body deadline and the disk-space guard (G3-06 / P4-10) still run ahead of the multipart
+   * parser: a box at its upload ceiling or nearly out of room refuses before a single byte of
+   * buffering, and a body that never finishes arriving gives its slot back.
    *
    * **201 with a per-file outcome array**, never one opaque error for the batch. A guest
    * who selected five photos and one screenshot of a PDF is told which one was refused
@@ -324,6 +333,7 @@ export const guestRoutes = ({
     '/events/:eventSlug/photos',
     uploadRateLimiter,
     requireGuest(deps),
+    uploadGuestRateLimiter,
     concurrencyLimiter,
     bodyDeadline,
     diskSpaceGuard,
@@ -538,14 +548,15 @@ export const guestRoutes = ({
   /**
    * A badge tapped while the photo is on the wall.
    *
-   * The limiter is the coarse control — a flood per IP and per event, dropped before it
-   * reaches a use case — and the domain's per-guest budget is the fine one. Both exist
-   * because each reaction fans out to every browser holding the wall open.
+   * Three controls, coarse to fine: a flood ceiling per IP and event, dropped before it costs a
+   * token check; the per-guest limiter right after `requireGuest`; and the domain's own budget.
+   * They exist because each reaction fans out to every browser holding the wall open.
    */
   router.post(
     '/events/:eventSlug/photos/:photoId/reactions',
-    reactionLimiter(deps.config.rateLimits.reactionPerMinute),
+    reactionLimiter(deps.config.rateLimits.reactionPerIpPerMinute),
     requireGuest(deps),
+    reactionGuestLimiter(deps.config.rateLimits.reactionPerMinute),
     withGuest(async ({ event, guest }, req, res) => {
       const params = photoParams.parse(req.params)
       const body = reactionBody.parse(req.body)

@@ -26,9 +26,38 @@
 
 .photo {
   display: flex;
+  /* Wrapping is for a guest whose text is at 200% on the narrowest phone: a thumbnail, a status
+     badge that will not shrink and a 44 px target no longer fit one line, and a row that cannot
+     wrap is a page wider than the screen. At any other size nothing wraps. */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  border-radius: var(--radius-md);
+}
+
+/**
+ * The photos the guest has just sent, flashed once when "Voir mes envois" brings them on
+ * screen. A ring in the accent that fades: the one thing that says "these ones", and it is a
+ * paint rather than a layout, so the list does not move. The delay lets the smooth scroll land
+ * before the flash starts, or it would be spent on rows still leaving the screen.
+ *
+ * Declared only for a guest who has not asked for less motion (the page does not set the
+ * attribute for one either): nothing is lost, the list is where the guest was taken.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .photo[data-highlight] {
+    animation: sent-flash var(--duration-slow) var(--ease-out) var(--duration-base) 2 backwards;
+  }
+}
+
+@keyframes sent-flash {
+  from {
+    box-shadow: 0 0 0 var(--space-1) var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 var(--space-1) transparent;
+  }
 }
 
 /* In every ambiance a sent photo is a print (ADR 0010): a cream border, a little tilt, a shadow. */
@@ -91,11 +120,21 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  flex: 1;
+  flex: 1 1 var(--tile-min-width);
   min-width: 0;
 }
 
 .caption {
   font-size: var(--text-sm);
   color: var(--text-secondary);
+}
+
+/**
+ * A status badge is one line by design, and "En attente de validation" at 200% text on the
+ * narrowest phone is wider than the room beside a thumbnail: it let the whole page grow past the
+ * screen. Here, where the room is the row's, it may wrap.
+ */
+.detail > span {
+  white-space: normal;
+  max-inline-size: 100%;
 }

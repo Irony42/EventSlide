@@ -11,6 +11,7 @@ import {
   eventCreationLimiter,
   guestWriteLimiter,
   uploadConcurrencyLimiter,
+  uploadGuestLimiter,
   uploadLimiter,
 } from './middleware/rateLimit'
 import { permissionsPolicy, securityHeaders } from './middleware/securityHeaders'
@@ -258,7 +259,9 @@ export const buildServer = ({
    * photographs still had the whole of it again for clips. A guest sending both is one
    * guest, and the limit is meant to be what the variable says it is.
    */
-  const uploadRateLimiter = uploadLimiter(config.rateLimits.uploadPerMinute)
+  const uploadRateLimiter = uploadLimiter(config.rateLimits.uploadPerIpPerMinute)
+  // The second stage, per guest, shared by both routes for the same reason.
+  const uploadGuestRateLimiter = uploadGuestLimiter(config.rateLimits.uploadPerMinute)
 
   /**
    * **One bucket for the guest's other writes (HTTP-H-01), same reason, same arrangement.**
@@ -287,6 +290,7 @@ export const buildServer = ({
     guestRoutes({
       ...routeDeps,
       uploadRateLimiter,
+      uploadGuestRateLimiter,
       guestWriteRateLimiter,
       uploadConcurrencyLimiter: sharedUploadConcurrencyLimiter,
     }),
@@ -302,6 +306,7 @@ export const buildServer = ({
       uploadTempDir: config.clips.uploadTempDir,
       maxClipBytes: config.clips.maxBytes,
       uploadRateLimiter,
+      uploadGuestRateLimiter,
       uploadConcurrencyLimiter: sharedUploadConcurrencyLimiter,
     }),
   )

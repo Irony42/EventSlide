@@ -364,32 +364,30 @@ why each change was made and what there was no warning for.
    `MIN_FREE_DISK_BYTES` to `RETENTION_CAP_NOTICE_DAYS`), which it stops. [`.env.example`](../.env.example) says
    what each is for.
 
-   | Setting                                                                                 | Default                                                    | Accepts                                                                                                 |
-   | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-   | `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL` | none                                                       | an `https` URL without credentials, or a path that starts with one `/`                                  |
-   | `LEGAL_TERMS_VERSION`                                                                   | none                                                       | at most 32 letters, digits, `.`, `_` or `-`, starting with a letter or a digit; needs `LEGAL_TERMS_URL` |
-   | `SOURCE_CODE_URL`, `DONATION_URL`, `BUDGET_URL`                                         | none                                                       | an `https` URL without credentials                                                                      |
-   | `SOURCE_REF`                                                                            | none                                                       | a git tag, branch or commit (the image's build argument, for an unmodified upstream tag)                |
-   | `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`                                               | none                                                       | a name of at most 100 characters; one address, which needs the name                                     |
-   | `SMTP_URL`, `MAIL_FROM`                                                                 | none                                                       | the forms `.env.example` shows; `SMTP_URL` needs `MAIL_FROM`                                            |
-   | `EVENT_CREATION`                                                                        | `anyAccount`                                               | `anyAccount` or `clientMembers` (which needs `SITE_ADMIN=on`)                                           |
-   | `OPERATOR_RESET_LINKS`                                                                  | `mailOnly`                                                 | `mailOnly` or `copyLinkWithOwnerApproval` (which needs `SITE_ADMIN=on`); case matters                   |
-   | `AUDIT_RETENTION_DAYS`                                                                  | `1095`                                                     | a whole number of days, 365 to 3650                                                                     |
-   | `MFA_ENCRYPTION_KEY`                                                                    | none                                                       | the form `.env.example` shows; never equal to `SESSION_SECRET` or `GUEST_TOKEN_SECRET`                  |
-   | `REQUIRE_OPERATOR_2FA`                                                                  | `false`                                                    | `true`, `false`, `1` or `0`; `true` needs a valid `MFA_ENCRYPTION_KEY` and `SITE_ADMIN=on`              |
-   | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000`                                               | a positive whole number                                                                                 |
-   | `MAX_CONCURRENT_UPLOAD_REQUESTS`                                                        | `4`                                                        | a whole number, 1 to 1000                                                                               |
-   | `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT`                                              | one less than `MAX_CONCURRENT_UPLOAD_REQUESTS`, at least 1 | a whole number, 1 to 1000, not above `MAX_CONCURRENT_UPLOAD_REQUESTS`                                   |
-   | `UPLOAD_BODY_TIMEOUT_SECONDS`                                                           | `600`                                                      | a whole number, 1 to 86400                                                                              |
-   | `MAX_QUEUED_CLIPS_PER_EVENT`                                                            | `20`                                                       | a whole number, 1 to 500                                                                                |
-   | `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`                                                     | `300`                                                      | a whole number, 1 to 6000                                                                               |
-   | `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`              | 12, 500, 200                                               | whole numbers, up to 10000, 100000 and 10000                                                            |
-   | `RETENTION_CAP_NOTICE_DAYS`                                                             | `30`                                                       | a whole number, 1 to 365                                                                                |
-   | `SQLITE_SHUTDOWN_CHECKPOINT`                                                            | `truncate`                                                 | `truncate`, `passive` or `none`                                                                         |
-   | `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`                             | none                                                       | a positive whole number; needs `SITE_ADMIN=on`                                                          |
-   | `NEW_CLIENT_MAX_TOTAL_BYTES`, `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`                        | none                                                       | a positive whole number; needs `SITE_ADMIN=on`; the second is at most `MAX_EVENT_QUOTA_BYTES`           |
-   | `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`                             | none                                                       | a whole number, 1 to 3650 and 1 to 365; needs `SITE_ADMIN=on`                                           |
-   | `NEW_CLIENT_CLIPS_ALLOWED`                                                              | none                                                       | `true`, `false`, `1` or `0`; needs `SITE_ADMIN=on`                                                      |
+   | Setting                                                                                 | Default      | Accepts                                                                                                 |
+   | --------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+   | `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL` | none         | an `https` URL without credentials, or a path that starts with one `/`                                  |
+   | `LEGAL_TERMS_VERSION`                                                                   | none         | at most 32 letters, digits, `.`, `_` or `-`, starting with a letter or a digit; needs `LEGAL_TERMS_URL` |
+   | `SOURCE_CODE_URL`, `DONATION_URL`, `BUDGET_URL`                                         | none         | an `https` URL without credentials                                                                      |
+   | `SOURCE_REF`                                                                            | none         | a git tag, branch or commit (the image's build argument, for an unmodified upstream tag)                |
+   | `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`                                               | none         | a name of at most 100 characters; one address, which needs the name                                     |
+   | `SMTP_URL`, `MAIL_FROM`                                                                 | none         | the forms `.env.example` shows; `SMTP_URL` needs `MAIL_FROM`                                            |
+   | `EVENT_CREATION`                                                                        | `anyAccount` | `anyAccount` or `clientMembers` (which needs `SITE_ADMIN=on`)                                           |
+   | `OPERATOR_RESET_LINKS`                                                                  | `mailOnly`   | `mailOnly` or `copyLinkWithOwnerApproval` (which needs `SITE_ADMIN=on`); case matters                   |
+   | `AUDIT_RETENTION_DAYS`                                                                  | `1095`       | a whole number of days, 365 to 3650                                                                     |
+   | `MFA_ENCRYPTION_KEY`                                                                    | none         | the form `.env.example` shows; never equal to `SESSION_SECRET` or `GUEST_TOKEN_SECRET`                  |
+   | `REQUIRE_OPERATOR_2FA`                                                                  | `false`      | `true`, `false`, `1` or `0`; `true` needs a valid `MFA_ENCRYPTION_KEY` and `SITE_ADMIN=on`              |
+   | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000` | a positive whole number                                                                                 |
+   | `MAX_CONCURRENT_UPLOAD_REQUESTS`                                                        | `4`          | a whole number, 1 to 1000                                                                               |
+   | `MAX_QUEUED_CLIPS_PER_EVENT`                                                            | `20`         | a whole number, 1 to 500                                                                                |
+   | `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`                                                     | `300`        | a whole number, 1 to 6000                                                                               |
+   | `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`              | 12, 500, 200 | whole numbers, up to 10000, 100000 and 10000                                                            |
+   | `RETENTION_CAP_NOTICE_DAYS`                                                             | `30`         | a whole number, 1 to 365                                                                                |
+   | `SQLITE_SHUTDOWN_CHECKPOINT`                                                            | `truncate`   | `truncate`, `passive` or `none`                                                                         |
+   | `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`                             | none         | a positive whole number; needs `SITE_ADMIN=on`                                                          |
+   | `NEW_CLIENT_MAX_TOTAL_BYTES`, `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`                        | none         | a positive whole number; needs `SITE_ADMIN=on`; the second is at most `MAX_EVENT_QUOTA_BYTES`           |
+   | `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`                             | none         | a whole number, 1 to 3650 and 1 to 365; needs `SITE_ADMIN=on`                                           |
+   | `NEW_CLIENT_CLIPS_ALLOWED`                                                              | none         | `true`, `false`, `1` or `0`; needs `SITE_ADMIN=on`                                                      |
 
    Three more things stop the boot. A whole number above 9007199254740991 (2^53 - 1) is refused
    for every setting that takes one, where it used to be rounded: `MAX_EVENT_QUOTA_BYTES=99999999999999999999`,
@@ -411,9 +409,7 @@ why each change was made and what there was no warning for.
      `403 request.csrfMismatch`.
    - An upload can now get `413 storage.boxFull` (less than `MIN_FREE_DISK_BYTES` free, or
      the free space cannot be read) or `429 upload.busy` (more than
-     `MAX_CONCURRENT_UPLOAD_REQUESTS` in flight, or one event holds all but one of them: with the
-     default of 4, an event gets 3). A body that is not fully received within
-     `UPLOAD_BODY_TIMEOUT_SECONDS` (10 minutes) gets `408 upload.timedOut`: send it again. A video clip can get `429 clip.queueFull`
+     `MAX_CONCURRENT_UPLOAD_REQUESTS` in flight). A video clip can get `429 clip.queueFull`
      once its event has `MAX_QUEUED_CLIPS_PER_EVENT` clips queued, which is 20 whatever
      `MAX_QUEUED_CLIPS` says.
    - Signing in is throttled per account: after five failures from one network the next
@@ -499,3 +495,41 @@ how every screen looks, and you will want to see that before an event rather tha
 **How to tell it worked.** The first boot logs no migration, and `GET /api/health` answers
 `"version": "3.1.0"` and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.2
+
+Not released yet. This section is written ahead of the tag so that the change below is announced
+with the code that makes it.
+
+**Who is affected.** Anyone who set `UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_MINUTE` or
+`JOIN_RATE_LIMIT_PER_MINUTE`, and everyone who hosts a room behind one Wi-Fi network.
+
+1. **`UPLOAD_RATE_LIMIT_PER_MINUTE` (12) and `REACTION_RATE_LIMIT_PER_MINUTE` (30) now count per
+   guest and event, not per client address and event.** Through 3.1 a whole venue behind one public
+   address shared twelve sends and thirty reactions a minute. The default figures are unchanged; what
+   they bound is one guest.
+2. **Two new settings bound the address instead**, as a flood ceiling checked before the guest is
+   identified: `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` (default 300) and
+   `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE` (default 600), each a whole number from 1 to 6000. Left unset,
+   each is raised to the per-guest figure if you set that higher, so a box that raised the old
+   per-address figure is never tightened by the upgrade.
+3. **`JOIN_RATE_LIMIT_PER_MINUTE` defaults to 200** (it was 20). Each guest costs two requests (the lookup
+   and the join). At 200 a minute one address still needs about ten years to try every code of the
+   default length. A value you set yourself is kept.
+
+No rate limit became tighter, and nothing has to be changed in `.env`.
+An override of `JOIN_RATE_LIMIT_PER_MINUTE=20` that you copied from `.env.example` is worth removing before
+an event with more than ten guests arriving together. 4. **Upload slots are counted per event, after the guest is identified.** `MAX_CONCURRENT_UPLOAD_REQUESTS`
+(default 4) still bounds the whole box, because every upload in flight holds memory. A request
+with no valid guest token no longer takes a slot, and one event can hold all but one of them: the
+new `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` defaults to one less than the box-wide figure (3 of
+4), at least 1, and the boot refuses a value above `MAX_CONCURRENT_UPLOAD_REQUESTS`. An event that
+asks for a fourth slot while its three are busy gets the same `429 upload.busy` as before. 5. **A body that does not finish arriving gives its slot back.** The new `UPLOAD_BODY_TIMEOUT_SECONDS`
+(default 600, a whole number from 1 to 86400) ends a photo or clip upload whose body is not fully
+received in time with `408 upload.timedOut` and closes the connection; the guest sends it again. If
+a reverse proxy sits in front, give it a body read timeout above this figure, so that the app
+answers first.
+
+Items 4 and 5 are the only ones that can refuse a request 3.1 accepted: an event alone on a box now
+gets three upload slots instead of four, and an upload still arriving after ten minutes is refused.
+Neither needs a change in `.env`; raise either setting if your events need more.

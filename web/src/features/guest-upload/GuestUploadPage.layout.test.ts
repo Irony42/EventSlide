@@ -3,6 +3,7 @@ import PAGE_CSS from './GuestUploadPage.module.css?raw'
 import OPTIONS_CSS from './components/ComposerOptions.module.css?raw'
 import CLIP_CSS from './components/ClipComposer.module.css?raw'
 import PICKER_CSS from './components/PhotoPicker.module.css?raw'
+import MINE_CSS from './components/MyPhotos.module.css?raw'
 import QUEUE_CSS from './components/UploadQueue.module.css?raw'
 import FIELD_CSS from '../../design-system/components/Field.module.css?raw'
 import TOKENS_CSS from '../../design-system/tokens.css?raw'
@@ -85,5 +86,32 @@ describe('a guest on the narrowest phone, or with large text', () => {
     expect(declarationsOf(PAGE_CSS, '.composer')).toMatch(/gap:\s*var\(--space-3\)/)
     expect(declarationsOf(PAGE_CSS, '.composer')).toMatch(/padding:\s*var\(--space-3\)/)
     expect(declarationsOf(PICKER_CSS, '.action')).toMatch(/padding-block:\s*var\(--space-4\)/)
+  })
+
+  it('lets the summary line wrap, with its sentence on one line and its buttons on the next', () => {
+    expect(declarationsOf(QUEUE_CSS, '.head')).toMatch(/flex-wrap:\s*wrap/)
+    expect(declarationsOf(QUEUE_CSS, '.actions')).toMatch(/flex-wrap:\s*wrap/)
+    expect(declarationsOf(QUEUE_CSS, '.actions > button')).toMatch(/white-space:\s*normal/)
+    expect(declarationsOf(QUEUE_CSS, '.actions > button')).toMatch(/overflow-wrap:\s*anywhere/)
+  })
+
+  it('really hides the rows when the batch has arrived: the list is a flex box, which beats [hidden]', () => {
+    expect(declarationsOf(QUEUE_CSS, '.list')).toMatch(/display:\s*flex/)
+    expect(declarationsOf(QUEUE_CSS, '.list[hidden]')).toMatch(/display:\s*none/)
+  })
+
+  it('flashes the new photos only for someone who has not asked for less motion, from tokens', () => {
+    const css = withoutComments(MINE_CSS)
+    const flash = /@media \(prefers-reduced-motion: no-preference\)\s*\{([\s\S]*?\n\})/.exec(css)
+
+    expect(flash?.[1]).toMatch(/\.photo\[data-highlight\]\s*\{[^}]*animation:[^;}]*sent-flash/)
+    // The flash is a paint (a ring), never a size or a position: the list must not move under a thumb.
+    const frames = /@keyframes sent-flash\s*\{([\s\S]*?\n\})/.exec(css)?.[1] ?? ''
+    expect(frames).toMatch(/box-shadow:\s*0 0 0 var\(--space-1\) var\(--accent\)/)
+    expect(frames).not.toMatch(/(?:width|height|margin|padding|top|left|inset)\s*:/)
+    // Nothing outside the media query starts it.
+    expect(css.replace(flash?.[0] ?? '', '')).not.toMatch(/animation:[^;}]*sent-flash/)
+    // And no raw colour or length: tokens only.
+    expect(frames).not.toMatch(/#[0-9a-f]{3,8}|\b\d+(?:px|rem|ms)\b/i)
   })
 })

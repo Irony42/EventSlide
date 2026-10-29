@@ -507,18 +507,6 @@ describe('every setting the configuration declares that 2.1.0 did not (docs/UPGR
   )
   const added = declared.filter((name) => !SETTINGS_OF_2_1_0.has(name))
 
-  /**
-   * Settings merged after the tag `v3.1.0` and not yet in a CHANGELOG entry: the entry is written
-   * by the pull request that prepares the next release, which has to name each of these (the
-   * check below then applies to it) and empty this list. A feature pull request cannot head the
-   * file with an entry of its own: `releaseVersion.test.ts` wants the first entry to be the
-   * version in `package.json`.
-   */
-  const AWAITING_RELEASE_ENTRY = new Set([
-    'MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT',
-    'UPLOAD_BODY_TIMEOUT_SECONDS',
-  ])
-
   /** What the entries newer than 3.0.0 say: a setting a later release adds is announced there. */
   // From the first entry's heading, not from the top of the file: the introduction names no setting
   // as announced, and a name mentioned there would exempt a setting nobody announced.
@@ -527,6 +515,10 @@ describe('every setting the configuration declares that 2.1.0 did not (docs/UPGR
     changelog.search(/^## \[/m),
     changelog.search(/^## \[3\.0\.0\]/m),
   )
+  // The release that is not tagged has no CHANGELOG entry yet (the first heading must be the current
+  // version, `releaseVersion.test.ts`), so its settings are announced in its own section of the page.
+  const unreleasedStart = page.indexOf('\n## Upgrading to 3.2\n')
+  const unreleasedSection = unreleasedStart === -1 ? '' : page.slice(unreleasedStart)
 
   /** `name` as a whole word: `NEW_CLIENT_MAX_EVENTS` is not found inside `..._PER_PERIOD`. */
   const names = (text: string, name: string): boolean =>
@@ -545,8 +537,7 @@ describe('every setting the configuration declares that 2.1.0 did not (docs/UPGR
   it.each(added)(
     '%s is named in the 3.0.0 entry and in "Upgrading to 3.0", or by a later one',
     (name) => {
-      if (names(laterEntries, name)) return
-      if (AWAITING_RELEASE_ENTRY.has(name)) return
+      if (names(laterEntries, name) || names(unreleasedSection, name)) return
 
       expect(names(entry, name), `${name} in the 3.0.0 entry`).toBe(true)
       expect(names(section, name), `${name} in the "Upgrading to 3.0" section`).toBe(true)

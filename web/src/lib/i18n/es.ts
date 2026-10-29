@@ -73,7 +73,6 @@ export const es: UiText = {
     statusHidden: 'Retirada de la pantalla',
     deleteOwn: 'Eliminar',
     deleteOwnConfirm: '¿Eliminar esta foto? Esta acción es definitiva.',
-    thanks: 'Gracias, sus fotos han llegado correctamente.',
 
     itemPreparing: 'Preparando…',
     queueLabel: 'Fotos por enviar',
@@ -87,6 +86,32 @@ export const es: UiText = {
         one: 'Un envío ha fallado.',
         other: `${t.number(count)} envíos han fallado.`,
       }),
+    /**
+     * What the pane says once every photo of the batch has arrived, in one line: how many, and
+     * how many of them the event already held. The rows behind it keep each photo's own word.
+     * Counted by `t.count`, so the agreement is the language's own, zero included.
+     */
+    queueDone: (arrived: number, already: number) => {
+      if (already > 0 && already === arrived) {
+        return t.count(arrived, {
+          one: 'Esta foto ya estaba enviada',
+          other: `Estas ${t.number(arrived)} fotos ya estaban enviadas`,
+        })
+      }
+      const sent = t.count(arrived, {
+        one: `${t.number(arrived)} foto enviada`,
+        other: `${t.number(arrived)} fotos enviadas`,
+      })
+      if (already === 0) return sent
+      const there = t.count(already, {
+        one: `${t.number(already)} ya estaba`,
+        other: `${t.number(already)} ya estaban`,
+      })
+      return `${sent} (${there})`
+    },
+    queueViewMine: 'Ver mis envíos',
+    queueDetails: 'Detalles',
+    queueDismiss: 'Ocultar el resumen',
     itemAlt: (position: number) => `Foto ${t.number(position)} por enviar`,
     itemProgress: (position: number) => `Enviando la foto ${t.number(position)}`,
     removeItem: (position: number) => `Quitar la foto ${t.number(position)}`,

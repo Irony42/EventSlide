@@ -11,6 +11,7 @@ import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
 import {
   uploadBodyDeadline,
   uploadConcurrencyLimiter,
+  uploadGuestLimiter,
   uploadLimiter,
 } from '../middleware/rateLimit'
 import { toClipJobDto } from '../presenters/presenters'
@@ -51,6 +52,8 @@ export interface ClipRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadRateLimiter?: RequestHandler
+  /** The second upload stage, per guest, shared with the photo route; see `guestRoutes`. */
+  readonly uploadGuestRateLimiter?: RequestHandler
   /**
    * The upload concurrency semaphore (G3-06 / P4-10), **shared with the photo route**
    * for the same reason `uploadRateLimiter` is: a guest sending a photo and a clip at
@@ -95,7 +98,8 @@ export const clipRoutes = ({
   usecases,
   uploadTempDir,
   maxClipBytes,
-  uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
+  uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerIpPerMinute),
+  uploadGuestRateLimiter = uploadGuestLimiter(deps.config.rateLimits.uploadPerMinute),
   uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter({
     max: deps.config.uploads.maxConcurrentRequests,
     perEvent: deps.config.uploads.maxConcurrentRequestsPerEvent,
@@ -142,6 +146,7 @@ export const clipRoutes = ({
     '/events/:eventSlug/clips',
     uploadRateLimiter,
     requireGuest(deps),
+    uploadGuestRateLimiter,
     concurrencyLimiter,
     bodyDeadline,
     diskSpaceGuard,

@@ -233,7 +233,8 @@ describe('GuestUploadPage', () => {
       expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done')
       expect(screen.getByTestId('upload-item-1')).toHaveAttribute('data-state', 'done')
     })
-    expect(screen.getByText(fr.upload.thanks)).toBeVisible()
+    // The two rows have folded into the one line that says so.
+    expect(screen.getByText(fr.upload.queueDone(2, 0))).toBeVisible()
   })
 
   it('does not offer a home-screen icon before the guest has sent anything', async () => {
@@ -332,6 +333,11 @@ describe('GuestUploadPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'duplicate'),
     )
+    // The batch is finished and all of it is in the event, so the rows are folded into one line;
+    // "Déjà envoyée" stays one press of "Détails" away.
+    expect(screen.getByText(fr.upload.queueDone(1, 1))).toBeVisible()
+    expect(screen.queryByText(fr.upload.itemDuplicate)).not.toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.queueDetails }))
     expect(screen.getByText(fr.upload.itemDuplicate)).toBeVisible()
   })
 

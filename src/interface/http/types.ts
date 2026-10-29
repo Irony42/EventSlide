@@ -202,10 +202,16 @@ export interface HttpConfig {
     readonly uploadTempDir: string
   }
   readonly rateLimits: {
+    /** Photos and clips together, per **guest** and event, after `requireGuest`. */
     readonly uploadPerMinute: number
+    /** The flood ceiling per client address and event, ahead of `requireGuest`. */
+    readonly uploadPerIpPerMinute: number
     readonly joinPerMinute: number
     readonly loginPerMinute: number
+    /** Per **guest** and event, after `requireGuest`. */
     readonly reactionPerMinute: number
+    /** The flood ceiling per client address and event, ahead of `requireGuest`. */
+    readonly reactionPerIpPerMinute: number
     /** Every other guest-token write, per client **and** event, one bucket (HTTP-H-01). */
     readonly guestWritePerMinute: number
     /** The shared gallery's pages, per client (roadmap §4.1). */

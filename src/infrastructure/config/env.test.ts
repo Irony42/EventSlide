@@ -155,9 +155,11 @@ describe('loadConfig', () => {
         schedule: { sweepIntervalMs: 300_000 },
         rateLimits: {
           uploadPerMinute: 12,
-          joinPerMinute: 20,
+          uploadPerIpPerMinute: 300,
+          joinPerMinute: 200,
           loginPerMinute: 10,
           reactionPerMinute: 30,
+          reactionPerIpPerMinute: 600,
           guestWritePerMinute: 300,
           galleryPerMinute: 120,
           galleryMediaPerMinute: 3000,
@@ -334,6 +336,34 @@ describe('loadConfig', () => {
     })
   })
 
+  describe('the per-address flood ceilings (review S1)', () => {
+    it('default to 300 uploads and 600 reactions a minute, and the join budget to 200', () => {
+      const { rateLimits } = loadConfig({ ...DEV })
+
+      expect(rateLimits.uploadPerIpPerMinute).toBe(300)
+      expect(rateLimits.reactionPerIpPerMinute).toBe(600)
+      expect(rateLimits.joinPerMinute).toBe(200)
+    })
+
+    it('never sit below a per-guest figure an operator raised, so an upgrade does not tighten the box', () => {
+      // Through 3.1 UPLOAD_RATE_LIMIT_PER_MINUTE was the per-address figure: a box at 600 had 600.
+      const { rateLimits } = loadConfig({
+        ...DEV,
+        UPLOAD_RATE_LIMIT_PER_MINUTE: '600',
+        REACTION_RATE_LIMIT_PER_MINUTE: '600',
+      })
+
+      expect(rateLimits.uploadPerIpPerMinute).toBe(600)
+      expect(rateLimits.reactionPerIpPerMinute).toBe(600)
+    })
+
+    it('read a blank value as absent', () => {
+      const { rateLimits } = loadConfig({ ...DEV, UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE: '' })
+
+      expect(rateLimits.uploadPerIpPerMinute).toBe(300)
+    })
+  })
+
   describe('each variable reaches its own field', () => {
     it('never crosses two numeric limits, which sharing a default would hide', () => {
       // Every value here is distinct, so a field reading the wrong variable fails —
@@ -352,6 +382,8 @@ describe('loadConfig', () => {
         UPLOAD_BODY_TIMEOUT_SECONDS: '123',
         MIN_FREE_DISK_BYTES: '4444',
         UPLOAD_RATE_LIMIT_PER_MINUTE: '101',
+        UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE: '111',
+        REACTION_RATE_LIMIT_PER_IP_PER_MINUTE: '113',
         JOIN_RATE_LIMIT_PER_MINUTE: '102',
         LOGIN_RATE_LIMIT_PER_MINUTE: '103',
         REACTION_RATE_LIMIT_PER_MINUTE: '104',
@@ -396,9 +428,11 @@ describe('loadConfig', () => {
         },
         rateLimits: {
           uploadPerMinute: 101,
+          uploadPerIpPerMinute: 111,
           joinPerMinute: 102,
           loginPerMinute: 103,
           reactionPerMinute: 104,
+          reactionPerIpPerMinute: 113,
           guestWritePerMinute: 110,
           galleryPerMinute: 105,
           galleryMediaPerMinute: 106,
@@ -788,6 +822,8 @@ describe('loadConfig', () => {
       ['GUEST_SELF_DELETE_GRACE_SECONDS', '86401'],
       ['BCRYPT_COST', '16'],
       ['UPLOAD_RATE_LIMIT_PER_MINUTE', '601'],
+      ['UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE', '6001'],
+      ['REACTION_RATE_LIMIT_PER_IP_PER_MINUTE', '6001'],
       ['JOIN_RATE_LIMIT_PER_MINUTE', '601'],
       ['LOGIN_RATE_LIMIT_PER_MINUTE', '601'],
       ['REACTION_RATE_LIMIT_PER_MINUTE', '601'],

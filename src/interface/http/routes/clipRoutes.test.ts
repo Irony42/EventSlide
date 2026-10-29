@@ -371,6 +371,43 @@ describe('POST /api/events/:eventSlug/clips', () => {
     expect(subject.clips.all).toEqual([])
   })
 
+  it('refuses a guest over their upload budget before the clip body is read (review S1)', async () => {
+    // Both clips are over the clip limit, which multer answers 413 as it reads the body. The first
+    // spends the guest's one hit that way; a 429 on the second proves the guest limiter ran ahead of
+    // the parser, so an over-budget guest streams nothing to disk.
+    const subject = buildSubject({
+      maxClipBytes: 1_000,
+      config: {
+        rateLimits: {
+          uploadPerMinute: 1,
+          uploadPerIpPerMinute: 300,
+          joinPerMinute: 20,
+          loginPerMinute: 10,
+          reactionPerMinute: 30,
+          reactionPerIpPerMinute: 600,
+          guestWritePerMinute: 300,
+          galleryPerMinute: 60,
+          galleryMediaPerMinute: 600,
+          galleryUnlockPerClient: 10,
+          galleryUnlockPerLink: 50,
+          eventCreationPerHour: 20,
+        },
+      },
+    })
+    const send = () =>
+      request(subject.app)
+        .post(`${BASE}/clips`)
+        .set('Cookie', cookie(subject.token))
+        .attach('clip', aClipBody('one', 50_000), 'IMG_4021.MOV')
+
+    expect((await send()).status).toBe(413)
+
+    const second = await send()
+
+    expect(second.status).toBe(429)
+    expect(second.headers['retry-after']).toBe('60')
+  })
+
   it('refuses a second file in one request', async () => {
     const subject = buildSubject()
 

@@ -344,10 +344,41 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * nothing; it is removed in 4.0.0 (CHANGELOG, `### Deprecated`).
        */
       GUEST_SELF_DELETE_GRACE_SECONDS: positiveInt(900, 86_400),
+      /**
+       * Uploads (photos and clips together) per **guest** and event, since 3.2. Through 3.1 this
+       * was per client address and event, which gave a whole venue behind one access point twelve
+       * sends a minute. The address is now bounded by the much larger
+       * `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` below.
+       */
       UPLOAD_RATE_LIMIT_PER_MINUTE: positiveInt(12, 600),
-      JOIN_RATE_LIMIT_PER_MINUTE: positiveInt(20, 600),
+      /**
+       * The flood ceiling on uploads per client address **and** event, ahead of any token check.
+       * Absent, 300 or `UPLOAD_RATE_LIMIT_PER_MINUTE` if that is larger (`load.ts`), so a box that
+       * raised the old per-address figure to survive a wedding is never tightened by an upgrade.
+       */
+      UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE: z.preprocess(
+        blankAsAbsent,
+        z.coerce.number().int().positive().max(6000).optional(),
+      ),
+      /**
+       * Join lookups and joins, one bucket per client address. 200 a minute: a venue behind one
+       * address sends two requests per guest (`GET /join/:code`, `POST /join`) and 150 guests
+       * arrive within minutes. Guessing a six-character code at this rate takes about ten years to
+       * sweep the whole space (32^6 = 1.07e9 codes), see `JoinCode`.
+       */
+      JOIN_RATE_LIMIT_PER_MINUTE: positiveInt(200, 600),
       LOGIN_RATE_LIMIT_PER_MINUTE: positiveInt(10, 600),
+      /** Reactions per **guest** and event, since 3.2 (per client address and event before). */
       REACTION_RATE_LIMIT_PER_MINUTE: positiveInt(30, 600),
+      /**
+       * The flood ceiling on reactions per client address and event. Absent, 600 or
+       * `REACTION_RATE_LIMIT_PER_MINUTE` if that is larger, for the reason given on
+       * `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE`.
+       */
+      REACTION_RATE_LIMIT_PER_IP_PER_MINUTE: z.preprocess(
+        blankAsAbsent,
+        z.coerce.number().int().positive().max(6000).optional(),
+      ),
       /**
        * Every other write a guest token can make: a caption, taking a photo back, withdrawing a
        * reaction, acknowledging the privacy notice, renaming oneself (HTTP-H-01). Per client address **and** event, one
