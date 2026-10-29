@@ -799,3 +799,157 @@ describe('useUploadQueue', () => {
     })
   })
 })
+
+/**
+ * What the pane folds its rows into one line on: whether the batch is finished and all of it
+ * arrived, and the counts. The rule is `summarizeBatch` (tested alone in `queueBatch.test.ts`);
+ * these are the same rule as the queue's own states drive it, including the retry that turns a
+ * failure into an arrival.
+ */
+describe('useUploadQueue: the batch summary', () => {
+  /** An upload that answers each photo from a list, in order, and repeats the last answer. */
+  const answering = (...answers: readonly (UploadResponse | Error)[]): Api => {
+    let call = 0
+    return fakeApi({
+      uploadPhotos: vi.fn(async () => {
+        const answer = answers[Math.min(call, answers.length - 1)]
+        call += 1
+        if (answer instanceof Error) throw answer
+        if (answer === undefined) throw new Error('no answer given')
+        return answer
+      }),
+    })
+  }
+
+  const sendAll = async (result: { current: ReturnType<typeof useUploadQueue> }, count: number) => {
+    act(() => result.current.add(Array.from({ length: count }, (_u, i) => aPhotoFile(`p${i}.jpg`))))
+    act(() => result.current.send(null, null))
+    await waitFor(() => expect(result.current.sending).toBe(false))
+  }
+
+  it('is not finished before anything is picked, nor while photos are only waiting to be sent', () => {
+    const { result } = mount(fakeApi())
+    expect(result.current.batch.settledOk).toBe(false)
+
+    act(() => result.current.add([aPhotoFile('un.jpg')]))
+
+    expect(result.current.batch.settledOk).toBe(false)
+  })
+
+  it('is not finished while a photo is still being sent, and is once the last one has arrived', async () => {
+    const hold = deferred()
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async (_slug: string, input: UploadInput) => {
+        if (input.files[0]?.name === 'p1.jpg') await hold.promise
+        return accepted(`photo-${input.files[0]?.name}`)
+      }),
+    })
+    const { result } = mount(api)
+
+    act(() => result.current.add([aPhotoFile('p0.jpg'), aPhotoFile('p1.jpg')]))
+    act(() => result.current.send(null, null))
+    await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
+
+    // One has arrived and one is on its way: nothing folds yet.
+    expect(result.current.batch.settledOk).toBe(false)
+
+    hold.release()
+    await waitFor(() => expect(result.current.batch.settledOk).toBe(true))
+    expect(result.current.batch.arrived).toBe(2)
+  })
+
+  it('counts the photos the event already held apart from the new ones', async () => {
+    const { result } = mount(answering(accepted('a'), duplicated('b'), duplicated('c')))
+
+    await sendAll(result, 3)
+
+    expect(result.current.batch).toMatchObject({
+      settledOk: true,
+      arrived: 3,
+      alreadyThere: 2,
+      photoIds: ['a', 'b', 'c'],
+    })
+  })
+
+  it('never calls a batch with a failure finished, and keeps the failed row to be retried', async () => {
+    const { result } = mount(answering(accepted('a'), ApiError.network()))
+
+    await sendAll(result, 2)
+
+    expect(result.current.items.map((item) => item.state)).toEqual(['done', 'failed'])
+    expect(result.current.batch.settledOk).toBe(false)
+    expect(result.current.batch.arrived).toBe(1)
+  })
+
+  it('is finished once the failed photo has been retried and has arrived', async () => {
+    const { result } = mount(answering(accepted('a'), ApiError.network(), accepted('b')))
+    await sendAll(result, 2)
+    expect(result.current.batch.settledOk).toBe(false)
+
+    act(() => result.current.retry(result.current.items[1]?.id ?? ''))
+    await waitFor(() => expect(result.current.batch.settledOk).toBe(true))
+
+    expect(result.current.batch).toMatchObject({ arrived: 2, alreadyThere: 0 })
+  })
+
+  it('is finished when the only failed photo is taken back, for what is left has arrived', async () => {
+    const { result } = mount(answering(accepted('a'), ApiError.network()))
+    await sendAll(result, 2)
+
+    act(() => result.current.remove(result.current.items[1]?.id ?? ''))
+
+    expect(result.current.batch).toMatchObject({ settledOk: true, arrived: 1 })
+  })
+
+  it('is not finished while a photo waits in the outbox, and is when the drain has delivered it', async () => {
+    const outbox: UploadOutbox = {
+      ready: true,
+      enqueue: vi.fn(async () => 'entry-1'),
+      discard: vi.fn(async () => undefined),
+    }
+    const { result } = mount(answering(ApiError.network()), { outbox })
+    await sendAll(result, 1)
+    expect(result.current.items[0]?.state).toBe('queued')
+    expect(result.current.batch.settledOk).toBe(false)
+
+    act(() =>
+      result.current.settle({ sent: ['entry-1'], discarded: [], remaining: 0, retryAfterMs: null }),
+    )
+
+    // Arrived, but the drain does not say which photo the server made of it.
+    expect(result.current.batch).toMatchObject({ settledOk: true, arrived: 1, photoIds: [] })
+  })
+
+  it('drops the arrived rows when asked, and never one still owed something', async () => {
+    const { result } = mount(answering(accepted('a'), ApiError.network()))
+    await sendAll(result, 2)
+
+    act(() => result.current.clearSettled())
+
+    expect(result.current.items.map((item) => item.file.name)).toEqual(['p1.jpg'])
+    expect(result.current.batch.arrived).toBe(0)
+  })
+
+  it('releases the previews of the rows it drops', async () => {
+    const revoke = vi.spyOn(URL, 'revokeObjectURL')
+    const { result } = mount(answering(accepted('a')))
+    await sendAll(result, 1)
+    const preview = result.current.items[0]?.previewUrl
+    revoke.mockClear()
+
+    act(() => result.current.clearSettled())
+
+    expect(revoke).toHaveBeenCalledWith(preview)
+  })
+
+  it('starts a fresh batch when new photos are picked: the last one is gone and it is not finished', async () => {
+    const { result } = mount(answering(accepted('a')))
+    await sendAll(result, 1)
+    expect(result.current.batch.settledOk).toBe(true)
+
+    act(() => result.current.add([aPhotoFile('suite.jpg')]))
+
+    expect(result.current.items.map((item) => item.file.name)).toEqual(['suite.jpg'])
+    expect(result.current.batch).toMatchObject({ settledOk: false, arrived: 0, photoIds: [] })
+  })
+})

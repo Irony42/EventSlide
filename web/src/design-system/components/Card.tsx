@@ -1,4 +1,4 @@
-import type { ElementType, HTMLAttributes, ReactNode } from 'react'
+import type { ElementType, HTMLAttributes, ReactNode, RefObject } from 'react'
 import { cx } from '../classNames'
 import styles from './Card.module.css'
 
@@ -14,6 +14,15 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
    * dashboard's sit under an `h2`.
    */
   readonly as?: CardHeadingLevel
+  /**
+   * Makes the title something a script can send focus to, and hands it the element.
+   *
+   * For a card a control elsewhere on the page points at ("see my uploads"): a screen reader
+   * guest is then taken to the heading and reads on from there, instead of being left on a
+   * button that has scrolled away. The heading is `tabIndex={-1}`: focusable by a script, never
+   * a stop of its own in the tab order.
+   */
+  readonly titleRef?: RefObject<HTMLHeadingElement | null> | undefined
   readonly children?: ReactNode
 }
 
@@ -29,6 +38,7 @@ export function Card({
   subtitle,
   footer,
   as: Heading = 'h2',
+  titleRef,
   className,
   children,
   ...rest
@@ -43,7 +53,13 @@ export function Card({
     <Wrapper {...rest} className={classes}>
       {title === undefined ? null : (
         <div className={styles['header']}>
-          <Heading className={styles['title']}>{title}</Heading>
+          <Heading
+            ref={titleRef}
+            tabIndex={titleRef === undefined ? undefined : -1}
+            className={styles['title']}
+          >
+            {title}
+          </Heading>
           {subtitle === undefined ? null : <p className={styles['subtitle']}>{subtitle}</p>}
         </div>
       )}

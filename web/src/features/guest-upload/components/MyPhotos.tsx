@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
@@ -50,9 +50,26 @@ export interface MyPhotosProps {
   readonly error: string | null
   readonly onRetry: () => void
   readonly onDelete: (photoId: string) => Promise<void>
+  /** The title, so "see my uploads" can send focus to it. See `Card`. */
+  readonly headingRef?: RefObject<HTMLHeadingElement | null> | undefined
+  /**
+   * The photos to draw the eye to, by the server's id: the batch the guest has just sent. They
+   * are flashed once and `onHighlightEnd` says the flash is over. Empty for no highlight.
+   */
+  readonly highlighted?: readonly string[]
+  readonly onHighlightEnd?: () => void
 }
 
-export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotosProps) {
+export function MyPhotos({
+  photos,
+  loading,
+  error,
+  onRetry,
+  onDelete,
+  headingRef,
+  highlighted = [],
+  onHighlightEnd,
+}: MyPhotosProps) {
   const t = useTranslations()
   const labels = labelsFor(t)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
@@ -70,7 +87,7 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
   }
 
   return (
-    <Card as="h2" title={t.upload.mine} className={styles['mine']}>
+    <Card as="h2" title={t.upload.mine} titleRef={headingRef} className={styles['mine']}>
       {error === null ? null : (
         <div className={styles['failure']}>
           <Notice tone="danger" role="alert" variant="boxed">
@@ -93,11 +110,17 @@ export function MyPhotos({ photos, loading, error, onRetry, onDelete }: MyPhotos
       ) : null}
 
       {photos.length === 0 ? null : (
-        <ul className={styles['list']}>
+        <ul
+          className={styles['list']} // Only the flash's own end: `animationend` bubbles from any animation inside a row.
+          onAnimationEnd={(event) => {
+            if (event.animationName.includes('sent-flash')) onHighlightEnd?.()
+          }}
+        >
           {photos.map((photo, index) => (
             <li
               key={photo.id}
               className={cx(styles['photo'], photo.kind === 'clip' && styles['clipRow'])}
+              data-highlight={highlighted.includes(photo.id) ? '' : undefined}
             >
               {photo.kind === 'clip' && photo.videoUrl !== null ? (
                 /*
