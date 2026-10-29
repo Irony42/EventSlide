@@ -20,6 +20,55 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.2.0] - 2026-10-29
+
+Everything merged to `main` after the tag `v3.1.0`: pull requests #261, #263, #265, #266, #264 and
+#267. This is a minor release: it adds three settings and changes what the guest limits count, and it
+breaks nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to
+keep. There is no migration and nothing has to change in `.env`, but read "Behaviour changes to check
+before upgrading" and [Upgrading to 3.2](docs/UPGRADING.md#upgrading-to-32) if you set any upload,
+reaction or join limit.
+
+### Guest
+
+- **The composer is compact** (#261): the caption and the video option fold under two labelled
+  buttons instead of taking the screen before the first photo, the settings stay one tap away and
+  say what they hold, and a 320 px phone no longer scrolls sideways. A long word in a button or a
+  label breaks instead of overflowing.
+- **A sent batch folds into one summary line** (#263): once every photo of a batch has arrived, the
+  queue shrinks to a line that says how many were sent and opens the list on a tap, so the guest sees
+  the new photos appear above it. Failures and photos still sending keep their own rows.
+- **The pinned upload pane stands out from the list** (#266): a lit top edge, a shadow cast upward
+  and the list fading under it, in light and dark ambiances, so it reads as above the page rather
+  than mixed with it.
+
+### Behaviour changes to check before upgrading
+
+- **Upload and reaction limits count per guest, not per address** (#265, review S1).
+  `UPLOAD_RATE_LIMIT_PER_MINUTE` (12) and `REACTION_RATE_LIMIT_PER_MINUTE` (30) keep their figures but
+  now bound one guest of one event; through 3.1 a whole venue behind one Wi-Fi address shared them.
+  Two new settings bound the address as a flood ceiling checked before the guest is identified:
+  `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` (default 300) and `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE`
+  (default 600). Left unset, each is raised to the per-guest figure if that is set higher.
+- **`JOIN_RATE_LIMIT_PER_MINUTE` defaults to 200** (it was 20) (#265), so a room of guests arriving
+  together from one address is not refused. A value you set yourself is kept.
+- **Upload slots are taken per event, after the guest is identified** (#264, review S2). A request
+  without a valid guest token no longer takes one of the `MAX_CONCURRENT_UPLOAD_REQUESTS` slots, and
+  one event can hold all but one of them: the new `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` defaults
+  to one less than the box-wide figure (3 of 4), and the boot refuses a value above it. An event alone
+  on a box now gets three slots instead of four.
+- **An upload body that does not arrive in time is ended** (#264). The new
+  `UPLOAD_BODY_TIMEOUT_SECONDS` (default 600) answers `408 upload.timedOut` and closes the connection,
+  so a slow or stalled guest gives its slot back; the guest's phone sends it again. Behind a reverse
+  proxy, give the proxy a body read timeout above this figure.
+- **No migration runs, and the schema is the one of 3.0.0.**
+
+### Documentation, tests and dependencies
+
+- CI runs on `push` for `main` only, so a pull request's commit runs the suite once (#267).
+- The accent-label contrast sweep has a 30 s bound, and the 360x640 empty upload pane is held to the
+  share CI's Linux fonts measure (#261, #264).
+
 ## [3.1.0] - 2026-10-29
 
 Everything merged to `main` after the tag `v3.0.0`: pull requests #244, #245, #246, #247, #248,

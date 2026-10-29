@@ -498,38 +498,52 @@ how every screen looks, and you will want to see that before an event rather tha
 
 ## Upgrading to 3.2
 
-Not released yet. This section is written ahead of the tag so that the change below is announced
-with the code that makes it.
+3.2.0 is a minor release: it adds and breaks nothing the policy above promises to keep, so there
+is no `BREAKING` section and nothing has to change in `.env`. This section is here because it changes
+what the guest upload and reaction limits count, and adds three settings.
 
-**Who is affected.** Anyone who set `UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_MINUTE` or
-`JOIN_RATE_LIMIT_PER_MINUTE`, and everyone who hosts a room behind one Wi-Fi network.
+**Who is affected.** Anyone who set `UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER_MINUTE`,
+`JOIN_RATE_LIMIT_PER_MINUTE` or `MAX_CONCURRENT_UPLOAD_REQUESTS`, and everyone who hosts a room behind
+one Wi-Fi network.
 
-1. **`UPLOAD_RATE_LIMIT_PER_MINUTE` (12) and `REACTION_RATE_LIMIT_PER_MINUTE` (30) now count per
+1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)). 3.2.0
+   adds no migration: your database keeps the schema of 3.0.0.
+2. **Take the steps of [Upgrading with Docker](#upgrading-with-docker)**, or
+   [without](#without-docker), with `vX.Y.Z` as `v3.2.0`. The image is
+   `ghcr.io/irony42/eventslide:3.2.0`.
+3. **`UPLOAD_RATE_LIMIT_PER_MINUTE` (12) and `REACTION_RATE_LIMIT_PER_MINUTE` (30) now count per
    guest and event, not per client address and event.** Through 3.1 a whole venue behind one public
    address shared twelve sends and thirty reactions a minute. The default figures are unchanged; what
    they bound is one guest.
-2. **Two new settings bound the address instead**, as a flood ceiling checked before the guest is
+4. **Two new settings bound the address instead**, as a flood ceiling checked before the guest is
    identified: `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` (default 300) and
    `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE` (default 600), each a whole number from 1 to 6000. Left unset,
    each is raised to the per-guest figure if you set that higher, so a box that raised the old
    per-address figure is never tightened by the upgrade.
-3. **`JOIN_RATE_LIMIT_PER_MINUTE` defaults to 200** (it was 20). Each guest costs two requests (the lookup
+5. **`JOIN_RATE_LIMIT_PER_MINUTE` defaults to 200** (it was 20). Each guest costs two requests (the lookup
    and the join). At 200 a minute one address still needs about ten years to try every code of the
-   default length. A value you set yourself is kept.
+   default length. A value you set yourself is kept: an override of `JOIN_RATE_LIMIT_PER_MINUTE=20`
+   copied from `.env.example` is worth removing before an event with more than ten guests arriving
+   together.
+6. **Upload slots are counted per event, after the guest is identified.** `MAX_CONCURRENT_UPLOAD_REQUESTS`
+   (default 4) still bounds the whole box, because every upload in flight holds memory. A request
+   with no valid guest token no longer takes a slot, and one event can hold all but one of them: the
+   new `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` defaults to one less than the box-wide figure (3 of
+   4), at least 1, and the boot refuses a value above `MAX_CONCURRENT_UPLOAD_REQUESTS`. An event that
+   asks for a fourth slot while its three are busy gets the same `429 upload.busy` as before.
+7. **A body that does not finish arriving gives its slot back.** The new `UPLOAD_BODY_TIMEOUT_SECONDS`
+   (default 600, a whole number from 1 to 86400) ends a photo or clip upload whose body is not fully
+   received in time with `408 upload.timedOut` and closes the connection; the guest sends it again. If
+   a reverse proxy sits in front, give it a body read timeout above this figure, so that the app
+   answers first.
 
-No rate limit became tighter, and nothing has to be changed in `.env`.
-An override of `JOIN_RATE_LIMIT_PER_MINUTE=20` that you copied from `.env.example` is worth removing before
-an event with more than ten guests arriving together. 4. **Upload slots are counted per event, after the guest is identified.** `MAX_CONCURRENT_UPLOAD_REQUESTS`
-(default 4) still bounds the whole box, because every upload in flight holds memory. A request
-with no valid guest token no longer takes a slot, and one event can hold all but one of them: the
-new `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` defaults to one less than the box-wide figure (3 of
-4), at least 1, and the boot refuses a value above `MAX_CONCURRENT_UPLOAD_REQUESTS`. An event that
-asks for a fourth slot while its three are busy gets the same `429 upload.busy` as before. 5. **A body that does not finish arriving gives its slot back.** The new `UPLOAD_BODY_TIMEOUT_SECONDS`
-(default 600, a whole number from 1 to 86400) ends a photo or clip upload whose body is not fully
-received in time with `408 upload.timedOut` and closes the connection; the guest sends it again. If
-a reverse proxy sits in front, give it a body read timeout above this figure, so that the app
-answers first.
+No rate limit became tighter. Items 6 and 7 are the only ones that can refuse a request 3.1 accepted:
+an event alone on a box now gets three upload slots instead of four, and an upload still arriving
+after ten minutes is refused. Neither needs a change in `.env`; raise either setting if your events
+need more.
 
-Items 4 and 5 are the only ones that can refuse a request 3.1 accepted: an event alone on a box now
-gets three upload slots instead of four, and an upload still arriving after ten minutes is refused.
-Neither needs a change in `.env`; raise either setting if your events need more.
+**How to tell it worked.** The first boot logs no migration, and `GET /api/health` answers
+`"version": "3.2.0"` and `GET /api/ready` answers 200. If the boot exits with code 78, the log names
+the setting to fix (a `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` above `MAX_CONCURRENT_UPLOAD_REQUESTS`,
+for instance). If anything else looks wrong, go back as [described above](#going-back): restore the
+archive you took before the upgrade.
