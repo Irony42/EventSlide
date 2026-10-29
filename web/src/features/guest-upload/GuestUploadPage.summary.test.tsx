@@ -240,4 +240,27 @@ describe('GuestUploadPage: after a batch has arrived', () => {
     expect(screen.getByTestId('upload-item-1')).toHaveAttribute('data-state', 'done')
     expect(screen.getByTestId('upload-item-1')).not.toBeVisible()
   })
+
+  it('offers no way to the list once the server has stopped serving it, for there is nothing to go to', async () => {
+    // The batch arrives; the read that follows it is the one that finds the gallery gone.
+    let sent = false
+    const api = fakeApi({
+      uploadPhotos: vi.fn(async () => {
+        sent = true
+        return { results: [{ index: 0, status: 'accepted', photoId: 'sent-1' }] } as const
+      }),
+      myPhotos: vi.fn(async () => {
+        if (sent) throw new ApiError(404, 'event.notFound')
+        return { items: [] }
+      }),
+    })
+    render(api)
+
+    await sendPhotos(1)
+
+    expect(await screen.findByText(fr.upload.galleryUnavailable)).toBeVisible()
+    expect(screen.getByText(fr.upload.queueDone(1, 0))).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.upload.queueViewMine })).toBeNull()
+    expect(screen.getByRole('button', { name: fr.upload.queueDetails })).toBeVisible()
+  })
 })
