@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import http from 'node:http'
+import net from 'node:net'
 import type { AddressInfo } from 'node:net'
 import express, {
   type Express,
@@ -920,6 +921,36 @@ describe('uploadBodyDeadline', () => {
     // The single slot is free again: a complete upload is admitted, not refused 429.
     const next = await post(path, 'y'.repeat(10), 0, 'z'.repeat(90))
     expect(next.status).toBe(201)
+  })
+
+  it('closes the connection of a keep-alive client after the 408, so nothing keeps buffering behind a freed slot', async () => {
+    const path = uploadRoute(100)
+
+    // A raw socket that, like a browser or the proxy, asks for no `Connection: close`.
+    const outcome = await new Promise<{ head: string; closedByServer: boolean }>((resolve) => {
+      const socket = net.connect(port, '127.0.0.1')
+      let head = ''
+      socket.setEncoding('utf8')
+      socket.on('connect', () =>
+        socket.write(
+          [`POST ${path} HTTP/1.1`, 'Host: x', 'Content-Length: 100', '', 'x'.repeat(10)].join(
+            '\r\n',
+          ),
+        ),
+      )
+      socket.on('data', (chunk: string) => {
+        head += chunk
+      })
+      socket.on('close', () => resolve({ head, closedByServer: true }))
+      setTimeout(() => {
+        socket.destroy()
+        resolve({ head, closedByServer: false })
+      }, 2_000).unref()
+    })
+
+    expect(outcome.head).toContain('HTTP/1.1 408')
+    expect(outcome.head.toLowerCase()).toContain('connection: close')
+    expect(outcome.closedByServer).toBe(true)
   })
 
   it('lets a slow body that arrives inside the deadline through', async () => {
