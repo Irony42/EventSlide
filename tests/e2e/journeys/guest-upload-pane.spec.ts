@@ -647,7 +647,7 @@ test('375x667: a pinned pane is raised above the list under it, and is not once 
     target.evaluate((element) => getComputedStyle(element).boxShadow)
   // The card is the nearest ancestor of its own heading that draws a border.
   const cardShadow = await heading.evaluate((element) => {
-    let node: HTMLElement | null = element
+    let node: Element | null = element
     while (node !== null && getComputedStyle(node).borderTopWidth === '0px') {
       node = node.parentElement
     }
