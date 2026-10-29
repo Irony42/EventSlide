@@ -831,7 +831,6 @@ describe('uploadBodyDeadline', () => {
   let app: Express
   let port: number
   let routeCount = 0
-  const sockets: Array<{ destroyed: boolean }> = []
 
   beforeAll(async () => {
     app = express()
@@ -860,7 +859,6 @@ describe('uploadBodyDeadline', () => {
       uploadConcurrencyLimiter({ max: 1, perEvent: 1 }),
       uploadBodyDeadline(timeoutMs),
       (req, res) => {
-        sockets.push(req.socket)
         req.on('data', () => undefined)
         req.on('end', () => {
           setTimeout(() => res.status(201).json({ ok: true }), afterBodyMs)
@@ -873,6 +871,7 @@ describe('uploadBodyDeadline', () => {
   interface Answer {
     readonly status: number
     readonly body: string
+    readonly connection: string | undefined
   }
 
   /** Sends `first`, then `rest` after `pauseMs` (never, when `rest` is undefined: the body just hangs). */
@@ -893,7 +892,13 @@ describe('uploadBodyDeadline', () => {
           incoming.on('data', (chunk: string) => {
             body += chunk
           })
-          incoming.on('end', () => resolve({ status: incoming.statusCode ?? 0, body }))
+          incoming.on('end', () =>
+            resolve({
+              status: incoming.statusCode ?? 0,
+              body,
+              connection: incoming.headers.connection,
+            }),
+          )
         },
       )
       outgoing.on('error', reject)
@@ -909,8 +914,8 @@ describe('uploadBodyDeadline', () => {
 
     expect(slow.status).toBe(408)
     expect(JSON.parse(slow.body).error.code).toBe('upload.timedOut')
-    // The connection is cut once the answer is out, so nothing keeps buffering behind it.
-    await expect.poll(() => sockets[sockets.length - 1]?.destroyed).toBe(true)
+    // Told to the client, so a proxy or phone does not try to reuse a connection mid-body.
+    expect(slow.connection).toBe('close')
 
     // The single slot is free again: a complete upload is admitted, not refused 429.
     const next = await post(path, 'y'.repeat(10), 0, 'z'.repeat(90))

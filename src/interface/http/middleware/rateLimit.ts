@@ -598,11 +598,12 @@ export const uploadConcurrencyLimiter = ({
  *
  * Mounted right after {@link uploadConcurrencyLimiter}, so the clock starts when a slot
  * is taken and covers the body, which is what the slot is held for. If the body has not
- * been fully received when it runs out: `408 upload.timedOut`, `Connection: close`, and the
- * socket is destroyed once the answer is flushed. The destroy is what stops multer from
- * still buffering into memory the slot was just given back for; the slot itself goes with
- * the response's `close`, like every other way out. A body that arrives in time clears the
- * timer at `end`, so the work after it (the decode, the transcode queue) is never cut off.
+ * been fully received when it runs out: `408 upload.timedOut`. Node answers it with
+ * `Connection: close` by itself, because the request body is unread, so the socket goes once
+ * the answer is flushed and nothing keeps buffering behind it (asserted by a test); the slot
+ * goes with the response's `close`, like every other way out. A body that arrived in time is
+ * left alone (`req.complete`), so the work after it (the decode, the transcode queue) is
+ * never cut off.
  *
  * The same ten minutes is also what Caddy's `read_body` has to be (infra), or the proxy
  * would cut a slow phone off before this does.
@@ -612,17 +613,11 @@ export const uploadBodyDeadline =
   (req, res, next) => {
     const timer = setTimeout(() => {
       if (req.complete || res.headersSent) return
-      res.setHeader('Connection', 'close')
-      res.once('finish', () => {
-        req.socket.destroy()
-      })
       sendError(res, DomainError.timedOut('upload.timedOut'))
     }, timeoutMs)
     // A pending deadline must never be what keeps the process alive at shutdown.
     timer.unref()
 
-    const clear = (): void => clearTimeout(timer)
-    req.once('end', clear)
-    res.once('close', clear)
+    res.once('close', () => clearTimeout(timer))
     next()
   }
