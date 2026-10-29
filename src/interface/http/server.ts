@@ -277,9 +277,10 @@ export const buildServer = ({
    * counters under one configuration name — exactly the defect `uploadRateLimiter`
    * above already exists to avoid, for the same two routes.
    */
-  const sharedUploadConcurrencyLimiter = uploadConcurrencyLimiter(
-    config.uploads.maxConcurrentRequests,
-  )
+  const sharedUploadConcurrencyLimiter = uploadConcurrencyLimiter({
+    max: config.uploads.maxConcurrentRequests,
+    perEvent: config.uploads.maxConcurrentRequestsPerEvent,
+  })
 
   app.use(
     '/api',

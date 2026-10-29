@@ -8,7 +8,11 @@ import { asClipJobId } from '../../../domain/shared/ids'
 import { requireGuest } from '../middleware/authz'
 import { withGuest } from '../middleware/scope'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
-import { uploadConcurrencyLimiter, uploadLimiter } from '../middleware/rateLimit'
+import {
+  uploadBodyDeadline,
+  uploadConcurrencyLimiter,
+  uploadLimiter,
+} from '../middleware/rateLimit'
 import { toClipJobDto } from '../presenters/presenters'
 import { sendError, sendJson, sendResult } from '../presenters/send'
 import { clipJobParams, clipUploadFields } from '../schemas/requestSchemas'
@@ -56,6 +60,8 @@ export interface ClipRouteDeps {
    * Optional only so a test can mount this router alone; production passes it.
    */
   readonly uploadConcurrencyLimiter?: RequestHandler
+  /** The deadline for the body to arrive (review S2). Built from `deps` when absent. */
+  readonly bodyDeadline?: RequestHandler
   /**
    * The free-disk-space guard (G3-06 / P4-10). Built from `deps` when absent — see
    * `guestRoutes.ts` for why that default costs nothing shared with the photo route.
@@ -90,9 +96,11 @@ export const clipRoutes = ({
   uploadTempDir,
   maxClipBytes,
   uploadRateLimiter = uploadLimiter(deps.config.rateLimits.uploadPerMinute),
-  uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter(
-    deps.config.uploads.maxConcurrentRequests,
-  ),
+  uploadConcurrencyLimiter: concurrencyLimiter = uploadConcurrencyLimiter({
+    max: deps.config.uploads.maxConcurrentRequests,
+    perEvent: deps.config.uploads.maxConcurrentRequestsPerEvent,
+  }),
+  bodyDeadline = uploadBodyDeadline(deps.config.uploads.bodyTimeoutMs),
   diskSpaceGuard = createDiskSpaceGuard({
     checker: deps.diskSpaceChecker,
     paths: deps.config.storage.diskSpacePaths,
@@ -125,16 +133,18 @@ export const clipRoutes = ({
    * a flood must be dropped before it costs a token verification and two repository
    * reads. It is the *same instance* the photo route uses, handed to both by `server.ts` —
    * a guest sending clips and photos at once is one guest, and two buckets would have
-   * been twice the documented allowance. The upload concurrency semaphore and the
-   * free-disk-space guard (G3-06 / P4-10) run next, cheapest-first and ahead of
-   * `requireGuest` and the multipart parser, for the same reason.
+   * been twice the documented allowance. The upload concurrency semaphore runs after
+   * `requireGuest` (review S2: it counts slots per event, so it needs a valid token),
+   * then the body deadline and the free-disk-space guard (G3-06 / P4-10), all still ahead
+   * of the multipart parser.
    */
   router.post(
     '/events/:eventSlug/clips',
     uploadRateLimiter,
-    concurrencyLimiter,
-    diskSpaceGuard,
     requireGuest(deps),
+    concurrencyLimiter,
+    bodyDeadline,
+    diskSpaceGuard,
     uploads.single(CLIP_FIELD),
     withGuest(async ({ event, guest }, req, res) => {
       const file = req.file

@@ -71,6 +71,10 @@ export interface AppConfig {
     readonly maxEventQuotaBytes: number | null
     /** See {@link RawConfig} field `MAX_CONCURRENT_UPLOAD_REQUESTS`. */
     readonly maxConcurrentRequests: number
+    /** How many of those one event may hold; resolved from `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT`. */
+    readonly maxConcurrentRequestsPerEvent: number
+    /** The deadline for a whole upload body to arrive, from `UPLOAD_BODY_TIMEOUT_SECONDS`. */
+    readonly bodyTimeoutMs: number
   }
 
   readonly clips: {

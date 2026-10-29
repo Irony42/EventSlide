@@ -501,27 +501,57 @@ const UPLOAD_BUSY_RETRY_AFTER_SECONDS = 2
 
 /**
  * How many upload requests — photos and clips together — may be buffering at once,
- * **process-wide** (G3-06 / P4-10).
+ * **process-wide**, and how many of those one **event** may hold (G3-06 / P4-10; review S2).
  *
  * `MAX_UPLOAD_BYTES_PER_REQUEST` in `guestRoutes.ts` bounds what **one** request may
  * hold at 150 MB; nothing before this bounded how many of those could be in flight
  * together, and the product of the two is the real ceiling on heap a deployment's memory
  * limit has to cover. Four in flight at the default is 600 MB of buffers, which is a
  * number an operator can reason about; twelve — the rate limiter's own per-minute
- * allowance — would have been 1.8 GB.
+ * allowance — would have been 1.8 GB. That global bound is memory, so it stays one number
+ * for the whole process.
+ *
+ * **Mounted after `requireGuest`** (review S2). It used to sit before it, so a request with
+ * no token at all, or a free token from `/join`, could hold a slot for as long as it cared to
+ * keep a socket open. A slot is now taken by a request that has proven a guest of a real
+ * event, and is counted against that event: `perEvent` is how many one event may hold, so
+ * one event's slow phones (or one guest sending a body a byte at a time) leave the other
+ * events at least `max - perEvent` slots. The check is still before multer reads a byte.
+ * Both ceilings answer the same `429 upload.busy`: to the guest it is the same condition.
  *
  * One bucket, shared by both upload routes, for the same reason `uploadLimiter` is one
  * bucket: a guest sending a photo and a clip is one guest, and two independent ceilings
  * would silently double the real one. Counted rather than rate-limited for the same
  * reason {@link streamConnectionLimiter} is — what this bounds is concurrent memory
  * held, not a count per minute — and a slot is released when the response closes,
- * whichever way the request ended: accepted, refused downstream, or failed.
+ * whichever way the request ended: accepted, refused downstream, failed, or cut off by
+ * {@link uploadBodyDeadline}.
  */
-export const uploadConcurrencyLimiter = (max: number): RequestHandler => {
-  let inFlight = 0
+export interface UploadConcurrencyLimits {
+  /** The process-wide ceiling: what bounds memory. */
+  readonly max: number
+  /** The most one event may hold. Never above `max` (the configuration refuses that). */
+  readonly perEvent: number
+}
 
-  return (_req, res, next) => {
-    if (inFlight >= max) {
+export const uploadConcurrencyLimiter = ({
+  max,
+  perEvent,
+}: UploadConcurrencyLimits): RequestHandler => {
+  let inFlight = 0
+  const heldByEvent = new Map<string, number>()
+
+  return (req, res, next) => {
+    const eventId = req.context.event?.id
+    if (eventId === undefined) {
+      // Not reachable behind `requireGuest`, which sets it; failing closed is what keeps a
+      // route mounted in the wrong order from taking a slot for nobody.
+      sendError(res, DomainError.unauthenticated('auth.required'))
+      return
+    }
+
+    const held = heldByEvent.get(eventId) ?? 0
+    if (inFlight >= max || held >= perEvent) {
       sendError(
         res,
         DomainError.rateLimited('upload.busy', {
@@ -532,6 +562,7 @@ export const uploadConcurrencyLimiter = (max: number): RequestHandler => {
     }
 
     inFlight += 1
+    heldByEvent.set(eventId, held + 1)
     let released = false
     const release = (): void => {
       // `close` is the only event wired below, and today's Express/Node fires it once
@@ -545,9 +576,53 @@ export const uploadConcurrencyLimiter = (max: number): RequestHandler => {
       if (released) return
       released = true
       inFlight -= 1
+      // Dropped rather than left at zero: one key per event currently uploading.
+      const current = heldByEvent.get(eventId) ?? 0
+      if (current <= 1) heldByEvent.delete(eventId)
+      else heldByEvent.set(eventId, current - 1)
     }
 
     res.on('close', release)
     next()
   }
 }
+
+/**
+ * The deadline for a whole upload body to arrive (review S2).
+ *
+ * `server.requestTimeout` is `0` (`main/index.ts`: the SSE streams and the ZIP export
+ * legitimately outlive any request timeout), so nothing else ends a request whose body
+ * trickles in. With the slot counter that is a denial of service: a handful of
+ * connections sending a byte a minute hold every slot, for as long as they like. This
+ * is the same bound, scoped to the two routes that read a body of that size.
+ *
+ * Mounted right after {@link uploadConcurrencyLimiter}, so the clock starts when a slot
+ * is taken and covers the body, which is what the slot is held for. If the body has not
+ * been fully received when it runs out: `408 upload.timedOut`, `Connection: close`, and the
+ * socket is destroyed once the answer is flushed. The destroy is what stops multer from
+ * still buffering into memory the slot was just given back for; the slot itself goes with
+ * the response's `close`, like every other way out. A body that arrives in time clears the
+ * timer at `end`, so the work after it (the decode, the transcode queue) is never cut off.
+ *
+ * The same ten minutes is also what Caddy's `read_body` has to be (infra), or the proxy
+ * would cut a slow phone off before this does.
+ */
+export const uploadBodyDeadline =
+  (timeoutMs: number): RequestHandler =>
+  (req, res, next) => {
+    const timer = setTimeout(() => {
+      if (req.complete || res.headersSent) return
+      res.setHeader('Connection', 'close')
+      res.once('finish', () => {
+        req.socket.destroy()
+      })
+      sendError(res, DomainError.timedOut('upload.timedOut'))
+    }, timeoutMs)
+    // A pending deadline must never be what keeps the process alive at shutdown.
+    timer.unref()
+
+    const clear = (): void => clearTimeout(timer)
+    req.once('end', clear)
+    res.once('close', clear)
+    next()
+  }

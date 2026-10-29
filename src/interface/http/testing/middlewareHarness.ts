@@ -68,7 +68,13 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
   // concurrency semaphore (G3-06 / P4-10) overrides this; one that is not must not
   // have to think about it.
   storage: { minFreeDiskBytes: 1_000_000, diskSpacePaths: ['/data', '/media'] },
-  uploads: { maxBytes: 25_000_000, maxFiles: 20, maxConcurrentRequests: 1_000 },
+  uploads: {
+    maxBytes: 25_000_000,
+    maxFiles: 20,
+    maxConcurrentRequests: 1_000,
+    maxConcurrentRequestsPerEvent: 1_000,
+    bodyTimeoutMs: 600_000,
+  },
   // A clip carries its own limit and its own temp directory. The photo path's ceiling
   // feeds a per-request heap calculation the deployment's memory limit was reasoned
   // against, so the two deliberately do not share one number.

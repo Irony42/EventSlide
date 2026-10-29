@@ -364,30 +364,32 @@ why each change was made and what there was no warning for.
    `MIN_FREE_DISK_BYTES` to `RETENTION_CAP_NOTICE_DAYS`), which it stops. [`.env.example`](../.env.example) says
    what each is for.
 
-   | Setting                                                                                 | Default      | Accepts                                                                                                 |
-   | --------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------- |
-   | `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL` | none         | an `https` URL without credentials, or a path that starts with one `/`                                  |
-   | `LEGAL_TERMS_VERSION`                                                                   | none         | at most 32 letters, digits, `.`, `_` or `-`, starting with a letter or a digit; needs `LEGAL_TERMS_URL` |
-   | `SOURCE_CODE_URL`, `DONATION_URL`, `BUDGET_URL`                                         | none         | an `https` URL without credentials                                                                      |
-   | `SOURCE_REF`                                                                            | none         | a git tag, branch or commit (the image's build argument, for an unmodified upstream tag)                |
-   | `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`                                               | none         | a name of at most 100 characters; one address, which needs the name                                     |
-   | `SMTP_URL`, `MAIL_FROM`                                                                 | none         | the forms `.env.example` shows; `SMTP_URL` needs `MAIL_FROM`                                            |
-   | `EVENT_CREATION`                                                                        | `anyAccount` | `anyAccount` or `clientMembers` (which needs `SITE_ADMIN=on`)                                           |
-   | `OPERATOR_RESET_LINKS`                                                                  | `mailOnly`   | `mailOnly` or `copyLinkWithOwnerApproval` (which needs `SITE_ADMIN=on`); case matters                   |
-   | `AUDIT_RETENTION_DAYS`                                                                  | `1095`       | a whole number of days, 365 to 3650                                                                     |
-   | `MFA_ENCRYPTION_KEY`                                                                    | none         | the form `.env.example` shows; never equal to `SESSION_SECRET` or `GUEST_TOKEN_SECRET`                  |
-   | `REQUIRE_OPERATOR_2FA`                                                                  | `false`      | `true`, `false`, `1` or `0`; `true` needs a valid `MFA_ENCRYPTION_KEY` and `SITE_ADMIN=on`              |
-   | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000` | a positive whole number                                                                                 |
-   | `MAX_CONCURRENT_UPLOAD_REQUESTS`                                                        | `4`          | a whole number, 1 to 1000                                                                               |
-   | `MAX_QUEUED_CLIPS_PER_EVENT`                                                            | `20`         | a whole number, 1 to 500                                                                                |
-   | `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`                                                     | `300`        | a whole number, 1 to 6000                                                                               |
-   | `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`              | 12, 500, 200 | whole numbers, up to 10000, 100000 and 10000                                                            |
-   | `RETENTION_CAP_NOTICE_DAYS`                                                             | `30`         | a whole number, 1 to 365                                                                                |
-   | `SQLITE_SHUTDOWN_CHECKPOINT`                                                            | `truncate`   | `truncate`, `passive` or `none`                                                                         |
-   | `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`                             | none         | a positive whole number; needs `SITE_ADMIN=on`                                                          |
-   | `NEW_CLIENT_MAX_TOTAL_BYTES`, `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`                        | none         | a positive whole number; needs `SITE_ADMIN=on`; the second is at most `MAX_EVENT_QUOTA_BYTES`           |
-   | `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`                             | none         | a whole number, 1 to 3650 and 1 to 365; needs `SITE_ADMIN=on`                                           |
-   | `NEW_CLIENT_CLIPS_ALLOWED`                                                              | none         | `true`, `false`, `1` or `0`; needs `SITE_ADMIN=on`                                                      |
+   | Setting                                                                                 | Default                                                    | Accepts                                                                                                 |
+   | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+   | `SUPPORT_URL`, `REPORT_URL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL` | none                                                       | an `https` URL without credentials, or a path that starts with one `/`                                  |
+   | `LEGAL_TERMS_VERSION`                                                                   | none                                                       | at most 32 letters, digits, `.`, `_` or `-`, starting with a letter or a digit; needs `LEGAL_TERMS_URL` |
+   | `SOURCE_CODE_URL`, `DONATION_URL`, `BUDGET_URL`                                         | none                                                       | an `https` URL without credentials                                                                      |
+   | `SOURCE_REF`                                                                            | none                                                       | a git tag, branch or commit (the image's build argument, for an unmodified upstream tag)                |
+   | `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`                                               | none                                                       | a name of at most 100 characters; one address, which needs the name                                     |
+   | `SMTP_URL`, `MAIL_FROM`                                                                 | none                                                       | the forms `.env.example` shows; `SMTP_URL` needs `MAIL_FROM`                                            |
+   | `EVENT_CREATION`                                                                        | `anyAccount`                                               | `anyAccount` or `clientMembers` (which needs `SITE_ADMIN=on`)                                           |
+   | `OPERATOR_RESET_LINKS`                                                                  | `mailOnly`                                                 | `mailOnly` or `copyLinkWithOwnerApproval` (which needs `SITE_ADMIN=on`); case matters                   |
+   | `AUDIT_RETENTION_DAYS`                                                                  | `1095`                                                     | a whole number of days, 365 to 3650                                                                     |
+   | `MFA_ENCRYPTION_KEY`                                                                    | none                                                       | the form `.env.example` shows; never equal to `SESSION_SECRET` or `GUEST_TOKEN_SECRET`                  |
+   | `REQUIRE_OPERATOR_2FA`                                                                  | `false`                                                    | `true`, `false`, `1` or `0`; `true` needs a valid `MFA_ENCRYPTION_KEY` and `SITE_ADMIN=on`              |
+   | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000`                                               | a positive whole number                                                                                 |
+   | `MAX_CONCURRENT_UPLOAD_REQUESTS`                                                        | `4`                                                        | a whole number, 1 to 1000                                                                               |
+   | `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT`                                              | one less than `MAX_CONCURRENT_UPLOAD_REQUESTS`, at least 1 | a whole number, 1 to 1000, not above `MAX_CONCURRENT_UPLOAD_REQUESTS`                                   |
+   | `UPLOAD_BODY_TIMEOUT_SECONDS`                                                           | `600`                                                      | a whole number, 1 to 86400                                                                              |
+   | `MAX_QUEUED_CLIPS_PER_EVENT`                                                            | `20`                                                       | a whole number, 1 to 500                                                                                |
+   | `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`                                                     | `300`                                                      | a whole number, 1 to 6000                                                                               |
+   | `MAX_STREAMS_PER_CLIENT`, `MAX_STREAMS_TOTAL`, `MAX_SUBSCRIBERS_PER_EVENT`              | 12, 500, 200                                               | whole numbers, up to 10000, 100000 and 10000                                                            |
+   | `RETENTION_CAP_NOTICE_DAYS`                                                             | `30`                                                       | a whole number, 1 to 365                                                                                |
+   | `SQLITE_SHUTDOWN_CHECKPOINT`                                                            | `truncate`                                                 | `truncate`, `passive` or `none`                                                                         |
+   | `NEW_CLIENT_MAX_EVENTS`, `NEW_CLIENT_MAX_EVENTS_PER_PERIOD`                             | none                                                       | a positive whole number; needs `SITE_ADMIN=on`                                                          |
+   | `NEW_CLIENT_MAX_TOTAL_BYTES`, `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES`                        | none                                                       | a positive whole number; needs `SITE_ADMIN=on`; the second is at most `MAX_EVENT_QUOTA_BYTES`           |
+   | `NEW_CLIENT_MAX_RETENTION_DAYS`, `NEW_CLIENT_MAX_LIVE_DAYS`                             | none                                                       | a whole number, 1 to 3650 and 1 to 365; needs `SITE_ADMIN=on`                                           |
+   | `NEW_CLIENT_CLIPS_ALLOWED`                                                              | none                                                       | `true`, `false`, `1` or `0`; needs `SITE_ADMIN=on`                                                      |
 
    Three more things stop the boot. A whole number above 9007199254740991 (2^53 - 1) is refused
    for every setting that takes one, where it used to be rounded: `MAX_EVENT_QUOTA_BYTES=99999999999999999999`,
@@ -409,7 +411,9 @@ why each change was made and what there was no warning for.
      `403 request.csrfMismatch`.
    - An upload can now get `413 storage.boxFull` (less than `MIN_FREE_DISK_BYTES` free, or
      the free space cannot be read) or `429 upload.busy` (more than
-     `MAX_CONCURRENT_UPLOAD_REQUESTS` in flight). A video clip can get `429 clip.queueFull`
+     `MAX_CONCURRENT_UPLOAD_REQUESTS` in flight, or one event holds all but one of them: with the
+     default of 4, an event gets 3). A body that is not fully received within
+     `UPLOAD_BODY_TIMEOUT_SECONDS` (10 minutes) gets `408 upload.timedOut`: send it again. A video clip can get `429 clip.queueFull`
      once its event has `MAX_QUEUED_CLIPS_PER_EVENT` clips queued, which is 20 whatever
      `MAX_QUEUED_CLIPS` says.
    - Signing in is throttled per account: after five failures from one network the next

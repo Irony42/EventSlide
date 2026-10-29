@@ -97,6 +97,7 @@ Status codes come from the domain error kind, mapped in one place
 | `forbidden`       | 403    | A principal, but not one allowed to do this            |
 | `notFound`        | 404    | Absent, **or** present but outside the caller's scope  |
 | `conflict`        | 409    | Collides with existing state, or an illegal transition |
+| `timedOut`        | 408    | The client did not finish sending its request in time  |
 | `quotaExceeded`   | 413    | A deliberate limit stopped the action                  |
 | `rateLimited`     | 429    | Too many attempts. `Retry-After` is set                |
 | `unexpected`      | 500    | A bug or an unavailable dependency                     |
@@ -682,9 +683,16 @@ evening. The numbers and the codes are in §7.
 **Uploads carry two more guards, neither a per-minute rate** (G3-06 / P4-10). A
 process-wide semaphore, `MAX_CONCURRENT_UPLOAD_REQUESTS` (default 4), bounds how many
 upload requests — photos and clips together, the same shared bucket as the rate limit
-above — may be buffering at once: past it, **429** `upload.busy` with a short
+above — may be buffering at once, and `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` (default one
+less than that, never below 1) bounds how many one event may hold, so that one event cannot
+take every slot from the others: past either, **429** `upload.busy` with a short
 `Retry-After`, because a slot frees the moment one of the requests ahead of it finishes,
-seconds away rather than the clip queue's "about a minute". And below
+seconds away rather than the clip queue's "about a minute". A slot is taken only by a request
+that carries a valid guest token, after that token is checked and before the body is read.
+A slot is held while the body arrives, which must be complete within
+`UPLOAD_BODY_TIMEOUT_SECONDS` (default 600): past it the request is answered **408**
+`upload.timedOut` with `Connection: close`, its slot is freed and the client may send
+again. The deadline covers reception only, never the processing that follows. And below
 `MIN_FREE_DISK_BYTES` free — `statfs` on the directory holding `DATABASE_PATH` and on
 `MEDIA_ROOT` — a request answers **413** `storage.boxFull` instead, before a single byte
 of it is read. Neither is a 503: an upload refused for either reason is a refusal of that
@@ -1366,7 +1374,8 @@ over `maxUploadBytes`, refused by multer before any of our code runs);
 caption is sent to an event with captions off; `413 event.photoLimitReached` when the
 batch would take the guest past the event's `maxPhotosPerGuest`; `429 rate.limited`;
 **`429 upload.busy` with `Retry-After`** when the box's upload concurrency cap is
-spent (shared with clips, §1); **`413 storage.boxFull`** when the box is nearly out of
+spent (shared with clips, §1) or the event's own share of it is; **`408 upload.timedOut`** when the
+body was not fully received within `UPLOAD_BODY_TIMEOUT_SECONDS`; **`413 storage.boxFull`** when the box is nearly out of
 disk space, decided before multer reads a byte (G3-06 / P4-10).
 `400 upload.noFiles` when the request carries no `photos` part at all — a 201 with an
 empty `results` array would tell a guest whose picker silently failed that their upload
@@ -1632,8 +1641,10 @@ is written;
 **`429 clip.queueFull` with `Retry-After`** when the box has more clips waiting than it
 will accept — a condition that clears in about a minute, and deliberately not the
 quota's `413`, which tells a guest the gallery is full and to go and find the organiser;
-**`429 upload.busy` with `Retry-After`** when the box's upload concurrency cap is
-spent (shared with photos, §1) — a different condition from the queue, and one that
+**`408 upload.timedOut`** when the body was not fully received within
+`UPLOAD_BODY_TIMEOUT_SECONDS` (§1);
+**`429 upload.busy` with `Retry-After`** when the box's upload concurrency cap, or the event's share
+of it, is spent (shared with photos, §1) — a different condition from the queue, and one that
 clears in seconds rather than about a minute; **`413 storage.boxFull`** when the box is
 nearly out of disk space, decided before anything is written to it (G3-06 / P4-10);
 `500 clip.stageFailed`; and `500 clip.transcoderUnavailable` when this deployment has no

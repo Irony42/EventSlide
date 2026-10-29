@@ -222,11 +222,42 @@ describe('POST /api/events/:eventSlug/clips', () => {
     expect(subject.clips.all).toHaveLength(0)
   })
 
+  it('takes no upload slot for a request without a valid guest token, whatever the cap', async () => {
+    // Review S2: with a cap of zero any request that reaches the semaphore is refused 429,
+    // so a 401 proves a tokenless clip never got that far.
+    const subject = buildSubject({
+      config: {
+        uploads: {
+          maxBytes: 25_000_000,
+          maxFiles: 20,
+          maxConcurrentRequests: 0,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
+    })
+
+    const response = await request(subject.app)
+      .post(`${BASE}/clips`)
+      .attach('clip', aClipBody(), 'IMG_4021.MOV')
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.required')
+  })
+
   it('answers 429 upload.busy once the shared upload concurrency cap is reached (G3-06)', async () => {
     // Sharing the *instance* with the photo route is proven at `server.ts` wiring
     // level; what is under test here is only that this route is behind the cap at all.
     const subject = buildSubject({
-      config: { uploads: { maxBytes: 25_000_000, maxFiles: 20, maxConcurrentRequests: 0 } },
+      config: {
+        uploads: {
+          maxBytes: 25_000_000,
+          maxFiles: 20,
+          maxConcurrentRequests: 0,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
+      },
     })
 
     const response = await request(subject.app)

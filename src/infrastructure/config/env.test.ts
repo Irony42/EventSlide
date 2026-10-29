@@ -115,6 +115,8 @@ describe('loadConfig', () => {
           defaultEventQuotaBytes: 5_000_000_000,
           maxEventQuotaBytes: null,
           maxConcurrentRequests: 4,
+          maxConcurrentRequestsPerEvent: 3,
+          bodyTimeoutMs: 600_000,
         },
         clips: {
           maxBytes: 80_000_000,
@@ -346,6 +348,8 @@ describe('loadConfig', () => {
         MAX_IMAGE_PIXELS: '2222',
         DEFAULT_EVENT_QUOTA_BYTES: '3333',
         MAX_CONCURRENT_UPLOAD_REQUESTS: '8',
+        MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT: '5',
+        UPLOAD_BODY_TIMEOUT_SECONDS: '123',
         MIN_FREE_DISK_BYTES: '4444',
         UPLOAD_RATE_LIMIT_PER_MINUTE: '101',
         JOIN_RATE_LIMIT_PER_MINUTE: '102',
@@ -377,6 +381,8 @@ describe('loadConfig', () => {
           maxPixels: 2222,
           defaultEventQuotaBytes: 3333,
           maxConcurrentRequests: 8,
+          maxConcurrentRequestsPerEvent: 5,
+          bodyTimeoutMs: 123_000,
         },
         storage: { minFreeDiskBytes: 4444 },
         clips: {
@@ -787,6 +793,8 @@ describe('loadConfig', () => {
       ['REACTION_RATE_LIMIT_PER_MINUTE', '601'],
       ['GUEST_WRITE_RATE_LIMIT_PER_MINUTE', '6001'],
       ['MAX_CONCURRENT_UPLOAD_REQUESTS', '1001'],
+      ['MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT', '1001'],
+      ['UPLOAD_BODY_TIMEOUT_SECONDS', '86401'],
       ['MAX_QUEUED_CLIPS', '501'],
       ['MAX_QUEUED_CLIPS_PER_EVENT', '501'],
       ['MAX_STREAMS_PER_CLIENT', '10001'],
@@ -816,6 +824,8 @@ describe('loadConfig', () => {
       'DEFAULT_EVENT_QUOTA_BYTES',
       'MAX_FILES_PER_UPLOAD',
       'MAX_CONCURRENT_UPLOAD_REQUESTS',
+      'MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT',
+      'UPLOAD_BODY_TIMEOUT_SECONDS',
       'MIN_FREE_DISK_BYTES',
       'MAX_QUEUED_CLIPS_PER_EVENT',
       'MAX_STREAMS_PER_CLIENT',
@@ -835,6 +845,53 @@ describe('loadConfig', () => {
         expect(issues.some((issue) => issue.startsWith('SQLITE_SHUTDOWN_CHECKPOINT: '))).toBe(true)
       },
     )
+
+    describe('upload slots per event (review S2)', () => {
+      it('defaults to one less than the box-wide ceiling, so no event can hold the last slot', () => {
+        expect(loadConfig({ ...DEV }).uploads.maxConcurrentRequestsPerEvent).toBe(3)
+        expect(
+          loadConfig({ ...DEV, MAX_CONCURRENT_UPLOAD_REQUESTS: '16' }).uploads
+            .maxConcurrentRequestsPerEvent,
+        ).toBe(15)
+      })
+
+      it('never defaults below one slot, even when the box has only one', () => {
+        const config = loadConfig({ ...DEV, MAX_CONCURRENT_UPLOAD_REQUESTS: '1' })
+
+        expect(config.uploads.maxConcurrentRequestsPerEvent).toBe(1)
+      })
+
+      it('reads a blank value as absent', () => {
+        const config = loadConfig({ ...DEV, MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT: '' })
+
+        expect(config.uploads.maxConcurrentRequestsPerEvent).toBe(3)
+      })
+
+      it('refuses a per-event ceiling above the box-wide one, which could never be reached', () => {
+        const issues = refusalIssues({
+          MAX_CONCURRENT_UPLOAD_REQUESTS: '4',
+          MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT: '5',
+        })
+
+        expect(
+          issues.some((issue) => issue.startsWith('MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT: ')),
+        ).toBe(true)
+      })
+
+      it('accepts a per-event ceiling equal to the box-wide one', () => {
+        const config = loadConfig({
+          ...DEV,
+          MAX_CONCURRENT_UPLOAD_REQUESTS: '4',
+          MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT: '4',
+        })
+
+        expect(config.uploads.maxConcurrentRequestsPerEvent).toBe(4)
+      })
+
+      it('defaults the body deadline to ten minutes, in milliseconds', () => {
+        expect(loadConfig({ ...DEV }).uploads.bodyTimeoutMs).toBe(600_000)
+      })
+    })
 
     it('reads a blank SQLITE_SHUTDOWN_CHECKPOINT as absent, landing on the unconditional default', () => {
       const config = loadConfig({ ...DEV, SQLITE_SHUTDOWN_CHECKPOINT: '' })

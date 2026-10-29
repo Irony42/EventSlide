@@ -589,7 +589,13 @@ describe('buildServer: which client a rate limit is counting', () => {
     let releaseUpload: (() => void) | undefined
     const subject = buildServerHarness({
       config: {
-        uploads: { maxBytes: 25_000_000, maxFiles: 20, maxConcurrentRequests: 1 },
+        uploads: {
+          maxBytes: 25_000_000,
+          maxFiles: 20,
+          maxConcurrentRequests: 1,
+          maxConcurrentRequestsPerEvent: 1_000,
+          bodyTimeoutMs: 600_000,
+        },
       },
       usecases: {
         uploadPhotos: () =>
@@ -646,6 +652,149 @@ describe('buildServer: which client a rate limit is counting', () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
+  })
+
+  describe('upload slots (review S2)', () => {
+    /** Two events with a guest each, a stubbed use case that holds every upload until released. */
+    const twoEvents = (uploads: {
+      maxConcurrentRequests: number
+      maxConcurrentRequestsPerEvent: number
+      bodyTimeoutMs?: number
+    }) => {
+      const releases: Array<() => void> = []
+      const subject = buildServerHarness({
+        config: {
+          uploads: { maxBytes: 25_000_000, maxFiles: 20, bodyTimeoutMs: 600_000, ...uploads },
+        },
+        usecases: {
+          uploadPhotos: () =>
+            new Promise((resolve) => {
+              releases.push(() =>
+                resolve({ ok: false, error: DomainError.invalid('test.cleanup') }),
+              )
+            }),
+        },
+      })
+      subject.events.seed(anEvent({ id: 'event-1', slug: 'mariage' }))
+      subject.events.seed(anEvent({ id: 'event-2', slug: 'fete', joinCode: 'K9X4TP' }))
+      subject.guests.seed(aGuest({ id: 'guest-1', eventId: 'event-1' }))
+      subject.guests.seed(aGuest({ id: 'guest-2', eventId: 'event-2' }))
+      return { subject, releases }
+    }
+
+    const cookiesFor = async (
+      server: http.Server,
+      token: string,
+    ): Promise<{ cookieHeader: string; csrfToken: string }> => {
+      const probe = await request(server).get(ANY_GET)
+      const csrfCookie = setCookies(probe.headers).find((value) =>
+        value.startsWith(`${CSRF_COOKIE}=`),
+      )
+      if (csrfCookie === undefined) throw new Error('the server issued no CSRF cookie')
+      return {
+        csrfToken: csrfTokenFrom(probe.headers),
+        cookieHeader: `${csrfCookie.split(';')[0]}; ${GUEST_COOKIE}=${token}`,
+      }
+    }
+
+    const sendPhoto = (
+      server: http.Server,
+      slug: string,
+      auth: { cookieHeader: string; csrfToken: string },
+    ): Promise<request.Response> =>
+      new Promise((resolve, reject) => {
+        request(server)
+          .post(`/api/events/${slug}/photos`)
+          .set('Cookie', auth.cookieHeader)
+          .set(CSRF_HEADER, auth.csrfToken)
+          .attach('photos', Buffer.from('one'), 'one.jpg')
+          .end((error, response) => (error ? reject(error) : resolve(response)))
+      })
+
+    it('does not let one event take every slot: a second event still gets one', async () => {
+      const { subject, releases } = twoEvents({
+        maxConcurrentRequests: 2,
+        maxConcurrentRequestsPerEvent: 1,
+      })
+      const server = http.createServer(subject.app)
+      try {
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+        const a = await cookiesFor(server, subject.issueGuestToken('event-1', 'guest-1'))
+        const b = await cookiesFor(server, subject.issueGuestToken('event-2', 'guest-2'))
+
+        const firstOfA = sendPhoto(server, 'mariage', a)
+        await expect.poll(() => releases.length).toBe(1)
+
+        const secondOfA = await sendPhoto(server, 'mariage', a)
+        expect(secondOfA.status).toBe(429)
+        expect(secondOfA.body.error.code).toBe('upload.busy')
+
+        const ofB = sendPhoto(server, 'fete', b)
+        await expect.poll(() => releases.length).toBe(2)
+
+        releases.forEach((release) => release())
+        await Promise.all([firstOfA, ofB])
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    })
+
+    it('answers 408 to a photo body that stops arriving and frees its slot for the next upload', async () => {
+      const { subject, releases } = twoEvents({
+        maxConcurrentRequests: 1,
+        maxConcurrentRequestsPerEvent: 1,
+        bodyTimeoutMs: 150,
+      })
+      const server = http.createServer(subject.app)
+      try {
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+        const auth = await cookiesFor(server, subject.issueGuestToken('event-1', 'guest-1'))
+        const port = (server.address() as { port: number }).port
+
+        // A multipart body that promises 5000 bytes, sends a few and goes quiet.
+        const stalled = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+          const outgoing = http.request(
+            {
+              host: '127.0.0.1',
+              port,
+              path: '/api/events/mariage/photos',
+              method: 'POST',
+              agent: false,
+              headers: {
+                cookie: auth.cookieHeader,
+                [CSRF_HEADER]: auth.csrfToken,
+                'content-type': 'multipart/form-data; boundary=xx',
+                'content-length': '5000',
+              },
+            },
+            (incoming) => {
+              let body = ''
+              incoming.setEncoding('utf8')
+              incoming.on('data', (chunk: string) => {
+                body += chunk
+              })
+              incoming.on('end', () => resolve({ status: incoming.statusCode ?? 0, body }))
+            },
+          )
+          outgoing.on('error', reject)
+          outgoing.write(
+            '--xx\r\nContent-Disposition: form-data; name="photos"; filename="a.jpg"\r\n',
+          )
+        })
+
+        expect(stalled.status).toBe(408)
+        expect(JSON.parse(stalled.body).error.code).toBe('upload.timedOut')
+
+        // The only slot is back: the next upload reaches the use case instead of 429.
+        const next = sendPhoto(server, 'mariage', auth)
+        await expect.poll(() => releases.length).toBe(1)
+        releases.forEach((release) => release())
+        expect((await next).status).not.toBe(429)
+      } finally {
+        server.closeAllConnections()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    })
   })
 
   it('counts two clients behind the proxy apart, so one guest cannot lock out the venue', async () => {
