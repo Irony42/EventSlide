@@ -7,6 +7,7 @@ import MINE_CSS from './components/MyPhotos.module.css?raw'
 import QUEUE_CSS from './components/UploadQueue.module.css?raw'
 import FIELD_CSS from '../../design-system/components/Field.module.css?raw'
 import TOKENS_CSS from '../../design-system/tokens.css?raw'
+import GLASS_CSS from '../../design-system/glass.module.css?raw'
 import DESIGN_SYSTEM_MD from '../../../../docs/DESIGN-SYSTEM.md?raw'
 
 /**
@@ -113,5 +114,51 @@ describe('a guest on the narrowest phone, or with large text', () => {
     expect(css.replace(flash?.[0] ?? '', '')).not.toMatch(/animation:[^;}]*sent-flash/)
     // And no raw colour or length: tokens only.
     expect(frames).not.toMatch(/#[0-9a-f]{3,8}|\b\d+(?:px|rem|ms)\b/i)
+  })
+})
+
+describe('the pinned pane reads as a raised layer, and only while it is pinned', () => {
+  it('wears the sheet elevation by default, which is the pinned state', () => {
+    expect(declarationsOf(PAGE_CSS, '.composer')).toMatch(
+      /--sheet-lift:\s*var\(--elevation-sheet\)/,
+    )
+  })
+
+  it.each(['.composer[data-oversized]', '.composer[data-gated]'])(
+    'sheds the elevation when %s drops the pane into the flow',
+    (selector) => {
+      const rule = declarationsOf(PAGE_CSS, selector)
+
+      expect(rule).toMatch(/position:\s*static/)
+      expect(rule).toMatch(/--sheet-lift:\s*var\(--elevation-flat\)/)
+    },
+  )
+
+  it('lets the material draw the lift as a second shadow layer, outside the box', () => {
+    expect(withoutComments(GLASS_CSS)).toMatch(
+      /box-shadow:\s*var\(--glass-shadow\),\s*var\(--sheet-lift,\s*var\(--elevation-flat\)\)/,
+    )
+  })
+
+  it('keeps a pinned pane distinguishable in forced colours, with an outline that takes no room', () => {
+    const css = withoutComments(PAGE_CSS)
+    const forced = /@media \(forced-colors: active\)\s*\{([\s\S]*?\n\})/.exec(css)?.[1] ?? ''
+
+    expect(forced).toMatch(
+      /\.composer:not\(\[data-gated\]\):not\(\[data-oversized\]\)\s*\{[^}]*outline:[^;}]*CanvasText/,
+    )
+  })
+
+  it('declares the elevation as tokens, and the docs carry them', () => {
+    for (const token of [
+      '--elevation-sheet',
+      '--elevation-flat',
+      '--sheet-rim',
+      '--sheet-shade',
+      '--sheet-fade',
+    ]) {
+      expect(TOKENS_CSS, token).toContain(`${token}:`)
+      expect(DESIGN_SYSTEM_MD, token).toContain(`${token}:`)
+    }
   })
 })
