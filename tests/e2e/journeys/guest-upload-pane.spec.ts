@@ -241,7 +241,9 @@ test('picking the photos that make a pinned pane too tall does not take the send
  */
 const EMPTY_PANES: readonly { readonly phone: Phone; readonly most: number }[] = [
   { phone: PHONES[0] as Phone, most: 0.4 },
-  { phone: PHONES[1] as Phone, most: 0.42 },
+  // 0.42 held on Windows fonts (41.0%); CI's Linux fonts set the same pane at 44.4%. Still half of
+  // main's 85%, so a control put back in full still fails it.
+  { phone: PHONES[1] as Phone, most: 0.46 },
 ]
 
 for (const ambiance of ['guinguette', 'cabaret'] as const)
