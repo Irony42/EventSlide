@@ -213,3 +213,65 @@ worst case.
 - [docs/DESIGN-SYSTEM.md](../DESIGN-SYSTEM.md) §12 (per-event theming) and §13 (glass).
 - `web/src/design-system/tokens.css`, `web/src/design-system/base.css`,
   `web/src/design-system/eventTheme.ts`, `src/domain/events/eventTheme.ts`.
+
+## Amendment of 29/10: the default look is the violet again, the Guinguette an ambiance, the glass visible
+
+**Decision (Pierre, 29/10):** « Par défaut le thème guinguette ça va pas. Remet le thème violet avec
+l'effet liquid glass qu'on avait avant par défaut, mais garde les thèmes au choix. » This reverses
+decision 2 above and nothing else; every other decision of this ADR stands.
+
+1. **A new default ambiance, `eventslide`** (« EventSlide »), listed first in `THEME_AMBIANCES`
+   (domain and web mirror) and in `THEME_FACES`. It is the 3.0 look: a slate ground at hue 265, the
+   lavender accent at 305, the system face, the 3.0 radii. It is the `:root` again and emits no
+   attribute; `DEFAULT_EVENT_THEME.ambiance` is `eventslide`. No ornament, no photograph.
+2. **The Guinguette is an ordinary block**, `[data-event-ambiance='guinguette']` with its
+   `:root:has()` twin, carrying everything the root carried from 3.1.0 to today (palette, kraft
+   fibres, faces, ground photograph, grade, wall ground, glass tints, decor tokens); its bulbs and
+   gingham in `base.css` are keyed on its own marker like the others'.
+3. **Stored data.** An event whose stored theme has **no** `ambiance` (written before 3.1) now reads
+   `eventslide`: that is what it rendered before 3.1, so it is the least surprising reading.
+   `restoreEventTheme` is unchanged (it validates what it is given), the repository's
+   "added later" rule and the web's `readEventTheme` both fall back to `DEFAULT_EVENT_THEME` and
+   so agree, and tests pin the three. **An event that stored `guinguette` explicitly stays on the
+   Guinguette**, and that includes an event created on 3.1.0 with the default theme, whose settings
+   carry `guinguette` in full: the data cannot tell it from a choice, and a host sees the pick in
+   the settings form and changes it there. **The legacy name `darkroom` now maps to `eventslide`**
+   (it was the old dark default, which is what the violet is), in the domain's `LEGACY_AMBIANCES`
+   and in the web's `readThemeAmbiance`, and is written back as that on the next save.
+4. **Templates.** Birthday and conference now choose `eventslide`; wedding (Champs d'or) and party
+   (Bivouac) are unchanged.
+5. **The glass is made visible, and its alpha is still derived.** Over a white photograph the
+   palette's headroom leaves a pane at 0.95, five per cent of the world, which nobody reads as
+   glass; over a dark ground a lower alpha is legible but shows almost nothing (a pane can be at
+   most as light as `--surface-overlay` at its worst pixel, so the visible modulation is bounded by
+   five points of lightness whatever the alpha). The lever that moves the worst case is the
+   backdrop, so `--glass-filter` now ends in `brightness(var(--glass-brightness))` with `0.32`:
+   what a pane meets is scaled to at most that grey before the tint lands on it, and the floors are
+   derived against that grey. Results, by the same bars and the same "one point thinner fails":
+   **photo tier 0.80** (white dimmed), **ground tier 0.61** (the lighter of the lightest accent field
+   and the aurora's brightest pixel, dimmed). The ambiances inherit the dimming and keep the tints
+   they had (derived over undimmed white: conservative for a light ink, unmoved for a dark one).
+   `plain` is still `--surface-raised` at full alpha with no filter, and reduced transparency and
+   more contrast still land there.
+6. **The aurora**: the root's ground is three static radial glows (violet, indigo, lavender, each a
+   token at 24 to 25% lightness) over the slate base, painted like every other ground (`html::before`,
+   behind the wall). Text sits on it directly, so the per-channel maximum of the base and the three
+   glows, which bounds every pixel of it, is held to 12, 7 and 4.5:1 for the three inks.
+   **A host's own venue photograph under the root look** is covered by a flat coat of 90% of the
+   base, the lowest share that keeps all three inks above 4.5:1 over pure white (derived, one point
+   thinner fails): this palette's dim inks ask for more of it than the Guinguette's warm ones, so
+   the photograph is mostly veiled there.
+
+**Follow-ups on review (29/10).** Noces and Sur mesure light restate `--glass-brightness: 1` and the
+filter that reads it (their worst photograph is black, which dimming cannot move; a dimmed bright
+backdrop would grey a light pane). A miniature (template preview, the settings frames) always
+carries `data-event-ambiance`, the default included, and `:root` and
+`[data-event-ambiance='eventslide']` share one declaration block, so a preview of the violet inside
+a page that wears another ambiance takes the root look back. The Guinguette restates `--qr-field`,
+`--qr-ink` and `--glass-opaque` for the same reason. **`--surface-scrim` moves from 0.82 to 0.83 in
+Riviera, Champs d'or, Bivouac and Cabaret**, which inherited the root's: one point denser, held by
+the same wall bars; the Guinguette restates its own 0.82. Events saved as `guinguette` on 3.1.0 are
+not migrated.
+
+**Not done, said so.** The ambiances keep the 0.96 and 0.93 tints
+they had; making them as visible is a per-ambiance derivation.

@@ -926,7 +926,7 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
       groundUrl: null,
     })
   })

@@ -70,7 +70,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         fonts: 'sans',
         frame: 'round',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       },
     },
     conference: {
@@ -82,7 +82,7 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         fonts: 'sans',
         frame: 'square',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       },
     },
     party: {

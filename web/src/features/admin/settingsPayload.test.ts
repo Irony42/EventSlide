@@ -10,7 +10,7 @@ describe('toSettingsPatch', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'plain',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
         groundUrl: `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`,
       },
     })
@@ -20,7 +20,7 @@ describe('toSettingsPatch', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'plain',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
     expect(toSettingsPatch(draft).theme).not.toHaveProperty('groundUrl')
   })

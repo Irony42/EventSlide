@@ -134,8 +134,8 @@ export function AmbiancePreview({ theme, eventName, join }: AmbiancePreviewProps
   const t = useTranslations()
   const { frame, stage, scale } = useFitScale()
 
-  const guest = themeSurfaceProps(theme, 'guest')
-  const wall = themeSurfaceProps(theme, 'wall')
+  const guest = themeSurfaceProps(theme, 'guest', { preview: true })
+  const wall = themeSurfaceProps(theme, 'wall', { preview: true })
   const stageStyle: StageStyle = {
     ...wall.style,
     ...(scale === null ? {} : { '--preview-scale': String(scale) }),

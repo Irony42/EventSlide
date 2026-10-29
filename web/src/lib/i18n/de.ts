@@ -784,6 +784,7 @@ export const de: UiText = {
     themeAmbianceHint:
       'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrer Konsole tragen.',
     themeAmbianceNames: {
+      eventslide: 'EventSlide',
       guinguette: 'Guinguette',
       riviera: 'Riviera',
       champs: 'Goldene Felder',

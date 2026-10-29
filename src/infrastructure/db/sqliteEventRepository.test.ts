@@ -771,7 +771,7 @@ describe('SqliteEventRepository', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       })
     })
 
@@ -816,13 +816,14 @@ describe('SqliteEventRepository', () => {
         fonts: 'sans',
         frame: 'square',
         material: 'plain',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       })
     })
 
-    it('reads a theme stored as darkroom, the retired Chambre noire, as the Guinguette', async () => {
+    it('reads a theme stored as darkroom, the retired Chambre noire, as EventSlide, the slate it was', async () => {
       // Pierre's local database holds events themed while the Chambre noire existed. Refusing
-      // them would be reporting corruption that is not there.
+      // them would be reporting corruption that is not there, and the old dark default is the
+      // violet again (ADR 0010, amendment of 29/10).
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
         json({
@@ -842,8 +843,28 @@ describe('SqliteEventRepository', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       })
+    })
+
+    it('keeps an event that stored the Guinguette explicitly on the Guinguette', async () => {
+      // The default moved on 29/10; a host who has the Guinguette written in their theme did not
+      // ask for the violet, and only an *absent* ambiance reads as the new default.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material: 'glass',
+            ambiance: 'guinguette',
+          },
+        }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.theme.ambiance).toBe('guinguette')
     })
 
     it('keeps a chosen ambiance across a save and a read', async () => {
@@ -882,7 +903,7 @@ describe('SqliteEventRepository', () => {
         fonts: 'serif',
         frame: 'round',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
       })
     })
 

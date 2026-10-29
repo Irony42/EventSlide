@@ -168,9 +168,9 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // a photo album rather than a feed, which is what a family evening's wall is.
       frame: 'round',
       material: 'glass',
-      // ADR 0010: a birthday is the evening the Guinguette was drawn for, and it is the
-      // product's own look, restated because `EventSettings` replaces a theme whole.
-      ambiance: 'guinguette',
+      // ADR 0010 (amendment of 29/10): a birthday wears the product's own look, the violet,
+      // restated because `EventSettings` replaces a theme whole. The Guinguette is one pick away.
+      ambiance: 'eventslide',
     },
   },
 
@@ -208,8 +208,8 @@ const TEMPLATES: Readonly<Record<EventTemplateKey, EventSettingsPatch>> = {
       // and the projector has already given the material up (DESIGN-SYSTEM.md §13).
       material: 'glass',
       // The product's own look, restated because `EventSettings` replaces a theme whole. A
-      // company box wants nothing handmade, and the Guinguette is the calmest of the five.
-      ambiance: 'guinguette',
+      // company box wants nothing handmade, and the violet is the calmest look there is.
+      ambiance: 'eventslide',
     },
   },
 

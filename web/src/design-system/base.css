@@ -229,7 +229,8 @@ html::before {
  * Which strip a page wears is decided by the ambiance that is mounted on it, so the six are
  * one skeleton and six sets of paint:
  *
- * - the Guinguette is the root look, so it is every page that has no ambiance marker;
+ * - the product's own look (EventSlide, no ambiance marker) has no ornaments at all: a violet
+ *   slate over an aurora, nothing drawn along its edges;
  * - a template preview in the console does not count as one, or previewing a festive template
  *   would dress the moderation console in its strips.
  *
@@ -239,7 +240,7 @@ html::before {
  * ornaments, so its pages wear no strip at all.
  */
 :is(
-    body:not(:has([data-event-ambiance]:not([data-template-preview]))),
+    body:has([data-event-ambiance='guinguette']:not([data-template-preview])),
     body:has([data-event-ambiance='riviera']:not([data-template-preview])),
     body:has([data-event-ambiance='champs']:not([data-template-preview])),
     body:has([data-event-ambiance='bivouac']:not([data-template-preview])),
@@ -247,7 +248,7 @@ html::before {
     body:has([data-event-ambiance='noces']:not([data-template-preview]))
   ):not(:has([data-wall-layout], [data-ornament-free]))::before,
 :is(
-    body:not(:has([data-event-ambiance]:not([data-template-preview]))),
+    body:has([data-event-ambiance='guinguette']:not([data-template-preview])),
     body:has([data-event-ambiance='riviera']:not([data-template-preview])),
     body:has([data-event-ambiance='champs']:not([data-template-preview])),
     body:has([data-event-ambiance='bivouac']:not([data-template-preview])),
@@ -261,8 +262,8 @@ html::before {
   pointer-events: none;
 }
 
-/* ---- The Guinguette: a string of filament bulbs along the top, linen gingham below. ---- */
-body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
+/* ---- Guinguette: a string of filament bulbs along the top, linen gingham below. ---- */
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
     :has([data-wall-layout], [data-ornament-free])
   )::before {
   content: '';
@@ -276,7 +277,7 @@ body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
     linear-gradient(var(--decor-wire), var(--decor-wire)) 0 14px / 100% 2px no-repeat;
 }
 
-body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
     :has([data-wall-layout], [data-ornament-free])
   )::after {
   content: '';
@@ -296,7 +297,7 @@ body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
 }
 
 /* Room for the ornaments, so they never sit over the header or the last control. */
-body:not(:has([data-event-ambiance]:not([data-template-preview]))):not(
+body:has([data-event-ambiance='guinguette']:not([data-template-preview])):not(
     :has([data-wall-layout], [data-ornament-free])
   ) {
   padding-block: var(--space-6) var(--space-5);

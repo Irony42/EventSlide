@@ -70,7 +70,7 @@ type App = Parameters<typeof joinAsGuest>[1]
 interface EventSettings {
   readonly allowCaptions?: boolean
   readonly allowClips?: boolean
-  readonly ambiance?: 'guinguette' | 'cabaret'
+  readonly ambiance?: 'eventslide' | 'guinguette' | 'cabaret'
 }
 
 const applySettings = async (app: App, slug: string, settings: EventSettings): Promise<void> => {
@@ -251,7 +251,7 @@ const EMPTY_PANES: readonly { readonly phone: Phone; readonly most: number }[] =
   { phone: PHONES[1] as Phone, most: 0.46 },
 ]
 
-for (const ambiance of ['guinguette', 'cabaret'] as const)
+for (const ambiance of ['eventslide', 'guinguette', 'cabaret'] as const)
   for (const { phone, most } of EMPTY_PANES) {
     test(`${phone.name}, ${ambiance}: the empty pane takes at most ${most * 100}% of the screen, pinned, with the caption and video buttons on it`, async ({
       app,
@@ -368,7 +368,7 @@ test('an event that allows neither captions nor video shows neither button', asy
  * word) and a queue row. Each wraps or stacks now, and nothing is hidden: every control is asked
  * for its own box, inside the screen.
  */
-for (const ambiance of ['guinguette', 'cabaret'] as const)
+for (const ambiance of ['eventslide', 'guinguette', 'cabaret'] as const)
   test(`320x568, text at 200%, ${ambiance}: nothing is wider than the screen, with both options open and a photo picked`, async ({
     app,
     browser,
@@ -483,7 +483,7 @@ const SUMMARY_PANE_MOST = 0.55
 
 const BATCH = 7
 
-for (const ambiance of ['guinguette', 'cabaret'] as const)
+for (const ambiance of ['eventslide', 'guinguette', 'cabaret'] as const)
   test(`375x667, ${ambiance}: after ${BATCH} photos the pane is one line, and "Voir mes envois" brings the batch on screen`, async ({
     app,
     browser,

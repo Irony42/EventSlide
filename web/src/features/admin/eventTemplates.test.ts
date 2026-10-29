@@ -158,7 +158,7 @@ describe('the template summary', () => {
             fonts: 'serif',
             frame: 'round',
             material: 'glass',
-            ambiance: 'guinguette',
+            ambiance: 'eventslide',
           },
         },
         fr,
@@ -181,7 +181,7 @@ describe('the template summary', () => {
       fonts: 'sans',
       frame: 'round',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     } as const
 
     expect(templateSummary({ theme: frameOnly }, fr)).toEqual([
@@ -201,7 +201,7 @@ describe('the template summary', () => {
             fonts: 'sans',
             frame: 'soft',
             material: 'glass',
-            ambiance: 'guinguette',
+            ambiance: 'eventslide',
           },
         },
         fr,
@@ -236,7 +236,7 @@ describe('the template summary', () => {
       fonts: 'serif',
       frame: 'round',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     }
 
     expect(templateSummary({ theme }, fr)).toEqual([

@@ -50,7 +50,7 @@ export type ThemeFrame = 'soft' | 'square' | 'round'
 export type ThemeMaterial = 'glass' | 'plain'
 /** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
 export type ThemeAmbiance =
-  'guinguette' | 'riviera' | 'champs' | 'bivouac' | 'cabaret' | 'noces' | 'custom'
+  'eventslide' | 'guinguette' | 'riviera' | 'champs' | 'bivouac' | 'cabaret' | 'noces' | 'custom'
 /** The designed ambiances a custom one may borrow its faces from (ADR 0011). */
 export type ThemeFaces = Exclude<ThemeAmbiance, 'custom'>
 /** The polarity of a custom ambiance's surfaces and inks. */

@@ -164,7 +164,7 @@ describe('toPublicEventDto', () => {
         fonts: 'sans',
         frame: 'soft',
         material: 'glass',
-        ambiance: 'guinguette',
+        ambiance: 'eventslide',
         groundUrl: null,
       },
     })

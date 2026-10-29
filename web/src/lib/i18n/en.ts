@@ -738,6 +738,7 @@ export const en: UiText = {
     themeAmbianceHint:
       'The world your guests’ phones, the room’s screen and this event’s pages in your console wear.',
     themeAmbianceNames: {
+      eventslide: 'EventSlide',
       guinguette: 'Guinguette',
       riviera: 'Riviera',
       champs: 'Golden fields',

@@ -247,7 +247,7 @@ describe('the shipped hues', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
     })
     expect(CURATED_ACCENT_HUES['violet']).toBe(DEFAULT_EVENT_THEME.accentHue)
   })
@@ -304,11 +304,12 @@ describe('narrowing a value read back from storage', () => {
 
 describe('the ambiance an event wears (ADR 0010)', () => {
   it('ships on the product’s own look, so an unthemed event emits nothing', () => {
-    expect(DEFAULT_EVENT_THEME.ambiance).toBe('guinguette')
+    expect(DEFAULT_EVENT_THEME.ambiance).toBe('eventslide')
   })
 
-  it('offers the Guinguette and four others, and no longer the Chambre noire', () => {
+  it('offers EventSlide first, the Guinguette and four others, and no longer the Chambre noire', () => {
     expect([...THEME_AMBIANCES]).toEqual([
+      'eventslide',
       'guinguette',
       'riviera',
       'champs',
@@ -320,9 +321,11 @@ describe('the ambiance an event wears (ADR 0010)', () => {
     expect(isThemeAmbiance('darkroom')).toBe(false)
   })
 
-  it('reads the retired darkroom as the Guinguette that replaced it, and nothing else', () => {
-    // Stored themes and guests' sessions written before 28/10 still say `darkroom`.
-    expect(currentAmbianceName('darkroom')).toBe('guinguette')
+  it('reads the retired darkroom as EventSlide, the dark slate it was, and the Guinguette as itself', () => {
+    // Stored themes and guests' sessions written before 28/10 still say `darkroom`: the old dark
+    // default, which is the product's own look again (ADR 0010, amendment of 29/10).
+    expect(currentAmbianceName('darkroom')).toBe('eventslide')
+    expect(currentAmbianceName('guinguette')).toBe('guinguette')
     expect(currentAmbianceName('riviera')).toBe('riviera')
     // Not a lookup into Object.prototype: an inherited key is not an alias.
     expect(currentAmbianceName('constructor')).toBe('constructor')

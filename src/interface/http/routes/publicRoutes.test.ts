@@ -335,7 +335,7 @@ describe('POST /api/join', () => {
           fonts: 'sans',
           frame: 'soft',
           material: 'glass',
-          ambiance: 'guinguette',
+          ambiance: 'eventslide',
           groundUrl: null,
         },
       },
@@ -737,7 +737,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
       fonts: 'sans',
       frame: 'soft',
       material: 'glass',
-      ambiance: 'guinguette',
+      ambiance: 'eventslide',
       groundUrl: null,
     })
   })

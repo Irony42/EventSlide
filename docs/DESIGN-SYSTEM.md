@@ -735,11 +735,12 @@ already does. The filmstrip and the collage show no captions at all.
 ## 12. Per-event theming
 
 > **Ambiances (ADR 0010).** A theme also names an ambiance: a closed pack of surfaces, inks, faces,
-> a photographed ground and ornaments. The Guinguette is the root look (the listing in section 2
-> predates it and shows the old slate), and Riviera, Champs d'or, Bivouac, Cabaret and Noces are
-> `[data-event-ambiance]` blocks in `tokens.css`, each measured on its own by
-> `tokens.contrast.test.ts` and `scripts/ambianceGround.test.ts`. The primary action is kraft at the
-> root. See [ADR 0010](adr/0010-event-ambiances.md); the sections below predate it.
+> a photographed ground and ornaments. **Since 29/10 the root look is EventSlide again**, the violet
+> of 3.0 (the listing in section 2 is its `:root`), over a soft static aurora; the Guinguette,
+> Riviera, Champs d'or, Bivouac, Cabaret and Noces are `[data-event-ambiance]` blocks in
+> `tokens.css`, each measured on its own by `tokens.contrast.test.ts` and
+> `scripts/ambianceGround.test.ts`. The primary action is the lavender at the root and kraft in the
+> Guinguette. See [ADR 0010](adr/0010-event-ambiances.md); the sections below predate it.
 >
 > **Sur mesure (ADR 0011).** A seventh ambiance is the host's own: a polarity (`data-ambiance-ground`
 > light or dark), a **ground hue** and the faces of one of the six (`data-ambiance-faces`). Two blocks
@@ -936,6 +937,30 @@ re-filtered every frame, which is the one place §7's "animate `opacity` and `tr
 only" does not license.
 
 ### The tint floor, which is where the interesting number is
+
+> **Amendment of 29/10: the glass of the default look is visible, and how.** The derivation below
+> is unchanged and its numbers (0.95 over white, 0.92 over our own ground) are what the 3.0 slate
+> gave when nothing was done to the backdrop. Five per cent of the world showing through is not
+> something anyone reads as glass, so the root look now **dims what is behind a pane before the
+> tint is laid on it**: `--glass-filter` ends in `brightness(var(--glass-brightness))`, with
+> `--glass-brightness: 0.32`. Brightness is the last function, so whatever a pane meets (a white
+> dress, the aurora, a button) is at most that grey, and the worst case the floors are derived
+> against is `0.32` of white and not white. Same bars, same sweep, same "one point thinner fails":
+>
+> | Tier                  | Alpha | Derived against                           | Backdrop showing |
+> | --------------------- | ----- | ----------------------------------------- | ---------------- |
+> | `--glass-tint-photo`  | 0.80  | white, dimmed to 0.32                     | 20%              |
+> | `--glass-tint-ground` | 0.61  | the lightest accent field or the aurora's | 39%              |
+> |                       |       | brightest pixel, dimmed to 0.32           |                  |
+>
+> The ambiances inherit the dimming and keep the tints they had: those are derived over undimmed
+> white, a bound dimming can only make conservative for a light ink and cannot move for a dark one
+> (its worst photograph is black). `--glass-brightness` is read by `tokens.contrast.test.ts` out
+> of the file, and the test refuses a filter in which `brightness()` is not the last function.
+> Text sits on the aurora directly, so its three glows are held to the bars the base itself is
+> (`the aurora the root look paints`), measured as the per-channel maximum of the base and the
+> glows, which every pixel of it is bounded by. `plain` stays `--surface-raised` at full alpha,
+> which is what makes the Matière switch in Réglages a difference you can see.
 
 A pane sits on top of whatever a guest uploaded. The brightest thing that can be behind
 it is **pure white** — a white dress in full sun, and also the ceiling of the sRGB gamut,
@@ -1206,6 +1231,25 @@ toast speaks — so the region is outside the element that carries `data-glass`.
 toast would therefore keep its blur on the wall, which is the one surface the budget says
 must not have it. The material is not applied where the budget cannot reach it. Whoever
 wants a glass toast moves the tier, or the region, first.
+
+### How to check that the glass works (for a human, in five minutes)
+
+1. Open a guest's upload screen (`/e/:slug/upload`) on a laptop, with photographs in the queue, in
+   Chromium. Inspect the composer (the pane pinned at the bottom).
+2. **Computed → `backdrop-filter`** must read `blur(20px) saturate(1.8) brightness(0.32)`. `none`
+   means a fallback is in force (see 5).
+3. **Computed → `background-color`** must read the raised slate at alpha **0.8** (`oklab(… / 0.8)`
+   or `rgba(…, 0.8)`). `0.8` is the photograph tier; an address that claims the ground tier reads
+   `0.61`; `1` is the opaque tier.
+4. The `data-glass` attribute on the surface element above it says which tier is in force: absent
+   is the photograph tier, `ground` and `opaque` are the others. Réglages → Matière → « Surface
+   unie » sets `opaque` for the whole evening: the pane then paints the same colour at alpha 1 and
+   `backdrop-filter` reads `none`, which is the difference you should see side by side with « Verre
+   dépoli ».
+5. **Turning the effect off is on purpose, not a bug**: with reduced transparency (OS setting, or
+   DevTools → Rendering → _Emulate CSS media feature prefers-reduced-transparency_) or more contrast
+   (_prefers-contrast: more_), the filter reads `none` and the tint is opaque. So is the wall, always,
+   and any machine whose frame budget gave up the material.
 
 ### What is measured and what is asserted
 

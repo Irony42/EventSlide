@@ -771,6 +771,7 @@ export const es: UiText = {
     themeAmbianceHint:
       'El mundo que visten los móviles de sus invitados, la pantalla de la sala y las páginas de este evento en su consola.',
     themeAmbianceNames: {
+      eventslide: 'EventSlide',
       guinguette: 'Guinguette',
       riviera: 'Riviera',
       champs: 'Campos de oro',
