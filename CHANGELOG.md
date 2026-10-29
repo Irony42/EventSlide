@@ -20,6 +20,78 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.2.0] - 2026-10-29
+
+Everything merged to `main` after the tag `v3.1.0`: pull requests #261, #263, #265, #266, #264, #267
+and #269. This is a minor release: it adds four settings, changes what the guest limits count and
+brings back the violet as the product's own look, and it breaks nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to
+keep. There is no migration and nothing has to change in `.env`, but read "Behaviour changes to check
+before upgrading" and [Upgrading to 3.2](docs/UPGRADING.md#upgrading-to-32) if you set any upload,
+reaction or join limit.
+
+### Look
+
+- **The violet « EventSlide » is the product's own look again** (#269, ADR 0010 amended 29/10): the
+  3.0 palette (a slate ground, a lavender accent), now an ambiance of its own, `eventslide`, first in
+  the list and the default. The Guinguette stays, as an ambiance a host picks like the others.
+- **The glass shows** (#269): the default look paints a static aurora (violet, indigo, plum) behind
+  the page, and its panes are translucent over it: the tint is the lowest that keeps every text bar
+  (0.80 over a photograph, 0.61 over the aurora, where 3.1 had 0.96 and 0.93), and the backdrop is
+  dimmed before the blur (`--glass-brightness`, 0.32) so that a bright photograph behind a pane
+  cannot defeat it. The light ambiances (Noces, a light « Sur mesure ») do not dim. Réglages → Matière
+  now shows a clear difference between glass and opaque, and reduced transparency or more contrast
+  still make every pane opaque.
+- **A full-width button wraps its label and a badge is never wider than its row** (#269), so the
+  guest's page stays inside a 320 px screen with text at 200 % in the system face.
+
+### Guest
+
+- **The composer is compact** (#261): the caption and the video option fold under two labelled
+  buttons instead of taking the screen before the first photo, the settings stay one tap away and
+  say what they hold, and a 320 px phone no longer scrolls sideways. A long word in a button or a
+  label breaks instead of overflowing.
+- **A sent batch folds into one summary line** (#263): once every photo of a batch has arrived, the
+  queue shrinks to a line that says how many were sent, with « Voir mes envois », which scrolls to the
+  guest's list and flashes the new photos there, and « Détails », which brings the rows back. A batch
+  folds only once every photo has arrived: while one is sending or has failed, every row stays.
+- **The pinned upload pane stands out from the list** (#266): a lit top edge, a shadow cast upward
+  and the list fading under it, in light and dark ambiances, so it reads as above the page rather
+  than mixed with it.
+
+### Behaviour changes to check before upgrading
+
+- **Upload and reaction limits count per guest, not per address** (#265, review S1).
+  `UPLOAD_RATE_LIMIT_PER_MINUTE` (12) and `REACTION_RATE_LIMIT_PER_MINUTE` (30) keep their figures but
+  now bound one guest of one event; through 3.1 a whole venue behind one Wi-Fi address shared them.
+  Two new settings bound the address as a flood ceiling checked before the guest is identified:
+  `UPLOAD_RATE_LIMIT_PER_IP_PER_MINUTE` (default 300) and `REACTION_RATE_LIMIT_PER_IP_PER_MINUTE`
+  (default 600). Left unset, each is raised to the per-guest figure if that is set higher.
+- **`JOIN_RATE_LIMIT_PER_MINUTE` defaults to 200** (it was 20) (#265), so a room of guests arriving
+  together from one address is not refused. A value you set yourself is kept.
+- **Upload slots are taken per event, after the guest is identified** (#264, review S2). A request
+  without a valid guest token no longer takes one of the `MAX_CONCURRENT_UPLOAD_REQUESTS` slots, and
+  one event can hold all but one of them: the new `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` defaults
+  to one less than the box-wide figure (3 of 4), and the boot refuses a value above it. An event alone
+  on a box now gets three slots instead of four.
+- **An upload body that does not arrive in time is ended** (#264). The new
+  `UPLOAD_BODY_TIMEOUT_SECONDS` (default 600) answers `408 upload.timedOut` and closes the connection,
+  so a slow or stalled guest gives its slot back; the guest's phone sends it again. Behind a reverse
+  proxy, give the proxy a body read timeout above this figure.
+- **Every screen goes back to the violet** (#269). An event whose theme names no ambiance (every event
+  created before 3.1.0), or the prototype's `darkroom`, reads as `eventslide`. An event saved on
+  3.1.0 names `guinguette` explicitly, even if its host never chose it, because the Guinguette was
+  3.1's default: it stays on the Guinguette until its host picks another ambiance in Réglages →
+  Ambiance. The birthday and conference templates start on `eventslide` again.
+- **A host's venue photograph under the default look is heavily veiled** (#269): the coat over it is the
+  lowest that keeps the inks legible over a white photograph, 90 % of the surface colour.
+- **No migration runs, and the schema is the one of 3.0.0.**
+
+### Documentation, tests and dependencies
+
+- CI runs on `push` for `main` only, so a pull request's commit runs the suite once (#267).
+- The accent-label contrast sweep has a 30 s bound, and the 360x640 empty upload pane is held to the
+  share CI's Linux fonts measure (#261, #264).
+
 ## [3.1.0] - 2026-10-29
 
 Everything merged to `main` after the tag `v3.0.0`: pull requests #244, #245, #246, #247, #248,
