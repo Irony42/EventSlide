@@ -145,6 +145,10 @@ token exactly.
      composer). Past it the pane stays in the flow, because what scrolls behind a taller one
      is covered more than it is seen. A ratio, read by useOversizedPane. */
   --sticky-pane-max-share: 0.66;
+  /* The narrowest a tile of a side-by-side pair may be (the guest's two pickers and the two
+     option buttons above them). Below twice this plus the gap, the pair stacks instead of
+     pushing the page wider than the screen. In rem, so it grows with the guest's text size. */
+  --tile-min-width: 7.5rem;
   --z-wall-caption: 10;
   --z-dialog: 50;
   --z-toast: 60;

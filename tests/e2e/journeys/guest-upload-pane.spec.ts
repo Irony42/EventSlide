@@ -2,8 +2,10 @@ import type { Locator, Page } from '@playwright/test'
 import { expect, joinAsGuest, test } from '../fixtures/app'
 import { passPrivacyNotice } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
+import { sessionOn, succeeded } from '../fixtures/session'
 import { SUITE_LOCALE } from '../fixtures/suiteLocale'
 import { fr } from '../../../web/src/lib/i18n/fr'
+import { de } from '../../../web/src/lib/i18n/de'
 
 /**
  * The upload pane on a small phone, after the guest has sent several photos.
@@ -62,12 +64,39 @@ const pinnedShare = (
     share: element.getBoundingClientRect().height / window.innerHeight,
   }))
 
+type App = Parameters<typeof joinAsGuest>[1]
+
+/** What a host may change about an event, through the API exactly as the settings form does. */
+interface EventSettings {
+  readonly allowCaptions?: boolean
+  readonly allowClips?: boolean
+  readonly ambiance?: 'guinguette' | 'cabaret'
+}
+
+const applySettings = async (app: App, slug: string, settings: EventSettings): Promise<void> => {
+  const api = await sessionOn(app.baseUrl)
+  const login = await api.post('/api/auth/login', app.owner)
+  if (!succeeded(login)) throw new Error(`the owner could not sign in: ${login.status}`)
+  const { ambiance, ...flags } = settings
+  const body = {
+    ...flags,
+    // The whole theme, because the route refuses a part of one (an old tab must not undo a choice).
+    ...(ambiance === undefined
+      ? {}
+      : { theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass', ambiance } }),
+  }
+  const saved = await api.patch(`/api/events/${slug}/settings`, body)
+  if (!succeeded(saved)) throw new Error(`the settings were refused: ${saved.status}`)
+}
+
 const openUploadScreen = async (
   page: Page,
-  app: Parameters<typeof joinAsGuest>[1],
+  app: App,
   slug: string,
+  settings: EventSettings = {},
 ): Promise<void> => {
   const event = await app.seedEvent({ slug, name: 'Les 40 ans de Sam' })
+  if (Object.keys(settings).length > 0) await applySettings(app, event.slug, settings)
   await joinAsGuest(page, app, event.joinCode)
   await passPrivacyNotice(page)
 }
@@ -79,10 +108,7 @@ for (const phone of PHONES) {
   }, testInfo) => {
     const context = await browser.newContext({
       viewport: { width: phone.width, height: phone.height },
-      // Not `isMobile` at 200%: a mobile browser zooms a page out to fit whatever overflows its
-      // width, and the header's ghost buttons do overflow at that text size (a separate defect),
-      // which would turn this into a measurement of the zoom rather than of the pane.
-      isMobile: phone.textSize === 100,
+      isMobile: true,
       hasTouch: true,
       deviceScaleFactor: 2,
       locale: SUITE_LOCALE,
@@ -166,9 +192,11 @@ test('picking the photos that make a pinned pane too tall does not take the send
 }, testInfo) => {
   // Tall enough that the empty pane is pinned, short enough that three rows tip it over: the pane
   // then moves from the bottom edge of the screen to its place at the end of the page, and with
-  // nobody scrolling it could land below the fold with the button in it.
+  // nobody scrolling it could land below the fold with the button in it. 780 and not the 900 it
+  // was: the empty pane is a third shorter since the caption and the video are folded, so it takes
+  // a shorter screen for three rows to tip it past the share.
   const context = await browser.newContext({
-    viewport: { width: 390, height: 900 },
+    viewport: { width: 390, height: 780 },
     isMobile: true,
     hasTouch: true,
     deviceScaleFactor: 2,
@@ -197,6 +225,237 @@ test('picking the photos that make a pinned pane too tall does not take the send
       }),
     )
     .toBe(true)
+
+  await context.close()
+})
+
+/**
+ * The pane with nothing in it, which is what a guest sees first, and what it takes of the screen.
+ *
+ * Captions and video are both on by default in an event's settings, and each used to be shown in
+ * full: the empty pane was 61 to 83% of a phone (82% of an iPhone SE), so it was never pinned on a
+ * small one and a guest had to scroll to reach `Envoyer`. Both are labelled buttons now, folded
+ * until pressed, and the pane holds to about two fifths of the screen. The share is a ceiling
+ * rather than a layout: a restyle that stays under it moves nothing here, and a control put back
+ * in full fails it.
+ */
+const EMPTY_PANES: readonly { readonly phone: Phone; readonly most: number }[] = [
+  { phone: PHONES[0] as Phone, most: 0.4 },
+  // 0.42 held on Windows fonts (41.0%); CI's Linux fonts set the same pane at 44.4%. Still half of
+  // main's 85%, so a control put back in full still fails it.
+  { phone: PHONES[1] as Phone, most: 0.46 },
+]
+
+for (const ambiance of ['guinguette', 'cabaret'] as const)
+  for (const { phone, most } of EMPTY_PANES) {
+    test(`${phone.name}, ${ambiance}: the empty pane takes at most ${most * 100}% of the screen, pinned, with the caption and video buttons on it`, async ({
+      app,
+      browser,
+    }, testInfo) => {
+      const context = await browser.newContext({
+        viewport: { width: phone.width, height: phone.height },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        locale: SUITE_LOCALE,
+        baseURL: app.baseUrl,
+      })
+      const page = await context.newPage()
+      await openUploadScreen(page, app, `pane-empty-${testInfo.workerIndex}-${phone.width}`, {
+        ambiance,
+      })
+      const pane = page.getByTestId('upload-composer')
+
+      // `poll`: until the guest accepts it, the privacy notice is a card inside the pane.
+      await expect.poll(async () => (await pinnedShare(pane)).share).toBeLessThanOrEqual(most)
+      expect((await pinnedShare(pane)).sticky).toBe(true)
+
+      // Nothing is hidden for the sake of it: the two options are words on the screen, in the
+      // pane, without a scroll and without a menu.
+      const caption = page.getByRole('button', { name: fr.upload.captionLabel, exact: true })
+      const clip = page.getByRole('button', { name: fr.upload.clipSection, exact: true })
+      await expect(caption).toBeInViewport()
+      await expect(clip).toBeInViewport()
+      await expect(page.getByRole('button', { name: /^Envoyer/i })).toBeInViewport()
+      await expect(page.getByTestId('photo-input')).toBeAttached()
+      expect(await reachable(caption), 'Légende').toBe(true)
+      expect(await reachable(clip), 'Vidéo').toBe(true)
+
+      // And one photo picked still leaves it a pinned pane, under the share the hook allows.
+      await page.getByTestId('photo-input').setInputFiles(await aPhoto('pane-empty-one', 800, 600))
+      await expect(page.getByTestId('upload-item-0')).toBeVisible()
+      await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(true)
+      expect((await pinnedShare(pane)).share).toBeLessThanOrEqual(MAX_PINNED_SHARE)
+
+      await context.close()
+    })
+  }
+
+test('the caption and the video unfold in place, with their hints, and stay reachable', async ({
+  app,
+  browser,
+}, testInfo) => {
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 667 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-unfold-${testInfo.workerIndex}`)
+  const pane = page.getByTestId('upload-composer')
+  await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(true)
+  const folded = (await pinnedShare(pane)).share
+
+  await page.getByRole('button', { name: fr.upload.captionLabel, exact: true }).click()
+  await expect(page.getByLabel(fr.upload.captionLabel)).toBeFocused()
+  await expect(page.getByText(fr.upload.captionHint(140))).toBeVisible()
+
+  await page.getByRole('button', { name: fr.upload.clipSection, exact: true }).click()
+  await expect(page.getByText(fr.upload.clipHint(15, 80))).toBeVisible()
+  await expect(page.getByTestId('clip-input')).toBeFocused()
+
+  // It grew: what unfolded is on the page and not behind it. And by more than a margin, so this
+  // cannot pass on a pane that never changed.
+  expect((await pinnedShare(pane)).share).toBeGreaterThan(folded + 0.1)
+  expect(await reachable(page.getByLabel(fr.upload.captionLabel)), 'the caption field').toBe(true)
+  expect(await reachable(page.getByRole('button', { name: /^Envoyer/i })), 'Envoyer').toBe(true)
+
+  await context.close()
+})
+
+test('an event that allows neither captions nor video shows neither button', async ({
+  app,
+  browser,
+}, testInfo) => {
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 667 },
+    isMobile: true,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-none-${testInfo.workerIndex}`, {
+    allowCaptions: false,
+    allowClips: false,
+  })
+
+  await expect(page.getByRole('button', { name: /^Envoyer/i })).toBeVisible()
+  await expect(page.getByRole('button', { name: fr.upload.captionLabel, exact: true })).toHaveCount(
+    0,
+  )
+  await expect(page.getByRole('button', { name: fr.upload.clipSection, exact: true })).toHaveCount(
+    0,
+  )
+  await expect(page.getByTestId('clip-input')).toHaveCount(0)
+
+  await context.close()
+})
+
+/**
+ * The narrowest phone with its text at 200%, and the page does not scroll sideways.
+ *
+ * A mobile browser answers a page wider than the screen by zooming it out until it fits, so the
+ * guest would see the whole screen shrunk to a third. What was wider: the header's ghost buttons
+ * (their label never wrapped), the two pickers (a `1fr` column is never narrower than its longest
+ * word) and a queue row. Each wraps or stacks now, and nothing is hidden: every control is asked
+ * for its own box, inside the screen.
+ */
+for (const ambiance of ['guinguette', 'cabaret'] as const)
+  test(`320x568, text at 200%, ${ambiance}: nothing is wider than the screen, with both options open and a photo picked`, async ({
+    app,
+    browser,
+  }, testInfo) => {
+    const context = await browser.newContext({
+      viewport: { width: 320, height: 568 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+      locale: SUITE_LOCALE,
+      baseURL: app.baseUrl,
+      bypassCSP: true,
+    })
+    const page = await context.newPage()
+    await openUploadScreen(page, app, `pane-wide-${testInfo.workerIndex}-${ambiance}`, {
+      ambiance,
+    })
+    await page.addStyleTag({ content: 'html { font-size: 200%; }' })
+
+    const expectNoSidewaysScroll = async (when: string) => {
+      const { scrollWidth, innerWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      }))
+      // `innerWidth` too: a mobile browser that zoomed out to fit has a wider layout viewport.
+      expect(innerWidth, `${when}: the layout viewport`).toBe(320)
+      expect(scrollWidth, `${when}: the page`).toBeLessThanOrEqual(innerWidth)
+    }
+
+    await expectNoSidewaysScroll('empty')
+
+    // Every control of the header, in its own box and inside the screen.
+    const headerControls = [
+      page.getByLabel(fr.app.language),
+      page.getByRole('link', { name: fr.feed.link }),
+      page.getByRole('button', { name: fr.join.notYourEvening }),
+      page.getByRole('button', { name: fr.upload.noticeLink }),
+    ]
+    for (const control of headerControls) {
+      await expect(control).toBeVisible()
+      const box = await control.boundingBox()
+      expect(box, 'a header control has a box').not.toBeNull()
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0)
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320)
+    }
+
+    await page.getByRole('button', { name: fr.upload.captionLabel, exact: true }).click()
+    await page.getByRole('button', { name: fr.upload.clipSection, exact: true }).click()
+    await page.getByTestId('photo-input').setInputFiles(await aPhoto('pane-wide', 800, 600))
+    await expect(page.getByTestId('upload-item-0')).toBeVisible()
+    await expectNoSidewaysScroll('both options open, one photo picked')
+
+    await context.close()
+  })
+
+test('320x568, text at 200%, in German: the longest word of the two buttons does not push the page wider', async ({
+  app,
+  browser,
+}, testInfo) => {
+  // "Bildunterschrift" is one word of sixteen letters: it has no space to wrap at, so it is the
+  // case where letting a button's label wrap is not enough.
+  const context = await browser.newContext({
+    viewport: { width: 320, height: 568 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+    bypassCSP: true,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-de-${testInfo.workerIndex}`)
+  // The reader's own preference, as the language picker writes it, then a real reload.
+  await page.evaluate(() => localStorage.setItem('eventslide.locale', 'de'))
+  await page.reload()
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' })
+  await expect(
+    page.getByRole('button', { name: de.upload.captionLabel, exact: true }),
+  ).toBeVisible()
+
+  const widths = () =>
+    page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    }))
+  expect((await widths()).scrollWidth, 'folded').toBeLessThanOrEqual(320)
+
+  await page.getByRole('button', { name: de.upload.captionLabel, exact: true }).click()
+  await page.getByRole('button', { name: de.upload.clipSection, exact: true }).click()
+  const open = await widths()
+  expect(open.innerWidth, 'the layout viewport').toBe(320)
+  expect(open.scrollWidth, 'both options open').toBeLessThanOrEqual(320)
 
   await context.close()
 })

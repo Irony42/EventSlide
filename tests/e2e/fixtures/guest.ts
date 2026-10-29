@@ -51,6 +51,18 @@ export const passPrivacyNotice = async (page: Page): Promise<void> => {
   await expect(page.getByTestId('photo-input')).toBeAttached()
 }
 
+/**
+ * Writes the batch caption, the way a guest does: the field is folded under a "Légende" button
+ * until it is pressed (the pane is half the height of a phone with it open all the time), so
+ * it is unfolded first. Idempotent in the sense that matters: a field that is already open
+ * (it holds text) is written into without pressing a button that would decline.
+ */
+export const writeCaption = async (page: Page, caption: string): Promise<void> => {
+  const field = page.getByLabel(/Légende/i)
+  if (!(await field.isVisible())) await page.getByRole('button', { name: /^Légende$/i }).click()
+  await field.fill(caption)
+}
+
 export interface JoinAndUploadOptions {
   readonly displayName?: string
   readonly caption?: string
@@ -78,9 +90,7 @@ export const joinAndUpload = async (
   const file = options.file ?? (await aPhoto('journey', 1200, 900))
   await page.getByTestId('photo-input').setInputFiles(file)
 
-  if (options.caption !== undefined) {
-    await page.getByLabel(/Légende/i).fill(options.caption)
-  }
+  if (options.caption !== undefined) await writeCaption(page, options.caption)
 
   await page.getByRole('button', { name: /Envoyer/i }).click()
   await expect(page.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done')

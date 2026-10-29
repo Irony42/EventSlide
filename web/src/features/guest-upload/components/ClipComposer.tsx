@@ -1,4 +1,4 @@
-import { useId, type ChangeEvent } from 'react'
+import { useId, type ChangeEvent, type Ref } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { Notice } from '../../../design-system/components/Notice'
 import { Progress } from '../../../design-system/components/Progress'
@@ -29,6 +29,17 @@ export interface ClipComposerProps {
   readonly limits: ClipLimits
   /** The batch caption, so a guest who wrote one does not lose it on the video. */
   readonly caption: string | null
+  /**
+   * What the section is named by: the control that reveals it (`ComposerOptions`'s "Vidéo"
+   * button), which is its accessible name. The three below are that arrangement's
+   * hooks: the id the button's `aria-controls` points at, whether the section is folded away
+   * (the `hidden` attribute: out of the tab order and the accessibility tree, state kept), and
+   * the first picker, which focus moves to when the section is revealed.
+   */
+  readonly id: string
+  readonly labelledBy: string
+  readonly hidden: boolean
+  readonly libraryRef?: Ref<HTMLInputElement>
 }
 
 /** What the screen says at each stage. `null` where the surface says it another way. */
@@ -93,7 +104,15 @@ const TONE: Readonly<Record<ClipStage, 'danger' | 'warning' | 'success' | null>>
   failed: 'danger',
 }
 
-export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
+export function ClipComposer({
+  clip,
+  limits,
+  caption,
+  id,
+  labelledBy,
+  hidden,
+  libraryRef,
+}: ClipComposerProps) {
   const t = useTranslations()
   const stageLabel = stageLabelsFor(t)
   const libraryId = useId()
@@ -112,14 +131,7 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
   const tone = TONE[clip.stage]
 
   return (
-    <section className={styles['composer']} aria-labelledby={`${libraryId}-heading`}>
-      {/* Named "Vidéo" rather than "Ajouter une vidéo": the section's accessible name
-          and the picker's label would otherwise be the same string, so a screen reader
-          announces the heading and the control it contains identically. */}
-      <h2 className={styles['heading']} id={`${libraryId}-heading`}>
-        {t.upload.clipSection}
-      </h2>
-
+    <section className={styles['composer']} id={id} aria-labelledby={labelledBy} hidden={hidden}>
       {/* The limits, before the picker opens. A guest who reads "15 secondes, 80 Mo"
           films a shorter sequence; a guest who does not reads it as a refusal later. */}
       <p className={styles['hint']}>
@@ -133,6 +145,7 @@ export function ClipComposer({ clip, limits, caption }: ClipComposerProps) {
         <label className={styles['action']} htmlFor={libraryId}>
           <span>{clip.file === null ? t.upload.addClip : t.upload.clipChange}</span>
           <input
+            ref={libraryRef}
             id={libraryId}
             className={styles['input']}
             data-testid="clip-input"

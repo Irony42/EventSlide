@@ -53,14 +53,21 @@
  * welded to the viewport edge reads as a gradient someone forgot to finish; one with a
  * gutter under it reads as a sheet, and the gutter is where the photos travel.
  *
- * The inline padding is `--space-3` and not `--space-4`, and the asymmetry is the
- * measurement rather than a slip. The bar now has an edge of its own, so its content
+ * The padding is `--space-3` and not `--space-4` — it was `--space-4` over `--space-3` until the
+ * block spacing was spent too (below) — and the inline half is the measurement rather than a
+ * slip. The bar now has an edge of its own, so its content
  * cannot sit against it — but every pixel it takes comes off `Envoyer`, on the narrowest
  * screen this product is designed for. The shell already spends `--space-4` inline
  * (`AppShell.module.css`), and box sizing is `border-box`, so at 360 px a second
  * `--space-4` would leave the primary control 294 px against the 328 px it had. One step
  * down costs 24 px instead of 34 and still keeps the two picker buttons well clear of
  * `--touch-min`.
+ *
+ * **The block spacing is tight for the same reason, and measured.** An empty pane at 375x667 is
+ * held to about two fifths of the screen (`guest-upload-pane.spec.ts`): past that, the pane is
+ * what the guest sees of this page. Between the controls that is one step less than the page's
+ * own rhythm (`--space-3` where the column uses `--space-5`), which is still a gap a thumb
+ * cannot land in by mistake.
  */
 .composer {
   composes: sheet from '../../design-system/glass.module.css';
@@ -69,8 +76,8 @@
   margin-block-start: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-3);
+  gap: var(--space-3);
+  padding: var(--space-3);
   border-radius: var(--radius-lg);
 }
 
@@ -148,4 +155,20 @@
  */
 .noticeLink {
   align-self: flex-start;
+}
+
+/**
+ * These two wrap. A button's own rule keeps its label on one line, and at a guest's own text
+ * size on the narrowest phone the longest of them is wider than the screen: the page then
+ * scrolls sideways, and a mobile browser zooms it out to fit. Left-aligned and a line taller
+ * instead (`min-height` is the touch floor, not a height), and nothing is dropped. `.header >
+ * .noticeLink` rather than `.noticeLink`, so it outranks the primitive wherever the two
+ * stylesheets land in the bundle.
+ */
+.header > .noticeLink {
+  max-inline-size: 100%;
+  white-space: normal;
+  text-align: start;
+  line-height: var(--leading-snug);
+  padding-block: var(--space-2);
 }

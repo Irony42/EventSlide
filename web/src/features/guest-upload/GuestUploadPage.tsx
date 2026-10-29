@@ -6,8 +6,7 @@ import { themeSurfaceProps } from '../../design-system/eventTheme'
 import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { CaptionField } from './components/CaptionField'
-import { ClipComposer } from './components/ClipComposer'
+import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { MissionChecklist } from './components/MissionChecklist'
 import { MyPhotos } from './components/MyPhotos'
@@ -440,25 +439,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               onToggle={missions.toggle}
             />
             <PhotoPicker onPick={queue.add} libraryRef={libraryInput} />
-            {/* The host's setting, from the event the join step returned. */}
-            {event.allowCaptions ? <CaptionField value={caption} onChange={setCaption} /> : null}
-            {/*
-              Below the caption, because the caption travels with the clip as well — a guest
-              who wrote one and then sent a video must not lose it — and above the send
-              button, because the video has a send button of its own and two of them side by
-              side would be a guess about which one does what.
-
-              Rendered only when the host allowed video. On a gallery created before clips
-              shipped this setting reads `false`, and offering the control there would mean a
-              `403` after eighty megabytes.
-            */}
-            {event.allowClips ? (
-              <ClipComposer
-                clip={clip}
-                limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
-                caption={trimmedCaption.length === 0 ? null : trimmedCaption}
-              />
-            ) : null}
+            {/* The caption and the video, as labelled buttons that unfold in place: shown in full
+                they took half of a phone before a photo was chosen. The host's settings, from the
+                event the join step returned, decide which exist at all. */}
+            <ComposerOptions
+              captions={event.allowCaptions}
+              caption={caption}
+              onCaptionChange={setCaption}
+              clips={event.allowClips}
+              clip={clip}
+              limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
+            />
             <Button
               variant="primary"
               size="lg"

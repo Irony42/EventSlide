@@ -7,6 +7,9 @@
 
 .label {
   display: flex;
+  /* The badge drops under a long label instead of past the edge of the screen: a guest's own text
+     size, or a language whose word for the field is one long one. */
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
   font-size: var(--text-sm);

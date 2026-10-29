@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, Ref } from 'react'
 import { Field } from '../../../design-system/components/Field'
 import { Textarea } from '../../../design-system/components/Textarea'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -26,9 +26,11 @@ const MAX_LENGTH = 140
 export interface CaptionFieldProps {
   readonly value: string
   readonly onChange: (value: string) => void
+  /** The textarea, for a parent that moves focus here when it reveals the field. */
+  readonly inputRef?: Ref<HTMLTextAreaElement>
 }
 
-export function CaptionField({ value, onChange }: CaptionFieldProps) {
+export function CaptionField({ value, onChange, inputRef }: CaptionFieldProps) {
   const t = useTranslations()
   // The hint starts as the rule and becomes the countdown, so the remaining count is
   // read out with the field instead of living in a live region that would interrupt
@@ -43,6 +45,7 @@ export function CaptionField({ value, onChange }: CaptionFieldProps) {
       {(control) => (
         <Textarea
           {...control}
+          ref={inputRef}
           value={value}
           maxLength={MAX_LENGTH}
           onChange={(event: ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)}

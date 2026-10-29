@@ -1,0 +1,43 @@
+/**
+ * The caption and the video, folded under the pickers (see `ComposerOptions.tsx`).
+ *
+ * One column: the buttons, then whatever the guest unfolded. A section that is folded is
+ * `hidden`, which takes it out of the flow, so a pane with both folded is one row taller than
+ * the pickers and the send button.
+ */
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Side by side while both fit on one line, one above the other when they do not: a long word in
+   another language, or a guest who has turned their text up. */
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/**
+ * A button's own rule is one line that never wraps, and a label that cannot wrap is a page that
+ * is wider than the screen. These wrap and grow a line instead (`min-height` is the touch floor,
+ * not a height). `.toggles > .toggle` rather than `.toggle`, so it outranks the primitive
+ * wherever the two stylesheets land in the bundle.
+ */
+.toggles > .toggle {
+  flex: 1 1 var(--tile-min-width);
+  white-space: normal;
+  /* A single long word ("Bildunterschrift") has no space to wrap at, and at a guest's own text
+     size on the narrowest phone it is wider than the screen. */
+  overflow-wrap: anywhere;
+  line-height: var(--leading-snug);
+  padding-block: var(--space-2);
+}
+
+/* Held open by what is inside it: said by `aria-disabled`, shown the way `disabled` is. Not
+   `disabled` itself, which would drop the button out of the tab order. */
+.toggles > .toggle[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

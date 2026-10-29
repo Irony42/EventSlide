@@ -11,12 +11,10 @@
   gap: var(--space-3);
 }
 
-.heading {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: 600;
-  line-height: var(--leading-snug);
-  color: var(--text-primary);
+/* `display` above would win over the browser's own `[hidden]` rule, and a section that is
+   folded away would stay on screen: the pane is as tall as it is because of this one. */
+.composer[hidden] {
+  display: none;
 }
 
 .hint {
@@ -26,9 +24,11 @@
   color: var(--text-secondary);
 }
 
+/* Side by side while two tiles fit, stacked when they do not (a guest who has turned their text
+   up): a column that is narrower than its longest word overflows the page instead of wrapping. */
 .picker {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--tile-min-width)), 1fr));
   gap: var(--space-3);
 }
 
