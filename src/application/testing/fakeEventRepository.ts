@@ -155,6 +155,12 @@ export class FakeEventRepository implements EventRepository {
     else this.takenDown.set(id, at)
   }
 
+  async deleteUnlessHeld(id: EventId): Promise<boolean> {
+    if (!this.rows.has(id) || this.purgeHeld.has(id)) return false
+    await this.delete(id)
+    return true
+  }
+
   async setPurgeHeld(id: EventId, at: Date | null): Promise<void> {
     if (!this.rows.has(id)) return
     if (at === null) this.purgeHeld.delete(id)

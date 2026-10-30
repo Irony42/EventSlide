@@ -588,6 +588,7 @@ export class SqliteEventRepository implements EventRepository {
   private readonly deleteById: Database.Statement<[string]>
   private readonly updateTakenDown: Database.Statement<[string | null, string]>
   private readonly updatePurgeHeld: Database.Statement<[string | null, string]>
+  private readonly deleteUnheld: Database.Statement<[string]>
 
   /**
    * Statements are prepared once per repository, not per call. `better-sqlite3` caches
@@ -746,6 +747,9 @@ export class SqliteEventRepository implements EventRepository {
     this.updateTakenDown = db.prepare<[string | null, string]>(
       `UPDATE events SET taken_down_at = ? WHERE id = ?`,
     )
+    this.deleteUnheld = db.prepare<[string]>(
+      `DELETE FROM events WHERE id = ? AND purge_held_at IS NULL`,
+    )
     this.updatePurgeHeld = db.prepare<[string | null, string]>(
       `UPDATE events SET purge_held_at = ? WHERE id = ?`,
     )
@@ -753,6 +757,10 @@ export class SqliteEventRepository implements EventRepository {
 
   async setTakenDown(id: EventId, at: Date | null): Promise<void> {
     this.updateTakenDown.run(at === null ? null : toIsoText(at), id)
+  }
+
+  async deleteUnlessHeld(id: EventId): Promise<boolean> {
+    return this.deleteUnheld.run(id).changes > 0
   }
 
   async setPurgeHeld(id: EventId, at: Date | null): Promise<void> {

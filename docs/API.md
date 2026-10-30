@@ -475,10 +475,14 @@ alone (`:photoId` and `:eventId` are ids, never slugs). Each needs the second fa
 - **`take-down` (event)**: every surface that serves the event answers as for an event that does not exist, **a member's
   and the host's own included**: the wall, its feed (an open one ends at its next heartbeat), the join, a guest's routes,
   a gallery link and every `/api/events/:slug/**` route (`404 event.notFound`). It is off the host's dashboard. It does
-  **not** stop the retention clock and touches no photograph. `restore` lifts all of it.
-- **`purge-hold`**: the retention sweep skips the event, the host's purge answers `409 event.purgeUnavailable` and the
-  deletion of a photograph (a host's, a moderator's or the guest's own) `409 photo.deleteUnavailable`; replacing or removing the venue photograph is `409 event.purgeUnavailable`. It hides nothing.
-  The wording does not say why: the host is not told. `purge-release` makes the event due again at its own deadline,
+  **not** stop the retention clock and touches no photograph: **a takedown does not imply a hold**, so to keep the content as
+  evidence the operator sets both (`take-down` and `purge-hold`). `restore` lifts all of it.
+- **`purge-hold`**: the retention sweep skips the event, the host's purge, the deletion of a photograph (a host's, a moderator's or the guest's own)
+  and the replacement or removal of the venue photograph are refused with **a failure the caller can already get**
+  (`500 event.mediaPurgeFailed`, `500 photo.deleteFailed`, `500 venuePhoto.saveFailed`), never with a code that exists only
+  under a hold, and an unknown photograph id is still `404`: the host is not told why. The purge is also **hard**: the retention
+  sweep and the host's purge delete the row with a statement that refuses a held event, and touch the bytes only after it
+  succeeded, so a hold set while a sweep was running still wins. It hides nothing. `purge-release` makes the event due again at its own deadline,
   which may have passed, so the next sweep purges it.
 - **Audit**: one line per change (`photo.takenDown`, `photo.restored`, `event.takenDown`, `event.restored`,
   `event.purgeHeld`, `event.purgeReleased`), subject the photograph's or the event's id, `details: { reason }`, and

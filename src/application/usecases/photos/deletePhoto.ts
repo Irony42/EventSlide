@@ -80,13 +80,16 @@ export const makeDeletePhoto = ({
     const writable = requireWritable(event)
     if (!writable.ok) return writable
 
-    // A held event keeps everything it has, a guest's own photograph included (launch review S5).
-    if (event.isPurgeHeld()) return err(DomainError.conflict('photo.deleteUnavailable'))
 
     // Scoped read: passing `eventId` is what makes a photo of another event a 404
     // rather than a deletion.
     const photo = await photos.findById(eventId, photoId)
     if (photo === null) return err(DomainError.notFound('photo.notFound'))
+
+    // A held event keeps everything it has, a guest's own photograph included (launch review S5).
+    // Asked **after** the lookup, so an unknown id is still a 404, and answered with a generic
+    // failure instead of a code that exists only under a hold: the host is not told why.
+    if (event.isPurgeHeld()) return err(DomainError.unexpected('photo.deleteFailed'))
 
     // One verdict, which the guest's `canDelete` flag is read from as well (`deletionVerdict`): the
     // host's switch over the whole feature (a wedding where the album is the point, and a guest

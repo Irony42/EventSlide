@@ -111,8 +111,8 @@ describe('a purge hold', () => {
     const result = await purge({ eventId: EVENT, actorId: OWNER })
 
     expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
-      'conflict',
-      'event.purgeUnavailable',
+      'unexpected',
+      'event.mediaPurgeFailed',
     ])
     expect(await events.findById(EVENT)).not.toBeNull()
   })
@@ -134,11 +134,30 @@ describe('a purge hold', () => {
       const result = await deletePhoto({ eventId: EVENT, photoId: asPhotoId('photo-1'), actor })
 
       expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
-        'conflict',
-        'photo.deleteUnavailable',
+        'unexpected',
+        'photo.deleteFailed',
       ])
     }
     expect(await photos.findById(EVENT, asPhotoId('photo-1'))).not.toBeNull()
+  })
+
+  it('still answers 404 for a photograph that does not exist, hold or not', async () => {
+    const deletePhoto = makeDeletePhoto({
+      events,
+      photos,
+      clips: new FakeClipJobRepository(),
+      media,
+      bus: new RecordingEventBus(),
+      clock: new FakeClock(),
+    })
+
+    const result = await deletePhoto({
+      eventId: EVENT,
+      photoId: asPhotoId('ghost'),
+      actor: { kind: 'host', userId: OWNER },
+    })
+
+    expect(!result.ok && result.error.code).toBe('photo.notFound')
   })
 
   it('lets the purge through again once the operator has released it', async () => {
@@ -165,8 +184,8 @@ describe('a purge hold', () => {
     const result = await remove({ eventId: EVENT, actorId: OWNER })
 
     expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
-      'conflict',
-      'event.purgeUnavailable',
+      'unexpected',
+      'venuePhoto.saveFailed',
     ])
   })
 })

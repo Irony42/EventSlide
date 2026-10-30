@@ -55,7 +55,7 @@ export const makeRegisterModerator =
   ({ events, users, memberships, issueInvitation }: RegisterModeratorDeps): RegisterModerator =>
   async ({ eventId, actorId, email, locale }) => {
     const event = await events.findById(eventId)
-    if (event === null) return err(DomainError.notFound('event.notFound'))
+    if (event === null || event.isTakenDown()) return err(DomainError.notFound('event.notFound'))
 
     // Scoped read: an owner of the corporate gala is nobody on this wedding.
     const allowed = await requireEventRole(memberships, eventId, actorId, 'inviteModerators')

@@ -368,16 +368,16 @@ describe('a purge hold', () => {
 
     expect(readable.media).toBe(200)
     const venue = await s.host.delete(`/api/events/${SLUG}/venue-photo`)
-    expect([venue.status, venue.body.error.code]).toEqual([409, 'event.purgeUnavailable'])
+    expect([venue.status, venue.body.error.code]).toEqual([500, 'venuePhoto.saveFailed'])
     const jpeg = await sharp({
       create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } },
     })
       .jpeg()
       .toBuffer()
     const replaced = await s.host.putFile(`/api/events/${SLUG}/venue-photo`, jpeg)
-    expect([replaced.status, replaced.body.error.code]).toEqual([409, 'event.purgeUnavailable'])
-    expect([purged.status, purged.body.error.code]).toEqual([409, 'event.purgeUnavailable'])
-    expect([deleted.status, deleted.body.error.code]).toEqual([409, 'photo.deleteUnavailable'])
+    expect([replaced.status, replaced.body.error.code]).toEqual([500, 'venuePhoto.saveFailed'])
+    expect([purged.status, purged.body.error.code]).toEqual([500, 'event.mediaPurgeFailed'])
+    expect([deleted.status, deleted.body.error.code]).toEqual([500, 'photo.deleteFailed'])
   })
 })
 

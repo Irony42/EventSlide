@@ -115,7 +115,8 @@ export const makeSetVenuePhoto = ({
     if (!writable.ok) return writable
 
     // A held event keeps every file it has, the venue photograph's included (launch review S5).
-    if (event.isPurgeHeld()) return err(DomainError.conflict('event.purgeUnavailable'))
+    // Answered with a failure the host can already get, not one that exists only under a hold.
+    if (event.isPurgeHeld()) return err(DomainError.unexpected('venuePhoto.saveFailed'))
 
     const probed = await imageProcessor.probe(bytes)
     if (!probed.ok) return probed

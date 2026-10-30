@@ -77,6 +77,31 @@ describe('purgeExpiredEvents', () => {
     expect(calls.names).toEqual(['media.deleteEvent'])
   })
 
+  it('keeps the bytes of an event whose purge the operator held after the sweep listed it (launch review S5)', async () => {
+    seedExpiredWedding()
+    const racing = {
+      ...events,
+      listDueForPurge: async (...args: Parameters<typeof events.listDueForPurge>) => {
+        const listed = await events.listDueForPurge(...args)
+        await events.setPurgeHeld(WEDDING, AT)
+        return listed
+      },
+      deleteUnlessHeld: (id: EventId) => events.deleteUnlessHeld(id),
+    }
+
+    const report = await makePurgeExpiredEvents({
+      events: racing as unknown as typeof events,
+      media: watched(media),
+      clock,
+      capNoticeDays: 30,
+    })()
+
+    expect(report).toEqual({ purged: [], failed: [] })
+    expect(await events.findById(WEDDING)).not.toBeNull()
+    expect(await bytesLeft()).toEqual([1, 1])
+    expect(calls.names).toEqual([])
+  })
+
   it('purges the row of an event past its retention deadline', async () => {
     seedExpiredWedding()
 
@@ -168,10 +193,10 @@ describe('purgeExpiredEvents', () => {
       expect(report.failed).toEqual([GALA])
     })
 
-    it('leaves the failed row in place, so the next sweep tries again', async () => {
+    it('has already removed the failed row: its bytes are left for the orphan sweep', async () => {
       await purgeExpiredEvents()
 
-      expect(await events.findById(GALA)).not.toBeNull()
+      expect(await events.findById(GALA)).toBeNull()
     })
   })
 

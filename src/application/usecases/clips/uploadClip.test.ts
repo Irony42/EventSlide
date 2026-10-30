@@ -5,7 +5,7 @@ import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import type { ContentHasher } from '../../ports/contentHasher'
 import type { TranscodeSpec } from '../../ports/videoTranscoder'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
-import { aClient, anEvent, aPhoto, type EventInput } from '../../testing/builders'
+import { AT, aClient, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { CallLog } from '../../testing/callLog'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
@@ -306,6 +306,26 @@ describe('uploadClip', () => {
       expect(first.ok && second.ok).toBe(true)
       expect(second.ok && second.value.duplicate).toBe(true)
       expect(second.ok && second.value.clipJobId).toBe(first.ok ? first.value.clipJobId : '')
+      expect(clips.all).toHaveLength(1)
+    })
+
+    it('still dedupes onto a finished job whose photograph the operator took down (launch review S5)', async () => {
+      seedEvent()
+      const bytes = aClipFile()
+      const first = await upload(bytes)
+      const queued = clips.all[0]
+      if (queued === undefined) throw new Error('fixture rejected')
+      const running = queued.claim(AT)
+      const done = running.ok ? running.value.succeed(AT) : running
+      if (!done.ok) throw new Error('fixture rejected')
+      await clips.save(done.value)
+      photos.seed(aPhoto({ id: queued.photoId, eventId: 'event-1', clip: {} }))
+      await photos.setTakenDown(EVENT, queued.photoId, AT)
+
+      const again = await upload(bytes)
+
+      expect(again.ok && again.value.duplicate).toBe(true)
+      expect(again.ok && again.value.clipJobId).toBe(first.ok ? first.value.clipJobId : '')
       expect(clips.all).toHaveLength(1)
     })
 

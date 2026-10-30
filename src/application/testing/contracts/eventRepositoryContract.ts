@@ -1007,6 +1007,21 @@ export const eventRepositoryContract = (
         expect(await repo.findById(asEventId('ghost'))).toBeNull()
       })
 
+      it('deletes an event unless it is held, in one statement, and says which', async () => {
+        await repo.save(nthEvent(1))
+        await repo.save(nthEvent(2))
+        await repo.setPurgeHeld(asEventId('evt-1'), AT_LEVER)
+
+        expect(await repo.deleteUnlessHeld(asEventId('evt-1'))).toBe(false)
+        expect(await repo.findById(asEventId('evt-1'))).not.toBeNull()
+        expect(await repo.deleteUnlessHeld(asEventId('evt-2'))).toBe(true)
+        expect(await repo.findById(asEventId('evt-2'))).toBeNull()
+        expect(await repo.deleteUnlessHeld(asEventId('evt-2'))).toBe(false)
+
+        await repo.setPurgeHeld(asEventId('evt-1'), null)
+        expect(await repo.deleteUnlessHeld(asEventId('evt-1'))).toBe(true)
+      })
+
       it('never lists a held event for the purge, whatever its deadline, and lists it again once released', async () => {
         await repo.save(
           anEvent({
