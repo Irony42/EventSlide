@@ -230,11 +230,343 @@ describe('ModerationPage', () => {
       within(card).getByRole('button', { name: fr.moderation.rejectPhoto('Léa') }),
     ).toBeInTheDocument()
     expect(
-      within(card).getByRole('button', { name: fr.moderation.hidePhoto('Léa') }),
-    ).toBeInTheDocument()
-    expect(
       within(card).getByRole('checkbox', { name: fr.moderation.selectPhoto('Léa') }),
     ).toBeInTheDocument()
+  })
+
+  describe('offers only the decisions the server says a photo may take (MOD-4)', () => {
+    const buttonNames = (card: HTMLElement) =>
+      within(card)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label') ?? '')
+        .filter((name) => !name.startsWith('Agrandir'))
+
+    it('offers a waiting photo Publier and Refuser, and no way to take it off a screen it is not on', async () => {
+      renderConsole(fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) }))
+      const card = await screen.findByTestId('moderation-card')
+
+      expect(buttonNames(card)).toEqual([
+        fr.moderation.publishPhoto('Léa'),
+        fr.moderation.rejectPhoto('Léa'),
+      ])
+    })
+
+    it('offers a photo on the wall Retirer de l’écran and Refuser, and no Publier that does nothing', async () => {
+      renderConsole(
+        fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])) }),
+      )
+      const card = await screen.findByTestId('moderation-card')
+
+      expect(buttonNames(card)).toEqual([
+        fr.moderation.hidePhoto('Léa'),
+        fr.moderation.rejectPhoto('Léa'),
+      ])
+    })
+
+    it('words the publication of a photo taken off the screen as putting it back', async () => {
+      renderConsole(
+        fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea({ status: 'hidden' })])) }),
+      )
+      const card = await screen.findByTestId('moderation-card')
+
+      expect(buttonNames(card)).toEqual([
+        fr.moderation.republishPhoto('Léa'),
+        fr.moderation.rejectPhoto('Léa'),
+      ])
+      expect(within(card).getByText(fr.moderation.republish)).toBeInTheDocument()
+    })
+
+    it('words the publication of a refused photo as publishing it anyway, and offers nothing else', async () => {
+      renderConsole(
+        fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea({ status: 'rejected' })])) }),
+      )
+      const card = await screen.findByTestId('moderation-card')
+
+      expect(buttonNames(card)).toEqual([fr.moderation.publishAnywayPhoto('Léa')])
+    })
+
+    it('shows exactly what the row says, whatever its status', async () => {
+      // The console holds no table of its own: a row the server allows one thing on has
+      // that button alone, which is what proves the card reads the row and not the status.
+      renderConsole(
+        fakeApi({
+          moderationQueue: vi.fn(async () => queueOf([lea({ allowedDecisions: ['hide'] })])),
+        }),
+      )
+      const card = await screen.findByTestId('moderation-card')
+
+      expect(buttonNames(card)).toEqual([fr.moderation.hidePhoto('Léa')])
+    })
+
+    it('says why a key did nothing, instead of answering with a red notice', async () => {
+      const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+      renderConsole(api)
+      await screen.findByTestId('moderation-card')
+
+      await userEvent.keyboard('j')
+      await userEvent.keyboard('h')
+
+      expect(api.moderate).not.toHaveBeenCalled()
+      expect(await screen.findByText(fr.moderation.notOnScreen)).toBeInTheDocument()
+      // And the keyboard stays where it was: nothing was decided, so nothing moved on.
+      expect(cardOf('Léa')).toHaveFocus()
+    })
+
+    it('says a photo is already on the screen when P is pressed on it', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])),
+      })
+      renderConsole(api)
+      await screen.findByTestId('moderation-card')
+
+      await userEvent.keyboard('j')
+      await userEvent.keyboard('p')
+
+      expect(api.moderate).not.toHaveBeenCalled()
+      expect(await screen.findByText(fr.moderation.alreadyOnScreen)).toBeInTheDocument()
+    })
+
+    it('says a photo is already refused when R is pressed on it', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf([lea({ status: 'rejected' })])),
+      })
+      renderConsole(api)
+      await screen.findByTestId('moderation-card')
+
+      await userEvent.keyboard('j')
+      await userEvent.keyboard('r')
+
+      expect(api.moderate).not.toHaveBeenCalled()
+      expect(await screen.findByText(fr.moderation.alreadyRefused)).toBeInTheDocument()
+    })
+
+    it('puts the same short list in the lightbox, with what the two removals cost a guest', async () => {
+      renderConsole(
+        fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])) }),
+      )
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.moderation.enlargePhoto('Léa') }),
+      )
+      const dialog = await screen.findByRole('dialog')
+
+      expect(
+        within(dialog).getByRole('button', { name: fr.moderation.hidePhoto('Léa') }),
+      ).toBeInTheDocument()
+      expect(
+        within(dialog).getByRole('button', { name: fr.moderation.rejectPhoto('Léa') }),
+      ).toBeInTheDocument()
+      expect(
+        within(dialog).queryByRole('button', { name: fr.moderation.publishPhoto('Léa') }),
+      ).toBeNull()
+      expect(within(dialog).getByText(fr.moderation.decisionsExplained)).toBeInTheDocument()
+    })
+
+    it('explains Refusées and Retirées on their filters', async () => {
+      renderConsole(fakeApi())
+      await screen.findByText(fr.moderation.empty)
+
+      expect(screen.getByRole('button', { name: fr.moderation.filterRejected })).toHaveAttribute(
+        'title',
+        fr.moderation.filterRejectedHint,
+      )
+      expect(screen.getByRole('button', { name: fr.moderation.filterHidden })).toHaveAttribute(
+        'title',
+        fr.moderation.filterHiddenHint,
+      )
+    })
+  })
+
+  describe('Z and the notices after a decision (MOD-1)', () => {
+    it('takes a publication back off the wall on Z, from "En attente"', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf([lea()])),
+        moderateBulk: vi.fn(async () => ({ applied: ['photo-1'], skipped: [] })),
+      })
+      renderConsole(api)
+      const card = await screen.findByTestId('moderation-card')
+
+      await userEvent.click(
+        within(card).getByRole('button', { name: fr.moderation.publishPhoto('Léa') }),
+      )
+      // "Retirer", because that is what the button does to a photo that was waiting.
+      expect(
+        await screen.findByRole('button', { name: fr.moderation.undoPublish }),
+      ).toBeInTheDocument()
+
+      await userEvent.keyboard('z')
+
+      expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'hide')
+    })
+
+    it('takes a publication back off the wall from the notice’s own button', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf([lea()])),
+        moderateBulk: vi.fn(async () => ({ applied: ['photo-1'], skipped: [] })),
+      })
+      renderConsole(api)
+      const card = await screen.findByTestId('moderation-card')
+
+      await userEvent.click(
+        within(card).getByRole('button', { name: fr.moderation.publishPhoto('Léa') }),
+      )
+      await userEvent.click(await screen.findByRole('button', { name: fr.moderation.undoPublish }))
+
+      expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'hide')
+      expect(await screen.findByText(fr.moderation.removed(1))).toBeInTheDocument()
+    })
+
+    it('says where a refused photo went, and goes there on a touch', async () => {
+      const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+      renderConsole(api)
+      const card = await screen.findByTestId('moderation-card')
+
+      await userEvent.click(
+        within(card).getByRole('button', { name: fr.moderation.rejectPhoto('Léa') }),
+      )
+      await userEvent.click(await screen.findByRole('button', { name: fr.moderation.seeRejected }))
+
+      expect(api.moderationQueue).toHaveBeenLastCalledWith(
+        SLUG,
+        { status: 'rejected' },
+        expect.anything(),
+      )
+      expect(screen.getByRole('button', { name: fr.moderation.filterRejected })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+    })
+
+    it('does not offer that link after a refusal that can be taken back', async () => {
+      // A photo on the wall that was refused is undone with "Annuler"; it needs no pointer
+      // to where it went.
+      renderConsole(
+        fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])) }),
+      )
+      const card = await screen.findByTestId('moderation-card')
+
+      await userEvent.click(
+        within(card).getByRole('button', { name: fr.moderation.rejectPhoto('Léa') }),
+      )
+
+      expect(await screen.findByRole('button', { name: fr.moderation.undo })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: fr.moderation.seeRejected })).toBeNull()
+    })
+  })
+
+  describe('a bulk refusal asks first when nothing can take it back (MOD-9)', () => {
+    const threeWaiting = () => [
+      lea(),
+      sacha(),
+      aModerationPhoto({ id: 'photo-3', authorName: 'Camille' }),
+    ]
+
+    it('asks before refusing three waiting photos from the button, and does nothing on Annuler', async () => {
+      const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf(threeWaiting())) })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(3) }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(fr.moderation.confirmRejectTitle(3))).toBeInTheDocument()
+      expect(api.moderateBulk).not.toHaveBeenCalled()
+
+      await userEvent.click(within(dialog).getByRole('button', { name: fr.app.cancel }))
+
+      expect(api.moderateBulk).not.toHaveBeenCalled()
+      // The selection is kept: the host changed their mind about refusing, not about the pick.
+      expect(screen.getByText(fr.moderation.selected(3))).toBeInTheDocument()
+    })
+
+    it('refuses once the host confirms, and drops the selection', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf(threeWaiting())),
+        moderateBulk: vi.fn(async () => ({
+          applied: ['photo-1', 'photo-2', 'photo-3'],
+          skipped: [],
+        })),
+      })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(3) }))
+
+      await userEvent.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: fr.moderation.confirmRejectLabel(3),
+        }),
+      )
+
+      expect(api.moderateBulk).toHaveBeenCalledWith(
+        SLUG,
+        ['photo-1', 'photo-2', 'photo-3'],
+        'reject',
+      )
+      expect(screen.queryByText(fr.moderation.selected(3))).toBeNull()
+    })
+
+    it('asks on R too, which is the keystroke that hit forty photos by accident', async () => {
+      const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf(threeWaiting())) })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+
+      await userEvent.keyboard('r')
+
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(api.moderateBulk).not.toHaveBeenCalled()
+    })
+
+    it('does not ask for two photos, which is a deliberate pick', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])),
+        moderateBulk: vi.fn(async () => ({ applied: ['photo-1', 'photo-2'], skipped: [] })),
+      })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(2) }))
+
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1', 'photo-2'], 'reject')
+    })
+
+    it('does not ask when everything chosen is on the wall, because the notice takes it back', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () =>
+          queueOf(
+            threeWaiting().map((photo) => aModerationPhoto({ ...photo, status: 'published' })),
+          ),
+        ),
+        moderateBulk: vi.fn(async () => ({
+          applied: ['photo-1', 'photo-2', 'photo-3'],
+          skipped: [],
+        })),
+      })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(3) }))
+
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(api.moderateBulk).toHaveBeenCalled()
+    })
+
+    it('keeps the shortcuts quiet while the question is open', async () => {
+      const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf(threeWaiting())) })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(3) }))
+      await screen.findByRole('dialog')
+
+      await userEvent.keyboard('p')
+
+      expect(api.moderateBulk).not.toHaveBeenCalled()
+    })
   })
 
   it('names the decisions on an anonymous guest’s photo without inventing a name', async () => {
@@ -685,6 +1017,8 @@ describe('ModerationPage', () => {
 
     expect(api.moderateBulk).not.toHaveBeenCalled()
     expect(screen.queryByText(fr.moderation.undone)).toBeNull()
+    // But it says so (MOD-1): a key that answers nothing reads as a dead keyboard.
+    expect(await screen.findByText(fr.moderation.nothingToUndo)).toBeInTheDocument()
   })
 
   it('shows the keyboard shortcuts, because nobody guesses them', async () => {

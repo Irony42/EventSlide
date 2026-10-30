@@ -3,6 +3,7 @@ import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto } from '../../../lib/api/dto'
+import { decisionWording, inDisplayOrder } from './decisionWording'
 import styles from './PhotoLightbox.module.css'
 
 /**
@@ -16,6 +17,12 @@ import styles from './PhotoLightbox.module.css'
  * The modal itself is the design system's `Dialog`: native `<dialog>`, focus trap,
  * Escape, and focus returned to the tile that opened it.
  */
+
+const VARIANT: Readonly<Record<ModerationDecision, 'primary' | 'danger' | 'secondary'>> = {
+  publish: 'primary',
+  reject: 'danger',
+  hide: 'secondary',
+}
 
 export interface PhotoLightboxProps {
   readonly photo: ModerationPhotoDto | null
@@ -93,27 +100,19 @@ export function PhotoLightbox({
           <Button variant="ghost" size="sm" onClick={onNext}>
             {t.moderation.nextPhoto}
           </Button>
-          <Button
-            variant="primary"
-            aria-label={t.moderation.publishPhoto(authorInName)}
-            onClick={() => onDecide(photo.id, 'publish')}
-          >
-            {t.moderation.publish}
-          </Button>
-          <Button
-            variant="danger"
-            aria-label={t.moderation.rejectPhoto(authorInName)}
-            onClick={() => onDecide(photo.id, 'reject')}
-          >
-            {t.moderation.reject}
-          </Button>
-          <Button
-            variant="secondary"
-            aria-label={t.moderation.hidePhoto(authorInName)}
-            onClick={() => onDecide(photo.id, 'hide')}
-          >
-            {t.moderation.hide}
-          </Button>
+          {inDisplayOrder(photo.allowedDecisions).map((decision) => {
+            const wording = decisionWording(decision, photo.status, authorInName, t)
+            return (
+              <Button
+                key={decision}
+                variant={VARIANT[decision]}
+                aria-label={wording.ariaLabel}
+                onClick={() => onDecide(photo.id, decision)}
+              >
+                {wording.label}
+              </Button>
+            )
+          })}
         </>
       }
     >
@@ -179,6 +178,8 @@ export function PhotoLightbox({
           <span className={styles['author']}>{authorLine}</span>
         </figcaption>
       </figure>
+      {/* What the two ways of taking a photo down cost its guest: the host decides in here. */}
+      <p className={styles['explained']}>{t.moderation.decisionsExplained}</p>
     </Dialog>
   )
 }

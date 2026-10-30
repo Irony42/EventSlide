@@ -10,6 +10,7 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
 import { messageForError } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { OnScreenStrip } from './components/OnScreenStrip'
 import { SwipeCard } from './components/SwipeCard'
 import { useModerationQueue } from './hooks/useModerationQueue'
 import type { ModerationDecision } from '../../lib/api/dto'
@@ -35,17 +36,20 @@ import styles from './MobileModerationPage.module.css'
  *   button, because a swipe is invisible to a screen reader and unusable one-handed by
  *   somebody with limited mobility. The gesture is the shortcut, not the interface.
  */
+/** How many photos the "À l'écran maintenant" strip shows: the ones a room is looking at. */
+const ON_SCREEN_COUNT = 6
+
 export function MobileModerationPage() {
   const t = useTranslations()
   const { slug } = useParams()
 
   /**
-   * `undoOfPublish` is the one thing this surface asks the queue for that the desktop
-   * does not. There, a photo the host has just published is still on screen with a
-   * "retirer de l'écran" button on it; here it is gone the instant the decision lands,
-   * so without this a mis-swipe to the right would be unrecoverable from the phone.
+   * `onScreenLimit` is what this surface asks the queue for that the desktop does not:
+   * it has no filter bar, so the last photos on the wall are read beside the queue and
+   * shown as a strip (MOD-2). A photo that is already up can then be taken down from the
+   * phone, which until then only the host's own last publication could be.
    */
-  const queue = useModerationQueue(slug, { undoOfPublish: 'hide' })
+  const queue = useModerationQueue(slug, { onScreenLimit: ON_SCREEN_COUNT })
 
   /**
    * The photo in hand: the first one still awaiting a decision.
@@ -125,6 +129,15 @@ export function MobileModerationPage() {
     // sound, in a room, without anybody asking for it.
     setPlayingId(null)
     void queue.decide(photoId, decision)
+  }
+
+  /**
+   * Take a photo that is on the wall off it, from the strip. Same guard as `decide`: one
+   * decision in flight at a time, so a second tap cannot land on whatever slid into place.
+   */
+  const removeFromScreen = (photoId: string) => {
+    if (queue.busy) return
+    void queue.decide(photoId, 'hide')
   }
 
   /**
@@ -241,6 +254,13 @@ export function MobileModerationPage() {
           />
         )}
       </div>
+
+      {/* Filtered here as well as in the query: a photo taken off the wall leaves at once. */}
+      <OnScreenStrip
+        photos={queue.onScreen.filter((photo) => photo.status === 'published')}
+        busy={queue.busy}
+        onRemove={removeFromScreen}
+      />
 
       {/*
         Everything pressable, together, in the bottom third of the screen — the same

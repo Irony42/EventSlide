@@ -563,7 +563,8 @@ export const es: UiText = {
     by: (name: string) => `por ${name}`,
     byAnonymous: 'Invitado anónimo',
     shortcuts: 'Atajos',
-    shortcutsHint: 'J / K para navegar, P para publicar, R para rechazar, Z para deshacer.',
+    shortcutsHint:
+      'J / K para navegar, P para publicar, R para rechazar, Z para deshacer la última publicación.',
 
     shortcutsMore:
       'H para retirar de la pantalla, Espacio para seleccionar, Esc para deseleccionar todo.',
@@ -577,7 +578,7 @@ export const es: UiText = {
     // The word beside the border colour and the icon, so the status survives stage
     // lighting and a red-green colourblind host.
     statePending: 'Pendiente',
-    statePublished: 'Publicada',
+    statePublished: 'En pantalla',
     stateRejected: 'Rechazada',
     stateHidden: 'Retirada de la pantalla',
     selected: (count: number) =>
@@ -615,13 +616,33 @@ export const es: UiText = {
       }),
     removed: (count: number) =>
       t.count(count, {
-        one: `${t.number(count)} foto retirada de la pantalla.`,
-        other: `${t.number(count)} fotos retiradas de la pantalla.`,
+        one: `${t.number(count)} foto retirada de la pantalla. Sigue en su álbum.`,
+        other: `${t.number(count)} fotos retiradas de la pantalla. Siguen en su álbum.`,
       }),
     decisionFailed: 'No se ha podido guardar la decisión. Inténtelo de nuevo.',
     undoFailed: 'No se ha podido deshacer la decisión. Inténtelo de nuevo.',
     dimensions: (width: number, height: number) => `${width} × ${height} píxeles`,
     noCaption: 'Sin pie de foto',
+
+    /* ---- Moderation traps pass (MOD-1, MOD-4, MOD-9, MOD-13). Keep additions inside this block. ---- */
+    nothingToUndo: 'Nada que deshacer.',
+    undoPublish: 'Retirar',
+    seeRejected: 'Ver en Rechazadas',
+    republish: 'Volver a poner en pantalla',
+    republishPhoto: (author: string) => `Volver a poner en pantalla la foto de ${author}`,
+    publishAnyway: 'Publicar de todos modos',
+    publishAnywayPhoto: (author: string) => `Publicar de todos modos la foto de ${author}`,
+    alreadyOnScreen: 'Esta foto ya está en pantalla.',
+    alreadyRefused: 'Esta foto ya está rechazada.',
+    notOnScreen: 'Esta foto no está en pantalla.',
+    decisionsExplained:
+      'Retirar de la pantalla: la foto sigue en su álbum. Rechazar: sale del álbum y su autor la ve como «No seleccionada».',
+    filterRejectedHint: 'Fuera del álbum. El invitado las ve como «No seleccionada».',
+    filterHiddenHint: 'Retiradas de la pantalla. Siguen en su álbum.',
+    confirmRejectTitle: (count: number) => `¿Rechazar ${t.number(count)} fotos?`,
+    confirmRejectBody:
+      'Sus autores las verán como «No seleccionada» y saldrán del álbum. Esta decisión no se puede deshacer.',
+    confirmRejectLabel: (count: number) => `Rechazar ${t.number(count)} fotos`,
 
     videoBadge: 'Vídeo',
     videoLength: (seconds: number) => `Vídeo · ${seconds} s`,
@@ -1193,6 +1214,12 @@ export const es: UiText = {
     undoLast: 'Deshacer la última decisión',
     /** A refusal cannot be taken back, so the console says what it can do instead. */
     undoUnavailable: 'Solo se puede deshacer una publicación.',
+
+    /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
+    onScreenTitle: 'En pantalla ahora',
+    onScreenHint: 'Toque una foto para retirarla de la pantalla.',
+    onScreenEmpty: 'No hay nada en pantalla por ahora.',
+    openOnScreen: (author: string) => `Ver la foto de ${author}, en pantalla`,
   },
   gallery: {
     title: 'Álbum compartido',

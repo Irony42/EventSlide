@@ -547,7 +547,8 @@ export const fr = {
     by: (name: string) => `par ${name}`,
     byAnonymous: 'Invité anonyme',
     shortcuts: 'Raccourcis',
-    shortcutsHint: 'J / K pour naviguer, P pour publier, R pour refuser, Z pour annuler.',
+    shortcutsHint:
+      'J / K pour naviguer, P pour publier, R pour refuser, Z pour annuler la dernière publication.',
 
     /* ---- Added by features/moderation. Keep additions inside this block. ---- */
     shortcutsMore:
@@ -562,7 +563,7 @@ export const fr = {
     // The word beside the border colour and the icon, so the status survives stage
     // lighting and a red-green colourblind host.
     statePending: 'En attente',
-    statePublished: 'Publiée',
+    statePublished: 'À l’écran',
     stateRejected: 'Refusée',
     stateHidden: 'Retirée de l’écran',
     selected: (count: number) =>
@@ -599,8 +600,8 @@ export const fr = {
       }),
     removed: (count: number) =>
       t.count(count, {
-        one: `${t.number(count)} photo retirée de l’écran.`,
-        other: `${t.number(count)} photos retirées de l’écran.`,
+        one: `${t.number(count)} photo retirée de l’écran. Elle reste dans votre album.`,
+        other: `${t.number(count)} photos retirées de l’écran. Elles restent dans votre album.`,
       }),
     decisionFailed: 'La décision n’a pas pu être enregistrée. Réessayez.',
     undoFailed: 'L’annulation n’a pas pu être enregistrée. Réessayez.',
@@ -611,6 +612,34 @@ export const fr = {
      * to decide what gets projected with that photo.
      */
     noCaption: 'Sans légende',
+
+    /* ---- Moderation traps pass (MOD-1, MOD-4, MOD-9, MOD-13). Keep additions inside this block. ---- */
+    /** Z with nothing on offer: said, never ignored. */
+    nothingToUndo: 'Rien à annuler.',
+    /** The action on "photo publiée": what it does is take the photo back off the screen. */
+    undoPublish: 'Retirer',
+    /** After a refusal from "En attente", which nothing takes back. */
+    seeRejected: 'Voir dans Refusées',
+    /** The same decision as `publish`, worded for where the photo comes from. */
+    republish: 'Remettre à l’écran',
+    republishPhoto: (author: string) => `Remettre à l’écran la photo de ${author}`,
+    publishAnyway: 'Publier quand même',
+    publishAnywayPhoto: (author: string) => `Publier quand même la photo de ${author}`,
+    /** A key that has nothing to do on this photo, and says why. */
+    alreadyOnScreen: 'Cette photo est déjà à l’écran.',
+    alreadyRefused: 'Cette photo est déjà refusée.',
+    notOnScreen: 'Cette photo n’est pas à l’écran.',
+    /** Under the viewer's buttons: what the two verbs cost a guest. */
+    decisionsExplained:
+      'Retirer de l’écran : la photo reste dans votre album. Refuser : elle sort de l’album et son auteur la voit « Non retenue ».',
+    /** Tooltips on the two filters. */
+    filterRejectedHint: 'Sorties de l’album. L’invité les voit « Non retenues ».',
+    filterHiddenHint: 'Retirées de l’écran. Elles restent dans votre album.',
+    /** Before a bulk refusal that nothing takes back. */
+    confirmRejectTitle: (count: number) => `Refuser ${t.number(count)} photos ?`,
+    confirmRejectBody:
+      'Leurs auteurs les verront « Non retenues » et elles sortiront de l’album. Cette décision ne s’annule pas.',
+    confirmRejectLabel: (count: number) => `Refuser ${t.number(count)} photos`,
 
     /* ---- Added by short video clips (roadmap 1.4). ---- */
 
@@ -1723,6 +1752,12 @@ export const fr = {
      * console says what it can do instead of offering something it cannot.
      */
     undoUnavailable: 'Seule une publication peut être annulée.',
+
+    /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
+    onScreenTitle: 'À l’écran maintenant',
+    onScreenHint: 'Touchez une photo pour la retirer de l’écran.',
+    onScreenEmpty: 'Rien à l’écran pour l’instant.',
+    openOnScreen: (author: string) => `Voir la photo de ${author}, à l’écran`,
   },
   /* ======================================================================== */
   /* ==== Added by the shared gallery (ROADMAP 4.1): the guest who opens  ==== */

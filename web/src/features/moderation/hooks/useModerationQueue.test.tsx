@@ -80,9 +80,6 @@ const mountFor = (api: Api, slug: string | undefined, options: ModerationQueueOp
 
 const mount = (api: Api) => mountFor(api, SLUG)
 
-/** The phone console's queue: the one caller that asks for a publish to be reversible. */
-const mountWithUndoOfPublish = (api: Api) => mountFor(api, SLUG, { undoOfPublish: 'hide' })
-
 /** `/admin/events//moderation`, or a route pattern that stopped carrying the slug. */
 const mountWithoutEvent = (api: Api) => mountFor(api, undefined)
 
@@ -156,35 +153,15 @@ describe('useModerationQueue', () => {
     expect(api.moderateBulk).not.toHaveBeenCalled()
   })
 
-  it('offers no undo for a publish, unless the caller asked for one', async () => {
+  it('offers an undo for a publish on every console, performed with hide (MOD-1)', async () => {
     /**
-     * The invariant the phone console's `undoOfPublish` option must not have broken.
-     *
-     * A photo that was awaiting a decision has no status any verb puts it back into, so
-     * the desktop console offers nothing — and it must keep offering nothing by default,
-     * because the tempting substitute for a *refusal* is `publish`, which would project
-     * a photo the host has just turned down. The option is opt-in for exactly that
-     * reason, and a default that quietly acquired an undo is the shape that regression
-     * would take.
+     * The desktop console used to offer none, on the argument that the published tile
+     * stays on screen with a "retirer" button on it. It does not: the server signals
+     * `photo.moderated`, "En attente" reloads, and the tile is gone within the second,
+     * so a mis-pressed P left a photo on the wall that only a change of tab could take
+     * down. The undo is `hide`, the one reversal that cannot put an unapproved photo on
+     * a screen, and it is the same for every caller: there is no option to forget.
      */
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
-    })
-    const { result } = mount(api)
-    await waitFor(() => expect(result.current.items).toHaveLength(1))
-
-    await act(async () => {
-      await result.current.decide('photo-1', 'publish')
-    })
-
-    expect(api.moderate).toHaveBeenCalledWith(SLUG, 'photo-1', 'publish')
-    expect(result.current.canUndo).toBe(false)
-  })
-
-  it('offers an undo for a publish when the caller supplies the decision to use', async () => {
-    // The phone console's side of the same rule: it has no grid to press "retirer de
-    // l'écran" on, so the offer exists there and is performed with `hide` — the one
-    // reversal that cannot put an unapproved photo on a screen.
     const api = fakeApi({
       moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
       moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
@@ -192,12 +169,13 @@ describe('useModerationQueue', () => {
         skipped: [],
       })),
     })
-    const { result } = mountWithUndoOfPublish(api)
+    const { result } = mount(api)
     await waitFor(() => expect(result.current.items).toHaveLength(1))
 
     await act(async () => {
       await result.current.decide('photo-1', 'publish')
     })
+    expect(api.moderate).toHaveBeenCalledWith(SLUG, 'photo-1', 'publish')
     expect(result.current.canUndo).toBe(true)
 
     await act(async () => {
@@ -205,16 +183,14 @@ describe('useModerationQueue', () => {
     })
 
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'hide')
-    // Never `publish` on a refusal, whatever the option says: the dangerous direction
-    // stays closed.
     expect(result.current.canUndo).toBe(false)
   })
 
-  it('offers no undo for a refusal even when the caller asked for one', async () => {
+  it('offers no undo for a refusal of a waiting photo, whatever else changed', async () => {
     const api = fakeApi({
       moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
     })
-    const { result } = mountWithUndoOfPublish(api)
+    const { result } = mount(api)
     await waitFor(() => expect(result.current.items).toHaveLength(1))
 
     await act(async () => {
@@ -430,5 +406,117 @@ describe('useModerationQueue', () => {
 
     expect(screen.getByText(fr.moderation.decisionFailed)).toBeInTheDocument()
     expect(screen.queryByText(/Cannot read properties/)).toBeNull()
+  })
+
+  it('says there is nothing to undo, rather than ignoring Z (MOD-1)', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.undo()
+    })
+
+    expect(screen.getByText(fr.moderation.nothingToUndo)).toBeInTheDocument()
+    expect(api.moderateBulk).not.toHaveBeenCalled()
+  })
+
+  it('reads the photos on the wall beside the queue when asked for them (MOD-2)', async () => {
+    const onWall = [
+      aModerationPhoto({ id: 'wall-2', status: 'published' }),
+      aModerationPhoto({ id: 'wall-1', status: 'published' }),
+    ]
+    const api = fakeApi({
+      moderationQueue: vi.fn(async (_slug: string, query: ModerationQuery) =>
+        query?.status === 'published'
+          ? queueOf(onWall)
+          : queueOf([aModerationPhoto({ id: 'photo-1' })]),
+      ),
+    })
+
+    const { result } = mountFor(api, SLUG, { onScreenLimit: 6 })
+    await waitFor(() => expect(result.current.onScreen).toHaveLength(2))
+
+    expect(api.moderationQueue).toHaveBeenCalledWith(
+      SLUG,
+      { status: 'published', limit: 6 },
+      expect.anything(),
+    )
+    expect(result.current.items.map((item) => item.id)).toEqual(['photo-1'])
+  })
+
+  it('asks for no wall strip unless the caller wants one', async () => {
+    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([])) })
+
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(api.moderationQueue).toHaveBeenCalledTimes(1)
+    expect(result.current.onScreen).toEqual([])
+  })
+
+  it('takes a photo off the wall from the strip, and can put it back (MOD-2)', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async (_slug: string, query: ModerationQuery) =>
+        query?.status === 'published'
+          ? queueOf([aModerationPhoto({ id: 'wall-1', status: 'published' })])
+          : queueOf([]),
+      ),
+      moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
+        applied: ['wall-1'],
+        skipped: [],
+      })),
+    })
+    const { result } = mountFor(api, SLUG, { onScreenLimit: 6 })
+    await waitFor(() => expect(result.current.onScreen).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.decide('wall-1', 'hide')
+    })
+
+    expect(api.moderate).toHaveBeenCalledWith(SLUG, 'wall-1', 'hide')
+    expect(result.current.onScreen[0]?.status).toBe('hidden')
+    expect(screen.getByText(fr.moderation.removed(1))).toBeInTheDocument()
+
+    await act(async () => {
+      await result.current.undo()
+    })
+
+    expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['wall-1'], 'publish')
+    expect(result.current.onScreen[0]?.status).toBe('published')
+  })
+
+  it('offers no decision on a photo until the server has said what it may take (MOD-4)', async () => {
+    /**
+     * A decision is applied locally before the server confirms it, and the list of what a
+     * photo may do next is the server's reading of its status machine. This console keeps
+     * no copy of that rule, so a locally decided photo shows none rather than the old
+     * photo's list under its new status — and a rollback gets the server's own answer back.
+     */
+    const answer = deferred<void>()
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
+      moderate: vi.fn(() => answer.promise),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    expect(result.current.items[0]?.allowedDecisions).toEqual(['publish', 'reject'])
+
+    let pending: Promise<void> = Promise.resolve()
+    act(() => {
+      pending = result.current.decide('photo-1', 'publish')
+    })
+    expect(result.current.items[0]?.status).toBe('published')
+    expect(result.current.items[0]?.allowedDecisions).toEqual([])
+
+    answer.fail(new ApiError(409, 'photo.illegalTransition'))
+    await act(async () => {
+      await pending
+    })
+
+    expect(result.current.items[0]?.status).toBe('pending')
+    expect(result.current.items[0]?.allowedDecisions).toEqual(['publish', 'reject'])
   })
 })

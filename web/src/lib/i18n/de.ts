@@ -597,7 +597,8 @@ export const de: UiText = {
     by: (name: string) => `von ${name}`,
     byAnonymous: 'Anonymer Gast',
     shortcuts: 'Tastenkürzel',
-    shortcutsHint: 'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen.',
+    shortcutsHint:
+      'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen der letzten Freigabe.',
 
     shortcutsMore:
       'H zum Entfernen vom Bildschirm, Leertaste zum Auswählen, Esc zum Aufheben der Auswahl.',
@@ -609,7 +610,7 @@ export const de: UiText = {
     live: 'Live-Aktualisierung',
     liveLost: 'Verbindung unterbrochen — es wird erneut versucht.',
     statePending: 'Wartet',
-    statePublished: 'Freigegeben',
+    statePublished: 'Auf dem Bildschirm',
     stateRejected: 'Abgelehnt',
     stateHidden: 'Vom Bildschirm genommen',
     selected: (count: number) =>
@@ -642,13 +643,33 @@ export const de: UiText = {
       }),
     removed: (count: number) =>
       t.count(count, {
-        one: `${t.number(count)} Foto vom Bildschirm genommen.`,
-        other: `${t.number(count)} Fotos vom Bildschirm genommen.`,
+        one: `${t.number(count)} Foto vom Bildschirm genommen. Es bleibt in Ihrem Album.`,
+        other: `${t.number(count)} Fotos vom Bildschirm genommen. Sie bleiben in Ihrem Album.`,
       }),
     decisionFailed: 'Die Entscheidung konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     undoFailed: 'Das Rückgängigmachen konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     dimensions: (width: number, height: number) => `${width} × ${height} Pixel`,
     noCaption: 'Ohne Bildunterschrift',
+
+    /* ---- Moderation traps pass (MOD-1, MOD-4, MOD-9, MOD-13). Keep additions inside this block. ---- */
+    nothingToUndo: 'Nichts rückgängig zu machen.',
+    undoPublish: 'Entfernen',
+    seeRejected: 'In „Abgelehnt“ ansehen',
+    republish: 'Wieder auf den Bildschirm',
+    republishPhoto: (author: string) => `Foto von ${author} wieder auf den Bildschirm bringen`,
+    publishAnyway: 'Trotzdem freigeben',
+    publishAnywayPhoto: (author: string) => `Foto von ${author} trotzdem freigeben`,
+    alreadyOnScreen: 'Dieses Foto ist schon auf dem Bildschirm.',
+    alreadyRefused: 'Dieses Foto ist schon abgelehnt.',
+    notOnScreen: 'Dieses Foto ist nicht auf dem Bildschirm.',
+    decisionsExplained:
+      'Vom Bildschirm nehmen: Das Foto bleibt in Ihrem Album. Ablehnen: Es verlässt das Album, und der Gast sieht „Nicht ausgewählt“.',
+    filterRejectedHint: 'Nicht mehr im Album. Der Gast sieht „Nicht ausgewählt“.',
+    filterHiddenHint: 'Vom Bildschirm genommen. Sie bleiben in Ihrem Album.',
+    confirmRejectTitle: (count: number) => `${t.number(count)} Fotos ablehnen?`,
+    confirmRejectBody:
+      'Die Gäste sehen „Nicht ausgewählt“, und die Fotos verlassen das Album. Das lässt sich nicht rückgängig machen.',
+    confirmRejectLabel: (count: number) => `${t.number(count)} Fotos ablehnen`,
 
     videoBadge: 'Video',
     videoLength: (seconds: number) => `Video · ${seconds} s`,
@@ -1210,6 +1231,12 @@ export const de: UiText = {
     nowDeciding: (photo: string) => `Foto zur Moderation. ${photo}`,
     undoLast: 'Letzte Entscheidung rückgängig machen',
     undoUnavailable: 'Nur eine Freigabe lässt sich rückgängig machen.',
+
+    /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
+    onScreenTitle: 'Gerade auf dem Bildschirm',
+    onScreenHint: 'Tippen Sie auf ein Foto, um es vom Bildschirm zu nehmen.',
+    onScreenEmpty: 'Gerade ist nichts auf dem Bildschirm.',
+    openOnScreen: (author: string) => `Foto von ${author} ansehen, auf dem Bildschirm`,
   },
   gallery: {
     title: 'Geteiltes Album',

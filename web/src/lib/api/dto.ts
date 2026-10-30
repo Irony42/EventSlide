@@ -391,6 +391,12 @@ export interface ModerationPhotoDto {
   readonly kind: MediaKind
   readonly videoUrl: string | null
   readonly durationMs: number | null
+  /**
+   * The decisions this photo may take now, from the server's status machine. The console
+   * shows exactly these buttons and keeps no copy of the rule: a client table drifts, and
+   * the click then ends in `photo.illegalTransition`.
+   */
+  readonly allowedDecisions: readonly ModerationDecision[]
 }
 
 export interface ModerationQueueResponse {
