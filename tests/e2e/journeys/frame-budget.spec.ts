@@ -1,23 +1,16 @@
 import { expect, joinAsGuest, signInAsHost, test, wallUrl } from '../fixtures/app'
-import { joinAndUpload, passPrivacyNotice } from '../fixtures/guest'
+import { joinAndUpload } from '../fixtures/guest'
 import { aClip, aPhoto, hasEncoder } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
-import {
-  frameRateOf,
-  INTERACTION_BUDGET_MS,
-  MIN_FRAMES_PER_SECOND,
-} from '../../../web/src/design-system/budget'
+import { frameRateOf, MIN_FRAMES_PER_SECOND } from '../../../web/src/design-system/budget'
 import type { Page, TestInfo } from '@playwright/test'
 import type { TestApp } from '../fixtures/startTestApp'
 
 /**
  * The budget, measured on a running machine — roadmap 11.3.
  *
- * Everything else about the glass budget is checked without running anything: the rule
- * (`budget.test.ts`), the loop over synthetic frames (`useFrameBudget.test.tsx`), the
- * material against the stylesheets (`glass.material.test.ts`), and which addresses may
- * claim which tint (`glassBackdrop.test.ts`). `glass-budget.spec.ts` adds the cascade in a
- * real browser. None of them can answer the question roadmap 11.3 actually asks, which is
+ * Everything else about the budget is checked without running anything: the rule
+ * (`budget.test.ts`) and the loop over synthetic frames (`useFrameBudget.test.tsx`). None of them can answer the question roadmap 11.3 actually asks, which is
  * not about source: **is the thing holding up while it runs?**
  *
  * ## What is honest to assert here, and what is not
@@ -27,8 +20,8 @@ import type { TestApp } from '../fixtures/startTestApp'
  *
  * 1. **A runtime fact that does not depend on the machine at all.** Nothing on the wall
  *    resolves a backdrop filter — read off every element the projector actually renders,
- *    rather than off the stylesheet that was supposed to produce them. §13 claims the
- *    wall's cost for this material is zero; this is that claim, measured.
+ *    rather than off a stylesheet. The glass material is retired (ADR 0012), and this is the
+ *    claim that nothing has crept back, measured.
  * 2. **The product's own verdict, plus the floor it is written against.** The wall ships a
  *    monitor that watches its own frames, so the assertion is "this machine, running this
  *    wall, through ten slide changes, did not conclude it had to give anything up" — and,
@@ -53,18 +46,6 @@ import type { TestApp } from '../fixtures/startTestApp'
  * The measured rate goes in the test report as well as into an assertion, so that a run
  * creeping towards the floor is visible instead of being a green tick.
  */
-
-/**
- * `PerformanceObserverInit` plus the one field TypeScript's DOM library does not carry.
- *
- * `durationThreshold` is part of the Event Timing specification and Chromium implements
- * it; the bundled `lib.dom.d.ts` has not caught up. Declared rather than cast away,
- * because the default is 104 ms and a budget of 200 would then be measured against a
- * sample that had already discarded everything under half of it.
- */
-interface EventTimingInit extends PerformanceObserverInit {
-  readonly durationThreshold?: number
-}
 
 /** What the run saw, in the terms the shipped rule is written in. */
 interface Cadence {
@@ -197,20 +178,13 @@ test.describe('the wall, while it is running', () => {
     )
   })
 
-  test('costs the projector nothing for the material, read off the elements it renders', async ({
+  test('resolves no backdrop filter on the projector, read off the elements it renders', async ({
     app,
     surfaces,
   }) => {
-    // The claim §13 makes in prose — "the wall's cost is zero" — as a fact about the DOM
-    // the projector actually has. It does not depend on this machine being fast, which is
-    // what makes it the one assertion here that can never be flaky.
-    //
-    // Every element rather than the shell: `glass-budget.spec.ts` reads the custom property
-    // on the surface, and a custom property is only a promise about what a stylesheet will
-    // do with it. This reads the resolved longhand on everything on screen, so a pane that
-    // declared `backdrop-filter` directly — which `glass.material.test.ts` forbids in the
-    // source and cannot forbid in a third-party stylesheet or an inline style — is caught
-    // here instead of at a wedding.
+    // A fact about the DOM the projector actually has, which does not depend on this machine
+    // being fast and so can never be flaky: a pane that declared `backdrop-filter` directly,
+    // in a third-party stylesheet or an inline style, is caught here instead of at a wedding.
     const { guest, host, projector } = surfaces
     const event = await seedPlaylist(app, { guest, host }, 'salle-cadence')
 
@@ -358,198 +332,32 @@ test.describe('the wall, while it is running', () => {
   })
 })
 
-test.describe('the guest surface, while a photograph is going out', () => {
-  test.skip(
-    ({ browserName }) => browserName !== 'chromium',
-    'CPU emulation and event timing are read through the Chrome DevTools Protocol',
-  )
-
-  /**
-   * A mid-range Android phone, as far as one can be emulated.
-   *
-   * Four times slower than the machine running the suite, which is roughly where a phone
-   * three years old sits against a development laptop. It is an approximation and it is
-   * named as one — what it buys is that the budget below is measured against something
-   * harder than the machine that wrote it, rather than against the machine that wrote it.
-   */
-  const asAMidRangePhone = async (page: Page): Promise<void> => {
-    const client = await page.context().newCDPSession(page)
-    await client.send('Emulation.setCPUThrottlingRate', { rate: 4 })
-    await client.send('Network.enable')
-    await client.send('Network.emulateNetworkConditions', {
-      offline: false,
-      // A venue's wifi with a hundred people on it: slow, and not evenly slow.
-      latency: 400,
-      downloadThroughput: (400 * 1_024) / 8,
-      uploadThroughput: (400 * 1_024) / 8,
-    })
-  }
-
-  /**
-   * **This test asserted a millisecond and the millisecond was measuring the wrong thing.**
-   *
-   * It read `worst <= INTERACTION_BUDGET_MS` and went red on CI at 2 104 ms, three times,
-   * within eight milliseconds of each other — not a noisy sample, a different answer. The
-   * cause was not the runner being slow. The observer was installed with `buffered: true`,
-   * and the entry buffer belongs to the *page*: every entry it reported came back stamped
-   * before the observation window had opened. The 2 104 ms was the click that **started the
-   * upload**, on a throttled mobile emulation over a 400 kbps link — an interaction whose
-   * duration legitimately includes starting an upload, and which is not one of the taps this
-   * test makes. The taps it does make produce no entries at all, because a tap on a screen
-   * that is not busy answers inside one frame and the 16 ms threshold drops it.
-   *
-   * So the assertion was reporting an interaction on a different screen and calling it the
-   * guest's budget. It is the same `buffered` mistake the production hook had, left behind
-   * in the instrument that was supposed to check it.
-   *
-   * ## What is asserted now, and why no millisecond is
-   *
-   * Whether a device answers a thumb within 200 ms is a fact about the device. A CI runner
-   * emulating a Pixel 7 at a quarter of its CPU is not the mid-range phone roadmap 11.3
-   * names, and neither is the machine that wrote this, which measured 32 ms on the same
-   * code. An assertion on either number is an assertion about hardware nobody controls,
-   * which is exactly the thing this file said in its own header it would not write.
-   *
-   * What does not depend on the machine is that **the product's verdict agrees with what the
-   * browser actually reported**: while every interaction on this screen is inside the budget,
-   * the material stays. That fails if the budget ever sheds for no reason — a real
-   * regression, on any machine. The other direction — misses the budget, therefore sheds —
-   * is asserted deterministically by the test below, which holds the main thread past 200 ms
-   * rather than hoping the runner does.
-   *
-   * The number the device actually produced goes in the report, so the next person to read
-   * `2104 ms` in a log knows whether the guest surface is that slow. It is not: that figure
-   * was the upload starting.
-   */
-  test('keeps the material while it is answering the thumb mid-upload', async ({
-    app,
-    surfaces,
-  }, testInfo) => {
-    const { guest } = surfaces
-    const event = await app.seedEvent({ slug: 'envoi-sature', name: 'Camille & Sacha' })
-
-    await asAMidRangePhone(guest)
-    await joinAsGuest(guest, app, event.joinCode, 'Léa')
-    await passPrivacyNotice(guest)
-
-    await guest.getByTestId('photo-input').setInputFiles(await aPhoto('sature', 1600, 1200))
-    // Sent, and deliberately not waited for. The whole point of the budget is what the
-    // screen does *while* the bytes are going out on a saturated uplink.
-    await guest.getByRole('button', { name: fr.upload.send }).click()
-
-    // The observer is installed and the taps happen inside the window it is listening on,
-    // so what is measured is the browser's own account of how long the interface took to
-    // answer — not a wall-clock difference this test computed around a click.
-    const [measured] = await Promise.all([
-      guest.evaluate(
-        () =>
-          new Promise<{ durations: number[]; taps: number }>((done) => {
-            const durations: number[] = []
-            let taps = 0
-            // The taps are counted as well as timed, and that is not belt and braces. The
-            // observer's threshold is 16 ms, so a run where every interaction was faster
-            // reports nothing at all — which is a pass, and is also exactly what a run whose
-            // clicks never landed reports. Without this the budget assertion below could not
-            // tell the two apart.
-            const count = (): void => {
-              taps += 1
-            }
-            document.addEventListener('pointerdown', count, true)
-            const observer = new PerformanceObserver((list) => {
-              for (const entry of list.getEntries()) durations.push(entry.duration)
-            })
-            // No `buffered`: the entry buffer belongs to the page, so it hands back
-            // interactions from the join screen and from the click that started the upload.
-            // This window is the screen under test, and only it.
-            const init: EventTimingInit = { type: 'event', durationThreshold: 16 }
-            observer.observe(init)
-            window.setTimeout(() => {
-              observer.disconnect()
-              document.removeEventListener('pointerdown', count, true)
-              done({ durations, taps })
-            }, 4_000)
-          }),
-      ),
-      (async () => {
-        for (let tap = 0; tap < 3; tap += 1) {
-          await guest.getByTestId('upload-composer').click({ position: { x: 4, y: 4 } })
-        }
-      })(),
-    ])
-
-    const worst = Math.max(...measured.durations, 0)
-    const missed = measured.durations.filter((ms) => ms > INTERACTION_BUDGET_MS).length
-    testInfo.annotations.push({
-      type: 'measured',
-      description: `guest interactions on the upload screen, mid-upload, 4x-throttled CPU: ${measured.taps} taps, ${measured.durations.length} over 16 ms, worst ${worst} ms, ${missed} over the ${INTERACTION_BUDGET_MS} ms budget`,
-    })
-
-    // The screen was actually touched. Without this, "nothing was over the budget" and "the
-    // clicks never landed" are the same result — and on a screen that is not busy a tap
-    // answers inside a frame, so an empty sample is the ordinary case rather than a warning.
-    expect(measured.taps).toBeGreaterThanOrEqual(3)
-
-    // The invariant that does not depend on the machine: nothing missed the budget, so
-    // nothing may have been given up. A surface that shed its material here would be the
-    // rule firing on no evidence, which is a defect on a fast runner and on a slow one
-    // alike. Where the device *does* miss the budget the expectation is the opposite, and
-    // that case is asserted deterministically below rather than waited for here.
-    test.skip(missed > 0, `this machine missed the budget (worst ${worst} ms); see the test below`)
-    await expect(guest.locator('[data-glass="opaque"]')).toHaveCount(0)
-  })
-
-  test('gives up the blur rather than the screen when it cannot answer in time', async ({
+test.describe('the guest surface', () => {
+  test('resolves no backdrop filter on any element, and paints its pane opaque', async ({
     app,
     surfaces,
   }) => {
-    // "The upload screen staying responsive outranks how it looks." A phone that is taking
-    // longer than the budget to answer a tap gives up the material and keeps every control
-    // — and the pane it lands on is `--surface-raised`, which this product ships on every
-    // other screen.
+    // The glass material is retired (ADR 0012): the composer is `--surface-raised` and nothing
+    // the guest's phone renders blurs what is behind it, which is read off the resolved style
+    // of every element rather than off a stylesheet.
     const { guest } = surfaces
-    const event = await app.seedEvent({ slug: 'envoi-lent', name: 'Camille & Sacha' })
+    const event = await app.seedEvent({ slug: 'envoi-opaque', name: 'Camille & Sacha' })
 
     await joinAsGuest(guest, app, event.joinCode, 'Léa')
     const composer = guest.getByTestId('upload-composer')
     await expect(composer).toBeVisible()
-    expect(
-      await composer.evaluate((element) =>
-        getComputedStyle(element).getPropertyValue('--glass-filter').trim(),
-      ),
-    ).toMatch(/^blur\(/)
 
-    // A handler that holds the main thread for longer than the budget, which is what an
-    // encode and a request competing for a mid-range phone's one core actually looks like.
-    await guest.evaluate((budget: number) => {
-      document.addEventListener(
-        'pointerdown',
-        () => {
-          const until = performance.now() + budget + 120
-          while (performance.now() < until) {
-            /* the tap that does not answer */
-          }
-        },
-        true,
-      )
-    }, INTERACTION_BUDGET_MS)
+    const filtered = await guest.evaluate(() =>
+      [...document.querySelectorAll('*')]
+        .map((element) => ({
+          tag: element.tagName.toLowerCase(),
+          filter: getComputedStyle(element).backdropFilter,
+        }))
+        .filter(({ filter }) => filter !== '' && filter !== 'none')
+        .map(({ tag, filter }) => `${tag}: ${filter}`),
+    )
+    expect(filtered).toEqual([])
 
-    await expect
-      .poll(
-        async () => {
-          await guest.getByRole('main').click({ position: { x: 4, y: 4 } })
-          return guest.locator('[data-glass="opaque"]').count()
-        },
-        { message: 'the guest surface never gave up the material' },
-      )
-      .toBe(1)
-
-    // Opaque rather than merely unfiltered, which is the failure roadmap 11.1 names for a
-    // fallback done badly: a translucent pane with nothing blurred behind it.
-    expect(
-      await composer.evaluate((element) =>
-        getComputedStyle(element).getPropertyValue('--glass-filter').trim(),
-      ),
-    ).toBe('none')
     const background = await composer.evaluate((element) => getComputedStyle(element).background)
     expect(background).not.toContain('rgba')
   })
