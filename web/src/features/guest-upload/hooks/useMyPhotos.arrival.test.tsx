@@ -78,9 +78,12 @@ describe('re-reading the list while a photo waits', () => {
       get: () => visibility,
     })
     Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate })
+    // The poll is spread by a random draw; one half is no shift, so the cadence below is exact.
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.useRealTimers()
     Reflect.deleteProperty(document, 'visibilityState')
     Reflect.deleteProperty(navigator, 'vibrate')
@@ -166,7 +169,8 @@ describe('re-reading the list while a photo waits', () => {
 
     await elapse(POLL_MS)
     expect(myPhotos).toHaveBeenCalledTimes(2)
-    await elapse(3 * POLL_MS)
+    // A tick of the poll passes while the second read is still out: it is slow, not dead.
+    await elapse(POLL_MS)
     expect(myPhotos).toHaveBeenCalledTimes(2)
 
     await act(async () => {
@@ -175,6 +179,141 @@ describe('re-reading the list while a photo waits', () => {
     })
     await elapse(POLL_MS)
     expect(myPhotos).toHaveBeenCalledTimes(3)
+  })
+
+  it('gives a poll up after fifteen seconds, so a half-dead connection does not block every later read', async () => {
+    // Flapping venue Wi-Fi: the request is accepted and nothing ever comes back. While it is
+    // the read in flight no other is started, so without a timeout the guest is never told.
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      () => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {}),
+      async () => ({ items: [photo('p1', 'published')] }),
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+
+    await elapse(POLL_MS)
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+    await elapse(POLL_MS + 6_000)
+    await elapse(POLL_MS)
+
+    expect(myPhotos).toHaveBeenCalledTimes(3)
+    expect(result.current.arrival).toEqual({ whileAway: false })
+    // And it was in silence: the dead read was not a failure the guest was shown.
+    expect(result.current.error).toBeNull()
+  })
+
+  it('lets go of the request itself when it gives a poll up', async () => {
+    let signal: AbortSignal | undefined
+    const myPhotos = vi.fn(async (_slug: string, given?: AbortSignal) => {
+      if (myPhotos.mock.calls.length === 2) {
+        signal = given
+        return new Promise<{ items: readonly GuestPhotoDto[] }>(() => {})
+      }
+      return { items: [photo('p1', 'pending')] }
+    })
+    await mounted(fakeApi({ myPhotos }))
+
+    await elapse(POLL_MS)
+    expect(signal?.aborted).toBe(false)
+    await elapse(15_000)
+
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('does not give up a read the guest asked for: it has a spinner and a retry', async () => {
+    const myPhotos = vi.fn(() => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {}))
+    const { result } = mount(fakeApi({ myPhotos }))
+    await elapse(0)
+
+    await elapse(60_000)
+
+    expect(result.current.loading).toBe(true)
+    expect(myPhotos).toHaveBeenCalledTimes(1)
+  })
+
+  it('replaces a read that has been in the air for a while when the guest comes back to the tab', async () => {
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      () => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {}),
+      async () => ({ items: [photo('p1', 'published')] }),
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+    await elapse(POLL_MS)
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+
+    // The phone went into a pocket with the read in the air, and comes out of it five
+    // seconds later, still waiting for an answer that is not coming.
+    act(() => setVisibility('hidden'))
+    await elapse(5_000)
+    act(() => setVisibility('visible'))
+    await elapse(0)
+
+    expect(myPhotos).toHaveBeenCalledTimes(3)
+    expect(result.current.arrival).toEqual({ whileAway: true })
+  })
+
+  it('does not replace a read that has only just started when the guest comes back', async () => {
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      () => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {}),
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    await mounted(fakeApi({ myPhotos }))
+    await elapse(POLL_MS)
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+
+    act(() => setVisibility('hidden'))
+    await elapse(1_000)
+    act(() => setVisibility('visible'))
+    await elapse(0)
+
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+  })
+
+  it('spreads the poll, so a room of phones does not ask in the same second', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const { api, myPhotos } = serving([photo('p1', 'pending')])
+    await mounted(api)
+
+    // The earliest the spread allows is two seconds before the nine.
+    await elapse(POLL_MS - 2_000)
+
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+  })
+
+  it('goes back to the fast rhythm when a new photo starts waiting after the slow one began', async () => {
+    const lists = { current: [photo('p1', 'pending')] }
+    const myPhotos = vi.fn(async () => ({ items: lists.current }))
+    const { result } = await mounted(fakeApi({ myPhotos }))
+    await elapse(310_000)
+
+    // A second photo has just been uploaded, and the guest's own upload re-reads the list.
+    lists.current = [photo('p1', 'pending'), photo('p2', 'pending')]
+    act(() => result.current.refresh())
+    await elapse(0)
+    const before = myPhotos.mock.calls.length
+    await elapse(POLL_MS)
+
+    expect(myPhotos.mock.calls.length - before).toBe(1)
+  })
+
+  it('stays on the slow rhythm when the waiting photos only get fewer', async () => {
+    const lists = {
+      current: [photo('p1', 'pending'), photo('p2', 'pending')],
+    }
+    const myPhotos = vi.fn(async () => ({ items: lists.current }))
+    const { result } = await mounted(fakeApi({ myPhotos }))
+    await elapse(310_000)
+
+    lists.current = [photo('p1', 'published'), photo('p2', 'pending')]
+    act(() => result.current.refresh())
+    await elapse(0)
+    const before = myPhotos.mock.calls.length
+    await elapse(POLL_MS)
+
+    expect(myPhotos.mock.calls.length - before).toBe(0)
   })
 
   it('slows down once the host has plainly left it for a while', async () => {
@@ -209,6 +348,29 @@ describe('re-reading the list while a photo waits', () => {
 
     await elapse(POLL_MS)
     expect(result.current.arrival).toEqual({ whileAway: false })
+  })
+
+  it('does not call a later arrival one that went by in their absence after a read on their return failed', async () => {
+    // Coming back to the tab is one read. When it fails, the guest has found nothing, and the
+    // arrival that the next poll finds is one they are there to see: "look up", and a buzz.
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      async (): Promise<{ items: readonly GuestPhotoDto[] }> => {
+        throw new Error('the venue Wi-Fi went away')
+      },
+      async () => ({ items: [photo('p1', 'published')] }),
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+
+    act(() => setVisibility('hidden'))
+    act(() => setVisibility('visible'))
+    await elapse(0)
+    expect(result.current.arrival).toBeNull()
+    await elapse(POLL_MS)
+
+    expect(result.current.arrival).toEqual({ whileAway: false })
+    expect(vibrate).toHaveBeenCalledTimes(1)
   })
 
   it('stops asking once the server has said the guest has no access', async () => {
@@ -250,9 +412,12 @@ describe('telling the guest their photo is on its way to the screen', () => {
       get: () => visibility,
     })
     Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate })
+    // The poll is spread by a random draw; one half is no shift, so the cadence below is exact.
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.useRealTimers()
     Reflect.deleteProperty(document, 'visibilityState')
     Reflect.deleteProperty(navigator, 'vibrate')

@@ -6,6 +6,7 @@ import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { EventThemeDto, GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
+import { POLL_SLOW_AFTER_MS, pollDelayMs } from './pollCadence'
 
 /**
  * The guest's own photos, from `GET /api/events/:slug/photos/mine`.
@@ -102,19 +103,24 @@ type Failure =
   | { readonly kind: 'action'; readonly code: string | null }
 
 /**
- * How often a screen with a photo still waiting re-reads the list, and how long that lasts.
- *
- * Nine seconds is short enough that "Validée ! Elle passe à l'écran dans un instant" is still
- * true when it is read: the wall shows a published photo within about one slide. After five
- * minutes of waiting the host is plainly busy and the poll slows to thirty seconds, because a
- * photo that waits all evening should not cost a phone's battery, or a venue's Wi-Fi, a request
- * every nine of them. It is **not** a push notification (ROADMAP §2.1 rules those out) and not a
- * stream: the guests' public stream is capped per IP, and a room behind one address would take
- * the projector's own feed away.
+ * The poll's cadence lives in `pollCadence.ts`. It is **not** a push notification (ROADMAP §2.1
+ * rules those out) and not a stream: the guests' public stream is capped per IP, and a room
+ * behind one address would take the projector's own feed away.
  */
-const POLL_EVERY_MS = 9_000
-const POLL_SLOW_AFTER_MS = 300_000
-const POLL_SLOW_EVERY_MS = 30_000
+
+/**
+ * A poll that has not answered by then is given up as a silent failure. A half-dead connection
+ * on flapping venue Wi-Fi can hold a request open for minutes, and while it is the only read in
+ * flight every later poll waits for it.
+ */
+const POLL_TIMEOUT_MS = 15_000
+
+/**
+ * A read still in flight this long when the guest comes back to the tab is presumed dead (the
+ * phone was in a pocket, the radio slept) and is replaced by a fresh one. Shorter than that, it
+ * is a read that is merely slow, and replacing it would only abort an answer on its way.
+ */
+const RETURN_REPLACES_AFTER_MS = 3_000
 
 /** How long the announcement stays on screen. Long enough to be read twice. */
 const ARRIVAL_SHOWN_MS = 15_000
@@ -173,8 +179,12 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
    * phone, are not done inside a state updater (StrictMode runs those twice).
    */
   const knownRef = useRef<ReadonlyMap<string, PhotoStatus> | null>(null)
-  /** A read is in the air. A poll never aborts it: on slow Wi-Fi it would never finish. */
-  const inFlightRef = useRef(false)
+  /**
+   * A read is in the air, since when, and whether it is the poll's. A poll never aborts it to
+   * start another: on slow Wi-Fi it would never finish. Only the timeout below, and the guest's
+   * return to the tab, give a quiet read up.
+   */
+  const inFlightRef = useRef<{ readonly since: number; readonly quiet: boolean } | null>(null)
   /** The next answer is the one the guest finds on coming back to the tab. */
   const returnedRef = useRef(false)
   /** The next read is the poll's, not the guest's: it fails in silence. */
@@ -182,10 +192,16 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
   /**
    * A read nobody asked for with a button: no spinner, no cleared error, and nothing when one
-   * is already on its way.
+   * is already on its way — unless the caller says a quiet read in flight for `replaceAfterMs`
+   * is dead. A read the guest asked for (the first, a refresh) is never replaced here.
    */
-  const readQuietly = useCallback(() => {
-    if (inFlightRef.current) return
+  const readQuietly = useCallback((replaceAfterMs?: number) => {
+    const flight = inFlightRef.current
+    if (flight !== null) {
+      const dead =
+        replaceAfterMs !== undefined && flight.quiet && Date.now() - flight.since >= replaceAfterMs
+      if (!dead) return
+    }
     quietRef.current = true
     setAttempt((current) => current + 1)
   }, [])
@@ -193,14 +209,24 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   useEffect(() => {
     const controller = new AbortController()
     let current = true
-    inFlightRef.current = true
     const quiet = quietRef.current
     quietRef.current = false
+    inFlightRef.current = { since: Date.now(), quiet }
+    // Only the poll gives up: a read the guest asked for has a spinner and a retry button.
+    const timeout = quiet
+      ? window.setTimeout(() => {
+          current = false
+          inFlightRef.current = null
+          // The abort is for a transport that listens; `current` is for one that does not.
+          controller.abort()
+        }, POLL_TIMEOUT_MS)
+      : undefined
 
     api.myPhotos(slug, controller.signal).then(
       (response) => {
         if (!current) return
-        inFlightRef.current = false
+        window.clearTimeout(timeout)
+        inFlightRef.current = null
         const before = knownRef.current
         knownRef.current = new Map(response.items.map((photo) => [photo.id, photo.status]))
         // Only a photo this screen has seen waiting counts: a first read, and a photo that
@@ -234,7 +260,12 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         // The abort is this effect's own cleanup — StrictMode mounts twice — and not
         // a failure to report to the guest.
         if (isAbortError(cause)) return
-        inFlightRef.current = false
+        window.clearTimeout(timeout)
+        inFlightRef.current = null
+        // The guest has not found anything on this read, so whoever comes next finds it as a
+        // guest who was looking: left set, a later arrival would be told as one that went by
+        // while they were away, and the phone would not buzz.
+        returnedRef.current = false
         const failure = classifyRead(cause)
         // A poll that fails is a venue Wi-Fi blip in the middle of a party: the list the guest
         // can see is still true, and a red notice that comes and goes on its own is noise. Only
@@ -249,7 +280,8 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
     return () => {
       current = false
-      inFlightRef.current = false
+      window.clearTimeout(timeout)
+      inFlightRef.current = null
       controller.abort()
     }
   }, [api, slug, attempt])
@@ -279,30 +311,38 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     state.failure?.kind === 'gone' ||
     state.failure?.kind === 'signedOut' ||
     state.failure?.kind === 'revoked'
-  const waiting = !refused && state.photos.some((photo) => photo.status === 'pending')
+  const pending = refused ? 0 : state.photos.filter((photo) => photo.status === 'pending').length
+  /**
+   * When the host was last given something new to look at, and how many photos waited then. The
+   * slow-down is the host's silence since that moment: a photo uploaded after four silent
+   * minutes is a new reason to look up quickly, not the thirty-second wait of the old one.
+   */
+  const waitingSinceRef = useRef(0)
+  const waitingCountRef = useRef(0)
   useEffect(() => {
-    if (!waiting) return
+    if (pending > waitingCountRef.current) waitingSinceRef.current = Date.now()
+    waitingCountRef.current = pending
+    if (pending === 0) return
 
-    const startedAt = Date.now()
     let timer: number | undefined
     const disarm = () => window.clearTimeout(timer)
     const arm = () => {
       disarm()
       if (document.visibilityState !== 'visible') return
-      const slow = Date.now() - startedAt >= POLL_SLOW_AFTER_MS
+      const slow = Date.now() - waitingSinceRef.current >= POLL_SLOW_AFTER_MS
       timer = window.setTimeout(
         () => {
           readQuietly()
           arm()
         },
-        slow ? POLL_SLOW_EVERY_MS : POLL_EVERY_MS,
+        pollDelayMs(slow, Math.random),
       )
     }
     const onVisibility = () => {
       disarm()
       if (document.visibilityState !== 'visible') return
       returnedRef.current = true
-      readQuietly()
+      readQuietly(RETURN_REPLACES_AFTER_MS)
       arm()
     }
 
@@ -312,7 +352,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
       disarm()
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [waiting, readQuietly])
+  }, [pending, readQuietly])
 
   const remove = useCallback(
     async (photoId: string) => {
