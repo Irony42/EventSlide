@@ -215,11 +215,15 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
    * says which one it is). A batch with a failure keeps everything, because the retry sends the
    * same caption again and the guest has to be able to see it. "Left for good" includes a photo
    * the outbox now holds: its caption went into the entry, so the field has nothing left to do.
+   *
+   * Only if the field still says what the batch was sent with: it stays editable during the send,
+   * and a guest who has started the next caption must not see it wiped under their thumb.
    */
   const onQueueSettled = useCallback(
     (outcome: SettledOutcome) => {
       onBatchSettled()
-      if (outcome.allSent) setCaption('')
+      if (outcome.allSent)
+        setCaption((current) => ((current.trim() || null) === outcome.caption ? '' : current))
     },
     [onBatchSettled],
   )

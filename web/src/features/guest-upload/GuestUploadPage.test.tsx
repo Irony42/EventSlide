@@ -1871,6 +1871,35 @@ describe('the caption once a batch has been sent (INV-5)', () => {
     )
   })
 
+  it('keeps what the guest typed for the next photos while the batch was on its way', async () => {
+    havingJoined()
+    let finish: (response: UploadResponse) => void = () => {}
+    const api = fakeApi({
+      ...withPhotos(),
+      uploadPhotos: vi.fn(
+        () =>
+          new Promise<UploadResponse>((resolve) => {
+            finish = resolve
+          }),
+      ),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await writeCaption('Joyeux anniversaire Mamie')
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+    await waitFor(() => expect(api.uploadPhotos).toHaveBeenCalledTimes(1))
+
+    // The field stays editable during the send: this is already the caption of the next photos.
+    await userEvent.clear(screen.getByLabelText(/Légende/))
+    await userEvent.type(screen.getByLabelText(/Légende/), 'Le gâteau')
+    await act(async () => finish(accepted('photo-1')))
+    await waitFor(() =>
+      expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done'),
+    )
+
+    expect(screen.getByLabelText(/Légende/)).toHaveValue('Le gâteau')
+  })
+
   it('keeps the caption when a photo failed, since the retry sends it again', async () => {
     havingJoined()
     const api = fakeApi({

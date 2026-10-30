@@ -335,7 +335,9 @@ describe('useUploadQueue', () => {
       act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
       act(() => result.current.send('Légende', null))
 
-      await waitFor(() => expect(onSettled).toHaveBeenCalledWith({ allSent: true }))
+      await waitFor(() =>
+        expect(onSettled).toHaveBeenCalledWith({ allSent: true, caption: 'Légende' }),
+      )
     })
 
     it('says it is not when one photo failed, so the caption is kept for the retry', async () => {
@@ -352,7 +354,9 @@ describe('useUploadQueue', () => {
       act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('film.mov')]))
       act(() => result.current.send('Légende', null))
 
-      await waitFor(() => expect(onSettled).toHaveBeenCalledWith({ allSent: false }))
+      await waitFor(() =>
+        expect(onSettled).toHaveBeenCalledWith({ allSent: false, caption: 'Légende' }),
+      )
     })
 
     it('counts a photo held for the network as sent, since the caption went into its entry', async () => {
@@ -372,7 +376,9 @@ describe('useUploadQueue', () => {
       act(() => result.current.add([aPhotoFile('un.jpg')]))
       act(() => result.current.send('Légende', null))
 
-      await waitFor(() => expect(onSettled).toHaveBeenCalledWith({ allSent: true }))
+      await waitFor(() =>
+        expect(onSettled).toHaveBeenCalledWith({ allSent: true, caption: 'Légende' }),
+      )
       expect(outbox.enqueue).toHaveBeenCalledWith(expect.anything(), 'Légende', null)
     })
   })

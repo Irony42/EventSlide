@@ -82,6 +82,12 @@ export interface SettledOutcome {
    * sends the same caption again and the guest must still see it.
    */
   readonly allSent: boolean
+  /**
+   * The caption this batch was sent with (`null` for none), as it was when the guest pressed
+   * "Envoyer". The field stays editable while the photos go, so what it holds now may be what the
+   * guest has since written for the next ones: the screen clears it only if it still says this.
+   */
+  readonly caption: string | null
 }
 
 export interface UploadQueueOptions {
@@ -384,6 +390,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         const rows = itemsRef.current
         onSettled?.({
           allSent: rows.length > 0 && rows.every((item) => SENT.includes(item.state)),
+          caption: caption.current,
         })
       }
     },
