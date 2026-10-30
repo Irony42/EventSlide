@@ -150,6 +150,27 @@ const CALLS: readonly Call[] = [
     path: `/api/site/clients/${ID.clientK}/ceilings`,
     body: { ceilings: { maxEvents: 3, periodStartedAt: AT.toISOString() }, reason: REASON },
   },
+  {
+    name: 'get /api/site/events/lookup',
+    method: 'get',
+    path: `/api/site/events/lookup?q=${encodeURIComponent(CONTENT.slug)}`,
+  },
+  {
+    name: 'get /api/site/events/lookup',
+    method: 'get',
+    path: `/api/site/events/lookup?q=${CONTENT.joinCode}`,
+  },
+  {
+    name: 'get /api/site/events/lookup',
+    method: 'get',
+    path: `/api/site/events/lookup?q=${encodeURIComponent(CONTENT.eventName)}`,
+  },
+  { name: 'get /api/site/events/:eventId', method: 'get', path: `/api/site/events/${ID.eventK}` },
+  {
+    name: 'get /api/site/photos/:photoId',
+    method: 'get',
+    path: `/api/site/photos/${TAKEDOWN_PHOTO}`,
+  },
   ...(['take-down', 'restore'] as const).map((verb): Call => ({
     name: `post /api/site/photos/:photoId/${verb}`,
     method: 'post',
@@ -368,6 +389,9 @@ const KEYS = new Set([
   'name',
   'createdAt',
   'suspendedAt',
+  'takenDownAt',
+  'purgeHeldAt',
+  'eventId',
   'purgeAfter',
   'ceilings',
   'eventsCreatedInPeriod',

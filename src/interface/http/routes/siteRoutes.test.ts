@@ -52,6 +52,9 @@ const ROUTES: readonly SiteRoute[] = [
   { method: 'get', path: `/api/site/clients/${ID.clientK}/events`, success: 200, write: false },
   { method: 'get', path: '/api/site/accounts', success: 200, write: false },
   { method: 'get', path: '/api/site/audit', success: 200, write: false },
+  { method: 'get', path: `/api/site/events/lookup?q=${A_PHOTO}`, success: 200, write: false },
+  { method: 'get', path: `/api/site/events/${ID.eventL}`, success: 200, write: false },
+  { method: 'get', path: `/api/site/photos/${A_PHOTO}`, success: 200, write: false },
   {
     method: 'post',
     path: '/api/site/clients',

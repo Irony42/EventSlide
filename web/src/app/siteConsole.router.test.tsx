@@ -97,6 +97,7 @@ describe('the console’s address', () => {
     for (const route of [
       '/admin/site/accounts',
       '/admin/site/audit',
+      '/admin/site/takedown',
       `/admin/site/clients/${CLIENT_ID}`,
     ]) {
       const api = ordinaryHost()
@@ -168,18 +169,22 @@ describe('the console’s address', () => {
 })
 
 describe('the console’s sections', () => {
-  it('links the three sections, and marks the one that is open', async () => {
+  it('links the four sections, and marks the one that is open', async () => {
     openConsole('/admin/site/accounts', consoleApi())
 
     const nav = await screen.findByRole('navigation', { name: fr.site.navLabel })
 
-    expect(nav.querySelectorAll('a')).toHaveLength(3)
+    expect(nav.querySelectorAll('a')).toHaveLength(4)
     expect(screen.getByRole('link', { name: fr.site.navAccounts })).toHaveAttribute(
       'aria-current',
       'page',
     )
     expect(screen.getByRole('link', { name: fr.site.navClients })).not.toHaveAttribute(
       'aria-current',
+    )
+    expect(screen.getByRole('link', { name: fr.site.takedownNav })).toHaveAttribute(
+      'href',
+      '/admin/site/takedown',
     )
     expect(screen.getByRole('link', { name: fr.site.navAudit })).toHaveAttribute(
       'href',
@@ -381,12 +386,12 @@ describe('the console leads out to the other homes (H9)', () => {
     expect(within(nav).queryByRole('link', { name: fr.clientSpace.spaceLink })).toBeNull()
   })
 
-  it('keeps the exits out of the list of sections, which stays three', async () => {
+  it('keeps the exits out of the list of sections, which stays four', async () => {
     openConsole('/admin/site', consoleApi())
 
     const sections = await screen.findByRole('navigation', { name: fr.site.navLabel })
 
-    expect(sections.querySelectorAll('a')).toHaveLength(3)
+    expect(sections.querySelectorAll('a')).toHaveLength(4)
   })
 })
 

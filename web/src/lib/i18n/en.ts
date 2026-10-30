@@ -291,6 +291,8 @@ export const en: UiText = {
     'clientCeilings.periodStartedAtInvalid': 'This start of period is not accepted.',
     'clientCeilings.clipsAllowedInvalid': 'This video setting is not accepted.',
     'clientCeilings.liveAllowedInvalid': 'This opening setting is not accepted.',
+    'siteLookup.queryInvalid':
+      'Enter an id, a code, an address or an event name (300 characters at most).',
     'audit.reasonInvalid':
       'The reason must fit on one line of 200 characters at most, with no e-mail address.',
     'reset.mailerRequired': 'This instance does not send mail: no reset link can be issued.',
@@ -1475,6 +1477,73 @@ export const en: UiText = {
     offboardingRunning:
       'This engagement is ending: the albums will be purged on the date shown above at the latest.',
     daysNotWhole: 'Give a whole number of days.',
+    takedownNav: 'Takedown',
+    takedownTitle: 'Remove without looking',
+    takedownIntro:
+      'Take down a reported photograph or event from its id, without ever opening it: this console shows no thumbnail, no caption, no guest name and no media address. Every act asks for a reason, which is written to the instance log and which the client does not read. Taking down does not stop the purge: to keep the content as evidence, take it down and then hold its purge.',
+    takedownEventTitle: 'An event',
+    takedownEventIntro:
+      'Find the reported event by its address, its join code or its exact name. All you see of it is its id and its state.',
+    takedownEventLabel: 'Address, code or exact name',
+    takedownEventAction: 'Search for the event',
+    takedownEventNone: 'No event matches. The name must be exact: part of a name is not enough.',
+    takedownEventHeading: (id: string) => `Event ${id}`,
+    takedownClient: 'Open the client',
+    takedownNoClient: 'No client',
+    takedownStateDown: 'Taken down',
+    takedownStateUp: 'Online',
+    takedownStateHeld: 'Purge held',
+    takedownStateFree: 'Normal purge',
+    takedownEventDown: 'Take the event down',
+    takedownEventUp: 'Put back online',
+    takedownHold: 'Hold the purge',
+    takedownRelease: 'Release the purge',
+    takedownPhotoTitle: 'A photograph',
+    takedownPhotoIntro:
+      'Paste the photograph id as the report gives it (the last part of its address before the variant name). All you see is the event it belongs to and its state.',
+    takedownPhotoLabel: 'Photograph id',
+    takedownPhotoAction: 'Search for the photograph',
+    takedownPhotoNone: 'No photograph has this id.',
+    takedownPhotoHeading: (id: string) => `Photograph ${id}`,
+    takedownPhotoOf: (id: string) => `In event ${id}`,
+    takedownPhotoDown: 'Take the photograph down',
+    takedownPhotoUp: 'Put the photograph back',
+    takedownReason: 'Reason',
+    takedownReasonHint:
+      'One sentence on a single line, 200 characters at most, with no e-mail address. It is written to the instance log.',
+    takedownDone: 'Done.',
+    takedownOps: {
+      eventDown: {
+        title: 'Take this event down?',
+        body: 'The wall, the guest feed, the gallery link and the host console answer as if the event did not exist, and open screens close. Nothing is deleted. Retention carries on: to keep the content as evidence, hold its purge as well.',
+        confirm: 'Take the event down',
+      },
+      eventUp: {
+        title: 'Put this event back online?',
+        body: 'The wall, the guests, the gallery and the host get it back as it was.',
+        confirm: 'Put back online',
+      },
+      purgeHold: {
+        title: 'Hold this event’s purge?',
+        body: 'The retention sweep skips it, and neither the host nor a guest can delete the event or a photograph any more. Nothing is hidden: the hold cannot be seen in the room. Backups are not held.',
+        confirm: 'Hold the purge',
+      },
+      purgeRelease: {
+        title: 'Release this event’s purge?',
+        body: 'The event becomes purgeable again at its own deadline, which may have passed: the next sweep will then purge it.',
+        confirm: 'Release the purge',
+      },
+      photoDown: {
+        title: 'Take this photograph down?',
+        body: 'It leaves the wall, the guest feed, the gallery link and the host screens at once, and open screens forget it. The file is kept. The host cannot put it back.',
+        confirm: 'Take the photograph down',
+      },
+      photoUp: {
+        title: 'Put this photograph back?',
+        body: 'It reappears with the status the host had given it.',
+        confirm: 'Put the photograph back',
+      },
+    },
   },
 
   titles: {
@@ -1503,5 +1572,6 @@ export const en: UiText = {
     siteClient: 'Client',
     siteAccounts: 'Instance accounts',
     siteAudit: 'Instance log',
+    siteTakedown: 'Content takedown',
   },
 }

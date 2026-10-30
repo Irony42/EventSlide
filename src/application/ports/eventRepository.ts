@@ -223,4 +223,11 @@ export interface EventRepository {
    * `delete` stays for the callers that are not a purge.
    */
   deleteUnlessHeld(id: EventId): Promise<boolean>
+
+  /**
+   * Events whose name is exactly this, ignoring case and surrounding blanks, oldest first and at
+   * most `limit`: the operator's lookup of an event a report named (`lookupSiteEvents`, launch
+   * review S5). Exact on purpose: a prefix or a substring would let the lookup browse names.
+   */
+  listByName(name: string, limit: number): Promise<readonly Event[]>
 }

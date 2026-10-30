@@ -1007,6 +1007,22 @@ export const eventRepositoryContract = (
         expect(await repo.findById(asEventId('ghost'))).toBeNull()
       })
 
+      it('finds events by their exact name, ignoring case and blanks, oldest first and bounded', async () => {
+        await repo.save(anEvent({ ...nthEventInput(1), name: 'Camille & Sacha' }))
+        await repo.save(
+          anEvent({ ...nthEventInput(2), name: 'camille & sacha', createdAt: atPlus(5) }),
+        )
+        await repo.save(anEvent({ ...nthEventInput(3), name: 'Camille & Sacha Deux' }))
+
+        const found = await repo.listByName('  CAMILLE & SACHA ', 10)
+
+        expect(found.map((event) => event.id)).toEqual(['evt-1', 'evt-2'])
+        expect((await repo.listByName('Camille & Sacha', 1)).map((event) => event.id)).toEqual([
+          'evt-1',
+        ])
+        expect(await repo.listByName('Camille', 10)).toEqual([])
+      })
+
       it('deletes an event unless it is held, in one statement, and says which', async () => {
         await repo.save(nthEvent(1))
         await repo.save(nthEvent(2))

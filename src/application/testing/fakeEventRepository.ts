@@ -155,6 +155,18 @@ export class FakeEventRepository implements EventRepository {
     else this.takenDown.set(id, at)
   }
 
+  async listByName(name: string, limit: number): Promise<readonly Event[]> {
+    const wanted = name.trim().toLowerCase()
+    return [...this.rows.values()]
+      .filter((event) => event.name.value.toLowerCase() === wanted)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.id, b.id))
+      .slice(0, limit)
+      .flatMap((event) => {
+        const standing = this.withClientStanding(event)
+        return standing === null ? [] : [standing]
+      })
+  }
+
   async deleteUnlessHeld(id: EventId): Promise<boolean> {
     if (!this.rows.has(id) || this.purgeHeld.has(id)) return false
     await this.delete(id)

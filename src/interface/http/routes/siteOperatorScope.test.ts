@@ -248,6 +248,15 @@ const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
     'no event, and what it changes is what every other router reads of an event, not what it holds',
   'post /api/site/clients/:clientId/resume':
     'lifts a suspension (`resumeClient`): the same one column and one audit line',
+  'get /api/site/events/lookup':
+    'which event a slug, a join code, an address or an exact name names (`lookupSiteEvents`, launch review S5): the ' +
+    'answer is ids, a status and two instants, with no field for the name, the slug or the code, so nothing of the ' +
+    'evening is behind it',
+  'get /api/site/events/:eventId':
+    "one event's takedown state by id (`getSiteEventState`): the same content-free row",
+  'get /api/site/photos/:photoId':
+    'where a photograph is and whether it is down (`getSitePhotoState`): an event id and an instant from `locate`, ' +
+    'never the photograph',
   'post /api/site/photos/:photoId/take-down':
     'takes one photograph down by its id, blind (`setPhotoTakedown`, launch review S5): one column of the photos table ' +
     'and one audit line; it reads no photograph (`locate` answers an event id and an instant), the answer is `204`, and ' +

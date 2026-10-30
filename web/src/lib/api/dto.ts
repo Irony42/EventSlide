@@ -879,6 +879,30 @@ export interface SiteClientPageDto {
   readonly next: string | null
 }
 
+/**
+ * An event as the takedown screen reads it (`GET /api/site/events/lookup` and
+ * `/api/site/events/:eventId`): ids, a status and two instants. **No name, no slug, no join code**.
+ */
+export interface SiteEventStateDto {
+  readonly id: string
+  readonly clientId: string | null
+  readonly status: string
+  readonly createdAt: string
+  readonly takenDownAt: string | null
+  readonly purgeHeldAt: string | null
+}
+
+export interface SiteEventLookupDto {
+  readonly items: readonly SiteEventStateDto[]
+}
+
+/** A photograph named by its id: which event holds it and whether it is down. Nothing else. */
+export interface SitePhotoStateDto {
+  readonly id: string
+  readonly eventId: string
+  readonly takenDownAt: string | null
+}
+
 /** One event of a client, as a shape: an id, a status, instants, a quota and what it holds. */
 export interface SiteEventDto {
   readonly id: string

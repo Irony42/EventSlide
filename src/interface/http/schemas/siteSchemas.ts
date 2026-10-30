@@ -32,6 +32,13 @@ export const eventIdParams = z.object({ eventId: z.guid() })
 export const photoIdParams = z.object({ photoId: z.guid() })
 
 /**
+ * `GET /api/site/events/lookup?q=`: what a report gave the operator, a slug, a join code, an address
+ * or an exact name. Its bounds and meaning are the use case's (`lookupSiteEvents`): the schema only
+ * says it is one string.
+ */
+export const siteEventLookupQuery = z.strictObject({ q: z.string().max(1_000) })
+
+/**
  * The body of each of the operator's "remove without viewing" acts (launch review S5): take down,
  * restore, hold a purge, release it. **The reason is required**, like a ceiling's change: a body
  * without one is `400 request.invalid`, a blank or malformed one `400 audit.reasonInvalid`

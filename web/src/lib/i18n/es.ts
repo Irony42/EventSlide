@@ -297,6 +297,8 @@ export const es: UiText = {
     'clientCeilings.periodStartedAtInvalid': 'Este inicio de periodo no se acepta.',
     'clientCeilings.clipsAllowedInvalid': 'Este ajuste de vídeos no se acepta.',
     'clientCeilings.liveAllowedInvalid': 'Este ajuste de apertura no se acepta.',
+    'siteLookup.queryInvalid':
+      'Introduzca un identificador, un código, una dirección o el nombre de un evento (300 caracteres como máximo).',
     'audit.reasonInvalid':
       'El motivo debe caber en una línea de 200 caracteres como máximo, sin dirección de correo.',
     'reset.mailerRequired':
@@ -1520,6 +1522,74 @@ export const es: UiText = {
     offboardingRunning:
       'Esta colaboración termina: los álbumes se eliminarán como muy tarde en la fecha indicada arriba.',
     daysNotWhole: 'Indique un número entero de días.',
+    takedownNav: 'Retirada',
+    takedownTitle: 'Retirar sin mirar',
+    takedownIntro:
+      'Retire una foto o un evento denunciado a partir de su identificador, sin abrirlo nunca: esta consola no muestra miniatura, ni pie de foto, ni nombre de invitado, ni dirección de medio. Cada acto pide un motivo, que se escribe en el registro de la instancia y que el cliente no lee. Retirar no detiene la purga: para conservar el contenido como prueba, retírelo y congele después su purga.',
+    takedownEventTitle: 'Un evento',
+    takedownEventIntro:
+      'Busque el evento denunciado por su dirección, su código de invitación o su nombre exacto. De él solo ve su identificador y su estado.',
+    takedownEventLabel: 'Dirección, código o nombre exacto',
+    takedownEventAction: 'Buscar el evento',
+    takedownEventNone:
+      'Ningún evento coincide. El nombre debe ser exacto: una parte del nombre no basta.',
+    takedownEventHeading: (id: string) => `Evento ${id}`,
+    takedownClient: 'Abrir el cliente',
+    takedownNoClient: 'Sin cliente',
+    takedownStateDown: 'Retirado',
+    takedownStateUp: 'En línea',
+    takedownStateHeld: 'Purga congelada',
+    takedownStateFree: 'Purga normal',
+    takedownEventDown: 'Retirar el evento',
+    takedownEventUp: 'Volver a ponerlo en línea',
+    takedownHold: 'Congelar la purga',
+    takedownRelease: 'Reanudar la purga',
+    takedownPhotoTitle: 'Una foto',
+    takedownPhotoIntro:
+      'Pegue el identificador de la foto tal como lo da la denuncia (la última parte de su dirección, antes del nombre de la variante). Solo ve el evento al que pertenece y su estado.',
+    takedownPhotoLabel: 'Identificador de la foto',
+    takedownPhotoAction: 'Buscar la foto',
+    takedownPhotoNone: 'Ninguna foto tiene este identificador.',
+    takedownPhotoHeading: (id: string) => `Foto ${id}`,
+    takedownPhotoOf: (id: string) => `En el evento ${id}`,
+    takedownPhotoDown: 'Retirar la foto',
+    takedownPhotoUp: 'Restituir la foto',
+    takedownReason: 'Motivo',
+    takedownReasonHint:
+      'Una frase en una sola línea, de 200 caracteres como máximo, sin dirección de correo. Se escribe en el registro de la instancia.',
+    takedownDone: 'Hecho.',
+    takedownOps: {
+      eventDown: {
+        title: '¿Retirar este evento?',
+        body: 'El muro, el flujo de los invitados, el enlace de la galería y la consola del anfitrión responden como si el evento no existiera, y las pantallas abiertas se cierran. No se borra nada. La conservación sigue: para guardar el contenido como prueba, congele también su purga.',
+        confirm: 'Retirar el evento',
+      },
+      eventUp: {
+        title: '¿Volver a poner este evento en línea?',
+        body: 'El muro, los invitados, la galería y el anfitrión lo recuperan tal como estaba.',
+        confirm: 'Volver a ponerlo en línea',
+      },
+      purgeHold: {
+        title: '¿Congelar la purga de este evento?',
+        body: 'El barrido de retención lo ignora, y ni el anfitrión ni un invitado pueden ya borrar el evento ni una foto. No se oculta nada: el bloqueo no se ve en la sala. Las copias de seguridad no se congelan.',
+        confirm: 'Congelar la purga',
+      },
+      purgeRelease: {
+        title: '¿Reanudar la purga de este evento?',
+        body: 'El evento vuelve a ser purgable en su propio plazo, que puede haber pasado: el próximo barrido lo purgará entonces.',
+        confirm: 'Reanudar la purga',
+      },
+      photoDown: {
+        title: '¿Retirar esta foto?',
+        body: 'Desaparece al instante del muro, del flujo de los invitados, del enlace de la galería y de las pantallas del anfitrión, y las pantallas abiertas la olvidan. El archivo se conserva. El anfitrión no puede devolverla.',
+        confirm: 'Retirar la foto',
+      },
+      photoUp: {
+        title: '¿Restituir esta foto?',
+        body: 'Reaparece con el estado que le había dado el anfitrión.',
+        confirm: 'Restituir la foto',
+      },
+    },
   },
 
   titles: {
@@ -1548,5 +1618,6 @@ export const es: UiText = {
     siteClient: 'Cliente',
     siteAccounts: 'Cuentas de la instancia',
     siteAudit: 'Registro de la instancia',
+    siteTakedown: 'Retirada de contenido',
   },
 }
