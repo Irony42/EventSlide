@@ -44,17 +44,27 @@ accent buttons over blurred colour read as a rendering fault, not as depth.
 
 ## Consequences
 
+### Positive
+
 - One fewer host setting and one fewer thing to explain. A host who had chosen "plain" sees nothing
   change; one who had chosen "glass" loses a blur that was not visible.
 - No migration, and the downgrade path is harmless: an older build reads the rows as it always did.
-- Old clients keep working: an old tab sending `material` is accepted, and a stored guest session
-  holding it is read as if the key were absent.
 - The `--glass-*` tokens, the `data-glass` tiers, the backdrop table (`glassBackdrop.ts`), the
-  reduced-transparency fallback and their tests are deleted. The contrast bars on opaque surfaces
-  and inks are kept. A test now fails the build on any `backdrop-filter` in a stylesheet.
+  reduced-transparency fallback and their tests are deleted. A test now fails the build on any
+  `backdrop-filter` in a stylesheet.
+
+### Negative
+
 - The ladder loses a rung, and with it the guest/host measurement. If a decorative effect on those
   surfaces is ever reintroduced, a budget for it will have to be too.
-- Visual baselines of the guest and host pages are expected to be unchanged to within the measured
+- A material that was a differentiator in 3.0 is gone; the product's panes are plainer by name, if
+  not to the eye.
+
+### Neutral
+
+- Old clients keep working: an old tab sending `material` is accepted and ignored, and a stored
+  guest session holding it is read as if the key were absent.
+- Visual baselines of the guest and host pages are expected to move by no more than the measured
   1.5 %, the invisible blur being the only difference.
 
 ## Alternatives considered
@@ -63,3 +73,8 @@ accent buttons over blurred colour read as a rendering fault, not as depth.
   rejected for the reasons above.
 - **Keep the setting and make "glass" mean opaque**: a control that does nothing is the problem.
 - **Migrate stored themes to drop the key**: churn across every album for no reader.
+
+## Related
+
+- ADR 0010 (ambiances) and ADR 0011 (Sur mesure), which derived glass tints; roadmap 11.1 to 11.5;
+  DESIGN-SYSTEM §13.
