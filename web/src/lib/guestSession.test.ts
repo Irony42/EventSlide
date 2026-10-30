@@ -138,7 +138,7 @@ describe('guestSession', () => {
     expect(readGuestSession('gala')?.privacyNotice).toBeNull()
   })
 
-  it('reads a notice naming the shared gallery, which this build words', () => {
+  it('reads a notice naming the guest feed and the shared gallery, which this build words', () => {
     // The first audience added after the notice shipped. Left out of the list this build
     // accepts, every notice would be unreadable and the upload screen would show none.
     sessionStorage.setItem(
@@ -147,7 +147,10 @@ describe('guestSession', () => {
         event: aPublicEvent({ slug: 'gala' }),
         displayName: null,
         privacyNotice: {
-          notice: { ...aPrivacyNotice(), audiences: ['wall', 'organisers', 'sharedGallery'] },
+          notice: {
+            ...aPrivacyNotice(),
+            audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
+          },
           acknowledgement: 'current',
         },
       }),
@@ -155,6 +158,7 @@ describe('guestSession', () => {
 
     expect(readGuestSession('gala')?.privacyNotice?.notice.audiences).toEqual([
       'wall',
+      'guestFeed',
       'organisers',
       'sharedGallery',
     ])

@@ -208,6 +208,8 @@ export const en: UiText = {
     },
     noticeAudiences: {
       wall: 'Anyone looking at the event’s screen, in the room or through its link, once a photo is on it.',
+      guestFeed:
+        'The other guests at the event, on their own phones, in “Photos from the evening”: they see the photo shown on the screen, with your first name if you gave one, and its caption.',
       organisers:
         'The organiser and their team, who see everything you send and can download the photos shown on the screen.',
       sharedGallery:

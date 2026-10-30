@@ -445,6 +445,8 @@ by the type and refuses to compile until all five tables have it). Because the r
 built from the list, only the guests of an event whose host turns sharing on are asked to
 read the notice again.
 
+_Landed afterwards (pre-opening review R1):_ `guestFeed` is a fourth audience, on every event, because the guest feed « Les photos de la soirée » shows a guest's published photo with first name and caption on every other guest's phone and the notice did not say so. The revision changes, so every guest is asked again.
+
 _Landed with §4.1, with one reversal:_ `sharedGallery` is on every event, with no
 conditional. "A link exists" is false for the notice nearly every guest reads — before an
 upload, while the event is live, hours before a host makes the link — and nobody is asked

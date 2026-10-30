@@ -157,7 +157,7 @@ export interface PublicEventDto {
  * five languages can say it.
  */
 export type NoticePublication = 'afterReview' | 'immediate'
-export type NoticeAudience = 'wall' | 'organisers' | 'sharedGallery'
+export type NoticeAudience = 'wall' | 'guestFeed' | 'organisers' | 'sharedGallery'
 export type NoticeAcknowledgementStatus = 'none' | 'current' | 'outdated'
 
 /**

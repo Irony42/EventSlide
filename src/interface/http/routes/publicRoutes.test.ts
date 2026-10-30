@@ -342,9 +342,9 @@ describe('POST /api/join', () => {
       privacyNotice: {
         notice: {
           revision:
-            'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=none;selfRemoval=900',
+            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900',
           publication: 'afterReview',
-          audiences: ['wall', 'organisers', 'sharedGallery'],
+          audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
           retentionDays: null,
           selfRemovalSeconds: 900,
         },

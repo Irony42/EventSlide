@@ -425,6 +425,8 @@ export const fr = {
      */
     noticeAudiences: {
       wall: 'Toute personne qui regarde l’écran de la soirée, dans la salle ou par son lien, une fois la photo affichée.',
+      guestFeed:
+        'Les autres invités de la soirée, sur leur téléphone, dans « Les photos de la soirée » : ils voient la photo affichée à l’écran, avec votre prénom si vous en avez donné un, et sa légende.',
       organisers:
         'L’organisateur et son équipe, qui voient tout ce que vous envoyez et peuvent télécharger les photos passées à l’écran.',
       sharedGallery:
