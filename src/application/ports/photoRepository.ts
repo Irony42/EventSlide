@@ -236,6 +236,15 @@ export interface PhotoRepository {
   locate(photoId: PhotoId): Promise<PhotoLocation | null>
 
   /**
+   * How many photographs of this guest the operator took down, which every read above leaves out.
+   *
+   * For a guest erasing what they sent: a taken-down photograph is preserved evidence and is
+   * neither deleted nor counted by that erasure, and its row hangs from the guest row by a
+   * cascading foreign key, so the guest row must stay while this is not zero. Scoped by event.
+   */
+  countTakenDownBy(eventId: EventId, guestId: GuestId): Promise<number>
+
+  /**
    * Takes a photograph down (`at`) or puts it back (`null`), for `setPhotoTakedown` (launch
    * review S5). Scoped by event like everything else, and idempotent. `save` and
    * `updateStatuses` never write this column, so the host's moderation cannot undo it.

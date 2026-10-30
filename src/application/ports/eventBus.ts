@@ -25,6 +25,7 @@ export type DomainEvent =
   | { readonly type: 'photo.deleted'; readonly eventId: EventId; readonly photoId: PhotoId }
   | { readonly type: 'photo.captionChanged'; readonly eventId: EventId; readonly photoId: PhotoId }
   | { readonly type: 'guest.joined'; readonly eventId: EventId; readonly guestId: GuestId }
+  | { readonly type: 'guest.erased'; readonly eventId: EventId; readonly guestId: GuestId }
   | {
       readonly type: 'reaction.added'
       readonly eventId: EventId

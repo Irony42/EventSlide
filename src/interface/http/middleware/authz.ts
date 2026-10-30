@@ -573,9 +573,10 @@ export const requireStepUp =
  * rename) know that they need `acceptsUploads()`. Putting the lifecycle check here would either block reads that should work,
  * or duplicate a rule the use case has to enforce anyway.
  */
-export const requireGuest = ({
-  authenticateGuest,
-}: Pick<HttpDeps, 'authenticateGuest'>): RequestHandler =>
+export const requireGuest = (
+  { authenticateGuest }: Pick<HttpDeps, 'authenticateGuest'>,
+  options: { readonly allowRevoked?: boolean } = {},
+): RequestHandler =>
   asyncHandler(async (req, res, next) => {
     const token = guestTokenOf(req)
     if (token === undefined) {
@@ -586,6 +587,7 @@ export const requireGuest = ({
     const authenticated = await authenticateGuest({
       token,
       eventSlug: req.params['eventSlug'],
+      ...(options.allowRevoked === true ? { allowRevoked: true } : {}),
     })
     if (!authenticated.ok) {
       sendError(res, authenticated.error)

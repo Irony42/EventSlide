@@ -64,6 +64,12 @@ export interface AuthenticateGuestInput {
    * handed over: `Slug.create` is what decides whether it is one.
    */
   readonly eventSlug: unknown
+  /**
+   * Accept a revoked guest. **Only** the route where a guest erases their own contribution passes it:
+   * the signature, the event, the guest row and the client's suspension are still checked exactly as
+   * for everyone, so a forged or other-event token gains nothing.
+   */
+  readonly allowRevoked?: boolean
 }
 
 export interface AuthenticateGuestOutput {
@@ -106,7 +112,9 @@ export const makeAuthenticateGuest =
 
     // The token's event against the URL's, the row, the revocation: one function, shared with
     // the media route's identity.
-    const found = await guestOfEvent(guests, claims.value, event, logger)
+    const found = await guestOfEvent(guests, claims.value, event, logger, {
+      allowRevoked: input.allowRevoked === true,
+    })
     if (!found.ok) return found
     const guest = found.value
 

@@ -232,6 +232,10 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     `audiences=${notice.audiences.join('+')}`,
     `retention=${notice.retentionDays ?? 'none'}`,
     `selfRemoval=${notice.selfRemovalSeconds ?? 'none'}`,
+    // Always true, so a constant rather than a field: the guest can delete everything they sent from
+    // their own phone (roadmap §5.2). It is in the revision so that the notice that first says so is
+    // read by every guest who acknowledged the one that did not.
+    'selfErase=phone',
     ...(notice.operator === null ? [] : [`operator=${notice.operator}`]),
   ].join(';')
 

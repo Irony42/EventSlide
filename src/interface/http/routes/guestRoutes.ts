@@ -6,7 +6,7 @@ import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { asGuestId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { withGuest } from '../middleware/scope'
-import { deferToHostSurface, requireGuest } from '../middleware/authz'
+import { GUEST_COOKIE, deferToHostSurface, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
 import {
   guestWriteLimiter,
@@ -36,7 +36,11 @@ import {
   uploadFields,
 } from '../schemas/requestSchemas'
 import type { HttpDeps } from '../types'
-import type { GuestMissionListResponseDto, MyPhotosDto } from '../presenters/dto'
+import type {
+  ErasedContributionDto,
+  GuestMissionListResponseDto,
+  MyPhotosDto,
+} from '../presenters/dto'
 import type { HttpUseCases } from '../useCases'
 
 /**
@@ -81,6 +85,7 @@ export interface GuestRouteDeps {
     | 'reactToPhoto'
     | 'withdrawReaction'
     | 'renameGuest'
+    | 'eraseGuestContribution'
     | 'getPhotoReactions'
     | 'getGuestChecklist'
   >
@@ -541,6 +546,41 @@ export const guestRoutes = ({
       sendResult(res, result, (response, renamed) => {
         response.setHeader('Cache-Control', 'no-store')
         sendJson(response, toRenamedGuestDto(renamed))
+      })
+    }),
+  )
+
+  /**
+   * "Delete everything I sent" (roadmap §5.2): the guest's photographs, clips, reactions,
+   * captions and display name at this event, whatever their moderation state and whatever the
+   * host's self-delete setting. Irreversible, so the phone asks first; the server asks nothing.
+   *
+   * The path names no guest: it is always the one the token proves, so there is no id to tamper
+   * with and no other guest to refuse. On success the guest row is gone, so the cookie is cleared in the same response:
+   * the phone does not keep presenting a token the server would answer `401 guestToken.malformed`.
+   */
+  router.delete(
+    '/events/:eventSlug/guests/me',
+    guestWriteRateLimiter,
+    // A revoked guest may erase what they sent: the host's decision about them does not remove that
+    // right, and nothing else on this router accepts their token.
+    requireGuest(deps, { allowRevoked: true }),
+    withGuest(async ({ event, guest }, _req, res) => {
+      const result = await usecases.eraseGuestContribution({
+        eventId: event.id,
+        guestId: guest.id,
+      })
+
+      sendResult(res, result, (response, erased) => {
+        response.setHeader('Cache-Control', 'no-store')
+        response.clearCookie(GUEST_COOKIE, {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: deps.config.secureCookie,
+          path: '/',
+        })
+        const dto: ErasedContributionDto = { photos: erased.photos, clips: erased.clips }
+        sendJson(response, dto)
       })
     }),
   )

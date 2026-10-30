@@ -21,6 +21,15 @@ export interface ReactionRepository {
   /** Withdrawing a reaction is a delete, because a reaction has no other state. */
   delete(eventId: EventId, photoId: PhotoId, guestId: GuestId, kind: ReactionKind): Promise<void>
 
+  /**
+   * Every reaction this guest left at this event, on any photograph. Idempotent.
+   *
+   * For a guest erasing what they sent: the reactions on **their own** photographs go with those
+   * rows, but the hearts they gave other people's are theirs and stay behind unless asked for.
+   * Scoped by event and by guest.
+   */
+  deleteByGuest(eventId: EventId, guestId: GuestId): Promise<void>
+
   countsFor(eventId: EventId, photoId: PhotoId): Promise<ReactionCounts>
 
   /** Powers the "photo of the night" panel and the end-of-event recap. */

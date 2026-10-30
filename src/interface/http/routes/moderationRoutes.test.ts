@@ -150,6 +150,7 @@ const usecasesFor = (
     revokeModerator: notWired,
     joinEvent: notWired,
     renameGuest: notWired,
+    eraseGuestContribution: notWired,
     revokeGuest: notWired,
     listGuests: notWired,
     getPrivacyNotice: notWired,

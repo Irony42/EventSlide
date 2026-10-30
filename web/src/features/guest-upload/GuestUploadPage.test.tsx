@@ -1550,3 +1550,142 @@ describe('leaving the event from the header (A10)', () => {
     ).toHaveAttribute('href', '/join')
   })
 })
+
+describe('GuestUploadPage: delete everything I sent (roadmap §5.2)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  const openDialog = async () => {
+    await userEvent.click(await screen.findByRole('button', { name: fr.upload.eraseOpen }))
+    return screen.findByRole('dialog', { name: fr.upload.eraseTitle })
+  }
+
+  it('asks first, in words that say it cannot be undone, and sends nothing until confirmed', async () => {
+    havingJoined()
+    const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-1' })))
+    renderUpload(api)
+
+    const dialog = await openDialog()
+
+    expect(dialog).toHaveTextContent(fr.upload.eraseBody)
+    expect(dialog).toHaveTextContent(fr.upload.eraseLimits)
+    expect(api.eraseMyContribution).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseCancel }))
+    expect(api.eraseMyContribution).not.toHaveBeenCalled()
+  })
+
+  it('erases on confirmation, says it is done and forgets the event on this device', async () => {
+    havingJoined()
+    const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-1' })))
+    renderUpload(api)
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('heading', { name: fr.upload.eraseDoneTitle })).toBeVisible()
+    expect(api.eraseMyContribution).toHaveBeenCalledWith(SLUG)
+    expect(readGuestSession(SLUG)).toBeNull()
+    expect(readRememberedGuestSession()).toBeNull()
+  })
+
+  it('keeps the session and says so when the server refuses', async () => {
+    havingJoined()
+    const api = fakeApi({
+      ...withPhotos(aGuestPhoto({ id: 'photo-1' })),
+      eraseMyContribution: vi.fn(async () => {
+        throw new ApiError(500, 'internal.error')
+      }),
+    })
+    renderUpload(api)
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.upload.eraseFailed)
+    expect(readGuestSession(SLUG)).not.toBeNull()
+  })
+
+  it('treats a 401 as already erased: the answer of an earlier press was lost on the way back', async () => {
+    havingJoined()
+    const api = fakeApi({
+      ...withPhotos(aGuestPhoto({ id: 'photo-1' })),
+      eraseMyContribution: vi.fn(async () => {
+        throw new ApiError(401, 'guestToken.malformed')
+      }),
+    })
+    renderUpload(api)
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('heading', { name: fr.upload.eraseDoneTitle })).toBeVisible()
+    expect(readGuestSession(SLUG)).toBeNull()
+  })
+
+  it('tells a guest who has lost access how to ask the organiser', async () => {
+    renderUpload(fakeApi())
+
+    expect(
+      await screen.findByText(new RegExp(fr.upload.eraseLostAccess.slice(0, 30))),
+    ).toBeVisible()
+  })
+})
+
+describe('GuestUploadPage: a guest the host removed can still erase what they sent', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  const revokedApi = (overrides: Partial<Api> = {}) =>
+    fakeApi({
+      myPhotos: vi.fn(async () => {
+        throw new ApiError(403, 'guest.revoked')
+      }),
+      ...overrides,
+    })
+
+  it('says in plain words that access was removed, offers nothing to send, and offers the erasure', async () => {
+    havingJoined()
+    renderUpload(revokedApi())
+
+    expect(await screen.findByText(fr.upload.revokedTitle)).toBeVisible()
+    expect(screen.getByText(fr.upload.revokedBody, { exact: false })).toBeVisible()
+    expect(screen.queryByTestId('upload-composer')).toBeNull()
+    expect(screen.getByRole('button', { name: fr.upload.eraseOpen })).toBeVisible()
+  })
+
+  it('goes through the same confirmation and ends on the done screen', async () => {
+    havingJoined()
+    const api = revokedApi()
+    renderUpload(api)
+
+    // The revoked screen replaces the ordinary one once the read answers; a click before that
+    // would open a dialog that is then unmounted.
+    await screen.findByText(fr.upload.revokedTitle)
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.eraseOpen }))
+    const dialog = await screen.findByRole('dialog', { name: fr.upload.eraseTitle })
+    expect(api.eraseMyContribution).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('heading', { name: fr.upload.eraseDoneTitle })).toBeVisible()
+    expect(api.eraseMyContribution).toHaveBeenCalledWith(SLUG)
+    expect(readGuestSession(SLUG)).toBeNull()
+  })
+
+  it('does not take any other 403 for a removal', async () => {
+    havingJoined()
+    renderUpload(
+      fakeApi({
+        myPhotos: vi.fn(async () => {
+          throw new ApiError(403, 'auth.forbidden')
+        }),
+      }),
+    )
+
+    expect(await screen.findByTestId('upload-composer')).toBeVisible()
+    expect(screen.queryByText(fr.upload.revokedTitle)).toBeNull()
+  })
+})

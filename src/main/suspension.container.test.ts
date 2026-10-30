@@ -394,6 +394,7 @@ describe('a suspended client, through the real composition root', () => {
     'POST /api/events/:eventSlug/clips',
     'PATCH /api/events/:eventSlug/photos/:photoId/caption',
     'PATCH /api/events/:eventSlug/guests/:guestId',
+    'DELETE /api/events/:eventSlug/guests/me',
     'POST /api/events/:eventSlug/photos/:photoId/reactions',
     'DELETE /api/events/:eventSlug/photos/:photoId/reactions/:kind',
     'POST /api/events/:eventSlug/privacy-notice/acknowledgement',

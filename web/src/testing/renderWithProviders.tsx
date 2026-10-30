@@ -190,7 +190,7 @@ export const aGuestMission = (overrides: Partial<GuestMissionDto> = {}): GuestMi
  */
 export const aPrivacyNotice = (overrides: Partial<PrivacyNoticeDto> = {}): PrivacyNoticeDto => ({
   revision:
-    'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900',
+    'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900;selfErase=phone',
   publication: 'afterReview',
   audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
   retentionDays: null,
@@ -470,6 +470,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   deleteMyPhoto: vi.fn(async () => undefined),
+  eraseMyContribution: vi.fn(async () => ({ photos: 0, clips: 0 })),
   react: vi.fn(async () => undefined),
   withdrawReaction: vi.fn(async () => undefined),
   reactions: vi.fn(async () => ({

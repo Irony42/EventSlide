@@ -36,6 +36,7 @@ export const guestOfEvent = async (
   claims: GuestTokenClaims,
   event: Event,
   logger?: Logger,
+  options: { readonly allowRevoked?: boolean } = {},
 ): Promise<Result<Guest, DomainError>> => {
   if (claims.eventId !== event.id) {
     // `guest.wrongEvent` lives here and nowhere on the wire. Ids only: no token, no slug the caller typed.
@@ -49,7 +50,11 @@ export const guestOfEvent = async (
 
   const guest = await guests.findById(event.id, claims.guestId)
   if (guest === null) return err(DomainError.unauthenticated('guestToken.malformed'))
-  if (guest.isRevoked()) return err(DomainError.forbidden('guest.revoked'))
+  // Only the caller that says so: erasing one's own contribution is a right a host's decision about
+  // the guest does not take away (roadmap §5.2). Everything above still applies to that caller.
+  if (guest.isRevoked() && options.allowRevoked !== true) {
+    return err(DomainError.forbidden('guest.revoked'))
+  }
 
   return ok(guest)
 }

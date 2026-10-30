@@ -117,6 +117,14 @@ export class Guest {
   }
 
   /**
+   * The guest with no name, **whoever asks and whatever their standing**: for erasure only. A revoked
+   * guest cannot be `rename`d, but may take their name back (roadmap §5.2).
+   */
+  withoutName(): Guest {
+    return this.with({ displayName: null })
+  }
+
+  /**
    * The name as text, or `null` for a guest who stayed anonymous. No fallback is
    * invented here: "Invité" is French UI copy, it lives in `web/src/lib/i18n/`, and
    * the wall and the moderation console are free to word it differently.
