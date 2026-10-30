@@ -825,6 +825,23 @@ describe('WallPage', () => {
       expect(screen.getByText('H7K2QM')).toBeVisible()
     })
 
+    it('does nothing on the empty wall, so the first photo still arrives with its card', async () => {
+      // The empty wall's invitation is full-screen and Q does not touch it; a flag flipped
+      // there would hide the corner card for ten minutes once the first photo shows up.
+      const api = fakeApi({
+        wall: wallSequence(anEmptyWall(), aPopulatedWall({ revision: 'rev-2' })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-empty')
+      await streamOpens()
+
+      await userEvent.keyboard('q')
+      await streamSignals('photo.published')
+
+      expect(await screen.findByText('H7K2QM')).toBeVisible()
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+    })
+
     it('lists Q in the shortcuts panel', async () => {
       const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })

@@ -259,9 +259,10 @@ export function WallPage() {
     // Escape closes the help and nothing else; leaving fullscreen is the browser's own.
     onDismiss: closeHelp,
     onToggleQr: () => {
-      // Nothing to put away on a closed event or a server that sends no invitation, and
-      // flipping the flag then would hide the card at some later moment for no reason.
-      if (invitation !== null) setQrHidden((hidden) => !hidden)
+      // Nothing to put away on a closed event, with no invitation from the server, or on the
+      // empty wall (whose full-screen invitation this key does not touch): flipping the flag
+      // then would hide the corner card at some later moment for no reason.
+      if (invitation !== null && items.length > 0) setQrHidden((hidden) => !hidden)
     },
   })
 
