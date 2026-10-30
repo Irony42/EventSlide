@@ -5,6 +5,7 @@ import { ApiProvider } from '../../../app/ApiProvider'
 import { aGuestPhoto, fakeApi } from '../../../testing/renderWithProviders'
 import { useMyPhotos } from './useMyPhotos'
 import type { Api } from '../../../lib/api/client'
+import { ApiError } from '../../../lib/http'
 import type { GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 
 /**
@@ -187,6 +188,44 @@ describe('re-reading the list while a photo waits', () => {
     // Two reads in the next minute rather than six or seven.
     expect(myPhotos.mock.calls.length - afterFiveMinutes).toBeLessThanOrEqual(2)
     expect(myPhotos.mock.calls.length - afterFiveMinutes).toBeGreaterThanOrEqual(1)
+  })
+
+  it('says nothing when a poll fails, and carries on with the next one', async () => {
+    // Venue Wi-Fi blips in the middle of a party. The list on screen is still true, and an
+    // error that flashes up by itself is not something the guest asked to be told.
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      async () => {
+        throw new Error('the venue Wi-Fi went away')
+      },
+      async () => ({ items: [photo('p1', 'published')] }),
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+
+    await elapse(POLL_MS)
+    expect(result.current.error).toBeNull()
+    expect(result.current.photos).toHaveLength(1)
+
+    await elapse(POLL_MS)
+    expect(result.current.arrival).toEqual({ whileAway: false })
+  })
+
+  it('stops asking once the server has said the guest has no access', async () => {
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      async (): Promise<{ items: readonly GuestPhotoDto[] }> => {
+        throw new ApiError(401, 'guest.unauthorised')
+      },
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+
+    await elapse(POLL_MS)
+    expect(result.current.signedOut).toBe(true)
+    await elapse(10 * POLL_MS)
+
+    expect(myPhotos).toHaveBeenCalledTimes(2)
   })
 
   it('does not show the spinner for a read nobody asked for', async () => {

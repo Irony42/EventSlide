@@ -177,6 +177,8 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   const inFlightRef = useRef(false)
   /** The next answer is the one the guest finds on coming back to the tab. */
   const returnedRef = useRef(false)
+  /** The next read is the poll's, not the guest's: it fails in silence. */
+  const quietRef = useRef(false)
 
   /**
    * A read nobody asked for with a button: no spinner, no cleared error, and nothing when one
@@ -184,6 +186,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
    */
   const readQuietly = useCallback(() => {
     if (inFlightRef.current) return
+    quietRef.current = true
     setAttempt((current) => current + 1)
   }, [])
 
@@ -191,6 +194,8 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     const controller = new AbortController()
     let current = true
     inFlightRef.current = true
+    const quiet = quietRef.current
+    quietRef.current = false
 
     api.myPhotos(slug, controller.signal).then(
       (response) => {
@@ -230,10 +235,15 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         // a failure to report to the guest.
         if (isAbortError(cause)) return
         inFlightRef.current = false
+        const failure = classifyRead(cause)
+        // A poll that fails is a venue Wi-Fi blip in the middle of a party: the list the guest
+        // can see is still true, and a red notice that comes and goes on its own is noise. Only
+        // the answers about the guest's standing are news, whoever asked.
+        if (quiet && failure.kind === 'load') return
         // The photos already on screen stay: a read that fails (a moment of bad Wi-Fi) is
         // news about the read, and this list is what tells the guest their uploads arrived.
         // Only the very first read has nothing to keep.
-        setState((previous) => ({ ...previous, loading: false, failure: classifyRead(cause) }))
+        setState((previous) => ({ ...previous, loading: false, failure }))
       },
     )
 
@@ -264,7 +274,12 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
    * first thing it does on coming back is one read, which is how a photo published while the
    * phone was in a pocket is found.
    */
-  const waiting = state.photos.some((photo) => photo.status === 'pending')
+  // Not once the server has said the guest has no standing here: every read would be refused.
+  const refused =
+    state.failure?.kind === 'gone' ||
+    state.failure?.kind === 'signedOut' ||
+    state.failure?.kind === 'revoked'
+  const waiting = !refused && state.photos.some((photo) => photo.status === 'pending')
   useEffect(() => {
     if (!waiting) return
 
