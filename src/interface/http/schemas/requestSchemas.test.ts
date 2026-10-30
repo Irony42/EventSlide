@@ -37,12 +37,7 @@ import {
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
 import { EmailAddress } from '../../../domain/users/emailAddress'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
-import {
-  THEME_AMBIANCES,
-  THEME_FONTS,
-  THEME_FRAMES,
-  THEME_MATERIALS,
-} from '../../../domain/events/eventTheme'
+import { THEME_AMBIANCES, THEME_FONTS, THEME_FRAMES } from '../../../domain/events/eventTheme'
 import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
 import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
 import { PHOTO_STATUSES } from '../../../domain/photos/photoStatus'
@@ -570,7 +565,6 @@ describe('unknown keys, decided per schema', () => {
       accentHue: 200,
       fonts: THEME_FONTS[0],
       frame: THEME_FRAMES[0],
-      material: THEME_MATERIALS[0],
       ambiance: 'darkroom',
     }
 
@@ -584,11 +578,17 @@ describe('unknown keys, decided per schema', () => {
       accentHue: 200,
       fonts: THEME_FONTS[0],
       frame: THEME_FRAMES[0],
-      material: THEME_MATERIALS[0],
       ambiance: THEME_AMBIANCES[0],
     }
 
     expect(updateSettingsBody.safeParse({ theme }).success).toBe(true)
+    // The retired material is read and ignored, so a tab left open across the deploy is not refused.
+    expect(updateSettingsBody.safeParse({ theme: { ...theme, material: 'glass' } }).success).toBe(
+      true,
+    )
+    expect(updateSettingsBody.safeParse({ theme: { ...theme, material: 'opaque' } }).success).toBe(
+      false,
+    )
     expect(updateSettingsBody.safeParse({ theme: { ...theme, zzz: 1 } }).success).toBe(false)
   })
 

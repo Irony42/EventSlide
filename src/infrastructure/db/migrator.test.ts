@@ -3030,6 +3030,16 @@ describe('migration 015, the proof that an account accepted the terms', () => {
     insertUser(db, 'u2')
     insertAcceptance(db, 'u1', '2026-07-01T08:00:00.000Z', '2026-07')
     insertAcceptance(db, 'u1', '2026-09-01T08:00:00.000Z', '2026-09')
+    // A later line the same account wrote that is not an acceptance: it must not become one.
+    db.prepare(
+      `INSERT INTO audit_log (at, actor_user_id, actor_kind, action, subject_type, subject_id)
+            VALUES ('2026-10-01T08:00:00.000Z', 'u1', 'member', 'account.disabled', 'account', 'u1')`,
+    ).run()
+    // And an account whose only line is not an acceptance gets nothing.
+    db.prepare(
+      `INSERT INTO audit_log (at, actor_user_id, actor_kind, action, subject_type, subject_id)
+            VALUES ('2026-10-02T08:00:00.000Z', 'u2', 'member', 'account.disabled', 'account', 'u2')`,
+    ).run()
 
     migrate(db, migrations)
 

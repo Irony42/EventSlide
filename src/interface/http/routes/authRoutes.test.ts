@@ -697,6 +697,26 @@ describe('POST /api/auth/account/delete', () => {
     expect((await agent.post('/api/auth/password').send({})).status).toBe(401)
   })
 
+  it('replaces the CSRF token and keeps the answer out of every cache, as a logout does', async () => {
+    const subject = harness({ ...onAHostedBox, csrf: true })
+    seedHost(subject)
+    const agent = request.agent(subject.app)
+    const token = cookieValue((await agent.get('/api/auth/me')).headers, CSRF_COOKIE)
+    if (token === undefined) throw new Error('the server issued no CSRF cookie')
+    await agent.post('/test/sign-in').expect(204)
+
+    const response = await agent
+      .post('/api/auth/account/delete')
+      .set(CSRF_HEADER, token)
+      .send(body)
+      .expect(204)
+
+    const rotated = cookieValue(response.headers, CSRF_COOKIE)
+    expect(rotated).toBeTruthy()
+    expect(rotated).not.toBe(token)
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
   it('answers 401 for a wrong password and keeps the account and the session', async () => {
     const subject = harness(onAHostedBox)
     seedHost(subject)

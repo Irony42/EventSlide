@@ -10,7 +10,7 @@ import { withoutComments } from '../testing/withoutComments'
  * lines and looked harmless. So the rule is read off every component, including the ones
  * written after this file.
  *
- * Read as text rather than imported, for the reason `glassBackdrop.test.ts` is: what is
+ * Read as text rather than imported, because what is
  * being asserted is how the code is spelled, and no behaviour distinguishes the spellings
  * until a stylesheet loses a class.
  */

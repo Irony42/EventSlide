@@ -41,7 +41,6 @@ import type {
   ThemeFonts,
   ThemeFrame,
   ThemeGround,
-  ThemeMaterial,
   ThemeAmbiance,
   WallLayout,
 } from '../api/dto'
@@ -852,24 +851,6 @@ export const fr = {
       square: 'Coins droits',
       round: 'Coins très arrondis',
     } satisfies Record<ThemeFrame, string>,
-    themeMaterial: 'Matière des panneaux',
-    /**
-     * What the switch does, and — the longer half — where it does it.
-     *
-     * Two honesties, and the second one was missing from a first draft. A pane is opaque to
-     * between 92 and 95 %, so the difference is the little that shows through (roadmap
-     * 11.4): the copy says "discrète" rather than promising a transformation. And the only
-     * screen it changes is the guests' upload page — the wall gave the material up on every
-     * machine, and the moderation console is not themed. Without that sentence a host
-     * selects "Surface unie", saves, looks at the one glass pane in front of them (their
-     * own toolbar), sees nothing move, and concludes the save failed.
-     */
-    themeMaterialHint:
-      'Le verre laisse deviner ce qui passe dessous ; la surface unie est opaque. La différence est discrète, et elle ne concerne que l’écran d’envoi de vos invités : votre console de modération et l’écran de la salle ne changent pas.',
-    themeMaterialNames: {
-      glass: 'Verre dépoli',
-      plain: 'Surface unie',
-    } satisfies Record<ThemeMaterial, string>,
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
       'L’univers que portent l’écran de vos invités, celui de la salle et les pages de cet évènement dans votre console.',
@@ -1228,7 +1209,7 @@ export const fr = {
     passwordIncorrect: 'Mot de passe incorrect.',
     deleteAccount: 'Supprimer mon compte',
     deleteAccountIntro:
-      'Supprimer mon compte : votre adresse, votre mot de passe et vos accès sont effacés. Vos évènements, s’il vous en reste, doivent d’abord être supprimés ou confiés à quelqu’un d’autre. Il restera, au plus quelques jours, les sessions déjà ouvertes, et dans le journal d’audit des lignes anonymes : un identifiant qui ne renvoie plus à personne, sans votre nom ni votre adresse. Cette action est définitive.',
+      'Votre adresse, votre mot de passe et vos accès sont effacés. Vos évènements, s’il vous en reste, doivent d’abord être supprimés ou confiés à quelqu’un d’autre. Il restera, au plus quelques jours, les sessions déjà ouvertes, et dans le journal d’audit des lignes anonymes : un identifiant qui ne renvoie plus à personne, sans votre nom ni votre adresse. Cette action est définitive.',
     deleteAccountConfirm: 'Entrez votre mot de passe pour confirmer.',
     deleteAccountSubmit: 'Supprimer définitivement mon compte',
     deleteAccountDone: 'Votre compte est supprimé.',

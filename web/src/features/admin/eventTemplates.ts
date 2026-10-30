@@ -58,7 +58,6 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         accentHue: 345,
         fonts: 'serif',
         frame: 'round',
-        material: 'glass',
         ambiance: 'champs',
       },
     },
@@ -69,7 +68,6 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         accentHue: 305,
         fonts: 'sans',
         frame: 'round',
-        material: 'glass',
         ambiance: 'eventslide',
       },
     },
@@ -81,7 +79,6 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         accentHue: 250,
         fonts: 'sans',
         frame: 'square',
-        material: 'glass',
         ambiance: 'eventslide',
       },
     },
@@ -92,7 +89,6 @@ export const EVENT_TEMPLATE_PATCHES: Readonly<Record<EventTemplateKey, Partial<E
         accentHue: 195,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'bivouac',
       },
     },
@@ -135,13 +131,6 @@ const themeLine = (theme: EventSettingsDto['theme'], text: UiText): string | nul
     ...(accentName === null ? [] : [text.admin.themeAccentNames[accentName]]),
     ...(theme.fonts === DEFAULT_EVENT_THEME.fonts ? [] : [text.admin.themeFontsNames[theme.fonts]]),
     ...(theme.frame === DEFAULT_EVENT_THEME.frame ? [] : [text.admin.themeFrameNames[theme.frame]]),
-    // No template moves the material and none is likely to — a preset is an occasion, and
-    // no occasion implies a surface finish. It is listed all the same, because the rule
-    // this function exists for is "print what moves", and a part left out of the diff is a
-    // change a host would not be shown the day somebody does move it.
-    ...(theme.material === DEFAULT_EVENT_THEME.material
-      ? []
-      : [text.admin.themeMaterialNames[theme.material]]),
     // The world the evening wears, when it is not the product's own (ADR 0010).
     ...(theme.ambiance === DEFAULT_EVENT_THEME.ambiance
       ? []

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   afterVerdict,
   affords,
-  budgetFloorFor,
   FRAME_WINDOW,
   frameIntervalOf,
   windowHolds,
@@ -64,8 +63,7 @@ import { usePrefersReducedMotion } from './usePrefersReducedMotion'
  */
 export const useFrameBudget = (): BudgetLevel => {
   const reducedMotion = usePrefersReducedMotion()
-  const floor = budgetFloorFor('wall')
-  const [level, setLevel] = useState<BudgetLevel>(floor)
+  const [level, setLevel] = useState<BudgetLevel>(0)
 
   /**
    * Strikes live outside React on purpose.
@@ -73,7 +71,7 @@ export const useFrameBudget = (): BudgetLevel => {
    * They change every window and decide nothing on their own; only a rung reaches the DOM.
    * Holding them in state would be the re-render this hook exists to avoid.
    */
-  const state = useRef<BudgetState>({ level: floor, strikes: 0 })
+  const state = useRef<BudgetState>({ level: 0, strikes: 0 })
 
   // The bottom of the ladder: `crossfade` is the last thing there is to give up, so a wall
   // that has already given it up has nothing left to measure for.

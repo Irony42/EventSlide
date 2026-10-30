@@ -496,6 +496,12 @@ describe('User email verification', () => {
     })
   })
 
+  it('keeps the acceptance on record when another arrives at the very same instant', () => {
+    const first = aUser().acceptTerms('2027-01', SIGNED_IN_AT)
+
+    expect(first.acceptTerms('2028-01', SIGNED_IN_AT).termsAcceptance?.version).toBe('2027-01')
+  })
+
   it('replaces the acceptance with a later one, and ignores an earlier one', () => {
     const first = aUser().acceptTerms('2027-01', SIGNED_IN_AT)
 

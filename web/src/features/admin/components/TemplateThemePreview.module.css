@@ -22,9 +22,7 @@
 }
 
 /*
- * The panel, on `--surface-raised`: the colour the glass material is built on in every tier
- * (`--glass-opaque` is that surface, tokens.css), and the one the opaque tier lands on whole.
- * It does not compose the glass sheet, and that is deliberate — see `TemplateThemePreview.tsx`.
+ * The panel, on `--surface-raised`: the colour every pane of the product is drawn on.
  */
 .panel {
   display: flex;

@@ -225,7 +225,6 @@ export const toEventThemeDto = (
   accentHue: settings.theme.accentHue,
   fonts: settings.theme.fonts,
   frame: settings.theme.frame,
-  material: settings.theme.material,
   ambiance: settings.theme.ambiance,
   // Copied field for field, like the rest, and only when present.
   ...(settings.theme.custom === undefined

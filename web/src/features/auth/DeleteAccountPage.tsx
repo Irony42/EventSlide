@@ -33,6 +33,7 @@ export function DeleteAccountPage() {
       error={error}
       submitting={submitting}
       submitLabel={t.auth.deleteAccountSubmit}
+      submitVariant="danger"
       onSubmit={() => {
         void submit(password).then((deleted) => {
           if (!deleted) return

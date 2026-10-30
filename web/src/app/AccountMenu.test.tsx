@@ -386,6 +386,46 @@ describe('AccountMenu: signing out everywhere', () => {
   })
 })
 
+/** Erasing one's own account: offered on a box with accounts for other people, never to its operator. */
+describe('AccountMenu: erasing one’s own account', () => {
+  const as = (canOperateSite: boolean, siteAdmin: boolean) =>
+    fakeApi({
+      session: vi.fn(async (): Promise<SessionResponse> => ({
+        authenticated: true,
+        user: aSessionUser({ canOperateSite }),
+      })),
+      about: vi.fn(async () => anAbout({ features: { siteAdmin, forgotPassword: false } })),
+    })
+
+  it('offers it to an ordinary account on a box that has accounts for others', async () => {
+    renderMenu(as(false, true))
+    await open()
+
+    expect(await screen.findByRole('link', { name: fr.auth.deleteAccount })).toHaveAttribute(
+      'href',
+      '/admin/account/delete',
+    )
+  })
+
+  it('does not offer it to the operator, whose account is refused', async () => {
+    const api = as(true, true)
+    renderMenu(api)
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+    await open()
+
+    expect(screen.queryByRole('link', { name: fr.auth.deleteAccount })).toBeNull()
+  })
+
+  it('does not offer it on a box with no accounts for others, where the route does not exist', async () => {
+    const api = as(false, false)
+    renderMenu(api)
+    await waitFor(() => expect(api.about).toHaveBeenCalled())
+    await open()
+
+    expect(screen.queryByRole('link', { name: fr.auth.deleteAccount })).toBeNull()
+  })
+})
+
 /** The client space entry (G2-16 / P3-17): a member of a client, on a box that has one. */
 describe('AccountMenu: the client space', () => {
   const onBox = (clients: ReturnType<typeof aClientLimits>[], siteAdmin = true) =>

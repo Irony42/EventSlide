@@ -16,6 +16,8 @@ export interface AuthFormProps {
   readonly error: string | null
   readonly submitting: boolean
   readonly submitLabel: string
+  /** `danger` for an act that is not undone. Primary by default. */
+  readonly submitVariant?: 'primary' | 'danger'
   readonly onSubmit: () => void
   /** The fields. Each one brings its own `Field` so the label wiring stays local. */
   readonly children: ReactNode
@@ -36,6 +38,7 @@ export function AuthForm({
   error,
   submitting,
   submitLabel,
+  submitVariant = 'primary',
   onSubmit,
   children,
   footer,
@@ -66,7 +69,7 @@ export function AuthForm({
         )}
 
         <div className={styles['actions']}>
-          <Button type="submit" variant="primary" loading={submitting}>
+          <Button type="submit" variant={submitVariant} loading={submitting}>
             {submitLabel}
           </Button>
           {footer}

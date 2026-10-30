@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
  * visual jobs run with `NODE_ENV=test`, which keeps `'unsafe-inline'`, so the first person to
  * see the damage would be a guest in production, on an unstyled page.
  *
- * So the premise is a sweep of the source, as the glass material's rules are: a file added
+ * So the premise is a sweep of the source, as the other design-system rules are: a file added
  * tomorrow is in it the moment it exists. A hit is not always wrong, but it is always a
  * decision, and this is the place to make it out loud.
  */

@@ -16,7 +16,6 @@ import type {
   ThemeFonts,
   ThemeFrame,
   ThemeGround,
-  ThemeMaterial,
 } from '../../../domain/events/eventTheme'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { MissionScope } from '../../../domain/missions/missionScope'
@@ -66,17 +65,6 @@ export interface EventThemeDto {
   readonly accentHue: number
   readonly fonts: ThemeFonts
   readonly frame: ThemeFrame
-  /**
-   * Whether the event's panes wear the glass material (roadmap 11.5).
-   *
-   * It travels with the rest of the look rather than as a client concern, because it is the
-   * host's decision about their evening and not the viewer's about their phone. What the
-   * viewer's machine has to say about it — a missing capability, a stated preference, a
-   * frame rate that stopped holding — is decided in the browser and outranks this, so
-   * `plain` here means "never the material" and `glass` means "the material, if this
-   * machine can hold it".
-   */
-  readonly material: ThemeMaterial
   /** The ambiance the guest's phone and the wall wear (docs/adr/0010-event-ambiances.md). */
   readonly ambiance: ThemeAmbiance
   /**
@@ -779,7 +767,7 @@ export interface ShareLinkCreatedDto {
 export interface GalleryDto {
   /** Content: the host's own words, shown exactly as typed. */
   readonly eventName: string
-  /** The event's look, so the guest's own phone wears the accent and material it chose. */
+  /** The event's look, so the guest's own phone wears the accent it chose. */
   readonly theme: EventThemeDto
   readonly photoCount: number
   readonly expiresAt: string

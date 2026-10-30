@@ -255,7 +255,7 @@ export class User {
    */
   acceptTerms(version: string, at: Date): User {
     const current = this.props.termsAcceptance
-    return current !== null && current.at.getTime() > at.getTime()
+    return current !== null && current.at.getTime() >= at.getTime()
       ? this
       : this.with({ termsAcceptance: { version, at } })
   }

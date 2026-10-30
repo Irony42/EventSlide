@@ -161,7 +161,6 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.theme?.accentHue === fresh.theme?.accentHue &&
   kept.theme?.fonts === fresh.theme?.fonts &&
   kept.theme?.frame === fresh.theme?.frame &&
-  kept.theme?.material === fresh.theme?.material &&
   kept.theme?.ambiance === fresh.theme?.ambiance &&
   // The host's own ambiance (ADR 0011): re-tinting the wall mid-evening moves no photograph.
   kept.theme?.custom?.ground === fresh.theme?.custom?.ground &&

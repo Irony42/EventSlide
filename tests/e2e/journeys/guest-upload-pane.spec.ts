@@ -80,10 +80,10 @@ const applySettings = async (app: App, slug: string, settings: EventSettings): P
   const { ambiance, ...flags } = settings
   const body = {
     ...flags,
-    // The whole theme, because the route refuses a part of one (an old tab must not undo a choice).
+    // The whole theme, because the route refuses a part of one.
     ...(ambiance === undefined
       ? {}
-      : { theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass', ambiance } }),
+      : { theme: { accentHue: 305, fonts: 'sans', frame: 'soft', ambiance } }),
   }
   const saved = await api.patch(`/api/events/${slug}/settings`, body)
   if (!succeeded(saved)) throw new Error(`the settings were refused: ${saved.status}`)
