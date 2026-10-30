@@ -192,6 +192,7 @@ export function AccountsPage() {
                 <th scope="col">{t.site.roleColumn}</th>
                 <th scope="col">{t.site.accountStateColumn}</th>
                 <th scope="col">{t.site.lastLoginColumn}</th>
+                <th scope="col">{t.site.termsColumn}</th>
                 <th scope="col">{t.site.ownedColumn}</th>
                 <th scope="col">{t.site.clientsColumn}</th>
                 <th scope="col">
@@ -222,6 +223,15 @@ export function AccountsPage() {
                     {account.lastLoginAt === null
                       ? t.site.neverSignedIn
                       : (formatDateTime(account.lastLoginAt, locale) ?? account.lastLoginAt)}
+                  </td>
+                  <td className={tables['muted']}>
+                    {account.termsVersion === null || account.termsAcceptedAt === null
+                      ? t.site.termsNone
+                      : t.site.termsAccepted(
+                          account.termsVersion,
+                          formatDateTime(account.termsAcceptedAt, locale) ??
+                            account.termsAcceptedAt,
+                        )}
                   </td>
                   <td>{account.ownedEventCount}</td>
                   <td>

@@ -1003,6 +1003,12 @@ export const en: UiText = {
     changePasswordIntro: 'Choose a password you do not use anywhere else.',
     passwordSaved: 'Password saved.',
     passwordIncorrect: 'Wrong password.',
+    deleteAccount: 'Delete my account',
+    deleteAccountIntro:
+      'Deleting your account erases your address, your password and your access. Any events you still own must first be deleted or handed to someone else. For a few days at most, sessions that are already open remain, and the audit log keeps anonymous lines: an identifier that no longer points to anyone, with neither your name nor your address. This cannot be undone.',
+    deleteAccountConfirm: 'Enter your password to confirm.',
+    deleteAccountSubmit: 'Permanently delete my account',
+    deleteAccountDone: 'Your account has been deleted.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Two-step verification',
@@ -1381,6 +1387,9 @@ export const en: UiText = {
     roleColumn: 'Role on the instance',
     accountStateColumn: 'Status',
     lastLoginColumn: 'Last sign-in',
+    termsColumn: 'Terms accepted',
+    termsNone: 'None on record',
+    termsAccepted: (version: string, at: string) => `Version ${version}, on ${at}`,
     ownedColumn: 'Events owned',
     clientsColumn: 'Clients',
     siteRoleOperator: 'Operator',
@@ -1496,6 +1505,7 @@ export const en: UiText = {
     invitation: 'Invitation',
     changePassword: 'Change your password',
     security: 'Account security',
+    deleteAccount: 'Delete my account',
     dashboard: 'Your events',
     newEvent: 'New event',
     event: 'Event',

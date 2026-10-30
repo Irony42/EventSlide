@@ -128,10 +128,12 @@ const anAccountRow = (): SiteAccountRow => ({
   mustChangePassword: false,
   ownedEventCount: 1,
   clients: [{ clientId: asClientId('client-1'), role: 'owner' }],
+  termsVersion: null,
+  termsAcceptedAt: null,
 })
 
 describe('the shapes of the operator overview', () => {
-  it('declares exactly two free-text fields in all: the client name and the account address', () => {
+  it('declares exactly three free-text fields in all: the client name, the account address and the version of the terms it accepted', () => {
     // The whole privacy argument is that this list is short and a diff must touch it. A
     // third entry is not wrong by itself, but it is a decision, and this is where it is
     // made — not a column that rode along on a query.
@@ -139,7 +141,7 @@ describe('the shapes of the operator overview', () => {
       pathsOfKind(shape, 'label').map((path) => `${row}.${path}`),
     )
 
-    expect(labels).toEqual(['client.name', 'account.email'])
+    expect(labels).toEqual(['client.name', 'account.email', 'account.termsVersion'])
   })
 
   it('names every identifier a row carries, and none of them is a photograph or a guest', () => {

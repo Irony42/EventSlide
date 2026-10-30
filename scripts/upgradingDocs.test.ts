@@ -237,6 +237,8 @@ describe('the upgrade to 3.0 against the code it describes', () => {
     // 2.1.0 ends at migration 007. Whoever adds the next one has to say so in both places, or
     // a host is told that three migrations will run when four will.
     const LAST_MIGRATION_OF_2_1_0 = 7
+    // 3.0.0 is released and ends at 014: a migration after it belongs to a later release's section.
+    const LAST_MIGRATION_OF_3_0_0 = 14
     const ids = [
       ...new Set(
         [
@@ -245,7 +247,7 @@ describe('the upgrade to 3.0 against the code it describes', () => {
           ),
         ].map((match) => Number(match[1])),
       ),
-    ].filter((id) => id > LAST_MIGRATION_OF_2_1_0)
+    ].filter((id) => id > LAST_MIGRATION_OF_2_1_0 && id <= LAST_MIGRATION_OF_3_0_0)
 
     expect(ids.length, 'migrations after 007').toBeGreaterThan(0)
     for (const id of ids) {

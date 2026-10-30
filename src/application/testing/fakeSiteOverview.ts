@@ -228,6 +228,8 @@ export class FakeSiteOverview implements SiteOverview, SiteWorld {
       ownedEventCount: [...this.events.values()].filter((event) => event.ownerId === user.id)
         .length,
       clients: memberships.map((member) => ({ clientId: member.clientId, role: member.role })),
+      termsVersion: user.termsAcceptance?.version ?? null,
+      termsAcceptedAt: user.termsAcceptance?.at ?? null,
     }
   }
 

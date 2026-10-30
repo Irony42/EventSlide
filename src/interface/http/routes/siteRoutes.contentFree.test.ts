@@ -382,6 +382,8 @@ const KEYS = new Set([
   'disabledAt',
   'mustChangePassword',
   'ownedEventCount',
+  'termsVersion',
+  'termsAcceptedAt',
   'clients',
   'clientId',
   'role',
@@ -532,7 +534,7 @@ describe.each(['delivers', 'none'] as const)(
       }
     })
 
-    it('carries nothing but ids, instants, closed sets, codes, two labels, the operator’s reason and a link where none was mailed', async () => {
+    it('carries nothing but ids, instants, closed sets, codes, three labels, the operator’s reason and a link where none was mailed', async () => {
       const { answers } = await run()
 
       for (const { call, body } of answers) {

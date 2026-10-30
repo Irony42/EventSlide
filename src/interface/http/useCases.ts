@@ -3,6 +3,7 @@ import type { PresenterContext } from './presenters/presenters'
 import type { AuthenticateUser } from '../../application/usecases/auth/authenticateUser'
 import type { AcceptInvitation } from '../../application/usecases/auth/acceptInvitation'
 import type { ChangePassword } from '../../application/usecases/auth/changePassword'
+import type { DeleteOwnAccount } from '../../application/usecases/auth/deleteOwnAccount'
 import type { PreviewInvitation } from '../../application/usecases/auth/previewInvitation'
 import type { ConfirmTotpEnrollment } from '../../application/usecases/auth/confirmTotpEnrollment'
 import type { DisableSecondFactor } from '../../application/usecases/auth/disableSecondFactor'
@@ -124,6 +125,7 @@ export interface HttpUseCases {
   // auth
   readonly authenticateUser: AuthenticateUser
   readonly changePassword: ChangePassword
+  readonly deleteOwnAccount: DeleteOwnAccount
   readonly revokeOtherSessions: RevokeOtherSessions
   readonly requestPasswordReset: RequestPasswordReset
   readonly resetPassword: ResetPassword

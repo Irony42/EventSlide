@@ -374,7 +374,7 @@ why each change was made and what there was no warning for.
    | `SMTP_URL`, `MAIL_FROM`                                                                 | none         | the forms `.env.example` shows; `SMTP_URL` needs `MAIL_FROM`                                            |
    | `EVENT_CREATION`                                                                        | `anyAccount` | `anyAccount` or `clientMembers` (which needs `SITE_ADMIN=on`)                                           |
    | `OPERATOR_RESET_LINKS`                                                                  | `mailOnly`   | `mailOnly` or `copyLinkWithOwnerApproval` (which needs `SITE_ADMIN=on`); case matters                   |
-   | `AUDIT_RETENTION_DAYS`                                                                  | `1095`       | a whole number of days, 365 to 3650                                                                     |
+   | `AUDIT_RETENTION_DAYS`                                                                  | `365`        | a whole number of days, 365 to 3650                                                                     |
    | `MFA_ENCRYPTION_KEY`                                                                    | none         | the form `.env.example` shows; never equal to `SESSION_SECRET` or `GUEST_TOKEN_SECRET`                  |
    | `REQUIRE_OPERATOR_2FA`                                                                  | `false`      | `true`, `false`, `1` or `0`; `true` needs a valid `MFA_ENCRYPTION_KEY` and `SITE_ADMIN=on`              |
    | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000` | a positive whole number                                                                                 |
@@ -547,3 +547,30 @@ need more.
 the setting to fix (a `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` above `MAX_CONCURRENT_UPLOAD_REQUESTS`,
 for instance). If anything else looks wrong, go back as [described above](#going-back): restore the
 archive you took before the upgrade.
+
+## Upgrading to 3.3
+
+**Not released yet: the release pull request finalises this section.** 3.3.0 will be a minor
+release: it breaks nothing the policy above promises to keep, but it changes one default and adds
+one migration.
+
+**Who is affected.** Anyone who never set `AUDIT_RETENTION_DAYS`, and everyone who runs with
+`SITE_ADMIN=on`.
+
+1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)).
+2. **One migration (015) runs at the first boot**: it adds `users.terms_version` and
+   `users.terms_accepted_at`, the proof that an account accepted the terms of use, and copies into
+   them the latest acceptance still present in the audit log. Nothing is lost and no setting is
+   needed; a box that sets no `LEGAL_TERMS_URL` records nothing and keeps the columns empty.
+3. **`AUDIT_RETENTION_DAYS` now defaults to 365** (it was 1095). The value was already the floor,
+   and it is what the hosted instance runs. **A box that never set it will, at the first
+   retention sweep after the upgrade, delete audit lines older than a year.** If you need to keep
+   them longer (the privacy policy you publish must then say so), set `AUDIT_RETENTION_DAYS=1095`
+   in `.env` before you upgrade. A value you set yourself is kept.
+4. **With `SITE_ADMIN=on`, an account can delete itself**: `POST /api/auth/account/delete` and an
+   entry "Supprimer mon compte" in the account menu, behind the password, with the same refusals as
+   the operator's route (an account that still owns an event is refused). On a box with
+   `SITE_ADMIN=off` the route does not exist.
+
+**How to tell it worked.** `npm run db:status` (or the first boot's log) reports migration 015
+applied, and `GET /api/health` answers the new version.

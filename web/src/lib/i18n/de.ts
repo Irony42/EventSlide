@@ -1057,6 +1057,12 @@ export const de: UiText = {
     changePasswordIntro: 'Wählen Sie ein Passwort, das Sie nirgendwo sonst verwenden.',
     passwordSaved: 'Passwort gespeichert.',
     passwordIncorrect: 'Das Passwort ist falsch.',
+    deleteAccount: 'Mein Konto löschen',
+    deleteAccountIntro:
+      'Beim Löschen werden Ihre Adresse, Ihr Passwort und Ihre Zugänge gelöscht. Veranstaltungen, die Ihnen noch gehören, müssen zuerst gelöscht oder an jemand anderen übergeben werden. Höchstens einige Tage lang bleiben bereits geöffnete Sitzungen bestehen, und das Prüfprotokoll behält anonyme Zeilen: eine Kennung, die auf niemanden mehr verweist, ohne Ihren Namen und Ihre Adresse. Das lässt sich nicht rückgängig machen.',
+    deleteAccountConfirm: 'Geben Sie zur Bestätigung Ihr Passwort ein.',
+    deleteAccountSubmit: 'Mein Konto endgültig löschen',
+    deleteAccountDone: 'Ihr Konto wurde gelöscht.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Bestätigung in zwei Schritten',
@@ -1441,6 +1447,9 @@ export const de: UiText = {
     roleColumn: 'Rolle auf der Instanz',
     accountStateColumn: 'Status',
     lastLoginColumn: 'Letzte Anmeldung',
+    termsColumn: 'Akzeptierte Bedingungen',
+    termsNone: 'Kein Nachweis',
+    termsAccepted: (version: string, at: string) => `Version ${version}, am ${at}`,
     ownedColumn: 'Eigene Veranstaltungen',
     clientsColumn: 'Kunden',
     siteRoleOperator: 'Betreiber',
@@ -1558,6 +1567,7 @@ export const de: UiText = {
     invitation: 'Einladung',
     changePassword: 'Passwort ändern',
     security: 'Kontosicherheit',
+    deleteAccount: 'Mein Konto löschen',
     dashboard: 'Ihre Veranstaltungen',
     newEvent: 'Neue Veranstaltung',
     event: 'Veranstaltung',

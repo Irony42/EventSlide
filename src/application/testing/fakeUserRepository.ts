@@ -38,9 +38,21 @@ export class FakeUserRepository implements UserRepository {
     // The adapter's `COALESCE(stored, incoming)`: the first proof of the mailbox stands, and a
     // copy read before it was given cannot take it back.
     const verified = kept?.emailVerifiedAt ?? null
+    // The adapter's `CASE` on the instant: the latest acceptance of the terms stands, and a stale
+    // copy carrying an older one, or none, cannot erase it.
+    const storedTerms = kept?.termsAcceptance ?? null
+    const incomingTerms = merged.termsAcceptance
+    const terms =
+      storedTerms !== null && (incomingTerms === null || incomingTerms.at <= storedTerms.at)
+        ? storedTerms
+        : incomingTerms
     this.rows.set(
       user.id,
-      verified === null ? merged : User.restore({ ...merged.toProps(), emailVerifiedAt: verified }),
+      User.restore({
+        ...merged.toProps(),
+        emailVerifiedAt: verified ?? merged.emailVerifiedAt,
+        termsAcceptance: terms,
+      }),
     )
   }
 

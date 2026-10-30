@@ -483,6 +483,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   // so a test that forgets to log in exercises the redirect rather than a 401 branch.
   session: vi.fn(async (): Promise<SessionResponse> => ({ authenticated: false })),
   changePassword: vi.fn(async () => undefined),
+  deleteOwnAccount: vi.fn(async () => undefined),
   // The same answer for every address, which is what the server gives.
   requestPasswordReset: vi.fn(async () => undefined),
   confirmPasswordReset: vi.fn(async () => undefined),

@@ -235,3 +235,38 @@ export const useSignOut = (): SignOutState => {
 
   return { signOut, signOutEverywhere, busy }
 }
+
+/**
+ * A person erases their own account (`POST /api/auth/account/delete`), behind their password. On
+ * success the session the server just destroyed is forgotten here too, so nothing on screen goes on
+ * speaking as an account that no longer exists. A refusal (`account.holdsEvents`, a wrong password)
+ * is a sentence, and the account is untouched.
+ */
+export function useDeleteOwnAccount(): AuthActionState<string> {
+  const t = useTranslations()
+  const api = useApi()
+  const forgetSession = useForgetSession()
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const clearError = useCallback(() => setError(null), [])
+
+  const submit = useCallback(
+    async (password: string) => {
+      setSubmitting(true)
+      setError(null)
+      try {
+        await api.deleteOwnAccount(password)
+        forgetSession()
+        return true
+      } catch (cause) {
+        setError(messageForPasswordError(cause, t))
+        return false
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [api, forgetSession, t],
+  )
+
+  return { submit, submitting, error, clearError }
+}

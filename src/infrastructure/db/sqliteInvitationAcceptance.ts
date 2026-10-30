@@ -60,6 +60,7 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
   private readonly grantEvent
   private readonly grantClient
   private readonly insertAudit
+  private readonly stampTerms
 
   constructor(private readonly db: Db) {
     this.selectInvitation = db.prepare<[string, string], InvitationRow>(
@@ -86,6 +87,9 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
        ON CONFLICT (event_id, user_id) DO NOTHING`,
     )
     this.insertAudit = db.prepare(INSERT_AUDIT_SQL)
+    this.stampTerms = db.prepare<[string, string, string]>(
+      `UPDATE users SET terms_version = ?, terms_accepted_at = ? WHERE id = ?`,
+    )
     this.grantClient = db.prepare<[string, string, string, string]>(
       `INSERT INTO client_members (client_id, user_id, role, granted_at)
             VALUES (?, ?, ?, ?)
@@ -137,6 +141,8 @@ export class SqliteInvitationAcceptance implements InvitationAcceptance {
           throw new Error('the invitation names nothing to grant')
         }
         if (record.audit !== undefined) this.insertAudit.run(auditParams(record.audit))
+        // The durable half of the same fact: the log's entry is pruned, the account's is not.
+        if (record.termsVersion !== undefined) this.stampTerms.run(record.termsVersion, at, userId)
         return 'accepted'
       })
       .immediate()

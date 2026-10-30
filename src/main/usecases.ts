@@ -35,6 +35,7 @@ import { makeAuthenticateUser } from '../application/usecases/auth/authenticateU
 import { makeAcceptInvitation } from '../application/usecases/auth/acceptInvitation'
 import { makeBootstrapOwner } from '../application/usecases/auth/bootstrapOwner'
 import { makeChangePassword } from '../application/usecases/auth/changePassword'
+import { makeDeleteOwnAccount } from '../application/usecases/auth/deleteOwnAccount'
 import { makeConfirmTotpEnrollment } from '../application/usecases/auth/confirmTotpEnrollment'
 import { makeDisableAccount } from '../application/usecases/auth/disableAccount'
 import { makeEnableAccount } from '../application/usecases/auth/enableAccount'
@@ -325,6 +326,16 @@ const invitationIssuer = (adapters: Adapters, policy: UseCasePolicy) =>
     publicUrl: policy.publicUrl,
   })
 
+/** The one erasure of an account, shared by the operator's route and the person's own. */
+const accountDeleter = (adapters: Adapters) =>
+  makeDeleteAccount({
+    users: adapters.users,
+    clients: adapters.clients,
+    holdings: adapters.accountHoldings,
+    audit: adapters.audit,
+    clock: adapters.clock,
+  })
+
 const clientCreator = (adapters: Adapters) =>
   makeCreateClient({
     clients: adapters.clients,
@@ -441,12 +452,12 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       audit: adapters.audit,
       clock: adapters.clock,
     }),
-    deleteAccount: makeDeleteAccount({
+    deleteAccount: accountDeleter(adapters),
+    /** A person erases their own account (`DELETE /api/auth/account`): the same erasure, behind their password. */
+    deleteOwnAccount: makeDeleteOwnAccount({
       users: adapters.users,
-      clients: adapters.clients,
-      holdings: adapters.accountHoldings,
-      audit: adapters.audit,
-      clock: adapters.clock,
+      hasher: adapters.passwordHasher,
+      deleteAccount: accountDeleter(adapters),
     }),
     /**
      * Previewing and accepting an invitation (G2-09 / P3-10): the invitee's, a link in a mail

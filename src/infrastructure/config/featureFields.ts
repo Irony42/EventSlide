@@ -155,7 +155,7 @@ export const joinCodeLength = z.coerce
  *
  * Blank is absent, for the reason written on {@link blankAsAbsent}. Unlike a sweep interval
  * this is a *safe* direction to default in: a dangling `AUDIT_RETENTION_DAYS=` keeps the log
- * three years rather than deleting anything sooner, and `0` is a refusal that names the
+ * a year (the floor) rather than deleting anything sooner, and `0` is a refusal that names the
  * variable, not a way to turn pruning off.
  */
 export const auditRetentionDays = z.preprocess(

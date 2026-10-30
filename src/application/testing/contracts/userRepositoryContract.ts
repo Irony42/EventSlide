@@ -295,6 +295,59 @@ export const userRepositoryContract = (
       expect(stored?.emailVerifiedAt?.toISOString()).toBe(atPlus(4_000).toISOString())
     })
 
+    // ------------------------------------------------------ termsAcceptance --
+
+    it('stores the version of the terms an account accepted and when, and reads it back', async () => {
+      await repo.save(
+        aUser({ id: 'user-host', termsAcceptance: { version: '2027-01', at: atPlus(4_000) } }),
+      )
+
+      const stored = await repo.findById(asUserId('user-host'))
+
+      expect(stored?.termsAcceptance?.version).toBe('2027-01')
+      expect(stored?.termsAcceptance?.at.toISOString()).toBe(atPlus(4_000).toISOString())
+    })
+
+    it('stores an account that accepted nothing as having no acceptance on record', async () => {
+      await repo.save(aUser({ id: 'user-host' }))
+
+      expect((await repo.findById(asUserId('user-host')))?.termsAcceptance).toBeNull()
+    })
+
+    it('never erases the proof when a copy read before it is saved after it', async () => {
+      const staleCopy = aUser({ id: 'user-host' })
+      await repo.save(staleCopy)
+      await repo.save(staleCopy.acceptTerms('2027-01', atPlus(4_000)))
+
+      await repo.save(staleCopy.recordLogin(atPlus(6_000)))
+
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.termsAcceptance?.version).toBe('2027-01')
+      expect(stored?.lastLoginAt?.toISOString()).toBe(atPlus(6_000).toISOString())
+    })
+
+    it('replaces the proof with a later acceptance, version and instant together', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.acceptTerms('2027-01', atPlus(4_000)))
+
+      await repo.save(user.acceptTerms('2028-02', atPlus(9_000)))
+
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.termsAcceptance?.version).toBe('2028-02')
+      expect(stored?.termsAcceptance?.at.toISOString()).toBe(atPlus(9_000).toISOString())
+    })
+
+    it('does not replace the proof with an older acceptance carried by a stale copy', async () => {
+      const user = aUser({ id: 'user-host' })
+      await repo.save(user.acceptTerms('2028-02', atPlus(9_000)))
+
+      await repo.save(user.acceptTerms('2027-01', atPlus(4_000)))
+
+      const stored = await repo.findById(asUserId('user-host'))
+      expect(stored?.termsAcceptance?.version).toBe('2028-02')
+      expect(stored?.termsAcceptance?.at.toISOString()).toBe(atPlus(9_000).toISOString())
+    })
+
     it('keeps the epoch of an account that is switched off and on again', async () => {
       const user = aUser({ id: 'user-host' })
       await repo.save(user.disable(atPlus(3_000)))

@@ -144,6 +144,8 @@ const subjectOf = ({
               clock: deps.clock,
             }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
+            // Not what this suite is about: an unwired call fails loudly.
+            deleteOwnAccount: () => Promise.reject(new Error('deleteOwnAccount is not wired here')),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
               users,

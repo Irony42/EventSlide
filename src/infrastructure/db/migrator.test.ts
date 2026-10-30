@@ -2993,3 +2993,52 @@ describe('migration 013, the indexes a deleted parent row is looked up through',
     closeDatabase(db)
   })
 })
+
+describe('migration 015, the proof that an account accepted the terms', () => {
+  const insertUser = (db: Db, id: string): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES (?, ?, 'hash:x', '2026-06-20T21:00:00.000Z')`,
+    ).run(id, `${id}@example.test`)
+  }
+  const insertAcceptance = (db: Db, actor: string, at: string, version: string): void => {
+    db.prepare(
+      `INSERT INTO audit_log (at, actor_user_id, actor_kind, action, subject_type, subject_id, details)
+            VALUES (?, ?, 'member', 'account.termsAccepted', 'account', ?, ?)`,
+    ).run(at, actor, actor, JSON.stringify({ version }))
+  }
+
+  it('adds two empty columns to accounts that never accepted anything', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    insertUser(db, 'u1')
+
+    expect(db.prepare(`SELECT terms_version, terms_accepted_at FROM users`).get()).toEqual({
+      terms_version: null,
+      terms_accepted_at: null,
+    })
+    closeDatabase(db)
+  })
+
+  it('copies the latest acceptance still in the audit log onto its account, before the log prunes it', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 15),
+    )
+    insertUser(db, 'u1')
+    insertUser(db, 'u2')
+    insertAcceptance(db, 'u1', '2026-07-01T08:00:00.000Z', '2026-07')
+    insertAcceptance(db, 'u1', '2026-09-01T08:00:00.000Z', '2026-09')
+
+    migrate(db, migrations)
+
+    expect(
+      db.prepare(`SELECT id, terms_version, terms_accepted_at FROM users ORDER BY id`).all(),
+    ).toEqual([
+      { id: 'u1', terms_version: '2026-09', terms_accepted_at: '2026-09-01T08:00:00.000Z' },
+      { id: 'u2', terms_version: null, terms_accepted_at: null },
+    ])
+    closeDatabase(db)
+  })
+})

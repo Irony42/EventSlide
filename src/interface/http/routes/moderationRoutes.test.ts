@@ -92,6 +92,7 @@ const usecasesFor = (
   return {
     authenticateUser: notWired,
     changePassword: notWired,
+    deleteOwnAccount: notWired,
     revokeOtherSessions: notWired,
     requestPasswordReset: notWired,
     resetPassword: notWired,

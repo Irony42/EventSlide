@@ -131,6 +131,9 @@ const SiteAuditPage = lazy(async () => ({
   default: (await import('../features/site/AuditPage')).AuditPage,
 }))
 
+const DeleteAccountPage = lazy(async () => ({
+  default: (await import('../features/auth/DeleteAccountPage')).DeleteAccountPage,
+}))
 const ChangePasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ChangePasswordPage')).ChangePasswordPage,
 }))
@@ -514,6 +517,14 @@ export function AppRoutes() {
                 path="/admin/password"
                 element={titled('changePassword', <ChangePasswordPage />)}
               />
+              {/* Erasing one's own account: only where the box has accounts for other people, which is
+                  where the server mounts the route. */}
+              {siteAdmin ? (
+                <Route
+                  path="/admin/account/delete"
+                  element={titled('deleteAccount', <DeleteAccountPage />)}
+                />
+              ) : null}
               {/* The operator's second factor (G2-13). The console's gate links here for an
                   operator who has not enrolled; the address is otherwise the entry. */}
               <Route path="/admin/security" element={titled('security', <SecurityPage />)} />

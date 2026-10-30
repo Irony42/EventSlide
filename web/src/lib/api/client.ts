@@ -390,6 +390,10 @@ export const createApi = (transport: Transport) => ({
   session: (signal?: AbortSignal): Promise<SessionResponse> =>
     transport.get('/api/auth/me', undefined, signal),
 
+  /** Erases the signed-in account, behind its password. Only where `SITE_ADMIN=on`; `409 account.holds…` while it owns an event. */
+  deleteOwnAccount: (password: string): Promise<void> =>
+    transport.post('/api/auth/account/delete', { password }),
+
   changePassword: (currentPassword: string, newPassword: string): Promise<void> =>
     transport.post('/api/auth/password', { currentPassword, newPassword }),
 

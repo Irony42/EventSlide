@@ -220,6 +220,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.changePassword('ancien', 'nouveau'),
   },
   {
+    name: 'deleteOwnAccount',
+    verb: 'post',
+    path: '/api/auth/account/delete',
+    invoke: (client) => client.deleteOwnAccount('un-mot-de-passe'),
+  },
+  {
     name: 'loginSecondFactor',
     verb: 'post',
     path: '/api/auth/login/2fa',

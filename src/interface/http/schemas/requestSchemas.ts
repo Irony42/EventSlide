@@ -247,6 +247,11 @@ export const loginBody = z.strictObject({
   password: z.string().min(1).max(1_000),
 })
 
+/** Erasing one's own account: the password again, and nothing else (the account is the session's). */
+export const deleteOwnAccountBody = z.strictObject({
+  password: z.string().min(1).max(1_000),
+})
+
 export const changePasswordBody = z.strictObject({
   currentPassword: z.string().min(1).max(1_000),
   newPassword: z.string().min(1).max(1_000),

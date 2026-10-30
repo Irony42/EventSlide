@@ -84,7 +84,7 @@ const EVENT_SELECT = `SELECT e.id, e.status, e.created_at, e.starts_at, e.opened
   FROM events e`
 
 const ACCOUNT_SELECT = `SELECT u.id, u.email, u.site_role, u.created_at, u.last_login_at,
-       u.disabled_at, u.must_change_password,
+       u.disabled_at, u.must_change_password, u.terms_version, u.terms_accepted_at,
        (SELECT COUNT(*) FROM events ev WHERE ev.owner_id = u.id)                 AS owned_event_count
   FROM users u`
 
@@ -141,6 +141,8 @@ const ACCOUNT_READS = [
   'users.last_login_at',
   'users.disabled_at',
   'users.must_change_password',
+  'users.terms_version',
+  'users.terms_accepted_at',
   'events.owner_id',
 ] as const
 
@@ -272,6 +274,8 @@ interface AccountSqlRow {
   readonly last_login_at: string | null
   readonly disabled_at: string | null
   readonly must_change_password: number
+  readonly terms_version: string | null
+  readonly terms_accepted_at: string | null
   readonly owned_event_count: number
 }
 
@@ -345,6 +349,8 @@ const toAccountRow = (
     mustChangePassword: fromSqliteBoolean(row.must_change_password),
     ownedEventCount: row.owned_event_count,
     clients,
+    termsVersion: row.terms_version,
+    termsAcceptedAt: fromNullableIsoText(row.terms_accepted_at),
   }
 }
 

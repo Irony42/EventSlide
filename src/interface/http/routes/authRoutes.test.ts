@@ -11,6 +11,11 @@ import { AT, aUser } from '../../../application/testing/builders'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
+import { makeDeleteOwnAccount } from '../../../application/usecases/auth/deleteOwnAccount'
+import { makeDeleteAccount } from '../../../application/usecases/site/deleteAccount'
+import { FakeAccountHoldings } from '../../../application/testing/fakeAccountHoldings'
+import { FakeAuditLog } from '../../../application/testing/fakeAuditLog'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
@@ -52,6 +57,8 @@ interface AuthHarness extends Harness {
   readonly mailer: FakeMailer
   readonly tokens: FakeAccountTokenRepository
   readonly secrets: FakeSecretTokens
+  readonly holdings: FakeAccountHoldings
+  readonly audit: FakeAuditLog
 }
 
 interface AuthHarnessOptions {
@@ -90,6 +97,8 @@ const harness = ({
     asUserId(OTHER_ID),
   )
   const secrets = new FakeSecretTokens()
+  const holdings = new FakeAccountHoldings()
+  const audit = new FakeAuditLog().withAccounts(asUserId(HOST_ID))
   const ids = new SequentialIdGenerator()
   const boxMailer: Mailer =
     mail === 'relay'
@@ -135,6 +144,17 @@ const harness = ({
               clock: deps.clock,
             }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
+            deleteOwnAccount: makeDeleteOwnAccount({
+              users,
+              hasher,
+              deleteAccount: makeDeleteAccount({
+                users,
+                clients: new FakeClientRepository(),
+                holdings,
+                audit,
+                clock: deps.clock,
+              }),
+            }),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
               users,
@@ -162,7 +182,7 @@ const harness = ({
     },
   })
 
-  return { ...built, users, mailer, tokens, secrets }
+  return { ...built, users, mailer, tokens, secrets, holdings, audit }
 }
 
 /** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
@@ -646,6 +666,79 @@ describe('GET /api/auth/me', () => {
     const agent = await signedIn(subject)
 
     expect((await agent.get('/api/auth/me')).body).toEqual({ authenticated: false })
+  })
+})
+
+describe('POST /api/auth/account/delete', () => {
+  const body = { password: PASSWORD }
+  const onAHostedBox = { config: { siteAdmin: true } }
+
+  it('is an unknown route on a box that runs for nobody else (SITE_ADMIN off)', async () => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(response.status).toBe(404)
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  it('erases the account of the signed-in person who gives their password, and ends the session', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(response.status).toBe(204)
+    expect(await subject.users.findById(asUserId(HOST_ID))).toBeNull()
+    expect(setCookie(response.headers, SESSION_COOKIE)).toMatch(/Expires=Thu, 01 Jan 1970/)
+    expect((await agent.post('/api/auth/password').send({})).status).toBe(401)
+  })
+
+  it('answers 401 for a wrong password and keeps the account and the session', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent
+      .post('/api/auth/account/delete')
+      .send({ password: 'pas-le-bon-mot' })
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.invalidCredentials')
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  it('answers 409 account.holdsEvents for a host who still owns an event, and deletes nothing', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    subject.holdings.holds(asUserId(HOST_ID), { events: 1 })
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error.code).toBe('account.holdsEvents')
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  it('answers 401 without a session, 400 for a body naming another account, and touches nobody', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    subject.users.seed(aUser({ id: 'former-id', email: FORMER_EMAIL }))
+
+    expect((await request(subject.app).post('/api/auth/account/delete').send(body)).status).toBe(
+      401,
+    )
+
+    const agent = await signedIn(subject)
+    const crafted = await agent
+      .post('/api/auth/account/delete')
+      .send({ ...body, userId: 'former-id' })
+    expect(crafted.status).toBe(400)
+    expect(await subject.users.findById(asUserId('former-id'))).not.toBeNull()
   })
 })
 

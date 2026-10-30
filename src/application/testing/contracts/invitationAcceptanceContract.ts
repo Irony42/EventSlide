@@ -388,6 +388,53 @@ export const invitationAcceptanceContract = (
         expect((await logged()).map((row) => row.actor.userId)).toEqual(['user-existing'])
       })
 
+      it('stamps the version and the instant on a new account, the proof that outlives the log', async () => {
+        const id = await issue('tok-1', CLIENT_OWNER)
+
+        await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount() },
+          audit: termsEntry('user-new', ACCEPTANCE_CLIENT),
+          termsVersion: '2027-01',
+        })
+
+        const stored = await subject.users.findById(asUserId('user-new'))
+        expect(stored?.termsAcceptance?.version).toBe('2027-01')
+        expect(stored?.termsAcceptance?.at.toISOString()).toBe(atPlus(1_000).toISOString())
+      })
+
+      it('stamps an existing account with the version it accepts now', async () => {
+        const id = await issueForExisting('tok-1')
+
+        await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(2_000),
+          account: { kind: 'existing', userId: asUserId('user-existing'), emailVerifiedAt: null },
+          audit: termsEntry('user-existing'),
+          termsVersion: '2028-03',
+        })
+
+        const stored = await subject.users.findById(asUserId('user-existing'))
+        expect(stored?.termsAcceptance).toEqual({ version: '2028-03', at: atPlus(2_000) })
+      })
+
+      it('stamps nothing for a link that cannot be spent, and nothing when no version is given', async () => {
+        const id = await issue('tok-1')
+        await accept(id, { kind: 'new', user: newAccount() })
+        expect((await subject.users.findById(asUserId('user-new')))?.termsAcceptance).toBeNull()
+
+        await subject.acceptance.accept({
+          tokenId: id,
+          now: atPlus(1_000),
+          account: { kind: 'new', user: newAccount('user-other', 'autre@example.test') },
+          audit: termsEntry('user-other'),
+          termsVersion: '2027-01',
+        })
+
+        expect(await subject.users.findById(asUserId('user-other'))).toBeNull()
+      })
+
       it('writes no entry for a link that cannot be spent, since nobody agreed to anything', async () => {
         const id = await issue('tok-1')
         await accept(id, { kind: 'new', user: newAccount() })
