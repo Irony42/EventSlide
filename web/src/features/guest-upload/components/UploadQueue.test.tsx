@@ -194,6 +194,34 @@ describe('UploadQueue: while the batch is not finished', () => {
     expect(onRetry).toHaveBeenCalledWith('upload-1')
   })
 
+  it('says the photos are ready, and that nothing has left the phone, before "Envoyer" is pressed', () => {
+    // "0 envoyée sur 3" read as a send that had stalled, and the guest put the phone away (INV-7).
+    render([row(0, 'pending'), row(1, 'pending'), row(2, 'pending')])
+
+    expect(screen.getByText(fr.upload.queueReady(3))).toBeVisible()
+    expect(screen.queryByText(fr.upload.queueSummary(0, 3))).toBeNull()
+  })
+
+  it('counts what arrived once the send has begun, even while some photos still wait their turn', () => {
+    render([row(0, 'done'), row(1, 'uploading'), row(2, 'pending')])
+
+    expect(screen.getByText(fr.upload.queueSummary(1, 3))).toBeVisible()
+    expect(screen.queryByText(fr.upload.queueReady(3))).toBeNull()
+  })
+
+  it('keeps the word "attente" for the host: a chosen photo is Prête, a waiting one goes when the network is back', () => {
+    render([row(0, 'pending'), row(1, 'queued')])
+
+    const pending = within(screen.getByTestId('upload-item-0'))
+    const queued = within(screen.getByTestId('upload-item-1'))
+    expect(pending.getByText(fr.upload.itemPending)).toBeVisible()
+    expect(queued.getByText(fr.upload.itemQueued)).toBeVisible()
+    // Three states had one word ("En attente"); the host's validation is the only one left with it.
+    expect(fr.upload.itemPending).not.toMatch(/attente/i)
+    expect(fr.upload.itemQueued).not.toMatch(/attente/i)
+    expect(fr.upload.statusPending).toMatch(/attente/i)
+  })
+
   it('says there is nothing selected, with no controls, when the queue is empty', () => {
     render([])
 

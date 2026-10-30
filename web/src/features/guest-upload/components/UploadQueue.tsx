@@ -83,6 +83,11 @@ export interface UploadQueueProps {
 const progressFor = (items: readonly UploadItem[], batch: BatchSummary, t: UiText): string => {
   if (items.length === 0) return t.upload.queueEmpty
 
+  // Nothing has left the phone: "0 envoyée sur 3" here read as a send that stalled, and a guest
+  // who believed it put the phone away with the photos unsent (INV-7). The count of what arrived
+  // is for once the send has begun; until then the line says what to press.
+  if (items.every((item) => item.state === 'pending')) return t.upload.queueReady(items.length)
+
   const failed = items.filter((item) => item.state === 'failed').length
   const progress = t.upload.queueSummary(batch.arrived, items.length)
   return failed === 0 ? progress : `${progress} ${t.upload.queueFailed(failed)}`

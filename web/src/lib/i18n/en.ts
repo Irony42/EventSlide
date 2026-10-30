@@ -60,7 +60,7 @@ export const en: UiText = {
     sendCount: (count: number) =>
       t.count(count, { one: 'Send the photo', other: `Send the ${t.number(count)} photos` }),
     queueEmpty: 'No photos selected yet.',
-    itemPending: 'Waiting',
+    itemPending: 'Ready',
     itemUploading: 'Sending',
     itemDone: 'Sent',
     itemDuplicate: 'Already sent',
@@ -152,7 +152,7 @@ export const en: UiText = {
     missionDoneByRoom: 'Already photographed',
     missionFor: (prompt: string) => `These photos will count towards “${prompt}”.`,
 
-    itemQueued: 'Waiting for the network',
+    itemQueued: 'Will go as soon as the network is back',
     itemExpiredHint: 'This photo could not be sent. Send it again if you still have it.',
     offlineTitle: (count: number) =>
       t.count(count, {
@@ -163,6 +163,26 @@ export const en: UiText = {
       'They are saved on your phone and will leave as soon as the connection is back. You can close this page.',
     offlineSending: 'Sending the waiting photos…',
     offlineRetry: 'Send now',
+
+    /* Guest traps and end-of-evening pass (revue UX 30/10: INV-1, 4, 7, 8). */
+    offlineHintNoSync:
+      'They are saved on your phone and will leave as soon as the connection is back. Keep this page open until then.',
+    queueReady: (count: number) =>
+      t.count(count, {
+        one: 'One photo ready: tap Send.',
+        other: `${t.number(count)} photos ready: tap Send.`,
+      }),
+    leaveWaitCount: (done: number, total: number) =>
+      `Please wait, sending (${t.number(done)}/${t.number(total)})`,
+    leaveWait: 'Please wait, sending…',
+    endedTitle: 'That’s it for tonight.',
+    endedThanks: (count: number) =>
+      t.count(count, {
+        one: 'Thank you for your photo!',
+        other: `Thank you for your ${t.number(count)} photos!`,
+      }),
+    endedThanksNone: 'Thank you for being with us!',
+    endedAlbum: 'The organisers will share the album.',
 
     installTitle: 'Keep the gallery within reach',
     installHint:
@@ -629,7 +649,7 @@ export const en: UiText = {
     /* Navigation pass, batch A: a gallery the server no longer serves. */
     unavailable: 'This gallery is no longer on display.',
     unavailableHint:
-      'It has been archived or is no longer open, so there are no photos to see here.',
+      'The evening is over, so there are no photos to see here. Ask the organisers for the album link.',
   },
 
   wall: {

@@ -50,7 +50,8 @@ test('a guest reads what happens to a photo before the first one, once, and agai
   // is hidden.
   await expect(guest.getByTestId('photo-input')).toHaveCount(0)
   await expect(guest.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
-  await expect(guest.getByText(fr.upload.mineEmpty)).toBeVisible()
+  // Nothing sent yet, so no list and no button to delete it (INV-12).
+  await expect(guest.getByRole('heading', { name: fr.upload.mine })).toHaveCount(0)
   // In the flow while the notice is up: a sticky pane taller than the phone would pin its
   // bottom edge and leave the notice's heading above the screen, out of reach. The half
   // only a real browser can check, because it is the stylesheet that decides it.

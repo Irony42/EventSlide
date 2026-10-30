@@ -6,9 +6,10 @@ import { drainOutbox } from '../../../lib/offline/drainOutbox'
 import { isOfflineQueueEnabled } from '../../../lib/offline/killSwitch'
 import { openOutbox } from '../../../lib/offline/openOutbox'
 import { acceptsFileType } from '../../../lib/offline/outboxPolicy'
+import { announceHandOver, listenForHandOver } from '../../../lib/offline/outboxSignal'
 import { requestBackgroundSync } from '../../../lib/offline/serviceWorker'
 import type { DrainReport } from '../../../lib/offline/drainOutbox'
-import type { OutboxStore } from '../../../lib/offline/outbox'
+import type { OutboxHandOff, OutboxStore } from '../../../lib/offline/outbox'
 
 /**
  * The guest's photos that are on the device but not yet on the server.
@@ -80,6 +81,16 @@ export interface Outbox {
   readonly discard: (entryId: string) => Promise<void>
   /** Tries everything now. Safe to call when offline; it simply finds nothing to do. */
   readonly drain: () => void
+  /**
+   * Registers what the screen would still owe the server if the guest left it now (INV-1).
+   *
+   * Read once, at unmount, before the store is closed: those photos are written to the outbox
+   * instead of being dropped with the screen, and Background Sync is asked to finish them where
+   * the browser has it. `null` withdraws the registration. A callback registered here and not
+   * an argument of `useOutbox`, because the queue that knows the photos needs this hook's
+   * result to be built and a hook cannot be given what it produces.
+   */
+  readonly keepOnLeave: (provider: (() => readonly OutboxHandOff[]) | null) => void
 }
 
 export const useOutbox = (options: UseOutboxOptions): Outbox => {
@@ -116,6 +127,28 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
   const store = useRef<OutboxStore | null>(null)
   /** One drain at a time. Two overlapping ones would fight over the same claims. */
   const running = useRef(false)
+  /** What to write to the store when the screen unmounts, if the queue registered anything. */
+  const leaving = useRef<(() => readonly OutboxHandOff[]) | null>(null)
+  /**
+   * The hand-over in progress, which the store's closing waits for.
+   *
+   * Reading a photo's bytes and writing them are asynchronous, and the cleanup that closes the
+   * store runs in the same commit as the one that starts them: closing at once would refuse
+   * every write and lose exactly the photos this exists to keep.
+   */
+  const handingOver = useRef<Promise<void> | null>(null)
+  /**
+   * The writes `enqueue` has begun and not finished, which the store's closing waits for as well.
+   *
+   * A guest who leaves while a photo is being written to the outbox (offline, the network refusing)
+   * would otherwise see the store closed under that write, and the photo — which the queue no longer
+   * hands over, because this write is already keeping it — would be lost.
+   */
+  const writes = useRef(new Set<Promise<unknown>>())
+  /** `handOver`, read through a ref for the reason `drainRef` is: the cleanup that calls it is declared first. */
+  const handOverRef = useRef<
+    (opened: OutboxStore, photos: readonly OutboxHandOff[]) => Promise<void>
+  >(async () => {})
   /**
    * Which run of the opening effect is the live one.
    *
@@ -218,9 +251,27 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     drainRef.current = drainNow
   }, [drainNow])
 
+  /**
+   * On unmount only, and **declared before the effect that opens the store**: React runs
+   * cleanups in declaration order, so this one reads the registered photos and starts writing
+   * them while the store is still open, and the next cleanup closes it only once they are done.
+   * An empty dependency list is the point. A dependency that changed would run this cleanup as
+   * if the guest had left, and write photos they are still sending.
+   */
+  useEffect(() => {
+    return () => {
+      const opened = store.current
+      const photos = leaving.current?.() ?? []
+      if (opened === null || photos.length === 0) return
+      handingOver.current = handOverRef.current(opened, photos)
+    }
+  }, [])
+
   useEffect(() => {
     generation.current += 1
     const mine = generation.current
+    // The set itself never changes, only its members: read in the cleanup, it is the one that was here.
+    const inFlightWrites = writes.current
 
     if (!isOfflineQueueEnabled()) {
       // The switch is off. No store is opened, so `enqueue` refuses and the upload
@@ -271,8 +322,14 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       generation.current += 1
       if (retry.current !== null) clearTimeout(retry.current)
       retry.current = null
-      store.current?.close()
+      const closing = store.current
       store.current = null
+      // Behind a hand-over or a write that is still going: see `handingOver` and `writes`.
+      const pending: Promise<unknown>[] = [...inFlightWrites]
+      if (handingOver.current !== null) pending.push(handingOver.current)
+      handingOver.current = null
+      if (pending.length === 0) closing?.close()
+      else void Promise.allSettled(pending).then(() => closing?.close())
     }
   }, [count, drainNow, schedule])
 
@@ -293,14 +350,28 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     }
   }, [drainNow])
 
-  const enqueue = useCallback(
+  useEffect(() => {
+    // Another screen of this event has just written photos here (see `outboxSignal`): a fast Back
+    // and return finds the first look at the store done before the hand-over's writes had landed.
+    return listenForHandOver(slug, () => {
+      void count().then(() => drainNow())
+    })
+  }, [count, drainNow, slug])
+
+  /**
+   * Writes one photo to a store that is already open.
+   *
+   * The store is a parameter and is not read from `store.current`, because the hand-over at
+   * unmount keeps writing after that ref has been emptied. Resolves to the entry id, or
+   * `null` when the store could not take it.
+   */
+  const storeIn = useCallback(
     async (
+      opened: OutboxStore,
       file: File,
       caption: string | null,
       missionId: string | null,
     ): Promise<string | null> => {
-      const opened = store.current
-      if (opened === null) return null
       if (!acceptsFileType(file.type)) {
         // Refused before a byte is read, and said out loud rather than swallowed. The
         // drain sends to the photo route, which would refuse a clip for ever — and
@@ -355,14 +426,74 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
         console.warn('the photo could not be stored for later', cause)
         return null
       }
-      await count()
-      // Best effort, and never awaited for its answer: the foreground drain is what
-      // every guest gets, and this only adds the case where there is no tab left.
-      void requestBackgroundSync()
       return id
     },
-    [count, now, slug],
+    [now, slug],
   )
+
+  const enqueue = useCallback(
+    async (
+      file: File,
+      caption: string | null,
+      missionId: string | null,
+    ): Promise<string | null> => {
+      const opened = store.current
+      if (opened === null) return null
+      const write = (async (): Promise<string | null> => {
+        const id = await storeIn(opened, file, caption, missionId)
+        if (id === null) return null
+        await count()
+        // Best effort, and never awaited for its answer: the foreground drain is what
+        // every guest gets, and this only adds the case where there is no tab left.
+        void requestBackgroundSync()
+        return id
+      })()
+      writes.current.add(write)
+      try {
+        return await write
+      } finally {
+        writes.current.delete(write)
+      }
+    },
+    [count, storeIn],
+  )
+
+  /**
+   * The photos a guest was still sending when they left the screen (INV-1), written to the
+   * store they would otherwise have been dropped from.
+   *
+   * One at a time and in order, because the drain sends oldest first and the order of a batch is
+   * the order the guest chose. A photo that cannot be read or stored is skipped, and the rest
+   * still go: this runs once, with nobody left on screen to be told, so stopping at the first
+   * failure would only lose more.
+   */
+  const handOver = useCallback(
+    async (opened: OutboxStore, photos: readonly OutboxHandOff[]): Promise<void> => {
+      let stored = 0
+      for (const photo of photos) {
+        try {
+          const file = await photo.file()
+          if ((await storeIn(opened, file, photo.caption, photo.missionId)) !== null) stored += 1
+        } catch (cause) {
+          console.warn('a photo could not be handed to the outbox on leaving', cause)
+        }
+      }
+      // Once, after the last write: one sync registration covers every entry.
+      if (stored > 0) {
+        void requestBackgroundSync()
+        // And one word to a screen the guest may have reopened in the meantime: see `outboxSignal`.
+        announceHandOver(slug)
+      }
+    },
+    [slug, storeIn],
+  )
+  useEffect(() => {
+    handOverRef.current = handOver
+  }, [handOver])
+
+  const keepOnLeave = useCallback((provider: (() => readonly OutboxHandOff[]) | null) => {
+    leaving.current = provider
+  }, [])
 
   const discard = useCallback(
     async (entryId: string): Promise<void> => {
@@ -378,5 +509,5 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     void drainNow()
   }, [drainNow])
 
-  return { waiting, draining, ready, enqueue, discard, drain }
+  return { waiting, draining, ready, enqueue, discard, drain, keepOnLeave }
 }
