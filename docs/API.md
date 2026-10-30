@@ -985,9 +985,9 @@ which is allowed.
   },
   "privacyNotice": {
     "notice": {
-      "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
+      "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900",
       "publication": "afterReview",
-      "audiences": ["wall", "organisers", "sharedGallery"],
+      "audiences": ["wall", "guestFeed", "organisers", "sharedGallery"],
       "retentionDays": 30,
       "selfRemovalSeconds": 900
     },
@@ -1551,9 +1551,9 @@ a setting since. `Cache-Control: no-store`.
 ```json
 {
   "notice": {
-    "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
+    "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900",
     "publication": "afterReview",
-    "audiences": ["wall", "organisers", "sharedGallery"],
+    "audiences": ["wall", "guestFeed", "organisers", "sharedGallery"],
     "retentionDays": 30,
     "selfRemovalSeconds": 900
   },
@@ -1565,14 +1565,14 @@ a setting since. `Cache-Control: no-store`.
 for `retentionDays`, its client's ceiling) by `src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
 guest's language, so the notice cannot promise something the configuration contradicts:
 
-| Field                | Derived from                                                              | Meaning                                                                                                                                                                                                                                                                                                                                          |
-| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publication`        | `moderation`                                                              | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                               |
-| `audiences`          | nothing: the same on every event                                          | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
-| `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                 |
-| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                        |
-| `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                      |
-| `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                    |
+| Field                | Derived from                                                              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `publication`        | `moderation`                                                              | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                                                                                                                                                      |
+| `audiences`          | nothing: the same on every event                                          | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `guestFeed` (the other guests, on their phones, in the page of the published photos, with the first name and caption), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
+| `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                                                                                                                                        |
+| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                                                                                                                                               |
+| `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                                                                                                                                             |
+| `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`
 is the host's setting **clamped** by the client's `max_retention_days` (roadmap §10.5): an album
@@ -1615,7 +1615,7 @@ not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.t
 
 ```json
 {
-  "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900"
+  "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900"
 }
 ```
 
