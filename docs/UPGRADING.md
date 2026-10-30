@@ -591,8 +591,20 @@ and the account self-erasure).
 7. **With `SITE_ADMIN=on`, an account can delete itself**: `POST /api/auth/account/delete` and an entry
    "Supprimer mon compte" in the account menu, behind the password (and the authenticator's code when there
    is one), with the same refusals as the operator's route (an account that still owns an event is refused).
-8. **Nothing else changes for a self-hosted box with `SITE_ADMIN=off`**: the routes are not mounted and no
-   client is ever suspended.
+8. **Every guest is shown the privacy notice again** on their next visit, on every box. It now names the
+   guests' feed « Les photos de la soirée » among those who see a published photo, and says that a guest
+   can erase everything they sent from their phone; its revision changed, so an earlier acknowledgement
+   reads as `outdated`. Nothing to set; expect each guest to tap through the notice once.
+9. **A guest can erase their own contribution**: `DELETE /api/events/:slug/guests/me` and a button under
+   "Vos envois" remove every photo and clip the guest sent, their reactions and their name, at once and for
+   good, also after the host revoked them. It is refused on an event the operator holds for purge, and it
+   leaves alone a photo the operator took down: that one is kept, with the guest's record stripped of its name.
+10. **The panes' glass material is retired** (ADR 0012). An event's theme no longer carries `material`:
+    responses drop the field, and `PATCH /api/events/:slug/settings` still accepts it and ignores it, so a
+    script or a tab opened before the upgrade is not refused. Stored themes need no migration. The setting
+    disappears from the host's page; the panes look as the opaque tier did.
+11. **With `SITE_ADMIN=off`, items 3, 4 and 7 do not apply**: the routes are not mounted and no client is
+    ever suspended. Items 1, 2, 5, 6, 8, 9 and 10 apply to every box.
 
 **How to tell it worked.** The first boot logs migrations 015, 016 and 017 and `GET /api/health` answers
 `"version": "3.3.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
