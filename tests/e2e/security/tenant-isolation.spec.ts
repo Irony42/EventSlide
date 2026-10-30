@@ -46,6 +46,66 @@ test.describe('guest token scope', () => {
     await context.close()
   })
 
+  test('a guest token cannot erase anything at another event, and erases only its own guest at its own', async ({
+    app,
+    browser,
+  }) => {
+    const wedding = await app.seedEvent({ slug: 'mariage-effacement', name: 'Camille & Sacha' })
+    const gala = await app.seedEvent({ slug: 'gala-effacement', name: 'Gala' })
+
+    const join = async (joinCode: string) => {
+      const context = await browser.newContext({ baseURL: app.baseUrl })
+      const page = await context.newPage()
+      await page.goto(app.url(`/join/${joinCode}`))
+      await page.getByRole('button', { name: /Rejoindre/i }).click()
+      await page.waitForURL(/\/upload/)
+      return context
+    }
+    // A different picture each time: the same bytes twice in one event are one photograph, owned by the first sender.
+    const send = async (context: Awaited<ReturnType<typeof join>>, slug: string, seed: string) =>
+      context.request.post(app.url(`/api/events/${slug}/photos`), {
+        headers: await csrfHeaders(context.request, app),
+        multipart: {
+          photos: {
+            name: 'a.jpg',
+            mimeType: 'image/jpeg',
+            buffer: await fileBytes(await aPhoto(seed, 64, 48)),
+          },
+        },
+      })
+    const countOf = async (context: Awaited<ReturnType<typeof join>>, slug: string) =>
+      (
+        (await (await context.request.get(app.url(`/api/events/${slug}/photos/mine`))).json())
+          .items as unknown[]
+      ).length
+
+    const lea = await join(wedding.joinCode)
+    const sacha = await join(wedding.joinCode)
+    const galaGuest = await join(gala.joinCode)
+    await send(lea, wedding.slug, 'lea')
+    await send(sacha, wedding.slug, 'sacha')
+    await send(galaGuest, gala.slug, 'gala')
+
+    // The wedding token, the gala's path: refused, and nothing anywhere has moved.
+    const across = await lea.request.delete(app.url(`/api/events/${gala.slug}/guests/me`), {
+      headers: await csrfHeaders(lea.request, app),
+    })
+    expect(across.status()).toBe(404)
+    expect((await across.json()).error.code).toBe('event.notFound')
+    expect(await countOf(lea, wedding.slug)).toBe(1)
+    expect(await countOf(galaGuest, gala.slug)).toBe(1)
+
+    // The control: the same token does erase at its own event, and only its own guest.
+    const own = await lea.request.delete(app.url(`/api/events/${wedding.slug}/guests/me`), {
+      headers: await csrfHeaders(lea.request, app),
+    })
+    expect(own.status()).toBe(200)
+    expect(await countOf(sacha, wedding.slug)).toBe(1)
+    expect(await countOf(galaGuest, gala.slug)).toBe(1)
+
+    await Promise.all([lea.close(), sacha.close(), galaGuest.close()])
+  })
+
   test('an upload with no guest token at all is refused', async ({ app, request }) => {
     const event = await app.seedEvent({ slug: 'mariage' })
 
