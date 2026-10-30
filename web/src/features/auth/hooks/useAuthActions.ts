@@ -242,7 +242,13 @@ export const useSignOut = (): SignOutState => {
  * speaking as an account that no longer exists. A refusal (`account.holdsEvents`, a wrong password)
  * is a sentence, and the account is untouched.
  */
-export function useDeleteOwnAccount(): AuthActionState<string> {
+export interface AccountErasure {
+  readonly password: string
+  /** The authenticator's code, for an account that has one. Empty or absent otherwise. */
+  readonly code?: string
+}
+
+export function useDeleteOwnAccount(): AuthActionState<AccountErasure> {
   const t = useTranslations()
   const api = useApi()
   const forgetSession = useForgetSession()
@@ -251,15 +257,16 @@ export function useDeleteOwnAccount(): AuthActionState<string> {
   const clearError = useCallback(() => setError(null), [])
 
   const submit = useCallback(
-    async (password: string) => {
+    async ({ password, code }: AccountErasure) => {
       setSubmitting(true)
       setError(null)
       try {
-        await api.deleteOwnAccount(password)
+        await api.deleteOwnAccount(password, code === undefined || code === '' ? undefined : code)
         forgetSession()
         return true
       } catch (cause) {
-        setError(messageForPasswordError(cause, t))
+        const refusal = cause instanceof ApiError ? erasureRefusals(t)[cause.code ?? ''] : undefined
+        setError(refusal ?? messageForPasswordError(cause, t))
         return false
       } finally {
         setSubmitting(false)
@@ -270,3 +277,16 @@ export function useDeleteOwnAccount(): AuthActionState<string> {
 
   return { submit, submitting, error, clearError }
 }
+
+/**
+ * What a person is told when the box refuses to erase their account: in their own words, with the
+ * next step, not the operator's wording of the same codes.
+ */
+const erasureRefusals = (
+  t: ReturnType<typeof useTranslations>,
+): Readonly<Record<string, string>> => ({
+  'account.holdsEvents': t.auth.deleteAccountHoldsEvents,
+  'account.holdsMedia': t.auth.deleteAccountHoldsMedia,
+  'account.holdsReviews': t.auth.deleteAccountHoldsReviews,
+  'account.lastClientOwner': t.auth.deleteAccountLastOwner,
+})

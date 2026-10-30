@@ -2125,8 +2125,10 @@ be sent back to the login form rather than told the route is missing. (It used t
 ### `POST /api/auth/account/delete`
 
 ```json
-{ "password": "…" }
+{ "password": "…", "code": "123456" }
 ```
+
+`code` (or `recoveryCode`, never both: `400 request.invalid`) is required **only** when the account has an authenticator, and is checked as `POST /api/auth/step-up` checks it; without one the password alone confirms. The route has the second-step limiters of a sign-in (`rate.limited`, 429, from the eleventh attempt in a minute, and the per-account failure budget), because a wrong password here is a guess whose prize is an erasure.
 
 A person erases **their own account** (GDPR art. 17). Mounted only on a box that runs for other people
 (`SITE_ADMIN=on`); elsewhere it is an unknown route (`404 route.notFound`), because a self-hosted box has one owner. The
@@ -2135,7 +2137,7 @@ erasure (`DELETE /api/site/accounts/:userId`) asked by the person behind their p
 effect: memberships, invitations written to the account, second factor and share links go; the actor pointer of every audit
 line it wrote becomes `NULL` (the lines stay, pseudonymous: an id that points at nobody); the `account.deleted` line is
 written first, as the account itself (`actor.kind = member`). **204**, and the session and its cookies are cleared as for a
-logout. **Errors** — `401 auth.invalidCredentials` (wrong password, nothing touched), `401 auth.required`, `403
+logout. **Errors** — `401 auth.invalidCredentials` (wrong password, nothing touched), `401 auth.invalidSecondFactor` (an account with an authenticator and no or a wrong code), `429 rate.limited`, `401 auth.required`, `403
 account.operatorProtected` (an operator's account is not deleted from here), `409 account.holdsEvents` (the person still
 **owns** an event: delete it or hand it over first), `409 account.holdsMedia`, `409 account.holdsReviews`, `409
 account.lastClientOwner`, `400 request.invalid`. **What it does not erase**: the sessions already open on other devices

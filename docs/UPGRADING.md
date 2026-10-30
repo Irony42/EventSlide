@@ -566,7 +566,8 @@ one migration.
    and it is what the hosted instance runs. **A box that never set it will, at the first
    retention sweep after the upgrade, delete audit lines older than a year.** If you need to keep
    them longer (the privacy policy you publish must then say so), set `AUDIT_RETENTION_DAYS=1095`
-   in `.env` before you upgrade. A value you set yourself is kept.
+   in `.env` before you upgrade. A value you set yourself is kept. A box that left it unset and holds
+   older rows logs one warning naming `AUDIT_RETENTION_DAYS` at boot, before the first sweep.
 4. **With `SITE_ADMIN=on`, an account can delete itself**: `POST /api/auth/account/delete` and an
    entry "Supprimer mon compte" in the account menu, behind the password, with the same refusals as
    the operator's route (an account that still owns an event is refused). On a box with

@@ -23,6 +23,7 @@ import { makeDisableAccount } from '../../../application/usecases/auth/disableAc
 import { makeEnableAccount } from '../../../application/usecases/auth/enableAccount'
 import { makeOffboardClient } from '../../../application/usecases/clients/offboardClient'
 import { makeDeleteAccount } from '../../../application/usecases/site/deleteAccount'
+import { makeStepUp } from '../../../application/usecases/auth/stepUp'
 import { makeDeleteOwnAccount } from '../../../application/usecases/auth/deleteOwnAccount'
 import { SqliteAccountHoldings } from '../../../infrastructure/db/sqliteAccountHoldings'
 import { makeSetClientCeilings } from '../../../application/usecases/clients/setClientCeilings'
@@ -244,7 +245,18 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       offboardClient: makeOffboardClient({ clients, events, audit, clock }),
       disableAccount: makeDisableAccount({ users, clients, audit, clock }),
       enableAccount: makeEnableAccount({ users, clients, audit, clock }),
-      deleteOwnAccount: makeDeleteOwnAccount({ users, hasher, deleteAccount: accountDeleter }),
+      deleteOwnAccount: makeDeleteOwnAccount({
+        // No account here has an authenticator, so the factor is never asked for.
+        stepUp: makeStepUp({
+          users,
+          factors: secondFactors,
+          hasher,
+          verifySecondFactor: async () => {
+            throw new Error('the site harness enrols no second factor')
+          },
+        }),
+        deleteAccount: accountDeleter,
+      }),
       deleteAccount: accountDeleter,
       inviteToClientAsOperator: makeInviteToClientAsOperator({
         users,

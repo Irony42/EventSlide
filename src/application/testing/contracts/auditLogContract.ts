@@ -279,6 +279,20 @@ export const auditLogContract = (
       },
     )
 
+    // ------------------------------------------------------------------ oldestAt --
+
+    it('has no oldest instant for an empty log', async () => {
+      expect(await log.oldestAt()).toBeNull()
+    })
+
+    it('answers the instant of the oldest entry, whichever order they were written in', async () => {
+      await log.record(anAuditEntry({ at: atPlus(5 * ONE_SECOND) }))
+      await log.record(anAuditEntry({ at: atPlus(2 * ONE_SECOND) }))
+      await log.record(anAuditEntry({ at: atPlus(9 * ONE_SECOND) }))
+
+      expect((await log.oldestAt())?.getTime()).toBe(atPlus(2 * ONE_SECOND).getTime())
+    })
+
     // -------------------------------------------------------------------- prune --
 
     it('prunes every entry stamped before the cutoff, keeps the rest, and says how many it removed', async () => {

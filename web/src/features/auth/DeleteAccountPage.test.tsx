@@ -38,20 +38,52 @@ describe('DeleteAccountPage', () => {
     renderPage(api)
     await confirm('le-mot-de-passe-actuel')
 
-    expect(api.deleteOwnAccount).toHaveBeenCalledWith('le-mot-de-passe-actuel')
+    expect(api.deleteOwnAccount).toHaveBeenCalledWith('le-mot-de-passe-actuel', undefined)
     expect(await screen.findByText(SIGN_IN)).toBeVisible()
   })
 
-  it('prints the server’s refusal while the person still owns an event, and stays', async () => {
+  it.each([
+    ['account.holdsEvents', fr.auth.deleteAccountHoldsEvents],
+    ['account.holdsMedia', fr.auth.deleteAccountHoldsMedia],
+    ['account.holdsReviews', fr.auth.deleteAccountHoldsReviews],
+    ['account.lastClientOwner', fr.auth.deleteAccountLastOwner],
+  ])(
+    'tells the person, in plain words and with a next step, why %s refuses, and stays',
+    async (code, sentence) => {
+      const api = fakeApi({
+        deleteOwnAccount: vi.fn(() => Promise.reject(new ApiError(409, code))),
+      })
+
+      renderPage(api)
+      await confirm('le-mot-de-passe-actuel')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(sentence)
+      expect(sentence).toMatch(/opérateur/)
+      expect(screen.queryByText(SIGN_IN)).toBeNull()
+    },
+  )
+
+  it('sends the authenticator’s code with the password when one is typed', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    await userEvent.type(screen.getByLabelText(fr.auth.deleteAccountCode), ' 123456 ')
+    await confirm('le-mot-de-passe-actuel')
+
+    expect(api.deleteOwnAccount).toHaveBeenCalledWith('le-mot-de-passe-actuel', '123456')
+  })
+
+  it('says the code is missing or wrong in the server’s own sentence', async () => {
     const api = fakeApi({
-      deleteOwnAccount: vi.fn(() => Promise.reject(new ApiError(409, 'account.holdsEvents'))),
+      deleteOwnAccount: vi.fn(() => Promise.reject(new ApiError(401, 'auth.invalidSecondFactor'))),
     })
 
     renderPage(api)
     await confirm('le-mot-de-passe-actuel')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['account.holdsEvents'])
-    expect(screen.queryByText(SIGN_IN)).toBeNull()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      fr.errors['auth.invalidSecondFactor'],
+    )
   })
 
   it('words a wrong password as the password’s, not as a sign-in’s', async () => {

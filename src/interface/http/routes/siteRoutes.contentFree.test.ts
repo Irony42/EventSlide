@@ -70,6 +70,9 @@ const ALL_PLANTS: readonly string[] = [
   CONTENT.otherJoinCode,
 ]
 
+/** The version of the terms the planted account accepted: shown to the operator as a label. */
+const TERMS_VERSION = '2026-11'
+
 const plant = async (site: SiteHarness): Promise<void> => {
   await site.world.addGuest(
     aGuest({ id: PLANT.guestId, eventId: ID.eventK, displayName: PLANT.guestName }),
@@ -93,6 +96,8 @@ const plant = async (site: SiteHarness): Promise<void> => {
       email: 'photographe@example.test',
       displayName: PLANT.accountName,
       passwordHash: PLANT.passwordHash,
+      // The third label: a version of the operator's own terms, which an account has accepted.
+      termsAcceptance: { version: TERMS_VERSION, at: atPlus(20) },
     }),
   )
   await site.world.addClient(
@@ -316,10 +321,12 @@ const MESSAGE = /^[A-Za-z]+: [A-Za-z]+(?:\.[A-Za-z]+)+$/
 const LINK = new RegExp(`^${PUBLIC_URL}/(?:invite|password/reset)/[A-Za-z0-9_-]{20,}$`)
 
 /**
- * The only free text an operator may read of the box: a client's name and an account's address.
- * Two, and a third is a decision in a diff to this list, as it is in `siteOverviewRows.test.ts`.
+ * The only free text an operator may read of the box: a client's name, an account's address and the
+ * version of the terms an account accepted. A fourth is a decision in a diff to this list, as it is in
+ * `siteOverviewRows.test.ts`.
  */
 const LABELS = new Set([
+  TERMS_VERSION,
   'Camille et Sacha',
   'Camille et Sacha, mariés',
   'Fondation Bleue',
@@ -532,6 +539,18 @@ describe.each(['delivers', 'none'] as const)(
       for (const { call, text } of answers) {
         expect(sweepByValue(text), `${call.name} ${call.path}`).toEqual([])
       }
+    })
+
+    it('shows the version of the terms an account accepted, through the route, as the one label of its kind', async () => {
+      const { operator } = await run()
+
+      const accounts = await operator.agent.get('/api/site/accounts?limit=200')
+      const versions = accounts.body.items.map(
+        (row: { termsVersion: string | null }) => row.termsVersion,
+      )
+
+      expect(versions).toContain(TERMS_VERSION)
+      expect(versions.filter((version: string | null) => version !== null)).toEqual([TERMS_VERSION])
     })
 
     it('carries nothing but ids, instants, closed sets, codes, three labels, the operator’s reason and a link where none was mailed', async () => {

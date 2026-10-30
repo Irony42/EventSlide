@@ -67,6 +67,7 @@ import {
   type MediaSweeper,
 } from './mediaSweeper'
 import { createReservationReaper, type ReservationReaper } from './reservationReaper'
+import { makeWarnAuditRetentionDefault } from '../application/usecases/audit/warnAuditRetentionDefault'
 import { createRetentionSweeper, type RetentionSweeper } from './retentionSweeper'
 import { createScheduleSweeper, type ScheduleSweeper } from './scheduleSweeper'
 import { appVersion } from './version'
@@ -471,6 +472,15 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
    * `RETENTION_SWEEP_INTERVAL_MINUTES=off` and runs `npm run purge` — which is the same
    * use case, so the two are never out of step.
    */
+  // Before the sweeper exists, so the line is in the log ahead of the first deletion it announces.
+  await makeWarnAuditRetentionDefault({
+    audit: adapters.audit,
+    clock: adapters.clock,
+    logger,
+    retentionDays: config.audit.retentionDays,
+    fromDefault: config.audit.retentionFromDefault,
+  })()
+
   const retention =
     config.retention.sweepIntervalMs === null
       ? null

@@ -1,20 +1,22 @@
-import { DomainError } from '../../../domain/shared/errors'
+import type { DomainError } from '../../../domain/shared/errors'
 import type { UserId } from '../../../domain/shared/ids'
-import { err, type Result } from '../../../domain/shared/result'
-import type { PasswordHasher } from '../../ports/passwordHasher'
-import type { UserRepository } from '../../ports/userRepository'
+import type { Result } from '../../../domain/shared/result'
 import type { DeleteAccount } from '../site/deleteAccount'
+import type { StepUp } from './stepUp'
+import type { SecondFactorProof } from './verifySecondFactor'
 
 export interface DeleteOwnAccountInput {
   /** From the session, never from the request: this erases the caller and nobody else. */
   readonly userId: UserId
   /** The account's current password, asked again because the act is not undone. */
   readonly password: string
+  /** Required, and only, when the account has an authenticator: a code or a recovery code. */
+  readonly proof?: SecondFactorProof
 }
 
 export interface DeleteOwnAccountDeps {
-  readonly users: Pick<UserRepository, 'findById'>
-  readonly hasher: PasswordHasher
+  /** The same confirmation a sensitive operator act asks: password, plus the factor if enrolled. */
+  readonly stepUp: StepUp
   /** The same use case the operator's erasure route calls: one set of refusals, one erasure. */
   readonly deleteAccount: DeleteAccount
 }
@@ -22,29 +24,23 @@ export interface DeleteOwnAccountDeps {
 export type DeleteOwnAccount = (input: DeleteOwnAccountInput) => Promise<Result<void, DomainError>>
 
 /**
- * A host or moderator erases their own account (GDPR art. 17; the terms promise it and the
- * operator's route had no self-service counterpart).
+ * A host or moderator erases their own account (GDPR art. 17).
  *
- * **It is the operator's erasure, asked by the person, behind their password.** Nothing is
- * decided here beyond who is asking: a wrong password is `401 auth.invalidCredentials` (the
- * answer a failed sign-in gives) and nothing is touched; a right one hands over to
- * `deleteAccount`, which keeps every refusal it has (`account.operatorProtected`,
- * `account.holdsEvents`, `account.holdsMedia`, `account.holdsReviews`, `account.lastClientOwner`)
- * and writes the `account.deleted` line as **the account itself** (`member`), whose actor pointer
- * the deletion then sets to null like every line the account ever wrote. A person who still owns
- * an event is therefore told to delete or hand it over first: an album is somebody's, and erasing a
- * person does not decide what becomes of it.
+ * **It is the operator's erasure, asked by the person, behind the confirmation a step-up is**:
+ * the password, and a code from the authenticator when the account has one (`stepUp`, so a
+ * stolen session with a guessed password is not enough to erase an account that has a factor).
+ * A wrong password is `401 auth.invalidCredentials`, a missing or wrong code
+ * `401 auth.invalidSecondFactor`, and nothing is touched. Past that, `deleteAccount` keeps every
+ * refusal it has (`account.operatorProtected`, `account.holdsEvents`, `account.holdsMedia`,
+ * `account.holdsReviews`, `account.lastClientOwner`) and writes the `account.deleted` line as
+ * **the account itself** (`member`), whose actor pointer the deletion then sets to null like
+ * every line the account ever wrote.
  */
 export const makeDeleteOwnAccount =
-  ({ users, hasher, deleteAccount }: DeleteOwnAccountDeps): DeleteOwnAccount =>
-  async ({ userId, password }) => {
-    const user = await users.findById(userId)
-    // The id came from a session, so a miss means the account was deleted underneath it.
-    if (user === null) return err(DomainError.notFound('user.notFound'))
-
-    if (!(await hasher.verify(password, user.passwordHash))) {
-      return err(DomainError.unauthenticated('auth.invalidCredentials'))
-    }
+  ({ stepUp, deleteAccount }: DeleteOwnAccountDeps): DeleteOwnAccount =>
+  async ({ userId, password, proof }) => {
+    const confirmed = await stepUp({ userId, password, ...(proof === undefined ? {} : { proof }) })
+    if (!confirmed.ok) return confirmed
 
     return deleteAccount({ userId, actor: { kind: 'member', userId } })
   }

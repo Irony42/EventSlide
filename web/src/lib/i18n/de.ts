@@ -1056,6 +1056,17 @@ export const de: UiText = {
     deleteAccountConfirm: 'Geben Sie zur Bestätigung Ihr Passwort ein.',
     deleteAccountSubmit: 'Mein Konto endgültig löschen',
     deleteAccountDone: 'Ihr Konto wurde gelöscht.',
+    deleteAccountCode: 'Code aus Ihrer Authentifizierungs-App',
+    deleteAccountCodeHint:
+      'Nur ausfüllen, wenn Sie einen zweiten Faktor aktiviert haben; sonst leer lassen.',
+    deleteAccountHoldsEvents:
+      'Ihnen gehört noch mindestens eine Veranstaltung. Löschen Sie sie oder übergeben Sie sie an jemand anderen und versuchen Sie es dann erneut. Hilfe nötig? Wenden Sie sich an den Betreiber der Seite.',
+    deleteAccountHoldsMedia:
+      'Sie haben Fotos oder Videos in eine Veranstaltung hochgeladen, daher kann Ihr Konto nicht selbst gelöscht werden. Wenden Sie sich an den Betreiber der Seite.',
+    deleteAccountHoldsReviews:
+      'Sie haben Fotos moderiert, daher kann Ihr Konto nicht selbst gelöscht werden. Wenden Sie sich an den Betreiber der Seite.',
+    deleteAccountLastOwner:
+      'Sie sind der einzige Eigentümer Ihres Bereichs, der noch Mitglieder oder Veranstaltungen hat. Fügen Sie einen weiteren Eigentümer hinzu oder wenden Sie sich an den Betreiber der Seite.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Bestätigung in zwei Schritten',

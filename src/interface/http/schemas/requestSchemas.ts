@@ -246,11 +246,6 @@ export const loginBody = z.strictObject({
   password: z.string().min(1).max(1_000),
 })
 
-/** Erasing one's own account: the password again, and nothing else (the account is the session's). */
-export const deleteOwnAccountBody = z.strictObject({
-  password: z.string().min(1).max(1_000),
-})
-
 export const changePasswordBody = z.strictObject({
   currentPassword: z.string().min(1).max(1_000),
   newPassword: z.string().min(1).max(1_000),
@@ -317,6 +312,13 @@ export const stepUpBody = z.strictObject({
   code: z.string().min(1).max(32).optional(),
   recoveryCode: z.string().min(1).max(64).optional(),
 })
+
+/**
+ * Erasing one's own account: the confirmation of a step-up (the password, and a code or a recovery
+ * code when the account has an authenticator), and nothing else: the account is the session's.
+ * Declared after {@link stepUpBody}, whose shape it is.
+ */
+export const deleteOwnAccountBody = stepUpBody
 
 /**
  * The proof a body carries: `{ code }`, `{ recoveryCode }`, or `null` for neither. `'both'`

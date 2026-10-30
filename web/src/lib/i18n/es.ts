@@ -1039,6 +1039,16 @@ export const es: UiText = {
     deleteAccountConfirm: 'Introduzca su contraseña para confirmar.',
     deleteAccountSubmit: 'Eliminar mi cuenta definitivamente',
     deleteAccountDone: 'Su cuenta ha sido eliminada.',
+    deleteAccountCode: 'Código de su aplicación de autenticación',
+    deleteAccountCodeHint: 'Solo si activó un segundo factor; si no, déjelo vacío.',
+    deleteAccountHoldsEvents:
+      'Todavía es propietario de al menos un evento. Elimínelo o cédaselo a otra persona y vuelva a intentarlo. ¿Necesita ayuda? Contacte con el operador del sitio.',
+    deleteAccountHoldsMedia:
+      'Subió fotos o vídeos a un evento, por lo que su cuenta no se puede eliminar por su cuenta. Contacte con el operador del sitio.',
+    deleteAccountHoldsReviews:
+      'Moderó fotos, por lo que su cuenta no se puede eliminar por su cuenta. Contacte con el operador del sitio.',
+    deleteAccountLastOwner:
+      'Es el único propietario de su espacio, que aún tiene miembros o eventos. Añada otro propietario o contacte con el operador del sitio.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Verificación en dos pasos',

@@ -11,6 +11,9 @@ import { AT, aUser } from '../../../application/testing/builders'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
+import { makeStepUp } from '../../../application/usecases/auth/stepUp'
+import { err, ok } from '../../../domain/shared/result'
+import { DomainError } from '../../../domain/shared/errors'
 import { makeDeleteOwnAccount } from '../../../application/usecases/auth/deleteOwnAccount'
 import { makeDeleteAccount } from '../../../application/usecases/site/deleteAccount'
 import { FakeAccountHoldings } from '../../../application/testing/fakeAccountHoldings'
@@ -28,6 +31,8 @@ import type { Mailer } from '../../../application/ports/mailer'
 import { asUserId } from '../../../domain/shared/ids'
 import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 
+/** What the authenticator of the host who erases their account shows, in these tests. */
+const AUTHENTICATOR_CODE = '123456'
 const HOST_ID = 'host-id'
 const HOST_EMAIL = 'camille@example.test'
 const FORMER_EMAIL = 'ancienne@example.test'
@@ -58,6 +63,7 @@ interface AuthHarness extends Harness {
   readonly tokens: FakeAccountTokenRepository
   readonly secrets: FakeSecretTokens
   readonly holdings: FakeAccountHoldings
+  readonly factors: FakeSecondFactorRepository
   readonly audit: FakeAuditLog
 }
 
@@ -98,6 +104,7 @@ const harness = ({
   )
   const secrets = new FakeSecretTokens()
   const holdings = new FakeAccountHoldings()
+  const factors = new FakeSecondFactorRepository().withAccounts(asUserId(HOST_ID))
   const audit = new FakeAuditLog().withAccounts(asUserId(HOST_ID))
   const ids = new SequentialIdGenerator()
   const boxMailer: Mailer =
@@ -145,8 +152,16 @@ const harness = ({
             }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
             deleteOwnAccount: makeDeleteOwnAccount({
-              users,
-              hasher,
+              stepUp: makeStepUp({
+                users,
+                factors,
+                hasher,
+                // The code this suite's authenticator accepts; anything else is the one wrong answer.
+                verifySecondFactor: async ({ proof }) =>
+                  'code' in proof && proof.code === AUTHENTICATOR_CODE
+                    ? ok({ method: 'totp', recoveryCodesRemaining: null })
+                    : err(DomainError.unauthenticated('auth.invalidSecondFactor')),
+              }),
               deleteAccount: makeDeleteAccount({
                 users,
                 clients: new FakeClientRepository(),
@@ -182,7 +197,7 @@ const harness = ({
     },
   })
 
-  return { ...built, users, mailer, tokens, secrets, holdings, audit }
+  return { ...built, users, mailer, tokens, secrets, holdings, audit, factors }
 }
 
 /** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
@@ -729,6 +744,71 @@ describe('POST /api/auth/account/delete', () => {
     expect(response.status).toBe(401)
     expect(response.body.error.code).toBe('auth.invalidCredentials')
     expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  it('answers 429 from the eleventh wrong password on, and the account survives the guessing', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    const agent = await signedIn(subject)
+    const wrong = { password: 'pas-le-bon-mot-de-passe' }
+
+    const statuses: number[] = []
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      statuses.push((await agent.post('/api/auth/account/delete').send(wrong)).status)
+    }
+    const eleventh = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(statuses.every((status) => status === 401 || status === 429)).toBe(true)
+    expect(eleventh.status).toBe(429)
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  describe('for an account that has an authenticator', () => {
+    const enrol = async (subject: AuthHarness) => {
+      const sealed = 'v1.aaaa.bbbb'
+      await subject.factors.beginEnrolment(asUserId(HOST_ID), sealed, 1, AT)
+      await subject.factors.confirmEnrolment(asUserId(HOST_ID), sealed, 1, AT, ['a'.repeat(64)])
+    }
+
+    it('refuses the password alone with 401 auth.invalidSecondFactor, and keeps the account', async () => {
+      const subject = harness(onAHostedBox)
+      seedHost(subject)
+      await enrol(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent.post('/api/auth/account/delete').send(body)
+
+      expect(response.status).toBe(401)
+      expect(response.body.error.code).toBe('auth.invalidSecondFactor')
+      expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+    })
+
+    it('erases it with the password and the code', async () => {
+      const subject = harness(onAHostedBox)
+      seedHost(subject)
+      await enrol(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent
+        .post('/api/auth/account/delete')
+        .send({ ...body, code: AUTHENTICATOR_CODE })
+
+      expect(response.status).toBe(204)
+      expect(await subject.users.findById(asUserId(HOST_ID))).toBeNull()
+    })
+
+    it('refuses a body that names both a code and a recovery code', async () => {
+      const subject = harness(onAHostedBox)
+      seedHost(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent
+        .post('/api/auth/account/delete')
+        .send({ ...body, code: AUTHENTICATOR_CODE, recoveryCode: 'abcd-efgh' })
+
+      expect(response.status).toBe(400)
+      expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+    })
   })
 
   it('answers 409 account.holdsEvents for a host who still owns an event, and deletes nothing', async () => {

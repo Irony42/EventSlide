@@ -1213,6 +1213,17 @@ export const fr = {
     deleteAccountConfirm: 'Entrez votre mot de passe pour confirmer.',
     deleteAccountSubmit: 'Supprimer définitivement mon compte',
     deleteAccountDone: 'Votre compte est supprimé.',
+    deleteAccountCode: 'Code de votre application d’authentification',
+    deleteAccountCodeHint:
+      'À remplir seulement si vous avez activé un second facteur ; sinon, laissez vide.',
+    deleteAccountHoldsEvents:
+      'Vous possédez encore au moins un évènement. Supprimez-le ou confiez-le à quelqu’un d’autre, puis réessayez. Besoin d’aide ? Contactez l’opérateur du site.',
+    deleteAccountHoldsMedia:
+      'Vous avez déposé des photos ou des vidéos dans un évènement : votre compte ne peut pas être supprimé en libre-service. Contactez l’opérateur du site.',
+    deleteAccountHoldsReviews:
+      'Vous avez modéré des photos : votre compte ne peut pas être supprimé en libre-service. Contactez l’opérateur du site.',
+    deleteAccountLastOwner:
+      'Vous êtes le seul propriétaire de votre espace, qui compte encore des membres ou des évènements. Ajoutez un autre propriétaire, ou contactez l’opérateur du site.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Vérification en deux étapes',

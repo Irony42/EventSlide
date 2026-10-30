@@ -2290,3 +2290,56 @@ describe('createContainer: the operator’s API is wired end to end (G2-14)', ()
     expect(log.body.items[2].details.reason).toBe('Forfait mis à jour')
   })
 })
+
+/**
+ * The boot warning about the audit retention default (3.3): `warnAuditRetentionDefault` is proven
+ * at ring 2; only this boot shows the composition root asking the real log, with the real
+ * configuration, before the sweeper exists.
+ */
+describe('createContainer: the audit retention default warning', () => {
+  const PRODUCTION = {
+    NODE_ENV: 'production',
+    LOG_LEVEL: 'warn',
+    PUBLIC_URL: 'https://photos.example.com',
+    SESSION_SECRET: 'f3b1c9d7e5a2408c9b6d1e4f7a0c3b5d8e2f6a19c4d7b0e3',
+    GUEST_TOKEN_SECRET: '9a7c5e3b1d8f6042ae1c3b5d7f9014682a4c6e8b0d2f4a6c',
+    TRUST_PROXY_HOPS: '1',
+  }
+
+  /** Boots twice on one database: the first plants a row two years old, the second is captured. */
+  const secondBoot = async (extra: Record<string, string>): Promise<string> => {
+    workDir = await mkdtemp(join(tmpdir(), 'eventslide-container-'))
+    const env = {
+      ...PRODUCTION,
+      DATABASE_PATH: join(workDir, 'eventslide.sqlite'),
+      MEDIA_ROOT: join(workDir, 'media'),
+      FFMPEG_PATH: join(workDir, 'no-ffmpeg-here'),
+      FFPROBE_PATH: join(workDir, 'no-ffprobe-here'),
+      ...extra,
+    }
+    const first = await createContainer(loadConfig({ ...env, LOG_LEVEL: 'fatal' }))
+    first.db
+      .prepare(
+        `INSERT INTO audit_log (at, actor_kind, action, subject_type, subject_id)
+              VALUES ('2020-01-01T00:00:00.000Z', 'system', 'client.suspended', 'client', 'c1')`,
+      )
+      .run()
+    await first.dispose()
+
+    return captureDescriptorOutputWhile(async () => {
+      container = await createContainer(loadConfig(env))
+    })
+  }
+
+  it('warns, naming the variable, when it is unset and a row is older than a year', async () => {
+    const output = await secondBoot({})
+
+    expect(output).toContain('AUDIT_RETENTION_DAYS is not set')
+  })
+
+  it('says nothing when the operator set the variable', async () => {
+    const output = await secondBoot({ AUDIT_RETENTION_DAYS: '365' })
+
+    expect(output).not.toContain('AUDIT_RETENTION_DAYS is not set')
+  })
+})

@@ -321,6 +321,8 @@ export interface AppConfig {
      * `pruneAuditLog` through the retention sweep; see `auditRetentionDays` (`featureFields.ts`).
      */
     readonly retentionDays: number
+    /** `AUDIT_RETENTION_DAYS` was left unset (or blank): the default applies. For the boot warning. */
+    readonly retentionFromDefault: boolean
   }
 
   /**

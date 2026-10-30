@@ -455,8 +455,12 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     deleteAccount: accountDeleter(adapters),
     /** A person erases their own account (`DELETE /api/auth/account`): the same erasure, behind their password. */
     deleteOwnAccount: makeDeleteOwnAccount({
-      users: adapters.users,
-      hasher: adapters.passwordHasher,
+      stepUp: makeStepUp({
+        users: adapters.users,
+        factors: adapters.secondFactors,
+        hasher: adapters.passwordHasher,
+        verifySecondFactor: verifySecondFactorFrom(adapters),
+      }),
       deleteAccount: accountDeleter(adapters),
     }),
     /**

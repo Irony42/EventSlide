@@ -25,6 +25,7 @@ export function DeleteAccountPage() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
 
   return (
     <AuthForm
@@ -35,7 +36,7 @@ export function DeleteAccountPage() {
       submitLabel={t.auth.deleteAccountSubmit}
       submitVariant="danger"
       onSubmit={() => {
-        void submit(password).then((deleted) => {
+        void submit({ password, code: code.trim() }).then((deleted) => {
           if (!deleted) return
           toast.show(t.auth.deleteAccountDone, { tone: 'success' })
           navigate('/login', { replace: true })
@@ -57,6 +58,19 @@ export function DeleteAccountPage() {
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+          />
+        )}
+      </Field>
+      <Field label={t.auth.deleteAccountCode} hint={t.auth.deleteAccountCodeHint}>
+        {(control) => (
+          <TextInput
+            {...control}
+            name="code"
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            spellCheck={false}
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
           />
         )}
       </Field>

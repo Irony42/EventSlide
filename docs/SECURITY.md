@@ -3437,7 +3437,7 @@ and a mutation.
   heartbeat (plan item A-22), so an account switched off or deleted, or removed from the event, is told to wait and is ended
   within one beat; the wall's public feed has no account and is re-checked with the question that opened it (`Event.servesPublicWall`: the lifecycle serves the wall and the client is not suspended), so an archived event ends it as a suspension does (HTTP-M-08).
 - **A person may ask for it themselves** (`POST /api/auth/account/delete`, `SITE_ADMIN=on` only): the same use case behind
-  the account's own password, recorded as `account.deleted` by the account itself. It keeps every refusal of the operator's
+  the account's own password (and its authenticator's code when it has one, through `stepUp`; rate-limited and budgeted like the second step of a sign-in, so a stolen session cannot guess its way to an erasure), recorded as `account.deleted` by the account itself. It keeps every refusal of the operator's
   route, in particular `account.holdsEvents`: a host who still owns an event is told to delete it or hand it over first.
 - **Not here:** erasing media a moderator wrote, or a moderator who has reviewed photographs (the account is refused
   instead; the second needs a schema change to the review constraint), erasing the sessions and tokens that hold the
