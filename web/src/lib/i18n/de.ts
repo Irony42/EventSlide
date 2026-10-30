@@ -147,6 +147,9 @@ export const de: UiText = {
     mineFailed:
       'Die Liste Ihrer Beiträge konnte nicht aktualisiert werden. Versuchen Sie es erneut.',
     mineAlt: 'Ihr Foto',
+    /* "Levez les yeux" (UX review 2026-10-30): a photo of the guest's goes from waiting to on the wall. */
+    photoDeveloped: 'Freigegeben! Es erscheint gleich auf der Leinwand: Blick nach oben.',
+    photoDevelopedAway: 'Es war auf der Leinwand zu sehen.',
     deleteOwnNumbered: (position: number) => `Foto ${t.number(position)} löschen`,
     notJoinedTitle: 'Treten Sie der Galerie bei, um Ihre Fotos zu senden',
     notJoinedHint: 'Scannen Sie den QR-Code erneut oder geben Sie den Code der Feier ein.',
@@ -724,6 +727,8 @@ export const de: UiText = {
       'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Zum Verlassen: Esc oder F beenden den Vollbildmodus, danach den Tab schließen.',
+    /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
+    firstPhotoOf: (name: string) => `Erstes Foto von ${name}`,
 
     layoutNames: {
       spotlight: 'Vollbild',

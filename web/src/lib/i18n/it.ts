@@ -147,6 +147,9 @@ export const it: UiText = {
     mineEmpty: 'Non ha ancora inviato nessuna foto.',
     mineFailed: 'Non è stato possibile aggiornare l’elenco dei suoi invii. Riprovi.',
     mineAlt: 'La sua foto',
+    /* "Levez les yeux" (UX review 2026-10-30): a photo of the guest's goes from waiting to on the wall. */
+    photoDeveloped: 'Approvata! Tra un istante sarà sullo schermo: alzi lo sguardo.',
+    photoDevelopedAway: 'È già passata sullo schermo.',
     deleteOwnNumbered: (position: number) => `Elimina la foto ${t.number(position)}`,
     notJoinedTitle: 'Entri nella galleria per inviare le sue foto',
     notJoinedHint: 'Scansioni di nuovo il codice QR, oppure inserisca il codice della serata.',
@@ -700,6 +703,8 @@ export const it: UiText = {
       'Spazio mette in pausa, le frecce cambiano foto, F passa a schermo intero, L cambia la disposizione.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Per uscire: Esc o F escono dallo schermo intero, poi chiuda la scheda.',
+    /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
+    firstPhotoOf: (name: string) => `Prima foto di ${name}`,
     layoutNames: {
       spotlight: 'Schermo intero',
       mosaic: 'Mosaico',

@@ -1,4 +1,5 @@
 import { cx } from '../../../design-system/classNames'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import styles from './SlideCaption.module.css'
 
 export type SlideCaptionVariant = 'spotlight' | 'tile' | 'pane' | 'print'
@@ -6,6 +7,11 @@ export type SlideCaptionVariant = 'spotlight' | 'tile' | 'pane' | 'print'
 export interface SlideCaptionProps {
   readonly caption: string | null
   readonly authorName: string | null
+  /**
+   * This is the first photo the named sender has on the wall: a line says so, above the
+   * caption. Nothing for an anonymous sender, whom there is no one to name.
+   */
+  readonly firstFromGuest?: boolean
   /**
    * `spotlight` sits in the projector safe area; `tile` sits inside its own tile;
    * `pane` is a split half, where one ellipsised line under the photo is what the
@@ -25,7 +31,13 @@ export interface SlideCaptionProps {
  * that is readable at five metres — a credit too small to read is worse than no credit,
  * since the guest it names cannot see it either.
  */
-export function SlideCaption({ caption, authorName, variant = 'spotlight' }: SlideCaptionProps) {
+export function SlideCaption({
+  caption,
+  authorName,
+  firstFromGuest = false,
+  variant = 'spotlight',
+}: SlideCaptionProps) {
+  const text = useTranslations()
   const hasCaption = caption !== null && caption !== ''
   const hasAuthor = authorName !== null && authorName !== ''
 
@@ -35,6 +47,9 @@ export function SlideCaption({ caption, authorName, variant = 'spotlight' }: Sli
 
   return (
     <figcaption className={cx(styles['caption'], styles[variant])}>
+      {firstFromGuest && hasAuthor ? (
+        <p className={styles['first']}>{text.wall.firstPhotoOf(authorName)}</p>
+      ) : null}
       {hasCaption ? <p className={styles['text']}>{caption}</p> : null}
       {hasAuthor ? <p className={styles['author']}>{authorName}</p> : null}
     </figcaption>

@@ -207,6 +207,12 @@ export interface WallItemDto {
   readonly caption: string | null
   readonly authorName: string | null
   readonly createdAt: string
+  /**
+   * The first photograph this named sender has on the wall: the slide adds "Première photo
+   * de …" the first time it is shown. Optional, like `theme` below: a server build that
+   * predates it leaves the caption as it was.
+   */
+  readonly firstFromGuest?: boolean
   readonly kind: MediaKind
   /** `null` for a photograph. The mp4, which answers `Range` requests. */
   readonly videoUrl: string | null

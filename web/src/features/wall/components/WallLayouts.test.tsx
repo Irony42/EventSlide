@@ -36,13 +36,35 @@ const somePhotos = (count: number): readonly WallItemDto[] =>
   )
 
 /**
+ * What the real hook would have on file after walking the list one step at a time up to
+ * `index`: the sequential history every test below was written against, before a photo that
+ * has just been published could jump the queue. The jump itself is the hook's to test
+ * (`useSlideshow.test.tsx`) and the layouts' to *place* — see the cases at the end.
+ */
+const sequentialHistory = (items: readonly WallItemDto[], index: number) => {
+  const at = (position: number): WallItemDto | null =>
+    items.length === 0
+      ? null
+      : (items[((position % items.length) + items.length) % items.length] ?? null)
+  return {
+    recent: Array.from({ length: 12 }, (_, back) => ({ item: at(index - back), fresh: false })),
+    upcoming: Array.from({ length: 6 }, (_, ahead) => at(index + 1 + ahead)).filter(
+      (item): item is WallItemDto => item !== null,
+    ),
+  }
+}
+
+/**
  * A slideshow, as a layout sees one.
  *
  * The layouts render and never drive the slideshow — position, pausing and stepping all
  * belong to `useSlideshow`, which has its own tests — so the three callbacks are no-ops
  * here rather than recorded.
  */
-const aSlideshow = (overrides: Partial<Slideshow> = {}): Slideshow => {
+const aSlideshow = (
+  overrides: Partial<Slideshow> = {},
+  items: readonly WallItemDto[] = [],
+): Slideshow => {
   // `intervalMs` follows `paused`, exactly as the real hook makes it: a paused wall
   // reports no cadence. Hand-building the two independently is how a test comes to
   // prove something the running product never does — the drift-while-paused defect was
@@ -55,7 +77,9 @@ const aSlideshow = (overrides: Partial<Slideshow> = {}): Slideshow => {
     previous: null,
     index: 0,
     intervalMs: paused ? 0 : INTERVAL_MS,
-    generation: 0,
+    generation: overrides.index ?? 0,
+    ...sequentialHistory(items, overrides.index ?? 0),
+    fresh: false,
     paused,
     pause: () => undefined,
     resume: () => undefined,
@@ -74,7 +98,7 @@ const renderWall = (
     <WallLayouts
       layout={layout}
       items={items}
-      slideshow={aSlideshow({ current: items[slideshow.index ?? 0] ?? null, ...slideshow })}
+      slideshow={aSlideshow({ current: items[slideshow.index ?? 0] ?? null, ...slideshow }, items)}
       kenBurnsDurationMs={KEN_BURNS_MS}
       transitionMs={null}
     />,
@@ -142,7 +166,7 @@ describe('WallLayouts', () => {
       <WallLayouts
         layout="mosaic"
         items={items}
-        slideshow={aSlideshow({ current: items[0] ?? null, index: 0 })}
+        slideshow={aSlideshow({ current: items[0] ?? null, index: 0 }, items)}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
       />,
@@ -167,7 +191,7 @@ describe('WallLayouts', () => {
       <WallLayouts
         layout="mosaic"
         items={items}
-        slideshow={aSlideshow({ current: items[0] ?? null, index: 0 })}
+        slideshow={aSlideshow({ current: items[0] ?? null, index: 0 }, items)}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
       />,
@@ -186,7 +210,7 @@ describe('WallLayouts', () => {
       <WallLayouts
         layout="mosaic"
         items={items}
-        slideshow={aSlideshow({ current: items[6] ?? null, index: 6 })}
+        slideshow={aSlideshow({ current: items[6] ?? null, index: 6 }, items)}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
       />,
@@ -212,7 +236,7 @@ describe('WallLayouts', () => {
       <WallLayouts
         layout="mosaic"
         items={items}
-        slideshow={aSlideshow({ current: items[6] ?? null, index: 6 })}
+        slideshow={aSlideshow({ current: items[6] ?? null, index: 6 }, items)}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
       />,
@@ -232,7 +256,7 @@ describe('WallLayouts', () => {
       <WallLayouts
         layout="mosaic"
         items={items}
-        slideshow={aSlideshow({ current: items[0] ?? null, index: 0 })}
+        slideshow={aSlideshow({ current: items[0] ?? null, index: 0 }, items)}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
       />,
@@ -267,7 +291,10 @@ describe('WallLayouts', () => {
       <WallLayouts
         layout="mosaic"
         items={items}
-        slideshow={aSlideshow({ current: items[0] ?? null, next: items[1] ?? null, index: 0 })}
+        slideshow={aSlideshow(
+          { current: items[0] ?? null, next: items[1] ?? null, index: 0 },
+          items,
+        )}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={0}
       />,
@@ -283,7 +310,10 @@ describe('WallLayouts', () => {
       <WallLayouts
         layout="mosaic"
         items={items}
-        slideshow={aSlideshow({ current: items[0] ?? null, next: items[6] ?? null, index: 0 })}
+        slideshow={aSlideshow(
+          { current: items[0] ?? null, next: items[6] ?? null, index: 0 },
+          items,
+        )}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
       />,
@@ -753,7 +783,7 @@ describe('the collage layout', () => {
   })
 
   it('recycles a cell in turn once the grid is full', () => {
-    renderWall('collage', somePhotos(20), { index: 12, generation: 40 })
+    renderWall('collage', somePhotos(20), { index: 12, generation: 12 })
 
     // Cell 0's turn comes round after twelve slides. Derived from the position alone, so
     // two projectors hold the same photo in the same cell.
@@ -830,7 +860,10 @@ describe('the split layout', () => {
       <WallLayouts
         layout="split"
         items={items}
-        slideshow={aSlideshow({ current: items[2] ?? null, next: items[3] ?? null, index: 2 })}
+        slideshow={aSlideshow(
+          { current: items[2] ?? null, next: items[3] ?? null, index: 2 },
+          items,
+        )}
         kenBurnsDurationMs={KEN_BURNS_MS}
         transitionMs={null}
       />,
@@ -1008,4 +1041,232 @@ describe('a clip leaving the spotlight', () => {
     // plainly visible on a three-metre screen.
     expect(container.querySelectorAll('video')).toHaveLength(2)
   })
+})
+
+/**
+ * A photo that has just been published jumps the queue, so slides stop following each other
+ * in list order. What a multi-slot layout does with that is one rule: the slot whose turn it
+ * is takes the photo the wall has just moved to, wherever it sits in the playlist.
+ */
+describe('a photo that jumps the queue', () => {
+  const items = somePhotos(10)
+  const fresh = aWallItem({ id: 'photo-new', caption: 'Nouvelle', authorName: 'Julie' })
+  const withFresh = [fresh, ...items]
+
+  /** Slides 0 to 3 played in list order, then the fresh photo takes slide 4. */
+  const afterAFreshOne = {
+    index: 0,
+    generation: 4,
+    current: fresh,
+    recent: [
+      { item: fresh, fresh: true },
+      { item: items[3] ?? null, fresh: false },
+      { item: items[2] ?? null, fresh: false },
+      { item: items[1] ?? null, fresh: false },
+      { item: items[0] ?? null, fresh: false },
+    ],
+    upcoming: [items[4], items[5], items[6]].filter((item) => item !== undefined),
+  } satisfies Partial<Slideshow>
+
+  it('goes into the mosaic tile whose turn it is, and moves no other tile', () => {
+    renderWall('mosaic', withFresh, afterAFreshOne)
+
+    // Slide 4 of six tiles is tile 4. Tiles 0-3 hold slides 0-3, tile 5 is not yet at its first turn and still holds the sixth photo of the list.
+    expect(photoIdsOnScreen()).toEqual([
+      'photo-0',
+      'photo-1',
+      'photo-2',
+      'photo-3',
+      'photo-new',
+      'photo-4',
+    ])
+  })
+
+  it('goes into the next collage cell in turn', () => {
+    renderWall('collage', withFresh, afterAFreshOne)
+
+    expect(photoIdsOnScreen().slice(0, 5)).toEqual([
+      'photo-0',
+      'photo-1',
+      'photo-2',
+      'photo-3',
+      'photo-new',
+    ])
+  })
+
+  it('goes into the next polaroid print in turn', () => {
+    renderWall('polaroid', withFresh, {
+      ...afterAFreshOne,
+      generation: 3,
+      recent: [
+        { item: fresh, fresh: true },
+        { item: items[1] ?? null, fresh: false },
+        { item: items[0] ?? null, fresh: false },
+      ],
+    })
+
+    expect(photoIdsOnScreen()).toContain('photo-new')
+  })
+
+  it('shows it on the right pane of the split whatever the turn, not a photo from the other end', () => {
+    renderWall('split', withFresh, { ...afterAFreshOne, generation: 4 })
+
+    // Slide 4 is the left pane's turn, which usually looks half a playlist back. A photo
+    // that has just been published is shown as it is.
+    expect(photoIdsOnScreen()).toContain('photo-new')
+  })
+
+  it('still looks back on the left pane for a photo of the rotation', () => {
+    renderWall('split', items, {
+      index: 4,
+      generation: 4,
+      current: items[4] ?? null,
+      recent: [
+        { item: items[4] ?? null, fresh: false },
+        { item: items[3] ?? null, fresh: false },
+      ],
+    })
+
+    expect(photoIdsOnScreen()[0]).toBe('photo-9')
+  })
+
+  it('draws the filmstrip from the photo on screen and the slides planned after it', () => {
+    renderWall('filmstrip', withFresh, {
+      ...afterAFreshOne,
+      upcoming: [items[4], items[5], items[6], items[7], items[8]].filter(
+        (item) => item !== undefined,
+      ),
+    })
+
+    expect(photoIdsOnScreen()).toEqual([
+      'photo-new',
+      'photo-4',
+      'photo-5',
+      'photo-6',
+      'photo-7',
+      'photo-8',
+    ])
+  })
+
+  it('replaces a slot whose photo was taken down by one that is not already up', () => {
+    renderWall('mosaic', withFresh, {
+      ...afterAFreshOne,
+      recent: [
+        { item: null, fresh: true },
+        { item: items[3] ?? null, fresh: false },
+        { item: items[2] ?? null, fresh: false },
+        { item: items[1] ?? null, fresh: false },
+        { item: items[0] ?? null, fresh: false },
+      ],
+    })
+
+    const shown = photoIdsOnScreen()
+    expect(shown).toHaveLength(6)
+    expect(new Set(shown).size).toBe(6)
+    expect(shown).toContain('photo-new')
+  })
+
+  it('never hangs one photo twice when a short playlist comes round to it', () => {
+    const three = somePhotos(3)
+    renderWall('mosaic', three, {
+      index: 0,
+      generation: 5,
+      current: three[0] ?? null,
+      recent: [
+        { item: three[0] ?? null, fresh: false },
+        { item: three[1] ?? null, fresh: false },
+        { item: three[0] ?? null, fresh: true },
+      ],
+    })
+
+    const shown = photoIdsOnScreen()
+    expect(new Set(shown).size).toBe(shown.length)
+  })
+})
+
+describe('the first photo of a guest', () => {
+  const first = aWallItem({
+    id: 'photo-first',
+    caption: 'Les confettis',
+    authorName: 'Julie',
+    firstFromGuest: true,
+  })
+
+  const renderSpotlight = (fresh: boolean) =>
+    render(
+      <WallLayouts
+        layout="spotlight"
+        items={[first]}
+        slideshow={aSlideshow({ current: first, fresh }, [first])}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+      />,
+    )
+
+  it('says so the first time it comes up on the wall', () => {
+    renderSpotlight(true)
+
+    expect(screen.getByText(fr.wall.firstPhotoOf('Julie'))).toBeInTheDocument()
+  })
+
+  it('does not say it again when the rotation brings it round', () => {
+    renderSpotlight(false)
+
+    expect(screen.queryByText(fr.wall.firstPhotoOf('Julie'))).not.toBeInTheDocument()
+  })
+})
+
+describe('the first photo of a guest, in a layout that holds several photos', () => {
+  const first = aWallItem({
+    id: 'photo-first',
+    caption: 'Les confettis',
+    authorName: 'Julie',
+    firstFromGuest: true,
+  })
+  // Another guest's first photo, up on the wall at the same time but not the one that just
+  // came in: the line is for the photo the slide clock has just brought, and for no other.
+  const alsoFirst = aWallItem({
+    id: 'photo-also-first',
+    caption: 'Le gâteau',
+    authorName: 'Tom',
+    firstFromGuest: true,
+  })
+  const others = somePhotos(4)
+  const items = [first, alsoFirst, ...others]
+
+  const renderCrowd = (layout: WallLayout, fresh: boolean) =>
+    renderWall(layout, items, {
+      index: 0,
+      current: first,
+      fresh,
+      recent: [
+        { item: first, fresh },
+        ...items.slice(1, 6).map((item) => ({ item, fresh: false })),
+      ],
+    })
+
+  const lines = (): readonly HTMLElement[] =>
+    screen
+      .queryAllByText(fr.wall.firstPhotoOf('Julie'))
+      .concat(screen.queryAllByText(fr.wall.firstPhotoOf('Tom')))
+
+  it.each<WallLayout>(['polaroid', 'clothesline', 'split'])(
+    'says it under the photo that has just come up in %s, and under no other',
+    (layout) => {
+      renderCrowd(layout, true)
+
+      const shown = lines()
+      expect(shown.map((line) => line.textContent)).toEqual([fr.wall.firstPhotoOf('Julie')])
+      expect(shown[0]?.closest('figure')?.getAttribute('data-photo-id')).toBe('photo-first')
+    },
+  )
+
+  it.each<WallLayout>(['polaroid', 'clothesline', 'split'])(
+    'does not say it again in %s when the rotation brings the photo round',
+    (layout) => {
+      renderCrowd(layout, false)
+
+      expect(lines()).toHaveLength(0)
+    },
+  )
 })
