@@ -21,6 +21,13 @@ import type { UiText } from './translations'
 
 const t = formattersFor('es')
 
+/**
+ * "a la 1:00" but "a las 13:00": the article agrees with the hour, and the time arrives already
+ * formatted by the browser ("1:00", "01:00"), so the hour is read off its front.
+ */
+const atTime = (time: string): string =>
+  /^0?1(?![0-9])/.test(time) ? `a la ${time}` : `a las ${time}`
+
 export const es: UiText = {
   app: {
     name: 'EventSlide',
@@ -746,7 +753,7 @@ export const es: UiText = {
     statusClosed: 'Finalizado',
     statusArchived: 'Archivado',
     goLive: 'Abrir a los invitados',
-    closeEvent: 'Cerrar el evento',
+    closeEvent: 'Finalizar el evento',
     reopenEvent: 'Reabrir',
     archiveEvent: 'Archivar',
     photos: (count: number) =>
@@ -936,8 +943,8 @@ export const es: UiText = {
     scheduleHint:
       'Déjelo en blanco para abrir y cerrar usted mismo. Las horas son las de su ordenador, es decir, las del lugar de la fiesta.',
     scheduleOpenAt: 'Abrir a los invitados el',
-    scheduleCloseAt: 'Cerrar el evento el',
-    scheduleCloseAtHint: 'Las fotos y el álbum se conservan: cerrar no borra nada.',
+    scheduleCloseAt: 'Finalizar el evento el',
+    scheduleCloseAtHint: 'Las fotos y el álbum se conservan: finalizar no borra nada.',
     scheduleSaved: 'El horario se ha guardado.',
     scheduleNone: 'Sin horario: usted abre y cierra el evento.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
@@ -950,9 +957,11 @@ export const es: UiText = {
     noticeClosed: 'Evento finalizado. Los invitados ya no pueden enviar fotos.',
     noticeReopened: 'Evento reabierto: los invitados pueden volver a enviar fotos.',
     noticeArchived: 'Evento archivado. El álbum sigue disponible para descargar.',
+    noticeArchivedDraft: 'Evento archivado.',
     archiveTitle: (eventName: string) => `¿Archivar ${eventName}?`,
     archiveHint:
       'La pantalla se detiene, los ajustes se congelan y es definitivo. El álbum sigue disponible para descargar.',
+    archiveDraftHint: 'Los ajustes se congelan y el evento ya no podrá abrirse: es definitivo.',
     openTitle: (eventName: string) => `¿Abrir ${eventName} a los invitados?`,
     openHint:
       'Todos los que tengan el código QR podrán enviar fotos. Ya no se podrá volver al borrador.',
@@ -960,12 +969,13 @@ export const es: UiText = {
     codeRotatedAction: 'Imprimir el nuevo QR',
     afterTitle: 'Después del evento',
     afterHint: 'Envíe el álbum a sus invitados, o guárdelo para usted.',
-    afterShare: 'Crear el enlace del álbum',
-    autoOpenAt: (time: string) => `Apertura automática a las ${time}`,
+    afterShare: 'Compartir el álbum',
+    autoOpenAt: (time: string) => `Apertura automática ${atTime(time)}`,
     autoOpenOn: (dateTime: string) => `Apertura automática el ${dateTime}`,
-    autoCloseAt: (time: string) => `Cierre automático a las ${time}`,
+    autoCloseAt: (time: string) => `Cierre automático ${atTime(time)}`,
     autoCloseOn: (dateTime: string) => `Cierre automático el ${dateTime}`,
-    autoEdit: 'Modificar',
+    autoEdit: 'Modificar el horario',
+    scheduleDiscardedAction: 'Definir un nuevo horario',
 
     scheduleDiscarded: (when: string) =>
       `El horario automático no se pudo aplicar el ${when}: el evento no podía cambiar de estado en ese momento. Se ha borrado. Guarde uno nuevo si todavía lo quiere.`,

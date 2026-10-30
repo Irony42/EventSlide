@@ -968,9 +968,12 @@ export const de: UiText = {
     noticeClosed: 'Veranstaltung beendet. Gäste können keine Fotos mehr senden.',
     noticeReopened: 'Veranstaltung wieder geöffnet: Gäste können wieder Fotos senden.',
     noticeArchived: 'Veranstaltung archiviert. Das Album bleibt herunterladbar.',
+    noticeArchivedDraft: 'Veranstaltung archiviert.',
     archiveTitle: (eventName: string) => `${eventName} archivieren?`,
     archiveHint:
       'Der Bildschirm stoppt, die Einstellungen werden eingefroren, und das ist endgültig. Das Album bleibt herunterladbar.',
+    archiveDraftHint:
+      'Die Einstellungen werden eingefroren, und die Veranstaltung kann nie mehr geöffnet werden: Das ist endgültig.',
     openTitle: (eventName: string) => `${eventName} für Gäste öffnen?`,
     openHint:
       'Alle mit dem QR-Code können dann Fotos senden. Eine Rückkehr zum Entwurf ist nicht mehr möglich.',
@@ -978,12 +981,13 @@ export const de: UiText = {
     codeRotatedAction: 'Neuen QR-Code drucken',
     afterTitle: 'Nach der Veranstaltung',
     afterHint: 'Schicken Sie das Album an Ihre Gäste oder behalten Sie es für sich.',
-    afterShare: 'Album-Link erstellen',
+    afterShare: 'Album teilen',
     autoOpenAt: (time: string) => `Öffnet automatisch um ${time}`,
     autoOpenOn: (dateTime: string) => `Öffnet automatisch am ${dateTime}`,
     autoCloseAt: (time: string) => `Schließt automatisch um ${time}`,
     autoCloseOn: (dateTime: string) => `Schließt automatisch am ${dateTime}`,
-    autoEdit: 'Ändern',
+    autoEdit: 'Zeitplan ändern',
+    scheduleDiscardedAction: 'Neuen Zeitplan festlegen',
 
     scheduleDiscarded: (when: string) =>
       `Die automatische Zeitplanung konnte am ${when} nicht greifen: Die Veranstaltung konnte zu diesem Zeitpunkt den Status nicht wechseln. Sie wurde gelöscht. Speichern Sie eine neue, wenn Sie eine wollen.`,

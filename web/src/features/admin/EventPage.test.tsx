@@ -290,6 +290,59 @@ describe('EventPage', () => {
     expect(screen.getByText(fr.admin.settingsReadOnly)).toBeVisible()
   })
 
+  it('archives a draft without promising an album, because none was ever made', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'draft' })),
+      setEventStatus: vi.fn(async () => anEventDto({ status: 'archived' })),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.archiveEvent }))
+
+    // The sentence for an evening that happened says what stops and that the album stays; a draft
+    // has no screen running and no album, so it gets its own.
+    const dialog = screen.getByRole('dialog', { name: fr.admin.archiveTitle('Camille & Sacha') })
+    expect(dialog).toHaveAccessibleDescription(fr.admin.archiveDraftHint)
+
+    await userEvent.click(inDialog(fr.admin.archiveEvent))
+
+    expect(await screen.findByText(fr.admin.noticeArchivedDraft)).toBeVisible()
+    expect(screen.queryByText(fr.admin.noticeArchived)).toBeNull()
+  })
+
+  it('keeps the archive question on screen while the request is in flight, since the change will happen', async () => {
+    // Annuler or Escape during the PATCH used to close the dialog and say no to a change that
+    // then went through. The dialog is the host's view of it: it stays until the server answers.
+    let answer: (event: EventDto) => void = () => {}
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'closed' })),
+      setEventStatus: vi.fn(
+        () =>
+          new Promise<EventDto>((resolve) => {
+            answer = resolve
+          }),
+      ),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.archiveEvent }))
+    await userEvent.click(inDialog(fr.admin.archiveEvent))
+    await waitFor(() => expect(api.setEventStatus).toHaveBeenCalledTimes(1))
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
+    await userEvent.keyboard('{Escape}')
+
+    const name = fr.admin.archiveTitle('Camille & Sacha')
+    expect(screen.getByRole('dialog', { name })).toBeVisible()
+
+    await act(async () => {
+      answer(anEventDto({ status: 'archived' }))
+    })
+
+    expect(await screen.findByText(fr.admin.noticeArchived)).toBeVisible()
+    expect(screen.queryByRole('dialog', { name })).toBeNull()
+  })
+
   it('leaves a closed event alone when the archive dialog is cancelled', async () => {
     const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'closed' })) })
 
@@ -582,6 +635,17 @@ describe('EventPage, after the evening', () => {
     }
   })
 
+  it('tells the owner to send the album, and does not tell a moderator who has nothing to send it with', async () => {
+    const owner = renderClosed()
+    await screen.findByRole('heading', { name: fr.admin.afterTitle })
+    expect(screen.getByText(fr.admin.afterHint)).toBeVisible()
+    owner.unmount()
+
+    renderClosed('closed', 'moderator')
+    await screen.findByRole('heading', { name: fr.admin.afterTitle })
+    expect(screen.queryByText(fr.admin.afterHint)).toBeNull()
+  })
+
   it('offers a moderator the download but no way to make the link, which is the owner’s', async () => {
     renderClosed('closed', 'moderator')
 
@@ -638,7 +702,34 @@ describe('EventPage, what is armed to happen by itself', () => {
       .closest<HTMLElement>('[role="status"]')
     if (warning === null) throw new Error('the warning is not a status')
     expect(warning).toHaveAttribute('role', 'status')
-    expect(within(warning).getByRole('link', { name: fr.admin.autoEdit })).toBeVisible()
+    expect(
+      within(warning).getByRole('link', { name: fr.admin.scheduleDiscardedAction }),
+    ).toBeVisible()
+  })
+
+  it('warns a moderator that the schedule was thrown away, without the way to set another', async () => {
+    draftWith({ role: 'moderator', scheduleDiscardedAt: '2031-06-20T16:00:00.000Z' })
+
+    const warning = (await screen.findByText(/n’a pas pu s’appliquer/)).closest('[role="status"]')
+    if (warning === null) throw new Error('the warning is not a status')
+    expect(within(warning as HTMLElement).queryByRole('link')).toBeNull()
+  })
+
+  it('never gives two links on the page the same name', async () => {
+    // The line beside the badge and the warning above it both lead to the settings; a screen-reader
+    // list of links read "Modifier, Modifier" with no way to tell which was which.
+    draftWith({
+      scheduledOpenAt: '2031-06-20T16:00:00.000Z',
+      scheduleDiscardedAt: '2031-06-19T16:00:00.000Z',
+    })
+
+    await screen.findByText(/Ouverture automatique/)
+    const toSettings = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('href') === '/admin/events/camille-et-sacha/settings')
+      .map((link) => link.textContent)
+    expect(toSettings).toHaveLength(3)
+    expect(new Set(toSettings).size).toBe(toSettings.length)
   })
 
   it('offers a moderator the times but not the way to change them', async () => {

@@ -1113,10 +1113,15 @@ export const fr = {
     noticeClosed: 'Soirée terminée. Les invités ne peuvent plus envoyer.',
     noticeReopened: 'Soirée rouverte : les invités peuvent de nouveau envoyer.',
     noticeArchived: 'Soirée archivée. L’album reste téléchargeable.',
+    /** From a draft nothing ever ran, so there is no album to keep: only what stops is said. */
+    noticeArchivedDraft: 'Soirée archivée.',
     /** Archiving is terminal: the dialog says what stops and what stays (HOT-4, NAV-1). */
     archiveTitle: (eventName: string) => `Archiver ${eventName} ?`,
     archiveHint:
       'L’écran s’arrête, les réglages se figent, c’est définitif. L’album reste téléchargeable.',
+    /** Archiving a draft: no screen was running and no album exists, so only the freeze is said. */
+    archiveDraftHint:
+      'Les réglages se figent et la soirée ne pourra plus être ouverte : c’est définitif.',
     openTitle: (eventName: string) => `Ouvrir ${eventName} aux invités ?`,
     openHint:
       'Tous ceux qui ont le QR code pourront envoyer des photos. Il ne sera plus possible de revenir au brouillon.',
@@ -1127,13 +1132,15 @@ export const fr = {
     /** The card that leads the page once the evening is over (HOT-5, APR-6). */
     afterTitle: 'Après la soirée',
     afterHint: 'Envoyez l’album à vos invités, ou gardez-le pour vous.',
-    afterShare: 'Créer le lien de l’album',
+    afterShare: 'Partager l’album',
     /** What is armed, beside the badge (HOT-10). */
     autoOpenAt: (time: string) => `Ouverture automatique à ${time}`,
     autoOpenOn: (dateTime: string) => `Ouverture automatique le ${dateTime}`,
     autoCloseAt: (time: string) => `Fermeture automatique à ${time}`,
     autoCloseOn: (dateTime: string) => `Fermeture automatique le ${dateTime}`,
-    autoEdit: 'Modifier',
+    autoEdit: 'Modifier l’horaire',
+    /** The link in the warning that the schedule was thrown away: there is none left to edit. */
+    scheduleDiscardedAction: 'Définir un nouvel horaire',
 
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 

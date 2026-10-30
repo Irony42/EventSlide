@@ -24,6 +24,13 @@ import type { UiText } from './translations'
 
 const t = formattersFor('it')
 
+/**
+ * "all’1:00" but "alle 13:00": the article agrees with the hour, and the time arrives already
+ * formatted by the browser ("1:00", "01:00"), so the hour is read off its front.
+ */
+const atTime = (time: string): string =>
+  /^0?1(?![0-9])/.test(time) ? `all’${time}` : `alle ${time}`
+
 export const it: UiText = {
   app: {
     name: 'EventSlide',
@@ -742,7 +749,7 @@ export const it: UiText = {
     statusClosed: 'Terminato',
     statusArchived: 'Archiviato',
     goLive: 'Apri agli invitati',
-    closeEvent: 'Chiudi l’evento',
+    closeEvent: 'Termina l’evento',
     reopenEvent: 'Riapri',
     archiveEvent: 'Archivia',
     photos: (count: number) =>
@@ -917,8 +924,8 @@ export const it: UiText = {
     scheduleHint:
       'Lasci vuoto per aprire e chiudere di persona. Gli orari sono quelli del suo computer, quindi quelli del luogo della festa.',
     scheduleOpenAt: 'Apri agli invitati il',
-    scheduleCloseAt: 'Chiudi l’evento il',
-    scheduleCloseAtHint: 'Le foto e l’album restano: chiudere non cancella nulla.',
+    scheduleCloseAt: 'Termina l’evento il',
+    scheduleCloseAtHint: 'Le foto e l’album restano: terminare non cancella nulla.',
     scheduleSaved: 'La programmazione è stata salvata.',
     scheduleNone: 'Nessuna programmazione: apre e chiude di persona.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
@@ -931,9 +938,12 @@ export const it: UiText = {
     noticeClosed: 'Evento terminato. Gli invitati non possono più inviare foto.',
     noticeReopened: 'Evento riaperto: gli invitati possono di nuovo inviare foto.',
     noticeArchived: 'Evento archiviato. L’album resta scaricabile.',
+    noticeArchivedDraft: 'Evento archiviato.',
     archiveTitle: (eventName: string) => `Archiviare ${eventName}?`,
     archiveHint:
       'Lo schermo si ferma, le impostazioni si bloccano ed è definitivo. L’album resta scaricabile.',
+    archiveDraftHint:
+      'Le impostazioni si bloccano e l’evento non potrà più essere aperto: è definitivo.',
     openTitle: (eventName: string) => `Aprire ${eventName} agli invitati?`,
     openHint:
       'Chiunque abbia il codice QR potrà inviare foto. Non sarà più possibile tornare alla bozza.',
@@ -941,12 +951,13 @@ export const it: UiText = {
     codeRotatedAction: 'Stampa il nuovo QR',
     afterTitle: 'Dopo l’evento',
     afterHint: 'Invii l’album ai suoi invitati, o lo tenga per sé.',
-    afterShare: 'Crea il link dell’album',
-    autoOpenAt: (time: string) => `Apertura automatica alle ${time}`,
+    afterShare: 'Condividi l’album',
+    autoOpenAt: (time: string) => `Apertura automatica ${atTime(time)}`,
     autoOpenOn: (dateTime: string) => `Apertura automatica il ${dateTime}`,
-    autoCloseAt: (time: string) => `Chiusura automatica alle ${time}`,
+    autoCloseAt: (time: string) => `Chiusura automatica ${atTime(time)}`,
     autoCloseOn: (dateTime: string) => `Chiusura automatica il ${dateTime}`,
-    autoEdit: 'Modifica',
+    autoEdit: 'Modifica l’orario',
+    scheduleDiscardedAction: 'Imposta un nuovo orario',
 
     scheduleDiscarded: (when: string) =>
       `La programmazione automatica non è stata applicata il ${when}: in quel momento l’evento non poteva cambiare stato. È stata cancellata. Ne salvi una nuova se le serve.`,

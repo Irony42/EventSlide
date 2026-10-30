@@ -719,10 +719,10 @@ export const en: UiText = {
     download: 'Download the album',
     statusDraft: 'Draft',
     statusLive: 'Live',
-    statusClosed: 'Closed',
+    statusClosed: 'Ended',
     statusArchived: 'Archived',
     goLive: 'Open to guests',
-    closeEvent: 'Close the event',
+    closeEvent: 'End the event',
     reopenEvent: 'Reopen',
     archiveEvent: 'Archive',
     photos: (count: number) =>
@@ -901,8 +901,8 @@ export const en: UiText = {
     scheduleHint:
       'Leave this empty to open and close the event yourself. The times are your computer’s, so they are the times where the party is.',
     scheduleOpenAt: 'Open to guests on',
-    scheduleCloseAt: 'Close the event on',
-    scheduleCloseAtHint: 'The photos and the album are kept: closing deletes nothing.',
+    scheduleCloseAt: 'End the event on',
+    scheduleCloseAtHint: 'The photos and the album are kept: ending the event deletes nothing.',
     scheduleSaved: 'The schedule has been saved.',
     scheduleNone: 'No schedule: you open and close the event yourself.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
@@ -915,9 +915,11 @@ export const en: UiText = {
     noticeClosed: 'Event ended. Guests can no longer send photos.',
     noticeReopened: 'Event reopened: guests can send photos again.',
     noticeArchived: 'Event archived. The album can still be downloaded.',
+    noticeArchivedDraft: 'Event archived.',
     archiveTitle: (eventName: string) => `Archive ${eventName}?`,
     archiveHint:
       'The screen stops, the settings freeze, and it cannot be undone. The album can still be downloaded.',
+    archiveDraftHint: 'The settings freeze and the event can never be opened: it cannot be undone.',
     openTitle: (eventName: string) => `Open ${eventName} to guests?`,
     openHint:
       'Everyone who has the QR code will be able to send photos. You will not be able to go back to draft.',
@@ -925,12 +927,13 @@ export const en: UiText = {
     codeRotatedAction: 'Print the new QR',
     afterTitle: 'After the event',
     afterHint: 'Send the album to your guests, or keep it for yourself.',
-    afterShare: 'Create the album link',
+    afterShare: 'Share the album',
     autoOpenAt: (time: string) => `Opens automatically at ${time}`,
     autoOpenOn: (dateTime: string) => `Opens automatically on ${dateTime}`,
     autoCloseAt: (time: string) => `Closes automatically at ${time}`,
     autoCloseOn: (dateTime: string) => `Closes automatically on ${dateTime}`,
-    autoEdit: 'Edit',
+    autoEdit: 'Edit the schedule',
+    scheduleDiscardedAction: 'Set a new schedule',
 
     scheduleDiscarded: (when: string) =>
       `The automatic schedule could not be applied on ${when}: the event could not change state at that moment. It has been cleared. Save a new one if you still want one.`,

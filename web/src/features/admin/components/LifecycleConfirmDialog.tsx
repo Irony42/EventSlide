@@ -44,7 +44,9 @@ export function LifecycleConfirmDialog({
     <ConfirmDialog
       open={kind === 'archive'}
       title={t.admin.archiveTitle(name)}
-      description={t.admin.archiveHint}
+      // A draft never ran: it has no screen to stop and no album to keep, so the sentence that
+      // says both would be wrong about it.
+      description={request?.from === 'draft' ? t.admin.archiveDraftHint : t.admin.archiveHint}
       confirmLabel={t.admin.archiveEvent}
       busy={busy}
       onConfirm={onConfirm}

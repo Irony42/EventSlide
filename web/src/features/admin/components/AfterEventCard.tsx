@@ -26,7 +26,13 @@ export function AfterEventCard({ albumUrl, onShare }: AfterEventCardProps) {
   const t = useTranslations()
 
   return (
-    <Card as="h2" title={t.admin.afterTitle} subtitle={t.admin.afterHint}>
+    <Card
+      as="h2"
+      title={t.admin.afterTitle}
+      // "Send the album to your guests" is a sentence to the person who can: a moderator has the
+      // download and nothing to send with, so the card does not tell them to.
+      {...(onShare === undefined ? {} : { subtitle: t.admin.afterHint })}
+    >
       <div className={styles['actions']}>
         {onShare === undefined ? null : (
           <Button variant="primary" onClick={onShare}>

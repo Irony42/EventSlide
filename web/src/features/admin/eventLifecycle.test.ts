@@ -18,10 +18,11 @@ import type { EventStatus } from '../../lib/api/dto'
 /**
  * The pins for the transcription in `eventLifecycle.ts`.
  *
- * Each expectation below is the same fact as one in
- * `src/domain/events/eventStatus.test.ts`. The web app cannot import the domain, so
- * this suite is the only thing that fails when the lifecycle moves and the admin
- * screens start offering a button the server refuses.
+ * What the console offers is a deliberate subset of the domain's transition table (a live
+ * event is not offered "archive"), so these expectations are not copies of the ones in
+ * `src/domain/events/eventStatus.test.ts`, which pins the full table. The web app cannot
+ * import the domain: this suite is what fails when the console's own choices change, and it
+ * is read beside the domain's test when the lifecycle moves.
  */
 const transitionsOf = (status: EventStatus) =>
   lifecycleActions(status, fr).map((action) => action.to)
@@ -141,6 +142,14 @@ describe('the toast of each move', () => {
       fr.admin.noticeReopened,
       fr.admin.noticeArchived,
     ])
+  })
+})
+
+describe('the toast of archiving a draft', () => {
+  // Nothing ever ran in a draft, so "the album stays downloadable" would be about nothing.
+  it('does not promise an album when the archived event never began', () => {
+    expect(transitionNotice('draft', 'archived', fr)).toBe(fr.admin.noticeArchivedDraft)
+    expect(transitionNotice('closed', 'archived', fr)).toBe(fr.admin.noticeArchived)
   })
 })
 

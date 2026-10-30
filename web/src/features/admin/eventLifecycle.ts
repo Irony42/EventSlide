@@ -6,13 +6,15 @@ import type { UiText } from '../../lib/i18n/translations'
  * How the event lifecycle is presented, and nothing more.
  *
  * The rules themselves live in `src/domain/events/eventStatus.ts`; this file is a
- * transcription of them, because the DTO carries a status and not a list of buttons
- * and lint forbids the web app importing the domain. The server stays the authority:
- * every one of these actions is a request that can come back
- * `event.illegalTransition`, and that answer is surfaced rather than pre-empted.
+ * presentation of them, because the DTO carries a status and not a list of buttons
+ * and lint forbids the web app importing the domain. It is a deliberate **subset** of the
+ * domain's transition table (a live event is offered "end the evening" and not "archive"),
+ * not a copy. The server stays the authority: every one of these actions is a request that
+ * can come back `event.illegalTransition`, and that answer is surfaced rather than pre-empted.
  *
- * Kept in one module so there is exactly one place to correct if the lifecycle moves,
- * and `eventLifecycle.test.ts` pins each table against the domain's own.
+ * Kept in one module so there is exactly one place to correct if the lifecycle moves.
+ * `eventLifecycle.test.ts` pins what the console offers; the domain's own test
+ * (`eventStatus.test.ts`) pins the full table the subset is taken from.
  */
 
 const TONES: Readonly<Record<EventStatus, BadgeTone>> = {
@@ -59,7 +61,7 @@ export interface LifecycleAction {
  * stops, the settings freeze, nothing brings it back) and the two buttons sit one thumb-width
  * apart: a slip at 23:00 would switch the projector off in front of the room. The way to
  * archive is to end the evening first, which is also the order a host thinks in.
- * `eventLifecycle.test.ts` pins both tables, the domain's and this subset.
+ * `eventLifecycle.test.ts` pins this subset; the domain's own test pins the full table.
  */
 const TRANSITIONS: Readonly<Record<EventStatus, (text: UiText) => readonly LifecycleAction[]>> = {
   draft: (text) => [
@@ -102,10 +104,13 @@ export const confirmationFor = (
 /**
  * The toast for a transition, one sentence per move: the host learns what changed for the
  * room, not that "the new state is saved". `draft → live` and `closed → live` are different
- * moments and get different words.
+ * moments and get different words, and so do archiving a draft (nothing ran, so there is no album
+ * to say stays downloadable) and archiving an evening that happened.
  */
 export const transitionNotice = (from: EventStatus, to: EventStatus, text: UiText): string => {
-  if (to === 'archived') return text.admin.noticeArchived
+  if (to === 'archived') {
+    return from === 'draft' ? text.admin.noticeArchivedDraft : text.admin.noticeArchived
+  }
   if (to === 'closed') return text.admin.noticeClosed
   if (to === 'live') return from === 'closed' ? text.admin.noticeReopened : text.admin.noticeOpened
   return text.admin.noticeOpened

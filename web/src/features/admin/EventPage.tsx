@@ -165,7 +165,7 @@ export function EventPage() {
         {discardedAt === null ? null : (
           <Notice tone="warning" role="status" variant="boxed">
             {t.admin.scheduleDiscarded(discardedAt)}{' '}
-            {isOwner ? <Link to={settingsPath}>{t.admin.autoEdit}</Link> : null}
+            {isOwner ? <Link to={settingsPath}>{t.admin.scheduleDiscardedAction}</Link> : null}
           </Notice>
         )}
       </header>

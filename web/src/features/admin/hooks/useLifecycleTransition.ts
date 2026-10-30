@@ -60,7 +60,12 @@ export const useLifecycleTransition = (onChanged: (event: EventDto) => void) => 
     confirm: () => {
       if (asking !== null) perform(asking)
     },
-    cancel: () => setAsking(null),
+    // Not while the request is in flight: the PATCH is already on its way and will land, so a
+    // dialog that closed on Annuler would tell the host "no" about a change that then happens.
+    // The dialog stays until the server has answered.
+    cancel: () => {
+      if (!statusChange.busy) setAsking(null)
+    },
     busy: statusChange.busy,
     /** `slug:status` of the move in flight, to put a spinner on the one button pressed. */
     pending: statusChange.pending,
