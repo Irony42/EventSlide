@@ -83,7 +83,7 @@ describe('ConfirmDialog', () => {
 
   it('falls back to the shared confirm and cancel wording', () => {
     render(
-      <ConfirmDialog open title="Clore l’évènement ?" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+      <ConfirmDialog open title="Terminer l’évènement ?" onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )
 
     expect(screen.getByRole('button', { name: fr.app.confirm })).toBeVisible()
