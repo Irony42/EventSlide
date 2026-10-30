@@ -55,6 +55,19 @@ import type {
  */
 const t = formattersFor('fr')
 
+/**
+ * "de" or "d’" before a name, for the line under a guest's first photo ("Première photo
+ * d’Alice", not "de Alice").
+ *
+ * The elision is for a vowel, an accented vowel, `y` and an *h* — the mute h of Hugo and
+ * Hélène. It is deliberately simple: the few first names that begin with an aspirated h
+ * (Hans, Henri in some families) would be elided too, and a table of exceptions would be wrong
+ * for somebody else. A name is content, not copy, so a guess that is right for nearly every name
+ * beats asking the guest how to say theirs.
+ */
+export const deBefore = (name: string): string =>
+  /^[aeiouyàâäéèêëîïôöùûüh]/i.test(name) ? `d’${name}` : `de ${name}`
+
 export const fr = {
   app: {
     name: 'EventSlide',
@@ -704,7 +717,7 @@ export const fr = {
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Pour quitter : Échap ou F sortent du plein écran, puis fermez l’onglet.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
-    firstPhotoOf: (name: string) => `Première photo de ${name}`,
+    firstPhotoOf: (name: string) => `Première photo ${deBefore(name)}`,
 
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**

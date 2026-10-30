@@ -270,3 +270,18 @@ describe('messageForCode', () => {
     expect(messageForCode('toString', fr)).toBe(fr.errors.unknown)
   })
 })
+
+describe('the line under a guest’s first photo', () => {
+  it.each([
+    ['Alice', 'Première photo d’Alice'],
+    ['Élodie', 'Première photo d’Élodie'],
+    ['Hugo', 'Première photo d’Hugo'],
+    ['Julie', 'Première photo de Julie'],
+  ])('elides before a vowel or a mute h, and only there: %s', (name, line) => {
+    expect(fr.wall.firstPhotoOf(name)).toBe(line)
+  })
+
+  it('leaves a name that is not a word alone', () => {
+    expect(fr.wall.firstPhotoOf('4 Jeanne')).toBe('Première photo de 4 Jeanne')
+  })
+})
