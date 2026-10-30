@@ -633,6 +633,72 @@ export const photoRepositoryContract = (
       expect(await repo.listIdsByStatus(WEDDING, 'published', 10)).toEqual([])
     })
 
+    // ------------------------------------------- the operator's takedown (S5) --
+
+    describe('a photograph the operator took down (launch review S5)', () => {
+      const AT_DOWN = atPlus(5_000)
+
+      const seedPair = async (): Promise<void> => {
+        await saveAll([
+          aPhoto({ id: 'p-up', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
+          aPhoto({ id: 'p-down', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
+        ])
+        await repo.setTakenDown(WEDDING, asPhotoId('p-down'), AT_DOWN)
+      }
+
+      it('is not found, not listed, not on the wall ids and not counted by status', async () => {
+        await seedPair()
+
+        expect(await repo.findById(WEDDING, asPhotoId('p-down'))).toBeNull()
+        expect((await repo.list(WEDDING)).items.map((photo) => photo.id)).toEqual(['p-up'])
+        expect(await repo.listIdsByStatus(WEDDING, 'published', 10)).toEqual(['p-up'])
+        expect((await repo.countsByStatus(WEDDING)).published).toBe(1)
+      })
+
+      it('is still held: its bytes count, its hash is taken, its files stay referenced', async () => {
+        await seedPair()
+        const down = aPhoto({ id: 'p-down', eventId: WEDDING })
+
+        expect(await repo.totalBytes(WEDDING)).toBe(
+          aPhoto({ id: 'p-up', eventId: WEDDING }).byteSize + down.byteSize,
+        )
+        expect((await repo.findByContentHash(WEDDING, down.contentHash))?.id).toBe('p-down')
+        expect(await repo.findIdsReferencing(WEDDING, down.contentHash)).toContain('p-down')
+        expect((await repo.listReferencedDigests(WEDDING)).has(down.contentHash.value)).toBe(true)
+      })
+
+      it('is located by its id alone, across events, with the instant it went down', async () => {
+        await seedPair()
+        await repo.save(aPhoto({ id: 'p-gala', eventId: GALA, author: { kind: 'guest', id: SAM } }))
+
+        expect(await repo.locate(asPhotoId('p-down'))).toEqual({
+          eventId: WEDDING,
+          takenDownAt: AT_DOWN,
+        })
+        expect(await repo.locate(asPhotoId('p-gala'))).toEqual({ eventId: GALA, takenDownAt: null })
+        expect(await repo.locate(asPhotoId('ghost'))).toBeNull()
+      })
+
+      it('comes back when put back, and a host moderation does not undo it in between', async () => {
+        await seedPair()
+        const review: PhotoReview = { kind: 'host', userId: HOST, at: AT }
+
+        await repo.updateStatuses(WEDDING, [asPhotoId('p-down')], 'hidden', review)
+        expect(await repo.findById(WEDDING, asPhotoId('p-down'))).toBeNull()
+
+        await repo.setTakenDown(WEDDING, asPhotoId('p-down'), null)
+        expect((await repo.findById(WEDDING, asPhotoId('p-down')))?.status).toBe('hidden')
+      })
+
+      it('is scoped by event: naming the id of another event takes nothing down', async () => {
+        await seedPair()
+
+        await repo.setTakenDown(GALA, asPhotoId('p-up'), AT_DOWN)
+
+        expect(await repo.findById(WEDDING, asPhotoId('p-up'))).not.toBeNull()
+      })
+    })
+
     // ------------------------------------------------------------- counters --
 
     it('counts every status of one event', async () => {

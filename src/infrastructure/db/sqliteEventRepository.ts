@@ -76,6 +76,9 @@ interface EventRow {
   readonly scheduled_open_at: string | null
   readonly scheduled_close_at: string | null
   readonly schedule_discarded_at: string | null
+  /** The operator's two levers (migration 015); read by every select, written by `setTakenDown` and `setPurgeHeld` only. */
+  readonly taken_down_at: string | null
+  readonly purge_held_at: string | null
   /** Only the three single-event lookups select it (`WITH_CLIENT_STANDING`). */
   readonly client_suspended_at?: string | null
 }
@@ -129,7 +132,8 @@ interface CountRow {
 
 const EVENT_COLUMNS = `id, owner_id, name, slug, join_code, status, settings, quota_bytes,
                        created_at, starts_at, client_id, closed_at, opened_at,
-                       scheduled_open_at, scheduled_close_at, schedule_discarded_at`
+                       scheduled_open_at, scheduled_close_at, schedule_discarded_at,
+                       taken_down_at, purge_held_at`
 
 /**
  * What a **lookup of one event** adds: whether its client is suspended (roadmap §10.7), read from
@@ -494,6 +498,8 @@ const toEvent = (row: EventRow): Event =>
     scheduledCloseAt: fromNullableIsoText(row.scheduled_close_at),
     scheduleDiscardedAt: fromNullableIsoText(row.schedule_discarded_at),
     clientSuspendedAt: fromNullableIsoText(row.client_suspended_at ?? null),
+    takenDownAt: fromNullableIsoText(row.taken_down_at),
+    purgeHeldAt: fromNullableIsoText(row.purge_held_at),
   })
 
 const toCounts = (row: CountsRow): EventCounts => ({
@@ -523,9 +529,11 @@ const toSummary = (row: SummaryRow): EventSummary => ({
  * clips still waiting to be transcoded), so the dashboard says what the upload path will
  * enforce: it used to count photographs alone.
  */
-const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id) AS photo_count,
+const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p
+                WHERE p.event_id = e.id AND p.taken_down_at IS NULL) AS photo_count,
               (SELECT COUNT(*) FROM photos p
-                WHERE p.event_id = e.id AND p.status = 'pending')      AS pending_count,
+                WHERE p.event_id = e.id AND p.status = 'pending'
+                  AND p.taken_down_at IS NULL)                         AS pending_count,
               (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id)  AS guest_count,
               ${eventHoldingBytesSum('e.id')}                           AS used_bytes`
 
@@ -578,6 +586,9 @@ export class SqliteEventRepository implements EventRepository {
   private readonly selectPeriodCounter: Database.Statement<[string], CountRow>
   private readonly bumpPeriodCounter: Database.Statement<[string]>
   private readonly deleteById: Database.Statement<[string]>
+  private readonly updateTakenDown: Database.Statement<[string | null, string]>
+  private readonly updatePurgeHeld: Database.Statement<[string | null, string]>
+  private readonly deleteUnheld: Database.Statement<[string]>
 
   /**
    * Statements are prepared once per repository, not per call. `better-sqlite3` caches
@@ -611,9 +622,10 @@ export class SqliteEventRepository implements EventRepository {
       `SELECT e.id, e.slug, e.name, e.status, e.created_at,
               ${COUNT_COLUMNS}
          FROM events e
-        WHERE e.owner_id = ?
+        WHERE (e.owner_id = ?
            OR EXISTS (SELECT 1 FROM event_memberships m
-                       WHERE m.event_id = e.id AND m.user_id = ?)
+                       WHERE m.event_id = e.id AND m.user_id = ?))
+          AND e.taken_down_at IS NULL
         ORDER BY e.created_at DESC, e.id`,
     )
 
@@ -635,6 +647,7 @@ export class SqliteEventRepository implements EventRepository {
         WHERE e.status IN ('closed', 'archived')
           AND e.closed_at IS NOT NULL
           AND ${PURGE_DEADLINE_SQL} <= :now
+          AND e.purge_held_at IS NULL
         ORDER BY e.created_at DESC, e.id`,
     )
 
@@ -728,6 +741,30 @@ export class SqliteEventRepository implements EventRepository {
     )
 
     this.deleteById = db.prepare<[string]>(`DELETE FROM events WHERE id = ?`)
+
+    // The operator's two levers. Each is its own statement and `save` writes neither column, so a
+    // host's save of a copy read before the operator acted cannot undo the act.
+    this.updateTakenDown = db.prepare<[string | null, string]>(
+      `UPDATE events SET taken_down_at = ? WHERE id = ?`,
+    )
+    this.deleteUnheld = db.prepare<[string]>(
+      `DELETE FROM events WHERE id = ? AND purge_held_at IS NULL`,
+    )
+    this.updatePurgeHeld = db.prepare<[string | null, string]>(
+      `UPDATE events SET purge_held_at = ? WHERE id = ?`,
+    )
+  }
+
+  async setTakenDown(id: EventId, at: Date | null): Promise<void> {
+    this.updateTakenDown.run(at === null ? null : toIsoText(at), id)
+  }
+
+  async deleteUnlessHeld(id: EventId): Promise<boolean> {
+    return this.deleteUnheld.run(id).changes > 0
+  }
+
+  async setPurgeHeld(id: EventId, at: Date | null): Promise<void> {
+    this.updatePurgeHeld.run(at === null ? null : toIsoText(at), id)
   }
 
   async listByClient(clientId: ClientId): Promise<readonly Event[]> {

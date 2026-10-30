@@ -604,6 +604,26 @@ describe('openStream', () => {
       expect(world.bus.subscriberCount(asEventId(WEDDING))).toBe(0)
     })
 
+    it('closes the wall and the moderation feed alike at the first beat after the operator takes the event down (launch review S5)', async () => {
+      const wall = await openForAClient()
+      const moderation = new SseSink()
+      openStreamFor({
+        deps: world.deps,
+        logger: world.deps.logger,
+        eventId: asEventId(WEDDING),
+        lastEventId: undefined,
+        res: asResponse(moderation),
+        suspension: 'serves',
+      })
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect([wall.writableEnded, moderation.writableEnded]).toEqual([false, false])
+
+      await world.events.setTakenDown(asEventId(WEDDING), AT)
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect([wall.writableEnded, moderation.writableEnded]).toEqual([true, true])
+    })
+
     it('holds the connection open for a client that is not suspended, however many beats pass', async () => {
       const sink = await openForAClient()
 

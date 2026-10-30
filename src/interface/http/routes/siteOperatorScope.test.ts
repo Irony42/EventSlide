@@ -248,6 +248,20 @@ const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
     'no event, and what it changes is what every other router reads of an event, not what it holds',
   'post /api/site/clients/:clientId/resume':
     'lifts a suspension (`resumeClient`): the same one column and one audit line',
+  'post /api/site/photos/:photoId/take-down':
+    'takes one photograph down by its id, blind (`setPhotoTakedown`, launch review S5): one column of the photos table ' +
+    'and one audit line; it reads no photograph (`locate` answers an event id and an instant), the answer is `204`, and ' +
+    'what it changes is what every other router reads of a photograph, not what it holds',
+  'post /api/site/photos/:photoId/restore':
+    'puts that photograph back (`setPhotoTakedown`): the same one column and one line',
+  'post /api/site/events/:eventId/take-down':
+    'takes a whole event down by its id (`setEventTakedown`): one column of the events table and one audit line; no ' +
+    'photograph and no name is read, and the answer is `204`',
+  'post /api/site/events/:eventId/restore': 'puts that event back (`setEventTakedown`)',
+  'post /api/site/events/:eventId/purge-hold':
+    'holds the purge of an event to preserve evidence (`setEventPurgeHold`): one column of the events table and one audit ' +
+    'line; it hides nothing and reads no content',
+  'post /api/site/events/:eventId/purge-release': 'releases that hold (`setEventPurgeHold`)',
   'post /api/site/clients/:clientId/offboard':
     "ends an engagement (`offboardClient`): it moves the client's events by status and dates the purge of its\n" +
     'albums; it reads no content, and what it destroys is destroyed later by the retention sweep, not here',
@@ -363,6 +377,7 @@ const send = (agent: request.Agent, route: Route, csrf: string): request.Test =>
 const PARAMETERS: Readonly<Record<string, string>> = {
   eventSlug: 'gala',
   photoId: A_PHOTO,
+  eventId: A_PHOTO,
   guestId: A_PHOTO,
   userId: CLIENT,
   clipJobId: A_PHOTO,

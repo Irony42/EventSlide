@@ -293,7 +293,11 @@ export const makeTranscodeNextClip = ({
     // Crash recovery. The photo id was fixed at staging, so a row under it means a
     // previous attempt got as far as the insert and died before saying so. Encoding
     // again would produce a second file under a different digest and orphan the first.
-    if ((await photos.findById(job.eventId, job.photoId)) !== null) {
+    // `locate`, not `findById`: a photograph the operator took down is hidden from `findById`, and
+    // reading it as "no row" would encode the clip again, hit the primary key, and finally discard
+    // the staged source, which is evidence (launch review S5).
+    const alreadyWritten = await photos.locate(job.photoId)
+    if (alreadyWritten !== null && alreadyWritten.eventId === job.eventId) {
       logger.info('clip photo row already existed; finishing the interrupted job', {
         eventId: job.eventId,
         clipJobId: job.id,

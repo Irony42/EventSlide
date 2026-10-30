@@ -696,6 +696,8 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
     'PUT /api/site/clients/:clientId/ceilings: the operator console (G2-15) is not built yet',
   operatorInvitationBody:
     'POST /api/site/clients/:clientId/invitations: the operator console (G2-15) is not built yet',
+  operatorActBody:
+    'POST /api/site/photos/:photoId/take-down and its five siblings (launch review S5): API only for now, the console has no screen for them',
   offboardClientBody:
     'POST /api/site/clients/:clientId/offboard: the operator console (G2-15) is not built yet',
   operatorPasswordResetBody:

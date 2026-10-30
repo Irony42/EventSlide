@@ -184,10 +184,26 @@ describe('identifyMediaViewer', () => {
       expect(!result.ok && result.error.kind).toBe('notFound')
     })
 
-    it('still lets its moderators read their own photographs', async () => {
+    it('no longer lets its moderators read photographs, and tells them why (launch review S5)', async () => {
       const result = await identify({ userId: HELPER, event: suspended() })
 
-      expect(result).toEqual(ok({ kind: 'moderator', userId: HELPER }))
+      expect(!result.ok && result.error.code).toBe('client.suspended')
+      expect(!result.ok && result.error.kind).toBe('forbidden')
+    })
+  })
+
+  describe('for an event the operator took down (launch review S5)', () => {
+    const down = (): Event =>
+      Event.restore({ ...wedding().toProps(), takenDownAt: AT })
+
+    it.each([
+      ['the public', {}],
+      ['a guest', { guestToken: tokenFor(WEDDING, LEA) }],
+      ['its own moderator', { userId: HELPER }],
+    ])('answers %s as for an event that is not there', async (_who, input) => {
+      const result = await identify({ ...input, event: down() })
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
     })
   })
 

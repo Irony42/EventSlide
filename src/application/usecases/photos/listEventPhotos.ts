@@ -3,6 +3,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
+import { requireReadable } from '../shared/eventRole'
 import type { PhotoPage, PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
 
 /**
@@ -47,6 +48,9 @@ export const makeListEventPhotos = ({
     // slug is told the event is wrong instead of concluding the guests sent nothing.
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
+
+    const readable = requireReadable(event)
+    if (!readable.ok) return readable
 
     // Built by spread rather than by assigning `undefined`: with
     // `exactOptionalPropertyTypes`, "no filter" is an absent key, not a present one

@@ -16,6 +16,7 @@ import type { GuestPhotoSource } from './fakeGuestRepository'
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
+  PhotoLocation,
   PhotoPage,
   PhotoQuery,
   PhotoRepository,
@@ -125,8 +126,17 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     return this
   }
 
+  /** The photographs the operator took down, by row key, with the instant (`taken_down_at`). */
+  private readonly takenDown = new Map<string, Date>()
+
+  /** Every row of the event, **taken-down ones included**: what the byte sums and the sweeps read. */
   private forEvent(eventId: EventId): Photo[] {
     return [...this.rows.values()].filter((photo) => photo.eventId === eventId)
+  }
+
+  /** The rows a read may serve: `taken_down_at IS NULL`, as the adapter's reads say. */
+  private visibleOf(eventId: EventId): Photo[] {
+    return this.forEvent(eventId).filter((photo) => !this.takenDown.has(key(eventId, photo.id)))
   }
 
   /**
@@ -140,7 +150,7 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
    * question must not each invent their own answer.
    */
   ofEvent(eventId: EventId): readonly Photo[] {
-    return this.forEvent(eventId)
+    return this.visibleOf(eventId)
   }
 
   /**
@@ -160,7 +170,24 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
   }
 
   async findById(eventId: EventId, photoId: PhotoId): Promise<Photo | null> {
+    if (this.takenDown.has(key(eventId, photoId))) return null
     return this.rows.get(key(eventId, photoId)) ?? null
+  }
+
+  async locate(photoId: PhotoId): Promise<PhotoLocation | null> {
+    const row = [...this.rows.values()].find((photo) => photo.id === photoId)
+    if (row === undefined) return null
+    return {
+      eventId: row.eventId,
+      takenDownAt: this.takenDown.get(key(row.eventId, row.id)) ?? null,
+    }
+  }
+
+  async setTakenDown(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<void> {
+    const rowKey = key(eventId, photoId)
+    if (!this.rows.has(rowKey)) return
+    if (at === null) this.takenDown.delete(rowKey)
+    else this.takenDown.set(rowKey, at)
   }
 
   async findByContentHash(eventId: EventId, hash: ContentHash): Promise<Photo | null> {
@@ -195,7 +222,7 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     }
     if (query.limit !== undefined) requirePositive(query.limit, 'list')
 
-    const matching = this.forEvent(eventId)
+    const matching = this.visibleOf(eventId)
       .filter((photo) => query.statuses === undefined || query.statuses.includes(photo.status))
       .filter((photo) => this.matchesAuthor(photo, query.authoredBy))
       .filter((photo) => cursor === null || isAfterCursor(photo, cursor))
@@ -223,7 +250,7 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     limit: number,
   ): Promise<readonly PhotoId[]> {
     requirePositive(limit, 'listIdsByStatus')
-    return this.forEvent(eventId)
+    return this.visibleOf(eventId)
       .filter((photo) => photo.status === status)
       .sort(newestFirst)
       .slice(0, limit)
@@ -232,7 +259,7 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
 
   async countsByStatus(eventId: EventId): Promise<PhotoStatusCounts> {
     const counts = { ...ZERO_COUNTS }
-    for (const photo of this.forEvent(eventId)) counts[photo.status] += 1
+    for (const photo of this.visibleOf(eventId)) counts[photo.status] += 1
     return counts
   }
 
@@ -323,7 +350,8 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
-    return this.authoredBy(eventId, guestId)
+    // The author's cap counts every row, taken-down ones included, as the adapter's does.
+    return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
   }
 
   /**
@@ -332,7 +360,7 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
    * derives `photoCount` from. **Test infrastructure, not a port method.**
    */
   authoredBy(eventId: EventId, guestId: GuestId): number {
-    return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
+    return this.visibleOf(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
   }
 
   /**

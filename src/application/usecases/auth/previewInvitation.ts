@@ -151,7 +151,9 @@ export const makeResolveInvitation = ({
 
     const event = await events.findById(target.eventId)
     // Before the status is judged, so that a frozen event's state is not what the answer tells.
-    if (event === null || event.isClientSuspended()) return err(invitationNotFound())
+    if (event === null || event.isClientSuspended() || event.isTakenDown()) {
+      return err(invitationNotFound())
+    }
     if (!isMutable(event.status)) {
       return err(DomainError.conflict('event.immutable', { status: event.status }))
     }
