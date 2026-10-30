@@ -6,6 +6,9 @@ within seconds.
 
 Self-hosted. The photos stay on your machine.
 
+**Website: [eventslide.fr](https://eventslide.fr/en/)**: how it works, guides, and the free
+hosted instance.
+
 <p align="center">
   <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph at a time, whole, with the sender's caption and the join code in the corner">
   <img src="docs/images/wall-mosaic.jpg" width="49%" alt="The same wall in its mosaic layout, several photographs at once">
@@ -26,9 +29,9 @@ or that you hand a few hundred family photographs to a company you have never he
 EventSlide asks for neither. It runs on one machine — a laptop, a mini PC, a Raspberry
 Pi under the projector — and nothing leaves it.
 
-For anyone who cannot host it themselves, the maintainer is setting up a free instance of
-the same software, by invitation for now
-([ADR 0007](docs/adr/0007-agpl-and-hosted-instance.md)) — but self-hosting is what keeps
+For anyone who cannot host it themselves, the maintainer runs a free instance of the same
+software, by invitation ([request access](https://eventslide.fr/en/request-access/),
+[ADR 0007](docs/adr/0007-agpl-and-hosted-instance.md)) — but self-hosting is what keeps
 the photos on a machine you control, and stays the recommended path.
 
 ## What it does
