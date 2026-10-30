@@ -1535,12 +1535,46 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
   })
 
-  it('refuses a revoked guest: the host decides about their photos', async () => {
+  it('lets a revoked guest erase what they sent: the host decision about them does not remove that right', async () => {
     const subject = buildSubject({ revoked: true })
 
     const response = await erase(subject)
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ photos: 3, clips: 0 })
+    expect(await photoIdsOf(subject, WEDDING)).not.toContain(PENDING)
+    expect(await photoIdsOf(subject, WEDDING)).toContain(ANOTHER_GUESTS)
+  })
+
+  it('gives a revoked token nothing else: every other guest route still answers 403 guest.revoked', async () => {
+    const subject = buildSubject({ revoked: true })
+    const withToken = { Cookie: cookie(subject.token) }
+
+    const answers = await Promise.all([
+      request(subject.app).get(`${BASE}/photos/mine`).set(withToken),
+      request(subject.app)
+        .patch(`${BASE}/guests/${GUEST}`)
+        .set(withToken)
+        .send({ displayName: 'x' }),
+      request(subject.app).delete(`${BASE}/photos/${PENDING}`).set(withToken),
+      request(subject.app)
+        .post(`${BASE}/photos/${PUBLISHED}/reactions`)
+        .set(withToken)
+        .send({ kind: 'love' }),
+    ])
+
+    expect(answers.map((answer) => answer.status)).toEqual([403, 403, 403, 403])
+    expect(answers.map((answer) => answer.body.error.code)).toEqual(Array(4).fill('guest.revoked'))
+  })
+
+  it('still refuses a forged token and another event token on the erase route, revoked guest or not', async () => {
+    const subject = buildSubject({ revoked: true })
+
+    const forged = await erase(subject, 'x'.repeat(40))
+    const foreign = await erase(subject, subject.galaToken)
+
+    expect(forged.status).toBe(401)
+    expect(foreign.status).toBe(404)
     expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
   })
 
@@ -1779,6 +1813,8 @@ const ROUTES = [
   {
     name: 'DELETE /guests/me',
     sharedWithHost: false,
+    // The one route that accepts a revoked guest: it is tested on its own above.
+    acceptsRevoked: true,
     send: (client: Client, token: string) =>
       client.delete(`${BASE}/guests/me`).set('Cookie', cookie(token)),
   },
@@ -1806,14 +1842,17 @@ describe('the guest surface requires a guest token on every route', () => {
     expect(response.body.error.code).toBe('event.notFound')
   })
 
-  it.each(ROUTES)('$name answers 403 once the host has revoked the guest', async ({ send }) => {
-    const subject = buildSubject({ revoked: true })
+  it.each(ROUTES.filter((route) => !('acceptsRevoked' in route)))(
+    '$name answers 403 once the host has revoked the guest',
+    async ({ send }) => {
+      const subject = buildSubject({ revoked: true })
 
-    const response = await send(request(subject.app), subject.token)
+      const response = await send(request(subject.app), subject.token)
 
-    expect(response.status).toBe(403)
-    expect(response.body.error.code).toBe('guest.revoked')
-  })
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('guest.revoked')
+    },
+  )
 
   /**
    * A moderator's session is not a guest token.

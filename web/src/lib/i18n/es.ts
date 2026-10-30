@@ -258,6 +258,8 @@ export const es: UiText = {
       }),
     noticeRemovalOtherwise: 'Si no, pídaselo al organizador: puede eliminar cualquier foto.',
     noticeRemovalAskHost: 'Pídaselo al organizador: puede eliminar cualquier foto.',
+    noticeErasure: (action: string, section: string) =>
+      `También puede eliminarlo todo desde su teléfono: «${action}», en «${section}».`,
     clipDoneImmediate: 'Vídeo enviado. Ya pasa a la pantalla.',
 
     /* ---- Added by guest reactions. ---- */

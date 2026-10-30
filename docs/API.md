@@ -943,7 +943,7 @@ which is allowed.
   },
   "privacyNotice": {
     "notice": {
-      "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900",
+      "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone",
       "publication": "afterReview",
       "audiences": ["wall", "guestFeed", "organisers", "sharedGallery"],
       "retentionDays": 30,
@@ -1509,7 +1509,7 @@ a setting since. `Cache-Control: no-store`.
 ```json
 {
   "notice": {
-    "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900",
+    "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone",
     "publication": "afterReview",
     "audiences": ["wall", "guestFeed", "organisers", "sharedGallery"],
     "retentionDays": 30,
@@ -1547,8 +1547,10 @@ the host _may_ share the album. A client must treat an audience it has no
 sentence for as a notice it cannot show, not as a shorter one — this one shows no notice and
 keeps the picker, as for a tab older than the feature, until a newer bundle loads.
 
+**`selfErase=phone` is a constant clause** (roadmap §5.2): every notice now says the guest can delete everything they sent from their own phone, so every guest who acknowledged an earlier revision is asked once more.
+
 **The operator is the last clause of `revision`, and only when there is one**
-(`…;selfRemoval=900;operator=<name>`). A box that sets no `OPERATOR_NAME` produces the revision
+(`…;selfRemoval=900;selfErase=phone;operator=<name>`). A box that sets no `OPERATOR_NAME` produces the revision
 it always produced, character for character, so installing a version with this field asks no
 guest to read the notice again; a box that starts naming an operator, changes the name or stops
 does ask them, once, because the notice then reads differently. The name is at most 100
@@ -1573,7 +1575,7 @@ not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.t
 
 ```json
 {
-  "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900"
+  "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone"
 }
 ```
 
@@ -1875,6 +1877,8 @@ clients and is content-free, and a guest has no account to attribute it to.
 { "photos": 3, "clips": 1 }
 ```
 
+**A revoked guest may call this route** and no other: the host's decision about them (`guest.revoked` everywhere else) does not take the right to erase away. The signature, the event in the path, the guest row and the client's suspension are checked as for anyone, so a forged or other-event token is still `401` / `404`.
+
 The counts of what was removed, `clips` including those that were still in the queue. `Cache-Control: no-store`. The
 response **clears the `es_guest` cookie**: the guest row is gone, so the token would only be answered
 `401 guestToken.malformed` from now on, which the phone already treats as "forget this session". Every open screen is
@@ -1893,8 +1897,7 @@ process that dies half way leaves the guest row, so the token still verifies and
 clip transcoding at that very moment finishes against a row that is gone, and the final sweep removes whatever it inserted (a row landing in the instant after that read leaves orphan files for the media sweep).
 
 **Errors** — `401 auth.required` / `401 guestToken.*` (a lost token is the reason to ask the organiser, who can delete
-any photograph: there is deliberately no identity check here), `403 guest.revoked` (the host's decision about a removed
-guest's photographs stands; they ask the host), `404 event.notFound` (a token for another event, as everywhere in
+any photograph: there is deliberately no identity check here), `404 event.notFound` (a token for another event, as everywhere in
 this section), `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ## 4. Media
@@ -3298,7 +3301,7 @@ projector and will be double-tapped, so the entity keeps the first timestamp.
 **Errors** — `404 guest.notFound`, which is also the answer for a guest of another event.
 
 Revoking cuts the device off in both directions: the token it holds answers
-`403 guest.revoked` on every guest route, and `POST /api/join` refuses that same device
+`403 guest.revoked` on every guest route but the erasure of their own contribution, and `POST /api/join` refuses that same device
 a fresh identity with the ordinary `404 event.notFound`. It binds the **device**, not the
 person — a guest who clears their cookies is a new guest with the code still printed on
 the table — so pair it with a join-code rotation against somebody determined.

@@ -320,6 +320,36 @@ describe('authenticateGuest', () => {
     expect(!result.ok && result.error.code).toBe('guest.revoked')
   })
 
+  describe('with allowRevoked, the one caller that erases its own contribution', () => {
+    const asEraser = (token: string, eventSlug: string = WEDDING_SLUG) =>
+      makeAuthenticateGuest({ events, guests, tokens, clock, logger })({
+        token,
+        eventSlug,
+        allowRevoked: true,
+      })
+
+    it('lets a revoked guest through', async () => {
+      guests.seed(aGuest({ id: LEA, eventId: WEDDING, revokedAt: atPlus(1_000) }))
+
+      const result = await asEraser(tokenFor(WEDDING, LEA))
+
+      expect(result.ok && result.value.guest.isRevoked()).toBe(true)
+    })
+
+    it('still refuses a token for another event, a row that is gone and a forged signature', async () => {
+      guests.seed(aGuest({ id: LEA, eventId: WEDDING, revokedAt: atPlus(1_000) }))
+
+      const foreign = await asEraser(tokenFor(GALA, LEA))
+      const forged = await asEraser('v1.not-a-token.sig')
+      await guests.delete(WEDDING, LEA)
+      const gone = await asEraser(tokenFor(WEDDING, LEA))
+
+      expect(!foreign.ok && foreign.error.code).toBe('event.notFound')
+      expect(forged.ok).toBe(false)
+      expect(!gone.ok && gone.error.kind).toBe('unauthenticated')
+    })
+  })
+
   it('does not record presence for a revoked guest', async () => {
     guests.seed(aGuest({ id: LEA, eventId: WEDDING, lastSeenAt: AT, revokedAt: atPlus(1_000) }))
     clock.advance(90_000)

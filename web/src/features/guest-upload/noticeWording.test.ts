@@ -48,12 +48,15 @@ describe('noticeSections', () => {
     expect(whoSees?.sentences).toEqual([fr.upload.noticeAudiences.wall])
   })
 
-  it('always ends on asking the organiser, because a moderator can delete any photo', () => {
+  it('always asks the organiser and ends on the guest own delete-everything button, on every event', () => {
     const withWindow = noticeSections(aPrivacyNotice({ selfRemovalSeconds: 900 }), fr).at(-1)
     const without = noticeSections(aPrivacyNotice({ selfRemovalSeconds: null }), fr).at(-1)
 
-    expect(withWindow?.sentences.at(-1)).toBe(fr.upload.noticeRemovalOtherwise)
-    expect(without?.sentences).toEqual([fr.upload.noticeRemovalAskHost])
+    const erasure = fr.upload.noticeErasure(fr.upload.eraseOpen, fr.upload.mine)
+
+    expect(withWindow?.sentences.at(-2)).toBe(fr.upload.noticeRemovalOtherwise)
+    expect(withWindow?.sentences.at(-1)).toBe(erasure)
+    expect(without?.sentences).toEqual([fr.upload.noticeRemovalAskHost, erasure])
   })
 
   it.each([

@@ -572,8 +572,7 @@ guest row (display name, device identity), ignoring `allowGuestSelfDelete`, the 
 route has **no guest id in its path**, so the only guest it can reach is the one the signed token names: there is no
 parameter to tamper with and no enumeration oracle, and `requireGuest` has already bound the event, so the same guest id
 at another event is unreachable (named tests at rings 2, 4 and 6: `eraseGuestContribution.test.ts`,
-`guestRoutes.test.ts`, `tenant-isolation.spec.ts`). A **revoked** guest is refused at `requireGuest`: the host decided
-about their photographs and they ask the host. A guest who has **lost the token** has nothing to prove identity with and
+`guestRoutes.test.ts`, `tenant-isolation.spec.ts`). A **revoked** guest is accepted on this route and no other (`requireGuest(deps, { allowRevoked: true })`): the host's decision about them does not take the right to erase away, while the signature, the event, the guest row and the client's suspension are checked as for anyone and every other guest route still answers `403 guest.revoked` (named tests at rings 2 and 4). A guest who has **lost the token** has nothing to prove identity with and
 none is invented: the phone says to ask the organiser, who can delete any photograph. Files are removed by the same
 routine as `deletePhoto` (`removePhotoRecord`: bytes before the row, and only digests nothing else names, so a poster another
 clip shares survives). The guest row goes last, so a half-finished run is retried by pressing the button again, and a

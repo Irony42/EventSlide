@@ -466,8 +466,7 @@ ones with their staged source), captions, reactions and the display name, ignori
 and the grace window, and tells every screen at once (`photo.deleted` per photograph, then `guest.erased`). **Not** done, on
 purpose: an identity check for a lost token (the phone says to ask the organiser, who can delete any photograph), an audit line
 (the log is content-free and a guest has no account), and any reach into a copy the host already exported or a backup (said in
-the dialog). Revoked guests are refused, so the host's decision about them stands. The wording of the privacy notice that
-promises a removal path belongs to §5.1 and is a separate change.
+the dialog). A revoked guest may erase (this route only). The privacy notice names the button on every event and carries it as the `selfErase=phone` clause of its revision, so every guest is asked once more.
 
 ### 5.3 TOTP for host accounts (P2, effort M, risk: low)
 

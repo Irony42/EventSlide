@@ -475,12 +475,14 @@ export const fr = {
       }),
     /**
      * Always the last line, because it is always true: a moderator can delete any photo
-     * of their event. There is no "delete everything I sent" to point at instead — that
-     * is roadmap 5.2 and it is not built, so the notice does not mention it.
+     * of their event. The sentence after it (noticeErasure) names the guest's own "delete everything
+     * I sent" button, roadmap 5.2.
      */
     noticeRemovalOtherwise:
       'Sinon, demandez à l’organisateur : il peut supprimer n’importe quelle photo.',
     noticeRemovalAskHost: 'Demandez à l’organisateur : il peut supprimer n’importe quelle photo.',
+    noticeErasure: (action: string, section: string) =>
+      `Vous pouvez aussi tout supprimer depuis votre téléphone : « ${action} », sous « ${section} ».`,
     /** `clipDone` for an event that publishes on arrival, for `introImmediate`'s reason. */
     clipDoneImmediate: 'Vidéo envoyée. Elle passe à l’écran.',
 

@@ -253,6 +253,8 @@ export const en: UiText = {
       }),
     noticeRemovalOtherwise: 'Otherwise, ask the organiser: they can delete any photo.',
     noticeRemovalAskHost: 'Ask the organiser: they can delete any photo.',
+    noticeErasure: (action: string, section: string) =>
+      `You can also delete everything from your phone: “${action}”, under “${section}”.`,
     clipDoneImmediate: 'Video sent. It is going up on the screen.',
 
     /* ---- Added by guest reactions. ---- */

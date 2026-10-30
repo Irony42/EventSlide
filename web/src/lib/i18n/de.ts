@@ -266,6 +266,8 @@ export const de: UiText = {
     noticeRemovalOtherwise:
       'Andernfalls wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
     noticeRemovalAskHost: 'Wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
+    noticeErasure: (action: string, section: string) =>
+      `Sie können auch alles von Ihrem Telefon aus löschen: „${action}“ unter „${section}“.`,
     clipDoneImmediate: 'Video gesendet. Es erscheint jetzt auf dem Bildschirm.',
 
     /* ---- Added by guest reactions. ---- */

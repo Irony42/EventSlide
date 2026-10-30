@@ -562,7 +562,9 @@ export const guestRoutes = ({
   router.delete(
     '/events/:eventSlug/guests/me',
     guestWriteRateLimiter,
-    requireGuest(deps),
+    // A revoked guest may erase what they sent: the host's decision about them does not remove that
+    // right, and nothing else on this router accepts their token.
+    requireGuest(deps, { allowRevoked: true }),
     withGuest(async ({ event, guest }, _req, res) => {
       const result = await usecases.eraseGuestContribution({
         eventId: event.id,
