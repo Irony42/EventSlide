@@ -4,6 +4,7 @@ import {
   asClientId,
   asClipJobId,
   asEventId,
+  asGuestId,
   asPhotoId,
   type ClientId,
   type EventId,
@@ -307,6 +308,62 @@ export const clipJobRepositoryContract = (
         await repo.deleteForPhoto(GALA, asPhotoId('photo-1'))
 
         expect((await repo.findById(WEDDING, asClipJobId('job-1')))?.id).toBe('job-1')
+      })
+    })
+
+    describe('listByAuthor and deleteForAuthor', () => {
+      const seedThree = async (): Promise<void> => {
+        await insertJob(
+          aClipJob({
+            id: 'job-lea-queued',
+            eventId: 'evt-wedding',
+            author: { kind: 'guest', id: 'guest-lea' },
+            sourceHash: hexOf('a1'),
+          }),
+        )
+        await insertJob(
+          aClipJob({
+            id: 'job-lea-done',
+            eventId: 'evt-wedding',
+            status: 'done',
+            author: { kind: 'guest', id: 'guest-lea' },
+            sourceHash: hexOf('a2'),
+          }),
+        )
+        await insertJob(
+          aClipJob({
+            id: 'job-sam',
+            eventId: 'evt-wedding',
+            author: { kind: 'guest', id: 'guest-sam' },
+            sourceHash: hexOf('a3'),
+          }),
+        )
+      }
+
+      it('lists every job of the guest in any status and nobody else', async () => {
+        await seedThree()
+
+        const jobs = await repo.listByAuthor(WEDDING, asGuestId('guest-lea'))
+
+        expect(jobs.map((job) => job.id).sort()).toEqual(['job-lea-done', 'job-lea-queued'])
+      })
+
+      it('retires the guest jobs and leaves another guest alone', async () => {
+        await seedThree()
+
+        await repo.deleteForAuthor(WEDDING, asGuestId('guest-lea'))
+
+        expect(await repo.listByAuthor(WEDDING, asGuestId('guest-lea'))).toEqual([])
+        expect((await repo.findById(WEDDING, asClipJobId('job-sam')))?.id).toBe('job-sam')
+      })
+
+      it('never reaches another event with the same guest id', async () => {
+        await seedThree()
+
+        expect(await repo.listByAuthor(GALA, asGuestId('guest-lea'))).toEqual([])
+        await repo.deleteForAuthor(GALA, asGuestId('guest-lea'))
+
+        expect(await repo.listByAuthor(WEDDING, asGuestId('guest-lea'))).toHaveLength(2)
       })
     })
 

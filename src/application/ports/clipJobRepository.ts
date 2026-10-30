@@ -1,7 +1,7 @@
 import type { StorageRefusal } from '../../domain/events/admission'
 import type { ClipJob } from '../../domain/clips/clipJob'
 import type { ContentHash } from '../../domain/photos/contentHash'
-import type { ClipJobId, EventId, PhotoId } from '../../domain/shared/ids'
+import type { ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 import type { ClientByteLimit } from './clientRepository'
 
 /**
@@ -204,6 +204,24 @@ export interface ClipJobRepository extends StagedByteSource {
    * that no longer exists.
    */
   deleteForPhoto(eventId: EventId, photoId: PhotoId): Promise<void>
+
+  /**
+   * Every job this guest's clips went through at this event, in any status.
+   *
+   * For a guest erasing what they sent: a clip still in the queue has no `photos` row yet, so
+   * walking the photographs misses it, and its staged source is bytes of the guest's own on the
+   * disk. The caller removes those bytes (`holdsStagedBytes`) and then calls
+   * {@link ClipJobRepository.deleteForAuthor}. Scoped by event and by guest.
+   */
+  listByAuthor(eventId: EventId, guestId: GuestId): Promise<readonly ClipJob[]>
+
+  /**
+   * Retire every job of this guest at this event. Idempotent.
+   *
+   * A transcode that is **running** at that moment is not interrupted: it finishes, finds its
+   * row gone (`save` answers `false`), and its insert is refused if the guest row is gone too.
+   */
+  deleteForAuthor(eventId: EventId, guestId: GuestId): Promise<void>
 
   /**
    * Delete reservations older than `olderThan`, and say which they were.
