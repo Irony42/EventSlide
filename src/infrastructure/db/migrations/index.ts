@@ -14,6 +14,7 @@ import { migration012 } from './012_account_tokens_client'
 import { migration013 } from './013_foreign_key_indexes'
 import { migration014 } from './014_user_foreign_key_indexes'
 import { migration015 } from './015_operator_takedown'
+import { migration016 } from './016_event_name_fold'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -38,4 +39,5 @@ export const migrations: readonly Migration[] = [
   migration013,
   migration014,
   migration015,
+  migration016,
 ]

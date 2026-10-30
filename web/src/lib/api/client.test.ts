@@ -525,6 +525,39 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.siteAudit(),
   },
   {
+    name: 'siteLookupEvents',
+    verb: 'get',
+    path: '/api/site/events/lookup',
+    invoke: (client) => client.siteLookupEvents('mariage-de-camille'),
+  },
+  {
+    name: 'siteEventState',
+    verb: 'get',
+    path: `/api/site/events/${CLIENT}`,
+    invoke: (client) => client.siteEventState(CLIENT),
+  },
+  {
+    name: 'sitePhotoState',
+    verb: 'get',
+    path: `/api/site/photos/${CLIENT}`,
+    invoke: (client) => client.sitePhotoState(CLIENT),
+  },
+  ...(
+    [
+      ['siteTakeDownPhoto', 'photos', 'take-down'],
+      ['siteRestorePhoto', 'photos', 'restore'],
+      ['siteTakeDownEvent', 'events', 'take-down'],
+      ['siteRestoreEvent', 'events', 'restore'],
+      ['siteHoldEventPurge', 'events', 'purge-hold'],
+      ['siteReleaseEventPurge', 'events', 'purge-release'],
+    ] as const
+  ).map(([name, noun, verb]): EndpointCase => ({
+    name,
+    verb: 'post',
+    path: `/api/site/${noun}/${CLIENT}/${verb}`,
+    invoke: (client) => client[name](CLIENT, 'Signalement reçu'),
+  })),
+  {
     name: 'siteClientDefaults',
     verb: 'get',
     path: '/api/site/client-defaults',
@@ -870,6 +903,18 @@ describe('the operator’s console requests', () => {
     await subject().siteAudit({ clientId: CLIENT, before: 17, limit: 50 })
 
     expect(only().query).toEqual({ clientId: CLIENT, before: 17, limit: 50 })
+  })
+
+  it('sends the reason of a takedown, and nothing else, as the body', async () => {
+    await subject().siteTakeDownEvent(CLIENT, 'Signalement reçu')
+
+    expect(only().body).toEqual({ reason: 'Signalement reçu' })
+  })
+
+  it('sends the lookup as one query parameter, which is what the operator typed', async () => {
+    await subject().siteLookupEvents('mariage de camille')
+
+    expect(only().query).toEqual({ q: 'mariage de camille' })
   })
 
   it('escapes an id before it becomes a path segment', async () => {

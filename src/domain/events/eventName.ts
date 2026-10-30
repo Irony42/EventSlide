@@ -27,6 +27,14 @@ const MAX_LENGTH = 80
  */
 const HAS_ALPHANUMERIC = /[\p{L}\p{N}]/u
 
+/**
+ * A name as the operator's lookup compares it: blanks trimmed, accents dropped, case folded. SQLite's
+ * `lower()` only folds ASCII, so the comparison is made on this on both sides, in the adapter and in
+ * the fake, and an event called "Fête de Noël" is found from "FETE DE NOEL" (launch review S5).
+ */
+export const foldName = (raw: string): string =>
+  raw.trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
 export class EventName {
   private constructor(readonly value: string) {}
 

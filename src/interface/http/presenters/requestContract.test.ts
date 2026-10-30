@@ -696,8 +696,10 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
     'PUT /api/site/clients/:clientId/ceilings: the operator console (G2-15) is not built yet',
   operatorInvitationBody:
     'POST /api/site/clients/:clientId/invitations: the operator console (G2-15) is not built yet',
+  siteEventLookupQuery:
+    'GET /api/site/events/lookup: the console (web/src/features/site/TakedownPage) sends one string, `q`, which this pairing does not read for the operator namespace, like the other site queries above',
   operatorActBody:
-    'POST /api/site/photos/:photoId/take-down and its five siblings (launch review S5): API only for now, the console has no screen for them',
+    'POST /api/site/photos/:photoId/take-down and its five siblings (launch review S5): the console screen (`TakedownPage`) sends them, which this pairing does not read for the operator namespace',
   offboardClientBody:
     'POST /api/site/clients/:clientId/offboard: the operator console (G2-15) is not built yet',
   operatorPasswordResetBody:

@@ -308,6 +308,8 @@ export const de: UiText = {
     'clientCeilings.periodStartedAtInvalid': 'Dieser Zeitraumbeginn wird nicht akzeptiert.',
     'clientCeilings.clipsAllowedInvalid': 'Diese Videoeinstellung wird nicht akzeptiert.',
     'clientCeilings.liveAllowedInvalid': 'Diese Öffnungseinstellung wird nicht akzeptiert.',
+    'siteLookup.queryInvalid':
+      'Geben Sie eine ID, einen Code, eine Adresse oder einen Veranstaltungsnamen ein (höchstens 300 Zeichen).',
     'audit.reasonInvalid':
       'Der Grund muss in eine Zeile mit höchstens 200 Zeichen passen, ohne E-Mail-Adresse.',
     'reset.mailerRequired':
@@ -1537,6 +1539,76 @@ export const de: UiText = {
     offboardingRunning:
       'Diese Zusammenarbeit endet: Die Alben werden spätestens an dem oben genannten Datum gelöscht.',
     daysNotWhole: 'Geben Sie eine ganze Zahl von Tagen an.',
+    takedownNav: 'Entfernen',
+    takedownTitle: 'Entfernen, ohne hinzusehen',
+    takedownIntro:
+      'Nehmen Sie ein gemeldetes Foto oder eine Veranstaltung anhand ihrer ID offline, ohne sie je zu öffnen: Diese Konsole zeigt weder Vorschaubild noch Bildunterschrift, Gästenamen oder Medienadresse. Jede Handlung verlangt einen Grund, der im Protokoll der Instanz steht und den der Kunde nicht liest. Das Entfernen stoppt die Löschung nicht: Um den Inhalt als Beweis zu behalten, entfernen Sie ihn und sperren dann seine Löschung.',
+    takedownEventTitle: 'Eine Veranstaltung',
+    takedownEventIntro:
+      'Suchen Sie die gemeldete Veranstaltung über ihre Adresse, ihren Beitrittscode oder ihren genauen Namen. Sie sehen von ihr nur die ID und den Zustand.',
+    takedownEventLabel: 'Adresse, Code oder genauer Name',
+    takedownEventAction: 'Veranstaltung suchen',
+    takedownEventNone:
+      'Keine Veranstaltung passt. Der Name muss genau stimmen: ein Teil eines Namens genügt nicht.',
+    takedownEventHeading: (id: string) => `Veranstaltung ${id}`,
+    takedownClient: 'Kunde öffnen',
+    takedownNoClient: 'Ohne Kunde',
+    takedownStateDown: 'Entfernt',
+    takedownStateUp: 'Online',
+    takedownStateHeld: 'Löschung gesperrt',
+    takedownStateFree: 'Normale Löschung',
+    takedownEventDown: 'Veranstaltung entfernen',
+    takedownEventUp: 'Wieder online stellen',
+    takedownHold: 'Löschung sperren',
+    takedownRelease: 'Löschung freigeben',
+    takedownPhotoTitle: 'Ein Foto',
+    takedownPhotoIntro:
+      'Fügen Sie die Foto-ID ein, wie die Meldung sie nennt (der letzte Teil ihrer Adresse vor dem Variantennamen). Sie sehen nur die zugehörige Veranstaltung und den Zustand.',
+    takedownPhotoLabel: 'Foto-ID',
+    takedownPhotoAction: 'Foto suchen',
+    takedownPhotoNone: 'Kein Foto hat diese ID.',
+    takedownPhotoHeading: (id: string) => `Foto ${id}`,
+    takedownPhotoOf: (id: string) => `In Veranstaltung ${id}`,
+    takedownPhotoDown: 'Foto entfernen',
+    takedownPhotoUp: 'Foto wiederherstellen',
+    takedownReason: 'Grund',
+    takedownReasonHint:
+      'Ein Satz in einer Zeile, höchstens 200 Zeichen, ohne E-Mail-Adresse. Er wird im Protokoll der Instanz festgehalten.',
+    takedownUnknown:
+      'Zustand unbekannt: Die Handlung ist möglicherweise erfolgt, suchen Sie erneut, um es zu erfahren.',
+    takedownDone: 'Erledigt.',
+    takedownOps: {
+      eventDown: {
+        title: 'Diese Veranstaltung entfernen?',
+        body: 'Die Wand, der Gästefeed, der Galerielink und die Konsole des Gastgebers antworten, als gäbe es die Veranstaltung nicht, und offene Bildschirme schließen sich. Nichts wird gelöscht. Die Aufbewahrung läuft weiter: Um den Inhalt als Beweis zu behalten, sperren Sie auch seine Löschung.',
+        confirm: 'Veranstaltung entfernen',
+      },
+      eventUp: {
+        title: 'Diese Veranstaltung wieder online stellen?',
+        body: 'Wand, Gäste, Galerie und Gastgeber bekommen sie so zurück, wie sie war.',
+        confirm: 'Wieder online stellen',
+      },
+      purgeHold: {
+        title: 'Die Löschung dieser Veranstaltung sperren?',
+        body: 'Die Aufbewahrungsroutine überspringt sie, und weder der Gastgeber noch ein Gast kann die Veranstaltung oder ein Foto mehr löschen. Nichts wird verborgen: Die Sperre ist im Saal nicht zu sehen. Sicherungen werden nicht gesperrt.',
+        confirm: 'Löschung sperren',
+      },
+      purgeRelease: {
+        title: 'Die Löschung dieser Veranstaltung freigeben?',
+        body: 'Die Veranstaltung wird zu ihrem eigenen Termin wieder löschbar, der schon vorbei sein kann: Der nächste Durchlauf löscht sie dann.',
+        confirm: 'Löschung freigeben',
+      },
+      photoDown: {
+        title: 'Dieses Foto entfernen?',
+        body: 'Es verschwindet sofort von der Wand, aus dem Gästefeed, vom Galerielink und von den Bildschirmen des Gastgebers, und offene Bildschirme vergessen es. Die Datei bleibt erhalten. Der Gastgeber kann es nicht zurückholen.',
+        confirm: 'Foto entfernen',
+      },
+      photoUp: {
+        title: 'Dieses Foto wiederherstellen?',
+        body: 'Es erscheint wieder mit dem Status, den der Gastgeber ihm gegeben hatte.',
+        confirm: 'Foto wiederherstellen',
+      },
+    },
   },
 
   titles: {
@@ -1565,5 +1637,6 @@ export const de: UiText = {
     siteClient: 'Kunde',
     siteAccounts: 'Konten der Instanz',
     siteAudit: 'Protokoll der Instanz',
+    siteTakedown: 'Inhalt entfernen',
   },
 }

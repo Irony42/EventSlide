@@ -511,6 +511,19 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   siteAccounts: vi.fn(async () => ({ items: [], next: null })),
   siteAudit: vi.fn(async () => ({ items: [], next: null })),
   siteClientDefaults: vi.fn(async () => aSiteClientDefaults()),
+  siteLookupEvents: vi.fn(async () => ({ items: [] })),
+  siteEventState: vi.fn(async () => {
+    throw new Error('siteEventState: a test states its own answer')
+  }),
+  sitePhotoState: vi.fn(async () => {
+    throw new Error('sitePhotoState: a test states its own answer')
+  }),
+  siteTakeDownPhoto: vi.fn(async () => undefined),
+  siteRestorePhoto: vi.fn(async () => undefined),
+  siteTakeDownEvent: vi.fn(async () => undefined),
+  siteRestoreEvent: vi.fn(async () => undefined),
+  siteHoldEventPurge: vi.fn(async () => undefined),
+  siteReleaseEventPurge: vi.fn(async () => undefined),
   siteProvisionClient: vi.fn(async () => ({
     clientId: CLIENT_ID,
     invitation: aSiteInvitation(),
