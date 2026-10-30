@@ -8,8 +8,7 @@
 
   /* ---- Surfaces. Dark by default: the room is dark and phones are held in it. ---- */
   /* ADR 0010, amendment of 29/10: the product's own look is EventSlide again, the violet of 3.0
-     (a slate ground at hue 265, a lavender accent at 305, the system face), over a soft aurora
-     that the glass can show. It is the root, so it is what every page wears when an event names
+     (a slate ground at hue 265, a lavender accent at 305, the system face), over a soft aurora. It is the root, so it is what every page wears when an event names
      no other ambiance; the Guinguette and the others are blocks below. */
   --surface-base: oklch(16% 0.02 265); /* page background, wall letterbox */
   --surface-raised: oklch(21% 0.025 265); /* Card, toolbar, moderation tile */
@@ -17,7 +16,7 @@
   /* ---- Two translucent blacks, because they were one and they are two different jobs.
 
          `--surface-scrim` is a **ground**: text sits on it, over a photograph nobody has
-         taken yet, so its alpha is derived exactly as the glass tints are — the lowest one
+         taken yet, so its alpha is derived, not chosen: the lowest one
          at which every ink the wall paints clears section 8's "anything on the wall ≥ 7:1
          regardless of size" over a white dress in full sun. At the 0.55 it carried since
          2.0 that sentence was false: `--text-primary` measured 4.36:1 and
@@ -59,8 +58,7 @@
   --accent-texture: none;
   /* The ground of the product's own look: no photograph, a soft aurora. Three large radial
      glows in the violet, indigo and lavender family over the slate base, static, painted on
-     `html::before` and behind the wall like every other ground. Its only job is to give the
-     glass something to show, so it is a colour field and not a picture: each glow's peak is a
+     `html::before` and behind the wall like every other ground. It is a colour field and not a picture: each glow's peak is a
      token below, held by tokens.contrast.test.ts to the bars text has on the base itself, because
      text sits on it directly. */
   --aurora-violet: oklch(24.5% 0.12 305);
@@ -174,84 +172,19 @@
   --shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.45);
   --shadow-lg: 0 24px 60px -12px oklch(0% 0 0 / 0.55);
 
-  /* ---- Glass. A material, which is why it is a set and not a value (roadmap 11.1).
-
-         Six parts make a pane read as a sheet of glass rather than as a panel with an
-         effect on it: a blur radius, a saturation lift, a tint, a hairline border, an
-         inner highlight and a shadow. They are declared here once and read in exactly
-         one other file, `glass.module.css`. A component that spells any of them out for
-         itself is the failure this set exists to prevent — a pane whose blur differs by
-         four pixels from the one beside it reads as a mistake to somebody who cannot say
-         why — and `glass.material.test.ts` fails the build on it.
-
-         **The tint is a floor, and both floors are derived rather than chosen.** A pane
-         is legible because of its alpha and nothing else — a blurred white field is still
-         white, and saturation is a rotation that leaves white where it was — so the only
-         question is what can be painted underneath. That question has two answers in this
-         product, which is why there are two tints and not one:
-
-         - **Over an unknown photograph**, the brightest possible backdrop is pure white:
-           a white dress in full sun, and also the ceiling of the sRGB gamut, so nothing a
-           camera can produce is worse. Held at the filter's own ceiling (the dimming below),
-           0.80 is the lowest alpha that holds there on the violet; 0.96 on the Guinguette
-           and 0.95 on the 3.0 slate, which dimmed nothing.
-         - **Over our own ground**, the backdrop is a colour this product chose, so the
-           worst case is enumerable instead of unbounded: the brightest *field* a
-           stylesheet paints on a non-wall surface, which today is a primary button's
-           `--accent` at whichever of the 360 hues an event may pick renders lightest.
-           0.61 on the violet, whose lightest field is the lavender button; 0.93 on the
-           Guinguette, whose kraft button is darker than white.
-
-         Both are derived against the same bar, so the only thing that differs between
-         them is the backdrop: the lowest alpha at which the material is at least as good
-         a ground as `--surface-overlay` — the darkest surface this design system already
-         permits text on — for `--text-primary`, `--text-secondary` and `--text-muted` at
-         once, while keeping an accent link, the focus ring and the status glyphs above
-         their own bars. `tokens.contrast.test.ts` measures every one of those pairs, for
-         both tints, over all 360 accents an event can carry.
-
-         **Why the glass of the root look is dimmed (29/10, ADR 0010 amendment).** Both floors
-         above are about how bright the thing *behind* the pane can be, and the palette has
-         about a tenth of a ratio point of headroom there: `--text-muted` clears 4.62:1 on
-         `--surface-overlay` against a 4.5 target. Over white that left 0.95, a pane with five
-         per cent of the world showing through, which nobody reads as glass. The lever that is
-         left is the backdrop itself: `--glass-brightness` is the last function of the filter,
-         so whatever is behind the pane (a photograph, the aurora, a button) is scaled to at most
-         that grey *before* the tint is laid on it, and the worst case the floors are derived
-         against is that grey and not white. It is a number the test reads out of this file,
-         derived alpha and all, so it cannot be nudged without the floors following. The
-         ambiances inherit the dimming and keep the tints they had: those are measured over
-         white, a bound that dimming can only make conservative for a light ink, and one it
-         cannot move for a dark one, whose worst photograph is black.
-
-         The colour is `--surface-raised` in every tier, and that is what makes the no-blur
-         fallback honest: `--glass-opaque` is not a new shade invented for a degraded mode,
-         it is a surface this product already ships and already tests. One colour, three
-         alphas. ---- */
-  --glass-blur: 20px;
-  --glass-saturate: 180%;
-  /* Declared whole so a tier can switch it off in one word. `none` is not a zero-radius
-     blur: a filter that runs still promotes a compositing layer, and the point of the
-     fallback is to stop paying for one. */
-  --glass-brightness: 0.32;
-  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
-    brightness(var(--glass-brightness));
-  --glass-tint-photo: oklch(21% 0.025 265 / 0.8); /* --surface-raised, over a photograph */
-  --glass-tint-ground: oklch(21% 0.025 265 / 0.61); /* --surface-raised, over our own ground */
-  /* The tint in force, and the conservative one by default: a surface that declares
-     nothing at all is held to the floor that survives an unknown photograph. Every tier
-     below is an alias of one of the two above, so a raw alpha exists once. */
-  --glass-tint: var(--glass-tint-photo);
-  --glass-opaque: var(--surface-raised);
-  /* The edge and the highlight are the product's own light at a hairline's strength —
-     `--text-primary`'s colour, not a new one. Glass is lit from the top, so the
-     highlight is inset and the border is not. */
-  --glass-border: oklch(97% 0.005 265 / 0.16);
-  --glass-highlight: oklch(97% 0.005 265 / 0.1);
-  --glass-shadow: inset 0 1px 0 0 var(--glass-highlight), var(--shadow-lg);
+  /* ---- The pane. The hairline, the highlight and the shadow of a pinned bar (the guest's composer,
+         the host's moderation toolbar, the shared gallery's download bar), read in exactly one
+         file, `sheet.module.css`. It was a glass material until 3.3; the blur and the translucent
+         tints are retired (docs/adr/0012-retire-glass.md) and the pane paints `--surface-raised`
+         whole. The edge and the highlight are the product's own light at a hairline's strength,
+         `--text-primary`'s colour and not a new one; the highlight is inset and the border is not.
+         ---- */
+  --pane-border: oklch(97% 0.005 265 / 0.16);
+  --pane-highlight: oklch(97% 0.005 265 / 0.1);
+  --pane-shadow: inset 0 1px 0 0 var(--pane-highlight), var(--shadow-lg);
 
   /* ---- Sheet elevation. A pane pinned over content that scrolls under it must read as a
-         layer *above* that content, and the glass material alone does not say so: its shadow
+         layer *above* that content, and the pane's own shadow does not say so: it
          falls downward (`--shadow-lg` is offset 24px and pulled in 12px), so nothing is cast
          onto the rows passing beneath its top edge, and its surface is the card's own colour.
          Three parts, all drawn outside the box so the pane's height does not move:
@@ -336,12 +269,7 @@
  *
  *
  * Every block restates everything it moves, and `--accent-texture` and `--button-radius`
- * too, because the root has no fibres and a rounded control. The two named glass tints
- * are restated and the tiers that alias them (--glass-tint, --glass-opaque) are not: on
- * `:root:has()` they re-resolve with this block's raised colour, and restating them here
- * would outrank the shell's opaque tier and the fallbacks below, which name the ambiance
- * selectors for that reason. A template preview, which matches only the element, keeps the
- * root's glass; it carries no glass pane.
+ * too, because the root has no fibres and a rounded control.
  *
  * The faces are bundled (no CDN) and cost nothing until an element on screen uses them.
  * Instrument Serif is the root's display face and Bricolage Grotesque its heading face;
@@ -565,11 +493,8 @@
   --decor-cloth: oklch(93% 0.02 85);
   --qr-field: var(--text-primary);
   --qr-ink: var(--surface-base);
-  --glass-opaque: var(--surface-raised);
-  --glass-tint-photo: oklch(21% 0.02 70 / 0.96);
-  --glass-tint-ground: oklch(21% 0.02 70 / 0.93);
-  --glass-border: oklch(96% 0.022 85 / 0.16);
-  --glass-highlight: oklch(96% 0.022 85 / 0.1);
+  --pane-border: oklch(96% 0.022 85 / 0.16);
+  --pane-highlight: oklch(96% 0.022 85 / 0.1);
   --sheet-rim: oklch(96% 0.022 85 / 0.45);
 }
 
@@ -613,10 +538,8 @@
   --wall-card-ink-2: var(--accent-contrast);
   --decor-stripe: oklch(27% 0.07 258);
   --decor-cloth: oklch(96% 0.015 85);
-  --glass-tint-photo: oklch(22% 0.055 255 / 0.96);
-  --glass-tint-ground: oklch(22% 0.055 255 / 0.96);
-  --glass-border: oklch(97% 0.015 85 / 0.16);
-  --glass-highlight: oklch(97% 0.015 85 / 0.1);
+  --pane-border: oklch(97% 0.015 85 / 0.16);
+  --pane-highlight: oklch(97% 0.015 85 / 0.1);
   --sheet-rim: oklch(97% 0.015 85 / 0.45);
 }
 
@@ -659,10 +582,8 @@
   --wall-card-ink-2: var(--accent-contrast);
   --decor-cloth: oklch(92% 0.04 85);
   --decor-weave: oklch(87% 0.045 82);
-  --glass-tint-photo: oklch(21% 0.035 60 / 0.96);
-  --glass-tint-ground: oklch(21% 0.035 60 / 0.96);
-  --glass-border: oklch(98% 0.02 85 / 0.16);
-  --glass-highlight: oklch(98% 0.02 85 / 0.1);
+  --pane-border: oklch(98% 0.02 85 / 0.16);
+  --pane-highlight: oklch(98% 0.02 85 / 0.1);
   --sheet-rim: oklch(98% 0.02 85 / 0.45);
 }
 
@@ -708,10 +629,8 @@
   --decor-warp: oklch(76% 0.13 65 / 0.75);
   --decor-weft: oklch(55% 0.06 150 / 0.85);
   --decor-weft-dark: oklch(16% 0.035 255 / 0.9);
-  --glass-tint-photo: oklch(21% 0.04 255 / 0.96);
-  --glass-tint-ground: oklch(21% 0.04 255 / 0.96);
-  --glass-border: oklch(96% 0.012 85 / 0.16);
-  --glass-highlight: oklch(96% 0.012 85 / 0.1);
+  --pane-border: oklch(96% 0.012 85 / 0.16);
+  --pane-highlight: oklch(96% 0.012 85 / 0.1);
   --sheet-rim: oklch(96% 0.012 85 / 0.45);
 }
 
@@ -754,10 +673,8 @@
   --wall-card-ink: var(--accent-contrast);
   --wall-card-ink-2: var(--accent-contrast);
   --decor-gold: oklch(77% 0.09 85);
-  --glass-tint-photo: oklch(20% 0.02 70 / 0.97);
-  --glass-tint-ground: oklch(20% 0.02 70 / 0.97);
-  --glass-border: oklch(97% 0.025 90 / 0.16);
-  --glass-highlight: oklch(97% 0.025 90 / 0.1);
+  --pane-border: oklch(97% 0.025 90 / 0.16);
+  --pane-highlight: oklch(97% 0.025 90 / 0.1);
   --sheet-rim: oklch(97% 0.025 90 / 0.45);
 }
 
@@ -769,11 +686,6 @@
 [data-event-ambiance='noces'],
 :root:has(:where([data-event-ambiance='noces']:not([data-template-preview]))) {
   color-scheme: light;
-  /* A light pane's worst photograph is black, which dimming cannot move; a dimmed bright backdrop
-     would only make it greyer than the page. Restated whole: the filter is substituted where declared. */
-  --glass-brightness: 1;
-  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
-    brightness(var(--glass-brightness));
   --surface-base: oklch(97.5% 0.008 85);
   --surface-raised: oklch(100% 0 0);
   --surface-overlay: oklch(95.5% 0.01 80);
@@ -822,10 +734,8 @@
   --qr-ink: var(--text-primary);
   --decor-rule: oklch(45% 0.19 24 / 0.6);
   --decor-petal: oklch(48% 0.19 24 / 0.85);
-  --glass-tint-photo: oklch(99% 0.005 85 / 0.96);
-  --glass-tint-ground: oklch(99% 0.005 85 / 0.96);
-  --glass-border: oklch(21% 0.03 10 / 0.14);
-  --glass-highlight: oklch(100% 0 0 / 0.6);
+  --pane-border: oklch(21% 0.03 10 / 0.14);
+  --pane-highlight: oklch(100% 0 0 / 0.6);
   --sheet-rim: oklch(21% 0.03 10 / 0.45);
   --sheet-shade: oklch(21% 0.03 10 / 0.3);
 }
@@ -897,10 +807,8 @@
   --wall-card-ink-2: var(--accent-contrast);
   --qr-field: var(--text-primary);
   --qr-ink: var(--surface-base);
-  --glass-tint-photo: oklch(20% 0.024 var(--ground-hue) / 0.97);
-  --glass-tint-ground: oklch(20% 0.024 var(--ground-hue) / 0.97);
-  --glass-border: oklch(96% 0.012 var(--ground-hue) / 0.16);
-  --glass-highlight: oklch(96% 0.012 var(--ground-hue) / 0.1);
+  --pane-border: oklch(96% 0.012 var(--ground-hue) / 0.16);
+  --pane-highlight: oklch(96% 0.012 var(--ground-hue) / 0.1);
   --sheet-rim: oklch(96% 0.012 var(--ground-hue) / 0.45);
 }
 
@@ -908,9 +816,6 @@
 [data-event-ambiance='custom'][data-ambiance-ground='light'],
 :root:has(:where([data-event-ambiance='custom'][data-ambiance-ground='light']:not([data-template-preview]))) {
   color-scheme: light;
-  --glass-brightness: 1;
-  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))
-    brightness(var(--glass-brightness));
   --surface-base: oklch(97.5% 0.01 var(--ground-hue));
   --surface-raised: oklch(99.5% 0.004 var(--ground-hue));
   --surface-overlay: oklch(95% 0.015 var(--ground-hue));
@@ -954,10 +859,8 @@
   --wall-card-ink-2: var(--text-secondary);
   --qr-field: var(--surface-raised);
   --qr-ink: var(--text-primary);
-  --glass-tint-photo: oklch(99.5% 0.004 var(--ground-hue) / 0.95);
-  --glass-tint-ground: oklch(99.5% 0.004 var(--ground-hue) / 0.95);
-  --glass-border: oklch(21% 0.03 var(--ground-hue) / 0.14);
-  --glass-highlight: oklch(100% 0 0 / 0.6);
+  --pane-border: oklch(21% 0.03 var(--ground-hue) / 0.14);
+  --pane-highlight: oklch(100% 0 0 / 0.6);
   --sheet-rim: oklch(21% 0.03 var(--ground-hue) / 0.45);
   --sheet-shade: oklch(21% 0.03 var(--ground-hue) / 0.3);
 }
@@ -1117,103 +1020,4 @@
 
 [data-event-frame='round'] {
   --wall-frame-radius: var(--radius-lg);
-}
-
-/**
- * The glass budget, roadmap 11.3: what is switched off first, decided here rather than
- * at a wedding.
- *
- * Every tier below lands on the same two declarations, because there is one fallback and
- * not four. Blur is cheap over still content — the compositor blurs once and keeps the
- * layer — and expensive over content that changes every frame, because then it blurs
- * every frame. That single sentence is the whole rule, and it is what decides which
- * surface loses the effect: the wall is the only surface in this product whose content
- * moves continuously, and since roadmap 1.4 it may be scaling, decoding a clip and
- * crossfading at the same time. So **the room gets the opaque fallback and the guest
- * keeps the blur**, which is the outcome roadmap 11.3 asks to be chosen in advance.
- *
- * The switch is a custom property on the surface element and not a second stylesheet,
- * for the same reason the event's theme is (section 12): properties inherit, so one
- * attribute on the surface decides the material for everything inside it, in the same
- * paint, with no component knowing that a tier exists.
- *
- * The conditions are not the same kind of thing and are deliberately listed apart: one is
- * a capability, two are preferences a person set, and the last is this product's own
- * decision about the room.
- */
-
-/**
- * The capability. Safari carried `backdrop-filter` behind `-webkit-` until 18 and the
- * browsers in scope start at 15.4 (section 3), so asking only about the unprefixed
- * property would send several years of iPhones to a fallback they do not need — on the
- * surface where most guests actually are.
- */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  /* The ambiance selectors too (ADR 0010): an ambiance restates the named tints, and a
-     fallback that only reached :root would lose to it. */
-  :root,
-  [data-event-ambiance],
-  :root:has(:where([data-event-ambiance]:not([data-template-preview]))) {
-    --glass-filter: none;
-    --glass-tint-photo: var(--glass-opaque);
-    --glass-tint-ground: var(--glass-opaque);
-  }
-}
-
-/**
- * The preferences. Reduced transparency is the same category of request as reduced
- * motion — a person telling the machine that a visual effect costs them something — and
- * `prefers-contrast: more` is the tint floor taken to its conclusion: somebody who has
- * asked for more contrast should not be handed the one ground in the product whose
- * contrast depends on a photograph. Both land on the opaque tier, which is a surface
- * this design system already ships, so neither is a degraded look.
- */
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :root,
-  [data-event-ambiance],
-  :root:has(:where([data-event-ambiance]:not([data-template-preview]))) {
-    --glass-filter: none;
-    --glass-tint-photo: var(--glass-opaque);
-    --glass-tint-ground: var(--glass-opaque);
-  }
-}
-
-/**
- * The two blocks above move the *named* tints rather than `--glass-tint`, and that is the
- * difference between a fallback that works and one that is overruled.
- *
- * A tier below is a declaration on a descendant element — the surface — and a descendant
- * always wins over `:root` for itself and its subtree, whatever the specificity of the two
- * selectors. So a `:root` block that set `--glass-tint` directly would be silently
- * discarded on every surface carrying a tier, and a guest who asked for more contrast
- * would be handed the translucent pane they asked not to have. Moving the named tints
- * instead means every tier keeps pointing at the same alias it always did and follows the
- * fallback without knowing it exists.
- */
-
-/**
- * Our own ground, roadmap 11.2. The pane cannot meet a pixel this product did not choose,
- * so the floor is the exact one calculated above instead of the one white demands.
- * `app/glassBackdrop.ts` decides which addresses may claim it, and a test walks the real
- * import graph rather than trusting the claim.
- */
-/**
- * A preview of an ambiance (the template preview, the Sur mesure editor's frames) is excluded from
- * the :root:has() twins on purpose, so the root's --glass-tint was substituted with the root's own
- * tint and every pane inside the frame kept it: a light ambiance previewed dark panes. The frame
- * points the alias at its own named tint again; the fallbacks above still reach it, because they
- * move the named tints on every [data-event-ambiance].
- */
-[data-template-preview][data-event-ambiance] {
-  --glass-tint: var(--glass-tint-photo);
-}
-
-[data-glass='ground'] {
-  --glass-tint: var(--glass-tint-ground);
-}
-
-/** The room, by the budget above. `AppShell` sets it; `glass.ts` holds the rule. */
-[data-glass='opaque'] {
-  --glass-filter: none;
-  --glass-tint: var(--glass-opaque);
 }

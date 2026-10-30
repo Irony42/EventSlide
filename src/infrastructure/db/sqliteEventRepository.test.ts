@@ -548,7 +548,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 305,
             fonts: 'comic',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         }),
@@ -560,7 +559,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 305,
             fonts: 'sans',
             frame: 'oval',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         }),
@@ -572,30 +570,18 @@ describe('SqliteEventRepository', () => {
             accentHue: 'rose',
             fonts: 'sans',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         }),
       },
       {
-        // Absent means "written before the field existed" and is forgiven above. Present
-        // and unknown is a value from another program's vocabulary, and defaulting it
-        // would render a surface the host did not configure — the same reading the font
-        // pairing and the frame style beside it already get.
-        holds: 'an unknown material',
-        stored: json({
-          theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'opaque' },
-        }),
-      },
-      {
-        // ADR 0010, the same reading as the material: present and unknown is corruption.
+        // ADR 0010: present and unknown is corruption.
         holds: 'an unknown ambiance',
         stored: json({
           theme: {
             accentHue: 305,
             fonts: 'sans',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'disco',
           },
         }),
@@ -619,7 +605,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 400,
             fonts: 'sans',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         }),
@@ -744,7 +729,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 160,
             fonts: 'sans',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         }),
@@ -770,7 +754,6 @@ describe('SqliteEventRepository', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'eventslide',
       })
     })
@@ -791,7 +774,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 305,
             fonts: 'sans',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'custom',
             custom,
           },
@@ -803,11 +785,11 @@ describe('SqliteEventRepository', () => {
     })
 
     it('renders an event themed before ambiances existed in the product’s own look', async () => {
-      // ADR 0010: no migration, for the material's reason. A theme with four keys has been
+      // ADR 0010: no migration. A theme with four keys has been
       // rendering the root look since it was written, and that is what `darkroom` is.
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 250, fonts: 'sans', frame: 'square', material: 'plain' } }),
+        json({ theme: { accentHue: 250, fonts: 'sans', frame: 'square' } }),
         'evt-1',
       )
 
@@ -815,7 +797,6 @@ describe('SqliteEventRepository', () => {
         accentHue: 250,
         fonts: 'sans',
         frame: 'square',
-        material: 'plain',
         ambiance: 'eventslide',
       })
     })
@@ -831,7 +812,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 345,
             fonts: 'serif',
             frame: 'round',
-            material: 'glass',
             ambiance: 'darkroom',
           },
         }),
@@ -842,7 +822,6 @@ describe('SqliteEventRepository', () => {
         accentHue: 345,
         fonts: 'serif',
         frame: 'round',
-        material: 'glass',
         ambiance: 'eventslide',
       })
     })
@@ -857,7 +836,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 305,
             fonts: 'sans',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         }),
@@ -876,7 +854,6 @@ describe('SqliteEventRepository', () => {
             accentHue: 305,
             fonts: 'sans',
             frame: 'round',
-            material: 'glass',
             ambiance: 'riviera',
           },
         }),
@@ -886,25 +863,48 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.theme.ambiance).toBe('riviera')
     })
 
-    it('renders an event themed before the material existed exactly as it rendered then', async () => {
-      // The same question one level down, and the reason there is no migration for this
-      // field. An event themed between roadmap 2.2 and 11.5 holds a `theme` object with
-      // three keys; `glass` is what that blob has been rendering since it was written, so
-      // filling it in changes nothing a host or a guest would notice. Reading it as `plain`
-      // would strip the material from every themed gallery on the box at the next restart.
+    it.each([['glass'], ['plain'], ['opaque'], [42], [null]])(
+      'ignores a stored theme.material of %j: the key is dead (ADR 0012)',
+      async (material) => {
+        // Glass was retired. Rows written before still carry the key, and a garbage value must
+        // not be corruption: nothing reads it, so nothing can be wrong with it.
+        await repo.save(anEvent({ id: 'evt-1' }))
+        db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+          json({
+            theme: {
+              accentHue: 345,
+              fonts: 'serif',
+              frame: 'round',
+              material,
+              ambiance: 'guinguette',
+            },
+          }),
+          'evt-1',
+        )
+
+        expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
+          accentHue: 345,
+          fonts: 'serif',
+          frame: 'round',
+          ambiance: 'guinguette',
+        })
+      },
+    )
+
+    it('does not write the material key back when settings are saved', async () => {
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
-        json({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } }),
+        json({ theme: { accentHue: 345, fonts: 'serif', frame: 'round', material: 'glass' } }),
         'evt-1',
       )
+      const event = await repo.findById(asEventId('evt-1'))
+      if (event === null) throw new Error('event missing')
+      await repo.save(event)
 
-      expect((await repo.findById(asEventId('evt-1')))?.settings.theme).toEqual({
-        accentHue: 345,
-        fonts: 'serif',
-        frame: 'round',
-        material: 'glass',
-        ambiance: 'eventslide',
-      })
+      const row = db.prepare(`SELECT settings FROM events WHERE id = ?`).get('evt-1') as {
+        settings: string
+      }
+      expect(row.settings).not.toContain('material')
     })
 
     it('refuses to hydrate an event whose status is outside the lifecycle', async () => {

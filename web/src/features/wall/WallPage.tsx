@@ -275,11 +275,9 @@ export function WallPage() {
       {...theme}
       // What this machine has turned out not to be able to afford — roadmap 11.3.
       //
-      // The room starts having already given up the blur, which is `glass.ts`'s decision and
-      // needs no measurement. Everything below that rung is a verdict taken here, on the
-      // night, by the wall watching its own frames: `budget.ts` holds the order and
-      // `useFrameBudget` holds the loop. It is an attribute on the root for the reason the
-      // glass tier is one on the shell — custom properties and descendant selectors reach
+      // Every rung is a verdict taken here, on the night, by the wall watching its own frames: `budget.ts` holds the order and
+      // `useFrameBudget` holds the loop. It is an attribute on the root so that
+      // custom properties and descendant selectors reach
       // everything inside in the same paint, and no component below learns that a budget
       // exists. A wall that is coping spreads nothing at all.
       {...wallBudgetProps(budget)}

@@ -7,7 +7,7 @@ import MINE_CSS from './components/MyPhotos.module.css?raw'
 import QUEUE_CSS from './components/UploadQueue.module.css?raw'
 import FIELD_CSS from '../../design-system/components/Field.module.css?raw'
 import TOKENS_CSS from '../../design-system/tokens.css?raw'
-import GLASS_CSS from '../../design-system/glass.module.css?raw'
+import SHEET_CSS from '../../design-system/sheet.module.css?raw'
 import DESIGN_SYSTEM_MD from '../../../../docs/DESIGN-SYSTEM.md?raw'
 
 /**
@@ -134,9 +134,9 @@ describe('the pinned pane reads as a raised layer, and only while it is pinned',
     },
   )
 
-  it('lets the material draw the lift as a second shadow layer, outside the box', () => {
-    expect(withoutComments(GLASS_CSS)).toMatch(
-      /box-shadow:\s*var\(--glass-shadow\),\s*var\(--sheet-lift,\s*var\(--elevation-flat\)\)/,
+  it('lets the sheet draw the lift as a second shadow layer, outside the box', () => {
+    expect(withoutComments(SHEET_CSS)).toMatch(
+      /box-shadow:\s*var\(--pane-shadow\),\s*var\(--sheet-lift,\s*var\(--elevation-flat\)\)/,
     )
   })
 

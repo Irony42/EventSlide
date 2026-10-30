@@ -760,13 +760,6 @@ export const es: UiText = {
       square: 'Esquinas rectas',
       round: 'Esquinas muy redondeadas',
     },
-    themeMaterial: 'Material de los paneles',
-    themeMaterialHint:
-      'El cristal deja entrever lo que pasa por debajo; la superficie lisa es opaca. La diferencia es sutil y solo afecta a la pantalla de envío de sus invitados: su consola de moderación y la pantalla de la sala no cambian.',
-    themeMaterialNames: {
-      glass: 'Cristal esmerilado',
-      plain: 'Superficie lisa',
-    },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:
       'El mundo que visten los móviles de sus invitados, la pantalla de la sala y las páginas de este evento en su consola.',

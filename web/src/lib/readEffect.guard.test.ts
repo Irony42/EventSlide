@@ -28,7 +28,7 @@ import { withoutComments } from '../testing/withoutComments'
  * exact and an entry that no longer matches fails, so the list shrinks when a reader is
  * adopted and cannot quietly excuse a second one.
  *
- * Read as text rather than imported, for the reason `glassBackdrop.test.ts` is: no behaviour
+ * Read as text rather than imported, because no behaviour
  * tells the copies apart until one of them drifts.
  */
 

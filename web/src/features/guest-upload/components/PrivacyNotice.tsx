@@ -128,8 +128,7 @@ export interface PrivacyNoticeDialogProps {
  * The notice again, after it has been read — "Comment vos photos sont utilisées".
  *
  * The design system's `Dialog`, so focus moves in, Escape closes it and focus returns to
- * the link that opened it. Opaque rather than glass, like every dialog in the product:
- * `docs/DESIGN-SYSTEM.md` §13 measured the glass dialog out. A close button at the
+ * the link that opened it. Opaque, like every dialog in the product. A close button at the
  * bottom as well as the one in the corner, because the corner is the far side of a phone
  * from the thumb that just scrolled to the end.
  */

@@ -157,7 +157,6 @@ describe('the template summary', () => {
             accentHue: 345,
             fonts: 'serif',
             frame: 'round',
-            material: 'glass',
             ambiance: 'eventslide',
           },
         },
@@ -180,7 +179,6 @@ describe('the template summary', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'round',
-      material: 'glass',
       ambiance: 'eventslide',
     } as const
 
@@ -200,7 +198,6 @@ describe('the template summary', () => {
             accentHue: 305,
             fonts: 'sans',
             frame: 'soft',
-            material: 'glass',
             ambiance: 'eventslide',
           },
         },
@@ -235,7 +232,6 @@ describe('the template summary', () => {
       accentHue: 137,
       fonts: 'serif',
       frame: 'round',
-      material: 'glass',
       ambiance: 'eventslide',
     }
 

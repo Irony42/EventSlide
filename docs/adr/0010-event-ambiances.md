@@ -275,3 +275,12 @@ not migrated.
 
 **Not done, said so.** The ambiances keep the 0.96 and 0.93 tints
 they had; making them as visible is a per-ambiance derivation.
+
+## Note of 30/10/2026: the glass tints are retired
+
+[ADR 0012](0012-retire-glass.md) retired the liquid-glass material. Every mention above of glass tints
+(`--glass-tint-photo`, `--glass-tint-ground`, `--glass-brightness`, `--glass-filter`) and of the
+derived alphas describes what shipped in 3.0 to 3.2 and no longer exists: panes are opaque
+`--surface-raised`, and each ambiance keeps only its pane hairline and highlight (`--pane-border`,
+`--pane-highlight`). The ambiances themselves, their contrast bars on opaque surfaces and the
+decisions about faces, grounds and ornaments stand.

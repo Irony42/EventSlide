@@ -13,7 +13,6 @@ import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
 import { AccountMenu } from './AccountMenu'
 import { ErrorBoundary } from './ErrorBoundary'
-import { glassBackdropFor } from './glassBackdrop'
 import { LanguagePicker } from './LanguagePicker'
 import { HostNotFoundView, NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
@@ -180,21 +179,6 @@ const RouteFallback = () => {
 }
 
 /**
- * Which glass tier the address under a layout may claim — roadmap 11.2.
- *
- * Read in the layout rather than passed up from a page, because a layout is the innermost
- * thing that renders the shell and the shell is where the tier reaches the DOM. Reading the
- * location is what lets one layout serve several addresses with different answers: the
- * guest's join screen can afford the translucent tier and their upload screen cannot, and
- * both are the same layout with the same toast region — so splitting them into two layouts
- * would remount the shell in the middle of the guest's critical path to change a custom
- * property.
- *
- * The table and the walk that checks it are in `glassBackdrop.ts`.
- */
-const useGlassBackdrop = () => glassBackdropFor(useLocation().pathname)
-
-/**
  * Whether the host footer may offer "Soutenir le projet" (roadmap G4-02) and the operator's
  * help page (G2-17) at this address: `/login` and `/admin/**`, the host's own screens, and
  * nothing else.
@@ -229,12 +213,10 @@ const useHostScreen = (): boolean => {
  * `router.test.tsx > the toast region` guards it by driving a real toast.
  */
 const GuestLayout = () => {
-  const backdrop = useGlassBackdrop()
   return (
     <ToastProvider>
       <AppShell
         surface="guest"
-        backdrop={backdrop}
         header={<LanguagePicker />}
         // The one footer that may carry "Signaler un contenu" (roadmap G2-17 / P3-18, DSA art.
         // 16): these are the screens where a stranger meets other people's photographs.
@@ -308,7 +290,6 @@ const HostHeader = () => {
  * layout's shell instead of replacing the document.
  */
 const HostLayout = () => {
-  const backdrop = useGlassBackdrop()
   const hostScreen = useHostScreen()
   const signedInArea = useSignedInArea()
   const { pathname } = useLocation()
@@ -320,7 +301,6 @@ const HostLayout = () => {
         <SessionProvider scope={signedInArea ? 'signed-in' : 'open'}>
           <AppShell
             surface="host"
-            backdrop={backdrop}
             header={<HostHeader />}
             // The one footer that may carry "Soutenir le projet" (roadmap G4-02) and the
             // operator's help page (G2-17), and only on the host's own screens: nobody on them
@@ -346,10 +326,6 @@ const HostLayout = () => {
  * is the language of whichever machine the venue had in a cupboard.
  * `src/domain/events/eventLanguage.ts` has the argument, `lib/i18n/deferredLocale.ts` the
  * mechanics of a language that arrives a round trip after this shell renders.
- *
- * **The wall passes no backdrop, and that is not an omission.** The room takes the opaque
- * tier whatever is behind a pane, so a backdrop here would be a value with no consequence
- * — and one somebody later reads as a decision. `glassBackdrop.ts` records the real answer.
  */
 const WallLayout = () => (
   <DeferredLocale>
