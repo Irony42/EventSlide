@@ -1,4 +1,4 @@
-import type { PhotoStatus } from '../photos/photoStatus'
+import { allowedTransitionsFrom, type PhotoStatus } from '../photos/photoStatus'
 
 /**
  * What a moderator decides about one photo.
@@ -48,3 +48,20 @@ export const targetStatusFor = (decision: ModerationDecision): PhotoStatus =>
 
 export const inverseOf = (decision: ModerationDecision): ModerationDecision | null =>
   INVERSE[decision]
+
+/**
+ * The decisions a photo in `status` may take, in the order the wire lists them.
+ *
+ * **The one place this is derived**, from the status machine rather than copied from it:
+ * a decision is allowed when the status it produces is a legal move from where the photo
+ * is. The console offers exactly these and no others, so a button never leads to
+ * `photo.illegalTransition` and "Publier" is never offered on a photo already on the wall.
+ * A client that kept its own table would drift the day the machine grew a transition.
+ *
+ * The no-op transition (`canTransition(x, x)`) is deliberately not counted: it keeps a
+ * double-click idempotent on the server, but it is not something to put a button on.
+ */
+export const allowedDecisionsFrom = (status: PhotoStatus): readonly ModerationDecision[] => {
+  const reachable = allowedTransitionsFrom(status)
+  return MODERATION_DECISIONS.filter((decision) => reachable.includes(TARGET_STATUS[decision]))
+}

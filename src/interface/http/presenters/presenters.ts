@@ -1,3 +1,4 @@
+import { allowedDecisionsFrom } from '../../../domain/moderation/moderationDecision'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
@@ -480,6 +481,8 @@ export const toModerationQueueItemDto = ({
   // read — the defect that put "par undefined" on a host's screen.
   videoUrl: PLAYABLE_VARIANT[row.kind] === null ? null : mediaUrl(slug, row.id, 'video'),
   durationMs: row.durationMs,
+  // The status machine's answer, not a copy of it: see `allowedDecisionsFrom`.
+  allowedDecisions: allowedDecisionsFrom(row.status),
 })
 
 /**

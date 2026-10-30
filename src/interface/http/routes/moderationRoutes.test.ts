@@ -338,8 +338,26 @@ describe('GET /api/events/:eventSlug/moderation', () => {
       kind: 'photo',
       videoUrl: null,
       durationMs: null,
+      // What the status machine allows from `pending`, so the card offers no dead button.
+      allowedDecisions: ['publish', 'reject'],
     })
   })
+
+  it.each([
+    ['published', P.published, ['reject', 'hide']],
+    ['rejected', P.rejected, ['publish']],
+    ['hidden', P.hidden, ['publish', 'reject']],
+  ] as const)(
+    'says which decisions a %s photo may take, so the console never offers one the machine refuses',
+    async (_status, photoId, expected) => {
+      const agent = await signedIn(subject, 'moderator')
+
+      const response = await agent.get('/api/events/mariage/moderation?status=all')
+
+      const row = response.body.items.find((item: { id: string }) => item.id === photoId)
+      expect(row.allowedDecisions).toEqual(expected)
+    },
+  )
 
   it('carries the caption text itself, because the host reads it before publishing it', async () => {
     const agent = await signedIn(subject, 'moderator')
