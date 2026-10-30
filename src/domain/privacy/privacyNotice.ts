@@ -50,8 +50,8 @@ export type NoticePublication = (typeof NOTICE_PUBLICATIONS)[number]
  *   Named for the page rather than for the people in front of it, so the notice cannot
  *   be read as promising that only the guests in the room will see a photo.
  * - `guestFeed` — the other guests of the event, on their own phones, in the page « Les photos
- *   de la soirée »: every published photo with its author’s first name, its caption and the
- *   reactions it has received. Like the wall it shows `published` and nothing else. No setting
+ *   de la soirée »: every published photo with its author’s first name, and its caption in the
+ *   photo’s text alternative (a guest sees only their own reactions). Like the wall it shows `published` and nothing else. No setting
  *   switches it off (there is no per-event flag: the page is part of the guest flow), so like
  *   `sharedGallery` it is named on every event rather than conditioned on something that
  *   cannot vary.

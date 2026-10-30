@@ -208,28 +208,6 @@ describe('POST /api/events/:slug/privacy-notice/acknowledgement', () => {
     expect(response.body.acknowledgement).toBe('outdated')
     expect(response.body.notice.retentionDays).toBeNull()
   })
-
-  it('shows the notice again to a guest who acknowledged the one that did not name the guest feed', async () => {
-    // The literal is the revision as it was before  joined the audiences. Kept as
-    // text and not recomputed, so that dropping the audience again fails here.
-    harness.guests.seed(
-      aGuest({
-        id: LEA,
-        eventId: WEDDING,
-        noticeAcknowledgement: {
-          revision:
-            'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900',
-          at: AT,
-        },
-      }),
-    )
-
-    const response = await request(harness.app).get(NOTICE).set('Cookie', lea())
-
-    expect(response.body.acknowledgement).toBe('outdated')
-    expect(response.body.notice.audiences).toContain('guestFeed')
-  })
-
   it('shows the notice again to a guest who acknowledged the one that did not name the guest feed', async () => {
     // The literal is the revision as it was before `guestFeed` joined the audiences. Kept as
     // text and not recomputed, so that dropping the audience again fails here.
