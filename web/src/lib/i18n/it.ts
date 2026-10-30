@@ -305,6 +305,8 @@ export const it: UiText = {
     'clientCeilings.periodStartedAtInvalid': 'Questo inizio di periodo non è accettato.',
     'clientCeilings.clipsAllowedInvalid': 'Questa impostazione dei video non è accettata.',
     'clientCeilings.liveAllowedInvalid': 'Questa impostazione di apertura non è accettata.',
+    'siteLookup.queryInvalid':
+      'Inserisca un identificativo, un codice, un indirizzo o il nome di un evento (300 caratteri al massimo).',
     'audit.reasonInvalid':
       'Il motivo deve stare su una riga di al massimo 200 caratteri, senza indirizzo e-mail.',
     'reset.mailerRequired':
@@ -1511,6 +1513,76 @@ export const it: UiText = {
     offboardingRunning:
       'Questo incarico sta per concludersi: gli album verranno eliminati al più tardi alla data indicata sopra.',
     daysNotWhole: 'Indichi un numero intero di giorni.',
+    takedownNav: 'Rimozione',
+    takedownTitle: 'Rimuovere senza guardare',
+    takedownIntro:
+      'Rimuova una foto o un evento segnalato a partire dal suo identificativo, senza mai aprirlo: questa console non mostra miniature, didascalie, nomi di ospiti né indirizzi di media. Ogni atto richiede un motivo, che viene scritto nel registro dell’istanza e che il cliente non legge. Rimuovere non ferma la cancellazione: per conservare il contenuto come prova, lo rimuova e poi blocchi la sua cancellazione.',
+    takedownEventTitle: 'Un evento',
+    takedownEventIntro:
+      'Cerchi l’evento segnalato tramite il suo indirizzo, il suo codice d’invito o il suo nome esatto. Di esso vede solo l’identificativo e lo stato.',
+    takedownEventLabel: 'Indirizzo, codice o nome esatto',
+    takedownEventAction: 'Cerchi l’evento',
+    takedownEventNone:
+      'Nessun evento corrisponde. Il nome deve essere esatto: una parte del nome non basta.',
+    takedownEventHeading: (id: string) => `Evento ${id}`,
+    takedownClient: 'Apri il cliente',
+    takedownNoClient: 'Senza cliente',
+    takedownStateDown: 'Rimosso',
+    takedownStateUp: 'Online',
+    takedownStateHeld: 'Cancellazione bloccata',
+    takedownStateFree: 'Cancellazione normale',
+    takedownEventDown: 'Rimuova l’evento',
+    takedownEventUp: 'Rimetta online',
+    takedownHold: 'Blocchi la cancellazione',
+    takedownRelease: 'Riprenda la cancellazione',
+    takedownPhotoTitle: 'Una foto',
+    takedownPhotoIntro:
+      'Incolli l’identificativo della foto come lo riporta la segnalazione (l’ultima parte del suo indirizzo, prima del nome della variante). Vede solo l’evento a cui appartiene e il suo stato.',
+    takedownPhotoLabel: 'Identificativo della foto',
+    takedownPhotoAction: 'Cerchi la foto',
+    takedownPhotoNone: 'Nessuna foto ha questo identificativo.',
+    takedownPhotoHeading: (id: string) => `Foto ${id}`,
+    takedownPhotoOf: (id: string) => `Nell’evento ${id}`,
+    takedownPhotoDown: 'Rimuova la foto',
+    takedownPhotoUp: 'Ripristini la foto',
+    takedownReason: 'Motivo',
+    takedownReasonHint:
+      'Una frase su una sola riga, di 200 caratteri al massimo, senza indirizzo e-mail. Viene scritta nel registro dell’istanza.',
+    takedownUnknown:
+      'Stato sconosciuto: l’azione potrebbe essere stata eseguita o no, ripeta la ricerca per saperlo.',
+    takedownDone: 'Fatto.',
+    takedownOps: {
+      eventDown: {
+        title: 'Rimuovere questo evento?',
+        body: 'Il muro, il flusso degli ospiti, il link della galleria e la console dell’organizzatore rispondono come se l’evento non esistesse, e gli schermi aperti si chiudono. Non viene cancellato nulla. La conservazione prosegue: per tenere il contenuto come prova, blocchi anche la sua cancellazione.',
+        confirm: 'Rimuova l’evento',
+      },
+      eventUp: {
+        title: 'Rimettere online questo evento?',
+        body: 'Il muro, gli ospiti, la galleria e l’organizzatore lo ritrovano com’era.',
+        confirm: 'Rimetta online',
+      },
+      purgeHold: {
+        title: 'Bloccare la cancellazione di questo evento?',
+        body: 'Il passaggio di conservazione lo ignora, e né l’organizzatore né un ospite possono più cancellare l’evento o una foto. Non viene nascosto nulla: il blocco non si vede in sala. I backup non vengono bloccati.',
+        confirm: 'Blocchi la cancellazione',
+      },
+      purgeRelease: {
+        title: 'Riprendere la cancellazione di questo evento?',
+        body: 'L’evento torna cancellabile alla propria scadenza, che può essere già passata: il prossimo passaggio lo cancellerà allora.',
+        confirm: 'Riprenda la cancellazione',
+      },
+      photoDown: {
+        title: 'Rimuovere questa foto?',
+        body: 'Sparisce subito dal muro, dal flusso degli ospiti, dal link della galleria e dagli schermi dell’organizzatore, e gli schermi aperti la dimenticano. Il file viene conservato. L’organizzatore non può rimetterla.',
+        confirm: 'Rimuova la foto',
+      },
+      photoUp: {
+        title: 'Ripristinare questa foto?',
+        body: 'Riappare con lo stato che l’organizzatore le aveva dato.',
+        confirm: 'Ripristini la foto',
+      },
+    },
   },
 
   titles: {
@@ -1540,5 +1612,6 @@ export const it: UiText = {
     siteClient: 'Cliente',
     siteAccounts: 'Account dell’istanza',
     siteAudit: 'Registro dell’istanza',
+    siteTakedown: 'Rimozione di contenuti',
   },
 }

@@ -551,7 +551,7 @@ archive you took before the upgrade.
 ## Upgrading to 3.3
 
 3.3.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
-`BREAKING` section and nothing has to change in `.env`. This section is here because it adds two
+`BREAKING` section and nothing has to change in `.env`. This section is here because it adds three
 migrations, changes a default, and because the host of a suspended client now sees less than it did.
 
 **Who is affected.** Everyone who upgrades from 3.2.x (the migrations), anyone who never set
@@ -563,7 +563,9 @@ and the account self-erasure).
    `events.taken_down_at`, `events.purge_held_at`) and two partial indexes. No row changes. A 3.2.x
    build still reads the database, and ignores the columns, which means it would **serve again**
    whatever the operator had taken down: restore the archive you took, rather than running 3.2.x on
-   a migrated database, if you go back.
+   a migrated database, if you go back. It also applies **migration 016**, one nullable column and an
+   index (`events.name_fold`) for the operator's lookup by name; the server fills it for existing events
+   the first time it starts, and nothing else changes.
 2. **Take the steps of [Upgrading with Docker](#upgrading-with-docker)**, or
    [without](#without-docker), with `vX.Y.Z` as `v3.3.0`. The image is
    `ghcr.io/irony42/eventslide:3.3.0`.
@@ -576,7 +578,7 @@ and the account self-erasure).
    a suspended client kept reading their photographs (the grid, the moderation queue, the album
    download and the media route); they now get `403 client.suspended` on those. They keep the
    dashboard, the settings, the counts and the audit trail. Resuming the client restores everything.
-5. **Migration 016 adds the proof that an account accepted the terms of use**: `users.terms_version` and
+5. **Migration 017 adds the proof that an account accepted the terms of use**: `users.terms_version` and
    `users.terms_accepted_at`, and copies into them the latest acceptance still present in the audit log.
    Nothing is lost and no setting is needed; a box that sets no `LEGAL_TERMS_URL` records nothing and keeps
    the columns empty.
@@ -592,6 +594,6 @@ and the account self-erasure).
 8. **Nothing else changes for a self-hosted box with `SITE_ADMIN=off`**: the routes are not mounted and no
    client is ever suspended.
 
-**How to tell it worked.** The first boot logs migrations 015 and 016 and `GET /api/health` answers
+**How to tell it worked.** The first boot logs migrations 015, 016 and 017 and `GET /api/health` answers
 `"version": "3.3.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.

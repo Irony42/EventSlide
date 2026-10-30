@@ -142,6 +142,9 @@ import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeResumeClient } from '../application/usecases/clients/resumeClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../application/usecases/clients/suspendClient'
+import { makeGetSiteEventState } from '../application/usecases/site/getSiteEventState'
+import { makeGetSitePhotoState } from '../application/usecases/site/getSitePhotoState'
+import { makeLookupSiteEvents } from '../application/usecases/site/lookupSiteEvents'
 import { makeSetEventPurgeHold } from '../application/usecases/site/setEventPurgeHold'
 import { makeSetEventTakedown } from '../application/usecases/site/setEventTakedown'
 import { makeSetPhotoTakedown } from '../application/usecases/site/setPhotoTakedown'
@@ -997,6 +1000,9 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
      * client's own trail. `/api/site/photos/:photoId/take-down|restore` and
      * `/api/site/events/:eventId/take-down|restore|purge-hold|purge-release`.
      */
+    lookupSiteEvents: makeLookupSiteEvents({ events: adapters.events }),
+    getSiteEventState: makeGetSiteEventState({ events: adapters.events }),
+    getSitePhotoState: makeGetSitePhotoState({ photos: adapters.photos }),
     setPhotoTakedown: makeSetPhotoTakedown({
       photos: adapters.photos,
       audit: adapters.audit,

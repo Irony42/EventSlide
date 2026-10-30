@@ -28,6 +28,9 @@ import { makeDeleteOwnAccount } from '../../../application/usecases/auth/deleteO
 import { SqliteAccountHoldings } from '../../../infrastructure/db/sqliteAccountHoldings'
 import { makeSetClientCeilings } from '../../../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../../../application/usecases/clients/suspendClient'
+import { makeGetSiteEventState } from '../../../application/usecases/site/getSiteEventState'
+import { makeGetSitePhotoState } from '../../../application/usecases/site/getSitePhotoState'
+import { makeLookupSiteEvents } from '../../../application/usecases/site/lookupSiteEvents'
 import { makeSetEventPurgeHold } from '../../../application/usecases/site/setEventPurgeHold'
 import { makeSetEventTakedown } from '../../../application/usecases/site/setEventTakedown'
 import { makeSetPhotoTakedown } from '../../../application/usecases/site/setPhotoTakedown'
@@ -248,6 +251,9 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       suspendClient: makeSuspendClient({ clients, audit, clock }),
       resumeClient: makeResumeClient({ clients, audit, clock }),
       setPhotoTakedown: makeSetPhotoTakedown({ photos, audit, bus, clock }),
+      lookupSiteEvents: makeLookupSiteEvents({ events }),
+      getSiteEventState: makeGetSiteEventState({ events }),
+      getSitePhotoState: makeGetSitePhotoState({ photos }),
       setEventTakedown: makeSetEventTakedown({ events, audit, bus, clock }),
       setEventPurgeHold: makeSetEventPurgeHold({ events, audit, clock }),
       offboardClient: makeOffboardClient({ clients, events, audit, clock }),

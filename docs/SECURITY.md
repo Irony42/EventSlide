@@ -429,7 +429,7 @@ was already on the box. What holds now, each rule with the test that holds it:
   accepting**, so an address that has an account gets the same `400` as one that has none rather than
   `409 invitation.signInRequired` (`acceptInvitation.test.ts`, `invitationRoutes.test.ts`). The agreement is
   written as `account.termsAccepted {version}` **in the transaction that spends the link**, and so is the
-  account's own proof (`users.terms_version`, `terms_accepted_at`, migration 016: the latest acceptance, kept as long
+  account's own proof (`users.terms_version`, `terms_accepted_at`, migration 017: the latest acceptance, kept as long
   as the account lives and shown to the operator in the accounts list, because the audit line is pruned after
   `AUDIT_RETENTION_DAYS` and an account outlives it)
   (`AcceptInvitationRecord.audit`; `invitationAcceptanceContract.ts` holds the fake and SQLite to it:
@@ -3472,7 +3472,7 @@ and a mutation.
 
 Roadmap §10.4; free plan G2-15, paid plan P3-16. The screens the operator's API (§22) is for: the
 clients (`/admin/site`), one client (`/admin/site/clients/:clientId`), the accounts
-(`/admin/site/accounts`) and the log (`/admin/site/audit`), under one layout with a confirmation prompt.
+(`/admin/site/accounts`), the takedown screen (`/admin/site/takedown`, §25) and the log (`/admin/site/audit`), under one layout with a confirmation prompt.
 **Nothing in it is an authorisation.** Every request is judged by the gate of §22 on the server, and a
 client that skipped every check below would meet `403` on every read. What the console owes is the other
 two halves: to **offer** only what can work, and to **show** only what the operator is entitled to see.
@@ -3598,7 +3598,20 @@ are separate levers: the suspension still does not stop the retention clock, and
 
 **What it does not do.**
 
-- **No operator screen.** The levers are API calls; the console has none yet.
+- **The console screen shows no content either.** **Retrait** (`/admin/site/takedown`) finds an event from a slug, a join
+  code, an address or an exact name through `GET /api/site/events/lookup` and a photograph from its id through
+  `GET /api/site/photos/:photoId`; what comes back is ids, a status and instants, so the screen has no element that could
+  print a name or load a thumbnail (`TakedownPage.test.tsx` reads the page for any media element or `src`). Each of the six
+  acts opens a confirmation that says what it does and asks for a reason before the act is offered, then goes through the
+  step-up like every write. The lookup is exact on purpose (a prefix of a name finds nothing) and answers at most twenty events.
+- **The lookup is limited, because a join code is a bearer credential.** `GET /api/site/events/lookup` turns a slug, a join
+  code or a name into an event id and a status, so an unlimited lookup from a hijacked operator session would be an oracle
+  for guessing join codes and confirming which names are events. It answers `429 rate.limited` (with `Retry-After`) past
+  **ten a minute per account** and **thirty a minute per client address**, two limiters with their own counters and no
+  setting (`siteRoutes.lookupLimit.test.ts`, one case each). Each lookup writes one log line carrying the operator's id and
+  the **length** of the query, never the query, and the reads are not in the audit log (they change nothing). The name match
+  is made on an indexed folded copy (`events.name_fold`, migration 016: case, accents and blanks folded by `foldName`),
+  written with every event and filled for older rows when the server starts, so a lookup is an index seek and not a scan.
 - **A takedown does not delete.** The bytes stay on the disk and in the backups, for the authority that asks for them
   (runbook `csam.md` §5 and §7). The backups are not held by `purge_held_at`: `restic forget` is the runbook's step.
 - **A copy already in a browser stays there.** Browsers cache media as `immutable` for a year (`Cache-Control: private, max-age=31536000, immutable`), so a device that already fetched a photograph keeps it and keeps showing it; the server cannot recall it. The wall drops it at its next read.
@@ -3606,7 +3619,7 @@ are separate levers: the suspension still does not stop the retention clock, and
 - **A taken-down photograph still counts** toward the event's quota and the client's bytes, and a re-upload of the same
   bytes is a duplicate of it.
 - **A 3.2.x build ignores the columns** and would serve again what was taken down: going back means restoring the archive.
-- **The slug of a reported address is still found by the runbook's own query**, not by a route: these routes take ids.
+- **The slug of a reported address is found by `GET /api/site/events/lookup`**; the takedown routes themselves take ids.
 
 The named tests: `operatorTakedown.test.ts` and `takedownSurfaces.test.ts` (ring 2), the two contract suites
 (`photoRepositoryContract.ts`, `eventRepositoryContract.ts`, against the fake and SQLite), `siteRoutes.test.ts` (the route

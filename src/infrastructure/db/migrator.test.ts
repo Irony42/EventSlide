@@ -2994,7 +2994,7 @@ describe('migration 013, the indexes a deleted parent row is looked up through',
   })
 })
 
-describe('migration 016, the proof that an account accepted the terms', () => {
+describe('migration 017, the proof that an account accepted the terms', () => {
   const insertUser = (db: Db, id: string): void => {
     db.prepare(
       `INSERT INTO users (id, email, password_hash, created_at)
@@ -3024,7 +3024,7 @@ describe('migration 016, the proof that an account accepted the terms', () => {
     const db = freshDb()
     migrate(
       db,
-      migrations.filter((migration) => migration.id < 16),
+      migrations.filter((migration) => migration.id < 17),
     )
     insertUser(db, 'u1')
     insertUser(db, 'u2')

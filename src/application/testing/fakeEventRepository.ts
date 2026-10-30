@@ -1,5 +1,6 @@
 import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { Event } from '../../domain/events/event'
+import { foldName } from '../../domain/events/eventName'
 import { DomainError } from '../../domain/shared/errors'
 import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type { JoinCode } from '../../domain/shared/joinCode'
@@ -153,6 +154,18 @@ export class FakeEventRepository implements EventRepository {
     if (!this.rows.has(id)) return
     if (at === null) this.takenDown.delete(id)
     else this.takenDown.set(id, at)
+  }
+
+  async listByName(name: string, limit: number): Promise<readonly Event[]> {
+    const wanted = foldName(name)
+    return [...this.rows.values()]
+      .filter((event) => foldName(event.name.value) === wanted)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.id, b.id))
+      .slice(0, limit)
+      .flatMap((event) => {
+        const standing = this.withClientStanding(event)
+        return standing === null ? [] : [standing]
+      })
   }
 
   async deleteUnlessHeld(id: EventId): Promise<boolean> {
