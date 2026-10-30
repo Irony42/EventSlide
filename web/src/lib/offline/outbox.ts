@@ -91,6 +91,20 @@ export interface NewOutboxEntry {
 }
 
 /**
+ * A photo the upload screen hands to the outbox because the guest left it mid-send.
+ *
+ * `file` is a thunk, and not a `File`, because the bytes are not always ready: a photo that was
+ * already shrunk is returned as it is, one still waiting its turn is shrunk now. The caller
+ * snapshots the caption and the prompt, which belong to the batch and not to the moment the hand-over
+ * is read.
+ */
+export interface OutboxHandOff {
+  readonly file: () => Promise<File>
+  readonly caption: string | null
+  readonly missionId: string | null
+}
+
+/**
  * What an append did — including what it had to throw away to make room.
  *
  * `evicted` is the reason this is not just an `OutboxEntry`. The per-event cap drops
