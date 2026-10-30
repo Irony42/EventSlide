@@ -547,3 +547,37 @@ need more.
 the setting to fix (a `MAX_CONCURRENT_UPLOAD_REQUESTS_PER_EVENT` above `MAX_CONCURRENT_UPLOAD_REQUESTS`,
 for instance). If anything else looks wrong, go back as [described above](#going-back): restore the
 archive you took before the upgrade.
+
+## Upgrading to 3.3
+
+3.3.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
+`BREAKING` section and nothing has to change in `.env`. This section is here because it adds a
+migration and because the host of a suspended client now sees less than it did.
+
+**Who is affected.** Everyone who upgrades from 3.2.x (the migration), and every box with
+`SITE_ADMIN=on` (the new operator routes and the suspension change).
+
+1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)). 3.3.0
+   applies **migration 015**, which adds three nullable columns (`photos.taken_down_at`,
+   `events.taken_down_at`, `events.purge_held_at`) and two partial indexes. No row changes. A 3.2.x
+   build still reads the database, and ignores the columns, which means it would **serve again**
+   whatever the operator had taken down: restore the archive you took, rather than running 3.2.x on
+   a migrated database, if you go back.
+2. **Take the steps of [Upgrading with Docker](#upgrading-with-docker)**, or
+   [without](#without-docker), with `vX.Y.Z` as `v3.3.0`. The image is
+   `ghcr.io/irony42/eventslide:3.3.0`.
+3. **New operator routes** (`SITE_ADMIN=on` only, behind the operator's second factor and a fresh
+   step-up, [API.md §1](API.md)): take a photograph or a whole event down by its id, put it back,
+   hold an event's purge and release the hold. Each needs a written reason and writes one line in
+   the audit log that is not in the client's own trail. A held event is skipped by the retention
+   sweep and is not purged, nor has a photograph deleted, by its host or its guests.
+4. **A suspended client's members no longer read photographs.** Until 3.2 the owner and moderators of
+   a suspended client kept reading their photographs (the grid, the moderation queue, the album
+   download and the media route); they now get `403 client.suspended` on those. They keep the
+   dashboard, the settings, the counts and the audit trail. Resuming the client restores everything.
+5. **Nothing changes for a self-hosted box with `SITE_ADMIN=off`**: the routes are not mounted and no
+   client is ever suspended.
+
+**How to tell it worked.** The first boot logs migration 015 and `GET /api/health` answers
+`"version": "3.3.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
+[described above](#going-back): restore the archive you took before the upgrade.

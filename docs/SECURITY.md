@@ -737,23 +737,24 @@ One box hosts many events. Isolation is not a feature; it is the thing that must
 
 ### The documented exceptions, and why each is one
 
-Seven methods are not scoped by event, and they are the only seven. Four belong to
+Eight methods are not scoped by event, and they are the only eight. Four belong to
 `ClipJobRepository`, because there is **one transcode worker for the whole box** and it
 cannot name the event whose guest is about to upload — the same shape as
 `EventRepository.listDueForPurge`, and the same reasoning. Two belong to
 `ShareLinkRepository` (§15), because the caller holds a link and nothing else. One belongs
 to `MediaStore`, for the same single-process-sweep reason as the `ClipJobRepository`
-methods below it.
+methods below it, and one to `PhotoRepository` for the operator's takedown (§25).
 
-| Method                    | Reached from                                                         | What it can return                                                                           |
-| ------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `claimNext`               | the worker only, never a route                                       | one job, any event — handed to the worker, not a reply                                       |
-| `recoverAbandoned`        | the worker, once, at boot                                            | the jobs a dead process was holding, any event                                               |
-| `deleteStaleReservations` | `reapStaleReservations`, on an interval — never a route              | the reservation rows it deleted, any event — logged as a count, never returned to a caller   |
-| `countActive`             | `POST /clips`, on a guest's request                                  | **a number only**: how many clips are waiting, box-wide                                      |
-| `findByTokenDigest`       | `/api/gallery/:token`, on a link holder's request                    | the link whose token hashes to this digest — whose `eventId` then scopes every read after it |
-| `findById`                | `/api/gallery-media/:linkId/…`, **after** the signature has verified | the same, by the id a signed URL names; an unsigned id never reaches the query               |
-| `MediaStore.listEvents`   | `sweepOrphanedMedia`, on an interval — never a route                 | every event id with media on disk, box-wide — the sweep's own cursor, not a reply            |
+| Method                    | Reached from                                                         | What it can return                                                                                        |
+| ------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `claimNext`               | the worker only, never a route                                       | one job, any event — handed to the worker, not a reply                                                    |
+| `recoverAbandoned`        | the worker, once, at boot                                            | the jobs a dead process was holding, any event                                                            |
+| `deleteStaleReservations` | `reapStaleReservations`, on an interval — never a route              | the reservation rows it deleted, any event — logged as a count, never returned to a caller                |
+| `countActive`             | `POST /clips`, on a guest's request                                  | **a number only**: how many clips are waiting, box-wide                                                   |
+| `findByTokenDigest`       | `/api/gallery/:token`, on a link holder's request                    | the link whose token hashes to this digest — whose `eventId` then scopes every read after it              |
+| `findById`                | `/api/gallery-media/:linkId/…`, **after** the signature has verified | the same, by the id a signed URL names; an unsigned id never reaches the query                            |
+| `MediaStore.listEvents`   | `sweepOrphanedMedia`, on an interval — never a route                 | every event id with media on disk, box-wide — the sweep's own cursor, not a reply                         |
+| `PhotoRepository.locate`  | `setPhotoTakedown`, behind `requireOperator` and a step-up (§25)     | **an event id and an instant**, for a photograph id the operator names — never a row, a byte or a caption |
 
 `countActive` is the one an outsider can reach, and what it discloses is one integer
 about the box's queue depth — which the guest is then told outright in the
@@ -3389,14 +3390,13 @@ query that finds it, never written back), so there is no second lookup to forget
 The rule has three halves, each with a mutation. **Public, anonymous and capability surfaces answer exactly what an
 unknown event answers**: the join, the guest surfaces, the wall and its feed, a published photograph by slug and a
 gallery link, a photograph's malformed id included (the ids are judged only after the answer is chosen), and an invitation to preview or accept, so a suspended client cannot be told from one that never existed by anyone who is not a member
-(`suspension.container.test.ts` compares each with an unknown slug over the real composition root). **Members keep
-their reads and lose their writes** with `403 client.suspended`, because the client is entitled to know why: the
+(`suspension.container.test.ts` compares each with an unknown slug over the real composition root). **Members lose their writes with `403 client.suspended`, and since 3.3 their reads of photographs** (§25: the grid, the queue, the album, the top photos and the media route; they keep their account and their event's settings), because the client is entitled to know why: the
 refusal is in the use cases (`requireWritable`, asked after the role by every host-side write), no longer a test on
 the verb in `requireRole`; a write route added later is held by a completeness case that names every non-GET route under
 an event as a host write or a guest write (`suspension.container.test.ts`), and creating an event and approving an
 operator's invitation or reset are refused in their use cases because no event route can see them. **A connection
 opened before the suspension does not outlive it**: the live feed re-reads the event at every heartbeat (plan item
-A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once. The moderation feed is the exception that follows from the second half: its members keep their reads, so only an event that is gone ends it.
+A-22), so a projector left running is closed within one beat and told to wait a minute rather than to retry at once. The moderation feed stays open for a suspended client's members, because it carries signals and never content; only an event that is gone or taken down ends it.
 Resuming is the same column set back to null; a suspended client's guests reach their event again at once.
 
 **Accounts and the end of an engagement (G2-14 part 3).** Four more writes, each behind the same gate and a fresh step-up
@@ -3551,3 +3551,55 @@ decoration refuse a guest's photograph. The disk guard still applies to the uplo
   digest. Reachable only by uploading the served WebP back as a guest photo.
 - A restored backup whose archive lacks a named ground file leaves the settings naming bytes that are
   gone: the route answers 404 and the page shows the grade over no photograph until the host removes it.
+
+## 25. The operator's "remove without viewing" levers
+
+Launch review S5 (G8-03); the runbook is `retrait-sans-visualisation.md` of the infra repository. The case they exist
+for is the one where the operator is told a photograph is illegal and must act **without ever opening it**: until
+3.3 the only lever was suspending a whole client, which left its host reading the photographs, and the only way to
+stop a purge was `RETENTION_SWEEP_INTERVAL_MINUTES=off` for every event on the box. The routes are in API.md §1.
+
+**What the operator can do, by id.** Take one photograph down (`POST /api/site/photos/:photoId/take-down`), take a
+whole event down (`/api/site/events/:eventId/take-down`), hold an event's purge (`.../purge-hold`), and undo each.
+Every write has the operator gate, the second factor and a step-up (§22), a **mandatory reason** (the one bounded
+free-text detail of the log, §17, now declared by these six actions as well as by a ceiling's change) and answers
+**204 with no body**. **What it never does is hand the operator content**: the three use cases read no photograph
+(`PhotoRepository.locate` answers an event id and an instant, and is the eighth method that is not scoped by
+event, §3), no response carries a row, and `siteRoutes.contentFree.test.ts` sweeps all six answers with planted
+content. The operator site role still grants nothing inside an event (`siteOperatorScope.test.ts` lists each route
+with what it touches).
+
+**Where the rule lives, so that no surface can forget it.**
+
+| Lever             | Stored as                                                                                                          | Enforced at                                                                                                                                                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a photograph down | `photos.taken_down_at`, never the moderation status (a host can move that either way)                              | `PhotoRepository`: `findById`, `list`, `listIdsByStatus` and `countsByStatus` leave the row out, so the wall, the guest feed, a gallery link, the host's grid, the queue, the album and the media route all lose it; `save` and `updateStatuses` never write it                                                  |
+| an event down     | `events.taken_down_at`, **not written by `EventRepository.save`** (the host's save of a stale copy cannot lift it) | `Event.isTakenDown`: `servesWall`, `servesPublicWall`, `acceptsUploads`, `acceptsGuests`; `requireRole`, `authenticateGuest`, the gallery's `eventBehind`, `identifyMediaViewer` and the stream's heartbeat; `requireWritable` and `requireReadable` in the use cases; `listForUser` leaves it off the dashboard |
+| a purge hold      | `events.purge_held_at`, same rule                                                                                  | `listDueForPurge` (in SQL, so the sweep never reads it), `purgeEvent` (`409 event.purgeUnavailable`) and `deletePhoto` (`409 photo.deleteUnavailable`)                                                                                                                                                           |
+
+A taken-down event is **the same 404 as an unknown one**, the host's included, and the host is **not told why** (the
+runbook's rule: the host may be the person concerned). So the audit lines of these six actions carry **no client id**
+and are absent from the client's `GET /api/client/audit`; the operator's unfiltered view has them. The line is
+recorded before the lever moves, the act is idempotent and writes one line, and a screen is told by a signal with ids
+only (`photo.takenDown`, `event.takenDown`). A hold is not announced to anybody.
+
+**A suspended client's members no longer read photographs.** Suspension used to leave them the grid, the moderation
+queue, the album download, the top photos and the media route ("members keep their reads"), which is what the review
+found: the host of the frozen client kept looking at the content that froze it. They are now `403 client.suspended`
+there, and keep the dashboard, the settings, the counts and the audit trail. A taken-down photograph and a held event
+are separate levers: the suspension still does not stop the retention clock, and the hold is what does.
+
+**What it does not do.**
+
+- **No operator screen.** The levers are API calls; the console has none yet.
+- **A takedown does not delete.** The bytes stay on the disk and in the backups, for the authority that asks for them
+  (runbook `csam.md` §5 and §7). The backups are not held by `purge_held_at`: `restic forget` is the runbook's step.
+- **A taken-down photograph still counts** toward the event's quota and the client's bytes, and a re-upload of the same
+  bytes is a duplicate of it.
+- **A 3.2.x build ignores the columns** and would serve again what was taken down: going back means restoring the archive.
+- **The slug of a reported address is still found by the runbook's own query**, not by a route: these routes take ids.
+
+The named tests: `operatorTakedown.test.ts` and `takedownSurfaces.test.ts` (ring 2), the two contract suites
+(`photoRepositoryContract.ts`, `eventRepositoryContract.ts`, against the fake and SQLite), `siteRoutes.test.ts` (the route
+table, the gate and the step-up on each of the six), `takedown.container.test.ts` (every surface, through the real
+composition root) and `suspension.container.test.ts` (the host of a frozen client reads no photograph).
