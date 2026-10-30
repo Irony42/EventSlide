@@ -682,7 +682,12 @@ export const toReactionsDto = (view: PhotoReactionsView): ReactionsResponseDto =
  * projector is a public client in a room of strangers, and a wall item is the least it
  * needs to render a slide.
  */
-const toWallItemDto = (photo: Photo, slug: string, authorName: string | null): WallItemDto => ({
+const toWallItemDto = (
+  photo: Photo,
+  slug: string,
+  authorName: string | null,
+  firstFromGuest: boolean,
+): WallItemDto => ({
   id: photo.id,
   displayUrl: mediaUrl(slug, photo.id, DISPLAY_VARIANT[photo.kind]),
   thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT[photo.kind]),
@@ -691,6 +696,7 @@ const toWallItemDto = (photo: Photo, slug: string, authorName: string | null): W
   caption: photo.caption?.value ?? null,
   authorName,
   createdAt: iso(photo.createdAt),
+  firstFromGuest,
   ...toMediaFacetDto(photo, slug),
 })
 
@@ -737,7 +743,14 @@ export const toWallResponseDto = (
       // failure mode "one slide short" instead of a hole the projector has to render.
       return photo === undefined
         ? []
-        : [toWallItemDto(photo, slug, view.authorNames.get(id) ?? null)]
+        : [
+            toWallItemDto(
+              photo,
+              slug,
+              view.authorNames.get(id) ?? null,
+              view.firstFromGuest.has(id),
+            ),
+          ]
     }),
     slideIntervalMs: view.slideIntervalMs,
     kenBurnsDurationMs: view.kenBurnsDurationMs,

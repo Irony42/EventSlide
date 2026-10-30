@@ -219,6 +219,13 @@ export interface WallItemDto {
   readonly caption: string | null
   readonly authorName: string | null
   readonly createdAt: string
+  /**
+   * This photograph is the first its named sender has on the wall: the projector adds
+   * "Première photo de Julie" the first time it shows it. `false` for a clip, for an
+   * anonymous sender, for a host's own upload, and on any evening large enough that the
+   * wall read was cut short (see `WallPlaylistView.firstFromGuest`).
+   */
+  readonly firstFromGuest: boolean
   readonly kind: MediaKind
   /** `null` for a photograph. The mp4, which answers `Range` requests. */
   readonly videoUrl: string | null

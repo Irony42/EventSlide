@@ -515,6 +515,126 @@ describe('getWallPlaylist', () => {
   })
 })
 
+describe('getWallPlaylist and "Première photo de …"', () => {
+  let events: FakeEventRepository
+  let photos: FakePhotoRepository
+  let guests: FakeGuestRepository
+  let getWallPlaylist: GetWallPlaylist
+
+  beforeEach(() => {
+    events = new FakeEventRepository()
+    photos = new FakePhotoRepository()
+    guests = new FakeGuestRepository()
+    getWallPlaylist = makeGetWallPlaylist({
+      events,
+      photos,
+      guests,
+      missions: new FakeMissionRepository(photos),
+    })
+    events.seed(wedding)
+    guests.seed(
+      aGuest({ id: 'guest-julie', eventId: 'event-1', displayName: 'Julie' }),
+      aGuest({ id: 'guest-timide', eventId: 'event-1', displayName: null }),
+    )
+  })
+
+  const firstOf = async (): Promise<readonly string[]> => {
+    const result = await getWallPlaylist({
+      slug: wedding.slug,
+      layout: null,
+      slideIntervalMs: null,
+      windowSize: null,
+    })
+    return result.ok ? [...result.value.firstFromGuest].sort() : ['refused']
+  }
+
+  const fromJulie = (id: string, minutes: number, clip?: { readonly durationMs: number }) =>
+    aPhoto({
+      id,
+      eventId: 'event-1',
+      status: 'published',
+      author: { kind: 'guest', id: 'guest-julie' },
+      createdAt: atPlus(minutes * MINUTE),
+      ...(clip === undefined ? {} : { clip }),
+    })
+
+  it('marks the first photo a named guest has on the wall, and only that one', async () => {
+    photos.seed(fromJulie('photo-2', 5), fromJulie('photo-1', 1), fromJulie('photo-3', 9))
+
+    expect(await firstOf()).toEqual(['photo-1'])
+  })
+
+  it('does not count a photo that is still waiting for the host', async () => {
+    photos.seed(
+      aPhoto({
+        id: 'photo-0',
+        eventId: 'event-1',
+        status: 'pending',
+        author: { kind: 'guest', id: 'guest-julie' },
+        createdAt: atPlus(0),
+      }),
+      fromJulie('photo-1', 3),
+    )
+
+    expect(await firstOf()).toEqual(['photo-1'])
+  })
+
+  it('says nothing for an anonymous guest, whose name the room never reads', async () => {
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        author: { kind: 'guest', id: 'guest-timide' },
+      }),
+    )
+
+    expect(await firstOf()).toEqual([])
+  })
+
+  it('says nothing for the host’s own upload', async () => {
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: 'event-1',
+        status: 'published',
+        author: { kind: 'host', id: 'user-camille' },
+      }),
+    )
+
+    expect(await firstOf()).toEqual([])
+  })
+
+  it('says nothing for a clip', async () => {
+    photos.seed(fromJulie('clip-1', 1, { durationMs: 6_000 }), fromJulie('photo-2', 4))
+
+    expect(await firstOf()).toEqual([])
+  })
+
+  it('says nothing at all when the candidate read was cut short, since an earlier photo may be missing', async () => {
+    for (let index = 0; index < 501; index += 1) {
+      photos.seed(fromJulie(`photo-${String(index).padStart(3, '0')}`, index))
+    }
+
+    expect(await firstOf()).toEqual([])
+  })
+
+  it('gives the title to nothing when the guest’s first photo is outside the playlist window', async () => {
+    photos.seed(fromJulie('photo-1', 1), fromJulie('photo-2', 2), fromJulie('photo-3', 3))
+
+    const result = await getWallPlaylist({
+      slug: wedding.slug,
+      layout: null,
+      slideIntervalMs: null,
+      windowSize: 1,
+    })
+
+    // The window holds photo-3 only; photo-1 is her first, is not on the wall, and so
+    // nothing on the wall may claim the title.
+    expect(result.ok && [...result.value.firstFromGuest]).toEqual([])
+  })
+})
+
 describe('getWallPlaylist and the mission panel', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository

@@ -83,6 +83,19 @@
   overflow: hidden;
 }
 
+/* The moment a guest's first photograph comes up: a small kicker above the caption, in the
+   accent, so the table knows whose it is. Same size as the credit — nothing on the wall
+   is readable from the back of the room below --text-xl. */
+.first {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 600;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Quieter than the caption by colour and weight, not by size: shrinking the credit
    below --text-xl would make it unreadable from the back of the room. */
 .author {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { fr } from '../../../lib/i18n/fr'
 import { SlideCaption } from './SlideCaption'
 
 /**
@@ -55,5 +56,42 @@ describe('SlideCaption', () => {
     // projector as the characters the guest typed, not as elements.
     expect(screen.getByText('<b>Vive les mariés</b>')).toBeVisible()
     expect(container.querySelector('b')).toBeNull()
+  })
+
+  describe('the first photo of a guest', () => {
+    it('says whose first photo it is, above the caption', () => {
+      const { container } = render(
+        <SlideCaption caption="Les confettis" authorName="Julie" firstFromGuest />,
+      )
+
+      const lines = [...container.querySelectorAll('p')].map((line) => line.textContent)
+      expect(lines).toEqual([fr.wall.firstPhotoOf('Julie'), 'Les confettis', 'Julie'])
+    })
+
+    it('says it on a photo with no caption too, which is the common case', () => {
+      render(<SlideCaption caption={null} authorName="Julie" firstFromGuest />)
+
+      expect(screen.getByText(fr.wall.firstPhotoOf('Julie'))).toBeVisible()
+    })
+
+    it('says nothing without it', () => {
+      render(<SlideCaption caption="Les confettis" authorName="Julie" />)
+
+      expect(screen.queryByText(fr.wall.firstPhotoOf('Julie'))).toBeNull()
+    })
+
+    it('says nothing for a sender nobody can name', () => {
+      const { container } = render(
+        <SlideCaption caption="Les confettis" authorName={null} firstFromGuest />,
+      )
+
+      expect(container.querySelectorAll('p')).toHaveLength(1)
+    })
+
+    it('puts the guest’s name in as typed', () => {
+      render(<SlideCaption caption={null} authorName="Zoé <b>M.</b>" firstFromGuest />)
+
+      expect(screen.getByText(fr.wall.firstPhotoOf('Zoé <b>M.</b>'))).toBeVisible()
+    })
   })
 })
