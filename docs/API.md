@@ -1257,8 +1257,8 @@ client. Nothing else about the guest crosses: no guest id, no presence, no photo
 The name is resolved event-scoped, like every other read here.
 
 `firstFromGuest` is `true` on the one **photograph** that is the first thing its **named** sender
-has published to the wall, and the projector then adds "Première photo de Léa" the first time it
-shows that slide. "First" is the earliest upload of that guest among the published photos (ties
+has published to the wall, and the projector then adds "Première photo de Léa" (before a vowel,
+"Première photo d’Alice") the first time it shows that slide. "First" is the earliest upload of that guest among the published photos (ties
 by id, so two projectors agree), and a guest whose first published item was a clip has none: the
 line is about a photograph. It is `false` for a clip, an anonymous sender and a host's own upload,
 and **`false` on every item when the wall read was cut short** (more published photos than the
@@ -1266,11 +1266,19 @@ and **`false` on every item when the wall read was cut short** (more published p
 it and the answer would then be a guess. A boolean about the photograph; it carries nothing else
 about the guest. Optional for a client: a build that predates it shows no line.
 
+The line is drawn by the layouts that caption **one** photo: the spotlight, the polaroid, the
+clothesline and the split, under the photo the slide clock has just brought in. The mosaic, the
+filmstrip and the collage show no caption for a single photo by design (a tile carries the credit
+only), so they carry no line. The flag is read with the wall's playlist, whose revision is made of
+the photo ids alone: while the ids do not change, a `firstFromGuest` that would change (a guest's
+earlier photo hidden or published) stays as the client last read it, as `authorName` does.
+
 **The order is the client's to walk.** `items` is newest first and the client rotates through it
 towards older photos, but a photo that appears in `items` after the wall started is shown on the
 **next** slide rather than a lap later (at most three of them in a row, then one photo of the
 rotation, an author on screen giving way to another waiting author), and two projectors that
-read the same lists walk them the same way. The rule is `src/domain/slideshow/slideOrder.ts`; the
+read the same list from the same cursor walk it the same way; walls with different histories
+differ at most by the fresh lane, and then re-converge. The rule is `src/domain/slideshow/slideOrder.ts`; the
 client holds a verbatim copy, pinned by `slideOrderContract.test.ts`. Nothing on the wire
 announces it: a photo published late shows up as one more item, wherever the upload time puts it.
 
@@ -1535,9 +1543,14 @@ image; `videoUrl` is the mp4, and it is the URL that answers `Range` requests (�
 
 **Re-reading while a photo waits.** There is no stream for a guest: the public event stream is capped
 per IP, and a room behind one address would take the projector's own feed away. The upload screen
-instead re-reads this list about every nine seconds (every thirty after five minutes) **only while
-at least one photo is `pending` and the tab is visible**, once more each time the tab comes back to
-the front, and not at all otherwise. A photo that goes from `pending` to `published` is announced
+instead re-reads this list about every nine seconds, give or take two so that a room of phones does
+not ask in step (every thirty after five minutes without a new waiting photo; a photo that starts
+waiting brings the nine seconds back), **only while at least one photo is `pending` and the tab is
+visible**, once more each time the tab comes back to the front, and not at all otherwise. A poll
+that has not answered after fifteen seconds is given up in silence, and coming back to the tab
+replaces a poll that has been in the air for three seconds or more. The route has no rate limit of
+its own; the jitter and the slow-down are the whole of the mitigation, and it has not been
+load-tested at the size of a large room. A photo that goes from `pending` to `published` is announced
 ("Validée ! Elle passe à l'écran dans un instant : levez les yeux."), with a short vibration where
 the browser has one; found on coming back to the tab, it reads "Passée à l'écran". This is a poll
 of an unchanged route, not a push notification, which ROADMAP §2.1 rules out.
