@@ -122,12 +122,14 @@ describe('the template summary', () => {
     expect(line).toContain(fr.admin.retentionDays(30))
   })
 
-  it('names the act that starts the clock, which is the closing and not "la fin"', () => {
-    // `Event.expiresAt` reads `closedAt` and answers `null` until the host closes the
-    // event, so "après la fin" named something the server does not measure: the same
+  it('names the act that starts the clock, which is the ending and not a bare "la fin"', () => {
+    // `Event.expiresAt` reads `closedAt` and answers `null` until the host ends the
+    // event, so a bare "après la fin" named something the server does not measure: the same
     // words meant "never" to a host who leaves the wall open and a real countdown to one
-    // who closes it that night.
-    expect(fr.admin.retentionDays(30)).toContain('clôture')
+    // who ends it that night. The option names the event's end (the button says
+    // "Terminer l’évènement") and the hint says nothing is deleted before it.
+    expect(fr.admin.retentionDays(30)).toContain('fin de l’évènement')
+    expect(fr.admin.retentionHint).toContain('pas terminé')
   })
 
   it('says what keeping everything is, rather than answering "Jamais" to no question', () => {
