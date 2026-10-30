@@ -538,12 +538,12 @@ describe('getWallPlaylist and "Première photo de …"', () => {
     )
   })
 
-  const firstOf = async (): Promise<readonly string[]> => {
+  const firstOf = async (windowSize: number | null = null): Promise<readonly string[]> => {
     const result = await getWallPlaylist({
       slug: wedding.slug,
       layout: null,
       slideIntervalMs: null,
-      windowSize: null,
+      windowSize,
     })
     return result.ok ? [...result.value.firstFromGuest].sort() : ['refused']
   }
@@ -616,7 +616,9 @@ describe('getWallPlaylist and "Première photo de …"', () => {
       photos.seed(fromJulie(`photo-${String(index).padStart(3, '0')}`, index))
     }
 
-    expect(await firstOf()).toEqual([])
+    // The whole read is in the window here, so the oldest photo in it is on the wall and
+    // would be called her first if the cut were ignored: photo-000 is not in the list.
+    expect(await firstOf(10_000)).toEqual([])
   })
 
   it('gives the title to nothing when the guest’s first photo is outside the playlist window', async () => {

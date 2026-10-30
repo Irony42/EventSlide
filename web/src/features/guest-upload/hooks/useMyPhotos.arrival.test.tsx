@@ -48,7 +48,17 @@ const mount = (api: Api) => {
   return renderHook(() => useMyPhotos(SLUG), { wrapper })
 }
 
-const elapse = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms))
+/**
+ * Time passing in one-second steps, each settled before the next: a long jump inside a single
+ * `act` batches every state change in it, so the screen would see one read where a phone sees
+ * thirty.
+ */
+const elapse = async (ms: number) => {
+  for (let left = ms; left > 0; left -= 1_000) {
+    await act(() => vi.advanceTimersByTimeAsync(Math.min(1_000, left)))
+  }
+  if (ms === 0) await act(() => vi.advanceTimersByTimeAsync(0))
+}
 
 /** Mounted, with the first read answered. */
 const mounted = async (api: Api) => {
@@ -84,6 +94,16 @@ describe('re-reading the list while a photo waits', () => {
     await elapse(POLL_MS)
 
     expect(myPhotos).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not start reading when the page opens in a tab nobody is looking at', async () => {
+    visibility = 'hidden'
+    const { api, myPhotos } = serving([photo('p1', 'pending')])
+    await mounted(api)
+
+    await elapse(10 * POLL_MS)
+
+    expect(myPhotos).toHaveBeenCalledTimes(1)
   })
 
   it('never reads again when nothing is waiting', async () => {
@@ -228,6 +248,8 @@ describe('telling the guest their photo is on its way to the screen', () => {
     const { api } = serving([photo('p1', 'published')])
     const { result } = await mounted(api)
 
+    // The list did load, so the silence is the rule's and not a read that never finished.
+    expect(result.current.photos).toHaveLength(1)
     expect(result.current.arrival).toBeNull()
     expect(vibrate).not.toHaveBeenCalled()
   })
