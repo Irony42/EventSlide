@@ -771,10 +771,10 @@ export const fr = {
     eventName: 'Nom de l’évènement',
     eventNameHint: 'Visible par vos invités, par exemple « Camille & Sacha ».',
     slug: 'Adresse',
-    joinCode: 'Code d’accès',
+    joinCode: 'Code de la soirée',
     rotateJoinCode: 'Changer le code',
     rotateJoinCodeHint:
-      'Les invités déjà connectés le restent. Le nouveau code remplace immédiatement l’ancien.',
+      'Les QR codes déjà imprimés et le lien déjà envoyé ne fonctionneront plus : il faudra les réimprimer et le renvoyer. Les invités déjà connectés le restent.',
     qrCode: 'QR code',
     qrCodeHint: 'À imprimer et poser sur les tables.',
     openWall: 'Ouvrir l’écran',
@@ -782,11 +782,11 @@ export const fr = {
     download: 'Télécharger l’album',
     statusDraft: 'Brouillon',
     statusLive: 'En cours',
-    statusClosed: 'Terminé',
-    statusArchived: 'Archivé',
+    statusClosed: 'Terminée',
+    statusArchived: 'Archivée',
     goLive: 'Ouvrir aux invités',
-    closeEvent: 'Clore l’évènement',
-    reopenEvent: 'Réouvrir',
+    closeEvent: 'Terminer la soirée',
+    reopenEvent: 'Rouvrir',
     archiveEvent: 'Archiver',
     photos: (count: number) =>
       t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
@@ -928,21 +928,22 @@ export const fr = {
     retention: 'Suppression automatique',
     retentionNever: 'Jamais',
     /**
-     * "après la clôture", not "après la fin", and counted by `Intl` rather than by hand.
+     * "après la fin de la soirée", counted by `Intl` rather than by hand.
      *
      * The retention clock starts at `closedAt` and `Event.expiresAt` answers `null` until
-     * the host closes the event, so "la fin" named something the server does not measure:
-     * the same five words meant "never" to a host who leaves the wall open and a real
-     * countdown to one who closes it that night. "Clôture" is the word the button
-     * ("Clore l’évènement") and the hint below already use for the act that starts it.
+     * the host ends the evening, so a bare "après la fin" named something the server does not
+     * measure: the same words meant "never" to a host who leaves the wall open and a real
+     * countdown to one who ends it that night. It says "la fin de la soirée" because that is
+     * what the button ("Terminer la soirée") and the badge ("Terminée") call the act that
+     * starts the clock; it used to say "la clôture", a word the host never read on a button.
      *
      * The plural goes through `t.count` because French agrees zero and one with the
      * singular: a hand-written `${days} jours` reads "1 jours" on the one-day option.
      */
     retentionDays: (days: number) =>
       t.count(days, {
-        one: `${t.number(days)} jour après la clôture`,
-        other: `${t.number(days)} jours après la clôture`,
+        one: `${t.number(days)} jour après la fin de la soirée`,
+        other: `${t.number(days)} jours après la fin de la soirée`,
       }),
     /**
      * What `retentionDays: null` actually is, said as a consequence rather than as
@@ -961,11 +962,12 @@ export const fr = {
     loading: 'Chargement de vos évènements…',
     eventLoading: 'Chargement de l’évènement…',
     eventsEmpty: 'Aucun évènement pour le moment.',
-    eventsEmptyHint: 'Trois étapes pour être prêt le jour J.',
+    eventsEmptyHint: 'Cinq étapes pour être prêt le jour J.',
     emptyStepCreate: 'Créez l’évènement.',
-    emptyStepTest:
-      'Testez le mur sur le réseau du lieu, depuis un téléphone qui n’est pas le vôtre.',
     emptyStepPrint: 'Imprimez le QR code et posez-le sur les tables.',
+    emptyStepScreen: 'Branchez l’écran du lieu et ouvrez-le : il attendra l’ouverture.',
+    emptyStepOpen: 'Ouvrez la soirée aux invités.',
+    emptyStepTest: 'Testez depuis un téléphone qui n’est pas le vôtre, sur le réseau du lieu.',
     create: 'Créer l’évènement',
     slugHint: 'Facultatif. Laissez vide pour la déduire du nom.',
     slugPreviewLabel: 'Adresse de la galerie',
@@ -973,20 +975,19 @@ export const fr = {
     eventCreated: (name: string) => `${name} est prêt. Imprimez le QR code quand vous voulez.`,
     joinCodeHint: 'À communiquer aux invités qui ne peuvent pas scanner le QR code.',
     eventControls: 'Pilotage de l’évènement',
-    joinLink: 'Lien d’invitation',
+    joinLink: 'Lien pour vos invités',
     printQr: 'Imprimer le QR code',
     qrScanPrompt: 'Scannez pour envoyer vos photos.',
     qrAlt: (eventName: string) => `QR code d’accès à ${eventName}`,
     storageLabel: 'Espace photos utilisé',
     storage: (used: string) => `${used} utilisés`,
-    statusSaved: 'Le nouvel état est enregistré.',
-    rotateJoinCodeTitle: 'Changer le code d’accès ?',
-    codeRotated: 'Le code d’accès a été changé. L’ancien ne fonctionne plus.',
+    rotateJoinCodeTitle: 'Changer le code de la soirée ?',
+    codeRotated: 'Nouveau code actif. L’ancien ne fonctionne plus.',
     settingsSaved: 'Réglages enregistrés.',
     settingsReadOnly: 'Cet évènement est archivé : ses réglages ne peuvent plus être modifiés.',
     // What a moderator is shown in place of a form every save of which the server would refuse.
-    settingsOwnerOnly: 'Seul le propriétaire de l’évènement peut modifier ses réglages.',
-    retentionHint: 'Les photos sont supprimées ce délai après la clôture de l’évènement.',
+    settingsOwnerOnly: 'Seul l’organisateur de l’évènement peut modifier ses réglages.',
+    retentionHint: 'Les photos sont supprimées ce délai après la fin de la soirée.',
     selfDeleteGrace: 'Délai de suppression',
     selfDeleteGraceHint: 'Pendant ce délai, un invité peut retirer lui-même sa photo.',
     graceNone: 'Aucun délai',
@@ -1055,16 +1056,17 @@ export const fr = {
      * ---------------------------------------------------------------------- */
     schedule: 'Ouverture et fermeture automatiques',
     scheduleHint:
-      'Laissez vide pour ouvrir et clore vous-même. Les heures sont celles de votre ordinateur, donc celles du lieu de la fête.',
+      'Laissez vide pour ouvrir et terminer la soirée vous-même. Les heures sont celles de votre ordinateur, donc celles du lieu de la fête.',
     scheduleOpenAt: 'Ouvrir aux invités le',
-    scheduleCloseAt: 'Clore l’évènement le',
-    scheduleCloseAtHint: 'Les photos et l’album sont conservés : clore n’efface rien.',
+    scheduleCloseAt: 'Terminer la soirée le',
+    scheduleCloseAtHint: 'Les photos et l’album sont conservés : terminer la soirée n’efface rien.',
     scheduleSaved: 'L’horaire a été enregistré.',
-    scheduleNone: 'Aucun horaire : vous ouvrez et vous clôturez vous-même.',
+    scheduleNone: 'Aucun horaire : vous ouvrez et vous terminez la soirée vous-même.',
     /** Rendered as a reminder under the fields once a schedule is armed. */
     scheduleArmed: (opensAt: string, closesAt: string) =>
       `Ouverture le ${opensAt}, fermeture le ${closesAt}.`,
-    scheduleOpensOnly: (opensAt: string) => `Ouverture le ${opensAt}. Vous clôturerez vous-même.`,
+    scheduleOpensOnly: (opensAt: string) =>
+      `Ouverture le ${opensAt}. Vous terminerez la soirée vous-même.`,
     scheduleClosesOnly: (closesAt: string) => `Fermeture le ${closesAt}. Vous ouvrirez vous-même.`,
     scheduleSave: 'Enregistrer l’horaire',
     /**
@@ -1074,6 +1076,35 @@ export const fr = {
      */
     scheduleDiscarded: (when: string) =>
       `L’horaire automatique n’a pas pu s’appliquer le ${when} : l’évènement ne pouvait pas changer d’état à ce moment-là. Il a été effacé. Enregistrez-en un nouveau si vous en voulez un.`,
+
+    /* ---- Added by the host lifecycle pass (revue UX 30/10: HOT-1, 2, 4, 5, 10, 13). ---- */
+
+    /** One toast per move, in what changed for the room (HOT-13). */
+    noticeOpened: 'Soirée ouverte aux invités.',
+    noticeClosed: 'Soirée terminée. Les invités ne peuvent plus envoyer.',
+    noticeReopened: 'Soirée rouverte : les invités peuvent de nouveau envoyer.',
+    noticeArchived: 'Soirée archivée. L’album reste téléchargeable.',
+    /** Archiving is terminal: the dialog says what stops and what stays (HOT-4, NAV-1). */
+    archiveTitle: (eventName: string) => `Archiver ${eventName} ?`,
+    archiveHint:
+      'L’écran s’arrête, les réglages se figent, c’est définitif. L’album reste téléchargeable.',
+    openTitle: (eventName: string) => `Ouvrir ${eventName} aux invités ?`,
+    openHint:
+      'Tous ceux qui ont le QR code pourront envoyer des photos. Il ne sera plus possible de revenir au brouillon.',
+    /** The wall tile in a draft: the screen can be plugged in early (HOT-1). */
+    wallDraftHint: 'S’allumera tout seul dès l’ouverture aux invités',
+    /** After the toast of a new code: the printed QR is now out of date (HOT-2). */
+    codeRotatedAction: 'Imprimer le nouveau QR',
+    /** The card that leads the page once the evening is over (HOT-5, APR-6). */
+    afterTitle: 'Après la soirée',
+    afterHint: 'Envoyez l’album à vos invités, ou gardez-le pour vous.',
+    afterShare: 'Créer le lien de l’album',
+    /** What is armed, beside the badge (HOT-10). */
+    autoOpenAt: (time: string) => `Ouverture automatique à ${time}`,
+    autoOpenOn: (dateTime: string) => `Ouverture automatique le ${dateTime}`,
+    autoCloseAt: (time: string) => `Fermeture automatique à ${time}`,
+    autoCloseOn: (dateTime: string) => `Fermeture automatique le ${dateTime}`,
+    autoEdit: 'Modifier',
 
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
@@ -1547,7 +1578,7 @@ export const fr = {
     'photo.pixelBudgetExceeded': 'Cette photo est trop grande. Réduisez-la puis réessayez.',
     'upload.rejected': 'Cet envoi n’a pas pu être lu. Réessayez.',
     'event.notModeratable': 'Cet évènement est archivé : les décisions ne s’appliquent plus.',
-    'membership.lastOwner': 'Un évènement doit garder au moins un propriétaire.',
+    'membership.lastOwner': 'Un évènement doit garder au moins un organisateur.',
     'membership.notFound': 'Cette personne ne modère pas cet évènement.',
     'guest.notFound': 'Cet invité n’apparaît plus dans la liste. Actualisez la page.',
 

@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
@@ -13,6 +14,8 @@ export interface EventQrCardProps {
    * uploaded to the default event. One source for the link, and it is the server's.
    */
   readonly joinUrl: string
+  /** Lets a control elsewhere on the page take the host to this card (the new-code toast). */
+  readonly titleRef?: RefObject<HTMLHeadingElement | null>
 }
 
 /**
@@ -22,7 +25,7 @@ export interface EventQrCardProps {
  * Wi-Fi would drop it anyway — and the code would then be missing from the one artefact
  * that has to work on paper.
  */
-export function EventQrCard({ eventName, joinCode, joinUrl }: EventQrCardProps) {
+export function EventQrCard({ eventName, joinCode, joinUrl, titleRef }: EventQrCardProps) {
   const t = useTranslations()
 
   const handlePrint = () => {
@@ -32,7 +35,7 @@ export function EventQrCard({ eventName, joinCode, joinUrl }: EventQrCardProps) 
   }
 
   return (
-    <Card as="h2" title={t.admin.qrCode} subtitle={t.admin.qrCodeHint}>
+    <Card as="h2" title={t.admin.qrCode} subtitle={t.admin.qrCodeHint} titleRef={titleRef}>
       <div className={styles['printable']}>
         <p className={styles['eventName']}>{eventName}</p>
         {/*

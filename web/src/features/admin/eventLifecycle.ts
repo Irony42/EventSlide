@@ -48,21 +48,25 @@ export interface LifecycleAction {
 }
 
 /**
- * Mirrors `ALLOWED_TRANSITIONS`.
+ * What the console offers from each status. A subset of `ALLOWED_TRANSITIONS`, on purpose.
  *
  * The label depends on where the host is coming from: `closed → live` is a reopening
  * after the speeches ran late, `draft → live` is opening the doors. One word for both
  * would be wrong in one of the two cases.
+ *
+ * **A live event is not offered "Archive" beside "End the evening".** The domain allows
+ * `live → archived`, and the server would accept it, but archiving is terminal (the screen
+ * stops, the settings freeze, nothing brings it back) and the two buttons sit one thumb-width
+ * apart: a slip at 23:00 would switch the projector off in front of the room. The way to
+ * archive is to end the evening first, which is also the order a host thinks in.
+ * `eventLifecycle.test.ts` pins both tables, the domain's and this subset.
  */
 const TRANSITIONS: Readonly<Record<EventStatus, (text: UiText) => readonly LifecycleAction[]>> = {
   draft: (text) => [
     { to: 'live', label: text.admin.goLive, primary: true },
     { to: 'archived', label: text.admin.archiveEvent, primary: false },
   ],
-  live: (text) => [
-    { to: 'closed', label: text.admin.closeEvent, primary: false },
-    { to: 'archived', label: text.admin.archiveEvent, primary: false },
-  ],
+  live: (text) => [{ to: 'closed', label: text.admin.closeEvent, primary: false }],
   closed: (text) => [
     { to: 'live', label: text.admin.reopenEvent, primary: false },
     { to: 'archived', label: text.admin.archiveEvent, primary: false },
@@ -74,6 +78,38 @@ const TRANSITIONS: Readonly<Record<EventStatus, (text: UiText) => readonly Lifec
 
 export const lifecycleActions = (from: EventStatus, text: UiText): readonly LifecycleAction[] =>
   TRANSITIONS[from](text)
+
+/**
+ * Which transitions ask first, and how heavily.
+ *
+ * - `archive`: terminal, so it always asks and says what stops.
+ * - `open`: opening a draft cannot be undone either (there is no way back to "not started
+ *   yet", guests may hold the link), so it asks once, lightly.
+ * - `null`: ending the evening and reopening it are each undone by the other, so they go
+ *   through on one press and the toast says what happened.
+ */
+export type TransitionConfirmation = 'archive' | 'open'
+
+export const confirmationFor = (
+  from: EventStatus,
+  to: EventStatus,
+): TransitionConfirmation | null => {
+  if (to === 'archived') return 'archive'
+  if (from === 'draft' && to === 'live') return 'open'
+  return null
+}
+
+/**
+ * The toast for a transition, one sentence per move: the host learns what changed for the
+ * room, not that "the new state is saved". `draft → live` and `closed → live` are different
+ * moments and get different words.
+ */
+export const transitionNotice = (from: EventStatus, to: EventStatus, text: UiText): string => {
+  if (to === 'archived') return text.admin.noticeArchived
+  if (to === 'closed') return text.admin.noticeClosed
+  if (to === 'live') return from === 'closed' ? text.admin.noticeReopened : text.admin.noticeOpened
+  return text.admin.noticeOpened
+}
 
 /** Mirrors `allowsModeration`: an archived event is read-only. */
 export const allowsModeration = (status: EventStatus): boolean => status !== 'archived'
@@ -95,6 +131,22 @@ export const servesWall = (status: EventStatus): boolean => status === 'live' ||
  * put away, so the invitation is not repeated there.
  */
 export const offersSupport = (status: EventStatus): boolean => status === 'closed'
+
+/**
+ * Whether the console links to the wall. Broader than `servesWall`: a draft has no wall to
+ * serve yet, but the host plugs the projector in before the doors open, and a tile that only
+ * appears after "Open to guests" asks them to test the screen in the one minute they have
+ * guests. The wall waits for the opening and starts by itself (hence the hint on the tile);
+ * it is archived events only that have none.
+ */
+export const linksToWall = (status: EventStatus): boolean => status !== 'archived'
+
+/**
+ * Whether the evening is over, closed or archived: the host's job is now the album, not the
+ * screen, and the page leads with it.
+ */
+export const isAfterEvening = (status: EventStatus): boolean =>
+  status === 'closed' || status === 'archived'
 
 /** Mirrors `isMutable`: settings, name and join code are frozen once archived. */
 export const isMutable = (status: EventStatus): boolean => status !== 'archived'

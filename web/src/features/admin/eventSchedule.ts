@@ -43,6 +43,10 @@
  * deliberately does not model. `docs/API.md` §6 says the same thing to API clients.
  */
 
+import { formatDateTime } from '../../lib/format'
+import type { EventStatus } from '../../lib/api/dto'
+import type { Locale } from '../../lib/i18n/locale'
+
 const pad = (value: number): string => String(value).padStart(2, '0')
 
 /** `2026-06-20T16:00:00.000Z` -> `2026-06-20T18:00` for a browser in Paris. */
@@ -62,4 +66,55 @@ export const toInstant = (local: string): string | null => {
   // `datetime-local` yields either a well-formed value or an empty string, so this is
   // the belt to that browser's braces: a half-typed value is "not set", never a `400`.
   return Number.isNaN(at.getTime()) ? null : at.toISOString()
+}
+
+/**
+ * The automatic moves still ahead of an event, in the order they will happen, for the line
+ * beside the status badge (revue UX 30/10, HOT-10).
+ *
+ * A draft with an opening armed will open by itself; a live event with a closing armed will end
+ * by itself. Nothing else is "ahead": a closed or archived event has nothing left to trigger,
+ * and an opening still stored on a live one is stale. Showing only what will still happen is
+ * the point: the host who reads "Brouillon" on the day and sees no opening time clicks "Open to
+ * guests" to be safe, which is exactly what the line is there to spare them.
+ */
+export interface UpcomingMove {
+  readonly kind: 'open' | 'close'
+  readonly at: string
+}
+
+export const upcomingMoves = (
+  status: EventStatus,
+  schedule: { readonly scheduledOpenAt: string | null; readonly scheduledCloseAt: string | null },
+): readonly UpcomingMove[] => {
+  const moves: UpcomingMove[] = []
+  if (status === 'draft' && schedule.scheduledOpenAt !== null) {
+    moves.push({ kind: 'open', at: schedule.scheduledOpenAt })
+  }
+  if ((status === 'draft' || status === 'live') && schedule.scheduledCloseAt !== null) {
+    moves.push({ kind: 'close', at: schedule.scheduledCloseAt })
+  }
+  return moves
+}
+
+/**
+ * How an instant reads beside the badge: just the time when it is today ("18:00" is what the
+ * host is waiting for), the date and time otherwise (a Saturday evening seen on the Wednesday).
+ * `null` for a value the browser cannot read, so a broken stamp shows nothing instead of "Invalid
+ * Date". `now` is a parameter so the answer does not depend on when the test runs.
+ */
+export const scheduleMoment = (
+  iso: string,
+  now: Date,
+  locale: Locale,
+): { readonly today: boolean; readonly text: string } | null => {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return null
+  const today =
+    at.getFullYear() === now.getFullYear() &&
+    at.getMonth() === now.getMonth() &&
+    at.getDate() === now.getDate()
+  if (today) return { today, text: at.toLocaleTimeString(locale, { timeStyle: 'short' }) }
+  const text = formatDateTime(iso, locale)
+  return text === null ? null : { today, text }
 }

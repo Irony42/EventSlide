@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { EventRole, EventStatus } from '../../../lib/api/dto'
-import { allowsModeration, canManageEvent, servesWall } from '../eventLifecycle'
+import { allowsModeration, canManageEvent, linksToWall } from '../eventLifecycle'
 import { EventActionIcon, type EventActionGlyph } from './EventActionIcon'
 import styles from './EventActionLinks.module.css'
 
@@ -26,14 +26,30 @@ interface TileProps {
   readonly priority: Priority
   readonly glyph: EventActionGlyph
   readonly children: ReactNode
+  /** A line under the label, for what the tile will do that its name does not say. */
+  readonly hint?: string | undefined
 }
 
 /** What is inside a tile. The glyph is decoration: the label is the link's name. */
-function TileBody({ glyph, children }: Omit<TileProps, 'priority'>) {
+function TileBody({
+  glyph,
+  children,
+  hint,
+  hintId,
+}: Omit<TileProps, 'priority'> & { readonly hintId?: string }) {
   return (
     <>
       <EventActionIcon glyph={glyph} className={styles['glyph']} />
-      <span className={styles['label']}>{children}</span>
+      <span className={styles['text']}>
+        <span className={styles['label']}>{children}</span>
+        {/* Seen, but not part of the link's name: the link reads "Open the screen" and
+            describes itself with this line (`aria-describedby` reads a hidden element). */}
+        {hint === undefined ? null : (
+          <span id={hintId} className={styles['hint']} aria-hidden="true">
+            {hint}
+          </span>
+        )}
+      </span>
     </>
   )
 }
@@ -54,6 +70,7 @@ function RouteTile({
   priority,
   glyph,
   children,
+  hint,
   newTab = false,
 }: TileProps & {
   readonly to: string
@@ -66,18 +83,29 @@ function RouteTile({
   readonly newTab?: boolean
 }) {
   const t = useTranslations()
+  const newTabId = useId()
   const hintId = useId()
+  // The link's description: that it opens a tab, and what the tile will do. The first lives
+  // beside the link, where it would not join its name; the second is the tile's own line.
+  const described = (): string | null => {
+    if (newTab && hint !== undefined) return `${newTabId} ${hintId}`
+    if (newTab) return newTabId
+    return hint === undefined ? null : hintId
+  }
+  const describedBy = described()
   return (
     <>
       <Link
         {...tileProps(priority)}
         to={to}
-        {...(newTab ? { target: '_blank', rel: 'noopener', 'aria-describedby': hintId } : {})}
+        {...(newTab ? { target: '_blank', rel: 'noopener' } : {})}
+        {...(describedBy === null ? {} : { 'aria-describedby': describedBy })}
       >
-        <TileBody glyph={glyph}>{children}</TileBody>
+        <TileBody glyph={glyph} hint={hint} hintId={hintId}>
+          {children}
+        </TileBody>
       </Link>
-      {/* Beside the link and not in it: inside, it would join the link's name. */}
-      {newTab ? <VisuallyHidden id={hintId}>{t.about.opensInNewTab}</VisuallyHidden> : null}
+      {newTab ? <VisuallyHidden id={newTabId}>{t.about.opensInNewTab}</VisuallyHidden> : null}
     </>
   )
 }
@@ -96,7 +124,7 @@ function RouteTile({
  */
 export function EventActionLinks({ slug, status, role, albumUrl }: EventActionLinksProps) {
   const t = useTranslations()
-  const wall = servesWall(status)
+  const wall = linksToWall(status)
   const moderation = allowsModeration(status)
 
   return (
@@ -104,7 +132,13 @@ export function EventActionLinks({ slug, status, role, albumUrl }: EventActionLi
       {wall || moderation ? (
         <div className={styles['group']}>
           {wall ? (
-            <RouteTile priority="primary" glyph="wall" to={`/e/${slug}/display`} newTab>
+            <RouteTile
+              priority="primary"
+              glyph="wall"
+              to={`/e/${slug}/display`}
+              newTab
+              {...(status === 'draft' ? { hint: t.admin.wallDraftHint } : {})}
+            >
               {t.admin.openWall}
             </RouteTile>
           ) : null}

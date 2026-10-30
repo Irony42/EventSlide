@@ -558,7 +558,7 @@ describe('EventSettingsPage', () => {
       renderPage(api)
 
       // Only the opening is set, so the host is told they still close it themselves.
-      expect(await screen.findByText(/Vous clôturerez vous-même/)).toBeVisible()
+      expect(await screen.findByText(/Vous terminerez la soirée vous-même/)).toBeVisible()
     })
 
     it('sends both instants when the host saves', async () => {

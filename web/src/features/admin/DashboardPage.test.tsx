@@ -32,6 +32,14 @@ const aSummary = (overrides: Partial<EventSummaryDto> = {}): EventSummaryDto => 
 /** Testing Library folds every kind of space in rendered text down to a plain one. */
 const spaced = (value: string) => value.replace(/\s/g, ' ')
 
+/** The last button carrying a label is the one inside the dialog that just opened. */
+const inDialog = (name: string): HTMLElement => {
+  const buttons = screen.getAllByRole('button', { name })
+  const last = buttons[buttons.length - 1]
+  if (last === undefined) throw new Error(`no button named ${name}`)
+  return last
+}
+
 const renderDashboard = (api: Api) =>
   renderWithProviders(<DashboardPage />, { api, route: '/admin' })
 
@@ -106,9 +114,35 @@ describe('DashboardPage', () => {
 
     expect(await screen.findByRole('button', { name: fr.admin.goLive })).toBeVisible()
     expect(screen.getByRole('button', { name: fr.admin.archiveEvent })).toBeVisible()
-    // A draft has nothing to close and nothing to show on the projector yet.
+    // A draft has nothing to close. Its screen can be plugged in already, and says it waits.
     expect(screen.queryByRole('button', { name: fr.admin.closeEvent })).toBeNull()
-    expect(screen.queryByRole('link', { name: fr.admin.openWall })).toBeNull()
+    expect(screen.getByRole('link', { name: fr.admin.openWall })).toHaveAccessibleDescription(
+      new RegExp(fr.admin.wallDraftHint.slice(0, 12)),
+    )
+  })
+
+  it('does not offer to archive a live event beside the button that ends it', async () => {
+    const api = fakeApi({
+      listEvents: vi.fn(async () => ({ items: [aSummary({ status: 'live' })] })),
+    })
+
+    renderDashboard(api)
+
+    expect(await screen.findByRole('button', { name: fr.admin.closeEvent })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.admin.archiveEvent })).toBeNull()
+  })
+
+  it('puts the ways in before the buttons that change the state', async () => {
+    const api = fakeApi({
+      listEvents: vi.fn(async () => ({ items: [aSummary({ status: 'live' })] })),
+    })
+
+    renderDashboard(api)
+
+    const moderate = await screen.findByRole('link', { name: fr.admin.openModeration })
+    const close = screen.getByRole('button', { name: fr.admin.closeEvent })
+    // A thumb that aims at "Moderate" must not land on the button that ends the evening.
+    expect(moderate.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('offers a moderator no lifecycle button: every one would be answered 403', async () => {
@@ -171,10 +205,61 @@ describe('DashboardPage', () => {
 
     renderDashboard(api)
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.goLive }))
+    await userEvent.click(inDialog(fr.admin.goLive))
 
     expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'live')
-    expect(await screen.findByText(fr.admin.statusSaved)).toBeVisible()
+    expect(await screen.findByText(fr.admin.noticeOpened)).toBeVisible()
     await waitFor(() => expect(screen.getByText(fr.admin.statusLive)).toBeVisible())
+  })
+
+  it('asks before opening to guests, and sends nothing if the host backs out', async () => {
+    const api = fakeApi({
+      listEvents: vi.fn(async () => ({ items: [aSummary({ status: 'draft' })] })),
+    })
+
+    renderDashboard(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.goLive }))
+
+    expect(
+      screen.getByRole('dialog', { name: fr.admin.openTitle('Camille & Sacha') }),
+    ).toBeVisible()
+    expect(screen.getByText(fr.admin.openHint)).toBeVisible()
+    expect(api.setEventStatus).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.setEventStatus).not.toHaveBeenCalled()
+  })
+
+  it('says what archiving stops before it archives, and only archives on the answer', async () => {
+    const listEvents = vi
+      .fn(async () => ({ items: [aSummary({ status: 'archived' })] }))
+      .mockResolvedValueOnce({ items: [aSummary({ status: 'closed' })] })
+    const api = fakeApi({ listEvents })
+
+    renderDashboard(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.archiveEvent }))
+
+    const dialog = screen.getByRole('dialog', { name: fr.admin.archiveTitle('Camille & Sacha') })
+    expect(dialog).toHaveAccessibleDescription(fr.admin.archiveHint)
+    expect(api.setEventStatus).not.toHaveBeenCalled()
+
+    await userEvent.click(inDialog(fr.admin.archiveEvent))
+
+    expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'archived')
+    expect(await screen.findByText(fr.admin.noticeArchived)).toBeVisible()
+  })
+
+  it('ends the evening on one press and says what that did for the room', async () => {
+    const api = fakeApi({
+      listEvents: vi.fn(async () => ({ items: [aSummary({ status: 'live' })] })),
+    })
+
+    renderDashboard(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.closeEvent }))
+
+    expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
+    expect(await screen.findByText(fr.admin.noticeClosed)).toBeVisible()
   })
 
   it('reports a refused lifecycle change instead of pretending it worked', async () => {
@@ -185,6 +270,7 @@ describe('DashboardPage', () => {
 
     renderDashboard(api)
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.goLive }))
+    await userEvent.click(inDialog(fr.admin.goLive))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors['event.illegalTransition'])
     expect(screen.getByText(fr.admin.statusDraft)).toBeVisible()
@@ -225,15 +311,17 @@ describe('DashboardPage', () => {
  * `SITE_ADMIN`.
  */
 describe('DashboardPage: the first event', () => {
-  it('lists the three steps of a first event, in the order they are done', async () => {
+  it('lists the five steps of a first event: print, plug the screen in, open, then test from another phone', async () => {
     renderDashboard(fakeApi())
 
     expect(await screen.findByText(fr.admin.eventsEmpty)).toBeVisible()
     const steps = screen.getAllByRole('listitem').map((item) => item.textContent)
     expect(steps).toEqual([
       fr.admin.emptyStepCreate,
-      fr.admin.emptyStepTest,
       fr.admin.emptyStepPrint,
+      fr.admin.emptyStepScreen,
+      fr.admin.emptyStepOpen,
+      fr.admin.emptyStepTest,
     ])
   })
 

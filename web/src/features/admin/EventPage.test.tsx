@@ -202,8 +202,10 @@ describe('EventPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.rotateJoinCode }))
 
     expect(screen.getByText(fr.admin.rotateJoinCodeTitle)).toBeVisible()
-    // The thing a host is actually afraid of, answered before they commit.
+    // What the change costs (the printed QR codes, the link already sent) and what it does
+    // not (the guests already connected), said before they commit (HOT-2).
     expect(screen.getByText(fr.admin.rotateJoinCodeHint)).toBeVisible()
+    expect(fr.admin.rotateJoinCodeHint).toContain('réimprimer')
     expect(api.rotateJoinCode).not.toHaveBeenCalled()
 
     await userEvent.click(inDialog(fr.admin.rotateJoinCode))
@@ -212,6 +214,27 @@ describe('EventPage', () => {
     expect(await screen.findByText(fr.admin.codeRotated)).toBeVisible()
     // The new code comes from the answer, not from anything guessed locally.
     expect(screen.getAllByText('ZX93PL').length).toBeGreaterThan(0)
+  })
+
+  it('takes the host to the QR card from the new-code toast, where the printed cards are out of date', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView']
+    try {
+      const api = fakeApi({
+        rotateJoinCode: vi.fn(async () => anEventDto({ joinCode: 'ZX93PL' })),
+      })
+
+      renderPage(api)
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.rotateJoinCode }))
+      await userEvent.click(inDialog(fr.admin.rotateJoinCode))
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.codeRotatedAction }))
+
+      const heading = screen.getByRole('heading', { name: fr.admin.qrCode })
+      expect(scrollIntoView.mock.contexts[0]).toBe(heading)
+      expect(heading).toHaveFocus()
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
   })
 
   it('leaves the code alone when the confirmation is cancelled', async () => {
@@ -236,6 +259,60 @@ describe('EventPage', () => {
     expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'closed')
     expect(await screen.findByText(fr.admin.statusClosed)).toBeVisible()
     expect(screen.getByRole('button', { name: fr.admin.reopenEvent })).toBeVisible()
+    // One toast per move, saying what changed for the room (HOT-13).
+    expect(screen.getByText(fr.admin.noticeClosed)).toBeVisible()
+  })
+
+  it('does not offer to archive a live event beside the button that ends it', async () => {
+    renderPage(fakeApi())
+
+    expect(await screen.findByRole('button', { name: fr.admin.closeEvent })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.admin.archiveEvent })).toBeNull()
+  })
+
+  it('archives a closed event only after saying it is final, and keeps the album downloadable', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'closed' })),
+      setEventStatus: vi.fn(async () => anEventDto({ status: 'archived' })),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.archiveEvent }))
+
+    const dialog = screen.getByRole('dialog', { name: fr.admin.archiveTitle('Camille & Sacha') })
+    expect(dialog).toHaveAccessibleDescription(fr.admin.archiveHint)
+    expect(api.setEventStatus).not.toHaveBeenCalled()
+
+    await userEvent.click(inDialog(fr.admin.archiveEvent))
+
+    expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'archived')
+    expect(await screen.findByText(fr.admin.noticeArchived)).toBeVisible()
+    expect(screen.getByText(fr.admin.settingsReadOnly)).toBeVisible()
+  })
+
+  it('leaves a closed event alone when the archive dialog is cancelled', async () => {
+    const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'closed' })) })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.archiveEvent }))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.setEventStatus).not.toHaveBeenCalled()
+    expect(screen.getByText(fr.admin.statusClosed)).toBeVisible()
+  })
+
+  it('says the event was reopened, in its own words', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () => anEventDto({ status: 'closed' })),
+      setEventStatus: vi.fn(async () => anEventDto({ status: 'live' })),
+    })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.reopenEvent }))
+
+    // Reopening asks nothing: ending the evening undoes it.
+    expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'live')
+    expect(await screen.findByText(fr.admin.noticeReopened)).toBeVisible()
   })
 
   it('offers no lifecycle action on an archived event and says it is frozen', async () => {
@@ -350,8 +427,36 @@ describe('EventPage', () => {
     renderPage(api)
     await userEvent.click(await screen.findByRole('button', { name: fr.admin.goLive }))
 
+    // Opening cannot be taken back to a draft, so it asks once, and says why.
+    expect(screen.getByText(fr.admin.openHint)).toBeVisible()
+    expect(api.setEventStatus).not.toHaveBeenCalled()
+
+    await userEvent.click(inDialog(fr.admin.goLive))
+
     expect(api.setEventStatus).toHaveBeenCalledWith('camille-et-sacha', 'live')
     expect(await screen.findByText(fr.admin.statusLive)).toBeVisible()
+    expect(screen.getByText(fr.admin.noticeOpened)).toBeVisible()
+  })
+
+  it('does not open a draft to guests when the host backs out of the question', async () => {
+    const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) })
+
+    renderPage(api)
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.goLive }))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.cancel }))
+
+    expect(api.setEventStatus).not.toHaveBeenCalled()
+    expect(screen.getByText(fr.admin.statusDraft)).toBeVisible()
+  })
+
+  it('offers the screen from a draft, which waits for the opening', async () => {
+    const api = fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft' })) })
+
+    renderPage(api)
+
+    const wall = await screen.findByRole('link', { name: fr.admin.openWall })
+    expect(wall).toHaveAttribute('href', '/e/camille-et-sacha/display')
+    expect(within(wall).getByText(fr.admin.wallDraftHint)).toBeVisible()
   })
 
   it('keeps the event as it was when the server refuses a change of state', async () => {
@@ -422,6 +527,126 @@ describe('EventPage', () => {
  * of a **closed** event, on an instance whose operator set `DONATION_URL`, that can be
  * closed and then stays closed for that event.
  */
+describe('EventPage, after the evening', () => {
+  const renderClosed = (
+    status: 'closed' | 'archived' = 'closed',
+    role: 'owner' | 'moderator' = 'owner',
+  ) => renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ status, role })) }))
+
+  it('leads a closed event with the album, before the code and the controls', async () => {
+    renderClosed()
+
+    const after = await screen.findByRole('heading', { name: fr.admin.afterTitle })
+    const code = screen.getByRole('heading', { name: fr.admin.joinCode })
+    const controls = screen.getByRole('heading', { name: fr.admin.eventControls })
+    expect(after.compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(after.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('leads an archived event with the album too', async () => {
+    renderClosed('archived')
+
+    expect(await screen.findByRole('heading', { name: fr.admin.afterTitle })).toBeVisible()
+  })
+
+  it('has no such card while the event is a draft or live', async () => {
+    renderPage(fakeApi())
+
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+    expect(screen.queryByRole('heading', { name: fr.admin.afterTitle })).toBeNull()
+  })
+
+  it('offers the album download in the card', async () => {
+    renderClosed()
+
+    const card = (await screen.findByRole('heading', { name: fr.admin.afterTitle })).closest(
+      'section',
+    )
+    if (card === null) throw new Error('the card is not a section')
+    expect(within(card).getByRole('link', { name: fr.admin.download })).toHaveAttribute('download')
+  })
+
+  it('takes the owner to the album link panel from the card', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView as unknown as Element['scrollIntoView']
+    try {
+      renderClosed()
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.admin.afterShare }))
+
+      const panel = screen.getByRole('heading', { name: fr.admin.shareLink })
+      expect(scrollIntoView.mock.contexts[0]).toBe(panel)
+      expect(panel).toHaveFocus()
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
+  })
+
+  it('offers a moderator the download but no way to make the link, which is the owner’s', async () => {
+    renderClosed('closed', 'moderator')
+
+    await screen.findByRole('heading', { name: fr.admin.afterTitle })
+    expect(screen.queryByRole('button', { name: fr.admin.afterShare })).toBeNull()
+    expect(screen.getAllByRole('link', { name: fr.admin.download }).length).toBeGreaterThan(0)
+  })
+})
+
+describe('EventPage, what is armed to happen by itself', () => {
+  const draftWith = (overrides: Partial<EventDto>) =>
+    renderPage(
+      fakeApi({ getEvent: vi.fn(async () => anEventDto({ status: 'draft', ...overrides })) }),
+    )
+
+  it('says the opening is armed, with the way to change it, so the host need not open "to be safe"', async () => {
+    // Far from today on purpose, so the line carries a date whenever the test runs.
+    draftWith({ scheduledOpenAt: '2031-06-20T16:00:00.000Z' })
+
+    const line = await screen.findByText(/Ouverture automatique/)
+    expect(line).toBeVisible()
+    expect(line.parentElement).toHaveTextContent(fr.admin.autoEdit)
+    expect(screen.getByRole('link', { name: fr.admin.autoEdit })).toHaveAttribute(
+      'href',
+      '/admin/events/camille-et-sacha/settings',
+    )
+  })
+
+  it('names the closing of a live event', async () => {
+    renderPage(
+      fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({ status: 'live', scheduledCloseAt: '2031-06-21T00:00:00.000Z' }),
+        ),
+      }),
+    )
+
+    expect(await screen.findByText(/Fermeture automatique/)).toBeVisible()
+  })
+
+  it('shows nothing when no schedule is armed', async () => {
+    draftWith({})
+
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+    expect(screen.queryByText(/automatique/)).toBeNull()
+  })
+
+  it('warns, at the top of the page, that the sweep threw the schedule away', async () => {
+    draftWith({ scheduleDiscardedAt: '2031-06-20T16:00:00.000Z' })
+
+    await screen.findByRole('heading', { name: 'Camille & Sacha' })
+    const warning = screen.getByText(/n’a pas pu s’appliquer/).closest('[role="status"]')
+    if (warning === null) throw new Error('the warning is not a status')
+    expect(warning).toHaveAttribute('role', 'status')
+    expect(within(warning).getByRole('link', { name: fr.admin.autoEdit })).toBeVisible()
+  })
+
+  it('offers a moderator the times but not the way to change them', async () => {
+    draftWith({ role: 'moderator', scheduledOpenAt: '2031-06-20T16:00:00.000Z' })
+
+    expect(await screen.findByText(/Ouverture automatique/)).toBeVisible()
+    expect(screen.queryByRole('link', { name: fr.admin.autoEdit })).toBeNull()
+  })
+})
+
 describe('EventPage, the support card', () => {
   const DONATE_URL = 'https://opencollective.com/eventslide'
   const BUDGET_URL = 'https://opencollective.com/eventslide/budget'

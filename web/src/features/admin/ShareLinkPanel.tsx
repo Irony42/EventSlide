@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
@@ -19,6 +19,8 @@ import type { ShareLinkCreated } from '../../lib/api/dto'
 
 export interface ShareLinkPanelProps {
   readonly slug: string
+  /** Lets the "After the evening" card take the host to this panel. */
+  readonly titleRef?: RefObject<HTMLHeadingElement | null>
 }
 
 /**
@@ -48,7 +50,7 @@ const DEFAULT_LIFETIME = 30
  * That is the whole check: a link shown and never copied, because this page is the only place
  * it is ever shown.
  */
-export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
+export function ShareLinkPanel({ slug, titleRef }: ShareLinkPanelProps) {
   const t = useTranslations()
   const { locale } = useLocale()
   const shareLink = useShareLink(slug)
@@ -127,7 +129,7 @@ export function ShareLinkPanel({ slug }: ShareLinkPanelProps) {
   const until = link === null ? null : formatDateTime(link.expiresAt, locale)
 
   return (
-    <Card as="h2" title={t.admin.shareLink} subtitle={t.admin.shareLinkHint}>
+    <Card as="h2" title={t.admin.shareLink} subtitle={t.admin.shareLinkHint} titleRef={titleRef}>
       <Async state={shareLink} as="h3">
         {() => (
           <div className={styles['status']} role="status">

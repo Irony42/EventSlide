@@ -1,0 +1,15 @@
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* A navigation affordance with a target comfortable enough for a thumb, like the dashboard's. */
+.download {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+}

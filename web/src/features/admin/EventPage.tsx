@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { ConfirmDialog } from '../../design-system/components/ConfirmDialog'
+import { Notice } from '../../design-system/components/Notice'
 import { useToast } from '../../design-system/components/useToast'
 import { cx } from '../../design-system/classNames'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
@@ -12,9 +13,11 @@ import { useAbout } from '../../app/useAbout'
 import { formatDateTime } from '../../lib/format'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
+import { AfterEventCard } from './components/AfterEventCard'
 import { EventActionLinks } from './components/EventActionLinks'
 import { EventQrCard } from './components/EventQrCard'
 import { EventStatusBadge } from './components/EventStatusBadge'
+import { LifecycleConfirmDialog } from './components/LifecycleConfirmDialog'
 import { StorageMeter } from './components/StorageMeter'
 import { SupportCard } from './components/SupportCard'
 import { GuestListPanel } from './GuestListPanel'
@@ -25,14 +28,17 @@ import { ShareLinkPanel } from './ShareLinkPanel'
 import {
   allowsModeration,
   canManageEvent,
+  isAfterEvening,
   isMutable,
   lifecycleActions,
   offersSupport,
 } from './eventLifecycle'
+import { scheduleMoment, upcomingMoves } from './eventSchedule'
+import { bringIntoView } from './bringIntoView'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
-import { usePurgeEvent, useRotateJoinCode, useStatusChange } from './hooks/useEventActions'
+import { usePurgeEvent, useRotateJoinCode } from './hooks/useEventActions'
+import { useLifecycleTransition } from './hooks/useLifecycleTransition'
 import styles from './EventPage.module.css'
-import type { EventStatus } from '../../lib/api/dto'
 
 /** Surface: the host's laptop. The screen they come back to during the event. */
 export function EventPage() {
@@ -40,7 +46,7 @@ export function EventPage() {
   const { locale } = useLocale()
   const { slug = '' } = useParams()
   const { data: event, loading, error, reload, replace } = useEvent(slug)
-  const statusChange = useStatusChange()
+  const transition = useLifecycleTransition(replace)
   const rotate = useRotateJoinCode()
   const purge = usePurgeEvent()
   const toast = useToast()
@@ -52,18 +58,9 @@ export function EventPage() {
   const [rotating, setRotating] = useState(false)
   const [purging, setPurging] = useState(false)
 
-  const changeStatus = (to: EventStatus) => {
-    void statusChange.run(to, slug, to).then((result) => {
-      if (!result.ok) {
-        toast.show(result.message, { tone: 'danger' })
-        return
-      }
-      // The answer is the whole event, so the screen updates from what the server
-      // decided rather than from what the client hoped.
-      replace(result.value)
-      toast.show(t.admin.statusSaved, { tone: 'success' })
-    })
-  }
+  // The two cards a toast or a button elsewhere on the page sends the host to.
+  const qrHeading = useRef<HTMLHeadingElement>(null)
+  const shareHeading = useRef<HTMLHeadingElement>(null)
 
   const confirmRotate = () => {
     void rotate.run('rotate', slug).then((result) => {
@@ -73,7 +70,15 @@ export function EventPage() {
         return
       }
       replace(result.value)
-      toast.show(t.admin.codeRotated, { tone: 'success' })
+      // The printed QR codes now lead nowhere: the toast is the moment to say so, and its action
+      // takes the host to the card they print from (revue UX 30/10, HOT-2).
+      toast.show(t.admin.codeRotated, {
+        tone: 'success',
+        action: {
+          label: t.admin.codeRotatedAction,
+          onAction: () => bringIntoView(qrHeading.current),
+        },
+      })
     })
   }
 
@@ -109,6 +114,12 @@ export function EventPage() {
   }
 
   const isOwner = canManageEvent(event.role)
+  const moves = upcomingMoves(event.status, event)
+  const discardedAt =
+    event.scheduleDiscardedAt === null
+      ? null
+      : (formatDateTime(event.scheduleDiscardedAt, locale) ?? event.scheduleDiscardedAt)
+  const settingsPath = `/admin/events/${event.slug}/settings`
 
   return (
     <div className={styles['page']}>
@@ -130,10 +141,45 @@ export function EventPage() {
             <Badge tone="warning">{t.moderation.pending(event.pendingCount)}</Badge>
           ) : null}
         </div>
+        {/* What is armed to happen by itself, so the host on the day does not open the doors
+            "to be safe" (revue UX 30/10, HOT-10). Editing it is the settings page's, which is
+            the owner's. */}
+        {moves.length > 0 ? (
+          <p className={styles['schedule']}>
+            {moves.map((move) => {
+              const moment = scheduleMoment(move.at, new Date(), locale)
+              if (moment === null) return null
+              const text =
+                move.kind === 'open'
+                  ? moment.today
+                    ? t.admin.autoOpenAt(moment.text)
+                    : t.admin.autoOpenOn(moment.text)
+                  : moment.today
+                    ? t.admin.autoCloseAt(moment.text)
+                    : t.admin.autoCloseOn(moment.text)
+              return <span key={move.kind}>{text}</span>
+            })}
+            {isOwner ? <Link to={settingsPath}>{t.admin.autoEdit}</Link> : null}
+          </p>
+        ) : null}
+        {discardedAt === null ? null : (
+          <Notice tone="warning" role="status" variant="boxed">
+            {t.admin.scheduleDiscarded(discardedAt)}{' '}
+            {isOwner ? <Link to={settingsPath}>{t.admin.autoEdit}</Link> : null}
+          </Notice>
+        )}
       </header>
 
       <div className={styles['columns']}>
         <div className={cx(styles['column'], styles['screenOnly'])}>
+          {/* Once the evening is over the host's job is the album: it leads, and the card of
+              the donation comes after it (revue UX 30/10, HOT-5, APR-6). */}
+          {isAfterEvening(event.status) ? (
+            <AfterEventCard
+              albumUrl={albumUrl}
+              onShare={isOwner ? () => bringIntoView(shareHeading.current) : undefined}
+            />
+          ) : null}
           <Card as="h2" title={t.admin.joinCode} subtitle={t.admin.joinCodeHint}>
             <p className={styles['joinCode']}>{event.joinCode}</p>
             <p className={styles['joinUrl']}>
@@ -175,9 +221,16 @@ export function EventPage() {
                   <Button
                     key={action.to}
                     variant={action.primary ? 'primary' : 'secondary'}
-                    loading={statusChange.pending === action.to}
-                    disabled={statusChange.busy}
-                    onClick={() => changeStatus(action.to)}
+                    loading={transition.pending === `${event.slug}:${action.to}`}
+                    disabled={transition.busy}
+                    onClick={() =>
+                      transition.request({
+                        slug: event.slug,
+                        eventName: event.name,
+                        from: event.status,
+                        to: action.to,
+                      })
+                    }
                   >
                     {action.label}
                   </Button>
@@ -198,7 +251,12 @@ export function EventPage() {
         </div>
 
         <div className={styles['column']}>
-          <EventQrCard eventName={event.name} joinCode={event.joinCode} joinUrl={event.joinUrl} />
+          <EventQrCard
+            eventName={event.name}
+            joinCode={event.joinCode}
+            joinUrl={event.joinUrl}
+            titleRef={qrHeading}
+          />
         </div>
       </div>
 
@@ -211,7 +269,7 @@ export function EventPage() {
         {isOwner ? <MissionsPanel slug={event.slug} /> : null}
         {/* Owner-only, like every endpoint behind it: sending the album beyond the room
             is a decision about the whole event (roadmap §4.1). */}
-        {isOwner ? <ShareLinkPanel slug={event.slug} /> : null}
+        {isOwner ? <ShareLinkPanel slug={event.slug} titleRef={shareHeading} /> : null}
         {/* Owner-only: every moderator endpoint requires it, so a moderator is not
             shown a panel whose requests would all come back 403. */}
         {isOwner ? <ModeratorsPanel slug={event.slug} /> : null}
@@ -227,13 +285,20 @@ export function EventPage() {
       <ConfirmDialog
         open={rotating}
         title={t.admin.rotateJoinCodeTitle}
-        // Says the thing a host is actually afraid of: that changing the code throws
-        // out the guests who already joined. It does not.
+        // Says what the change costs (the printed QR codes and the link already sent stop
+        // working) and what it does not (the guests already joined).
         description={t.admin.rotateJoinCodeHint}
         confirmLabel={t.admin.rotateJoinCode}
         busy={rotate.busy}
         onConfirm={confirmRotate}
         onCancel={() => setRotating(false)}
+      />
+
+      <LifecycleConfirmDialog
+        request={transition.asking}
+        busy={transition.busy}
+        onConfirm={transition.confirm}
+        onCancel={transition.cancel}
       />
 
       <PurgeEventDialog
