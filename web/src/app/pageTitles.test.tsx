@@ -87,6 +87,7 @@ const HOST_SIGNED_IN: readonly (readonly [string, Key])[] = [
   ['/admin/client', 'clientSpace'],
   ['/admin/password', 'changePassword'],
   ['/admin/security', 'security'],
+  ['/admin/account/delete', 'deleteAccount'],
 ]
 
 /** The operator's console: only for the account that operates a box that has one. */

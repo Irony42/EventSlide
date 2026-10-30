@@ -1228,6 +1228,23 @@ export const fr = {
     // oneself, set up the second factor): the address is already known there, so naming it
     // would make a wrong password read as a wrong account.
     passwordIncorrect: 'Mot de passe incorrect.',
+    deleteAccount: 'Supprimer mon compte',
+    deleteAccountIntro:
+      'Votre adresse, votre mot de passe et vos accès sont effacés. Vos évènements, s’il vous en reste, doivent d’abord être supprimés ou confiés à quelqu’un d’autre. Il restera, au plus quelques jours, les sessions déjà ouvertes, et dans le journal d’audit des lignes anonymes : un identifiant qui ne renvoie plus à personne, sans votre nom ni votre adresse. Cette action est définitive.',
+    deleteAccountConfirm: 'Entrez votre mot de passe pour confirmer.',
+    deleteAccountSubmit: 'Supprimer définitivement mon compte',
+    deleteAccountDone: 'Votre compte est supprimé.',
+    deleteAccountCode: 'Code de votre application d’authentification',
+    deleteAccountCodeHint:
+      'À remplir seulement si vous avez activé un second facteur ; sinon, laissez vide.',
+    deleteAccountHoldsEvents:
+      'Vous possédez encore au moins un évènement. Supprimez-le ou confiez-le à quelqu’un d’autre, puis réessayez. Besoin d’aide ? Contactez l’opérateur du site.',
+    deleteAccountHoldsMedia:
+      'Vous avez déposé des photos ou des vidéos dans un évènement : votre compte ne peut pas être supprimé en libre-service. Contactez l’opérateur du site.',
+    deleteAccountHoldsReviews:
+      'Vous avez modéré des photos : votre compte ne peut pas être supprimé en libre-service. Contactez l’opérateur du site.',
+    deleteAccountLastOwner:
+      'Vous êtes le seul propriétaire de votre espace, qui compte encore des membres ou des évènements. Ajoutez un autre propriétaire, ou contactez l’opérateur du site.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Vérification en deux étapes',
@@ -2043,6 +2060,9 @@ export const fr = {
     roleColumn: 'Rôle sur l’instance',
     accountStateColumn: 'État',
     lastLoginColumn: 'Dernière connexion',
+    termsColumn: 'Conditions acceptées',
+    termsNone: 'Aucune trace',
+    termsAccepted: (version: string, at: string) => `Version ${version}, le ${at}`,
     ownedColumn: 'Évènements possédés',
     clientsColumn: 'Clients',
     siteRoleOperator: 'Opérateur',
@@ -2238,6 +2258,7 @@ export const fr = {
     invitation: 'Invitation',
     changePassword: 'Changer de mot de passe',
     security: 'Sécurité du compte',
+    deleteAccount: 'Supprimer mon compte',
     dashboard: 'Vos évènements',
     newEvent: 'Nouvel évènement',
     event: 'Évènement',

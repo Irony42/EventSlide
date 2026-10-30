@@ -14,8 +14,8 @@ describe('isValidAuditRetentionDays', () => {
     expect(isValidAuditRetentionDays(364)).toBe(false)
   })
 
-  it('defaults to three years, and the default is itself valid', () => {
-    expect(AUDIT_RETENTION_DEFAULT_DAYS).toBe(1095)
+  it('defaults to one year, which is the floor, and the default is itself valid', () => {
+    expect(AUDIT_RETENTION_DEFAULT_DAYS).toBe(365)
     expect(isValidAuditRetentionDays(AUDIT_RETENTION_DEFAULT_DAYS)).toBe(true)
   })
 

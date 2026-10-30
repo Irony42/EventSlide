@@ -74,6 +74,8 @@ export const aSiteAccount = (overrides: Partial<SiteAccountDto> = {}): SiteAccou
   mustChangePassword: false,
   ownedEventCount: 1,
   clients: [{ clientId: CLIENT_ID, role: 'owner' }],
+  termsVersion: '2026-11',
+  termsAcceptedAt: '2026-06-20T21:00:00.000Z',
   ...overrides,
 })
 

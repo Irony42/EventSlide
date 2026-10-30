@@ -127,6 +127,7 @@ export class SqliteAuditLog implements AuditLog {
     details: string
   }>
   private readonly selectAll: Database.Statement<[number, number], AuditRow>
+  private readonly selectOldest: Database.Statement<[], { readonly oldest: string | null }>
   private readonly selectForClient: Database.Statement<[string, number, number], AuditRow>
   private readonly openGate: Database.Statement<[]>
   private readonly closeGate: Database.Statement<[]>
@@ -135,6 +136,7 @@ export class SqliteAuditLog implements AuditLog {
 
   constructor(db: Db) {
     this.insert = db.prepare(INSERT_AUDIT_SQL)
+    this.selectOldest = db.prepare(`SELECT MIN(at) AS oldest FROM audit_log`)
 
     // `?` for the cursor is a bound, not a flag: an absent `before` is `Number.MAX_SAFE_INTEGER`
     // at the call site, which keeps each of the two statements a single plan.
@@ -196,6 +198,11 @@ export class SqliteAuditLog implements AuditLog {
     const items = (hasMore ? rows.slice(0, filter.limit) : rows).map(toRecord)
     const last = items[items.length - 1]
     return { items, next: hasMore && last !== undefined ? last.seq : null }
+  }
+
+  async oldestAt(): Promise<Date | null> {
+    const row = this.selectOldest.get()
+    return row?.oldest == null ? null : fromIsoText(row.oldest)
   }
 
   async pruneOlderThan(cutoff: Date): Promise<number> {

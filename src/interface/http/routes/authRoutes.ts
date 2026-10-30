@@ -33,6 +33,7 @@ import { sendError, sendJson, sendNoContent, sendResultNoContent } from '../pres
 import {
   changePasswordBody,
   confirmSecondFactorBody,
+  deleteOwnAccountBody,
   enrollSecondFactorBody,
   loginBody,
   passwordResetConfirmBody,
@@ -241,6 +242,7 @@ export interface AuthRouteDeps {
     HttpUseCases,
     | 'authenticateUser'
     | 'changePassword'
+    | 'deleteOwnAccount'
     | 'revokeOtherSessions'
     | 'requestPasswordReset'
     | 'resetPassword'
@@ -560,6 +562,54 @@ export const authRoutes = ({ deps, usecases, throttleHold }: AuthRouteDeps): Rou
       sendNoContent(res)
     }),
   )
+
+  // A person erases their own account (GDPR art. 17). Only on a box that runs for other people
+  // (`SITE_ADMIN=on`): a self-hosted box has one owner and an erasure there is a file operation.
+  // Without it the path is an unknown route, as `/api/site` is.
+  if (deps.config.siteAdmin) {
+    router.post(
+      '/auth/account/delete',
+      requireUser(deps),
+      // A wrong password here is a guess like any other, and what it buys is an irreversible
+      // erasure: the limiters are the ones the second step of a sign-in has.
+      secondFactorLimiter(deps.config.rateLimits.loginPerMinute),
+      secondFactorBudget,
+      asyncHandler(async (req, res) => {
+        const user = userOf(req)
+        const body = deleteOwnAccountBody.parse(req.body)
+        res.setHeader('Cache-Control', 'no-store')
+
+        // At most one proof; naming two is malformed, naming none is the password alone.
+        const proof = secondFactorProofOf(body)
+        if (proof === 'both') {
+          sendError(res, DomainError.invalid('request.invalid'))
+          return
+        }
+
+        const result = await usecases.deleteOwnAccount({
+          // From the session, never from the body: this erases the caller and nobody else.
+          userId: user.userId,
+          password: body.password,
+          ...(proof === null ? {} : { proof }),
+        })
+        if (!result.ok) {
+          sendError(res, result.error)
+          return
+        }
+
+        // The account is gone: so is this session, and the cookie that named it. Same as a logout.
+        await destroySession(req.session)
+        res.clearCookie(SESSION_COOKIE, {
+          path: '/',
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: deps.config.secureCookie,
+        })
+        rotateCsrfToken(res, { secureCookie: deps.config.secureCookie })
+        sendNoContent(res)
+      }),
+    )
+  }
 
   router.post(
     '/auth/password-reset/request',

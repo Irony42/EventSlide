@@ -357,6 +357,7 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
 
     audit: {
       retentionDays: raw.AUDIT_RETENTION_DAYS,
+      retentionFromDefault: (source['AUDIT_RETENTION_DAYS'] ?? '').trim() === '',
     },
 
     newClientCeilings: {

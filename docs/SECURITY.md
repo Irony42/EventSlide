@@ -428,7 +428,10 @@ was already on the box. What holds now, each rule with the test that holds it:
   as it already is for a password the policy refuses); and **before anything about who is
   accepting**, so an address that has an account gets the same `400` as one that has none rather than
   `409 invitation.signInRequired` (`acceptInvitation.test.ts`, `invitationRoutes.test.ts`). The agreement is
-  written as `account.termsAccepted {version}` **in the transaction that spends the link**
+  written as `account.termsAccepted {version}` **in the transaction that spends the link**, and so is the
+  account's own proof (`users.terms_version`, `terms_accepted_at`, migration 017: the latest acceptance, kept as long
+  as the account lives and shown to the operator in the accounts list, because the audit line is pruned after
+  `AUDIT_RETENTION_DAYS` and an account outlives it)
   (`AcceptInvitationRecord.audit`; `invitationAcceptanceContract.ts` holds the fake and SQLite to it:
   nothing for a spent link or a taken address, and an entry the log refuses undoes the whole
   acceptance). The version is the box's, read from its configuration and never from the request (the
@@ -1622,11 +1625,12 @@ skipped the screen on purpose.
 | `user_totp`: the authenticator secret, **encrypted**, a key version, times, the last step spent                   | the operator's second factor (§19)                                                                                 | with the account; removed when the factor is switched off                                                                                                                                                                                 |
 | `user_recovery_codes`: SHA-256 **digests** of the recovery codes, and when each was spent                         | the way back in when the phone is gone (§19)                                                                       | with the factor                                                                                                                                                                                                                           |
 | `users.credentials_changed_at`                                                                                    | the credentials epoch: when this account last changed its password, signed out everywhere or was switched off (§2) | with the account; it only moves forward                                                                                                                                                                                                   |
+| `users.terms_version` + `terms_accepted_at`                                                                       | the proof the account accepted the terms of use: which version, and when (§2, G2-20)                               | with the account; replaced by a later acceptance, never pruned on its own                                                                                                                                                                 |
 | `users.email` + bcrypt hash                                                                                       | host/moderator accounts                                                                                            | until account delete                                                                                                                                                                                                                      |
 | Session rows                                                                                                      | login                                                                                                              | ≤ 12 h                                                                                                                                                                                                                                    |
 | `share_links`: token **digest**, password hash, creator, times                                                    | the host's shared gallery (§15)                                                                                    | with the event; a revoked link's row is kept, and opens nothing                                                                                                                                                                           |
 | `clients.name`, `clients.contact_email` (operator-typed)                                                          | who an operator runs the box for (§10.2)                                                                           | until the client is deleted, which is refused while it has a member or an event; empty on a box that never created one                                                                                                                    |
-| `audit_log`: an actor id, an action, ids, numbers, and **one operator-typed reason** per change of ceilings (§22) | who changed what on the box (§17)                                                                                  | `AUDIT_RETENTION_DAYS`, 1095 by default and never below 365; the actor id becomes `NULL` with its account                                                                                                                                 |
+| `audit_log`: an actor id, an action, ids, numbers, and **one operator-typed reason** per change of ceilings (§22) | who changed what on the box (§17)                                                                                  | `AUDIT_RETENTION_DAYS`, 365 by default and never below it; the actor id becomes `NULL` with its account                                                                                                                                   |
 
 **Deliberately not stored:** EXIF of any kind (GPS, device serial, capture time), the
 original filename as a path, the uploader's IP alongside the photo row, and any
@@ -1729,7 +1733,7 @@ once with zod at startup, exported as a frozen typed object.
 | `EVENT_CREATION`                           | no                                          | `anyAccount`                          | `clientMembers`: members of a client and the operator only; needs `SITE_ADMIN=on`                                                                                           |
 | `NEW_CLIENT_*` (seven)                     | no                                          | none: no ceiling, clips allowed       | the ceilings a new client starts with (§5); **refused with `SITE_ADMIN=off`**; `NEW_CLIENT_MAX_EVENT_QUOTA_BYTES` at most `MAX_EVENT_QUOTA_BYTES`                           |
 | `OPERATOR_RESET_LINKS`                     | no                                          | `mailOnly`                            | `copyLinkWithOwnerApproval` hands an operator a reset link on a box with no relay, after another owner approves; **weakens §20**; needs `SITE_ADMIN=on`                     |
-| `AUDIT_RETENTION_DAYS`                     | no                                          | `1095`                                | how long the audit log keeps a row, 365 to 3650 (§17)                                                                                                                       |
+| `AUDIT_RETENTION_DAYS`                     | no                                          | `365`                                 | how long the audit log keeps a row, 365 to 3650 (§17)                                                                                                                       |
 | `DONATION_URL` / `BUDGET_URL`              | no                                          | empty                                 | optional support links: https only, no credentials, off guest screens and the wall (API.md §2)                                                                              |
 | `SMTP_URL`                                 | no                                          | none: no mail is sent                 | the SMTP relay; **holds the password**, never logged — see "Outgoing mail" below                                                                                            |
 | `MFA_ENCRYPTION_KEY`                       | **yes when `REQUIRE_OPERATOR_2FA` is true** | none: no operator can enrol           | the key an authenticator secret is stored under (AES-256-GCM); 32 random bytes or more as hex or base64; **a key**, never logged, never equal to a signing secret — see §19 |
@@ -2895,7 +2899,7 @@ it and leave it open. What keeps that from happening is that nothing in this rep
 which `scripts/auditPruneScope.test.ts` checks on the syntax tree. It is a guard against code that
 does not know about the gate, not against code written to get round it.
 
-**Retention.** `AUDIT_RETENTION_DAYS`: 1095 by default, **never below 365**, at most 3650, refused
+**Retention.** `AUDIT_RETENTION_DAYS`: 365 by default, **never below 365**, at most 3650, refused
 at boot outside that range and naming the variable. The hosted instance runs 365, the minimum.
 Pruning goes through one door: `pruneAuditLog` computes the cutoff from the **injected clock** (never
 SQLite's, so a row written at a fixed instant cannot become deletable as the calendar advances) and
@@ -3450,9 +3454,12 @@ and a mutation.
 - **A feed does not outlive its account.** The moderation stream re-reads the account's place in the event at every
   heartbeat (plan item A-22), so an account switched off or deleted, or removed from the event, is told to wait and is ended
   within one beat; the wall's public feed has no account and is re-checked with the question that opened it (`Event.servesPublicWall`: the lifecycle serves the wall and the client is not suspended), so an archived event ends it as a suspension does (HTTP-M-08).
+- **A person may ask for it themselves** (`POST /api/auth/account/delete`, `SITE_ADMIN=on` only): the same use case behind
+  the account's own password (and its authenticator's code when it has one, through `stepUp`; rate-limited and budgeted like the second step of a sign-in, so a stolen session cannot guess its way to an erasure), recorded as `account.deleted` by the account itself. It keeps every refusal of the operator's
+  route, in particular `account.holdsEvents`: a host who still owns an event is told to delete it or hand it over first.
 - **Not here:** erasing media a moderator wrote, or a moderator who has reviewed photographs (the account is refused
   instead; the second needs a schema change to the review constraint), erasing the sessions and tokens that hold the
-  address, a self-service erasure (roadmap §5.2), and a retry order that keeps a client that fails to finalise from
+  address, and a retry order that keeps a client that fails to finalise from
   holding up later ones in the batch of twenty.
 
 **What the routes do not do.**

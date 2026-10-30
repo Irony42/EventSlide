@@ -154,6 +154,8 @@ export const SITE_LABELS = {
     'owner-b@example.test',
     'moderator@example.test',
   ],
+  /** The version of the terms the account `ownerA` accepted: the third label the operator sees. */
+  termsVersions: ['2026-11'],
 } as const
 
 const THIRTY_MEGA = 30_000_000
@@ -180,6 +182,7 @@ export const plantSiteWorld = async (world: SiteWorld): Promise<void> => {
       passwordHash: SITE_PLANTS.passwordHashes[0],
       createdAt: atPlus(200),
       lastLoginAt: atPlus(9_000),
+      termsAcceptance: { version: SITE_LABELS.termsVersions[0], at: atPlus(250) },
     }),
   )
   await world.addAccount(
@@ -900,6 +903,8 @@ export const siteOverviewContract = (
           // and what would stop the account being deleted.
           ownedEventCount: 1,
           clients: [],
+          termsVersion: null,
+          termsAcceptedAt: null,
         })
         expect(byId(SITE_ACCOUNTS.moderator)).toMatchObject({
           siteRole: 'none',
@@ -910,6 +915,8 @@ export const siteOverviewContract = (
         expect(byId(SITE_ACCOUNTS.ownerA)).toMatchObject({
           lastLoginAt: atPlus(9_000),
           ownedEventCount: 2,
+          termsVersion: SITE_LABELS.termsVersions[0],
+          termsAcceptedAt: atPlus(250),
         })
       })
 
@@ -1017,6 +1024,7 @@ export const siteOverviewContract = (
           ...Object.values(SITE_ACCOUNTS),
           ...SITE_LABELS.clientNames,
           ...SITE_LABELS.accountEmails,
+          ...SITE_LABELS.termsVersions,
           ...EVENT_STATUSES,
           ...SITE_ROLES,
           ...CLIENT_ROLES,
@@ -1042,14 +1050,20 @@ export const siteOverviewContract = (
       it('shows free text only where a label is declared, and only what was seeded there', async () => {
         const rows = await everything(overview)
 
-        const shown = (Object.keys(SITE_OVERVIEW_SHAPES) as SiteOverviewRowKind[]).flatMap((kind) =>
-          pathsOfKind(SITE_OVERVIEW_SHAPES[kind], 'label').flatMap((path) =>
-            rows[kind].flatMap((row) => valuesAt(row, path)),
-          ),
-        )
+        const shown = (Object.keys(SITE_OVERVIEW_SHAPES) as SiteOverviewRowKind[])
+          .flatMap((kind) =>
+            pathsOfKind(SITE_OVERVIEW_SHAPES[kind], 'label').flatMap((path) =>
+              rows[kind].flatMap((row) => valuesAt(row, path)),
+            ),
+          )
+          .filter((value) => value !== null)
 
         expect(new Set(shown)).toEqual(
-          new Set([...SITE_LABELS.clientNames, ...SITE_LABELS.accountEmails]),
+          new Set([
+            ...SITE_LABELS.clientNames,
+            ...SITE_LABELS.accountEmails,
+            ...SITE_LABELS.termsVersions,
+          ]),
         )
       })
 
@@ -1068,6 +1082,8 @@ export const siteOverviewContract = (
             'mustChangePassword',
             'ownedEventCount',
             'siteRole',
+            'termsAcceptedAt',
+            'termsVersion',
           ].sort(),
         )
       })

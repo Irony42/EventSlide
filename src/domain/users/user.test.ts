@@ -68,6 +68,7 @@ const snapshot = (user: User): Record<string, unknown> => ({
   siteRole: user.siteRole,
   credentialsChangedAt: user.credentialsChangedAt,
   emailVerifiedAt: user.emailVerifiedAt,
+  termsAcceptance: user.termsAcceptance,
 })
 
 describe('User.create', () => {
@@ -140,6 +141,7 @@ describe('User.restore', () => {
       siteRole: 'operator',
       credentialsChangedAt: A_DAY_LATER,
       emailVerifiedAt: SIGNED_IN_AT,
+      termsAcceptance: { version: '2027-01', at: SIGNED_IN_AT },
     }
 
     const user = User.restore(stored)
@@ -481,6 +483,33 @@ describe('User email verification', () => {
 
   it('records the moment the mailbox was proved', () => {
     expect(aUser().verifyEmail(SIGNED_IN_AT).emailVerifiedAt).toEqual(SIGNED_IN_AT)
+  })
+
+  it('has no acceptance of the terms on record until one is made', () => {
+    expect(aUser().termsAcceptance).toBeNull()
+  })
+
+  it('records the version of the terms accepted and when', () => {
+    expect(aUser().acceptTerms('2027-01', SIGNED_IN_AT).termsAcceptance).toEqual({
+      version: '2027-01',
+      at: SIGNED_IN_AT,
+    })
+  })
+
+  it('keeps the acceptance on record when another arrives at the very same instant', () => {
+    const first = aUser().acceptTerms('2027-01', SIGNED_IN_AT)
+
+    expect(first.acceptTerms('2028-01', SIGNED_IN_AT).termsAcceptance?.version).toBe('2027-01')
+  })
+
+  it('replaces the acceptance with a later one, and ignores an earlier one', () => {
+    const first = aUser().acceptTerms('2027-01', SIGNED_IN_AT)
+
+    expect(first.acceptTerms('2028-01', A_DAY_LATER).termsAcceptance?.version).toBe('2028-01')
+    expect(
+      first.acceptTerms('2028-01', A_DAY_LATER).acceptTerms('2027-06', SIGNED_IN_AT)
+        .termsAcceptance,
+    ).toEqual({ version: '2028-01', at: A_DAY_LATER })
   })
 
   it('keeps the first proof when it is proved again, so the date is not rewritten', () => {

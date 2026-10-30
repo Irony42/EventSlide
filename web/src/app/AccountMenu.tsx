@@ -216,6 +216,16 @@ export function AccountMenu() {
                   {t.auth.securityTitle}
                 </Link>
               ) : null}
+              {consoleExists && !session.user.canOperateSite ? (
+                <Link
+                  className={styles['item']}
+                  to="/admin/account/delete"
+                  aria-current={location.pathname === '/admin/account/delete' ? 'page' : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  {t.auth.deleteAccount}
+                </Link>
+              ) : null}
               <Link
                 className={styles['item']}
                 to="/admin/password"

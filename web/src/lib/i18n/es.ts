@@ -1056,6 +1056,22 @@ export const es: UiText = {
     changePasswordIntro: 'Elija una contraseña que no use en ningún otro sitio.',
     passwordSaved: 'Contraseña guardada.',
     passwordIncorrect: 'La contraseña no es correcta.',
+    deleteAccount: 'Eliminar mi cuenta',
+    deleteAccountIntro:
+      'Al eliminar la cuenta se borran su dirección, su contraseña y sus accesos. Los eventos que aún le pertenezcan deben eliminarse antes o cederse a otra persona. Durante unos días como máximo seguirán activas las conexiones ya abiertas, y el registro de auditoría conserva líneas anónimas: un identificador que ya no remite a nadie, sin su nombre ni su dirección. No se puede deshacer.',
+    deleteAccountConfirm: 'Introduzca su contraseña para confirmar.',
+    deleteAccountSubmit: 'Eliminar mi cuenta definitivamente',
+    deleteAccountDone: 'Su cuenta ha sido eliminada.',
+    deleteAccountCode: 'Código de su aplicación de autenticación',
+    deleteAccountCodeHint: 'Solo si activó un segundo factor; si no, déjelo vacío.',
+    deleteAccountHoldsEvents:
+      'Todavía es propietario de al menos un evento. Elimínelo o cédaselo a otra persona y vuelva a intentarlo. ¿Necesita ayuda? Contacte con el operador del sitio.',
+    deleteAccountHoldsMedia:
+      'Subió fotos o vídeos a un evento, por lo que su cuenta no se puede eliminar por su cuenta. Contacte con el operador del sitio.',
+    deleteAccountHoldsReviews:
+      'Moderó fotos, por lo que su cuenta no se puede eliminar por su cuenta. Contacte con el operador del sitio.',
+    deleteAccountLastOwner:
+      'Es el único propietario de su espacio, que aún tiene miembros o eventos. Añada otro propietario o contacte con el operador del sitio.',
 
     /* ---- Added by G2-13: the second factor. ---- */
     secondFactorTitle: 'Verificación en dos pasos',
@@ -1441,6 +1457,9 @@ export const es: UiText = {
     roleColumn: 'Función en la instancia',
     accountStateColumn: 'Estado',
     lastLoginColumn: 'Último acceso',
+    termsColumn: 'Condiciones aceptadas',
+    termsNone: 'Sin registro',
+    termsAccepted: (version: string, at: string) => `Versión ${version}, el ${at}`,
     ownedColumn: 'Eventos propios',
     clientsColumn: 'Clientes',
     siteRoleOperator: 'Operador',
@@ -1627,6 +1646,7 @@ export const es: UiText = {
     invitation: 'Invitación',
     changePassword: 'Cambiar la contraseña',
     security: 'Seguridad de la cuenta',
+    deleteAccount: 'Eliminar mi cuenta',
     dashboard: 'Sus eventos',
     newEvent: 'Nuevo evento',
     event: 'Evento',

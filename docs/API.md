@@ -338,8 +338,11 @@ a client that does not exist, which is **not** a client with no event (an empty 
 #### `GET /api/site/accounts`
 
 `?after=<userId>&limit=<1..200>`. **200** `{ "items": [ { "id", "email", "siteRole", "createdAt",
-"lastLoginAt", "disabledAt", "mustChangePassword", "ownedEventCount", "clients": [ { "clientId", "role" } ] } ],
-"next" }`.
+"lastLoginAt", "disabledAt", "mustChangePassword", "ownedEventCount", "clients": [ { "clientId", "role" } ],
+"termsVersion", "termsAcceptedAt" } ], "next" }`. `termsVersion` and `termsAcceptedAt` are the **proof of acceptance** of the
+terms of use: the version (`LEGAL_TERMS_VERSION` as it was) and the instant of the account's latest acceptance, both
+`null` when none is on record. They are kept as long as the account lives, unlike the audit line, and go with it when it
+is deleted.
 
 #### `GET /api/site/audit`
 
@@ -572,7 +575,7 @@ account, switched off or not), **409** `account.holdsEvents` (it **owns** an eve
 `account.holdsReviews` (it **reviewed** photographs, whose rows name the reviewer and which the schema refuses to leave
 with none) and **409** `account.lastClientOwner` (it is the only owner of a client that still has other members or an
 event, which would be orphaned: add an owner first, or offboard the client); **404** `user.notFound`, including the
-second time.
+second time. A person can ask for the same erasure for themselves: `POST /api/auth/account/delete` (§ Auth).
 
 #### `POST /api/site/accounts/:userId/password-reset`
 
@@ -2079,6 +2082,7 @@ invitation routes (below) take none because the link is the credential.
 | `POST` | `/api/auth/logout`                 | none                                                                    |
 | `GET`  | `/api/auth/me`                     | none                                                                    |
 | `POST` | `/api/auth/password`               | any signed-in user whose account is still enabled; no event, so no role |
+| `POST` | `/api/auth/account/delete`         | any signed-in user, and the password again; only with `SITE_ADMIN=on`   |
 | `POST` | `/api/auth/sessions/revoke-others` | same: any signed-in user whose account is still enabled, for itself     |
 | `POST` | `/api/auth/password-reset/request` | none: the person asking has no credential                               |
 | `POST` | `/api/auth/password-reset/confirm` | none: the mailed link is the credential                                 |
@@ -2225,6 +2229,28 @@ case means the session no longer names anybody, and a browser holding a dead ses
 be sent back to the login form rather than told the route is missing. (It used to answer
 `404 user.notFound` here; the use case still returns that code, and nothing routes to it.)
 
+### `POST /api/auth/account/delete`
+
+```json
+{ "password": "…", "code": "123456" }
+```
+
+`code` (or `recoveryCode`, never both: `400 request.invalid`) is required **only** when the account has an authenticator, and is checked as `POST /api/auth/step-up` checks it; without one the password alone confirms. The route has the second-step limiters of a sign-in (`rate.limited`, 429, from the eleventh attempt in a minute, and the per-account failure budget), because a wrong password here is a guess whose prize is an erasure.
+
+A person erases **their own account** (GDPR art. 17). Mounted only on a box that runs for other people
+(`SITE_ADMIN=on`); elsewhere it is an unknown route (`404 route.notFound`), because a self-hosted box has one owner. The
+account is the session's, never the body's (the body is strict: a `userId` is `400 request.invalid`). It is the operator's
+erasure (`DELETE /api/site/accounts/:userId`) asked by the person behind their password, with the same refusals and the same
+effect: memberships, invitations written to the account, second factor and share links go; the actor pointer of every audit
+line it wrote becomes `NULL` (the lines stay, pseudonymous: an id that points at nobody); the `account.deleted` line is
+written first, as the account itself (`actor.kind = member`). **204**, and the session and its cookies are cleared as for a
+logout. **Errors** — `401 auth.invalidCredentials` (wrong password, nothing touched), `401 auth.invalidSecondFactor` (an account with an authenticator and no or a wrong code), `429 rate.limited`, `401 auth.required`, `403
+account.operatorProtected` (an operator's account is not deleted from here), `409 account.holdsEvents` (the person still
+**owns** an event: delete it or hand it over first), `409 account.holdsMedia`, `409 account.holdsReviews`, `409
+account.lastClientOwner`, `400 request.invalid`. **What it does not erase**: the sessions already open on other devices
+(seven days at most, and they grant nothing once the account is gone) and the invitation and reset links written to the
+address (until the expiry sweep).
+
 ### `POST /api/auth/sessions/revoke-others`
 
 No body. **204**, and every session of this account issued before now is refused from its next
@@ -2352,7 +2378,9 @@ preview above says so): there, anything but `true` is `400 terms.notAccepted`, a
 not a dead link; it is judged right after the link is found and before anything about who is accepting,
 so it is the same `400` for an address that has an account as for one that has none, and a dead link
 is the same `404` with or without it. Nothing is created and nothing is spent by that refusal. When the
-acceptance goes through, the audit entry `account.termsAccepted {version}` is written in the same
+acceptance goes through, the version and the instant are also written onto the account (`users.terms_version`,
+`terms_accepted_at`, the durable proof the operator reads in `GET /api/site/accounts`; the latest acceptance stands), and
+the audit entry `account.termsAccepted {version}` is written in the same
 transaction, as the account that accepted and filed under the invitation's client (or the client that
 owns its event), for an existing account's acceptance as for a new one's. On a box that asks for no
 terms the key is accepted and ignored, nothing is recorded, and nothing is refused for want of it.

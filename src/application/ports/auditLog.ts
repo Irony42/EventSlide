@@ -74,6 +74,9 @@ export interface AuditLog {
    * call, atomically.
    */
   pruneOlderThan(cutoff: Date): Promise<number>
+
+  /** The instant of the oldest entry, or `null` for an empty log. Read once at boot (the retention warning). */
+  oldestAt(): Promise<Date | null>
 }
 
 /**

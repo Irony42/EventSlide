@@ -112,6 +112,11 @@ export class FakeInvitationAcceptance implements InvitationAcceptance {
       }
     }
 
+    if (record.termsVersion !== undefined) {
+      const stored = await users.findById(userId)
+      if (stored !== null) await users.save(stored.acceptTerms(record.termsVersion, now))
+    }
+
     // Last, as in the adapter: the entry describes what was just written.
     if (record.audit !== undefined) {
       audit.withAccounts(userId)

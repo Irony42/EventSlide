@@ -77,6 +77,11 @@ export class FakeAuditLog implements AuditLog {
     }
   }
 
+  async oldestAt(): Promise<Date | null> {
+    if (this.rows.length === 0) return null
+    return new Date(Math.min(...this.rows.map((row) => row.at.getTime())))
+  }
+
   async pruneOlderThan(cutoff: Date): Promise<number> {
     if (!Number.isFinite(cutoff.getTime())) {
       throw new RangeError('AuditLog.pruneOlderThan requires a real cutoff date')

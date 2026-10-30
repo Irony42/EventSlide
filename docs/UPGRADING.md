@@ -374,7 +374,7 @@ why each change was made and what there was no warning for.
    | `SMTP_URL`, `MAIL_FROM`                                                                 | none         | the forms `.env.example` shows; `SMTP_URL` needs `MAIL_FROM`                                            |
    | `EVENT_CREATION`                                                                        | `anyAccount` | `anyAccount` or `clientMembers` (which needs `SITE_ADMIN=on`)                                           |
    | `OPERATOR_RESET_LINKS`                                                                  | `mailOnly`   | `mailOnly` or `copyLinkWithOwnerApproval` (which needs `SITE_ADMIN=on`); case matters                   |
-   | `AUDIT_RETENTION_DAYS`                                                                  | `1095`       | a whole number of days, 365 to 3650                                                                     |
+   | `AUDIT_RETENTION_DAYS`                                                                  | `365`        | a whole number of days, 365 to 3650                                                                     |
    | `MFA_ENCRYPTION_KEY`                                                                    | none         | the form `.env.example` shows; never equal to `SESSION_SECRET` or `GUEST_TOKEN_SECRET`                  |
    | `REQUIRE_OPERATOR_2FA`                                                                  | `false`      | `true`, `false`, `1` or `0`; `true` needs a valid `MFA_ENCRYPTION_KEY` and `SITE_ADMIN=on`              |
    | `MIN_FREE_DISK_BYTES`                                                                   | `1000000000` | a positive whole number                                                                                 |
@@ -551,11 +551,12 @@ archive you took before the upgrade.
 ## Upgrading to 3.3
 
 3.3.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
-`BREAKING` section and nothing has to change in `.env`. This section is here because it adds a
-migration and because the host of a suspended client now sees less than it did.
+`BREAKING` section and nothing has to change in `.env`. This section is here because it adds three
+migrations, changes a default, and because the host of a suspended client now sees less than it did.
 
-**Who is affected.** Everyone who upgrades from 3.2.x (the migration), and every box with
-`SITE_ADMIN=on` (the new operator routes and the suspension change).
+**Who is affected.** Everyone who upgrades from 3.2.x (the migrations), anyone who never set
+`AUDIT_RETENTION_DAYS`, and every box with `SITE_ADMIN=on` (the new operator routes, the suspension change
+and the account self-erasure).
 
 1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)). 3.3.0
    applies **migration 015**, which adds three nullable columns (`photos.taken_down_at`,
@@ -577,9 +578,22 @@ migration and because the host of a suspended client now sees less than it did.
    a suspended client kept reading their photographs (the grid, the moderation queue, the album
    download and the media route); they now get `403 client.suspended` on those. They keep the
    dashboard, the settings, the counts and the audit trail. Resuming the client restores everything.
-5. **Nothing changes for a self-hosted box with `SITE_ADMIN=off`**: the routes are not mounted and no
+5. **Migration 017 adds the proof that an account accepted the terms of use**: `users.terms_version` and
+   `users.terms_accepted_at`, and copies into them the latest acceptance still present in the audit log.
+   Nothing is lost and no setting is needed; a box that sets no `LEGAL_TERMS_URL` records nothing and keeps
+   the columns empty.
+6. **`AUDIT_RETENTION_DAYS` now defaults to 365** (it was 1095). The value was already the floor, and it is
+   what the hosted instance runs. **A box that never set it will, at the first retention sweep after the
+   upgrade, delete audit lines older than a year.** If you need to keep them longer (the privacy policy you
+   publish must then say so), set `AUDIT_RETENTION_DAYS=1095` in `.env` before you upgrade. A value you set
+   yourself is kept. A box that left it unset and holds older rows logs one warning naming
+   `AUDIT_RETENTION_DAYS` at boot, before the first sweep.
+7. **With `SITE_ADMIN=on`, an account can delete itself**: `POST /api/auth/account/delete` and an entry
+   "Supprimer mon compte" in the account menu, behind the password (and the authenticator's code when there
+   is one), with the same refusals as the operator's route (an account that still owns an event is refused).
+8. **Nothing else changes for a self-hosted box with `SITE_ADMIN=off`**: the routes are not mounted and no
    client is ever suspended.
 
-**How to tell it worked.** The first boot logs migrations 015 and 016 and `GET /api/health` answers
+**How to tell it worked.** The first boot logs migrations 015, 016 and 017 and `GET /api/health` answers
 `"version": "3.3.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.

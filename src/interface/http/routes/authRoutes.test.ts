@@ -11,6 +11,14 @@ import { AT, aUser } from '../../../application/testing/builders'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
 import { makeAuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { makeChangePassword } from '../../../application/usecases/auth/changePassword'
+import { makeStepUp } from '../../../application/usecases/auth/stepUp'
+import { err, ok } from '../../../domain/shared/result'
+import { DomainError } from '../../../domain/shared/errors'
+import { makeDeleteOwnAccount } from '../../../application/usecases/auth/deleteOwnAccount'
+import { makeDeleteAccount } from '../../../application/usecases/site/deleteAccount'
+import { FakeAccountHoldings } from '../../../application/testing/fakeAccountHoldings'
+import { FakeAuditLog } from '../../../application/testing/fakeAuditLog'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import { makeRequestPasswordReset } from '../../../application/usecases/auth/requestPasswordReset'
 import { makeResetPassword } from '../../../application/usecases/auth/resetPassword'
 import { makeRevokeOtherSessions } from '../../../application/usecases/auth/revokeOtherSessions'
@@ -23,6 +31,8 @@ import type { Mailer } from '../../../application/ports/mailer'
 import { asUserId } from '../../../domain/shared/ids'
 import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 
+/** What the authenticator of the host who erases their account shows, in these tests. */
+const AUTHENTICATOR_CODE = '123456'
 const HOST_ID = 'host-id'
 const HOST_EMAIL = 'camille@example.test'
 const FORMER_EMAIL = 'ancienne@example.test'
@@ -52,6 +62,9 @@ interface AuthHarness extends Harness {
   readonly mailer: FakeMailer
   readonly tokens: FakeAccountTokenRepository
   readonly secrets: FakeSecretTokens
+  readonly holdings: FakeAccountHoldings
+  readonly factors: FakeSecondFactorRepository
+  readonly audit: FakeAuditLog
 }
 
 interface AuthHarnessOptions {
@@ -90,6 +103,9 @@ const harness = ({
     asUserId(OTHER_ID),
   )
   const secrets = new FakeSecretTokens()
+  const holdings = new FakeAccountHoldings()
+  const factors = new FakeSecondFactorRepository().withAccounts(asUserId(HOST_ID))
+  const audit = new FakeAuditLog().withAccounts(asUserId(HOST_ID))
   const ids = new SequentialIdGenerator()
   const boxMailer: Mailer =
     mail === 'relay'
@@ -135,6 +151,25 @@ const harness = ({
               clock: deps.clock,
             }),
             changePassword: makeChangePassword({ users, hasher, clock: deps.clock }),
+            deleteOwnAccount: makeDeleteOwnAccount({
+              stepUp: makeStepUp({
+                users,
+                factors,
+                hasher,
+                // The code this suite's authenticator accepts; anything else is the one wrong answer.
+                verifySecondFactor: async ({ proof }) =>
+                  'code' in proof && proof.code === AUTHENTICATOR_CODE
+                    ? ok({ method: 'totp', recoveryCodesRemaining: null })
+                    : err(DomainError.unauthenticated('auth.invalidSecondFactor')),
+              }),
+              deleteAccount: makeDeleteAccount({
+                users,
+                clients: new FakeClientRepository(),
+                holdings,
+                audit,
+                clock: deps.clock,
+              }),
+            }),
             revokeOtherSessions: makeRevokeOtherSessions({ users, clock: deps.clock }),
             requestPasswordReset: makeRequestPasswordReset({
               users,
@@ -162,7 +197,7 @@ const harness = ({
     },
   })
 
-  return { ...built, users, mailer, tokens, secrets }
+  return { ...built, users, mailer, tokens, secrets, holdings, audit, factors }
 }
 
 /** supertest types `headers` loosely, so the shape read here is narrowed explicitly. */
@@ -646,6 +681,164 @@ describe('GET /api/auth/me', () => {
     const agent = await signedIn(subject)
 
     expect((await agent.get('/api/auth/me')).body).toEqual({ authenticated: false })
+  })
+})
+
+describe('POST /api/auth/account/delete', () => {
+  const body = { password: PASSWORD }
+  const onAHostedBox = { config: { siteAdmin: true } }
+
+  it('is an unknown route on a box that runs for nobody else (SITE_ADMIN off)', async () => {
+    const subject = harness()
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(response.status).toBe(404)
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  it('erases the account of the signed-in person who gives their password, and ends the session', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(response.status).toBe(204)
+    expect(await subject.users.findById(asUserId(HOST_ID))).toBeNull()
+    expect(setCookie(response.headers, SESSION_COOKIE)).toMatch(/Expires=Thu, 01 Jan 1970/)
+    expect((await agent.post('/api/auth/password').send({})).status).toBe(401)
+  })
+
+  it('replaces the CSRF token and keeps the answer out of every cache, as a logout does', async () => {
+    const subject = harness({ ...onAHostedBox, csrf: true })
+    seedHost(subject)
+    const agent = request.agent(subject.app)
+    const token = cookieValue((await agent.get('/api/auth/me')).headers, CSRF_COOKIE)
+    if (token === undefined) throw new Error('the server issued no CSRF cookie')
+    await agent.post('/test/sign-in').expect(204)
+
+    const response = await agent
+      .post('/api/auth/account/delete')
+      .set(CSRF_HEADER, token)
+      .send(body)
+      .expect(204)
+
+    const rotated = cookieValue(response.headers, CSRF_COOKIE)
+    expect(rotated).toBeTruthy()
+    expect(rotated).not.toBe(token)
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('answers 401 for a wrong password and keeps the account and the session', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    const agent = await signedIn(subject)
+
+    const response = await agent
+      .post('/api/auth/account/delete')
+      .send({ password: 'pas-le-bon-mot' })
+
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('auth.invalidCredentials')
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  it('answers 429 from the eleventh wrong password on, and the account survives the guessing', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    const agent = await signedIn(subject)
+    const wrong = { password: 'pas-le-bon-mot-de-passe' }
+
+    const statuses: number[] = []
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      statuses.push((await agent.post('/api/auth/account/delete').send(wrong)).status)
+    }
+    const eleventh = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(statuses.every((status) => status === 401 || status === 429)).toBe(true)
+    expect(eleventh.status).toBe(429)
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  describe('for an account that has an authenticator', () => {
+    const enrol = async (subject: AuthHarness) => {
+      const sealed = 'v1.aaaa.bbbb'
+      await subject.factors.beginEnrolment(asUserId(HOST_ID), sealed, 1, AT)
+      await subject.factors.confirmEnrolment(asUserId(HOST_ID), sealed, 1, AT, ['a'.repeat(64)])
+    }
+
+    it('refuses the password alone with 401 auth.invalidSecondFactor, and keeps the account', async () => {
+      const subject = harness(onAHostedBox)
+      seedHost(subject)
+      await enrol(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent.post('/api/auth/account/delete').send(body)
+
+      expect(response.status).toBe(401)
+      expect(response.body.error.code).toBe('auth.invalidSecondFactor')
+      expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+    })
+
+    it('erases it with the password and the code', async () => {
+      const subject = harness(onAHostedBox)
+      seedHost(subject)
+      await enrol(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent
+        .post('/api/auth/account/delete')
+        .send({ ...body, code: AUTHENTICATOR_CODE })
+
+      expect(response.status).toBe(204)
+      expect(await subject.users.findById(asUserId(HOST_ID))).toBeNull()
+    })
+
+    it('refuses a body that names both a code and a recovery code', async () => {
+      const subject = harness(onAHostedBox)
+      seedHost(subject)
+      const agent = await signedIn(subject)
+
+      const response = await agent
+        .post('/api/auth/account/delete')
+        .send({ ...body, code: AUTHENTICATOR_CODE, recoveryCode: 'abcd-efgh' })
+
+      expect(response.status).toBe(400)
+      expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+    })
+  })
+
+  it('answers 409 account.holdsEvents for a host who still owns an event, and deletes nothing', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    subject.holdings.holds(asUserId(HOST_ID), { events: 1 })
+    const agent = await signedIn(subject)
+
+    const response = await agent.post('/api/auth/account/delete').send(body)
+
+    expect(response.status).toBe(409)
+    expect(response.body.error.code).toBe('account.holdsEvents')
+    expect(await subject.users.findById(asUserId(HOST_ID))).not.toBeNull()
+  })
+
+  it('answers 401 without a session, 400 for a body naming another account, and touches nobody', async () => {
+    const subject = harness(onAHostedBox)
+    seedHost(subject)
+    subject.users.seed(aUser({ id: 'former-id', email: FORMER_EMAIL }))
+
+    expect((await request(subject.app).post('/api/auth/account/delete').send(body)).status).toBe(
+      401,
+    )
+
+    const agent = await signedIn(subject)
+    const crafted = await agent
+      .post('/api/auth/account/delete')
+      .send({ ...body, userId: 'former-id' })
+    expect(crafted.status).toBe(400)
+    expect(await subject.users.findById(asUserId('former-id'))).not.toBeNull()
   })
 })
 

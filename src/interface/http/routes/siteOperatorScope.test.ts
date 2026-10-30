@@ -174,6 +174,9 @@ const NOT_EVENT_SCOPED: Readonly<Record<string, string>> = {
  * is not a route". The same claim is checked of them in the mode that mounts them.
  */
 const CLIENT_SPACE_ROUTES: Readonly<Record<string, string>> = {
+  'post /api/auth/account/delete':
+    'an account’s own erasure behind its password, mounted with the rest of the hosted box’s ' +
+    'accounts (`SITE_ADMIN=on`): it reaches no event',
   'post /api/client/password-resets/:requestId/approve':
     'another owner letting an operator be handed an account’s reset link (R2, ' +
     '`copyLinkWithOwnerApproval`): decided by the client’s own roster, so an operator who is no ' +

@@ -70,6 +70,12 @@ export interface AcceptInvitationRecord {
    * the acceptance with it. Absent when the box asks for no terms (G2-20).
    */
   readonly audit?: AuditEntry
+  /**
+   * The version of the terms the account agreed to, written onto the account in the same
+   * transaction (stamped with `now`): the durable proof, which outlives the audit entry. Present
+   * exactly when `audit` is, and under the same rule: only on `accepted`.
+   */
+  readonly termsVersion?: string
 }
 
 /**

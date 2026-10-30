@@ -195,7 +195,7 @@ describe('loadConfig', () => {
         mail: { smtp: null },
         // A development boot never gets a warning: every case below is production-only.
         warnings: [],
-        audit: { retentionDays: 1095 },
+        audit: { retentionDays: 365, retentionFromDefault: true },
         // No ceiling for a client, and clips allowed: a box that sets none of them is unchanged.
         newClientCeilings: {
           maxEvents: null,
@@ -2473,13 +2473,25 @@ describe('loadConfig', () => {
     describe('AUDIT_RETENTION_DAYS', () => {
       const NAME = 'AUDIT_RETENTION_DAYS'
 
-      it('is three years on a box that never mentions it', () => {
-        expect(loadConfig({ ...DEV }).audit.retentionDays).toBe(1095)
-        expect(loadConfig(aProductionEnv()).audit.retentionDays).toBe(1095)
+      it('is a year on a box that never mentions it', () => {
+        expect(loadConfig({ ...DEV }).audit.retentionDays).toBe(365)
+        expect(loadConfig(aProductionEnv()).audit.retentionDays).toBe(365)
+      })
+
+      it('says whether the value came from the default, which a blank one does too', () => {
+        expect(loadConfig({ ...DEV }).audit.retentionFromDefault).toBe(true)
+        expect(loadConfig(aProductionEnv({ [NAME]: '' })).audit.retentionFromDefault).toBe(true)
+        expect(loadConfig(aProductionEnv({ [NAME]: '365' })).audit.retentionFromDefault).toBe(false)
+      })
+
+      it('says whether the value came from the default, which a blank one does too', () => {
+        expect(loadConfig({ ...DEV }).audit.retentionFromDefault).toBe(true)
+        expect(loadConfig(aProductionEnv({ [NAME]: '' })).audit.retentionFromDefault).toBe(true)
+        expect(loadConfig(aProductionEnv({ [NAME]: '365' })).audit.retentionFromDefault).toBe(false)
       })
 
       it('reads a blank value as absent, so a dangling compose variable keeps the default rather than becoming zero', () => {
-        expect(loadConfig(aProductionEnv({ [NAME]: '' })).audit.retentionDays).toBe(1095)
+        expect(loadConfig(aProductionEnv({ [NAME]: '' })).audit.retentionDays).toBe(365)
       })
 
       it('accepts 365, the floor the hosted instance runs at', () => {

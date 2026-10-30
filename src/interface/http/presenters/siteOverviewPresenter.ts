@@ -100,6 +100,8 @@ const toSiteAccountDto = (row: SiteAccountRow): SiteAccountDto => ({
   mustChangePassword: row.mustChangePassword,
   ownedEventCount: row.ownedEventCount,
   clients: row.clients.map((client) => ({ clientId: client.clientId, role: client.role })),
+  termsVersion: row.termsVersion,
+  termsAcceptedAt: isoOrNull(row.termsAcceptedAt),
 })
 
 export const toSiteAccountPageDto = (page: SiteAccountPage): SiteAccountPageDto => ({

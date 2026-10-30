@@ -98,6 +98,12 @@ export interface SiteAccountRow {
   readonly ownedEventCount: number
   /** The client accounts it belongs to, most recently granted first. */
   readonly clients: readonly SiteAccountClient[]
+  /**
+   * The version of the terms of use the account last accepted, and when: the operator's proof of
+   * acceptance, kept for as long as the account lives. `null` for both when none is on record.
+   */
+  readonly termsVersion: string | null
+  readonly termsAcceptedAt: Date | null
 }
 
 /** A field per member of `T`, none optional: the compiler checks both directions. */
@@ -160,6 +166,12 @@ const ACCOUNT_FIELDS = {
       role: field.oneOf(CLIENT_ROLES),
     } satisfies ShapeOf<SiteAccountClient>),
   ),
+  termsVersion: field.nullable(
+    field.label(
+      "the version of the operator's own terms that the account accepted, as the proof of acceptance (at most 32 characters of letters, digits, '.', '_' and '-', set by the operator, never typed by the person)",
+    ),
+  ),
+  termsAcceptedAt: field.nullable(field.instant),
 } satisfies ShapeOf<SiteAccountRow>
 
 export const SITE_CLIENT_ROW_SHAPE: FieldShape = field.object(CLIENT_FIELDS)

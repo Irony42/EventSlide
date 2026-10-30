@@ -23,6 +23,8 @@ import { makeDisableAccount } from '../../../application/usecases/auth/disableAc
 import { makeEnableAccount } from '../../../application/usecases/auth/enableAccount'
 import { makeOffboardClient } from '../../../application/usecases/clients/offboardClient'
 import { makeDeleteAccount } from '../../../application/usecases/site/deleteAccount'
+import { makeStepUp } from '../../../application/usecases/auth/stepUp'
+import { makeDeleteOwnAccount } from '../../../application/usecases/auth/deleteOwnAccount'
 import { SqliteAccountHoldings } from '../../../infrastructure/db/sqliteAccountHoldings'
 import { makeSetClientCeilings } from '../../../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../../../application/usecases/clients/suspendClient'
@@ -205,6 +207,13 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
     publicUrl: PUBLIC_URL,
   })
   const readers = { tokens, secrets, events, clients, memberships, users }
+  const accountDeleter = makeDeleteAccount({
+    users,
+    clients,
+    holdings: new SqliteAccountHoldings(db),
+    audit,
+    clock,
+  })
 
   const accounts: Record<string, string> = {}
   const sessions = new session.MemoryStore()
@@ -250,13 +259,19 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       offboardClient: makeOffboardClient({ clients, events, audit, clock }),
       disableAccount: makeDisableAccount({ users, clients, audit, clock }),
       enableAccount: makeEnableAccount({ users, clients, audit, clock }),
-      deleteAccount: makeDeleteAccount({
-        users,
-        clients,
-        holdings: new SqliteAccountHoldings(db),
-        audit,
-        clock,
+      deleteOwnAccount: makeDeleteOwnAccount({
+        // No account here has an authenticator, so the factor is never asked for.
+        stepUp: makeStepUp({
+          users,
+          factors: secondFactors,
+          hasher,
+          verifySecondFactor: async () => {
+            throw new Error('the site harness enrols no second factor')
+          },
+        }),
+        deleteAccount: accountDeleter,
       }),
+      deleteAccount: accountDeleter,
       inviteToClientAsOperator: makeInviteToClientAsOperator({
         users,
         clients,

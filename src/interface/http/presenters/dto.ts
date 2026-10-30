@@ -1082,6 +1082,9 @@ export interface SiteAccountDto {
   readonly mustChangePassword: boolean
   readonly ownedEventCount: number
   readonly clients: readonly { readonly clientId: string; readonly role: 'owner' | 'member' }[]
+  /** The version of the terms the account last accepted, and when: the proof. `null` if none. */
+  readonly termsVersion: string | null
+  readonly termsAcceptedAt: string | null
 }
 
 export interface SiteAccountPageDto {

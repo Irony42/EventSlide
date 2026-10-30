@@ -314,6 +314,13 @@ export const stepUpBody = z.strictObject({
 })
 
 /**
+ * Erasing one's own account: the confirmation of a step-up (the password, and a code or a recovery
+ * code when the account has an authenticator), and nothing else: the account is the session's.
+ * Declared after {@link stepUpBody}, whose shape it is.
+ */
+export const deleteOwnAccountBody = stepUpBody
+
+/**
  * The proof a body carries: `{ code }`, `{ recoveryCode }`, or `null` for neither. `'both'`
  * is a body that names two, which no client sends and which is refused rather than guessed
  * at — the one place a request could be read two ways.

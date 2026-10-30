@@ -234,6 +234,8 @@ describe('GET /api/site/accounts', () => {
           'mustChangePassword',
           'ownedEventCount',
           'siteRole',
+          'termsAcceptedAt',
+          'termsVersion',
         ].sort(),
       )
     }

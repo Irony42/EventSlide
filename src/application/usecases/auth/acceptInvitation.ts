@@ -173,7 +173,9 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
     }
 
     /** What rides the acceptance of `userId`: the agreement, when the box asks for terms. */
-    const agreement = (userId: UserId): Result<{ readonly audit?: AuditEntry }, DomainError> => {
+    const agreement = (
+      userId: UserId,
+    ): Result<{ readonly audit?: AuditEntry; readonly termsVersion?: string }, DomainError> => {
       if (terms === null) return ok({})
       const entry = AuditEntry.create({
         at: now,
@@ -183,7 +185,7 @@ export const makeAcceptInvitation = (deps: AcceptInvitationDeps): AcceptInvitati
         clientId,
         details: { version: terms.version },
       })
-      return entry.ok ? ok({ audit: entry.value }) : entry
+      return entry.ok ? ok({ audit: entry.value, termsVersion: terms.version }) : entry
     }
 
     // Mail proves the mailbox; a link the inviter held proves nothing about it.

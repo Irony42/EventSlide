@@ -783,6 +783,27 @@ describe('acceptInvitation: the terms of use', () => {
       })
     })
 
+    it('also writes the version and the instant on the account, where no pruning reaches', async () => {
+      const accept = buildWith(TERMS)
+      const { token } = await world.invite({ to: 'client-owner' })
+
+      await accept({ token, credentials, termsAccepted: true })
+
+      const account = await accountAt(NEWCOMER)
+      expect(account?.termsAcceptance).toEqual({ version: '2027-01', at: world.clock.now() })
+    })
+
+    it('moves the version of an existing account to the one it agrees to now', async () => {
+      const { token } = await world.invite({ email: EXISTING_EMAIL })
+      await buildWith({ ...TERMS, version: '2028-03' })({
+        token,
+        signedInUserId: asUserId(EXISTING_ID),
+        termsAccepted: true,
+      })
+
+      expect((await accountAt(EXISTING_EMAIL))?.termsAcceptance?.version).toBe('2028-03')
+    })
+
     it('records the version this box is on, whichever it is, and nothing the request said', async () => {
       const accept = buildWith({ ...TERMS, version: '2028-03' })
       const { token } = await world.invite()
@@ -919,6 +940,7 @@ describe('acceptInvitation: the terms of use', () => {
 
       expect(result.ok).toBe(true)
       expect(await logged()).toEqual([])
+      expect((await accountAt(NEWCOMER))?.termsAcceptance).toBeNull()
     })
 
     it('accepts a signed-in account without any tick either', async () => {

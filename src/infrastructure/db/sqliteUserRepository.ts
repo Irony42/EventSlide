@@ -40,6 +40,8 @@ interface UserRow {
   readonly site_role: string
   readonly credentials_changed_at: string | null
   readonly email_verified_at: string | null
+  readonly terms_version: string | null
+  readonly terms_accepted_at: string | null
 }
 
 const SELECT_USER = `
@@ -53,7 +55,9 @@ const SELECT_USER = `
          disabled_at,
          site_role,
          credentials_changed_at,
-         email_verified_at
+         email_verified_at,
+         terms_version,
+         terms_accepted_at
     FROM users
 `
 
@@ -93,14 +97,25 @@ const LATEST_EPOCH = `NULLIF(MAX(COALESCE(users.credentials_changed_at, ''),
 const KEPT_VERIFICATION = `COALESCE(users.email_verified_at, excluded.email_verified_at)`
 
 /**
+ * The latest acceptance of the terms stands, whoever saves last: a stale entity (a sign-in's
+ * `lastLoginAt` write) carries an older acceptance or none, and must not erase the proof. Both
+ * columns follow the same test, on the stored instant, so they never disagree.
+ */
+const TERMS_IS_NEWER = `excluded.terms_accepted_at IS NOT NULL
+  AND excluded.terms_accepted_at > COALESCE(users.terms_accepted_at, '')`
+const KEPT_TERMS_VERSION = `CASE WHEN ${TERMS_IS_NEWER} THEN excluded.terms_version ELSE users.terms_version END`
+const KEPT_TERMS_AT = `CASE WHEN ${TERMS_IS_NEWER} THEN excluded.terms_accepted_at ELSE users.terms_accepted_at END`
+
+/**
  * Creating an account: a plain `INSERT`, so an id that exists is an error and never an
  * overwrite. `UPSERT_USER` is built on it, so the column list exists once.
  */
 export const INSERT_USER = `
   INSERT INTO users (id, email, display_name, password_hash, created_at,
                      last_login_at, must_change_password, disabled_at, site_role,
-                     credentials_changed_at, email_verified_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                     credentials_changed_at, email_verified_at,
+                     terms_version, terms_accepted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 export const UPSERT_USER = `${INSERT_USER}
   ON CONFLICT (id) DO UPDATE SET email                  = excluded.email,
@@ -112,7 +127,9 @@ export const UPSERT_USER = `${INSERT_USER}
                                  disabled_at            = excluded.disabled_at,
                                  site_role              = excluded.site_role,
                                  credentials_changed_at = ${LATEST_EPOCH},
-                                 email_verified_at      = ${KEPT_VERIFICATION}
+                                 email_verified_at      = ${KEPT_VERIFICATION},
+                                 terms_version          = ${KEPT_TERMS_VERSION},
+                                 terms_accepted_at      = ${KEPT_TERMS_AT}
 `
 
 /**
@@ -168,6 +185,10 @@ const toUser = (row: UserRow): User =>
     siteRole: toSiteRole(row.site_role),
     credentialsChangedAt: fromNullableIsoText(row.credentials_changed_at),
     emailVerifiedAt: fromNullableIsoText(row.email_verified_at),
+    termsAcceptance:
+      row.terms_version === null || row.terms_accepted_at === null
+        ? null
+        : { version: row.terms_version, at: fromIsoText(row.terms_accepted_at) },
   })
 
 /** The values of `UPSERT_USER`, in its order: one place that knows the column list. */
@@ -185,6 +206,8 @@ export const userRow = (
   SiteRole,
   string | null,
   string | null,
+  string | null,
+  string | null,
 ] => {
   const props = user.toProps()
   return [
@@ -199,6 +222,8 @@ export const userRow = (
     props.siteRole,
     props.credentialsChangedAt === null ? null : toIsoText(props.credentialsChangedAt),
     props.emailVerifiedAt === null ? null : toIsoText(props.emailVerifiedAt),
+    props.termsAcceptance?.version ?? null,
+    props.termsAcceptance === null ? null : toIsoText(props.termsAcceptance.at),
   ]
 }
 

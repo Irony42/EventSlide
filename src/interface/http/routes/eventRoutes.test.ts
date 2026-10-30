@@ -207,6 +207,7 @@ const buildWorld = ({
       const usecases: HttpUseCases = {
         authenticateUser: absent('authenticateUser'),
         changePassword: absent('changePassword'),
+        deleteOwnAccount: absent('deleteOwnAccount'),
         revokeOtherSessions: absent('revokeOtherSessions'),
         requestPasswordReset: absent('requestPasswordReset'),
         resetPassword: absent('resetPassword'),

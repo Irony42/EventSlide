@@ -57,6 +57,19 @@ export interface UserProps {
    * `null`, and nothing is lost by that: nothing reads it as a requirement yet.
    */
   readonly emailVerifiedAt: Date | null
+  /**
+   * The latest terms of use the account accepted, with the instant: the durable proof the
+   * operator can show (legal alignment). `null` is "none on record". Only accepting an
+   * invitation on a box that asks for terms writes it; nothing reads it as a requirement.
+   */
+  readonly termsAcceptance: TermsAcceptance | null
+}
+
+/** What an account agreed to, and when. */
+export interface TermsAcceptance {
+  /** `LEGAL_TERMS_VERSION` as it was at that moment. */
+  readonly version: string
+  readonly at: Date
 }
 
 export interface NewUser {
@@ -98,6 +111,7 @@ export class User {
         siteRole: input.siteRole,
         credentialsChangedAt: null,
         emailVerifiedAt: input.emailVerifiedAt ?? null,
+        termsAcceptance: null,
       }),
     )
   }
@@ -232,6 +246,22 @@ export class User {
    */
   verifyEmail(at: Date): User {
     return this.props.emailVerifiedAt === null ? this.with({ emailVerifiedAt: at }) : this
+  }
+
+  /**
+   * Records that the account agreed to `version` of the terms at `at`. The **latest** acceptance
+   * stands: an instant earlier than the one on record is ignored, as a stale copy of the account
+   * must never put an older agreement back.
+   */
+  acceptTerms(version: string, at: Date): User {
+    const current = this.props.termsAcceptance
+    return current !== null && current.at.getTime() >= at.getTime()
+      ? this
+      : this.with({ termsAcceptance: { version, at } })
+  }
+
+  get termsAcceptance(): TermsAcceptance | null {
+    return this.props.termsAcceptance
   }
 
   requirePasswordChange(): User {

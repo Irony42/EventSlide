@@ -787,7 +787,7 @@ three together are what let an operator stop a relationship without a database c
 > in-memory fake under one contract suite, an entry cannot carry anything outside its action's
 > declared allow-list of numbers, switches, instants and ids (no caption, name, address, slug or
 > token), `subject_type` already admits `photo` (§5.4 shares this storage) and `access_request`,
-> and `AUDIT_RETENTION_DAYS` (1095 by default, 365 at least) is honoured by the retention sweep
+> and `AUDIT_RETENTION_DAYS` (365 by default and at least) is honoured by the retention sweep
 > through `pruneAuditLog`. `setClientCeilings` is the first writer, write-ahead (the entry is
 > recorded before the client is saved): `client.ceilingsChanged {before, after, reason}`, and
 > `client.periodReset {before, after}` when a renewal zeroes the period counter, and
