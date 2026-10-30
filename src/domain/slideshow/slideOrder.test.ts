@@ -104,6 +104,61 @@ describe('keeping the cursor consistent with the playlist', () => {
   })
 })
 
+describe('a rotation photo hidden while it is not on screen', () => {
+  /** Thirty photos, p30 the newest, as the playlist hands them over. */
+  const thirty = list(...Array.from({ length: 30 }, (_, at) => `p${30 - at}`))
+  const without = (...hidden: readonly string[]): readonly SlideCandidate[] =>
+    thirty.filter((item) => !hidden.includes(item.id))
+
+  /** The rotation has walked fourteen photos down the list, then a new photo took a slide. */
+  const duringAFreshRun = () => {
+    let cursor = startCursor(thirty)
+    for (let step = 0; step < 14; step += 1) cursor = stepped(thirty, cursor)
+    expect(cursor.rotationId).toBe('p16')
+    const withNew = [{ id: 'n', author: null }, ...thirty]
+    cursor = stepped(withNew, cursor)
+    expect(cursor.shown[0]).toEqual({ id: 'n', fresh: true })
+    return { cursor, withNew }
+  }
+
+  it('resumes with the next older photo, and does not go back to the newest', () => {
+    const { cursor, withNew } = duringAFreshRun()
+    const hidden = withNew.filter((item) => item.id !== 'p16')
+
+    const settled = settleCursor(hidden, cursor)
+
+    expect(nextSlide(hidden, settled)?.slide).toEqual({ id: 'p15', fresh: false })
+  })
+
+  it('goes on to the nearest older photo that is still there when its neighbours are hidden too', () => {
+    const { cursor, withNew } = duringAFreshRun()
+    const hidden = withNew.filter((item) => !['p16', 'p15', 'p14'].includes(item.id))
+
+    const settled = settleCursor(hidden, cursor)
+
+    expect(nextSlide(hidden, settled)?.slide.id).toBe('p13')
+  })
+
+  it('wraps to the newest photo when nothing older is left', () => {
+    let cursor = startCursor(without('p29'))
+    const items = without('p29')
+    for (let step = 0; step < 28; step += 1) cursor = stepped(items, cursor)
+    expect(cursor.rotationId).toBe('p1')
+    const withNew = [{ id: 'n', author: null }, ...items]
+    cursor = stepped(withNew, cursor)
+    const hidden = withNew.filter((item) => item.id !== 'p1')
+
+    const settled = settleCursor(hidden, cursor)
+
+    expect(nextSlide(hidden, settled)?.slide.id).toBe('p30')
+  })
+
+  it('leaves the cursor alone while the rotation photo is still in the list', () => {
+    const { cursor, withNew } = duringAFreshRun()
+    expect(settleCursor(withNew, cursor)).toBe(cursor)
+  })
+})
+
 describe('the rotation', () => {
   it('walks towards older photos and starts over after the oldest', () => {
     const items = list('d', 'c', 'b', 'a')
