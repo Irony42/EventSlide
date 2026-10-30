@@ -22,6 +22,14 @@ export interface WallPlaylistState {
    */
   readonly offline: boolean
   /**
+   * The last read of the playlist failed, for a reason that is not the server saying the event
+   * is gone. Alone it means little; with `offline` it is the proof that the network really is
+   * down. A stream that is refused for good (a proxy that buffers event streams, a per-client
+   * cap) leaves `offline` true all night while the thirty-second read keeps working, and the
+   * room must not be told its photos are waiting for the network then.
+   */
+  readonly readFailing: boolean
+  /**
    * How many `reaction.added` signals have arrived on this connection. A counter
    * rather than a list because the frame is an invalidation signal and carries no
    * reaction — the wall knows that something was felt, not by whom.
@@ -323,6 +331,7 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
     error: state.error,
     notServed,
     offline: !connected && !notServed,
+    readFailing: state.error !== null && !notServed,
     reactionPulse,
     refresh,
   }

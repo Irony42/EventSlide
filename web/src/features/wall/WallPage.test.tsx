@@ -2,7 +2,12 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
+import { de } from '../../lib/i18n/de'
+import { en } from '../../lib/i18n/en'
+import { es } from '../../lib/i18n/es'
 import { fr } from '../../lib/i18n/fr'
+import { it as italian } from '../../lib/i18n/it'
+import type { Locale } from '../../lib/i18n/locale'
 import type { WallItemDto, WallLayout, WallResponse } from '../../lib/api/dto'
 import {
   aWallItem,
@@ -23,6 +28,15 @@ import styles from './WallPage.module.css'
  * Every state below is one a room actually sees. The two that 1.0 shipped as a black
  * screen — nothing published yet, and a failed load — are the first ones here.
  */
+
+/** Every language the wall speaks: a shortcut missing from one of them is a host who never learns it. */
+const LOCALE_TABLES: readonly (readonly [Locale, typeof fr])[] = [
+  ['fr', fr],
+  ['en', en],
+  ['de', de],
+  ['es', es],
+  ['it', italian],
+]
 
 const ROUTE = '/e/camille-et-sacha/display'
 const PATH = '/e/:slug/display'
@@ -137,6 +151,16 @@ const wallSequence = (...responses: readonly WallResponse[]) => {
     call += 1
     const response = responses[Math.min(call, responses.length - 1)]
     if (response === undefined) throw new Error('wallSequence needs at least one response')
+    return response
+  })
+}
+
+/** Answers the first read, then fails every one after it: a network that went away. */
+const wallThenNetworkDown = (response: WallResponse) => {
+  let call = 0
+  return vi.fn(async (): Promise<WallResponse> => {
+    call += 1
+    if (call > 1) throw ApiError.network()
     return response
   })
 }
@@ -362,8 +386,20 @@ describe('WallPage', () => {
      * The room never learns about a blip. A venue's network drops for thirty seconds several
      * times an evening while the photos keep turning, and a "Connexion perdue" pill at the
      * projector's type scale over two hundred guests made a working product look broken.
+     *
+     * "Lost" means the wall cannot read either: a stream that never opens is not a lost
+     * connection while the thirty-second read keeps answering (a proxy that buffers event
+     * streams leaves it down all night), so the wall below answers once and then fails.
      */
-    const theDot = (): HTMLElement => screen.getByRole('img', { name: fr.wall.offline })
+    const theDot = (): HTMLElement => screen.getByTestId('wall-outage-dot')
+    const noDot = (): void =>
+      expect(screen.queryByTestId('wall-outage-dot')).not.toBeInTheDocument()
+    /** The sentence, as opposed to the dot's own text, which is only for assistive technology. */
+    const theSentence = (): HTMLElement | null =>
+      screen.queryByText(fr.wall.offline, { selector: 'p' })
+
+    /** The wall re-reads every thirty seconds while its stream is down: the first failure lands then. */
+    const FIRST_FAILED_READ_MS = 30_000
 
     const afterMs = async (ms: number): Promise<void> => {
       await act(async () => {
@@ -371,9 +407,20 @@ describe('WallPage', () => {
       })
     }
 
-    const aWallWhoseStreamNeverOpens = async (): Promise<void> => {
+    /**
+     * Past the first failed read, then `ms` more. Two steps, because the outage clock starts
+     * when React commits the failure, and inside one `act` that happens only at the end.
+     */
+    const afterTheFirstFailedRead = async (ms: number): Promise<void> => {
+      await afterMs(FIRST_FAILED_READ_MS)
+      await afterMs(ms)
+    }
+
+    const aWallWhoseStreamNeverOpens = async (
+      wall: ReturnType<typeof wallSequence> = wallThenNetworkDown(aPopulatedWall()),
+    ): Promise<void> => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
-      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      const api = fakeApi({ wall })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
     }
@@ -381,10 +428,10 @@ describe('WallPage', () => {
     it('shows the room nothing at all for the first minute without a stream', async () => {
       await aWallWhoseStreamNeverOpens()
 
-      await afterMs(OUTAGE_DOT_AFTER_MS - 1_000)
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS - 1_000)
 
-      expect(screen.queryByRole('img', { name: fr.wall.offline })).not.toBeInTheDocument()
-      expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
+      noDot()
+      expect(theSentence()).not.toBeInTheDocument()
       // Never a spinner over the room's photos and never a blank screen.
       expect(screen.getByTestId('wall-slide')).toBeVisible()
     })
@@ -392,30 +439,54 @@ describe('WallPage', () => {
     it('then shows a discreet dot with no words', async () => {
       await aWallWhoseStreamNeverOpens()
 
-      await afterMs(OUTAGE_DOT_AFTER_MS + 1_000)
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS + 1_000)
 
       expect(theDot()).toBeVisible()
-      expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
+      expect(theSentence()).not.toBeInTheDocument()
+    })
+
+    it('names the dot for assistive technology, in a status and not an image', async () => {
+      await aWallWhoseStreamNeverOpens()
+
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS + 1_000)
+
+      // A `role="img"` inside the live region is announced inconsistently and is not a status;
+      // the dot is a status whose words are visually hidden.
+      expect(theDot()).toHaveAttribute('role', 'status')
+      expect(within(theDot()).getByText(fr.wall.offline)).toHaveClass('visually-hidden')
+      expect(screen.queryByRole('img', { name: fr.wall.offline })).not.toBeInTheDocument()
     })
 
     it('says what is happening only once the outage has lasted for minutes', async () => {
       await aWallWhoseStreamNeverOpens()
 
-      await afterMs(OUTAGE_TEXT_AFTER_MS + 1_000)
+      await afterTheFirstFailedRead(OUTAGE_TEXT_AFTER_MS + 1_000)
 
-      expect(screen.getByText(fr.wall.offline)).toBeVisible()
-      expect(screen.queryByRole('img', { name: fr.wall.offline })).not.toBeInTheDocument()
+      expect(theSentence()).toBeVisible()
+      noDot()
       expect(screen.getByTestId('wall-slide')).toBeVisible()
     })
 
     it('forgets the outage the moment the stream opens', async () => {
       await aWallWhoseStreamNeverOpens()
-      await afterMs(OUTAGE_DOT_AFTER_MS + 1_000)
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS + 1_000)
       expect(theDot()).toBeVisible()
 
       await streamOpens()
 
-      expect(screen.queryByRole('img', { name: fr.wall.offline })).not.toBeInTheDocument()
+      noDot()
+      expect(theSentence()).not.toBeInTheDocument()
+    })
+
+    it('does not claim a network outage when the stream is refused but the reads keep working', async () => {
+      // A proxy that buffers event streams, a per-client cap: the stream never opens, and the
+      // thirty-second read answers every time. Nothing is waiting for the network.
+      await aWallWhoseStreamNeverOpens(wallSequence(aPopulatedWall()))
+
+      await afterMs(OUTAGE_TEXT_AFTER_MS * 2)
+
+      noDot()
+      expect(theSentence()).not.toBeInTheDocument()
       expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
     })
   })
@@ -842,15 +913,15 @@ describe('WallPage', () => {
       expect(screen.getByTestId('wall-slide')).toBeVisible()
     })
 
-    it('lists Q in the shortcuts panel', async () => {
+    it.each(LOCALE_TABLES)('lists Q in the shortcuts panel in %s', async (code, dictionary) => {
       const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
-      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH, locale: code })
       await screen.findByTestId('wall-slide')
 
       await userEvent.keyboard('?')
 
-      expect(await screen.findByRole('dialog')).toHaveTextContent(fr.wall.shortcutsHint)
-      expect(fr.wall.shortcutsHint).toMatch(/\bQ\b/)
+      expect(await screen.findByRole('dialog')).toHaveTextContent(dictionary.wall.shortcutsHint)
+      expect(dictionary.wall.shortcutsHint).toMatch(/\bQ\b/)
     })
   })
 

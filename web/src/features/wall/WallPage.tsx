@@ -8,6 +8,7 @@ import { Button } from '../../design-system/components/Button'
 import { Dialog } from '../../design-system/components/Dialog'
 import { Spinner } from '../../design-system/components/Spinner'
 import { StatusIcon, type StatusTone } from '../../design-system/components/StatusIcon'
+import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
 import type { WallItemDto, WallLayout } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
 import { ApiError } from '../../lib/http'
@@ -139,10 +140,13 @@ export function WallPage() {
   const { slug } = useParams()
   const eventSlug = slug ?? ''
 
-  const { wall, loading, error, notServed, offline, reactionPulse, refresh } =
+  const { wall, loading, error, notServed, offline, readFailing, reactionPulse, refresh } =
     useWallPlaylist(eventSlug)
   const text = useTranslations()
-  const outage = useOutageStage(offline)
+  // A stream that is down says nothing about the network while the wall's own reads keep
+  // coming back: a proxy that buffers event streams leaves it down all night. The room is told
+  // only when the reads fail too.
+  const outage = useOutageStage(offline && readFailing)
   const awake = useWakeLock()
   const cursorIdle = useIdleCursor()
 
@@ -233,8 +237,6 @@ export function WallPage() {
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   const showsOverlay = invitation !== null && !qrHidden && items.length > 0
-  // Only a wall the browser could not keep awake needs the last sentence (MUR-2): the host's
-  // own computer is then the one thing left that can turn the projector off.
   const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}`
 
   /**
@@ -324,10 +326,12 @@ export function WallPage() {
         {/*
           A lost connection is not announced to the room (MUR-9). Nothing for a minute, then a
           dot with no words, and the sentence only once it has lasted for minutes. The dot
-          still carries its text as an accessible name, for the laptop a host sets up from.
+          still carries its text, visually hidden, for the laptop a host sets up from.
         */}
         {outage === 'dot' ? (
-          <span className={styles['outageDot']} role="img" aria-label={text.wall.offline} />
+          <span className={styles['outageDot']} role="status" data-testid="wall-outage-dot">
+            <VisuallyHidden>{text.wall.offline}</VisuallyHidden>
+          </span>
         ) : null}
         {outage === 'text' ? <WallNotice tone="warning" text={text.wall.offline} /> : null}
         {slideshow.paused ? <WallNotice tone="accent" text={text.wall.paused} /> : null}
@@ -398,6 +402,8 @@ export function WallPage() {
         // one screen that explains `L` names what it walks through.
         // And how to leave: there is deliberately no exit button on the projected screen, so a guest
         // cannot drop the picture by mistake (navigation pass, A5; decision 5).
+        // Only a wall the browser could not keep awake needs the last sentence (MUR-2): the host's
+        // own computer is then the one thing left that can turn the projector off.
         description={awake ? shortcutsHelp : `${shortcutsHelp} ${text.wall.keepAwakeHint}`}
         onClose={closeHelp}
       />
