@@ -19,9 +19,25 @@ import { MAX_SITE_PAGE_SIZE } from '../../../application/usecases/site/sitePageL
  * that belongs to someone else.
  */
 
+const NAME_MAX = 1_000
+
 export const clientIdParams = z.object({ clientId: z.guid() })
 
 export const accountIdParams = z.object({ userId: z.guid() })
+
+/** `/api/site/events/:eventId/...`: an event named by its id, never by its slug. */
+export const eventIdParams = z.object({ eventId: z.guid() })
+
+/** `/api/site/photos/:photoId/...`: a photograph named by its id alone. */
+export const photoIdParams = z.object({ photoId: z.guid() })
+
+/**
+ * The body of each of the operator's "remove without viewing" acts (launch review S5): take down,
+ * restore, hold a purge, release it. **The reason is required**, like a ceiling's change: a body
+ * without one is `400 request.invalid`, a blank or malformed one `400 audit.reasonInvalid`
+ * (`parseAuditReason`, which holds its bound).
+ */
+export const operatorActBody = z.strictObject({ reason: z.string().max(NAME_MAX) })
 
 /** How many rows one page of the operator's lists, or of its audit log, may ask for. */
 const pageLimit = z.coerce.number().int().min(1).max(MAX_SITE_PAGE_SIZE).optional()
@@ -81,7 +97,6 @@ export type CeilingsBody = z.infer<typeof ceilingsBody>
  * `400 email.tooLong`, which `siteRoutes.clients.test.ts` pins and `docs/API.md` documents. A
  * tighter bound here would turn that answer into `request.invalid`.
  */
-const NAME_MAX = 1_000
 
 /**
  * `POST /api/site/clients`. The client's name and its owner's address are the domain's to judge

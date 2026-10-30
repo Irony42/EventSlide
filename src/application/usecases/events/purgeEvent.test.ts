@@ -68,11 +68,12 @@ describe('purgeEvent', () => {
   })
 
   /**
-   * The ordering is the whole point. The row is the only record that this event's bytes
-   * exist, so it has to outlive them: if it went first, a failure would leave gigabytes
-   * on the disk with nothing left to find them by.
+   * The ordering is the whole point since the operator's purge hold (launch review S5): the row is
+   * deleted first, in a statement that refuses a held event, and the bytes only after it said yes,
+   * so the bytes of a held event can never be removed. A failure afterwards leaves bytes with no
+   * row, which `sweepOrphanedMedia` collects.
    */
-  it('deletes the media while the row that names it is still there', async () => {
+  it('deletes the row, conditionally, before the media', async () => {
     const calls = new CallLog()
 
     await makePurgeEvent({
@@ -81,9 +82,9 @@ describe('purgeEvent', () => {
       media: calls.watch('media', media),
     })({ eventId: WEDDING, actorId: OWNER })
 
-    expect(calls.sequenceOf('media.deleteEvent', 'events.delete')).toEqual([
+    expect(calls.sequenceOf('media.deleteEvent', 'events.deleteUnlessHeld')).toEqual([
+      'events.deleteUnlessHeld',
       'media.deleteEvent',
-      'events.delete',
     ])
   })
 
@@ -100,7 +101,7 @@ describe('purgeEvent', () => {
     expect(!result.ok && result.error.code).toBe('event.mediaPurgeFailed')
   })
 
-  it('leaves the row intact when the media could not be deleted, so the purge can be rerun', async () => {
+  it('has already removed the row when the media could not be deleted: the bytes are left for the orphan sweep', async () => {
     const failing = new InMemoryMediaStore().failEventPurges(WEDDING)
 
     await makePurgeEvent({ events, memberships, media: failing })({
@@ -108,7 +109,29 @@ describe('purgeEvent', () => {
       actorId: OWNER,
     })
 
+    expect(await events.findById(WEDDING)).toBeNull()
+  })
+
+  it('keeps the bytes of an event whose hold was set after the request was read (launch review S5)', async () => {
+    const racing = {
+      ...events,
+      findById: async (id: typeof WEDDING) => {
+        const read = await events.findById(id)
+        await events.setPurgeHeld(id, AT)
+        return read
+      },
+      deleteUnlessHeld: (id: typeof WEDDING) => events.deleteUnlessHeld(id),
+    }
+
+    const result = await makePurgeEvent({
+      events: racing as unknown as typeof events,
+      memberships,
+      media,
+    })({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!result.ok && result.error.code).toBe('event.mediaPurgeFailed')
     expect(await events.findById(WEDDING)).not.toBeNull()
+    expect(await bytesLeft()).toEqual([1, 1])
   })
 
   // ------------------------------------------------------------ authorization --

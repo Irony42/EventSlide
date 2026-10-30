@@ -142,6 +142,9 @@ import { makeRenameClient } from '../application/usecases/clients/renameClient'
 import { makeResumeClient } from '../application/usecases/clients/resumeClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../application/usecases/clients/suspendClient'
+import { makeSetEventPurgeHold } from '../application/usecases/site/setEventPurgeHold'
+import { makeSetEventTakedown } from '../application/usecases/site/setEventTakedown'
+import { makeSetPhotoTakedown } from '../application/usecases/site/setPhotoTakedown'
 import { makeListSiteAccounts } from '../application/usecases/site/listSiteAccounts'
 import { makeListSiteAudit } from '../application/usecases/site/listSiteAudit'
 import { makeListSiteClientEvents } from '../application/usecases/site/listSiteClientEvents'
@@ -988,6 +991,29 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       audit: adapters.audit,
       clock: adapters.clock,
     }),
+    /**
+     * The operator's "remove without viewing" levers (launch review S5, G8-03): by id, with a
+     * mandatory reason, behind the same gate and step-up as a suspension, audited and never in the
+     * client's own trail. `/api/site/photos/:photoId/take-down|restore` and
+     * `/api/site/events/:eventId/take-down|restore|purge-hold|purge-release`.
+     */
+    setPhotoTakedown: makeSetPhotoTakedown({
+      photos: adapters.photos,
+      audit: adapters.audit,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    setEventTakedown: makeSetEventTakedown({
+      events: adapters.events,
+      audit: adapters.audit,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    setEventPurgeHold: makeSetEventPurgeHold({
+      events: adapters.events,
+      audit: adapters.audit,
+      clock: adapters.clock,
+    }),
     resumeClient: makeResumeClient({
       clients: adapters.clients,
       audit: adapters.audit,
@@ -1039,7 +1065,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       reactions: adapters.reactions,
     }),
-    getTopPhotos: makeGetTopPhotos({ photos: adapters.photos, reactions: adapters.reactions }),
+    getTopPhotos: makeGetTopPhotos({
+      events: adapters.events,
+      photos: adapters.photos,
+      reactions: adapters.reactions,
+    }),
   }
 }
 

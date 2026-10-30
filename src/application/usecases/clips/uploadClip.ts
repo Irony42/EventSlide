@@ -218,8 +218,13 @@ export const makeUploadClip = ({
      * so this is the crash between those two writes rather than the ordinary path; if the
      * row is gone, so is the reason to dedupe, and the guest gets a new job.
      */
-    const stillMeaningful = async (held: ClipJob): Promise<boolean> =>
-      held.status !== 'done' || (await photos.findById(eventId, held.photoId)) !== null
+    const stillMeaningful = async (held: ClipJob): Promise<boolean> => {
+      if (held.status !== 'done') return true
+      // `locate`: a taken-down photograph still exists (launch review S5), and treating it as gone
+      // would let the same bytes be uploaded again as a new job.
+      const written = await photos.locate(held.photoId)
+      return written !== null && written.eventId === eventId
+    }
 
     // The retry on venue Wi-Fi. The same bytes staged twice would be two jobs, two
     // transcodes and two slides; this is why the job carries the digest of the *source*.

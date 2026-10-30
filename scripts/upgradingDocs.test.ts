@@ -237,7 +237,8 @@ describe('the upgrade to 3.0 against the code it describes', () => {
     // 2.1.0 ends at migration 007. Whoever adds the next one has to say so in both places, or
     // a host is told that three migrations will run when four will.
     const LAST_MIGRATION_OF_2_1_0 = 7
-    // 3.0.0 is released and ends at 014: a migration after it belongs to a later release's section.
+    // This page section is about 3.0.0, so a migration a later minor adds (015, operator takedown,
+    // 3.3) is that release's to name, in its own section, and not this one's.
     const LAST_MIGRATION_OF_3_0_0 = 14
     const ids = [
       ...new Set(

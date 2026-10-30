@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Event } from '../../../domain/events/event'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
@@ -99,6 +100,41 @@ describe('setVenuePhoto', () => {
     expect(result.ok && result.value.settings.venuePhoto?.value).toBe(digest.value)
     expect((await events.findById(WEDDING))?.settings.venuePhoto?.value).toBe(digest.value)
     expect(media.variantsOf(WEDDING, digest)).toEqual(['ground'])
+  })
+
+  it('refuses an event the operator took down as one that is not there, and a frozen client event with 403 client.suspended', async () => {
+    await events.setTakenDown(WEDDING, AT)
+    const down = await setVenuePhoto({ eventId: WEDDING, actorId: OWNER, bytes: tagBytes('x') })
+    await events.setTakenDown(WEDDING, null)
+    const frozenEvents = new FakeEventRepository().seed(
+      Event.restore({
+        ...anEvent({ id: WEDDING, ownerId: OWNER, settings: GUINGUETTE }).toProps(),
+        clientSuspendedAt: AT,
+      }),
+    )
+    build(frozenEvents)
+    const frozen = await setVenuePhoto({ eventId: WEDDING, actorId: OWNER, bytes: tagBytes('x') })
+
+    expect(!down.ok && down.error.code).toBe('event.notFound')
+    expect(!frozen.ok && frozen.error.code).toBe('client.suspended')
+    expect(media.objectCount).toBe(0)
+  })
+
+  it('refuses while the operator holds the purge, and stores and replaces nothing (launch review S5)', async () => {
+    await events.setPurgeHeld(WEDDING, AT)
+
+    const result = await setVenuePhoto({
+      eventId: WEDDING,
+      actorId: OWNER,
+      bytes: tagBytes('guinguette-du-lac'),
+    })
+
+    expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
+      'unexpected',
+      'venuePhoto.saveFailed',
+    ])
+    expect(media.objectCount).toBe(0)
+    expect((await events.findById(WEDDING))?.settings.venuePhoto).toBeNull()
   })
 
   it('stores what the pipeline rendered and never the upload', async () => {

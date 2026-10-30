@@ -77,7 +77,7 @@ export const eventBehind = async (
   // as one that was revoked, so a holder learns nothing about why. The link itself is untouched,
   // and lives again the day the client does.
   const event = await deps.events.findById(link.eventId)
-  return event === null || event.isClientSuspended() ? null : event
+  return event === null || event.isClientSuspended() || event.isTakenDown() ? null : event
 }
 
 /** Whether a link still grants anything at `now`, without needing the event itself. */

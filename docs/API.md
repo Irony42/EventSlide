@@ -245,24 +245,30 @@ where they have an authenticator, within the last five minutes, or the answer is
 send it. That is stricter than the plan's table, which names the irreversible acts only; a console prompts
 once before a session of writes. The reads ask for none. A state-changing request meets CSRF first.
 
-| Route                                            | What it is                                      | Step-up | Audit line(s)                                       |
-| ------------------------------------------------ | ----------------------------------------------- | :-----: | --------------------------------------------------- |
-| `GET /api/site/clients`                          | every client with its ceilings and what it uses |    —    | —                                                   |
-| `GET /api/site/clients/:clientId/events`         | one client's events as shapes and sizes         |    —    | —                                                   |
-| `GET /api/site/accounts`                         | every account, by address                       |    —    | —                                                   |
-| `GET /api/site/audit`                            | the audit log                                   |    —    | —                                                   |
-| `GET /api/site/client-defaults`                  | the ceilings a new client starts with           |    —    | —                                                   |
-| `POST /api/site/clients`                         | open a client and invite its owner              |   yes   | `client.created`, `invitation.issued`               |
-| `PATCH /api/site/clients/:clientId`              | rename a client                                 |   yes   | `client.renamed`                                    |
-| `PUT /api/site/clients/:clientId/ceilings`       | change a client's ceilings, **with a reason**   |   yes   | `client.ceilingsChanged` (and `client.periodReset`) |
-| `POST /api/site/clients/:clientId/suspend`       | freeze a client                                 |   yes   | `client.suspended`                                  |
-| `POST /api/site/clients/:clientId/resume`        | lift a suspension                               |   yes   | `client.resumed`                                    |
-| `POST /api/site/clients/:clientId/invitations`   | invite somebody into a client's account         |   yes   | `invitation.issued`                                 |
-| `POST /api/site/accounts/:userId/password-reset` | reset an account's password                     |   yes   | `account.resetRequested`, `account.resetIssued`     |
-| `POST /api/site/clients/:clientId/offboard`      | end an engagement                               |   yes   | `client.offboarded`                                 |
-| `POST /api/site/accounts/:userId/disable`        | switch an account off                           |   yes   | `account.disabled` (one line per client)            |
-| `POST /api/site/accounts/:userId/enable`         | switch an account back on                       |   yes   | `account.enabled` (one line per client)             |
-| `DELETE /api/site/accounts/:userId`              | delete an account (erasure request)             |   yes   | `account.deleted` (one line per client)             |
+| Route                                            | What it is                                          | Step-up | Audit line(s)                                       |
+| ------------------------------------------------ | --------------------------------------------------- | :-----: | --------------------------------------------------- |
+| `GET /api/site/clients`                          | every client with its ceilings and what it uses     |    —    | —                                                   |
+| `GET /api/site/clients/:clientId/events`         | one client's events as shapes and sizes             |    —    | —                                                   |
+| `GET /api/site/accounts`                         | every account, by address                           |    —    | —                                                   |
+| `GET /api/site/audit`                            | the audit log                                       |    —    | —                                                   |
+| `GET /api/site/client-defaults`                  | the ceilings a new client starts with               |    —    | —                                                   |
+| `POST /api/site/clients`                         | open a client and invite its owner                  |   yes   | `client.created`, `invitation.issued`               |
+| `PATCH /api/site/clients/:clientId`              | rename a client                                     |   yes   | `client.renamed`                                    |
+| `PUT /api/site/clients/:clientId/ceilings`       | change a client's ceilings, **with a reason**       |   yes   | `client.ceilingsChanged` (and `client.periodReset`) |
+| `POST /api/site/clients/:clientId/suspend`       | freeze a client                                     |   yes   | `client.suspended`                                  |
+| `POST /api/site/clients/:clientId/resume`        | lift a suspension                                   |   yes   | `client.resumed`                                    |
+| `POST /api/site/photos/:photoId/take-down`       | take a photograph down by its id, **with a reason** |   yes   | `photo.takenDown`                                   |
+| `POST /api/site/photos/:photoId/restore`         | put it back                                         |   yes   | `photo.restored`                                    |
+| `POST /api/site/events/:eventId/take-down`       | take a whole event down, **with a reason**          |   yes   | `event.takenDown`                                   |
+| `POST /api/site/events/:eventId/restore`         | put it back                                         |   yes   | `event.restored`                                    |
+| `POST /api/site/events/:eventId/purge-hold`      | hold an event's purge (evidence), **with a reason** |   yes   | `event.purgeHeld`                                   |
+| `POST /api/site/events/:eventId/purge-release`   | release the hold                                    |   yes   | `event.purgeReleased`                               |
+| `POST /api/site/clients/:clientId/invitations`   | invite somebody into a client's account             |   yes   | `invitation.issued`                                 |
+| `POST /api/site/accounts/:userId/password-reset` | reset an account's password                         |   yes   | `account.resetRequested`, `account.resetIssued`     |
+| `POST /api/site/clients/:clientId/offboard`      | end an engagement                                   |   yes   | `client.offboarded`                                 |
+| `POST /api/site/accounts/:userId/disable`        | switch an account off                               |   yes   | `account.disabled` (one line per client)            |
+| `POST /api/site/accounts/:userId/enable`         | switch an account back on                           |   yes   | `account.enabled` (one line per client)             |
+| `DELETE /api/site/accounts/:userId`              | delete an account (erasure request)                 |   yes   | `account.deleted` (one line per client)             |
 
 **The reads show shapes and sizes, never what a client or a guest made.** A client row is an id, a name,
 its ceilings, the instants it was created, suspended and set to be purged, and four counts and a byte sum;
@@ -442,18 +448,54 @@ was. **404** `client.notFound`. `resume` refuses a client whose engagement has e
 
 What a suspended client is told, per surface (docs/SECURITY.md §22):
 
-| Surface                                                                                                | Answer                                                                                        |
-| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| join by code, guest upload, guest photographs, missions, privacy notice                                | the answer an event that does not exist gets (`404`), whatever the event's status             |
-| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media | the same `404` as an unknown event or a dead link                                             |
-| an open live feed                                                                                      | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does |
-| a member of the client, on any event route                                                             | **reads** as before; every **write** is `403 client.suspended`                                |
-| a member's moderation feed                                                                             | stays open: members keep their reads, and only an event that is gone ends it                  |
-| a malformed photograph id or variant on the media route                                                | the same `404`, answered before the ids are judged                                            |
-| an invitation into the client, or a moderator invitation to one of its events                          | `404 invitation.notFound`, to preview and to accept, until the client is resumed              |
-| a member creating an event, or attaching one to the client                                             | `403 client.suspended`, under either `EVENT_CREATION` policy                                  |
-| an owner approving an operator's invitation or reset request                                           | `403 client.suspended`; a stranger is still told `404`                                        |
-| `GET /api/me/limits`                                                                                   | `suspended: true`, so the screen can say so                                                   |
+| Surface                                                                                                               | Answer                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| join by code, guest upload, guest photographs, missions, privacy notice                                               | the answer an event that does not exist gets (`404`), whatever the event's status             |
+| the wall, its playlist and its live feed; a published photograph by slug; a gallery link and its media                | the same `404` as an unknown event or a dead link                                             |
+| an open live feed                                                                                                     | closed at the next heartbeat, told to retry in 60 s, and answered with the `404` when it does |
+| a member of the client, on any event route                                                                            | **reads** its account and its event as before; every **write** is `403 client.suspended`      |
+| a member reading **photographs**: the grid, the moderation queue, the album download, the top photos, the media route | `403 client.suspended` (since 3.3: they used to read)                                         |
+| a member's moderation feed                                                                                            | stays open (it carries signals, never content), and only an event that is gone ends it        |
+| a malformed photograph id or variant on the media route                                                               | the same `404`, answered before the ids are judged                                            |
+| an invitation into the client, or a moderator invitation to one of its events                                         | `404 invitation.notFound`, to preview and to accept, until the client is resumed              |
+| a member creating an event, or attaching one to the client                                                            | `403 client.suspended`, under either `EVENT_CREATION` policy                                  |
+| an owner approving an operator's invitation or reset request                                                          | `403 client.suspended`; a stranger is still told `404`                                        |
+| `GET /api/me/limits`                                                                                                  | `suspended: true`, so the screen can say so                                                   |
+
+#### The operator's "remove without viewing" routes (launch review S5, G8-03)
+
+`POST /api/site/photos/:photoId/take-down` and `/restore`, `POST /api/site/events/:eventId/take-down` and `/restore`,
+`POST /api/site/events/:eventId/purge-hold` and `/purge-release`. Body `{ "reason": string }`, **mandatory** (at most
+200 characters on one line, no `@`: the same bounded sentence a ceiling's change carries). **204**, with **no body**:
+the operator is never handed a photograph, a thumbnail, a caption, a name or a slug, and names the target by its id
+alone (`:photoId` and `:eventId` are ids, never slugs). Each needs the second factor and a step-up like every write here.
+
+- **`take-down` (photograph)**: the photograph is left out of the wall and its playlist, the guest's feed, a gallery
+  link, the host's grid, the moderation queue, the album download and the media route, at once, and every screen is told
+  (a neutral `photo.deleted` signal, ids only, which never says why). The row, its bytes and its quota charge stay. A host cannot moderate it
+  back and a guest cannot delete it: both are `404 photo.notFound`. The same bytes uploaded again are a duplicate of it.
+  `restore` brings it back with the status the host had given it.
+- **`take-down` (event)**: every surface that serves the event answers as for an event that does not exist, **a member's
+  and the host's own included**: the wall, its feed (an open one ends at its next heartbeat), the join, a guest's routes,
+  a gallery link and every `/api/events/:slug/**` route (`404 event.notFound`). It is off the host's dashboard. It does
+  **not** stop the retention clock and touches no photograph: **a takedown does not imply a hold**, so to keep the content as
+  evidence the operator sets both (`take-down` and `purge-hold`). `restore` lifts all of it.
+- **`purge-hold`**: the retention sweep skips the event, the host's purge, the deletion of a photograph (a host's, a moderator's or the guest's own)
+  and the replacement or removal of the venue photograph are refused with **a failure the caller can already get**
+  (`500 event.mediaPurgeFailed`, `500 photo.deleteFailed`, `500 venuePhoto.saveFailed`), never with a code that exists only
+  under a hold, and an unknown photograph id is still `404`: the host is not told why. The purge is also **hard**: the retention
+  sweep and the host's purge delete the row with a statement that refuses a held event, and touch the bytes only after it
+  succeeded, so a hold set while a sweep was running still wins. It hides nothing. `purge-release` makes the event due again at its own deadline,
+  which may have passed, so the next sweep purges it.
+- **Audit**: one line per change (`photo.takenDown`, `photo.restored`, `event.takenDown`, `event.restored`,
+  `event.purgeHeld`, `event.purgeReleased`), subject the photograph's or the event's id, `details: { reason }`, and
+  **no client id**, so it is in the operator's own view of the log and **not** in the client's (`GET /api/client/audit`):
+  the host is not warned. Idempotent: doing what is already done is `204` and writes nothing. The line is written
+  before the lever moves.
+- **Errors**: **400** `audit.reasonInvalid` (blank, a line break, an `@`, too long) or `request.invalid` (no `reason`, an
+  extra key); **404** `photo.notFound` or `event.notFound` for an id nobody holds.
+
+There is no operator screen for these yet: they are API calls (see docs/SECURITY.md §25).
 
 #### `POST /api/site/clients/:clientId/invitations`
 
@@ -946,9 +988,9 @@ which is allowed.
   },
   "privacyNotice": {
     "notice": {
-      "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
+      "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900",
       "publication": "afterReview",
-      "audiences": ["wall", "organisers", "sharedGallery"],
+      "audiences": ["wall", "guestFeed", "organisers", "sharedGallery"],
       "retentionDays": 30,
       "selfRemovalSeconds": 900
     },
@@ -1512,9 +1554,9 @@ a setting since. `Cache-Control: no-store`.
 ```json
 {
   "notice": {
-    "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900",
+    "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900",
     "publication": "afterReview",
-    "audiences": ["wall", "organisers", "sharedGallery"],
+    "audiences": ["wall", "guestFeed", "organisers", "sharedGallery"],
     "retentionDays": 30,
     "selfRemovalSeconds": 900
   },
@@ -1526,14 +1568,14 @@ a setting since. `Cache-Control: no-store`.
 for `retentionDays`, its client's ceiling) by `src/domain/privacy/privacyNotice.ts` on every read, and the client words them in the
 guest's language, so the notice cannot promise something the configuration contradicts:
 
-| Field                | Derived from                                                              | Meaning                                                                                                                                                                                                                                                                                                                                          |
-| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publication`        | `moderation`                                                              | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                               |
-| `audiences`          | nothing: the same on every event                                          | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
-| `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                 |
-| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                        |
-| `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                      |
-| `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                    |
+| Field                | Derived from                                                              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `publication`        | `moderation`                                                              | `afterReview`: a person decides before the wall. `immediate`: published on arrival                                                                                                                                                                                                                                                                                                                                                                                      |
+| `audiences`          | nothing: the same on every event                                          | `wall` (the projected wall, once published — the room, and anyone its public link reaches), `guestFeed` (the other guests, on their phones, in the page of the published photos, with the first name and caption), `organisers` (host and moderators: everything, and the album) and `sharedGallery` (whoever the host may send the album's private link to, and whoever it is forwarded to: published only, in full resolution, until it expires or is withdrawn — §2) |
+| `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                                                                                                                                        |
+| `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                                                                                                                                               |
+| `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                                                                                                                                             |
+| `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`
 is the host's setting **clamped** by the client's `max_retention_days` (roadmap §10.5): an album
@@ -1576,7 +1618,7 @@ not offer the picker until it is read. The reasons are on `privacyNoticeRoutes.t
 
 ```json
 {
-  "revision": "publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900"
+  "revision": "publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900"
 }
 ```
 

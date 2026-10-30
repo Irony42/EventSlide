@@ -256,7 +256,7 @@ export const openStream = ({
   // a database blip must not blank every projector on the box.
   const stillServed = async (): Promise<boolean> => {
     const current = await deps.events.findById(eventId)
-    if (current === null) return false
+    if (current === null || current.isTakenDown()) return false
     // The public wall asks what opened it, so an event the host has since archived, or whose
     // client has been suspended, ends the stream: a stream opened while the event was live used to
     // stay open after it was archived and keep its slot of the per-client cap. A moderation feed

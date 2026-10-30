@@ -38,8 +38,13 @@ describe('privacyNoticeFor — what happens to a photo', () => {
 })
 
 describe('privacyNoticeFor — who sees it', () => {
-  it('names the wall, the organisers and the shared gallery, in the order a guest reads them', () => {
-    expect(privacyNoticeFor(settings()).audiences).toEqual(['wall', 'organisers', 'sharedGallery'])
+  it('names the wall, the guest feed, the organisers and the shared gallery, in the order a guest reads them', () => {
+    expect(privacyNoticeFor(settings()).audiences).toEqual([
+      'wall',
+      'guestFeed',
+      'organisers',
+      'sharedGallery',
+    ])
   })
 
   it.each<[string, EventSettingsPatch]>([
@@ -135,7 +140,7 @@ describe('privacyNoticeFor — the revision', () => {
     )
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900',
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900',
     )
   })
 
@@ -143,7 +148,7 @@ describe('privacyNoticeFor — the revision', () => {
     const notice = privacyNoticeFor(settings({ retentionDays: null, allowGuestSelfDelete: false }))
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=none;selfRemoval=none',
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=none',
     )
   })
 
@@ -215,7 +220,7 @@ describe('privacyNoticeFor — who hosts it (roadmap G2-17)', () => {
     )
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900',
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900',
     )
     expect(notice.revision).toBe(
       privacyNoticeFor(
@@ -228,7 +233,7 @@ describe('privacyNoticeFor — who hosts it (roadmap G2-17)', () => {
     const notice = privacyNoticeFor(settings({ retentionDays: 30 }), HOST)
 
     expect(notice.revision).toBe(
-      `publication=afterReview;audiences=wall+organisers+sharedGallery;retention=30;selfRemoval=900;operator=${HOST}`,
+      `publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;operator=${HOST}`,
     )
   })
 

@@ -321,14 +321,15 @@ describe('a suspended client, through the real composition root', () => {
     expect([wall.status, gallery.status, mine.status]).toEqual([200, 200, 200])
   })
 
-  it('lets its members read, whatever they read', async () => {
+  it('lets its members read their account and their event, and no longer its photographs (launch review S5)', async () => {
     const s = await scene()
     await suspend(s)
 
     const read = await s.operator.get(`/api/events/${SLUG}`)
     const photos = await s.operator.get(`/api/events/${SLUG}/photos`)
 
-    expect([read.status, photos.status]).toEqual([200, 200])
+    expect([read.status, photos.status]).toEqual([200, 403])
+    expect(photos.body.error.code).toBe('client.suspended')
   })
 
   /**
@@ -430,7 +431,7 @@ describe('a suspended client, through the real composition root', () => {
     expect([refused.status, refused.body.error?.code]).toEqual([403, 'client.suspended'])
   })
 
-  it('stops serving a suspended client’s venue photograph to the public, and still shows it to its host', async () => {
+  it('stops serving a suspended client’s venue photograph to the public, and to its host too (launch review S5)', async () => {
     const s = await scene()
     const look = {
       theme: {
@@ -456,7 +457,7 @@ describe('a suspended client, through the real composition root', () => {
     const refused = await s.stranger.get(url)
     expect([refused.status, refused.body.error?.code]).toEqual([404, 'venuePhoto.notFound'])
     expect((await s.guest.get(url)).status).toBe(404)
-    expect((await s.operator.get(url)).status).toBe(200)
+    expect((await s.operator.get(url)).status).toBe(404)
   })
 
   it('names every non-GET route under an event: a host write above, or a guest write', async () => {

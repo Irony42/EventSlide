@@ -1,4 +1,5 @@
 import type request from 'supertest'
+import { aPhoto } from '../../../application/testing/builders'
 import { describe, expect, it } from 'vitest'
 import { STEP_UP_LIFETIME_MS } from '../../../domain/users/secondFactor'
 import { asUserId } from '../../../domain/shared/ids'
@@ -6,6 +7,7 @@ import { CSRF_HEADER } from '../middleware/csrf'
 import { anonymousCaller, type Caller } from '../testing/signIn'
 import { mountedRoutes } from '../testing/routeTable'
 import { ADDRESS, ID, NEWCOMER, aBox } from '../testing/siteBox'
+import type { SiteHarnessOptions } from '../testing/siteHarness'
 
 /**
  * Ring 4. The operator's namespace through the assembled server (`buildServer`, the real
@@ -30,6 +32,18 @@ interface SiteRoute {
   readonly success: number
   /** Whether it changes anything, and so asks for a step-up. */
   readonly write: boolean
+}
+
+/** A photograph the entitled-operator case plants on the box, for the takedown routes to name. */
+const A_PHOTO = '99999999-9999-4999-8999-999999999999'
+
+/** The shared box, plus the photograph the takedown routes name. */
+const box = async (options: SiteHarnessOptions = {}) => {
+  const made = await aBox(options)
+  await made.site.world.addPhoto(
+    aPhoto({ id: A_PHOTO, eventId: ID.eventK, author: { kind: 'host', id: ID.owner } }),
+  )
+  return made
 }
 
 const ROUTES: readonly SiteRoute[] = [
@@ -71,6 +85,20 @@ const ROUTES: readonly SiteRoute[] = [
     success: 204,
     write: true,
   },
+  ...(['take-down', 'restore'] as const).map((verb): SiteRoute => ({
+    method: 'post',
+    path: `/api/site/photos/${A_PHOTO}/${verb}`,
+    body: { reason: 'Retrait conservatoire' },
+    success: 204,
+    write: true,
+  })),
+  ...(['take-down', 'restore', 'purge-hold', 'purge-release'] as const).map((verb): SiteRoute => ({
+    method: 'post',
+    path: `/api/site/events/${ID.eventL}/${verb}`,
+    body: { reason: 'Retrait conservatoire' },
+    success: 204,
+    write: true,
+  })),
   {
     method: 'post',
     path: `/api/site/clients/${ID.clientEmpty}/offboard`,
@@ -137,7 +165,7 @@ const FIVE_MINUTES_AND_A_MILLISECOND = STEP_UP_LIFETIME_MS + 1
 
 describe('the table below is the route table', () => {
   it('names every route the namespace mounts, and no other, so a route added without a row here is a red test', async () => {
-    const { site } = await aBox()
+    const { site } = await box()
 
     const mounted = mountedRoutes(site.app)
       .filter((route) => route.path.startsWith('/api/site/'))
@@ -148,6 +176,8 @@ describe('the table below is the route table', () => {
       const pattern = route.path
         .replace(/\/clients\/[0-9a-f-]{36}/, '/clients/:clientId')
         .replace(/\/accounts\/[0-9a-f-]{36}/, '/accounts/:userId')
+        .replace(/\/photos\/[0-9a-f-]{36}/, '/photos/:photoId')
+        .replace(/\/events\/[0-9a-f-]{36}/, '/events/:eventId')
         .replace(/\?.*$/, '')
       return `${route.method} ${pattern}`
     }).sort()
@@ -164,7 +194,7 @@ describe('the table below is the route table', () => {
 describe('the operator’s routes: who may call them', () => {
   describe.each(ROUTES.map((route) => [named(route), route] as const))('%s', (_name, route) => {
     it('is not mounted with SITE_ADMIN=off: the same 404 as a path nobody wrote', async () => {
-      const { site } = await aBox({ siteAdmin: false })
+      const { site } = await box({ siteAdmin: false })
       const caller = await site.signInAsOperator()
 
       const response = await send(caller, route)
@@ -174,7 +204,7 @@ describe('the operator’s routes: who may call them', () => {
     })
 
     it('answers 401 to a caller who is not signed in', async () => {
-      const { site } = await aBox()
+      const { site } = await box()
       const stranger = await anonymousCaller(site.app)
 
       const response = await send(stranger, route)
@@ -184,7 +214,7 @@ describe('the operator’s routes: who may call them', () => {
     })
 
     it('answers 403 auth.forbidden to a signed-in account that does not operate the box, owner of a client or not', async () => {
-      const { site } = await aBox()
+      const { site } = await box()
 
       for (const address of [ADDRESS.owner, ADDRESS.member, ADDRESS.stranger]) {
         const caller = await site.signIn(address)
@@ -199,7 +229,7 @@ describe('the operator’s routes: who may call them', () => {
     })
 
     it('answers 403 auth.forbidden to an operator whose account has been switched off', async () => {
-      const { site } = await aBox()
+      const { site } = await box()
       const caller = await site.signInAsOperator()
       const operator = await site.repos.users.findById(asUserId(ID.operator))
       if (operator === null) throw new Error('fixture rejected')
@@ -212,7 +242,7 @@ describe('the operator’s routes: who may call them', () => {
     })
 
     it('answers 403 auth.secondFactorRequired to an operator who has not passed the factor, where the box asks for one', async () => {
-      const { site } = await aBox({ secondFactorRequired: true })
+      const { site } = await box({ secondFactorRequired: true })
       const caller = await site.signIn(ADDRESS.operator)
       // A step-up alone is not the factor: the stamp the gate reads is another one.
       await site.stamp(ID.operator, { stepUpAt: site.clock.now().getTime() })
@@ -224,7 +254,7 @@ describe('the operator’s routes: who may call them', () => {
     })
 
     it('answers an operator who has passed the factor and confirmed a step-up', async () => {
-      const { site } = await aBox({ secondFactorRequired: true })
+      const { site } = await box({ secondFactorRequired: true })
       const caller = await site.signInAsOperator()
 
       const response = await send(caller, route)
@@ -234,7 +264,7 @@ describe('the operator’s routes: who may call them', () => {
 
     if (route.write) {
       it('answers 403 auth.stepUpRequired to an operator who never confirmed, without reading the body', async () => {
-        const { site } = await aBox()
+        const { site } = await box()
         const caller = await site.signIn(ADDRESS.operator)
 
         // A body this route would refuse as a 400 if it were read: the step-up is asked first.
@@ -245,7 +275,7 @@ describe('the operator’s routes: who may call them', () => {
       })
 
       it('answers 403 auth.stepUpRequired once the confirmation is more than five minutes old', async () => {
-        const { site } = await aBox()
+        const { site } = await box()
         const caller = await site.signIn(ADDRESS.operator)
         await site.stamp(ID.operator, {
           stepUpAt: site.clock.now().getTime() - FIVE_MINUTES_AND_A_MILLISECOND,
@@ -258,7 +288,7 @@ describe('the operator’s routes: who may call them', () => {
       })
 
       it('still answers an operator whose confirmation is exactly five minutes old', async () => {
-        const { site } = await aBox()
+        const { site } = await box()
         const caller = await site.signIn(ADDRESS.operator)
         await site.stamp(ID.operator, {
           stepUpAt: site.clock.now().getTime() - STEP_UP_LIFETIME_MS,
@@ -270,7 +300,7 @@ describe('the operator’s routes: who may call them', () => {
       })
     } else {
       it('asks for no step-up: a read changes nothing and is answered without one', async () => {
-        const { site } = await aBox()
+        const { site } = await box()
         const caller = await site.signIn(ADDRESS.operator)
 
         const response = await send(caller, route)

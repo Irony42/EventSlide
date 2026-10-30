@@ -152,6 +152,8 @@ export interface EventInput {
   readonly scheduledOpenAt?: Date | null
   readonly scheduledCloseAt?: Date | null
   readonly scheduleDiscardedAt?: Date | null
+  /** The client's suspension as a lookup would carry it; `null` by default. */
+  readonly clientSuspendedAt?: Date | null
 }
 
 const toSettings = (input: EventSettings | EventSettingsPatch): EventSettings =>
@@ -206,6 +208,7 @@ export const anEvent = (input: EventInput = {}): Event => {
     scheduledOpenAt: pick(input.scheduledOpenAt, null),
     scheduledCloseAt: pick(input.scheduledCloseAt, null),
     scheduleDiscardedAt: pick(input.scheduleDiscardedAt, null),
+    clientSuspendedAt: pick(input.clientSuspendedAt, null),
   })
 }
 

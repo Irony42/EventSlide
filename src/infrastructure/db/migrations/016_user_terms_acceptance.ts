@@ -19,8 +19,8 @@ import type { Migration } from '../migrator'
  * over, so the proof the log holds today is not lost the day it is pruned. The actor of that
  * entry is the account itself (`acceptInvitation` writes it so).
  */
-export const migration015: Migration = {
-  id: 15,
+export const migration016: Migration = {
+  id: 16,
   name: 'user_terms_acceptance',
   sql: `
       ALTER TABLE users ADD COLUMN terms_version TEXT;

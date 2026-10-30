@@ -100,6 +100,17 @@ export interface PhotoAdmission {
   readonly refusal: PhotoRefusal | null
 }
 
+/**
+ * Where a photograph lives, and nothing else: what the operator's takedown needs to act on a
+ * photograph named by its id alone (launch review S5). Ids and an instant, never a byte, a
+ * caption or an author.
+ */
+export interface PhotoLocation {
+  readonly eventId: EventId
+  /** When the operator took it down, or `null` while it is up. */
+  readonly takenDownAt: Date | null
+}
+
 export interface PhotoRepository {
   findById(eventId: EventId, photoId: PhotoId): Promise<Photo | null>
 
@@ -213,6 +224,31 @@ export interface PhotoRepository {
     photos: readonly Photo[],
     limits: PhotoAdmissionLimits,
   ): Promise<readonly PhotoAdmission[]>
+
+  /**
+   * Which event holds this photograph, **across every event**: the one read in this port that
+   * is not scoped by `eventId`, and the documented exception to "there is deliberately no
+   * `findById(photoId)`". It answers an id and an instant and nothing a person made, and its
+   * one caller is `setPhotoTakedown`: an operator told "photo <id>" has no event to name, and
+   * must never be handed the photograph to find one. It also sees a taken-down row, which every
+   * other read here leaves out. `null` for an id no row holds.
+   */
+  locate(photoId: PhotoId): Promise<PhotoLocation | null>
+
+  /**
+   * Takes a photograph down (`at`) or puts it back (`null`), for `setPhotoTakedown` (launch
+   * review S5). Scoped by event like everything else, and idempotent. `save` and
+   * `updateStatuses` never write this column, so the host's moderation cannot undo it.
+   *
+   * **A taken-down row is invisible to `findById`, `list`, `listIdsByStatus` and
+   * `countsByStatus`**, which is what removes it from the wall, a guest's feed, a gallery link,
+   * the host's grid and the media route in one place. It still counts toward `totalBytes`,
+   * `countByAuthor` and the client's total (the bytes are on the disk), is still named by
+   * `findByContentHash` (so the same bytes cannot be uploaded again as a new photograph, and a
+   * retry lands on the duplicate path), and is still referenced by `findIdsReferencing` and
+   * `listReferencedDigests`, so no sweep collects its files: it is kept, not deleted.
+   */
+  setTakenDown(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<void>
 
   /** Idempotent: deleting an already-deleted photo is not an error. */
   delete(eventId: EventId, photoId: PhotoId): Promise<void>

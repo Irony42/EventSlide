@@ -550,28 +550,48 @@ archive you took before the upgrade.
 
 ## Upgrading to 3.3
 
-**Not released yet: the release pull request finalises this section.** 3.3.0 will be a minor
-release: it breaks nothing the policy above promises to keep, but it changes one default and adds
-one migration.
+3.3.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
+`BREAKING` section and nothing has to change in `.env`. This section is here because it adds two
+migrations, changes a default, and because the host of a suspended client now sees less than it did.
 
-**Who is affected.** Anyone who never set `AUDIT_RETENTION_DAYS`, and everyone who runs with
-`SITE_ADMIN=on`.
+**Who is affected.** Everyone who upgrades from 3.2.x (the migrations), anyone who never set
+`AUDIT_RETENTION_DAYS`, and every box with `SITE_ADMIN=on` (the new operator routes, the suspension change
+and the account self-erasure).
 
-1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)).
-2. **One migration (015) runs at the first boot**: it adds `users.terms_version` and
-   `users.terms_accepted_at`, the proof that an account accepted the terms of use, and copies into
-   them the latest acceptance still present in the audit log. Nothing is lost and no setting is
-   needed; a box that sets no `LEGAL_TERMS_URL` records nothing and keeps the columns empty.
-3. **`AUDIT_RETENTION_DAYS` now defaults to 365** (it was 1095). The value was already the floor,
-   and it is what the hosted instance runs. **A box that never set it will, at the first
-   retention sweep after the upgrade, delete audit lines older than a year.** If you need to keep
-   them longer (the privacy policy you publish must then say so), set `AUDIT_RETENTION_DAYS=1095`
-   in `.env` before you upgrade. A value you set yourself is kept. A box that left it unset and holds
-   older rows logs one warning naming `AUDIT_RETENTION_DAYS` at boot, before the first sweep.
-4. **With `SITE_ADMIN=on`, an account can delete itself**: `POST /api/auth/account/delete` and an
-   entry "Supprimer mon compte" in the account menu, behind the password, with the same refusals as
-   the operator's route (an account that still owns an event is refused). On a box with
-   `SITE_ADMIN=off` the route does not exist.
+1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)). 3.3.0
+   applies **migration 015**, which adds three nullable columns (`photos.taken_down_at`,
+   `events.taken_down_at`, `events.purge_held_at`) and two partial indexes. No row changes. A 3.2.x
+   build still reads the database, and ignores the columns, which means it would **serve again**
+   whatever the operator had taken down: restore the archive you took, rather than running 3.2.x on
+   a migrated database, if you go back.
+2. **Take the steps of [Upgrading with Docker](#upgrading-with-docker)**, or
+   [without](#without-docker), with `vX.Y.Z` as `v3.3.0`. The image is
+   `ghcr.io/irony42/eventslide:3.3.0`.
+3. **New operator routes** (`SITE_ADMIN=on` only, behind the operator's second factor and a fresh
+   step-up, [API.md §1](API.md)): take a photograph or a whole event down by its id, put it back,
+   hold an event's purge and release the hold. Each needs a written reason and writes one line in
+   the audit log that is not in the client's own trail. A held event is skipped by the retention
+   sweep and is not purged, nor has a photograph deleted, by its host or its guests.
+4. **A suspended client's members no longer read photographs.** Until 3.2 the owner and moderators of
+   a suspended client kept reading their photographs (the grid, the moderation queue, the album
+   download and the media route); they now get `403 client.suspended` on those. They keep the
+   dashboard, the settings, the counts and the audit trail. Resuming the client restores everything.
+5. **Migration 016 adds the proof that an account accepted the terms of use**: `users.terms_version` and
+   `users.terms_accepted_at`, and copies into them the latest acceptance still present in the audit log.
+   Nothing is lost and no setting is needed; a box that sets no `LEGAL_TERMS_URL` records nothing and keeps
+   the columns empty.
+6. **`AUDIT_RETENTION_DAYS` now defaults to 365** (it was 1095). The value was already the floor, and it is
+   what the hosted instance runs. **A box that never set it will, at the first retention sweep after the
+   upgrade, delete audit lines older than a year.** If you need to keep them longer (the privacy policy you
+   publish must then say so), set `AUDIT_RETENTION_DAYS=1095` in `.env` before you upgrade. A value you set
+   yourself is kept. A box that left it unset and holds older rows logs one warning naming
+   `AUDIT_RETENTION_DAYS` at boot, before the first sweep.
+7. **With `SITE_ADMIN=on`, an account can delete itself**: `POST /api/auth/account/delete` and an entry
+   "Supprimer mon compte" in the account menu, behind the password (and the authenticator's code when there
+   is one), with the same refusals as the operator's route (an account that still owns an event is refused).
+8. **Nothing else changes for a self-hosted box with `SITE_ADMIN=off`**: the routes are not mounted and no
+   client is ever suspended.
 
-**How to tell it worked.** `npm run db:status` (or the first boot's log) reports migration 015
-applied, and `GET /api/health` answers the new version.
+**How to tell it worked.** The first boot logs migrations 015 and 016 and `GET /api/health` answers
+`"version": "3.3.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
+[described above](#going-back): restore the archive you took before the upgrade.

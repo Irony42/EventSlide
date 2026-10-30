@@ -55,10 +55,19 @@ export const makePurgeExpiredEvents =
     // away from the party in progress.
     for (const event of due) {
       try {
-        // Media first, row second — same reason as `purgeEvent`: the row is the only
-        // record that these bytes exist, so it is what must outlive a failure.
-        await media.deleteEvent(event.id)
-        await events.delete(event.id)
+        // **The row first, conditionally, then the bytes** (launch review S5). The listing above
+        // is a snapshot, and the operator may hold this event's purge after it was taken: the
+        // delete refuses a held row in the same statement, and the bytes are only touched once it
+        // has answered `true`, so the files of a held event can never be removed, whatever
+        // happened since. A failure of the second step leaves bytes with no row, which
+        // `sweepOrphanedMedia` collects once they are old enough; it is reported as failed.
+        if (!(await events.deleteUnlessHeld(event.id))) continue
+        try {
+          await media.deleteEvent(event.id)
+        } catch {
+          failed.push(event.id)
+          continue
+        }
         purged.push(event.id)
       } catch {
         failed.push(event.id)

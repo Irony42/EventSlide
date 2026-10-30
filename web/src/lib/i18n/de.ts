@@ -219,6 +219,8 @@ export const de: UiText = {
     },
     noticeAudiences: {
       wall: 'Alle, die den Bildschirm der Veranstaltung sehen, im Saal oder über seinen Link, sobald ein Foto darauf erscheint.',
+      guestFeed:
+        'Die anderen Gäste des Abends, auf ihrem Handy, unter „Fotos des Abends“: Sie sehen das auf dem Bildschirm gezeigte Foto, mit Ihrem Vornamen, falls Sie einen angegeben haben, und seiner Bildunterschrift.',
       organisers:
         'Der Veranstalter und sein Team, die alles sehen, was Sie senden, und die auf dem Bildschirm gezeigten Fotos herunterladen können.',
       sharedGallery:

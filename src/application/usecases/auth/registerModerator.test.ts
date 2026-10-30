@@ -97,6 +97,15 @@ describe('registerModerator', () => {
     expect(mailer.sent[0]?.text).toContain('/invite/')
   })
 
+  it('answers event.notFound for an event the operator took down, and writes nothing (launch review S5)', async () => {
+    await events.setTakenDown(asEventId('event-1'), AT)
+
+    const result = await invite()
+
+    expect(!result.ok && result.error.code).toBe('event.notFound')
+    expect(mailer.sent).toEqual([])
+  })
+
   it('creates no account and grants no role: nothing exists until the invitation is accepted', async () => {
     await invite()
 
