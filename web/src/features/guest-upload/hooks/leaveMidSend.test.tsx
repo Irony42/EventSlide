@@ -301,3 +301,38 @@ describe('leaving the upload screen while a photo is being written to the outbox
     ])
   })
 })
+
+describe('coming straight back to the upload screen during the hand-over', () => {
+  /** What IndexedDB is: closing a connection forgets nothing, so the screen that comes back sees the writes. */
+  class DurableOutbox extends RecordingOutbox {
+    override close(): void {
+      this.writtenWhenClosed ??= this.written.length
+    }
+  }
+
+  it('lets the new screen see the photos as soon as the last one is written', async () => {
+    const store = new DurableOutbox()
+    const { api, calls } = held()
+    const leaving = mount(api, store)
+    await waitFor(() => expect(leaving.result.current.outbox.ready).toBe(true))
+    act(() => leaving.result.current.queue.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+    act(() => leaving.result.current.queue.send(null, null))
+    await waitFor(() => expect(calls).toHaveLength(1))
+
+    // Back at once: the new screen opens the store and looks, before the writes below have landed.
+    const arriving = renderHook(
+      () => useOutbox({ slug: SLUG, open: () => Promise.resolve(store) }),
+      {
+        wrapper: ({ children }: { readonly children: ReactNode }) => (
+          <ApiProvider api={api}>{children}</ApiProvider>
+        ),
+      },
+    )
+    await waitFor(() => expect(arriving.result.current.ready).toBe(true))
+    expect(arriving.result.current.waiting).toBe(0)
+    leaving.unmount()
+
+    await waitFor(() => expect(store.written).toHaveLength(2))
+    await waitFor(() => expect(arriving.result.current.waiting).toBe(2))
+  })
+})

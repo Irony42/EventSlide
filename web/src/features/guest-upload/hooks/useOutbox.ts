@@ -6,6 +6,7 @@ import { drainOutbox } from '../../../lib/offline/drainOutbox'
 import { isOfflineQueueEnabled } from '../../../lib/offline/killSwitch'
 import { openOutbox } from '../../../lib/offline/openOutbox'
 import { acceptsFileType } from '../../../lib/offline/outboxPolicy'
+import { announceHandOver, listenForHandOver } from '../../../lib/offline/outboxSignal'
 import { requestBackgroundSync } from '../../../lib/offline/serviceWorker'
 import type { DrainReport } from '../../../lib/offline/drainOutbox'
 import type { OutboxHandOff, OutboxStore } from '../../../lib/offline/outbox'
@@ -347,6 +348,14 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     }
   }, [drainNow])
 
+  useEffect(() => {
+    // Another screen of this event has just written photos here (see `outboxSignal`): a fast Back
+    // and return finds the first look at the store done before the hand-over's writes had landed.
+    return listenForHandOver(slug, () => {
+      void count().then(() => drainNow())
+    })
+  }, [count, drainNow, slug])
+
   /**
    * Writes one photo to a store that is already open.
    *
@@ -468,9 +477,13 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
         }
       }
       // Once, after the last write: one sync registration covers every entry.
-      if (stored > 0) void requestBackgroundSync()
+      if (stored > 0) {
+        void requestBackgroundSync()
+        // And one word to a screen the guest may have reopened in the meantime: see `outboxSignal`.
+        announceHandOver(slug)
+      }
     },
-    [storeIn],
+    [slug, storeIn],
   )
   useEffect(() => {
     handOverRef.current = handOver
