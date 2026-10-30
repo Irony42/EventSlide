@@ -233,6 +233,9 @@ export function WallPage() {
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   const showsOverlay = invitation !== null && !qrHidden && items.length > 0
+  // Only a wall the browser could not keep awake needs the last sentence (MUR-2): the host's
+  // own computer is then the one thing left that can turn the projector off.
+  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}`
 
   /**
    * What the room is looking at, named on the wall element itself.
@@ -394,16 +397,7 @@ export function WallPage() {
         // one screen that explains `L` names what it walks through.
         // And how to leave: there is deliberately no exit button on the projected screen, so a guest
         // cannot drop the picture by mistake (navigation pass, A5; decision 5).
-        description={[
-          text.wall.shortcutsHint,
-          layoutOrderHint(text),
-          text.wall.leaveHint,
-          // Only a wall the browser could not keep awake needs telling (MUR-2): the host's
-          // own computer is then the one thing left that can turn the projector off.
-          awake ? null : text.wall.keepAwakeHint,
-        ]
-          .filter((line) => line !== null)
-          .join(' ')}
+        description={awake ? shortcutsHelp : `${shortcutsHelp} ${text.wall.keepAwakeHint}`}
         onClose={closeHelp}
       />
     </div>

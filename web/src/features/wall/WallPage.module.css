@@ -92,6 +92,16 @@
   border-radius: var(--radius-full);
   background: var(--warning);
   box-shadow: 0 0 0 var(--space-1) var(--surface-scrim);
+  animation: notice-in var(--duration-base) var(--ease-out) both;
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* The tone colours the glyph; the words stay at full contrast, because the message is
@@ -146,4 +156,15 @@
 .wall[data-idle='true'],
 .wall[data-idle='true'] * {
   cursor: none;
+}
+
+/**
+ * The bottom rung, for the dot — roadmap 11.3.
+ *
+ * Its fade-in is chrome, so a machine that has run out of frames gives it up. A collapsed
+ * duration rather than `animation: none`: the dot then appears at rest instead of rising
+ * into place, and it still appears.
+ */
+[data-wall-budget='cut'] .outageDot {
+  animation-duration: 0s;
 }
