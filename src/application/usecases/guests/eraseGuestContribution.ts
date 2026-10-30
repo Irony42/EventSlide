@@ -116,6 +116,10 @@ export const makeEraseGuestContribution = ({
     const guest = await guests.findById(eventId, guestId)
     if (guest === null) return err(DomainError.notFound('guest.notFound'))
 
+    // A held event keeps everything it has, a guest's own photographs included (launch review S5).
+    // The same generic failure `deletePhoto` answers, so the host is not told there is a hold.
+    if (event.isPurgeHeld()) return err(DomainError.unexpected('photo.deleteFailed'))
+
     let erasedPhotos = 0
     let erasedClips = 0
     const removeAll = async (): Promise<void> => {
@@ -152,7 +156,14 @@ export const makeEraseGuestContribution = ({
     // What lands in the instant between this read and the delete is not refused by anything: its
     // files are orphans, which `sweepOrphanedMedia` collects after its minimum age.
     await removeAll()
-    await guests.delete(eventId, guestId)
+    // A photograph the operator took down is evidence: every read above skipped it, so it was neither
+    // deleted nor counted. Its row hangs from the guest row by a cascading foreign key, so the guest
+    // row stays, without its name, until the operator puts the photograph back or the event is purged.
+    if ((await photos.countTakenDownBy(eventId, guestId)) > 0) {
+      await guests.save(guest.withoutName())
+    } else {
+      await guests.delete(eventId, guestId)
+    }
 
     // One signal for what no `photo.deleted` says: the name on the wall, a heart on someone
     // else's photograph, a guest on the host's list. Every open screen re-reads on it.

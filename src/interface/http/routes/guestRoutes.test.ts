@@ -1578,6 +1578,44 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
   })
 
+  it('answers a purge-held event with the generic failure a photo deletion gets, and erases nothing', async () => {
+    const subject = buildSubject()
+    await subject.harness.events.setPurgeHeld(asEventId(WEDDING), AT)
+
+    const response = await erase(subject)
+
+    expect(response.status).toBe(500)
+    expect(response.body.error.code).toBe('photo.deleteFailed')
+    expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
+    expect(
+      await subject.harness.guests.findById(asEventId(WEDDING), asGuestId(GUEST)),
+    ).not.toBeNull()
+  })
+
+  it('leaves a photograph the operator took down alone, keeping the guest row without its name', async () => {
+    const subject = buildSubject()
+    await subject.photos.setTakenDown(asEventId(WEDDING), asPhotoId(PUBLISHED), AT)
+
+    const response = await erase(subject)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ photos: 2, clips: 0 })
+    expect((await subject.photos.locate(asPhotoId(PUBLISHED)))?.takenDownAt).not.toBeNull()
+    const kept = await subject.harness.guests.findById(asEventId(WEDDING), asGuestId(GUEST))
+    expect(kept?.label()).toBeNull()
+  })
+
+  it('answers 404 event.notFound on an event the operator took down, as every guest route does', async () => {
+    const subject = buildSubject()
+    await subject.harness.events.setTakenDown(asEventId(WEDDING), AT)
+
+    const response = await erase(subject)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
+    expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
+  })
+
   it('answers 401 guestToken.malformed to the token it just erased, so the phone drops it', async () => {
     const subject = buildSubject()
     await erase(subject)

@@ -1934,13 +1934,15 @@ photograph for the retention the privacy notice states. A queued clip whose byte
 same event (the same bytes sent twice) is one row owned by its first sender, so the second sender's erasure does not
 remove it and the first one's does.
 
+**A photograph the operator took down is never touched**: it is neither deleted nor counted, its bytes stay, and because its row hangs from the guest row by a cascading foreign key the guest row is kept, **without its display name**, rather than deleted.
+
 **Retryable.** Photographs go one at a time (bytes, then row), then the queued clips, the reactions and the guest row. A
 process that dies half way leaves the guest row, so the token still verifies and pressing the button again finishes. A
 clip transcoding at that very moment finishes against a row that is gone, and the final sweep removes whatever it inserted (a row landing in the instant after that read leaves orphan files for the media sweep).
 
 **Errors** — `401 auth.required` / `401 guestToken.*` (a lost token is the reason to ask the organiser, who can delete
-any photograph: there is deliberately no identity check here), `404 event.notFound` (a token for another event, as everywhere in
-this section), `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
+any photograph: there is deliberately no identity check here), `404 event.notFound` (a token for another event, or an event the operator took down, as everywhere in
+this section), **`500 photo.deleteFailed` on an event whose purge the operator holds** (the generic failure a photograph deletion gets there, so the host is not told why; nothing is touched), `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ## 4. Media
 

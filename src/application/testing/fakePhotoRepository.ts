@@ -183,6 +183,12 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     }
   }
 
+  async countTakenDownBy(eventId: EventId, guestId: GuestId): Promise<number> {
+    return this.forEvent(eventId).filter(
+      (photo) => this.takenDown.has(key(eventId, photo.id)) && this.matchesAuthor(photo, guestId),
+    ).length
+  }
+
   async setTakenDown(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<void> {
     const rowKey = key(eventId, photoId)
     if (!this.rows.has(rowKey)) return

@@ -322,4 +322,41 @@ describe('eraseGuestContribution', () => {
 
     expect(media.variantsOf(EVENT, job.sourceHash)).toEqual(['source'])
   })
+
+  it('refuses on a purge-held event with the generic failure deletePhoto answers, and touches nothing', async () => {
+    const photo = await seedPhoto({
+      id: 'p1',
+      eventId: 'event-1',
+      author: { kind: 'guest', id: 'guest-lea' },
+    })
+    await events.setPurgeHeld(EVENT, new Date(0))
+
+    const result = await run()
+
+    expect(!result.ok && result.error.code).toBe('photo.deleteFailed')
+    expect(await photos.findById(EVENT, photo.id)).not.toBeNull()
+    expect(await guests.findById(EVENT, LEA)).not.toBeNull()
+    expect(media.variantsOf(EVENT, photo.contentHash)).not.toEqual([])
+    expect(bus.published).toEqual([])
+  })
+
+  it('never touches a photograph the operator took down: not deleted, not counted, bytes kept, guest row kept without its name', async () => {
+    const down = await seedPhoto({
+      id: 'p-down',
+      eventId: 'event-1',
+      author: { kind: 'guest', id: 'guest-lea' },
+    })
+    await seedPhoto({ id: 'p-up', eventId: 'event-1', author: { kind: 'guest', id: 'guest-lea' } })
+    await photos.setTakenDown(EVENT, down.id, new Date(0))
+
+    const result = await run()
+
+    expect(result).toEqual({ ok: true, value: { photos: 1, clips: 0 } })
+    expect(media.variantsOf(EVENT, down.contentHash)).not.toEqual([])
+    expect((await photos.locate(down.id))?.takenDownAt).not.toBeNull()
+    expect(bus.published.filter((e) => e.type === 'photo.deleted')).toHaveLength(1)
+    const kept = await guests.findById(EVENT, LEA)
+    expect(kept).not.toBeNull()
+    expect(kept?.label()).toBeNull()
+  })
 })

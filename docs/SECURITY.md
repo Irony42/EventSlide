@@ -576,7 +576,7 @@ at another event is unreachable (named tests at rings 2, 4 and 6: `eraseGuestCon
 none is invented: the phone says to ask the organiser, who can delete any photograph. Files are removed by the same
 routine as `deletePhoto` (`removePhotoRecord`: bytes before the row, and only digests nothing else names, so a poster another
 clip shares survives). The guest row goes last, so a half-finished run is retried by pressing the button again, and a
-transcode running at that moment is caught by a final sweep just before the guest row goes; one that lands in the instant after that read leaves orphan files for `sweepOrphanedMedia`. **No audit line is written**: the audit
+transcode running at that moment is caught by a final sweep just before the guest row goes; one that lands in the instant after that read leaves orphan files for `sweepOrphanedMedia`. **On an event whose purge is **held** (operator takedown, launch review S5) it answers the generic `photo.deleteFailed` and touches nothing; a photograph the operator **took down** is skipped by every read the erasure makes, so it is neither deleted nor counted, and the guest row stays (nameless) because its cascading foreign key would otherwise delete that evidence. **No audit line is written**: the audit
 log is about accounts and clients, content-free by construction, and a guest has no account to attribute it to; the moderation
 decision lived on the photograph row and goes with it. It cannot reach a copy the host exported (the album archive is streamed,
 never stored), a download from the shared gallery link, a screenshot, or the hourly backup, which keeps a deleted photograph for

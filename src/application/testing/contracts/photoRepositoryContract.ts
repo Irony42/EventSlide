@@ -655,6 +655,19 @@ export const photoRepositoryContract = (
         expect((await repo.countsByStatus(WEDDING)).published).toBe(1)
       })
 
+      it('counts the taken-down photographs of one guest, in one event', async () => {
+        await saveAll([
+          aPhoto({ id: 'p-a', eventId: WEDDING, author: { kind: 'guest', id: 'guest-lea' } }),
+          aPhoto({ id: 'p-b', eventId: WEDDING, author: { kind: 'guest', id: 'guest-lea' } }),
+          aPhoto({ id: 'p-c', eventId: WEDDING, author: { kind: 'guest', id: 'guest-nils' } }),
+        ])
+        await repo.setTakenDown(WEDDING, asPhotoId('p-a'), AT_DOWN)
+        await repo.setTakenDown(WEDDING, asPhotoId('p-c'), AT_DOWN)
+
+        expect(await repo.countTakenDownBy(WEDDING, asGuestId('guest-lea'))).toBe(1)
+        expect(await repo.countTakenDownBy(GALA, asGuestId('guest-lea'))).toBe(0)
+      })
+
       it('is still held: its bytes count, its hash is taken, its files stay referenced', async () => {
         await seedPair()
         const down = aPhoto({ id: 'p-down', eventId: WEDDING })
