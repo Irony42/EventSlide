@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useId, useState, type ReactNode } from 'react'
 import { useApi } from '../../../app/useApi'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
@@ -38,6 +38,7 @@ export function TakedownRow({ heading, id, details, states, buttons, onDone }: T
   const t = useTranslations()
   const api = useApi()
   const toast = useToast()
+  const headingId = useId()
   const [asked, setAsked] = useState<TakedownOp | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const act = useOperatorAction(
@@ -71,7 +72,9 @@ export function TakedownRow({ heading, id, details, states, buttons, onDone }: T
 
   return (
     <li className={styles['row']}>
-      <h3 className={styles['heading']}>{heading}</h3>
+      <h3 id={headingId} className={styles['heading']}>
+        {heading}
+      </h3>
       <p className={styles['states']}>
         {states.map((state) => (
           <Badge key={state.label} tone={state.tone}>
@@ -86,6 +89,7 @@ export function TakedownRow({ heading, id, details, states, buttons, onDone }: T
             key={button.op}
             variant="secondary"
             disabled={act.busy}
+            aria-describedby={headingId}
             onClick={() => setAsked(button.op)}
           >
             {button.label}
@@ -97,7 +101,7 @@ export function TakedownRow({ heading, id, details, states, buttons, onDone }: T
         key={asked ?? 'closed'}
         open={asked !== null}
         title={copy?.title ?? ''}
-        description={copy?.body ?? ''}
+        description={`${heading}. ${copy?.body ?? ''}`}
         confirmLabel={copy?.confirm ?? ''}
         busy={act.busy}
         failure={failure}

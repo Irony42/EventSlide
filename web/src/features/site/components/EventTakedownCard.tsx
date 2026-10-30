@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useApi } from '../../../app/useApi'
 import { Button } from '../../../design-system/components/Button'
@@ -7,7 +7,8 @@ import { Field } from '../../../design-system/components/Field'
 import { TextInput } from '../../../design-system/components/TextInput'
 import type { SiteEventStateDto } from '../../../lib/api/dto'
 import { messageForError } from '../../../lib/i18n/translations'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
+import { formatDateTime } from '../../../lib/format'
 import { eventStatusLabel } from '../siteLabels'
 import type { TakedownOp } from '../takedownOps'
 import { TakedownRow, type TakedownButton } from './TakedownRow'
@@ -24,7 +25,9 @@ import styles from './TakedownCard.module.css'
  */
 export function EventTakedownCard() {
   const t = useTranslations()
+  const { locale } = useLocale()
   const api = useApi()
+  const latest = useRef(0)
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<readonly SiteEventStateDto[] | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
@@ -36,12 +39,16 @@ export function EventTakedownCard() {
     if (asked === '') return
     setFailure(null)
     setSearching(true)
+    const mine = ++latest.current
     api.siteLookupEvents(asked).then(
       (found) => {
+        // A slower answer to an earlier search must not replace the rows of the one on screen.
+        if (mine !== latest.current) return
         setRows(found.items)
         setSearching(false)
       },
       (cause: unknown) => {
+        if (mine !== latest.current) return
         setRows(null)
         setFailure(messageForError(cause, t))
         setSearching(false)
@@ -119,6 +126,7 @@ export function EventTakedownCard() {
               details={
                 <>
                   {eventStatusLabel(row.status, t)} ·{' '}
+                  {formatDateTime(row.createdAt, locale) ?? row.createdAt} ·{' '}
                   {row.clientId === null ? (
                     t.site.takedownNoClient
                   ) : (

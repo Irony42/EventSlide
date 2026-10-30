@@ -582,6 +582,21 @@ describe.each(['delivers', 'none'] as const)(
       }
     })
 
+    it('answers the three takedown reads with no-store, so a shared cache never holds an id for a name', async () => {
+      const { site } = await aBox({ mail })
+      const operator = await site.signInAsOperator()
+
+      for (const path of [
+        `/api/site/events/lookup?q=${CONTENT.joinCode}`,
+        `/api/site/events/${ID.eventK}`,
+        '/api/site/photos/99999999-9999-4999-8999-999999999999',
+      ]) {
+        const response = await operator.agent.get(path)
+
+        expect(response.headers['cache-control'], path).toBe('no-store')
+      }
+    })
+
     it('shows nothing a guest wrote, however much an event holds: the same listing for an event with a photograph and one with none', async () => {
       const { site } = await aBox({ mail })
       const operator = await site.signInAsOperator()

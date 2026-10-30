@@ -1,5 +1,6 @@
 import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { Event } from '../../domain/events/event'
+import { foldName } from '../../domain/events/eventName'
 import { DomainError } from '../../domain/shared/errors'
 import type { ClientId, EventId, UserId } from '../../domain/shared/ids'
 import type { JoinCode } from '../../domain/shared/joinCode'
@@ -156,9 +157,9 @@ export class FakeEventRepository implements EventRepository {
   }
 
   async listByName(name: string, limit: number): Promise<readonly Event[]> {
-    const wanted = name.trim().toLowerCase()
+    const wanted = foldName(name)
     return [...this.rows.values()]
-      .filter((event) => event.name.value.toLowerCase() === wanted)
+      .filter((event) => foldName(event.name.value) === wanted)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || compareIds(a.id, b.id))
       .slice(0, limit)
       .flatMap((event) => {

@@ -54,6 +54,37 @@ describe('lookupSiteEvents', () => {
     expect(await ids(query)).toEqual(['event-1'])
   })
 
+  it('answers every event a free-text query finds, once: a slug, a code and a name together', async () => {
+    const both = new FakeEventRepository().seed(
+      anEvent({ id: 'event-a', name: 'Fête', slug: 'fete', joinCode: 'H7K2QM' }),
+      anEvent({ id: 'event-b', name: 'fete', slug: 'autre-fete', joinCode: '2AB3CD' }),
+    )
+
+    const result = await makeLookupSiteEvents({ events: both })({ query: 'FETE' })
+
+    expect(result.ok && result.value.map((state) => state.id).sort()).toEqual([
+      'event-a',
+      'event-b',
+    ])
+  })
+
+  it('reads an address as the slug it carries and nothing else: no name search on a pasted link', async () => {
+    const named = new FakeEventRepository().seed(
+      anEvent({
+        id: 'event-a',
+        name: 'https://x.test/e/camille',
+        slug: 'camille-a',
+        joinCode: 'H7K2QM',
+      }),
+    )
+
+    const result = await makeLookupSiteEvents({ events: named })({
+      query: 'https://x.test/e/camille',
+    })
+
+    expect(result.ok && result.value).toEqual([])
+  })
+
   it('finds nothing for a name that is only part of one: a lookup is not a way to browse names', async () => {
     expect(await ids('Mariage')).toEqual([])
     expect(await ids('mariage-de')).toEqual([])

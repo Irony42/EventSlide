@@ -148,7 +148,9 @@ describe('acting on an event', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.site.takedownEventDown }))
     const confirmation = await dialog(fr.site.takedownOps.eventDown.title)
 
-    expect(within(confirmation).getByText(fr.site.takedownOps.eventDown.body)).toBeVisible()
+    expect(confirmation).toHaveTextContent(fr.site.takedownOps.eventDown.body)
+    // And which event it is about, so a mis-clicked row cannot look like the one meant.
+    expect(confirmation).toHaveTextContent(EVENT_ID)
     expect(
       within(confirmation).getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }),
     ).toBeDisabled()

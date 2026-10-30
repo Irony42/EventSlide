@@ -50,15 +50,23 @@ export const makeLookupSiteEvents =
       return err(DomainError.invalid('siteLookup.queryInvalid', { max: LOOKUP_MAX_LENGTH }))
     }
 
-    const candidate = fromAddress(text) ?? text
+    // An address is read as the slug or code it carries and nothing else; free text is read as all
+    // three at once (a slug, a code and a name), and every event any of them finds is answered, once.
+    // Stopping at the first hit would hide an event whose name is also another event's slug.
+    const address = fromAddress(text)
+    const candidate = address ?? text
+    const found: Event[] = []
+    const keep = (event: Event | null): void => {
+      if (event !== null && !found.some((known) => known.id === event.id)) found.push(event)
+    }
+
     const slug = Slug.create(candidate.toLowerCase())
-    const bySlug: Event | null = slug.ok ? await events.findBySlug(slug.value) : null
-    if (bySlug !== null) return ok([siteEventStateOf(bySlug)])
-
+    keep(slug.ok ? await events.findBySlug(slug.value) : null)
     const code = JoinCode.create(candidate)
-    const byCode: Event | null = code.ok ? await events.findByJoinCode(code.value) : null
-    if (byCode !== null) return ok([siteEventStateOf(byCode)])
+    keep(code.ok ? await events.findByJoinCode(code.value) : null)
+    if (address === null) {
+      for (const named of await events.listByName(text, LOOKUP_LIMIT)) keep(named)
+    }
 
-    const named = await events.listByName(text, LOOKUP_LIMIT)
-    return ok(named.map(siteEventStateOf))
+    return ok(found.slice(0, LOOKUP_LIMIT).map(siteEventStateOf))
   }

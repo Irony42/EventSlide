@@ -9,7 +9,7 @@ import type {
 import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
-import { EventName } from '../../domain/events/eventName'
+import { EventName, foldName } from '../../domain/events/eventName'
 import {
   EventSettings,
   isModerationMode,
@@ -748,8 +748,12 @@ export class SqliteEventRepository implements EventRepository {
     this.updateTakenDown = db.prepare<[string | null, string]>(
       `UPDATE events SET taken_down_at = ? WHERE id = ?`,
     )
+    // SQLite's `lower()` folds ASCII only, so the lookup folds in JavaScript (`foldName`).
+    db.function('es_fold_name', { deterministic: true }, (name: unknown) =>
+      typeof name === 'string' ? foldName(name) : null,
+    )
     this.selectByName = db.prepare<[string, number], EventRow>(
-      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE lower(name) = lower(?)
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE es_fold_name(name) = ?
         ORDER BY created_at, id LIMIT ?`,
     )
     this.deleteUnheld = db.prepare<[string]>(
@@ -765,7 +769,7 @@ export class SqliteEventRepository implements EventRepository {
   }
 
   async listByName(name: string, limit: number): Promise<readonly Event[]> {
-    return this.selectByName.all(name.trim(), limit).map(toEvent)
+    return this.selectByName.all(foldName(name), limit).map(toEvent)
   }
 
   async deleteUnlessHeld(id: EventId): Promise<boolean> {

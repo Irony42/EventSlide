@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EventName } from './eventName'
+import { EventName, foldName } from './eventName'
 
 /**
  * Built from code points rather than typed into the file: an invisible character
@@ -147,5 +147,12 @@ describe('EventName', () => {
     const result = EventName.create('Camille & Sacha')
 
     expect(result.ok && `${result.value}`).toBe('Camille & Sacha')
+  })
+})
+
+describe('foldName', () => {
+  it('drops accents, folds case and trims, so a lookup finds a name typed in capitals without them', () => {
+    expect(foldName('  Fête de NOËL ')).toBe('fete de noel')
+    expect(foldName('ÉRIC & LÉA')).toBe(foldName('éric & léa'))
   })
 })

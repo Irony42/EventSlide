@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { useApi } from '../../../app/useApi'
 import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
@@ -22,6 +22,7 @@ import styles from './TakedownCard.module.css'
 export function PhotoTakedownCard() {
   const t = useTranslations()
   const api = useApi()
+  const latest = useRef(0)
   const [text, setText] = useState('')
   const [found, setFound] = useState<SitePhotoStateDto | null>(null)
   const [missing, setMissing] = useState(false)
@@ -33,12 +34,15 @@ export function PhotoTakedownCard() {
       setFailure(null)
       setMissing(false)
       setSearching(true)
+      const mine = ++latest.current
       return api.sitePhotoState(id).then(
         (state) => {
+          if (mine !== latest.current) return
           setFound(state)
           setSearching(false)
         },
         (cause: unknown) => {
+          if (mine !== latest.current) return
           setFound(null)
           if (cause instanceof ApiError && cause.code === 'photo.notFound') setMissing(true)
           else setFailure(messageForError(cause, t))
