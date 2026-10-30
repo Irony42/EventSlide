@@ -42,14 +42,11 @@
  * content above it without a z-index, and it stays inside the shell's bottom padding
  * — which is what keeps it clear of the iOS home indicator.
  *
- * **It is glass, and this is the surface the material was designed for** (roadmap 11.1).
- * Everything a guest presses is in this box, and what is behind it is the guest's own
- * photographs scrolling past — which is exactly the case the tint floor exists for, since
- * one of those thumbnails may be a white dress in full sun. It was opaque
- * `--surface-base` before, so the photos disappeared under a black bar at the moment the
- * guest was looking for proof that they had arrived.
+ * **It is the sheet** (`sheet.module.css`): everything a guest presses is in this box, over their own
+ * photographs scrolling past. It was glass until 3.3 (docs/adr/0012-retire-glass.md) and is
+ * `--surface-raised` now, which is what the glass looked like to the eye anyway.
  *
- * The bar lifts off the bottom edge rather than sitting flush to it. A translucent pane
+ * The bar lifts off the bottom edge rather than sitting flush to it. A pane
  * welded to the viewport edge reads as a gradient someone forgot to finish; one with a
  * gutter under it reads as a sheet, and the gutter is where the photos travel.
  *
@@ -70,7 +67,7 @@
  * cannot land in by mistake.
  */
 .composer {
-  composes: sheet from '../../design-system/glass.module.css';
+  composes: sheet from '../../design-system/sheet.module.css';
   position: sticky;
   inset-block-end: var(--space-2);
   margin-block-start: auto;
@@ -81,7 +78,7 @@
   border-radius: var(--radius-lg);
   /* Pinned, so it is a layer above the photographs scrolling under it: a lit rim, a shadow cast
      upward and a fade of the ground over what is about to go beneath it (`--elevation-sheet`). The
-     material reads it; drawn outside the box, so the pane does not grow. */
+     sheet reads it; drawn outside the box, so the pane does not grow. */
   --sheet-lift: var(--elevation-sheet);
 }
 

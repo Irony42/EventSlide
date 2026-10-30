@@ -92,12 +92,12 @@ const SMOOTH_MS = 16
 const STRUGGLING_MS = Math.ceil(1_000 / MIN_FRAMES_PER_SECOND) + 20
 
 describe('the wall watching its own frame rate', () => {
-  it('starts where the ladder says the room starts, before it has measured anything', () => {
+  it('starts with nothing given up, before it has measured anything', () => {
     const frames = driveFrames()
     const { result } = renderHook(() => useFrameBudget())
 
-    // One rung down: the room never affords the blur, measurement or no measurement.
-    expect(result.current).toBe(1)
+    // Nothing given up: the wall starts with its zoom and its fade.
+    expect(result.current).toBe(0)
     expect(frames.pending()).toBe(1)
   })
 
@@ -107,7 +107,7 @@ describe('the wall watching its own frame rate', () => {
 
     frames.paint(A_WINDOW * 4, SMOOTH_MS)
 
-    expect(result.current).toBe(1)
+    expect(result.current).toBe(0)
   })
 
   it('gives nothing up for one bad window, because one bad window is a decode', () => {
@@ -116,17 +116,17 @@ describe('the wall watching its own frame rate', () => {
 
     frames.paint(A_WINDOW, STRUGGLING_MS)
 
-    expect(result.current).toBe(1)
+    expect(result.current).toBe(0)
   })
 
   it('gives up the zoom after two bad windows in a row', () => {
-    // The first thing the wall has left to give: the blur went before it rendered a frame.
+    // The first thing the wall has to give.
     const frames = driveFrames()
     const { result } = renderHook(() => useFrameBudget())
 
     frames.paint(A_WINDOW * 2, STRUGGLING_MS)
 
-    expect(result.current).toBe(2)
+    expect(result.current).toBe(1)
   })
 
   it('then gives up the crossfade, and then has nothing left to give', () => {
@@ -134,7 +134,7 @@ describe('the wall watching its own frame rate', () => {
     const { result } = renderHook(() => useFrameBudget())
 
     frames.paint(A_WINDOW * 4, STRUGGLING_MS)
-    expect(result.current).toBe(3)
+    expect(result.current).toBe(2)
 
     // And the loop is gone. A monitor that kept sampling for the remaining seven hours
     // would be a cost with nothing left to buy — on the machine it exists to protect.
@@ -151,7 +151,7 @@ describe('the wall watching its own frame rate', () => {
 
     // Two bad windows, but not two in a row — which is a wall that hitched twice in five
     // seconds, not a wall that cannot cope.
-    expect(result.current).toBe(1)
+    expect(result.current).toBe(0)
   })
 
   it('does not read a browser that stopped painting as a machine that cannot cope', () => {
@@ -168,7 +168,7 @@ describe('the wall watching its own frame rate', () => {
       frames.paint(1, 600_000)
     }
 
-    expect(result.current).toBe(1)
+    expect(result.current).toBe(0)
   })
 
   it('does degrade on a wall that stalls past the ceiling over and over', () => {
@@ -184,7 +184,7 @@ describe('the wall watching its own frame rate', () => {
       }
     }
 
-    expect(result.current).toBe(3)
+    expect(result.current).toBe(2)
   })
 
   it('measures nothing at all for a viewer who asked for no motion', () => {
@@ -196,7 +196,7 @@ describe('the wall watching its own frame rate', () => {
     const { result } = renderHook(() => useFrameBudget())
 
     expect(frames.pending()).toBe(0)
-    expect(result.current).toBe(1)
+    expect(result.current).toBe(0)
   })
 
   it('stops sampling when the wall goes away', () => {

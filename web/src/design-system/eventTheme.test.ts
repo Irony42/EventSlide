@@ -157,7 +157,7 @@ describe('themeSurfaceProps', () => {
     })
 
     it('is read back from storage only when it is a path this product mints', () => {
-      const stored = { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' }
+      const stored = { accentHue: 305, fonts: 'sans', frame: 'soft' }
 
       expect(
         readEventTheme({ ...stored, ambiance: 'eventslide', groundUrl: URL_PATH })?.groundUrl,
@@ -223,7 +223,6 @@ describe('themeSurfaceProps', () => {
         accentHue: 345,
         fonts: 'serif',
         frame: 'round',
-        material: 'glass',
         ambiance: 'eventslide',
       }),
       'guest',
@@ -234,33 +233,6 @@ describe('themeSurfaceProps', () => {
       'data-event-accent': '345',
     })
   })
-
-  /* ---- The material a host turned off (roadmap 11.5). ---- */
-
-  it.each(['wall', 'guest'] as const)('carries the host’s plain surface onto the %s', (surface) => {
-    // Both surfaces the host's look reaches. Not the console: it is one operator's tool
-    // across many events, and a toolbar that changes material per event is the screen
-    // where consistency beats personality — §12's argument, unchanged by the knob being a
-    // surface finish rather than a colour.
-    expect(
-      themeSurfaceProps(aTheme({ material: 'plain', ambiance: 'eventslide' }), surface),
-    ).toEqual({
-      'data-glass': 'opaque',
-    })
-  })
-
-  it.each(['wall', 'guest'] as const)(
-    'spreads nothing for a host who kept glass, on the %s',
-    (surface) => {
-      // The one-way rule at the point it reaches the DOM. A themed surface is a descendant
-      // of the shell, where the machine's own answer is declared, and a tier declared on a
-      // descendant wins for its subtree — so `data-glass="ground"` here would put a blur
-      // back on a projector and on any machine the budget had already taken it from.
-      expect(
-        themeSurfaceProps(aTheme({ material: 'glass', ambiance: 'eventslide' }), surface),
-      ).toEqual({})
-    },
-  )
 })
 
 describe('the picker’s catalogue', () => {
@@ -290,21 +262,9 @@ describe('themeSurfaceProps for a preview', () => {
 
 describe('readEventTheme', () => {
   it('accepts a theme as the server sends it', () => {
-    expect(
-      readEventTheme({
-        accentHue: 345,
-        fonts: 'serif',
-        frame: 'round',
-        material: 'glass',
-        ambiance: 'eventslide',
-      }),
-    ).toEqual({
-      accentHue: 345,
-      fonts: 'serif',
-      frame: 'round',
-      material: 'glass',
-      ambiance: 'eventslide',
-    })
+    const theme = { accentHue: 345, fonts: 'serif', frame: 'round', ambiance: 'eventslide' }
+
+    expect(readEventTheme(theme)).toEqual(theme)
   })
 
   it.each([
@@ -316,7 +276,6 @@ describe('readEventTheme', () => {
         accentHue: 'rose',
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'eventslide',
       },
     ],
@@ -326,29 +285,25 @@ describe('readEventTheme', () => {
         accentHue: Number.NaN,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'eventslide',
       },
     ],
     [
       'a hue past the circle',
-      { accentHue: 4000, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
+      { accentHue: 4000, fonts: 'sans', frame: 'soft', ambiance: 'eventslide' },
     ],
-    [
-      'a negative hue',
-      { accentHue: -1, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
-    ],
+    ['a negative hue', { accentHue: -1, fonts: 'sans', frame: 'soft', ambiance: 'eventslide' }],
     [
       'a hue between two degrees',
-      { accentHue: 305.5, fonts: 'sans', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
+      { accentHue: 305.5, fonts: 'sans', frame: 'soft', ambiance: 'eventslide' },
     ],
     [
       'a font pairing this build never shipped',
-      { accentHue: 305, fonts: 'comic', frame: 'soft', material: 'glass', ambiance: 'eventslide' },
+      { accentHue: 305, fonts: 'comic', frame: 'soft', ambiance: 'eventslide' },
     ],
     [
       'a frame style this build never shipped',
-      { accentHue: 305, fonts: 'sans', frame: 'oval', material: 'glass', ambiance: 'eventslide' },
+      { accentHue: 305, fonts: 'sans', frame: 'oval', ambiance: 'eventslide' },
     ],
   ])('refuses %s', (_case, value) => {
     // A hue that is not a number reaches `--accent-hue` as something the browser cannot
@@ -356,18 +311,20 @@ describe('readEventTheme', () => {
     expect(readEventTheme(value)).toBeNull()
   })
 
-  it('fills in the material for an entry written before there was one', () => {
-    // A `sessionStorage` entry a guest's tab wrote between roadmap 2.2 and 11.5. Refusing
-    // it would send them back to the join screen mid-evening with photos in their queue,
-    // to change nothing: `glass` is exactly what that tab has been rendering all along.
-    expect(readEventTheme({ accentHue: 345, fonts: 'serif', frame: 'round' })).toEqual({
-      accentHue: 345,
-      fonts: 'serif',
-      frame: 'round',
-      material: 'glass',
-      ambiance: 'eventslide',
-    })
-  })
+  it.each(['glass', 'plain', 'opaque', 42, null])(
+    'ignores the retired material key, whatever it holds (%j)',
+    (material) => {
+      // A `sessionStorage` entry a guest's tab wrote before 3.3 still carries it (ADR 0012).
+      // Refusing it would send them back to the join screen mid-evening with photos in their
+      // queue, over a key nothing reads.
+      expect(readEventTheme({ accentHue: 345, fonts: 'serif', frame: 'round', material })).toEqual({
+        accentHue: 345,
+        fonts: 'serif',
+        frame: 'round',
+        ambiance: 'eventslide',
+      })
+    },
+  )
 
   it('reads a session stored as darkroom, the retired Chambre noire, as EventSlide', () => {
     // The tab was opened before 28/10: refusing the entry would send the guest back to the door.
@@ -376,7 +333,6 @@ describe('readEventTheme', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'darkroom',
       })?.ambiance,
     ).toBe('eventslide')
@@ -389,16 +345,15 @@ describe('readEventTheme', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'guinguette',
       })?.ambiance,
     ).toBe('guinguette')
   })
 
   it('reads a session with no ambiance as EventSlide', () => {
-    expect(
-      readEventTheme({ accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass' })?.ambiance,
-    ).toBe('eventslide')
+    expect(readEventTheme({ accentHue: 305, fonts: 'sans', frame: 'soft' })?.ambiance).toBe(
+      'eventslide',
+    )
   })
 
   it('refuses an ambiance this build never shipped rather than filling one in', () => {
@@ -407,18 +362,8 @@ describe('readEventTheme', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'disco',
       }),
-    ).toBeNull()
-  })
-
-  it('refuses a material this build never shipped rather than filling one in', () => {
-    // Different in kind from the absence above. A value that is present and wrong came
-    // from something other than this server, it reaches a CSS attribute selector, and a
-    // tier no block matches renders the material the host may have asked to turn off.
-    expect(
-      readEventTheme({ accentHue: 305, fonts: 'sans', frame: 'soft', material: 'opaque' }),
     ).toBeNull()
   })
 })

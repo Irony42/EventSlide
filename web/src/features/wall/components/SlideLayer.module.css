@@ -118,9 +118,7 @@
 /**
  * The rungs below the room's floor — roadmap 11.3.
  *
- * The room has already given up the blur before it renders a frame (`budget.ts`, and
- * `tokens.css`'s `[data-glass='opaque']`). These are what is left, in the order the ladder
- * fixes: the zoom first, because it runs on every frame of every slide, and the crossfade
+ * `budget.ts` fixes the order of the ladder: the zoom first, because it runs on every frame of every slide, and the crossfade
  * last, because a second in eight is the cheapest thing here and a cut is the most
  * noticeable loss. `WallPage` puts the attribute on the wall's root when the wall's own
  * frame monitor says the machine cannot hold its cadence.

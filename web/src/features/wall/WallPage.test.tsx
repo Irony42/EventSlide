@@ -655,7 +655,7 @@ describe('WallPage', () => {
     const themed = (ambiance: 'riviera' | 'guinguette') =>
       aPopulatedWall({
         items: somePhotos(8),
-        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', material: 'glass', ambiance },
+        theme: { accentHue: 305, fonts: 'sans', frame: 'soft', ambiance },
       })
 
     it('keeps the wall response’s layout for every ambiance, the default included', async () => {
@@ -1010,7 +1010,6 @@ describe('WallPage', () => {
               accentHue: 345,
               fonts: 'sans',
               frame: 'soft',
-              material: 'glass',
               ambiance: 'guinguette',
             },
           }),
@@ -1037,7 +1036,6 @@ describe('WallPage', () => {
               accentHue: 305,
               fonts: 'serif',
               frame: 'square',
-              material: 'glass',
               ambiance: 'guinguette',
             },
           }),
@@ -1062,7 +1060,6 @@ describe('WallPage', () => {
               accentHue: 305,
               fonts: 'sans',
               frame: 'soft',
-              material: 'glass',
               ambiance: 'guinguette',
             },
           }),
@@ -1076,37 +1073,6 @@ describe('WallPage', () => {
       expect(theWall()).not.toHaveAttribute('data-event-accent')
       expect(theWall()).not.toHaveAttribute('data-event-fonts')
       expect(theWall()).not.toHaveAttribute('data-event-frame')
-      expect(theWall()).not.toHaveAttribute('data-glass')
-    })
-
-    it('marks the wall for a host who turned the material off, and changes nothing', async () => {
-      // Roadmap 11.5 on the surface where it is already true. `AppShell` gives the wall
-      // `data-glass="opaque"` on every machine (§13: the room's backdrop never stops
-      // moving), so the host's choice takes nothing away here that the budget's own floor
-      // had not already taken. It is carried all the same, because the wall wears the
-      // event's look and a marker that lied would become wrong the day the room could
-      // afford a filter — the argument `glassBackdrop.ts` already makes for this address.
-      const api = fakeApi({
-        wall: wallSequence(
-          aPopulatedWall({
-            theme: {
-              accentHue: 305,
-              fonts: 'sans',
-              frame: 'soft',
-              material: 'plain',
-              ambiance: 'guinguette',
-            },
-          }),
-        ),
-      })
-      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
-
-      await screen.findByTestId('wall-slide')
-
-      expect(theWall()).toHaveAttribute('data-glass', 'opaque')
-      // And nothing else moved: the host chose a surface finish, not a layout or a colour.
-      expect(theWall().getAttribute('style')).toBeNull()
-      expect(theWall()).not.toHaveAttribute('data-event-accent')
     })
 
     it('carries no theme from a server build that does not send one', async () => {
@@ -1138,7 +1104,6 @@ describe('WallPage', () => {
               accentHue: 345,
               fonts: 'serif',
               frame: 'soft',
-              material: 'glass',
               ambiance: 'guinguette',
             },
           }),

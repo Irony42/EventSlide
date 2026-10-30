@@ -22,7 +22,6 @@ const withPhoto = (): EventDto =>
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'eventslide',
         groundUrl: URL_PATH,
       },

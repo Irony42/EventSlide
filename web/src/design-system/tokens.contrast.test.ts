@@ -9,8 +9,6 @@ import CAPTIONS from '../features/wall/components/SlideCaption.module.css?raw'
 import {
   ambianceBlock,
   composite,
-  lightestHue,
-  luminanceOf,
   parseOklchTokens,
   ratioOf,
   srgb,
@@ -178,29 +176,6 @@ const AMBIANCES = [
 const BLACK: Srgb = [0, 0, 0]
 
 /**
- * What the glass filter does to the backdrop before the tint is laid on it (ADR 0010, amendment of
- * 29/10): `brightness()` is the filter's last function, so whatever a pane meets is scaled, per
- * channel and in encoded sRGB like every CSS filter function, to at most this grey. Read out of
- * the declaration and required to be the last function, so the derivation below cannot be measured
- * against a number the browser is not using.
- */
-const GLASS_BRIGHTNESS = ((): number => {
-  const declared = /--glass-brightness:\s*([\d.]+)\s*;/.exec(ROOT_BLOCK)?.[1]
-  if (declared === undefined) throw new Error('the root declares no --glass-brightness')
-  expect(ROOT_BLOCK).toMatch(
-    /--glass-filter:\s*blur\(var\(--glass-blur\)\)\s*saturate\(var\(--glass-saturate\)\)\s*brightness\(var\(--glass-brightness\)\);/,
-  )
-  return Number(declared)
-})()
-
-/** A backdrop as the glass filter leaves it. */
-const dimmed = ([r, g, b]: Srgb): Srgb => [
-  r * GLASS_BRIGHTNESS,
-  g * GLASS_BRIGHTNESS,
-  b * GLASS_BRIGHTNESS,
-]
-
-/**
  * Sur mesure (ADR 0011): a host's own ground, derived from two angles at fixed lightness and chroma.
  * The two blocks read `var(--ground-hue)` and `var(--accent-hue)`, which the browser substitutes on
  * the element that carries them; the sweeps below do the same, once per hue pair.
@@ -273,16 +248,6 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
     if (value === undefined) throw new Error(`the ${name} block does not restate ${token}`)
     return value
   }
-  /**
-   * The polarity: whether the inks are lighter than the surfaces (every ambiance but the Noces)
-   * or darker (the Noces). It decides which photograph is the worst case under a translucent
-   * pane: a light-inked pane fears the brightest photograph there is, white, and a dark-inked
-   * one the darkest, black. Nothing is exempted by it; the same bars are held both ways.
-   */
-  const lightInk = luminance(of('--text-primary')) > luminance(of('--surface-base'))
-  // The root look is measured as the browser paints it: dimmed. The ambiances keep the bound
-  // without the dimming, which is conservative for a light ink and moves nothing for a dark one.
-  const worstPhoto: Srgb = lightInk ? (name === 'eventslide' ? dimmed(WHITE) : WHITE) : BLACK
   /**
    * The accent a host's hue derives in this ambiance: its own derivation when it declares one
    * (`[data-event-ambiance='…'][data-event-accent]`), the generic one otherwise. Only the hue
@@ -366,48 +331,6 @@ describe.each(AMBIANCES)('the %s ambiance', (name) => {
       for (const surface of SURFACES) expect(contrast(ink, of(surface))).toBeGreaterThanOrEqual(3)
     },
   )
-
-  it.each([
-    ['--text-primary', 12],
-    ['--text-secondary', 7],
-    ['--text-muted', 4.5],
-  ] as const)(
-    'keeps %s above its bar on its glass over the worst photograph (white under light inks, black under dark ones)',
-    (ink, bar) => {
-      const pane = composite(of('--glass-tint-photo'), worstPhoto)
-      expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(bar)
-      // And no worse than on the darkest surface this palette lets text sit on.
-      expect(ratioOf(srgb(of(ink)), pane)).toBeGreaterThanOrEqual(
-        ratioOf(srgb(of(ink)), srgb(of('--surface-overlay'))),
-      )
-    },
-  )
-
-  it('declares the lowest photo alpha that holds over the worst photograph, so the number is derived', () => {
-    // The shape the root's tiers use: a value is only a floor if the step below it fails. The
-    // bars are the pane's: the three inks at their targets and no worse than on the overlay,
-    // the status glyphs, and the accent as a link.
-    const tint = of('--glass-tint-photo')
-    const holds = (alpha: number): boolean => {
-      const pane = composite({ ...tint, alpha }, worstPhoto)
-      for (const [ink, bar] of [
-        ['--text-primary', 12],
-        ['--text-secondary', 7],
-        ['--text-muted', 4.5],
-      ] as const) {
-        const ratio = ratioOf(srgb(of(ink)), pane)
-        if (ratio < bar) return false
-        if (ratio < ratioOf(srgb(of(ink)), srgb(of('--surface-overlay')))) return false
-      }
-      for (const status of ['--success', '--danger', '--warning'] as const) {
-        if (ratioOf(srgb(own.get(status) ?? token(status)), pane) < 3) return false
-      }
-      return ratioOf(srgb(of('--accent')), pane) >= 4.5
-    }
-
-    expect(holds(tint.alpha)).toBe(true)
-    expect(holds(Number((tint.alpha - 0.01).toFixed(2)))).toBe(false)
-  })
 
   it('keeps its accent readable from the back of the room', () => {
     expect(contrast(of('--accent'), of('--surface-base'))).toBeGreaterThanOrEqual(7)
@@ -728,324 +651,9 @@ describe('the accent on the surfaces the sweep forgot', () => {
 })
 
 /**
- * The glass material, over a photograph nobody has taken yet — roadmap 11.1.
- *
- * Every ratio above compares two **declared** colours. A translucent pane is neither: it
- * renders as a composite against whatever is behind it, and what is behind it here is a
- * guest's upload. This file already says as much about `opacity` on a caption and
- * declines to model it; the material cannot decline, because being composited over
- * something unknown is the whole of what it is.
- *
- * ## Why the arithmetic below is a second kind
- *
- * Alpha compositing happens in **gamma-encoded sRGB**, which is why 50% black over white
- * renders as mid grey rather than as the much darker colour a linear-light blend would
- * give. Measuring the blend in Oklab or in linear light would flatter the material by a
- * wide margin, so the helpers here encode to sRGB, blend, and decode again. The `ring()`
- * helper above blends in oklch instead and is left alone: it measures a ring against a
- * surface of nearly its own lightness, where the two agree closely, and moving it would
- * change an assertion this work is not about.
- *
- * ## Why pure white is the whole answer
- *
- * No sRGB colour has a relative luminance above white's. A pane that holds its contrast
- * over white therefore holds it over every photograph, every accent a host can choose,
- * and every combination of the two — so the sweeps below are not what proves the floor.
- * They are here because a sweep names the angle to go and look at when something moves,
- * and because roadmap 11.1 states the themed-accent case explicitly: this is that claim
- * measured, rather than inferred from a theorem in a comment.
- *
- * ## Where 0.95 comes from
- *
- * Not a taste. It is the lowest alpha at which the material over white is at least as
- * good a ground as `--surface-overlay` — the darkest surface this design system already
- * lets text sit on — for all three text tokens at once. At 0.94 `--text-muted` measures
- * 4.50 against `--surface-overlay`'s 4.62, and the material would be a ground the design
- * system would refuse if it were opaque.
- */
-describe('the glass material over an unknown photograph', () => {
-  /**
-   * The material as it renders over `backdrop` — the tint, and deliberately not the
-   * filter.
-   *
-   * `--glass-filter` also carries `saturate(180%)`, which does change a coloured backdrop
-   * before the tint is painted over it. It is left out because it cannot help the floor
-   * and cannot hurt it: saturation is a rotation about the luminance axis, white is
-   * invariant under it, and the sRGB clamp keeps any other backdrop no brighter than the
-   * white case already measured. So what follows is the tint's guarantee, which is the
-   * one the alpha is chosen to make.
-   */
-  const pane = (backdrop: Srgb): Srgb => composite(token('--glass-tint-photo'), dimmed(backdrop))
-
-  /** The lightest the pane can ever be, and therefore the hardest ground it offers. */
-  const lightestPane = (): Srgb => pane(WHITE)
-
-  /** docs/DESIGN-SYSTEM.md §8, by token. */
-  const TEXT_TARGETS = [
-    ['--text-primary', 12],
-    ['--text-secondary', 7],
-    ['--text-muted', 4.5],
-  ] as const
-
-  it.each(['--glass-tint-photo', '--glass-tint-ground'] as const)(
-    '%s is --surface-raised with an alpha rather than a shade of its own',
-    (tintName) => {
-      // The tints and the fallback are one colour at three alphas, which is what makes the
-      // no-blur tier a surface this product already ships rather than a degraded mode
-      // nobody has looked at — and what keeps the second tint from being a fourth grey. A
-      // new shade between two existing ones is a rejected change (§2), and a tier is
-      // exactly the shape a fourth one would arrive in.
-      const tint = token(tintName)
-      const raised = token('--surface-raised')
-
-      expect({ l: tint.l, c: tint.c, h: tint.h }).toEqual({ l: raised.l, c: raised.c, h: raised.h })
-      expect(tint.alpha).toBeLessThan(1)
-      expect(TOKENS).toMatch(/--glass-opaque:\s*var\(--surface-raised\)\s*;/)
-    },
-  )
-
-  it('holds the translucent tier below the strict one, or the split buys nothing', () => {
-    // The whole claim of two tiers in one line. Written the day the numbers came out
-    // three points apart, because "there are two tints" is satisfied just as well by two
-    // tints that are equal, and that is the shape this would rot into.
-    //
-    // ADR 0010 is the day it stopped buying anything, and that is recorded rather than
-    // hidden: the Chambre noire's primary button is the paper, a field as bright as the
-    // white the photo tier was derived against, so our own ground is no kinder than a
-    // photograph and both floors land on 0.96. The tiers stay two names, so an ambiance
-    // with a darker action can win the points back; the ground may never be the stricter.
-    expect(token('--glass-tint-ground').alpha).toBeLessThanOrEqual(
-      token('--glass-tint-photo').alpha,
-    )
-  })
-
-  it.each(['--glass-border', '--glass-highlight'] as const)(
-    '%s is the product’s own light at a hairline’s strength, not a colour of its own',
-    (edge) => {
-      // The comment in `tokens.css` asserts this identity; without a test it is prose. The
-      // material's parts are all existing colours at new alphas, which is what keeps a
-      // six-token set from being six new shades (§2).
-      const ink = token('--text-primary')
-      const part = token(edge)
-
-      expect({ l: part.l, c: part.c, h: part.h }).toEqual({ l: ink.l, c: ink.c, h: ink.h })
-      expect(part.alpha).toBeLessThan(1)
-    },
-  )
-
-  it.each(TEXT_TARGETS)('%s clears %d:1 on glass over pure white', (ink, target) => {
-    // The floor, stated the way the contract states it. Over white, so it holds over
-    // anything a camera can produce.
-    expect(ratioOf(srgb(token(ink)), lightestPane())).toBeGreaterThanOrEqual(target)
-  })
-
-  it.each(TEXT_TARGETS)(
-    '%s is no worse on glass over white than on --surface-overlay, which set the floor',
-    (ink) => {
-      // The derivation, kept beside the number it produced. If somebody lowers the alpha
-      // to make the material prettier, this is the assertion that says what it cost.
-      const onOverlay = ratioOf(srgb(token(ink)), srgb(token('--surface-overlay')))
-
-      expect(ratioOf(srgb(token(ink)), lightestPane())).toBeGreaterThanOrEqual(onOverlay)
-    },
-  )
-
-  it.each(TEXT_TARGETS)('%s is worse over white than over any accent an event can pick', (ink) => {
-    // A sample of the theorem the floor rests on, and honest about being a sample: white
-    // is the brightest thing in the gamut, so no backdrop makes the pane a harder ground,
-    // and what is checked here is the 360 backdrops this product can itself produce. If
-    // even one of them beat white, every other assertion in this block would be measuring
-    // the wrong worst case.
-    const overWhite = ratioOf(srgb(token(ink)), lightestPane())
-    const { hue, ratio } = worst((h) => ratioOf(srgb(token(ink)), pane(srgb(atHue('--accent', h)))))
-
-    expect(ratio, `${ink} on glass over --accent is worst at hue ${hue}`).toBeGreaterThanOrEqual(
-      overWhite,
-    )
-  })
-
-  it.each(TEXT_TARGETS)(
-    '%s clears %d:1 on glass over a themed accent, at every angle',
-    (ink, target) => {
-      // Roadmap 11.1: "glass over a themed accent must still pass". The sweep §12's rule
-      // already uses, applied to a composite rather than to a declared pair.
-      const { hue, ratio } = worst((h) =>
-        ratioOf(srgb(token(ink)), pane(srgb(atHue('--accent', h)))),
-      )
-
-      expect(ratio, `${ink} on glass over --accent is worst at hue ${hue}`).toBeGreaterThanOrEqual(
-        target,
-      )
-    },
-  )
-
-  it('keeps an accent-coloured link readable on glass, at every angle', () => {
-    // `base.css` colours every `<a>` with `--accent`, so a link inside a glass pane is
-    // reachable without anybody deciding to put one there. Body text's bar, because §8
-    // holds that same pair to AA on --surface-raised and --surface-overlay.
-    const { hue, ratio } = worst((h) => ratioOf(srgb(atHue('--accent', h)), lightestPane()))
-
-    expect(ratio, `--accent on glass is worst at hue ${hue}`).toBeGreaterThanOrEqual(4.5)
-  })
-
-  it('keeps the focus ring visible on glass, at every angle', () => {
-    // The guest's primary control sits on the glass composer, so this is what decides
-    // whether a keyboard guest can see where they are. WCAG 1.4.11 asks 3:1, and the ring
-    // is painted at 0.65 alpha — measured composited, as it is drawn, over the lightest
-    // the pane can be.
-    const { hue, ratio } = worst((h) => {
-      const ground = lightestPane()
-      const ring = composite({ ...atHue('--accent', h), alpha: FOCUS_RING_ALPHA }, ground)
-      return ratioOf(ring, ground)
-    })
-
-    expect(ratio, `--focus-ring on glass is worst at hue ${hue}`).toBeGreaterThanOrEqual(3)
-  })
-
-  it.each(['--success', '--danger', '--warning'] as const)(
-    '%s stays a visible glyph on glass over white',
-    (status) => {
-      // A Toast's tone colours its glyph and the word beside it carries the meaning (§8),
-      // so the bar is WCAG 1.4.11's 3:1 for a graphical object rather than text's.
-      expect(ratioOf(srgb(token(status)), lightestPane())).toBeGreaterThanOrEqual(3)
-    },
-  )
-})
-
-/**
- * The glass material over our own ground — roadmap 11.2.
- *
- * The block above measures a pane against a backdrop nobody has taken yet, and takes the
- * ceiling of the gamut because there is no other honest answer. Most of this product is not
- * that. Login, the dashboard, the create form, the settings page and the guest's join
- * screen never show a photograph, so what can be painted under a pane there is a colour
- * this file declares — and a worst case you can enumerate is a calculation rather than a
- * bound.
- *
- * ## What the second floor is derived against, and why it is that
- *
- * **The brightest *field* a stylesheet paints, not the brightest token.** Contrast is a
- * property of a ground, and a ground is an area. `--text-primary` is lighter than anything
- * else in the palette, but as body text it paints glyph strokes over a small share of their
- * line boxes — a 20 px blur of a paragraph is a haze near the page's own ground, nowhere
- * near white. What fills an area is a surface or a filled control, and the lightest filled
- * control this product draws is a primary button: `--accent`, at whichever of the 360 hues
- * a host may choose renders lightest.
- *
- * That is a claim about the stylesheets, so it is not left as a claim.
- * `app/glassBackdrop.test.ts` walks the real import graph and refuses the translucent tier
- * to any address that can reach a brighter field — which is how the event page, whose QR
- * plate is a near-white `--text-primary` fill, ends up on the strict floor with no guest
- * photograph anywhere on it.
- *
- * ## The same bar, so that only the backdrop differs
- *
- * Every assertion below holds the ground tier to exactly what §11.1 held the photo tier to:
- * at least as good a ground as `--surface-overlay` for all three inks, plus the link, the
- * ring and the status glyphs. Changing the bar as well as the backdrop would have made the
- * two numbers incomparable, and the comparison is the only thing that says what the split
- * bought.
- */
-describe('the glass material over our own ground', () => {
-  /** The backdrop the ground floor is derived against. See `lightestHue`. */
-  // The brightest field a pane on a ground route can meet: the lightest hue a primary button can
-  // take, or the brightest pixel the aurora paints, whichever is brighter. The aurora is bounded
-  // channel by channel by the lightest of its three glows, since every pixel of it is a convex
-  // blend of those and the base; the filter then dims whichever it is.
-  const LIGHTEST_HUE = srgb(lightestHue(token('--accent')))
-  const RAW_CEILING =
-    luminanceOf(LIGHTEST_HUE) > luminanceOf(AURORA_PEAK) ? LIGHTEST_HUE : AURORA_PEAK
-  const CEILING = dimmed(RAW_CEILING)
-
-  const groundPane = (alpha: number): Srgb =>
-    composite({ ...token('--glass-tint-ground'), alpha }, CEILING)
-
-  const TEXT_TARGETS = [
-    ['--text-primary', 12],
-    ['--text-secondary', 7],
-    ['--text-muted', 4.5],
-  ] as const
-
-  /** Every bar §8 puts on a pane, as one predicate, so the derivation can step the alpha. */
-  const holds = (alpha: number): boolean => {
-    const ground = groundPane(alpha)
-
-    for (const [ink, target] of TEXT_TARGETS) {
-      const ratio = ratioOf(srgb(token(ink)), ground)
-      if (ratio < target) return false
-      if (ratio < ratioOf(srgb(token(ink)), srgb(token('--surface-overlay')))) return false
-    }
-    for (const status of ['--success', '--danger', '--warning'] as const) {
-      if (ratioOf(srgb(token(status)), ground) < 3) return false
-    }
-    for (const hue of HUES) {
-      if (ratioOf(srgb(atHue('--accent', hue)), ground) < 4.5) return false
-      const ring = composite({ ...atHue('--accent', hue), alpha: FOCUS_RING_ALPHA }, ground)
-      if (ratioOf(ring, ground) < 3) return false
-    }
-    return true
-  }
-
-  it('is derived against a field this product paints, not against a token it merely has', () => {
-    // The one sentence the whole tier rests on, asserted so it cannot quietly stop being
-    // true: the ceiling is an accent, and it is meaningfully darker than the photograph the
-    // strict tier assumes. If a future palette made the accent as bright as white, the two
-    // tiers would collapse into one and this is where that shows up.
-    expect(luminanceOf(RAW_CEILING)).toBeLessThan(luminanceOf(WHITE))
-    expect(luminanceOf(RAW_CEILING)).toBeGreaterThan(luminanceOf(srgb(token('--surface-overlay'))))
-  })
-
-  it.each(TEXT_TARGETS)(
-    '%s clears %d:1 on the translucent tier, at every accent',
-    (ink, target) => {
-      const declared = token('--glass-tint-ground').alpha
-      const { hue, ratio } = worst((h) =>
-        ratioOf(
-          srgb(token(ink)),
-          composite(token('--glass-tint-ground'), dimmed(srgb(atHue('--accent', h)))),
-        ),
-      )
-
-      expect(ratio, `${ink} on the ground tier is worst at hue ${hue}`).toBeGreaterThanOrEqual(
-        target,
-      )
-      // And against the derivation's own bar, not only §8's, which is the tighter of the two.
-      expect(ratioOf(srgb(token(ink)), groundPane(declared))).toBeGreaterThanOrEqual(
-        ratioOf(srgb(token(ink)), srgb(token('--surface-overlay'))),
-      )
-    },
-  )
-
-  it('declares the lowest alpha that holds, so the number is derived and not chosen', () => {
-    // The shape §11.1 used for 0.95, applied to 0.92: the value is only a floor if the step
-    // below it fails. Without this the tier is a taste somebody could nudge either way, and
-    // the direction it would get nudged is down.
-    const declared = token('--glass-tint-ground').alpha
-
-    expect(holds(declared)).toBe(true)
-    expect(holds(Number((declared - 0.01).toFixed(2)))).toBe(false)
-  })
-
-  it('states what the split actually bought, in the units a reader cares about', () => {
-    /**
-     * Twenty per cent of the dimmed backdrop shows through a pane over a photograph, and thirty-nine
-     * over our own ground (ADR 0010, amendment of 29/10): five and seven before the glass dimmed what
-     * it sits on. Recorded rather than celebrated: it is what the dimming bought, and the only way
-     * to buy more is to dim further, which darkens every photograph under a pane.
-     */
-    const photo = 1 - token('--glass-tint-photo').alpha
-    const ground = 1 - token('--glass-tint-ground').alpha
-
-    expect(Math.round(photo * 100)).toBe(20)
-    expect(Math.round(ground * 100)).toBe(39)
-  })
-})
-
-/**
  * The wall's caption ground — roadmap 11.3, and the finding 11.1 parked here.
  *
- * `--surface-scrim` is the same kind of thing as the glass tint — a translucent ground
- * over a photograph nobody has taken yet — and it predates the material by two releases.
+ * `--surface-scrim` is a translucent ground over a photograph nobody has taken yet.
  * At the 55% it shipped with, composited over a white dress in full sun, it gave
  * `--text-primary` 4.36:1 and `--text-secondary` 2.38:1 against §8's "anything on the wall
  * ≥ 7:1 regardless of size". Every wall caption sits on it. The suite above could not see
@@ -1152,7 +760,7 @@ describe('the wall reads from the back of the room, over any photograph', () => 
   })
 
   it('is the least dense scrim that carries them, because the photograph is the hero', () => {
-    // Derived rather than chosen, exactly as both glass tints are. A scrim is a grey slab
+    // Derived rather than chosen. A scrim is a grey slab
     // over somebody's photograph, so the alpha is the lowest one at which section 8's
     // sentence is true and not a point more — and asserting that the step below it fails
     // is what makes this a derivation rather than a value with a comment beside it.
@@ -1169,7 +777,7 @@ describe('the wall reads from the back of the room, over any photograph', () => 
   })
 
   /**
-   * Who paints it, pinned the way `glass.material.test.ts` pins the two glass surfaces.
+   * Who paints it, pinned like the other wall surfaces.
    *
    * The token's own comment has said "behind wall captions, over photos" since 2.0, and
    * `Dialog` borrowed it anyway to dim the page behind a modal. Those are two different
@@ -1312,7 +920,6 @@ describe('the wall reads from the back of the room, over any photograph', () => 
 describe.each(CUSTOM_POLARITIES)(
   'the custom %s ambiance, at every ground hue (ADR 0011)',
   (polarity) => {
-    const worstPhoto: Srgb = polarity === 'dark' ? WHITE : BLACK
     const body = customBody(polarity)
     const defaultAccent = CUSTOM_DEFAULT_ACCENT[polarity]
     const accents = [...new Set([...GRID, defaultAccent])]
@@ -1371,8 +978,6 @@ describe.each(CUSTOM_POLARITIES)(
         '--text-secondary',
         '--text-muted',
         '--surface-scrim',
-        '--glass-tint-photo',
-        '--glass-tint-ground',
       ])
         expect(body, name).toMatch(
           new RegExp(`${name}:\\s*oklch\\([\\d.]+% [\\d.]+ var\\(--ground-hue\\)`),
@@ -1461,52 +1066,6 @@ describe.each(CUSTOM_POLARITIES)(
         )
     })
 
-    it.each([
-      ['--text-primary', 12],
-      ['--text-secondary', 7],
-      ['--text-muted', 4.5],
-    ] as const)(
-      'keeps %s above its bar on its glass over the worst photograph, and no worse than on the overlay',
-      (ink, bar) => {
-        expectAtLeast(`${ink} on glass`, bar, (t) =>
-          ratioOf(srgb(of(t, ink)), composite(of(t, '--glass-tint-photo'), worstPhoto)),
-        )
-        expectAtLeast(
-          `${ink} on glass vs overlay`,
-          1,
-          (t) =>
-            ratioOf(srgb(of(t, ink)), composite(of(t, '--glass-tint-photo'), worstPhoto)) /
-            ratioOf(srgb(of(t, ink)), srgb(of(t, '--surface-overlay'))),
-        )
-      },
-    )
-
-    it('declares the lowest glass alpha that holds, at the hue that needs it most', () => {
-      const holds = (t: ReadonlyMap<string, Oklch>, alpha: number): boolean => {
-        const pane = composite({ ...of(t, '--glass-tint-photo'), alpha }, worstPhoto)
-        for (const [ink, bar] of [
-          ['--text-primary', 12],
-          ['--text-secondary', 7],
-          ['--text-muted', 4.5],
-        ] as const) {
-          const ratio = ratioOf(srgb(of(t, ink)), pane)
-          if (ratio < bar) return false
-          if (ratio < ratioOf(srgb(of(t, ink)), srgb(of(t, '--surface-overlay')))) return false
-        }
-        for (const status of ['--success', '--danger', '--warning'] as const)
-          if (ratioOf(srgb(of(t, status)), pane) < 3) return false
-        return ratioOf(srgb(of(t, '--accent')), pane) >= 4.5
-      }
-      const alpha = of(at(0), '--glass-tint-photo').alpha
-      for (const ground of GRID)
-        for (const accent of accents)
-          expect(holds(at(ground, accent), alpha), `ground ${ground}, accent ${accent}`).toBe(true)
-      const below = Number((alpha - 0.01).toFixed(2))
-      expect(
-        GRID.some((ground) => accents.some((accent) => !holds(at(ground, accent), below))),
-      ).toBe(true)
-    })
-
     it('keeps the join card and the QR at the wall’s bar, at every ground and accent hue', () => {
       const resolve = (t: ReadonlyMap<string, Oklch>, property: string): Oklch => {
         const declared = new RegExp(`${property}:\\s*([^;]+);`).exec(body)?.[1]?.trim()
@@ -1585,16 +1144,6 @@ describe('the accent a Sur mesure event presses when the host chose none (ADR 00
   })
 })
 
-describe('an ambiance previewed inside the console', () => {
-  // The previews are excluded from the :root:has() twins, so --glass-tint, substituted once on
-  // the root, would keep the root's tint inside the frame: a light ambiance with dark panes.
-  it('points the glass alias at the frame’s own tint again', () => {
-    expect(TOKENS).toMatch(
-      /\[data-template-preview\]\[data-event-ambiance\]\s*\{\s*--glass-tint:\s*var\(--glass-tint-photo\);/,
-    )
-  })
-})
-
 /**
  * The aurora under the product's own look (ADR 0010, amendment of 29/10).
  *
@@ -1623,47 +1172,35 @@ describe('the aurora the root look paints', () => {
     expect(rule).toContain('var(--ambiance-ground)')
     expect(rule).not.toMatch(/animation|transition|will-change/)
   })
-
-  it('gives the glass something to show: the brightest glow is lighter than the raised surface', () => {
-    expect(luminanceOf(AURORA_PEAK)).toBeGreaterThan(luminanceOf(srgb(token('--surface-raised'))))
-  })
 })
 
-describe('the glass of the root look, as a host and a person can switch it off', () => {
-  it('has an opaque tier that is the raised surface itself', () => {
-    expect(TOKENS).toMatch(/--glass-opaque:\s*var\(--surface-raised\)\s*;/)
-    expect(TOKENS).toMatch(
-      /\[data-glass='opaque'\]\s*\{\s*--glass-filter:\s*none;\s*--glass-tint:\s*var\(--glass-opaque\);/,
-    )
-  })
-
-  it('falls back to opaque, with no filter, under reduced transparency and more contrast', () => {
-    const media =
-      /@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{([\s\S]*?)\n\}/.exec(
-        TOKENS,
-      )?.[1] ?? ''
-    expect(media).toMatch(/--glass-filter:\s*none;/)
-    expect(media).toMatch(/--glass-tint-photo:\s*var\(--glass-opaque\);/)
-    expect(media).toMatch(/--glass-tint-ground:\s*var\(--glass-opaque\);/)
-  })
+/** Every stylesheet the app ships, as source. */
+const ALL_STYLESHEETS = import.meta.glob<string>('../**/*.css', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
 })
 
-describe('the glass of a light ambiance is not dimmed', () => {
-  const lightBlocks = {
-    noces: ambianceBlock(TOKENS, 'noces'),
-    'custom light': customBody('light'),
-  }
-  it.each(Object.entries(lightBlocks))(
-    '%s restates brightness 1 and the filter that reads it',
-    (_name, block) => {
-      // Their worst photograph is black, which dimming cannot move; a dimmed bright backdrop only
-      // greys the light pane. The filter is substituted where declared, so it is restated too.
-      expect(block).toMatch(/--glass-brightness:\s*1;/)
-      expect(block).toMatch(
-        /--glass-filter:\s*blur\(var\(--glass-blur\)\)\s*saturate\(var\(--glass-saturate\)\)\s*brightness\(var\(--glass-brightness\)\);/,
-      )
-    },
-  )
+describe('the glass material is retired (ADR 0012)', () => {
+  it('has no stylesheet that blurs what is behind it', () => {
+    const blurring = Object.entries(ALL_STYLESHEETS)
+      .filter(([, css]) => /backdrop-filter\s*:/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')))
+      .map(([path]) => path)
+
+    expect(Object.keys(ALL_STYLESHEETS).length).toBeGreaterThan(30)
+    expect(blurring).toEqual([])
+  })
+
+  it('declares no glass token, tier, fallback or filter', () => {
+    expect(TOKENS).not.toMatch(/--glass-/)
+    expect(TOKENS).not.toMatch(/data-glass|data-material/)
+    expect(TOKENS).not.toMatch(/backdrop-filter|prefers-reduced-transparency/)
+  })
+
+  it('draws a pane on the raised surface it already ships, with its hairline tokens declared', () => {
+    for (const name of ['--pane-border', '--pane-highlight', '--pane-shadow'])
+      expect(ROOT_BLOCK, name).toMatch(new RegExp(`${name}:`))
+  })
 })
 
 describe('a miniature inside a page that wears another ambiance', () => {
@@ -1675,6 +1212,5 @@ describe('a miniature inside a page that wears another ambiance', () => {
     const block = ambianceBlock(TOKENS, 'guinguette')
     expect(block).toMatch(/--qr-field:\s*var\(--text-primary\);/)
     expect(block).toMatch(/--qr-ink:\s*var\(--surface-base\);/)
-    expect(block).toMatch(/--glass-opaque:\s*var\(--surface-raised\);/)
   })
 })
