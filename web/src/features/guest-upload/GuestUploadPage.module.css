@@ -94,15 +94,25 @@
 
 /**
  * The header link while photos are on their way (INV-1): the same box as the link, so the header
- * does not jump when the send starts and ends, and quieter, because it cannot be pressed. It wraps
- * for the reason `.header > .noticeLink` does.
+ * does not jump when the send starts and ends, and quieter, because pressing it does nothing. It
+ * stays a link and stays focusable; `aria-disabled` carries the meaning, this carries the look.
  */
 .feedLinkWaiting {
-  max-inline-size: 100%;
   font-weight: 500;
-  line-height: var(--leading-snug);
   color: var(--text-muted);
   cursor: not-allowed;
+}
+
+/**
+ * What the guest is waiting for, under the link: "Patientez, envoi en cours (3/8)". A live region, so
+ * it wraps when a translation is long and takes no room while it is empty.
+ */
+.leaveStatus {
+  display: block;
+  padding-inline: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--text-muted);
 }
 
 /**

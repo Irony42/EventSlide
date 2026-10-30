@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GuestUploadPage } from './GuestUploadPage'
 import {
@@ -1802,7 +1802,7 @@ describe('leaving for the feed while photos are on their way (INV-1)', () => {
     havingJoined()
   })
 
-  it('swaps the link for a wait message with the count while a batch is sent, and gives it back after', async () => {
+  const holdUploads = () => {
     let finish: (response: UploadResponse) => void = () => {}
     const api = fakeApi({
       uploadPhotos: vi.fn(
@@ -1812,20 +1812,49 @@ describe('leaving for the feed while photos are on their way (INV-1)', () => {
           }),
       ),
     })
+    return { api, finish: (response: UploadResponse) => finish(response) }
+  }
+
+  it('says how far the batch is in a status line while it is sent, and goes quiet after', async () => {
+    const { api, finish } = holdUploads()
     renderUpload(api)
     await pickPhotos(aPhotoFile('un.jpg'), aPhotoFile('deux.jpg'))
     await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
 
-    // Leaving would unmount the screen and cancel the sends: the link is not one while they run.
-    expect(await screen.findByText(fr.upload.leaveWaitCount(0, 2))).toBeVisible()
-    expect(screen.queryByRole('link', { name: fr.feed.link })).toBeNull()
+    // Announced: the status region exists before the text does, and the count moves with each arrival.
+    const status = await screen.findByText(fr.upload.leaveWaitCount(0, 2))
+    expect(status).toHaveAttribute('role', 'status')
 
     await act(async () => finish(accepted('photo-1')))
     await waitFor(() => expect(screen.getByText(fr.upload.leaveWaitCount(1, 2))).toBeVisible())
     await act(async () => finish(accepted('photo-2')))
 
-    expect(await screen.findByRole('link', { name: fr.feed.link })).toBeVisible()
-    expect(screen.queryByText(fr.upload.leaveWaitCount(2, 2))).toBeNull()
+    await waitFor(() => expect(screen.queryByText(fr.upload.leaveWaitCount(2, 2))).toBeNull())
+    expect(screen.getByRole('link', { name: fr.feed.link })).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('keeps the link focusable and inert while a batch is sent, so focus is not lost', async () => {
+    const { api, finish } = holdUploads()
+    renderUpload(api)
+    const link = screen.getByRole('link', { name: fr.feed.link })
+    await pickPhotos(aPhotoFile('un.jpg'))
+    link.focus()
+    // Not a user-event click, which would move focus to the button: the send starts with focus on the link.
+    fireEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+    await screen.findByText(fr.upload.leaveWaitCount(0, 1))
+
+    // The same element, still a link, still where focus is, and saying it cannot be followed yet.
+    const waiting = screen.getByRole('link', { name: fr.feed.link })
+    expect(waiting).toBe(link)
+    expect(waiting).toHaveFocus()
+    expect(waiting).toHaveAttribute('aria-disabled', 'true')
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+    waiting.dispatchEvent(click)
+    expect(click.defaultPrevented).toBe(true)
+
+    await act(async () => finish(accepted('photo-1')))
+    await waitFor(() => expect(waiting).not.toHaveAttribute('aria-disabled'))
+    expect(waiting).toHaveFocus()
   })
 
   it('is a link when nothing is being sent', () => {

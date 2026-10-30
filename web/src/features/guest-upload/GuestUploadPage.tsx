@@ -407,19 +407,34 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         {/* Not once the server has stopped serving the gallery: the link would lead to a
             page that can only say so. A closed or archived evening keeps it, because a
             closed one still has its wall and an archived one's feed explains itself. */}
-        {mine.unavailable ? null : sending ? (
-          // Not a link while photos are on their way (INV-1): it opens a page of its own in this
-          // tab, and leaving unmounts this screen, which cancels the sends in flight. The same rule
-          // as the button below, and the reason is said instead of the link going quietly grey.
-          <span className={cx(styles['feedLink'], styles['feedLinkWaiting'])} aria-disabled="true">
-            {queue.sending && queue.items.length > 0
-              ? t.upload.leaveWaitCount(queue.batch.arrived, queue.items.length)
-              : t.upload.leaveWait}
-          </span>
-        ) : (
-          <Link className={styles['feedLink']} to={`/e/${slug}/photos`}>
-            {t.feed.link}
-          </Link>
+        {mine.unavailable ? null : (
+          <div>
+            {/* Still a link while photos are on their way (INV-1), and still focusable, so a keyboard or
+                screen-reader guest who was on it is not dropped to the top of the page when the send
+                starts. It opens a page of its own in this tab, and leaving unmounts this screen, which
+                cancels the sends in flight: so pressing it does nothing until they are over (the same
+                rule as the button below), and `aria-disabled` says so to the technologies that read
+                it. The reason is said in the status line under it, not by swapping the link for text. */}
+            <Link
+              className={cx(styles['feedLink'], sending && styles['feedLinkWaiting'])}
+              to={`/e/${slug}/photos`}
+              aria-disabled={sending ? 'true' : undefined}
+              onClick={(event) => {
+                if (sending) event.preventDefault()
+              }}
+            >
+              {t.feed.link}
+            </Link>
+            {/* Rendered even when empty: a live region has to exist before its content changes, or the
+                first announcement is swallowed. The count moves as each photo arrives. */}
+            <span role="status" className={styles['leaveStatus']}>
+              {!sending
+                ? null
+                : queue.sending && queue.items.length > 0
+                  ? t.upload.leaveWaitCount(queue.batch.arrived, queue.items.length)
+                  : t.upload.leaveWait}
+            </span>
+          </div>
         )}
         {/* The way out of an event that is not the guest's (navigation pass, A1/A10). */}
         <Button
