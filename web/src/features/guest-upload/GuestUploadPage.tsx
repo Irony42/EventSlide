@@ -419,6 +419,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           error={mine.error}
           onRetry={mine.refresh}
           onDelete={mine.remove}
+          arrival={mine.arrival}
           headingRef={mineHeading}
           highlighted={highlighted}
           onHighlightEnd={endHighlight}

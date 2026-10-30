@@ -192,6 +192,9 @@ export const fr = {
     mineEmpty: 'Vous n’avez encore envoyé aucune photo.',
     mineFailed: 'La liste de vos envois n’a pas pu être mise à jour. Réessayez.',
     mineAlt: 'Votre photo',
+    /* "Levez les yeux" (UX review 2026-10-30): a photo of the guest's goes from waiting to on the wall. */
+    photoDeveloped: 'Validée ! Elle passe à l’écran dans un instant : levez les yeux.',
+    photoDevelopedAway: 'Passée à l’écran.',
     deleteOwnNumbered: (position: number) => `Supprimer la photo ${position}`,
     notJoinedTitle: 'Rejoignez la galerie pour envoyer vos photos',
     notJoinedHint: 'Scannez à nouveau le QR code, ou saisissez le code de la soirée.',
@@ -700,6 +703,8 @@ export const fr = {
       'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Pour quitter : Échap ou F sortent du plein écran, puis fermez l’onglet.',
+    /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
+    firstPhotoOf: (name: string) => `Première photo de ${name}`,
 
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**

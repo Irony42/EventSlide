@@ -1153,6 +1153,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
       "caption": "Les confettis",
       "authorName": "Léa",
       "createdAt": "2026-06-20T21:04:11.031Z",
+      "firstFromGuest": false,
       "kind": "photo",
       "videoUrl": null,
       "durationMs": null
@@ -1254,6 +1255,24 @@ anonymous guest, or a photo the host uploaded from the venue's own camera. `null
 **show no credit**, never a stand-in; "Invité" is French UI copy and belongs to the
 client. Nothing else about the guest crosses: no guest id, no presence, no photo count.
 The name is resolved event-scoped, like every other read here.
+
+`firstFromGuest` is `true` on the one **photograph** that is the first thing its **named** sender
+has published to the wall, and the projector then adds "Première photo de Léa" the first time it
+shows that slide. "First" is the earliest upload of that guest among the published photos (ties
+by id, so two projectors agree), and a guest whose first published item was a clip has none: the
+line is about a photograph. It is `false` for a clip, an anonymous sender and a host's own upload,
+and **`false` on every item when the wall read was cut short** (more published photos than the
+500-photo candidate read holds), because an earlier photo of the same guest may be missing from
+it and the answer would then be a guess. A boolean about the photograph; it carries nothing else
+about the guest. Optional for a client: a build that predates it shows no line.
+
+**The order is the client's to walk.** `items` is newest first and the client rotates through it
+towards older photos, but a photo that appears in `items` after the wall started is shown on the
+**next** slide rather than a lap later (at most three of them in a row, then one photo of the
+rotation, an author on screen giving way to another waiting author), and two projectors that
+read the same lists walk them the same way. The rule is `src/domain/slideshow/slideOrder.ts`; the
+client holds a verbatim copy, pinned by `slideOrderContract.test.ts`. Nothing on the wire
+announces it: a photo published late shows up as one more item, wherever the upload time puts it.
 
 **Errors** — `404 event.notFound` when the event does not exist or is `draft` or
 `archived`. A `closed` event still serves its wall: the projector is usually still on
@@ -1513,6 +1532,15 @@ shape and `null`-valued on a photograph rather than absent — so no client test
 missing key. When `kind` is `"clip"`, **`thumbUrl` points at the poster frame**, which is
 what lets a client that has never heard of video render a still rather than a broken
 image; `videoUrl` is the mp4, and it is the URL that answers `Range` requests (§4).
+
+**Re-reading while a photo waits.** There is no stream for a guest: the public event stream is capped
+per IP, and a room behind one address would take the projector's own feed away. The upload screen
+instead re-reads this list about every nine seconds (every thirty after five minutes) **only while
+at least one photo is `pending` and the tab is visible**, once more each time the tab comes back to
+the front, and not at all otherwise. A photo that goes from `pending` to `published` is announced
+("Validée ! Elle passe à l'écran dans un instant : levez les yeux."), with a short vibration where
+the browser has one; found on coming back to the tab, it reads "Passée à l'écran". This is a poll
+of an unchanged route, not a push notification, which ROADMAP §2.1 rules out.
 
 ### `GET /api/events/:slug/missions/mine`
 

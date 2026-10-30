@@ -77,4 +77,43 @@ describe('MyPhotos', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
     expect(onRetry).toHaveBeenCalledOnce()
   })
+
+  describe('when the host has just published one', () => {
+    const renderWith = (arrival: { readonly whileAway: boolean } | null) =>
+      renderWithProviders(
+        <MyPhotos
+          photos={[aGuestPhoto({ id: 'photo-1', status: 'published' })]}
+          loading={false}
+          error={null}
+          onRetry={vi.fn()}
+          onDelete={vi.fn(() => Promise.resolve())}
+          arrival={arrival}
+        />,
+      )
+
+    it('tells the guest to look up, politely', () => {
+      renderWith({ whileAway: false })
+
+      const line = screen.getByRole('status')
+      expect(line).toHaveTextContent(fr.upload.photoDeveloped)
+    })
+
+    it('says it has gone when the guest was not looking', () => {
+      renderWith({ whileAway: true })
+
+      expect(screen.getByRole('status')).toHaveTextContent(fr.upload.photoDevelopedAway)
+    })
+
+    it('says nothing the rest of the time', () => {
+      renderWith(null)
+
+      expect(screen.queryByRole('status')).toBeNull()
+    })
+
+    it('develops the negative into the print: a published photo carries no negative class', () => {
+      renderWith({ whileAway: false })
+
+      expect(classesOf(document.querySelector('img'))).toEqual([cls(styles, 'thumb')])
+    })
+  })
 })

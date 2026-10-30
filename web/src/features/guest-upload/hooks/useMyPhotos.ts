@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { readEventTheme } from '../../../design-system/eventTheme'
 import { rememberEventTheme } from '../../../lib/guestSession'
 import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import type { EventThemeDto, GuestPhotoDto } from '../../../lib/api/dto'
+import type { EventThemeDto, GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 
 /**
  * The guest's own photos, from `GET /api/events/:slug/photos/mine`.
@@ -19,8 +19,25 @@ import type { EventThemeDto, GuestPhotoDto } from '../../../lib/api/dto'
  * offered a delete button that answered 403.
  */
 
+/**
+ * A photo of the guest's has just gone from waiting to on the wall.
+ *
+ * `whileAway` is the guest having left the tab and come back to find it: the moment
+ * "look up" is true has passed, so the screen says it **went** to the screen rather than
+ * that it is about to.
+ */
+export interface Arrival {
+  readonly whileAway: boolean
+}
+
 export interface MyPhotosState {
   readonly photos: readonly GuestPhotoDto[]
+  /**
+   * The host has just published one of these. Set for a few seconds, and it is what the
+   * list announces ("Validée ! … levez les yeux"), politely, to a screen reader as well.
+   * `null` the rest of the time.
+   */
+  readonly arrival: Arrival | null
   /**
    * Whether the event still takes photos, as the server last said. `true` until it says
    * otherwise, and for a server that does not say: the form is the default and the server's own
@@ -85,6 +102,27 @@ type Failure =
   | { readonly kind: 'action'; readonly code: string | null }
 
 /**
+ * How often a screen with a photo still waiting re-reads the list, and how long that lasts.
+ *
+ * Nine seconds is short enough that "Validée ! Elle passe à l'écran dans un instant" is still
+ * true when it is read: the wall shows a published photo within about one slide. After five
+ * minutes of waiting the host is plainly busy and the poll slows to thirty seconds, because a
+ * photo that waits all evening should not cost a phone's battery, or a venue's Wi-Fi, a request
+ * every nine of them. It is **not** a push notification (ROADMAP §2.1 rules those out) and not a
+ * stream: the guests' public stream is capped per IP, and a room behind one address would take
+ * the projector's own feed away.
+ */
+const POLL_EVERY_MS = 9_000
+const POLL_SLOW_AFTER_MS = 300_000
+const POLL_SLOW_EVERY_MS = 30_000
+
+/** How long the announcement stays on screen. Long enough to be read twice. */
+const ARRIVAL_SHOWN_MS = 15_000
+
+/** The 200 ms buzz of a phone that knows its guest's photo is about to be on the wall. */
+const VIBRATE_MS = 200
+
+/**
  * What a failed read means. Only these two answers are about the guest's standing and not the
  * network, so only they stop the screen offering uploads; everything else stays "try again".
  */
@@ -99,6 +137,7 @@ const classifyRead = (cause: unknown): Failure => {
 
 interface Loaded {
   readonly photos: readonly GuestPhotoDto[]
+  readonly arrival: Arrival | null
   readonly acceptingUploads: boolean
   readonly theme: EventThemeDto | null
   readonly loading: boolean
@@ -110,6 +149,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   const api = useApi()
   const [state, setState] = useState<Loaded>({
     photos: [],
+    arrival: null,
     acceptingUploads: true,
     theme: null,
     loading: true,
@@ -127,19 +167,56 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     setAttempt((current) => current + 1)
   }, [])
 
+  /**
+   * The list as the last read left it, and the state a read starts from: what tells a
+   * transition from a first sight, kept outside React state so deciding it, and buzzing the
+   * phone, are not done inside a state updater (StrictMode runs those twice).
+   */
+  const knownRef = useRef<ReadonlyMap<string, PhotoStatus> | null>(null)
+  /** A read is in the air. A poll never aborts it: on slow Wi-Fi it would never finish. */
+  const inFlightRef = useRef(false)
+  /** The next answer is the one the guest finds on coming back to the tab. */
+  const returnedRef = useRef(false)
+
+  /**
+   * A read nobody asked for with a button: no spinner, no cleared error, and nothing when one
+   * is already on its way.
+   */
+  const readQuietly = useCallback(() => {
+    if (inFlightRef.current) return
+    setAttempt((current) => current + 1)
+  }, [])
+
   useEffect(() => {
     const controller = new AbortController()
     let current = true
+    inFlightRef.current = true
 
     api.myPhotos(slug, controller.signal).then(
       (response) => {
         if (!current) return
+        inFlightRef.current = false
+        const before = knownRef.current
+        knownRef.current = new Map(response.items.map((photo) => [photo.id, photo.status]))
+        // Only a photo this screen has seen waiting counts: a first read, and a photo that
+        // arrives already published (an event that publishes by itself), are not a moment.
+        const published =
+          before !== null &&
+          response.items.some(
+            (photo) => photo.status === 'published' && before.get(photo.id) === 'pending',
+          )
+        const whileAway = returnedRef.current
+        returnedRef.current = false
+        // A phone in a pocket buzzes in the room; one that is being looked at has no need, and
+        // a tab in the background is refused the buzz anyway.
+        if (published && !whileAway) navigator.vibrate?.(VIBRATE_MS)
         // Written back so the next open of the screen paints it first. Only a theme this build
         // can read: `null` (absent from an older server, or malformed) leaves the stored one.
         const theme = readEventTheme(response.theme)
         if (theme !== null) rememberEventTheme(slug, theme)
         setState((previous) => ({
           photos: response.items,
+          arrival: published ? { whileAway } : previous.arrival,
           acceptingUploads: response.acceptingUploads ?? true,
           // A later read that carries none does not take the theme back: what was learned stands.
           theme: theme ?? previous.theme,
@@ -152,6 +229,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
         // The abort is this effect's own cleanup — StrictMode mounts twice — and not
         // a failure to report to the guest.
         if (isAbortError(cause)) return
+        inFlightRef.current = false
         // The photos already on screen stay: a read that fails (a moment of bad Wi-Fi) is
         // news about the read, and this list is what tells the guest their uploads arrived.
         // Only the very first read has nothing to keep.
@@ -161,9 +239,65 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
     return () => {
       current = false
+      inFlightRef.current = false
       controller.abort()
     }
   }, [api, slug, attempt])
+
+  /**
+   * The announcement leaves by itself. "Look up" is only true for a moment, and a line that
+   * stayed under the list for an hour would be false.
+   */
+  const announced = state.arrival
+  useEffect(() => {
+    if (announced === null) return
+    const timer = window.setTimeout(
+      () => setState((previous) => ({ ...previous, arrival: null })),
+      ARRIVAL_SHOWN_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [announced])
+
+  /**
+   * Waiting for the host is the one state that ends on its own, so it is the only one worth
+   * re-reading for — and only while the guest is looking. A hidden tab asks nothing, and the
+   * first thing it does on coming back is one read, which is how a photo published while the
+   * phone was in a pocket is found.
+   */
+  const waiting = state.photos.some((photo) => photo.status === 'pending')
+  useEffect(() => {
+    if (!waiting) return
+
+    const startedAt = Date.now()
+    let timer: number | undefined
+    const disarm = () => window.clearTimeout(timer)
+    const arm = () => {
+      disarm()
+      if (document.visibilityState !== 'visible') return
+      const slow = Date.now() - startedAt >= POLL_SLOW_AFTER_MS
+      timer = window.setTimeout(
+        () => {
+          readQuietly()
+          arm()
+        },
+        slow ? POLL_SLOW_EVERY_MS : POLL_EVERY_MS,
+      )
+    }
+    const onVisibility = () => {
+      disarm()
+      if (document.visibilityState !== 'visible') return
+      returnedRef.current = true
+      readQuietly()
+      arm()
+    }
+
+    arm()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      disarm()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [waiting, readQuietly])
 
   const remove = useCallback(
     async (photoId: string) => {
@@ -214,6 +348,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
   return {
     photos: state.photos,
+    arrival: state.arrival,
     acceptingUploads: state.acceptingUploads,
     theme: state.theme,
     unavailable: state.failure?.kind === 'gone',

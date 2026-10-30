@@ -143,6 +143,9 @@ export const es: UiText = {
     mineEmpty: 'Todavía no ha enviado ninguna foto.',
     mineFailed: 'No se ha podido actualizar la lista de sus envíos. Inténtelo de nuevo.',
     mineAlt: 'Su foto',
+    /* "Levez les yeux" (UX review 2026-10-30): a photo of the guest's goes from waiting to on the wall. */
+    photoDeveloped: '¡Aprobada! Saldrá en la pantalla en un momento: levante la vista.',
+    photoDevelopedAway: 'Ya ha salido en la pantalla.',
     deleteOwnNumbered: (position: number) => `Eliminar la foto ${t.number(position)}`,
     notJoinedTitle: 'Únase a la galería para enviar sus fotos',
     notJoinedHint: 'Vuelva a escanear el código QR o introduzca el código de la fiesta.',
@@ -676,6 +679,8 @@ export const es: UiText = {
       'Espacio pausa, las flechas cambian de foto, F pasa a pantalla completa, L cambia la disposición.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Para salir: Esc o F salen de la pantalla completa; después cierre la pestaña.',
+    /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
+    firstPhotoOf: (name: string) => `Primera foto de ${name}`,
 
     /**
      * The working words a Spanish host at the projector would use for each grid, not

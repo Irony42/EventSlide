@@ -138,6 +138,9 @@ export const en: UiText = {
     mineEmpty: 'You have not sent any photos yet.',
     mineFailed: 'The list of your uploads could not be updated. Try again.',
     mineAlt: 'Your photo',
+    /* "Levez les yeux" (UX review 2026-10-30): a photo of the guest's goes from waiting to on the wall. */
+    photoDeveloped: 'Approved! It is about to appear on the screen: look up.',
+    photoDevelopedAway: 'It has been on the screen.',
     deleteOwnNumbered: (position: number) => `Delete photo ${t.number(position)}`,
     notJoinedTitle: 'Join the gallery to send your photos',
     notJoinedHint: 'Scan the QR code again, or type the event code.',
@@ -657,6 +660,8 @@ export const en: UiText = {
       'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
+    /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
+    firstPhotoOf: (name: string) => `First photo from ${name}`,
 
     layoutNames: {
       spotlight: 'Full screen',
