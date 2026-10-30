@@ -20,6 +20,81 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.3.0] - 2026-10-30
+
+Everything merged to `main` after the tag `v3.2.0`: pull requests #271, #272, #273, #275, #277, #274
+and #276. This is a minor release: it breaks nothing that
+[docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to keep. It applies
+three migrations (015, 016 and 017), lowers the default of `AUDIT_RETENTION_DAYS` and shows every guest
+the privacy notice again, so read "Behaviour changes to check before upgrading" and
+[Upgrading to 3.3](docs/UPGRADING.md#upgrading-to-33) before you upgrade.
+
+### Operator: remove without viewing
+
+- **Take down a photograph or a whole event, by its id, without seeing it** (#275, review S5). The
+  operator takes down or restores a photo or an event, and holds or releases an event's purge, through six
+  routes under `/api/site`. Each needs the operator's second factor, a fresh step-up and a written reason,
+  and none answers with an image, a caption or a name. A taken-down photo leaves the wall, the guests'
+  feed, the shared gallery, the host's pages and the media route at once, and its bytes are kept. A
+  taken-down event answers as an unknown one, the host's own pages included. A held event is skipped by
+  the retention sweep and refuses every deletion; the refusal is a generic failure, so the host is not
+  told. Each act writes one audit line that stays out of the client's own trail.
+- **A "Retrait" page in the operator's console** (#277). The operator finds an event from its address,
+  join code, slug or exact name, or a photo from its id, sees only ids, a status and badges, and acts on it
+  with a reason and a confirmation that names the target. The lookup is limited to 10 a minute per account
+  and 30 per address, and logs the length of what was searched, never the text.
+- **A suspended client's members no longer read photographs** (#275): the grid, the moderation queue,
+  the album download and the media route answer `403 client.suspended`.
+
+### Guest
+
+- **A guest can erase everything they sent** (#274, roadmap §5.2): a button under "Vos envois", behind a
+  confirmation, removes their photos and clips (files included), reactions and name from the wall, the feed
+  and the host's pages at once. It works after the host revoked the guest, from a screen that says their
+  access was withdrawn. The confirmation says it does not reach copies the host kept or downloaded from the
+  shared gallery.
+- **The privacy notice names the guests' feed** (#273): the other guests see a published photo, with the
+  sender's first name, in « Les photos de la soirée ». It also says a guest can erase what they sent
+  (#274).
+
+### Accounts and terms
+
+- **An account can delete itself** (#276) on a box with `SITE_ADMIN=on`, from "Supprimer mon compte" in the
+  account menu, behind the password and the authenticator's code when there is one, rate-limited like
+  the second factor. The refusals are the operator's (an account that still owns an event, wrote media,
+  reviewed photos or is a client's last owner) and say what to do next.
+- **The proof that an account accepted the terms is kept on the account** (#276, migration 017): the
+  version and the instant, copied from the audit log for existing acceptances, shown to the operator in
+  the accounts list, and removed with the account.
+
+### Look
+
+- **The panes' glass material is retired** (#272, ADR 0012). It was invisible within the legibility rule.
+  The "Matière des panneaux" setting goes, panes paint the opaque tier they already showed, and the
+  wall's render budget loses its glass rung.
+
+### Behaviour changes to check before upgrading
+
+- **Migrations 015, 016 and 017** (#275, #277, #276) add nullable columns and indexes and copy the latest
+  terms acceptance from the audit log. A 3.2.x build still reads a migrated database but would serve again
+  what the operator took down: go back by restoring the archive, not by running 3.2.x on it.
+- **`AUDIT_RETENTION_DAYS` defaults to 365** (it was 1095) (#276). A box that never set it deletes audit
+  lines older than a year at the first sweep after the upgrade, and logs one warning naming the variable
+  at boot before that. Set `AUDIT_RETENTION_DAYS=1095` before upgrading to keep them.
+- **Every guest is shown the privacy notice again** (#273, #274): its revision changed.
+- **An event's theme no longer carries `material`** (#272). Responses drop the field;
+  `PATCH /api/events/:slug/settings` still accepts and ignores it.
+- **A suspended client's members get `403 client.suspended`** on photographs (#275), where they read them
+  until 3.2.
+- **A failed purge no longer keeps the event's row for a retry** (#275): the row goes first, so that a hold
+  can never be overtaken, and media a failed deletion leaves behind is collected by the orphan sweep.
+
+### Documentation, tests and dependencies
+
+- The README links the website and the hosted instance (#271).
+- The legal-side documents (SECURITY.md §25, API.md) describe the operator's levers, the year-long
+  browser cache of media, and that a takedown does not imply a purge hold.
+
 ## [3.2.0] - 2026-10-29
 
 Everything merged to `main` after the tag `v3.1.0`: pull requests #261, #263, #265, #266, #264, #267
