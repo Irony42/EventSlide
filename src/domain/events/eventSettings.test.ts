@@ -42,7 +42,6 @@ describe('EventSettings defaults', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'eventslide',
     })
   })
@@ -94,7 +93,6 @@ describe('EventSettings.create', () => {
           accentHue: 345,
           fonts: 'serif',
           frame: 'round',
-          material: 'glass',
           ambiance: 'guinguette',
         },
         wallLanguage: 'de',
@@ -114,7 +112,6 @@ describe('EventSettings.create', () => {
         accentHue: 345,
         fonts: 'serif',
         frame: 'round',
-        material: 'glass',
         ambiance: 'guinguette',
       },
       wallLanguage: 'de',
@@ -265,7 +262,6 @@ describe('EventSettings.with', () => {
           accentHue: 250,
           fonts: 'serif',
           frame: 'round',
-          material: 'glass',
           ambiance: 'guinguette',
         },
       }),
@@ -277,7 +273,6 @@ describe('EventSettings.with', () => {
           accentHue: 345,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'guinguette',
         },
       }),
@@ -287,7 +282,6 @@ describe('EventSettings.with', () => {
       accentHue: 345,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'guinguette',
     })
   })
@@ -299,7 +293,6 @@ describe('EventSettings.with', () => {
           accentHue: 250,
           fonts: 'serif',
           frame: 'round',
-          material: 'glass',
           ambiance: 'guinguette',
         },
       }),
@@ -361,7 +354,6 @@ describe('EventSettings.with', () => {
         accentHue: 160,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'guinguette',
       },
     })
@@ -400,7 +392,6 @@ describe('a theme the current rule would refuse, on an event that already has on
     accentHue: 30,
     fonts: 'sans',
     frame: 'soft',
-    material: 'glass',
     ambiance: 'guinguette',
   } as const
 
@@ -434,7 +425,6 @@ describe('a theme the current rule would refuse, on an event that already has on
         accentHue: 30,
         fonts: 'serif',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'guinguette',
       },
     })

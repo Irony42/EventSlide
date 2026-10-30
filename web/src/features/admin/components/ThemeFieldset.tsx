@@ -7,11 +7,9 @@ import {
   DEFAULT_EVENT_THEME,
   isThemeFonts,
   isThemeFrame,
-  isThemeMaterial,
   isThemeAmbiance,
   THEME_FONTS,
   THEME_FRAMES,
-  THEME_MATERIALS,
   THEME_AMBIANCES,
   type CuratedAccent,
 } from '../../../design-system/eventTheme'
@@ -84,11 +82,6 @@ export function ThemeFieldset({
   ).map((value) => ({
     value,
     label: t.admin.themeAmbianceNames[value],
-  }))
-
-  const materialOptions = THEME_MATERIALS.map((value) => ({
-    value,
-    label: t.admin.themeMaterialNames[value],
   }))
 
   return (
@@ -184,24 +177,6 @@ export function ThemeFieldset({
         disabled={disabled}
         onChange={(value) => {
           if (isThemeFrame(value)) onChange({ ...theme, frame: value })
-        }}
-      />
-
-      {/*
-        The material (roadmap 11.5), and the one control here that carries a hint about how
-        *little* it does. A pane is opaque to 92–95%, so turning the glass off changes the
-        five to eight per cent that showed through — a host who reads "verre" and expects
-        the screen to transform will otherwise think the save failed. Last in the fieldset
-        because it is the least consequential of the four.
-      */}
-      <SelectField
-        label={t.admin.themeMaterial}
-        hint={t.admin.themeMaterialHint}
-        value={theme.material}
-        options={materialOptions}
-        disabled={disabled}
-        onChange={(value) => {
-          if (isThemeMaterial(value)) onChange({ ...theme, material: value })
         }}
       />
     </fieldset>

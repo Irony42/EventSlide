@@ -234,6 +234,8 @@ export const de: UiText = {
     },
     noticeAudiences: {
       wall: 'Alle, die den Bildschirm der Veranstaltung sehen, im Saal oder über seinen Link, sobald ein Foto darauf erscheint.',
+      guestFeed:
+        'Die anderen Gäste des Abends, auf ihrem Handy, unter „Fotos des Abends“: Sie sehen das auf dem Bildschirm gezeigte Foto, mit Ihrem Vornamen, falls Sie einen angegeben haben, und seiner Bildunterschrift.',
       organisers:
         'Der Veranstalter und sein Team, die alles sehen, was Sie senden, und die auf dem Bildschirm gezeigten Fotos herunterladen können.',
       sharedGallery:
@@ -787,13 +789,6 @@ export const de: UiText = {
       soft: 'Abgerundete Ecken',
       square: 'Gerade Ecken',
       round: 'Stark abgerundete Ecken',
-    },
-    themeMaterial: 'Material der Flächen',
-    themeMaterialHint:
-      'Glas lässt ahnen, was darunter liegt; die einfarbige Fläche ist undurchsichtig. Der Unterschied ist dezent, und er betrifft nur die Seite, auf der Ihre Gäste ihre Fotos senden: Ihre Moderationskonsole und die Leinwand im Saal ändern sich nicht.',
-    themeMaterialNames: {
-      glass: 'Milchglas',
-      plain: 'Einfarbige Fläche',
     },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:

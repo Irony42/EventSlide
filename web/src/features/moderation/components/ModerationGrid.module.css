@@ -29,10 +29,7 @@
  * job at 23:00 is to be read. `useArrivals` is what decides, and it marks a tile only when
  * the queue was already on screen without it.
  *
- * It costs the toolbar above, and that is stated rather than hidden: the toolbar is a glass
- * pane (roadmap 11.1) and a tile moving underneath it is a backdrop re-filtered for the
- * length of this animation. Bounded at one tile per photo, on the host's laptop, which is
- * the machine the budget says can afford a blur at all — and the reason the guest's own
+ * It is bounded at one tile per photo, on the host's laptop — and the reason the guest's own
  * uploads list, which sits under the same kind of pane on a phone that is mid-encode, is
  * left still.
  *

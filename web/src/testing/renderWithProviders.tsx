@@ -190,9 +190,9 @@ export const aGuestMission = (overrides: Partial<GuestMissionDto> = {}): GuestMi
  */
 export const aPrivacyNotice = (overrides: Partial<PrivacyNoticeDto> = {}): PrivacyNoticeDto => ({
   revision:
-    'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=none;selfRemoval=900',
+    'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900',
   publication: 'afterReview',
-  audiences: ['wall', 'organisers', 'sharedGallery'],
+  audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
   retentionDays: null,
   selfRemovalSeconds: 900,
   ...overrides,

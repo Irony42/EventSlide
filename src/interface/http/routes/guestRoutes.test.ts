@@ -904,7 +904,6 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
           accentHue: 345,
           fonts: 'serif',
           frame: 'square',
-          material: 'plain',
           ambiance: 'guinguette',
         },
       },
@@ -919,7 +918,6 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       accentHue: 345,
       fonts: 'serif',
       frame: 'square',
-      material: 'plain',
       ambiance: 'guinguette',
       groundUrl: null,
     })
@@ -936,7 +934,6 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'eventslide',
       groundUrl: null,
     })

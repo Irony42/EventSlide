@@ -334,7 +334,6 @@ describe('POST /api/join', () => {
           accentHue: 305,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'eventslide',
           groundUrl: null,
         },
@@ -342,9 +341,9 @@ describe('POST /api/join', () => {
       privacyNotice: {
         notice: {
           revision:
-            'publication=afterReview;audiences=wall+organisers+sharedGallery;retention=none;selfRemoval=900',
+            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900',
           publication: 'afterReview',
-          audiences: ['wall', 'organisers', 'sharedGallery'],
+          audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
           retentionDays: null,
           selfRemovalSeconds: 900,
         },
@@ -736,7 +735,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'eventslide',
       groundUrl: null,
     })
@@ -761,7 +759,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
             accentHue: 345,
             fonts: 'serif',
             frame: 'square',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         },
@@ -774,7 +771,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
       accentHue: 345,
       fonts: 'serif',
       frame: 'square',
-      material: 'glass',
       ambiance: 'guinguette',
       groundUrl: null,
     })

@@ -227,6 +227,8 @@ export const es: UiText = {
     },
     noticeAudiences: {
       wall: 'Cualquiera que mire la pantalla del evento, en la sala o a través de su enlace, una vez que la foto aparece en ella.',
+      guestFeed:
+        'Los demás invitados de la fiesta, en su teléfono, en «Fotos de la velada»: ven la foto mostrada en la pantalla, con su nombre de pila si lo ha indicado, y su pie de foto.',
       organisers:
         'El organizador y su equipo, que ven todo lo que usted envía y pueden descargar las fotos mostradas en la pantalla.',
       sharedGallery:
@@ -773,13 +775,6 @@ export const es: UiText = {
       soft: 'Esquinas redondeadas',
       square: 'Esquinas rectas',
       round: 'Esquinas muy redondeadas',
-    },
-    themeMaterial: 'Material de los paneles',
-    themeMaterialHint:
-      'El cristal deja entrever lo que pasa por debajo; la superficie lisa es opaca. La diferencia es sutil y solo afecta a la pantalla de envío de sus invitados: su consola de moderación y la pantalla de la sala no cambian.',
-    themeMaterialNames: {
-      glass: 'Cristal esmerilado',
-      plain: 'Superficie lisa',
     },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:

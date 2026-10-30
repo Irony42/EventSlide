@@ -9,8 +9,7 @@ import { describe, expect, it } from 'vitest'
  * happens to review the diff — which is the wrong person, because the change that breaks it
  * is one line of plausible CSS in a feature folder nobody is reading beside the wall.
  *
- * So it is checked here, the same way the glass material is (`glass.material.test.ts`) and
- * the same way the layer boundaries are (CLAUDE.md §2): read off every stylesheet the app
+ * So it is checked here, the same way the layer boundaries are (CLAUDE.md §2): read off every stylesheet the app
  * ships, including the ones written after this file.
  *
  * Four rules, and they are not the same rule:

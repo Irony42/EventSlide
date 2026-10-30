@@ -499,14 +499,12 @@ describe('a guest the server does not recognise any more, on the feed', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'guinguette',
     } as const
     const ROSE = {
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
-      material: 'plain',
       ambiance: 'guinguette',
     } as const
     const pageOf = async () =>

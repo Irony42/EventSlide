@@ -232,6 +232,8 @@ export const it: UiText = {
     },
     noticeAudiences: {
       wall: 'Chiunque guardi lo schermo dell’evento, in sala o tramite il suo link, una volta che la foto vi compare.',
+      guestFeed:
+        'Gli altri invitati della serata, sul loro telefono, in «Foto della serata»: vedono la foto mostrata sullo schermo, con il suo nome se ne ha indicato uno, e la didascalia.',
       organisers:
         'L’organizzatore e il suo staff, che vedono tutto ciò che invia e possono scaricare le foto mostrate sullo schermo.',
       sharedGallery:
@@ -756,13 +758,6 @@ export const it: UiText = {
       soft: 'Angoli arrotondati',
       square: 'Angoli vivi',
       round: 'Angoli molto arrotondati',
-    },
-    themeMaterial: 'Materiale dei pannelli',
-    themeMaterialHint:
-      'Il vetro lascia intravedere quello che passa sotto; la superficie piena è opaca. La differenza è discreta e riguarda solo la schermata di invio dei suoi invitati: la sua console di moderazione e lo schermo in sala non cambiano.',
-    themeMaterialNames: {
-      glass: 'Vetro smerigliato',
-      plain: 'Superficie piena',
     },
     themeAmbiance: 'Atmosfera',
     themeAmbianceHint:

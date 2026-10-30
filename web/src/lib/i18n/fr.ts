@@ -41,7 +41,6 @@ import type {
   ThemeFonts,
   ThemeFrame,
   ThemeGround,
-  ThemeMaterial,
   ThemeAmbiance,
   WallLayout,
 } from '../api/dto'
@@ -439,6 +438,8 @@ export const fr = {
      */
     noticeAudiences: {
       wall: 'Toute personne qui regarde l’écran de la soirée, dans la salle ou par son lien, une fois la photo affichée.',
+      guestFeed:
+        'Les autres invités de la soirée, sur leur téléphone, dans « Les photos de la soirée » : ils voient la photo affichée à l’écran, avec votre prénom si vous en avez donné un, et sa légende.',
       organisers:
         'L’organisateur et son équipe, qui voient tout ce que vous envoyez et peuvent télécharger les photos passées à l’écran.',
       sharedGallery:
@@ -866,24 +867,6 @@ export const fr = {
       square: 'Coins droits',
       round: 'Coins très arrondis',
     } satisfies Record<ThemeFrame, string>,
-    themeMaterial: 'Matière des panneaux',
-    /**
-     * What the switch does, and — the longer half — where it does it.
-     *
-     * Two honesties, and the second one was missing from a first draft. A pane is opaque to
-     * between 92 and 95 %, so the difference is the little that shows through (roadmap
-     * 11.4): the copy says "discrète" rather than promising a transformation. And the only
-     * screen it changes is the guests' upload page — the wall gave the material up on every
-     * machine, and the moderation console is not themed. Without that sentence a host
-     * selects "Surface unie", saves, looks at the one glass pane in front of them (their
-     * own toolbar), sees nothing move, and concludes the save failed.
-     */
-    themeMaterialHint:
-      'Le verre laisse deviner ce qui passe dessous ; la surface unie est opaque. La différence est discrète, et elle ne concerne que l’écran d’envoi de vos invités : votre console de modération et l’écran de la salle ne changent pas.',
-    themeMaterialNames: {
-      glass: 'Verre dépoli',
-      plain: 'Surface unie',
-    } satisfies Record<ThemeMaterial, string>,
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
       'L’univers que portent l’écran de vos invités, celui de la salle et les pages de cet évènement dans votre console.',

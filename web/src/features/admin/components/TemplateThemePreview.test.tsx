@@ -61,7 +61,6 @@ describe('TemplateThemePreview', () => {
     expect(preview).not.toHaveAttribute('data-event-accent')
     expect(preview).not.toHaveAttribute('data-event-fonts')
     expect(preview).not.toHaveAttribute('data-event-frame')
-    expect(preview).not.toHaveAttribute('data-glass')
     expect(preview.style.getPropertyValue('--accent-hue')).toBe('')
   })
 

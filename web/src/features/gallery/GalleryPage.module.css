@@ -101,12 +101,11 @@
 }
 
 /**
- * The download stays reachable while the guest scrolls, on the same glass sheet the upload
- * screen's composer uses — photographs scroll under it, which is what the material and its
- * tint floor were designed for (roadmap 11.1).
+ * The download stays reachable while the guest scrolls, on the same sheet the upload
+ * screen's composer uses — photographs scroll under it (roadmap 11.1).
  */
 .bar {
-  composes: sheet from '../../design-system/glass.module.css';
+  composes: sheet from '../../design-system/sheet.module.css';
   position: sticky;
   inset-block-end: var(--space-2);
   margin-block-start: auto;

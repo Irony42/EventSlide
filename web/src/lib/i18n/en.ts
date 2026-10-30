@@ -222,6 +222,8 @@ export const en: UiText = {
     },
     noticeAudiences: {
       wall: 'Anyone looking at the event’s screen, in the room or through its link, once a photo is on it.',
+      guestFeed:
+        'The other guests at the event, on their own phones, in “Photos from the evening”: they see the photo shown on the screen, with your first name if you gave one, and its caption.',
       organisers:
         'The organiser and their team, who see everything you send and can download the photos shown on the screen.',
       sharedGallery:
@@ -740,13 +742,6 @@ export const en: UiText = {
       soft: 'Rounded corners',
       square: 'Square corners',
       round: 'Very rounded corners',
-    },
-    themeMaterial: 'Panel material',
-    themeMaterialHint:
-      'Glass lets you sense what passes underneath; the plain surface is opaque. The difference is subtle, and it only affects the upload screen your guests see: your moderation console and the screen in the room do not change.',
-    themeMaterialNames: {
-      glass: 'Frosted glass',
-      plain: 'Plain surface',
     },
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
