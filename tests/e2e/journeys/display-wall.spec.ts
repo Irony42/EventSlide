@@ -74,7 +74,7 @@ test('the empty state tells the room how to join', async ({ app, surfaces }) => 
   const empty = projector.getByTestId('wall-empty')
   await expect(empty).toBeVisible()
   await expect(empty.getByText('Camille & Sacha')).toBeVisible()
-  await expect(empty.getByText(event.joinCode)).toBeVisible()
+  await expect(empty.getByText(event.joinCode, { exact: true })).toBeVisible()
   // Rendered as inline SVG, never a remote image: the CSP forbids one and venue Wi-Fi
   // would drop it.
   await expect(empty.locator('svg')).toBeVisible()
