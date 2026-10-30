@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 
 /**
+ * How often a visible wall that holds no lock asks for one again. A minute: the refusals that
+ * mend themselves (a battery saver switched off, a transient error) are worth a minute's wait,
+ * and a browser that never says yes is asked once a minute, not in a loop.
+ */
+export const WAKE_LOCK_RETRY_MS = 60_000
+
+/**
  * Keeps the machine that drives the projector awake, for as long as the wall is open.
  *
  * The wall often runs on the host's laptop, on battery, and the operating system turns that
@@ -14,6 +21,13 @@ import { useEffect, useState } from 'react'
  * - **A release the browser makes on its own**, which it does every time the tab is hidden.
  *   That is why the lock is asked for again when the tab becomes visible, and why a
  *   `release` event puts the answer back to "not held" until it is.
+ *
+ * Hiding the tab is not the only way to lose the lock: the operating system revokes it when
+ * the battery runs low, and a request can fail for a moment and succeed a minute later. None
+ * of those fire `visibilitychange`, so a wall that only asked on visibility would stay
+ * unheld for the rest of the night. While the tab is visible and nothing is held, the lock is
+ * therefore asked for again on a slow timer (`WAKE_LOCK_RETRY_MS`): slow so that a browser
+ * that always refuses is asked once a minute, not in a loop.
  *
  * Returns whether the screen is being held awake **right now**. The page uses the answer
  * for one thing: the shortcuts panel tells the host to switch the computer's own sleep off
@@ -60,9 +74,13 @@ export const useWakeLock = (): boolean => {
 
     document.addEventListener('visibilitychange', onVisibility)
     void acquire()
+    // `acquire` does nothing while a lock is held, a request is pending or the tab is hidden,
+    // so this only ever acts on a wall that is visible and unheld.
+    const retry = window.setInterval(() => void acquire(), WAKE_LOCK_RETRY_MS)
 
     return () => {
       live = false
+      window.clearInterval(retry)
       document.removeEventListener('visibilitychange', onVisibility)
       const kept = sentinel
       sentinel = null

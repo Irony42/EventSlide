@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { useWakeLock } from './useWakeLock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useWakeLock, WAKE_LOCK_RETRY_MS } from './useWakeLock'
 
 /**
  * The projector's laptop goes to sleep after ten idle minutes unless the page asks the
@@ -128,5 +128,99 @@ describe('useWakeLock', () => {
     })
 
     expect(sentinel.released).toBe(true)
+  })
+})
+
+/**
+ * The lock is lost in ways that fire no `visibilitychange`: the operating system revokes it on a
+ * low battery, a request fails once and would succeed a minute later. A wall that only asked on
+ * visibility would then sleep through the rest of the night.
+ */
+describe('useWakeLock retry while visible', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    Reflect.deleteProperty(navigator, 'wakeLock')
+    Reflect.deleteProperty(document, 'visibilityState')
+  })
+
+  const afterMs = async (ms: number): Promise<void> => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms)
+    })
+  }
+
+  it('asks again when the lock is released while the tab is still visible', async () => {
+    const first = new Sentinel()
+    const second = new Sentinel()
+    const request = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second)
+    install(request)
+    const { result } = renderHook(() => useWakeLock())
+    await afterMs(0)
+    expect(result.current).toBe(true)
+
+    // The system revokes it (battery saver); the tab never stopped being visible.
+    await act(async () => {
+      await first.release()
+    })
+    expect(result.current).toBe(false)
+    expect(request).toHaveBeenCalledTimes(1)
+
+    await afterMs(WAKE_LOCK_RETRY_MS)
+
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(result.current).toBe(true)
+  })
+
+  it('asks again after a refusal at mount', async () => {
+    const request = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('NotAllowedError'))
+      .mockResolvedValueOnce(new Sentinel())
+    install(request)
+    const { result } = renderHook(() => useWakeLock())
+    await afterMs(0)
+    expect(result.current).toBe(false)
+
+    await afterMs(WAKE_LOCK_RETRY_MS)
+
+    expect(result.current).toBe(true)
+  })
+
+  it('does not hammer a browser that always refuses', async () => {
+    const request = vi.fn(async () => {
+      throw new Error('NotAllowedError')
+    })
+    install(request)
+    renderHook(() => useWakeLock())
+
+    await afterMs(10 * WAKE_LOCK_RETRY_MS)
+
+    // The first ask at mount, then one a minute.
+    expect(request).toHaveBeenCalledTimes(11)
+  })
+
+  it('does not ask on the slow timer while the tab is hidden', async () => {
+    visibility('hidden')
+    const request = vi.fn(async () => new Sentinel())
+    install(request)
+    renderHook(() => useWakeLock())
+
+    await afterMs(5 * WAKE_LOCK_RETRY_MS)
+
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('leaves no timer behind once the wall is gone', async () => {
+    install(vi.fn(async () => new Sentinel()))
+    const { unmount } = renderHook(() => useWakeLock())
+    await afterMs(0)
+
+    unmount()
+
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
