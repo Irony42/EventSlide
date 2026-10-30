@@ -24,13 +24,11 @@ import {
   DEFAULT_EVENT_THEME,
   isThemeFonts,
   isThemeFrame,
-  isThemeMaterial,
   currentAmbianceName,
   isThemeAmbiance,
   isThemeFaces,
   isThemeGround,
   type EventThemeProps,
-  type ThemeMaterial,
   type ThemeAmbiance,
   type ThemeCustom,
 } from '../../domain/events/eventTheme'
@@ -293,24 +291,9 @@ const settingsBooleanAddedLater = (value: unknown, field: string, fallback: bool
   value === undefined ? fallback : settingsBoolean(value, field)
 
 /**
- * The material a themed event wears, for a `theme` object written before it had one.
- *
- * Absent is the product's own material and not a refusal, for the reason
- * {@link settingsThemeAddedLater} gives. Present but outside the vocabulary is corruption,
- * exactly as it is for the font pairing and the frame style beside it: a value this build
- * has never heard of was written by another program, and rendering a surface the host did
- * not configure is worse than naming the column.
- */
-const settingsMaterialAddedLater = (value: unknown): ThemeMaterial => {
-  if (value === undefined) return DEFAULT_EVENT_THEME.material
-  if (!isThemeMaterial(value)) throw corrupt('settings', 'unknown theme material')
-  return value
-}
-
-/**
  * The ambiance a themed event wears, for a `theme` object written before ambiances existed
  * (docs/adr/0010-event-ambiances.md). Absent is the product's own look, which is what that
- * blob has been rendering; present but unknown is corruption, like the material above.
+ * blob has been rendering; present but unknown is corruption, like the other theme fields.
  */
 const settingsAmbianceAddedLater = (value: unknown): ThemeAmbiance => {
   if (value === undefined) return DEFAULT_EVENT_THEME.ambiance
@@ -354,18 +337,10 @@ const settingsCustomAddedLater = (value: unknown): ThemeCustom | undefined => {
  * this build has never heard of was written by another program, and defaulting it would
  * show a host a wall they did not configure.
  *
- * **And the question comes back one level down, for a field added to a theme that already
- * exists.** `material` arrived with roadmap 11.5, so an event themed between 2.2 and it
- * holds a `theme` object with three keys and not four — a shape no migration can fix,
- * because the column is opaque JSON and rewriting every row of every album to write the
- * value those rows already behave as is churn with a failure mode and no reader. The answer
- * is the theme's own rather than `allowClips`': `glass` is the material that blob has been
- * rendering since the day it was written, so filling it in changes nothing that a host
- * would notice, and there is nothing they consented to that it switches on.
- *
- * That is also why `absent` never has to be told apart from `chosen glass` later, which is
- * the trap `allowClips` records above: the two mean the same thing here, so the first save
- * of any unrelated setting writing the key is a no-op rather than a one-way door.
+ * * **A `material` key in a stored theme is dead and ignored, whatever it holds.** Themes
+ * written before 3.3 carry `'glass' | 'plain'` (or nothing); the glass material was retired
+ * (ADR 0012), so the reader never looks at the key and the writer never writes it. No
+ * migration: the column is opaque JSON and the key is harmless where it sits.
  */
 const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
   if (value === undefined) return DEFAULT_EVENT_THEME
@@ -381,7 +356,6 @@ const settingsThemeAddedLater = (value: unknown): EventThemeProps => {
     accentHue: settingsInteger(value['accentHue'], 'theme.accentHue'),
     fonts,
     frame,
-    material: settingsMaterialAddedLater(value['material']),
     ambiance: settingsAmbianceAddedLater(value['ambiance']),
     ...(custom === undefined ? {} : { custom }),
   }
