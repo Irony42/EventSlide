@@ -1529,6 +1529,8 @@ export const it: UiText = {
     takedownReason: 'Motivo',
     takedownReasonHint:
       'Una frase su una sola riga, di 200 caratteri al massimo, senza indirizzo e-mail. Viene scritta nel registro dell’istanza.',
+    takedownUnknown:
+      'Stato sconosciuto: l’azione potrebbe essere stata eseguita o no, ripeta la ricerca per saperlo.',
     takedownDone: 'Fatto.',
     takedownOps: {
       eventDown: {

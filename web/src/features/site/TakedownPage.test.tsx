@@ -255,6 +255,54 @@ describe('acting on an event', () => {
     expect(screen.queryByText(fr.site.takedownStateDown)).toBeNull()
   })
 
+  it('says the state is unknown, and offers nothing, when it cannot be read back after an act', async () => {
+    const siteEventState = vi.fn<Api['siteEventState']>(async () => {
+      throw new ApiError(500, 'unknown')
+    })
+    open(withEvent({ siteEventState }))
+    await findEvent()
+
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownEventDown }))
+    const confirmation = await dialog(fr.site.takedownOps.eventDown.title)
+    await userEvent.type(within(confirmation).getByLabelText(fr.site.takedownReason), REASON)
+    await userEvent.click(
+      within(confirmation).getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }),
+    )
+
+    expect(await screen.findByText(fr.site.takedownUnknown)).toBeVisible()
+    expect(screen.queryByText(fr.site.takedownStateUp)).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.site.takedownEventDown })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.site.takedownHold })).toBeNull()
+  })
+
+  it('lets only the later of two reads of the same event speak, whichever answers last', async () => {
+    let releaseFirst: (state: SiteEventStateDto) => void = () => undefined
+    const siteEventState = vi
+      .fn<Api['siteEventState']>()
+      .mockImplementationOnce(() => new Promise((resolve) => (releaseFirst = resolve)))
+      .mockResolvedValue(anEvent({ takenDownAt: AT, purgeHeldAt: AT }))
+    open(withEvent({ siteEventState }))
+    await findEvent()
+
+    const act = async (button: string, copy: { title: string; confirm: string }) => {
+      await userEvent.click(screen.getByRole('button', { name: button }))
+      const confirmation = await dialog(copy.title)
+      await userEvent.type(within(confirmation).getByLabelText(fr.site.takedownReason), REASON)
+      await userEvent.click(within(confirmation).getByRole('button', { name: copy.confirm }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    }
+    await act(fr.site.takedownEventDown, fr.site.takedownOps.eventDown)
+    await act(fr.site.takedownHold, fr.site.takedownOps.purgeHold)
+    expect(await screen.findByText(fr.site.takedownStateHeld)).toBeVisible()
+
+    // The earlier read answers last, with a state from before the hold.
+    releaseFirst(anEvent({ takenDownAt: AT }))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(screen.getByText(fr.site.takedownStateHeld)).toBeVisible()
+    expect(screen.queryByText(fr.site.takedownStateFree)).toBeNull()
+  })
+
   it('sends nothing, and says nothing, when the operator cancels', async () => {
     const siteTakeDownEvent = vi.fn<Api['siteTakeDownEvent']>(async () => undefined)
     open(withEvent({ siteTakeDownEvent }))

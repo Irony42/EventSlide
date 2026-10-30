@@ -582,6 +582,27 @@ describe.each(['delivers', 'none'] as const)(
       }
     })
 
+    it.each([
+      ['its slug', CONTENT.slug],
+      ['its join code', CONTENT.joinCode],
+      ['its exact name', CONTENT.eventName],
+    ])(
+      'finds exactly the planted event from %s, so the sweep reads a real hit',
+      async (_how, query) => {
+        const { site } = await aBox({ mail })
+        const operator = await site.signInAsOperator()
+
+        const found = await operator.agent.get(
+          `/api/site/events/lookup?q=${encodeURIComponent(query)}`,
+        )
+
+        expect(found.status).toBe(200)
+        expect(found.body.items).toHaveLength(1)
+        expect(found.body.items[0].id).toBe(ID.eventK)
+        expect(sweepByValue(found.text)).toEqual([])
+      },
+    )
+
     it('answers the three takedown reads with no-store, so a shared cache never holds an id for a name', async () => {
       const { site } = await aBox({ mail })
       const operator = await site.signInAsOperator()

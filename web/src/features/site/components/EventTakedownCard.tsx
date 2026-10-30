@@ -28,6 +28,8 @@ export function EventTakedownCard() {
   const { locale } = useLocale()
   const api = useApi()
   const latest = useRef(0)
+  const reads = useRef(new Map<string, number>())
+  const [unknown, setUnknown] = useState<ReadonlySet<string>>(new Set())
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<readonly SiteEventStateDto[] | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
@@ -44,6 +46,7 @@ export function EventTakedownCard() {
       (found) => {
         // A slower answer to an earlier search must not replace the rows of the one on screen.
         if (mine !== latest.current) return
+        setUnknown(new Set())
         setRows(found.items)
         setSearching(false)
       },
@@ -58,12 +61,30 @@ export function EventTakedownCard() {
 
   const refresh = useCallback(
     (id: string) => {
+      // One counter per id: of two reads of the same event, only the later one may speak.
+      const mine = (reads.current.get(id) ?? 0) + 1
+      reads.current.set(id, mine)
+      const marked = (on: boolean): void =>
+        setUnknown((current) => {
+          const next = new Set(current)
+          if (on) next.add(id)
+          else next.delete(id)
+          return next
+        })
       api.siteEventState(id).then(
-        (state) =>
+        (state) => {
+          if (reads.current.get(id) !== mine) return
+          marked(false)
           setRows((current) =>
             current === null ? current : current.map((row) => (row.id === id ? state : row)),
-          ),
-        (cause: unknown) => setFailure(messageForError(cause, t)),
+          )
+        },
+        (cause: unknown) => {
+          if (reads.current.get(id) !== mine) return
+          // The act went through or not, and the row cannot say: it says so, and offers nothing.
+          marked(true)
+          setFailure(messageForError(cause, t))
+        },
       )
     },
     [api, t],
@@ -135,6 +156,7 @@ export function EventTakedownCard() {
                 </>
               }
               buttons={buttonsFor(row)}
+              unknown={unknown.has(row.id)}
               onDone={() => refresh(row.id)}
             />
           ))}

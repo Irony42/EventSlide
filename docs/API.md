@@ -502,7 +502,9 @@ return **ids, a status and instants, never a name, a slug, a join code or a phot
   `…/events/<slug>`, `…/join/<code>`) or an **exact** name (case-insensitive; a part of a name finds nothing, so the
   lookup cannot be used to browse names). **200** `{ "items": [ { "id", "clientId" | null, "status", "createdAt",
 "takenDownAt" | null, "purgeHeldAt" | null } ] }`, at most 20, empty for no match. **400** `siteLookup.queryInvalid`
-  for a blank or over-long (300 characters) query.
+  for a blank or over-long (300 characters) query. **429** `rate.limited` past ten lookups a minute per account or thirty
+  per client address (not configurable): a join code is a bearer credential. Each lookup logs the operator and the
+  **length** of `q`, never `q`.
 - `GET /api/site/events/:eventId` — the same row for one id; **404** `event.notFound`.
 - `GET /api/site/photos/:photoId` — `{ "id", "eventId", "takenDownAt" | null }`; **404** `photo.notFound`. It never
   reads the photograph: the answer is an event id and an instant.

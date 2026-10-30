@@ -1511,6 +1511,8 @@ export const en: UiText = {
     takedownReason: 'Reason',
     takedownReasonHint:
       'One sentence on a single line, 200 characters at most, with no e-mail address. It is written to the instance log.',
+    takedownUnknown:
+      'State unknown: the act may or may not have gone through, search again to find out.',
     takedownDone: 'Done.',
     takedownOps: {
       eventDown: {

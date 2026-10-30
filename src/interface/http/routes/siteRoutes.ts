@@ -9,6 +9,12 @@ import {
 } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireOperator, requireSecondFactor, requireStepUp } from '../middleware/authz'
+import {
+  SITE_LOOKUPS_PER_ACCOUNT_PER_MINUTE,
+  SITE_LOOKUPS_PER_ADDRESS_PER_MINUTE,
+  siteLookupAccountLimiter,
+  siteLookupAddressLimiter,
+} from '../middleware/rateLimit'
 import { userOf } from '../middleware/scope'
 import { toClientDefaultsDto } from '../presenters/clientDefaultsPresenter'
 import {
@@ -370,8 +376,18 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
    */
   router.get(
     '/events/lookup',
+    // Before the handler, and so before anything is read: a join code is a bearer credential.
+    siteLookupAddressLimiter(SITE_LOOKUPS_PER_ADDRESS_PER_MINUTE),
+    siteLookupAccountLimiter(SITE_LOOKUPS_PER_ACCOUNT_PER_MINUTE),
     asyncHandler(async (req, res) => {
       const query = siteEventLookupQuery.parse(req.query)
+
+      // One line per lookup, **who and how long, never what**: the log is not where a guessed
+      // code or a name belongs. The act is read, not written, so it is not in the audit log.
+      req.context.logger.info('an operator looked up an event', {
+        operator: userOf(req).userId,
+        queryLength: query.q.trim().length,
+      })
 
       const result = await usecases.lookupSiteEvents({ query: query.q })
 

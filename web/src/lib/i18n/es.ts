@@ -1557,6 +1557,8 @@ export const es: UiText = {
     takedownReason: 'Motivo',
     takedownReasonHint:
       'Una frase en una sola línea, de 200 caracteres como máximo, sin dirección de correo. Se escribe en el registro de la instancia.',
+    takedownUnknown:
+      'Estado desconocido: el acto puede haberse realizado o no, repita la búsqueda para saberlo.',
     takedownDone: 'Hecho.',
     takedownOps: {
       eventDown: {

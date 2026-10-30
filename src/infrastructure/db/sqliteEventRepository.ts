@@ -101,6 +101,8 @@ interface EventParams {
   readonly scheduledOpenAt: string | null
   readonly scheduledCloseAt: string | null
   readonly scheduleDiscardedAt: string | null
+  /** The lookup's index column (migration 016): `foldName` of the name. */
+  readonly nameFold: string
 }
 
 interface SummaryRow {
@@ -564,6 +566,7 @@ const toParams = (event: Event): EventParams => {
     scheduledCloseAt: props.scheduledCloseAt === null ? null : toIsoText(props.scheduledCloseAt),
     scheduleDiscardedAt:
       props.scheduleDiscardedAt === null ? null : toIsoText(props.scheduleDiscardedAt),
+    nameFold: foldName(props.name.value),
   }
 }
 
@@ -689,10 +692,10 @@ export class SqliteEventRepository implements EventRepository {
     // `ON CONFLICT` to it, so a column added to one cannot be forgotten by the other.
     const insertSql = `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
                            quota_bytes, created_at, starts_at, client_id, closed_at, opened_at,
-                           scheduled_open_at, scheduled_close_at, schedule_discarded_at)
+                           scheduled_open_at, scheduled_close_at, schedule_discarded_at, name_fold)
             VALUES (@id, @ownerId, @name, @slug, @joinCode, @status, @settings,
                     @quotaBytes, @createdAt, @startsAt, @clientId, @closedAt, @openedAt,
-                    @scheduledOpenAt, @scheduledCloseAt, @scheduleDiscardedAt)`
+                    @scheduledOpenAt, @scheduledCloseAt, @scheduleDiscardedAt, @nameFold)`
 
     this.insertEvent = db.prepare<EventParams>(insertSql)
 
@@ -715,7 +718,8 @@ export class SqliteEventRepository implements EventRepository {
                                       opened_at   = excluded.opened_at,
                                       scheduled_open_at  = excluded.scheduled_open_at,
                                       scheduled_close_at = excluded.scheduled_close_at,
-                                      schedule_discarded_at = excluded.schedule_discarded_at`,
+                                      schedule_discarded_at = excluded.schedule_discarded_at,
+                                      name_fold = excluded.name_fold`,
     )
 
     this.insertOwner = db.prepare<[string, string, string]>(
@@ -748,14 +752,22 @@ export class SqliteEventRepository implements EventRepository {
     this.updateTakenDown = db.prepare<[string | null, string]>(
       `UPDATE events SET taken_down_at = ? WHERE id = ?`,
     )
-    // SQLite's `lower()` folds ASCII only, so the lookup folds in JavaScript (`foldName`).
-    db.function('es_fold_name', { deterministic: true }, (name: unknown) =>
-      typeof name === 'string' ? foldName(name) : null,
-    )
     this.selectByName = db.prepare<[string, number], EventRow>(
-      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE es_fold_name(name) = ?
+      `SELECT ${WITH_CLIENT_STANDING} FROM events WHERE name_fold = ?
         ORDER BY created_at, id LIMIT ?`,
     )
+    // Rows that predate migration 016 have no fold, and SQL cannot compute it: fill them once, here.
+    const unfolded = db
+      .prepare<[], { readonly id: string; readonly name: string }>(
+        `SELECT id, name FROM events WHERE name_fold IS NULL`,
+      )
+      .all()
+    if (unfolded.length > 0) {
+      const fill = db.prepare<[string, string]>(`UPDATE events SET name_fold = ? WHERE id = ?`)
+      db.transaction(() => {
+        for (const row of unfolded) fill.run(foldName(row.name), row.id)
+      })()
+    }
     this.deleteUnheld = db.prepare<[string]>(
       `DELETE FROM events WHERE id = ? AND purge_held_at IS NULL`,
     )

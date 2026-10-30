@@ -3597,6 +3597,14 @@ are separate levers: the suspension still does not stop the retention clock, and
   print a name or load a thumbnail (`TakedownPage.test.tsx` reads the page for any media element or `src`). Each of the six
   acts opens a confirmation that says what it does and asks for a reason before the act is offered, then goes through the
   step-up like every write. The lookup is exact on purpose (a prefix of a name finds nothing) and answers at most twenty events.
+- **The lookup is limited, because a join code is a bearer credential.** `GET /api/site/events/lookup` turns a slug, a join
+  code or a name into an event id and a status, so an unlimited lookup from a hijacked operator session would be an oracle
+  for guessing join codes and confirming which names are events. It answers `429 rate.limited` (with `Retry-After`) past
+  **ten a minute per account** and **thirty a minute per client address**, two limiters with their own counters and no
+  setting (`siteRoutes.lookupLimit.test.ts`, one case each). Each lookup writes one log line carrying the operator's id and
+  the **length** of the query, never the query, and the reads are not in the audit log (they change nothing). The name match
+  is made on an indexed folded copy (`events.name_fold`, migration 016: case, accents and blanks folded by `foldName`),
+  written with every event and filled for older rows when the server starts, so a lookup is an index seek and not a scan.
 - **A takedown does not delete.** The bytes stay on the disk and in the backups, for the authority that asks for them
   (runbook `csam.md` §5 and §7). The backups are not held by `purge_held_at`: `restic forget` is the runbook's step.
 - **A copy already in a browser stays there.** Browsers cache media as `immutable` for a year (`Cache-Control: private, max-age=31536000, immutable`), so a device that already fetched a photograph keeps it and keeps showing it; the server cannot recall it. The wall drops it at its next read.

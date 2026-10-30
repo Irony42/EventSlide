@@ -25,6 +25,11 @@ export interface TakedownRowProps {
     readonly tone: 'danger' | 'success' | 'warning'
   }[]
   readonly buttons: readonly TakedownButton[]
+  /**
+   * The state on screen could not be read back after an act, so it is not shown and no act is
+   * offered: a stale badge is worse than none.
+   */
+  readonly unknown?: boolean
   /** Called once an act went through, so the card can read the new state back. */
   readonly onDone: () => void
 }
@@ -34,7 +39,15 @@ export interface TakedownRowProps {
  * is in and the acts that apply to that state, each asking for a reason in a confirmation that says
  * what it will do. **No content**: a heading made of an id, badges for the state, and buttons.
  */
-export function TakedownRow({ heading, id, details, states, buttons, onDone }: TakedownRowProps) {
+export function TakedownRow({
+  heading,
+  id,
+  details,
+  states,
+  buttons,
+  unknown = false,
+  onDone,
+}: TakedownRowProps) {
   const t = useTranslations()
   const api = useApi()
   const toast = useToast()
@@ -75,27 +88,32 @@ export function TakedownRow({ heading, id, details, states, buttons, onDone }: T
       <h3 id={headingId} className={styles['heading']}>
         {heading}
       </h3>
-      <p className={styles['states']}>
-        {states.map((state) => (
-          <Badge key={state.label} tone={state.tone}>
-            {state.label}
-          </Badge>
-        ))}
-      </p>
+      {unknown ? <p role="status">{t.site.takedownUnknown}</p> : null}
+      {unknown ? null : (
+        <p className={styles['states']}>
+          {states.map((state) => (
+            <Badge key={state.label} tone={state.tone}>
+              {state.label}
+            </Badge>
+          ))}
+        </p>
+      )}
       {details === undefined ? null : <p className={styles['details']}>{details}</p>}
-      <div className={styles['actions']}>
-        {buttons.map((button) => (
-          <Button
-            key={button.op}
-            variant="secondary"
-            disabled={act.busy}
-            aria-describedby={headingId}
-            onClick={() => setAsked(button.op)}
-          >
-            {button.label}
-          </Button>
-        ))}
-      </div>
+      {unknown ? null : (
+        <div className={styles['actions']}>
+          {buttons.map((button) => (
+            <Button
+              key={button.op}
+              variant="secondary"
+              disabled={act.busy}
+              aria-describedby={headingId}
+              onClick={() => setAsked(button.op)}
+            >
+              {button.label}
+            </Button>
+          ))}
+        </div>
+      )}
       <ReasonDialog
         // Remounted for each act, so a reason typed for one is never sent for another.
         key={asked ?? 'closed'}

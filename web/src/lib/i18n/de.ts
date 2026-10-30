@@ -1574,6 +1574,8 @@ export const de: UiText = {
     takedownReason: 'Grund',
     takedownReasonHint:
       'Ein Satz in einer Zeile, höchstens 200 Zeichen, ohne E-Mail-Adresse. Er wird im Protokoll der Instanz festgehalten.',
+    takedownUnknown:
+      'Zustand unbekannt: Die Handlung ist möglicherweise erfolgt, suchen Sie erneut, um es zu erfahren.',
     takedownDone: 'Erledigt.',
     takedownOps: {
       eventDown: {

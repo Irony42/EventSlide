@@ -2159,6 +2159,8 @@ export const fr = {
     takedownReason: 'Motif',
     takedownReasonHint:
       'Une phrase sur une seule ligne, de 200 caractères au plus, sans adresse e-mail. Elle est écrite au journal de l’instance.',
+    takedownUnknown:
+      'État inconnu : l’acte est passé ou non, relancez la recherche pour le savoir.',
     takedownDone: 'C’est fait.',
     takedownOps: {
       eventDown: {
