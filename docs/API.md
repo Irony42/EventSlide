@@ -1142,6 +1142,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "event": { "slug": "camille-et-sacha", "name": "Camille & Sacha" },
   "joinCode": "H7K2QM",
   "joinUrl": "https://photos.example.com/join/H7K2QM",
+  "acceptsGuests": true,
   "revision": "1f3k9a2",
   "items": [
     {
@@ -1247,6 +1248,16 @@ TLS-terminating proxy printed plain `http`, on which the `Secure` guest cookie i
 sent. Both cases read correctly on screen — the six characters underneath were right the
 whole time — which is §9 trap 1 of CLAUDE.md with a different mismatch. A client that
 receives `joinCode` without `joinUrl` shows no QR rather than inventing one.
+
+`acceptsGuests` says whether the room may still be **invited**: `true` while the event is `live`, `false`
+once it is `closed` (a draft or an archived event is not served at all, so the wall never sees those).
+It is the domain's `acceptsGuests(status)`, the rule `POST /api/join` applies, so the screen and the
+join cannot disagree. A closed event keeps its wall, but a QR on it leads to "not open": when this is
+`false` the projector draws **neither the join card and its code, nor the host's missions** (they ask
+for a photograph that can no longer be sent), and `joinCode` and `joinUrl` stay on the response
+unchanged. It is compared like every setting, so a host closing the evening reaches a running projector
+on the `event.statusChanged` refetch without a reload. A client that does not receive the field treats
+the event as open.
 
 `authorName` is the name the guest typed at `POST /api/join` — the one thing they
 supplied for exactly this purpose — and it is `null` whenever there is nobody to name: an

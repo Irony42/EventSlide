@@ -254,6 +254,16 @@ export interface WallResponse {
    * cards, and a QR pointing somewhere wrong is a guest's evening lost in silence.
    */
   readonly joinUrl?: string
+  /**
+   * Whether the room may still be invited to send photos — true only while the event is
+   * live. False once the host has closed it: the wall keeps playing, but the QR, the code
+   * and the missions come off it, because every one of them asks for a photo that can no
+   * longer be sent.
+   *
+   * Optional for the reason `joinCode` is: a server build that predates the field must not
+   * crash the projector, and it reads as "still open", which is how that wall behaved.
+   */
+  readonly acceptsGuests?: boolean
   /** Order-sensitive fingerprint of `items`; unchanged means the playlist did not move. */
   readonly revision: string
   readonly items: readonly WallItemDto[]
