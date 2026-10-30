@@ -8,6 +8,7 @@ import { es } from '../../lib/i18n/es'
 import { fr } from '../../lib/i18n/fr'
 import { it as italian } from '../../lib/i18n/it'
 import type { Locale } from '../../lib/i18n/locale'
+import type { UiText } from '../../lib/i18n/translations'
 import type { WallItemDto, WallLayout, WallResponse } from '../../lib/api/dto'
 import {
   aWallItem,
@@ -30,7 +31,7 @@ import styles from './WallPage.module.css'
  */
 
 /** Every language the wall speaks: a shortcut missing from one of them is a host who never learns it. */
-const LOCALE_TABLES: readonly (readonly [Locale, typeof fr])[] = [
+const LOCALE_TABLES: readonly (readonly [Locale, UiText])[] = [
   ['fr', fr],
   ['en', en],
   ['de', de],
@@ -392,8 +393,9 @@ describe('WallPage', () => {
      * streams leaves it down all night), so the wall below answers once and then fails.
      */
     const theDot = (): HTMLElement => screen.getByTestId('wall-outage-dot')
-    const noDot = (): void =>
+    const noDot = (): void => {
       expect(screen.queryByTestId('wall-outage-dot')).not.toBeInTheDocument()
+    }
     /** The sentence, as opposed to the dot's own text, which is only for assistive technology. */
     const theSentence = (): HTMLElement | null =>
       screen.queryByText(fr.wall.offline, { selector: 'p' })
