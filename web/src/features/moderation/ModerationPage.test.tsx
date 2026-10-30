@@ -285,6 +285,25 @@ describe('ModerationPage', () => {
       expect(buttonNames(card)).toEqual([fr.moderation.publishAnywayPhoto('Léa')])
     })
 
+    it('offers no decision, and does not crash, on a row from a server that does not say (absent allowedDecisions)', async () => {
+      // A console bundle that outlives a server rollback reads rows without the field.
+      // Every button list used to map over it and the tab threw a TypeError.
+      const { allowedDecisions: absent, ...bare } = lea()
+      void absent
+      renderConsole(
+        fakeApi({
+          moderationQueue: vi.fn(async () => queueOf([bare as unknown as ModerationPhotoDto])),
+        }),
+      )
+      const card = await screen.findByTestId('moderation-card')
+
+      expect(buttonNames(card)).toEqual([])
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.moderation.enlargePhoto('Léa') }),
+      )
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    })
+
     it('shows exactly what the row says, whatever its status', async () => {
       // The console holds no table of its own: a row the server allows one thing on has
       // that button alone, which is what proves the card reads the row and not the status.
@@ -553,6 +572,79 @@ describe('ModerationPage', () => {
 
       expect(screen.queryByRole('dialog')).toBeNull()
       expect(api.moderateBulk).toHaveBeenCalled()
+    })
+
+    it('asks before refusing three hidden photos, which no notice takes back', async () => {
+      // A refused photo may only return to the wall, so refusing a hidden one has no undo.
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () =>
+          queueOf(threeWaiting().map((photo) => aModerationPhoto({ ...photo, status: 'hidden' }))),
+        ),
+      })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(3) }))
+
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(api.moderateBulk).not.toHaveBeenCalled()
+    })
+
+    it('does not refuse a photo another moderator took off the queue while the question was open', async () => {
+      let round = 0
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => {
+          round += 1
+          const all = threeWaiting()
+          return queueOf(round === 1 ? all : [all[0]!, all[2]!])
+        }),
+        moderateBulk: vi.fn(async () => ({ applied: ['photo-1', 'photo-3'], skipped: [] })),
+      })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(3) }))
+      const dialog = await screen.findByRole('dialog')
+      emitSignal('photo.moderated')
+      await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
+      await act(async () => {})
+
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: fr.moderation.confirmRejectLabel(3) }),
+      )
+
+      expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1', 'photo-3'], 'reject')
+    })
+
+    it('does not refuse a photo another moderator published while the question was open', async () => {
+      let round = 0
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => {
+          round += 1
+          const all = threeWaiting()
+          return queueOf(
+            round === 1
+              ? all
+              : [all[0]!, aModerationPhoto({ ...all[1]!, status: 'published' }), all[2]!],
+          )
+        }),
+        moderateBulk: vi.fn(async () => ({ applied: ['photo-1', 'photo-3'], skipped: [] })),
+      })
+      renderConsole(api)
+      await screen.findAllByTestId('moderation-card')
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
+      await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(3) }))
+      const dialog = await screen.findByRole('dialog')
+      emitSignal('photo.moderated')
+      await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
+      await act(async () => {})
+
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: fr.moderation.confirmRejectLabel(3) }),
+      )
+
+      expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1', 'photo-3'], 'reject')
     })
 
     it('keeps the shortcuts quiet while the question is open', async () => {

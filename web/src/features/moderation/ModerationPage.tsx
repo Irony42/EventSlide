@@ -17,7 +17,7 @@ import { useModerationQueue } from './hooks/useModerationQueue'
 import { useModerationShortcuts } from './hooks/useModerationShortcuts'
 import { needsRejectConfirmation } from './hooks/rejectConfirmation'
 import { useQueueSelection } from './hooks/useQueueSelection'
-import type { ModerationDecision } from '../../lib/api/dto'
+import type { ModerationDecision, ModerationPhotoDto } from '../../lib/api/dto'
 import styles from './ModerationPage.module.css'
 
 /**
@@ -54,7 +54,9 @@ export function ModerationPage() {
   )
   const [lightboxOpen, setLightboxOpen] = useState(false)
   /** The photos a bulk refusal is waiting on the host's answer about. */
-  const [confirmingReject, setConfirmingReject] = useState<readonly string[] | null>(null)
+  const [confirmingReject, setConfirmingReject] = useState<
+    readonly Pick<ModerationPhotoDto, 'id' | 'status'>[] | null
+  >(null)
 
   const focused = queue.items.find((item) => item.id === selection.focusedId) ?? null
 
@@ -80,7 +82,7 @@ export function ModerationPage() {
     // MOD-9: a refusal of waiting photos is final and their guests see it, so a screenful
     // of them is asked about first — a stray R or the red button beside "Publier (30)".
     if (decision === 'reject' && needsRejectConfirmation(chosen)) {
-      setConfirmingReject(chosen.map((item) => item.id))
+      setConfirmingReject(chosen.map(({ id, status }) => ({ id, status })))
       return
     }
     runBulk(selection.selectedIds, decision)
@@ -223,7 +225,18 @@ export function ModerationPage() {
         confirmLabel={t.moderation.confirmRejectLabel(confirmingReject?.length ?? 0)}
         onCancel={() => setConfirmingReject(null)}
         onConfirm={() => {
-          if (confirmingReject !== null) runBulk(confirmingReject, 'reject')
+          if (confirmingReject !== null) {
+            // The dialog was open while the queue kept moving: another moderator may have
+            // published or refused some of these in the meantime, and the host agreed to
+            // refuse photos as they were, not as they have become.
+            const unchanged = confirmingReject
+              .filter(({ id, status }) =>
+                queue.items.some((item) => item.id === id && item.status === status),
+              )
+              .map(({ id }) => id)
+            if (unchanged.length > 0) runBulk(unchanged, 'reject')
+            else selection.clear()
+          }
           setConfirmingReject(null)
         }}
       />
