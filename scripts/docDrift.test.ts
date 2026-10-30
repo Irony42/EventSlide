@@ -67,10 +67,11 @@ describe('docs/SECURITY.md', () => {
     expect(row).toContain(defaultValue as string)
   })
 
-  it('lists all seven event-unscoped repository methods, not five', () => {
-    expect(security).toMatch(/seven methods/i)
+  it('lists all eight event-unscoped repository methods, not five', () => {
+    expect(security).toMatch(/eight methods/i)
     expect(security).toContain('deleteStaleReservations')
     expect(security).toContain('listEvents')
+    expect(security).toContain('PhotoRepository.locate')
   })
 })
 

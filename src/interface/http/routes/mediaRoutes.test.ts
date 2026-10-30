@@ -692,24 +692,15 @@ describe('GET /events/:eventSlug/photos/:photoId/:variant: an event whose client
     expect(response.body.error.code).toBe('event.notFound')
   })
 
-  it('still serves a moderator of the event the bytes of its photographs', async () => {
+  it('no longer serves a moderator of the event the bytes of its photographs, and says why (launch review S5)', async () => {
     const agent = await signedIn(world, 'host')
 
-    const response = await agent.get(mediaPath(FROZEN_PHOTO, 'thumb', 'gele')).responseType('blob')
+    for (const range of [undefined, 'bytes=0-1']) {
+      const request = agent.get(mediaPath(FROZEN_PHOTO, 'thumb', 'gele'))
+      const response = await (range === undefined ? request : request.set('Range', range))
 
-    expect(response.status).toBe(200)
-    expect([...response.body]).toEqual([...JPEG])
-  })
-
-  it('still honours a Range from a moderator of the event', async () => {
-    const agent = await signedIn(world, 'host')
-
-    const response = await agent
-      .get(mediaPath(FROZEN_PHOTO, 'thumb', 'gele'))
-      .set('Range', 'bytes=0-1')
-      .responseType('blob')
-
-    expect(response.status).toBe(206)
-    expect(response.headers['content-range']).toBe('bytes 0-1/3')
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('client.suspended')
+    }
   })
 })

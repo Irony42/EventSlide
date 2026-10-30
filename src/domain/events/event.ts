@@ -97,6 +97,20 @@ export interface EventProps {
    * serves a guest or a projector reads an event any other way.
    */
   readonly clientSuspendedAt?: Date | null
+  /**
+   * When the operator took this event down, or `null` (the default) while it is up — **read-only
+   * here and never saved by `EventRepository.save`** (launch review S5; docs/SECURITY.md §25).
+   * An event that is down is answered as an event that does not exist by every surface that
+   * serves it, a member's included (`isTakenDown`). Only `EventRepository.setTakenDown` writes it,
+   * so a host's `save` of a copy read earlier cannot lift it.
+   */
+  readonly takenDownAt?: Date | null
+  /**
+   * When the operator put a purge hold on this event, or `null` (the default) — read-only here
+   * and never saved by `save`, for the reason above. A held event is skipped by the retention
+   * sweep and is not purged, nor has a photograph deleted, by its host (`isPurgeHeld`).
+   */
+  readonly purgeHeldAt?: Date | null
 }
 
 /**
@@ -292,6 +306,32 @@ export class Event {
    */
   isClientSuspended(): boolean {
     return this.clientSuspendedAt !== null
+  }
+
+  get takenDownAt(): Date | null {
+    return this.props.takenDownAt ?? null
+  }
+
+  get purgeHeldAt(): Date | null {
+    return this.props.purgeHeldAt ?? null
+  }
+
+  /**
+   * Whether the operator took this event down (launch review S5). Unlike a suspension it ends
+   * **every** surface, a member's included: nobody who is not the operator reads, writes or is
+   * told anything about it, and the answer is the one an unknown event gets.
+   */
+  isTakenDown(): boolean {
+    return this.takenDownAt !== null
+  }
+
+  /**
+   * Whether the operator holds this event's purge, to preserve evidence. Asked by the retention
+   * sweep's query (in SQL, so a held event is never even listed) and by every use case that
+   * would destroy something of the event's: the host's purge and the deletion of a photograph.
+   */
+  isPurgeHeld(): boolean {
+    return this.purgeHeldAt !== null
   }
 
   // ----------------------------------------------------------------- lifecycle --
@@ -601,7 +641,7 @@ export class Event {
    * (`requireGuest`), so this is the second line, for a caller that reaches a use case another way.
    */
   acceptsUploads(): boolean {
-    return !this.isClientSuspended() && acceptsUploads(this.props.status)
+    return !this.isTakenDown() && !this.isClientSuspended() && acceptsUploads(this.props.status)
   }
 
   /**
@@ -611,11 +651,12 @@ export class Event {
    * dead end as a code nobody ever issued, and says nothing that confirms the event exists.
    */
   acceptsGuests(): boolean {
-    return !this.isClientSuspended() && acceptsGuests(this.props.status)
+    return !this.isTakenDown() && !this.isClientSuspended() && acceptsGuests(this.props.status)
   }
 
+  /** The lifecycle serves the wall **and the operator has not taken the event down**. */
   servesWall(): boolean {
-    return servesWall(this.props.status)
+    return !this.isTakenDown() && servesWall(this.props.status)
   }
 
   /**

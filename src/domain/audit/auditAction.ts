@@ -97,6 +97,27 @@ export const AUDIT_ACTIONS = {
    * itself is gone. The subject is now a pseudonym, and the entry is written by `system`.
    */
   'client.finalized': { subject: 'client', details: {} },
+  /**
+   * An operator took one photograph down by its id, **without opening it** (`setPhotoTakedown`,
+   * launch review S5 / G8-03). The subject is the photograph's opaque id; the entry carries no
+   * client id, so it is **not** in the client-readable trail (the runbook's "do not tip the host
+   * off"), and `reason` is the operator's own bounded sentence, mandatory like a ceiling's.
+   */
+  'photo.takenDown': { subject: 'photo', details: { reason: detail.reason } },
+  /** An operator put a taken-down photograph back (`setPhotoTakedown`). Same shape and visibility. */
+  'photo.restored': { subject: 'photo', details: { reason: detail.reason } },
+  /** An operator took a whole event down (`setEventTakedown`), by its id. Same shape and visibility. */
+  'event.takenDown': { subject: 'event', details: { reason: detail.reason } },
+  /** An operator put a taken-down event back (`setEventTakedown`). */
+  'event.restored': { subject: 'event', details: { reason: detail.reason } },
+  /**
+   * An operator held an event's purge, to preserve evidence (`setEventPurgeHold`): the retention
+   * sweep skips it and neither its host's purge nor the deletion of one of its photographs goes
+   * through. Independent of a takedown.
+   */
+  'event.purgeHeld': { subject: 'event', details: { reason: detail.reason } },
+  /** An operator released that hold (`setEventPurgeHold`): the event is purged at its deadline again. */
+  'event.purgeReleased': { subject: 'event', details: { reason: detail.reason } },
   /** An operator lifted a suspension (`resumeClient`, G2-14). */
   'client.resumed': { subject: 'client', details: {} },
   /**

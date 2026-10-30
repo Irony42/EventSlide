@@ -2,21 +2,24 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { makeGetTopPhotos, type GetTopPhotos } from './getTopPhotos'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import { asEventId } from '../../../domain/shared/ids'
-import { aPhoto, aReaction } from '../../testing/builders'
+import { AT, anEvent, aPhoto, aReaction } from '../../testing/builders'
+import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
 
 const EVENT = asEventId('event-1')
 
 describe('getTopPhotos', () => {
+  let events: FakeEventRepository
   let photos: FakePhotoRepository
   let reactions: FakeReactionRepository
   let getTopPhotos: GetTopPhotos
 
   beforeEach(() => {
+    events = new FakeEventRepository().seed(anEvent({ id: 'event-1', slug: 'event-1' }))
     photos = new FakePhotoRepository()
     reactions = new FakeReactionRepository()
-    getTopPhotos = makeGetTopPhotos({ photos, reactions })
+    getTopPhotos = makeGetTopPhotos({ events, photos, reactions })
   })
 
   const seedTwoPublished = (): void => {
@@ -27,6 +30,27 @@ describe('getTopPhotos', () => {
   }
 
   const rank = (limit = 5): ReturnType<GetTopPhotos> => getTopPhotos({ eventId: EVENT, limit })
+
+  it('reads nothing of an event that is not there, is taken down, or whose client is suspended', async () => {
+    seedTwoPublished()
+    reactions.seed(aReaction({ id: 'reaction-1', photoId: 'photo-1', guestId: 'guest-1' }))
+
+    const unknown = await getTopPhotos({ eventId: asEventId('ghost'), limit: 5 })
+    await events.setTakenDown(EVENT, AT)
+    const down = await rank()
+    await events.setTakenDown(EVENT, null)
+    const frozen = await makeGetTopPhotos({
+      events: new FakeEventRepository().seed(
+        anEvent({ id: 'event-1', slug: 'event-1', clientSuspendedAt: AT }),
+      ),
+      photos,
+      reactions,
+    })({ eventId: EVENT, limit: 5 })
+
+    expect(!unknown.ok && unknown.error.code).toBe('event.notFound')
+    expect(!down.ok && down.error.code).toBe('event.notFound')
+    expect(!frozen.ok && frozen.error.code).toBe('client.suspended')
+  })
 
   it('ranks the most reacted-to photo first', async () => {
     seedTwoPublished()

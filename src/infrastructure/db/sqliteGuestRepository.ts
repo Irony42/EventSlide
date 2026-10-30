@@ -93,7 +93,8 @@ const SELECT_GUEST = `
          (SELECT COUNT(*)
             FROM photos p
            WHERE p.event_id        = g.event_id
-             AND p.author_guest_id = g.id) AS photo_count
+             AND p.author_guest_id = g.id
+             AND p.taken_down_at IS NULL) AS photo_count
     FROM guests g
 `
 

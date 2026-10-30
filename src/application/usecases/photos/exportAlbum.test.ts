@@ -7,7 +7,8 @@ import {
   MEDIA_VARIANTS,
   type PhotoVariant,
 } from '../../ports/mediaStore'
-import { aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
+import { Event } from '../../../domain/events/event'
+import { AT, aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { CapturingLogger } from '../../testing/capturingLogger'
@@ -281,5 +282,23 @@ describe('exportAlbum', () => {
 
     expect(bytes).toBe(0)
     expect(archive.entries).toEqual([])
+  })
+
+  it('exports nothing of an event the operator took down, or of a suspended client (launch review S5)', async () => {
+    await events.setTakenDown(asEventId('event-1'), AT)
+    const down = await exportAlbum({ eventId: asEventId('event-1') })
+    await events.setTakenDown(asEventId('event-1'), null)
+    const frozen = await makeExportAlbum({
+      events: new FakeEventRepository().seed(
+        Event.restore({ ...anEvent({ id: 'event-1' }).toProps(), clientSuspendedAt: AT }),
+      ),
+      photos,
+      media,
+      archive,
+      logger,
+    })({ eventId: asEventId('event-1') })
+
+    expect(!down.ok && down.error.code).toBe('event.notFound')
+    expect(!frozen.ok && frozen.error.code).toBe('client.suspended')
   })
 })

@@ -38,22 +38,28 @@ export const makePurgeEvent =
     const writable = requireWritable(event)
     if (!writable.ok) return writable
 
-    // Media first, row second, and the order is the whole point. The row is the only
-    // record that this event's bytes exist: delete it first and a failure here leaves
-    // gigabytes on the disk with nothing left to find them by. This way a failure
-    // leaves a purge that can simply be run again.
+    // The operator holds this event's purge, to preserve evidence (launch review S5). The refusal is
+    // **the failure a purge can already end in** (`event.mediaPurgeFailed`), not a code that exists
+    // only under a hold: the host is not told why (runbook csam.md). The operator-side meaning is
+    // in the audit log (`event.purgeHeld`).
+    const unavailable = (): Result<never, DomainError> =>
+      err(DomainError.unexpected('event.mediaPurgeFailed'))
+    if (event.isPurgeHeld()) return unavailable()
+
+    // **The row first, conditionally, then the bytes.** The check above is a read; a hold set
+    // after it must still win, so the delete refuses a held row in the same statement and the
+    // bytes are only touched once it answered `true`: the files of a held event are never
+    // removed, whatever happened since. One statement: `ON DELETE CASCADE` removes the photos,
+    // guests, reactions and memberships in the same transaction.
+    if (!(await events.deleteUnlessHeld(event.id))) return unavailable()
+
     try {
       await media.deleteEvent(event.id)
     } catch {
-      // A read-only media root or a disk that went away. Reported rather than thrown so
-      // the retention job can move on to the next event, and so the row survives to be
-      // purged again.
+      // A read-only media root or a disk that went away. The row is already gone, so the bytes are
+      // left for `sweepOrphanedMedia`, which collects what no row names once it is old enough.
       return err(DomainError.unexpected('event.mediaPurgeFailed'))
     }
-
-    // One statement: `ON DELETE CASCADE` removes the photos, guests, reactions and
-    // memberships in the same transaction.
-    await events.delete(event.id)
 
     return ok(undefined)
   }

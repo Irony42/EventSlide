@@ -114,6 +114,10 @@ export const makeSetVenuePhoto = ({
     const writable = requireWritable(event)
     if (!writable.ok) return writable
 
+    // A held event keeps every file it has, the venue photograph's included (launch review S5).
+    // Answered with a failure the host can already get, not one that exists only under a hold.
+    if (event.isPurgeHeld()) return err(DomainError.unexpected('venuePhoto.saveFailed'))
+
     const probed = await imageProcessor.probe(bytes)
     if (!probed.ok) return probed
     if (probed.value.dimensions.exceedsPixelBudget(limits.maxPixels)) {

@@ -106,7 +106,7 @@ export const makeAuthenticateGuest =
     const event = await events.findBySlug(slug.value)
     // A suspended client's event is **the same 404 as an unknown one** (roadmap §10.7; G2-14): a
     // token that worked yesterday tells the holder nothing today.
-    if (event === null || event.isClientSuspended()) {
+    if (event === null || event.isClientSuspended() || event.isTakenDown()) {
       return err(DomainError.notFound('event.notFound'))
     }
 

@@ -283,6 +283,18 @@ describe('transcodeNextClip', () => {
       expect(clips.all[0]?.status).toBe('done')
     })
 
+    it('recognises a photograph the operator took down as already written, and encodes nothing (launch review S5)', async () => {
+      seedEvent()
+      await stage()
+      photos.seed(aPhoto({ id: 'clip-job-1-photo', eventId: 'event-1', clip: {} }))
+      await photos.setTakenDown(EVENT, asPhotoId('clip-job-1-photo'), AT)
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind === 'transcoded' && result.value.recovered).toBe(true)
+      expect(transcoder.calls).toEqual([])
+    })
+
     it('releases the staged source of a job it recovered', async () => {
       seedEvent()
       await stage()

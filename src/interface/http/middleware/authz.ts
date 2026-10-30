@@ -414,6 +414,12 @@ export const requireRole = (required: EventRole, deps: HttpDeps): RequestHandler
       return
     }
 
+    // Taken down by the operator (launch review S5): an event that is not there, to its members too.
+    if (event.isTakenDown()) {
+      sendError(res, DomainError.notFound('event.notFound'))
+      return
+    }
+
     const role = await deps.memberships.roleFor(event.id, user.userId)
     if (role === null) {
       sendError(res, DomainError.notFound('event.notFound'))

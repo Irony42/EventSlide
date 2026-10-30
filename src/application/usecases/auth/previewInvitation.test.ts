@@ -281,6 +281,16 @@ describe('previewInvitation', () => {
     })
   })
 
+  it('answers invitation.notFound for a moderator invitation to an event the operator took down (launch review S5)', async () => {
+    const { token } = await world.invite()
+    await world.events.setTakenDown(asEventId(EVENT_ID), AT)
+
+    expect(await preview({ token })).toMatchObject({
+      ok: false,
+      error: expect.objectContaining({ kind: 'notFound', code: 'invitation.notFound' }),
+    })
+  })
+
   describe('the authority of whoever wrote an invitation to an event', () => {
     it('is read now, not when the link was written: an owner who was removed no longer invites', async () => {
       const { token } = await world.invite()

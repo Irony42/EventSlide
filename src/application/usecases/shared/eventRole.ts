@@ -93,5 +93,26 @@ export const requireEditable = (event: Event): Result<Event, DomainError> =>
  * entity answers (`isClientSuspended`); this says how the refusal is shaped, once, with the code
  * the wire has always carried: `403 client.suspended`.
  */
-export const requireWritable = (event: Event): Result<Event, DomainError> =>
-  event.isClientSuspended() ? err(DomainError.forbidden('client.suspended')) : ok(event)
+export const requireWritable = (event: Event): Result<Event, DomainError> => {
+  // The operator took the event down: nobody holding it is told anything but "not there".
+  if (event.isTakenDown()) return err(DomainError.notFound('event.notFound'))
+  return event.isClientSuspended() ? err(DomainError.forbidden('client.suspended')) : ok(event)
+}
+
+/**
+ * What a member may read of an event's **photographs**: the grid, the queue, the album, the top
+ * of the reactions, a photograph's bytes (launch review S5). Asked after the role, like
+ * `requireWritable`.
+ *
+ * - An event the operator took down is `404 event.notFound`, to a member too, and says nothing
+ *   about why (the host may be the person concerned).
+ * - A **suspended client's members no longer read photographs**: they used to ("members keep
+ *   their reads"), which left the host of a frozen client looking at the very content that
+ *   caused the freeze. They keep the rest of their account (the dashboard, the settings, the
+ *   counts, the audit trail) and are told why with the code the wire already carries,
+ *   `403 client.suspended`.
+ */
+export const requireReadable = (event: Event): Result<Event, DomainError> => {
+  if (event.isTakenDown()) return err(DomainError.notFound('event.notFound'))
+  return event.isClientSuspended() ? err(DomainError.forbidden('client.suspended')) : ok(event)
+}

@@ -66,6 +66,10 @@ export interface FakeEventRepositoryLinks {
 export class FakeEventRepository implements EventRepository {
   private readonly rows = new Map<EventId, Event>()
 
+  /** The operator's two levers, kept beside the rows because `save` never writes them. */
+  private readonly takenDown = new Map<EventId, Date>()
+  private readonly purgeHeld = new Map<EventId, Date>()
+
   constructor(private readonly links: FakeEventRepositoryLinks = {}) {}
 
   /** Enforces the same uniqueness `save` does: a colliding fixture is a broken test. */
@@ -134,9 +138,33 @@ export class FakeEventRepository implements EventRepository {
   private withClientStanding(event: Event | undefined): Event | null {
     if (event === undefined) return null
     const clientId = event.clientId
-    if (clientId === null || this.links.clients === undefined) return event
+    const levers = {
+      takenDownAt: this.takenDown.get(event.id) ?? null,
+      purgeHeldAt: this.purgeHeld.get(event.id) ?? null,
+    }
+    if (clientId === null || this.links.clients === undefined) {
+      return Event.restore({ ...event.toProps(), ...levers })
+    }
     const suspendedAt = this.links.clients.peek(clientId)?.suspendedAt ?? null
-    return Event.restore({ ...event.toProps(), clientSuspendedAt: suspendedAt })
+    return Event.restore({ ...event.toProps(), ...levers, clientSuspendedAt: suspendedAt })
+  }
+
+  async setTakenDown(id: EventId, at: Date | null): Promise<void> {
+    if (!this.rows.has(id)) return
+    if (at === null) this.takenDown.delete(id)
+    else this.takenDown.set(id, at)
+  }
+
+  async deleteUnlessHeld(id: EventId): Promise<boolean> {
+    if (!this.rows.has(id) || this.purgeHeld.has(id)) return false
+    await this.delete(id)
+    return true
+  }
+
+  async setPurgeHeld(id: EventId, at: Date | null): Promise<void> {
+    if (!this.rows.has(id)) return
+    if (at === null) this.purgeHeld.delete(id)
+    else this.purgeHeld.set(id, at)
   }
 
   async listByClient(clientId: ClientId): Promise<readonly Event[]> {
@@ -180,6 +208,7 @@ export class FakeEventRepository implements EventRepository {
 
     const visible = [...this.rows.values()]
       .filter((event) => event.ownerId === userId || memberOf.has(event.id))
+      .filter((event) => !this.takenDown.has(event.id))
       .sort(newestFirst)
 
     return Promise.all(visible.map((event) => this.summarise(event)))
@@ -305,6 +334,8 @@ export class FakeEventRepository implements EventRepository {
    *  creation counter, exactly as the adapter does not. */
   async delete(id: EventId): Promise<void> {
     this.rows.delete(id)
+    this.takenDown.delete(id)
+    this.purgeHeld.delete(id)
     this.links.clients?.unlinkEvent(id)
   }
 
@@ -324,6 +355,8 @@ export class FakeEventRepository implements EventRepository {
    */
   async listDueForPurge(now: Date, policy: PurgePolicy): Promise<readonly Event[]> {
     const due = [...this.rows.values()].filter((event) => {
+      // The adapter's `purge_held_at IS NULL`: a held event is never due, whatever its deadline.
+      if (this.purgeHeld.has(event.id)) return false
       const client =
         event.clientId === null ? null : (this.requireClients().peek(event.clientId) ?? null)
       const deadline = purgeDeadline(event, client, policy.capNoticeDays)

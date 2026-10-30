@@ -26,6 +26,9 @@ import { makeDeleteAccount } from '../../../application/usecases/site/deleteAcco
 import { SqliteAccountHoldings } from '../../../infrastructure/db/sqliteAccountHoldings'
 import { makeSetClientCeilings } from '../../../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../../../application/usecases/clients/suspendClient'
+import { makeSetEventPurgeHold } from '../../../application/usecases/site/setEventPurgeHold'
+import { makeSetEventTakedown } from '../../../application/usecases/site/setEventTakedown'
+import { makeSetPhotoTakedown } from '../../../application/usecases/site/setPhotoTakedown'
 import { makeListSiteAccounts } from '../../../application/usecases/site/listSiteAccounts'
 import { makeListSiteAudit } from '../../../application/usecases/site/listSiteAudit'
 import { makeListSiteClientEvents } from '../../../application/usecases/site/listSiteClientEvents'
@@ -33,6 +36,7 @@ import { makeListSiteClients } from '../../../application/usecases/site/listSite
 import type { Logger } from '../../../application/ports/logger'
 import type { Mailer } from '../../../application/ports/mailer'
 import { AT } from '../../../application/testing/builders'
+import { RecordingEventBus } from '../../../application/testing/recordingEventBus'
 import { FakeClock } from '../../../application/testing/fakeClock'
 import { FakeMailer } from '../../../application/testing/fakeMailer'
 import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
@@ -168,6 +172,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const db = migratedDb()
   const world = sqliteWorld(db)
   const clock = new FakeClock(AT)
+  const bus = new RecordingEventBus()
 
   const users = new SqliteUserRepository(db)
   const clients = new SqliteClientRepository(db)
@@ -233,6 +238,9 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       setClientCeilings: makeSetClientCeilings({ clients, audit, clock }),
       suspendClient: makeSuspendClient({ clients, audit, clock }),
       resumeClient: makeResumeClient({ clients, audit, clock }),
+      setPhotoTakedown: makeSetPhotoTakedown({ photos, audit, bus, clock }),
+      setEventTakedown: makeSetEventTakedown({ events, audit, bus, clock }),
+      setEventPurgeHold: makeSetEventPurgeHold({ events, audit, clock }),
       offboardClient: makeOffboardClient({ clients, events, audit, clock }),
       disableAccount: makeDisableAccount({ users, clients, audit, clock }),
       enableAccount: makeEnableAccount({ users, clients, audit, clock }),

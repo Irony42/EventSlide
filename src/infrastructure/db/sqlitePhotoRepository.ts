@@ -1,6 +1,7 @@
 import type {
   PhotoAdmission,
   PhotoAdmissionLimits,
+  PhotoLocation,
   PhotoPage,
   PhotoQuery,
   PhotoRepository,
@@ -425,11 +426,31 @@ export class SqlitePhotoRepository implements PhotoRepository {
   async findById(eventId: EventId, photoId: PhotoId): Promise<Photo | null> {
     const row = this.db
       .prepare<[string, string], PhotoRow>(
-        `SELECT ${PHOTO_COLUMNS} FROM photos WHERE event_id = ? AND id = ?`,
+        `SELECT ${PHOTO_COLUMNS} FROM photos
+          WHERE event_id = ? AND id = ? AND taken_down_at IS NULL`,
       )
       .get(eventId, photoId)
 
     return row === undefined ? null : toPhoto(row)
+  }
+
+  async locate(photoId: PhotoId): Promise<PhotoLocation | null> {
+    const row = this.db
+      .prepare<[string], { readonly event_id: string; readonly taken_down_at: string | null }>(
+        `SELECT event_id, taken_down_at FROM photos WHERE id = ?`,
+      )
+      .get(photoId)
+    return row === undefined
+      ? null
+      : { eventId: asEventId(row.event_id), takenDownAt: fromNullableIsoText(row.taken_down_at) }
+  }
+
+  async setTakenDown(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<void> {
+    this.db
+      .prepare<[string | null, string, string]>(
+        `UPDATE photos SET taken_down_at = ? WHERE event_id = ? AND id = ?`,
+      )
+      .run(at === null ? null : toIsoText(at), eventId, photoId)
   }
 
   async findByContentHash(eventId: EventId, hash: ContentHash): Promise<Photo | null> {
@@ -496,7 +517,8 @@ export class SqlitePhotoRepository implements PhotoRepository {
     // SQL, and answering with every photo would put a pending one on the wall.
     if (query.statuses !== undefined && query.statuses.length === 0) return EMPTY_PAGE
 
-    const filters = ['event_id = ?']
+    // A photograph the operator took down is not part of any page (migration 015).
+    const filters = ['event_id = ?', 'taken_down_at IS NULL']
     const params: (string | number)[] = [eventId]
 
     if (query.statuses !== undefined) {
@@ -547,7 +569,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
       .prepare<[string, string, number], { readonly id: string }>(
         `SELECT id
            FROM photos
-          WHERE event_id = ? AND status = ?
+          WHERE event_id = ? AND status = ? AND taken_down_at IS NULL
           ORDER BY created_at DESC, id DESC
           LIMIT ?`,
       )
@@ -560,7 +582,8 @@ export class SqlitePhotoRepository implements PhotoRepository {
 
     for (const row of this.db
       .prepare<[string], { readonly status: PhotoStatus; readonly count: number }>(
-        `SELECT status, COUNT(*) AS count FROM photos WHERE event_id = ? GROUP BY status`,
+        `SELECT status, COUNT(*) AS count FROM photos
+          WHERE event_id = ? AND taken_down_at IS NULL GROUP BY status`,
       )
       .all(eventId)) {
       counts[row.status] = row.count
