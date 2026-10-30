@@ -42,12 +42,13 @@ export interface RemovePhotoRecordDeps {
  */
 export interface RemoveOptions {
   /**
-   * Skip the recency guard. For the author erasing their own clip: the poster was written
-   * moments before the row, by this very guest, and the guard exists for **another** writer's
-   * uncommitted bytes. Committed holders are still asked (`findIdsReferencing`), so a poster
-   * another clip's row names survives either way.
+   * Apply the recency guard to a **clip's poster only**. A row's own content digest is protected by
+   * `idx_photos_event_hash` and can never be another row's, so nothing else can be mid-write on it
+   * and fresh bytes of it are safe to unlink at once. A poster is a deterministic frame and can be
+   * byte-identical to another guest's, whose transcode may have written it without having
+   * committed its row yet: that one keeps the guard, and `sweepOrphanedMedia` collects it later.
    */
-  readonly ignoreRecency?: boolean
+  readonly guardPosterOnly?: boolean
 }
 
 export type RemovePhotoRecord = (
@@ -102,11 +103,8 @@ export const makeRemovePhotoRecord =
         if (!photo.hasVariant(variant)) continue
         if (photo.hashFor(variant).value !== hash.value) continue
         const object = await media.stat(eventId, hash, variant)
-        if (
-          options.ignoreRecency !== true &&
-          object !== null &&
-          object.modifiedAt.getTime() > collectableBefore
-        ) {
+        const unsharable = options.guardPosterOnly === true && hash.value === photo.contentHash.value
+        if (!unsharable && object !== null && object.modifiedAt.getTime() > collectableBefore) {
           return false
         }
       }

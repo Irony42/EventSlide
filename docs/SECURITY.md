@@ -577,7 +577,7 @@ about their photographs and they ask the host. A guest who has **lost the token*
 none is invented: the phone says to ask the organiser, who can delete any photograph. Files are removed by the same
 routine as `deletePhoto` (`removePhotoRecord`: bytes before the row, and only digests nothing else names, so a poster another
 clip shares survives). The guest row goes last, so a half-finished run is retried by pressing the button again, and a
-transcode running at that moment is refused at its insert and discards its source. **No audit line is written**: the audit
+transcode running at that moment is caught by a final sweep just before the guest row goes; one that lands in the instant after that read leaves orphan files for `sweepOrphanedMedia`. **No audit line is written**: the audit
 log is about accounts and clients, content-free by construction, and a guest has no account to attribute it to; the moderation
 decision lived on the photograph row and goes with it. It cannot reach a copy the host exported (the album archive is streamed,
 never stored), a download from the shared gallery link, a screenshot, or the hourly backup, which keeps a deleted photograph for

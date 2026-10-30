@@ -243,30 +243,31 @@ describe('eraseGuestContribution', () => {
     expect((await photos.list(EVENT)).items).toEqual([])
   })
 
-  it('removes a clip poster written seconds ago: the recency guard is for another writer', async () => {
+  it('keeps a clip poster written seconds ago, which another guest transcode may be about to name, and removes the clip own bytes at once', async () => {
     const clip = await seedPhoto({
       id: 'c-fresh',
       eventId: 'event-1',
       author: { kind: 'guest', id: 'guest-lea' },
       clip: {},
     })
-    const [, poster] = clip.storageHashes
-    if (poster === undefined) throw new Error('a clip has a poster')
-    await media.put(EVENT, poster, 'thumb', Uint8Array.of(1))
+    const [mp4, poster] = clip.storageHashes
+    if (mp4 === undefined || poster === undefined) throw new Error('a clip has two digests')
+    await media.put(EVENT, poster, 'poster', Uint8Array.of(1))
 
     await run()
 
-    expect(media.variantsOf(EVENT, poster)).toEqual([])
+    expect(media.variantsOf(EVENT, poster)).toEqual(['poster'])
+    expect(media.variantsOf(EVENT, mp4)).toEqual([])
   })
 
-  it('also removes a clip that a running transcode inserted while the erasure was under way', async () => {
+  it('also removes a clip inserted after the queued jobs were retired, right up to the guest row', async () => {
     const late = aClip({
       id: 'c-late',
       eventId: 'event-1',
       author: { kind: 'guest', id: 'guest-lea' },
     })
-    const original = clips.deleteForAuthor.bind(clips)
-    clips.deleteForAuthor = async (eventId, guestId) => {
+    const original = reactions.deleteByGuest.bind(reactions)
+    reactions.deleteByGuest = async (eventId, guestId) => {
       await original(eventId, guestId)
       photos.seed(late)
       await media.put(EVENT, late.contentHash, 'original', Uint8Array.of(1))
@@ -281,5 +282,44 @@ describe('eraseGuestContribution', () => {
       eventId: EVENT,
       photoId: late.id,
     })
+  })
+
+  it('unlinks the source of a failed job, which the recovery sweep abandons without removing', async () => {
+    const job = aClipJob({
+      id: 'job-failed',
+      eventId: 'event-1',
+      status: 'failed',
+      author: { kind: 'guest', id: 'guest-lea' },
+    })
+    await clips.stage(job, { quotaBytes: 1e12, maxQueuedClips: 10, maxQueuedClipsPerEvent: 10 })
+    await media.put(EVENT, job.sourceHash, 'source', Uint8Array.of(1))
+
+    const result = await run()
+
+    expect(result).toEqual({ ok: true, value: { photos: 0, clips: 0 } })
+    expect(media.variantsOf(EVENT, job.sourceHash)).toEqual([])
+  })
+
+  it('keeps a source digest that a row of the event still names', async () => {
+    const job = aClipJob({
+      id: 'job-failed',
+      eventId: 'event-1',
+      status: 'failed',
+      author: { kind: 'guest', id: 'guest-lea' },
+    })
+    await clips.stage(job, { quotaBytes: 1e12, maxQueuedClips: 10, maxQueuedClipsPerEvent: 10 })
+    await media.put(EVENT, job.sourceHash, 'source', Uint8Array.of(1))
+    photos.seed(
+      aPhoto({
+        id: 'p-other',
+        eventId: 'event-1',
+        author: { kind: 'guest', id: 'guest-sam' },
+        contentHash: job.sourceHash.value,
+      }),
+    )
+
+    await run()
+
+    expect(media.variantsOf(EVENT, job.sourceHash)).toEqual(['source'])
   })
 })

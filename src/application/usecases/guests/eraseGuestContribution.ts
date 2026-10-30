@@ -48,8 +48,7 @@ import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
  * and the guest row. Retryable: if the process dies half way the guest row is still there,
  * the token still verifies, and pressing the button again finishes the job. A clip being
  * transcoded at that very moment finishes against a row that is gone, which the worker
- * already treats as "retired under me" (`transcodeNextClip.finish`) and, with the guest row
- * gone, its insert is refused and its source is discarded.
+ * already treats as "retired under me" (`transcodeNextClip.finish`) and the final sweep removes whatever it inserted.
  */
 
 export interface EraseGuestContributionInput {
@@ -121,7 +120,7 @@ export const makeEraseGuestContribution = ({
     let erasedClips = 0
     const removeAll = async (): Promise<void> => {
       for (const photo of await authoredBy(eventId, guestId)) {
-        await removePhotoRecord(eventId, photo, { ignoreRecency: true })
+        await removePhotoRecord(eventId, photo, { guardPosterOnly: true })
         bus.publish({ type: 'photo.deleted', eventId, photoId: photo.id })
 
         if (photo.kind === 'clip') erasedClips += 1
@@ -134,20 +133,25 @@ export const makeEraseGuestContribution = ({
     // guest's own video on the disk and nothing else names it, so it goes before the row that
     // holds its digest in the dedupe index.
     for (const job of await clips.listByAuthor(eventId, guestId)) {
-      if (holdsStagedBytes(job.status)) {
-        await media.delete(eventId, job.sourceHash)
-        erasedClips += 1
-      }
+      if (holdsStagedBytes(job.status)) erasedClips += 1
+      // A `failed` job may still hold its source (`recoverClipJobs` abandons without unlinking), so
+      // every job but a `done` one (whose bytes are long gone) is asked, unless a row names them.
+      if (job.status === 'done') continue
+      const holders = await photos.findIdsReferencing(eventId, job.sourceHash)
+      if (holders.length === 0) await media.delete(eventId, job.sourceHash)
     }
     // Every job of the guest, `done` ones included: a `done` job blocks a re-upload of the same bytes.
     await clips.deleteForAuthor(eventId, guestId)
 
-    // **Again, now that the jobs are gone.** The first pass is a snapshot, and a transcode that was
-    // running finishes by inserting its clip row while the guest row still exists. With the job
-    // retired no new one can start, so one more sweep catches whatever landed in between.
-    await removeAll()
-
     await reactions.deleteByGuest(eventId, guestId)
+
+    // **Again, immediately before the guest row goes.** The first pass is a snapshot, and a transcode
+    // or upload of this guest's that was in flight inserts its row while the guest row still exists;
+    // deleting the guest first would cascade that row away and leave its files on the disk with no
+    // row to name them. With the jobs retired nothing new starts, so this sweep catches what landed.
+    // What lands in the instant between this read and the delete is not refused by anything: its
+    // files are orphans, which `sweepOrphanedMedia` collects after its minimum age.
+    await removeAll()
     await guests.delete(eventId, guestId)
 
     // One signal for what no `photo.deleted` says: the name on the wall, a heart on someone

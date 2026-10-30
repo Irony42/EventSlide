@@ -1892,7 +1892,7 @@ remove it and the first one's does.
 
 **Retryable.** Photographs go one at a time (bytes, then row), then the queued clips, the reactions and the guest row. A
 process that dies half way leaves the guest row, so the token still verifies and pressing the button again finishes. A
-clip transcoding at that very moment finishes against a row that is gone and is discarded.
+clip transcoding at that very moment finishes against a row that is gone, and the final sweep removes whatever it inserted (a row landing in the instant after that read leaves orphan files for the media sweep).
 
 **Errors** — `401 auth.required` / `401 guestToken.*` (a lost token is the reason to ask the organiser, who can delete
 any photograph: there is deliberately no identity check here), `403 guest.revoked` (the host's decision about a removed
