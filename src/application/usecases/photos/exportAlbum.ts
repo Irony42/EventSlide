@@ -7,6 +7,7 @@ import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { ArchiveWriter } from '../../ports/archiveWriter'
 import type { EventRepository } from '../../ports/eventRepository'
+import { requireReadable } from '../shared/eventRole'
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
@@ -64,6 +65,9 @@ export const makeExportAlbum = ({
   return async ({ eventId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
+
+    const readable = requireReadable(event)
+    if (!readable.ok) return readable
 
     /**
      * One row's bytes, or `null` when the file is not there.

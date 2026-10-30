@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeGetModerationQueue, type GetModerationQueue } from './getModerationQueue'
+import { Event } from '../../../domain/events/event'
 import type { PhotoActor } from '../../../domain/photos/photo'
 import { asEventId, asGuestId, asUserId } from '../../../domain/shared/ids'
 import { anEvent, aClip, aGuest, aPhoto, atPlus, AT } from '../../testing/builders'
@@ -410,5 +411,24 @@ describe('getModerationQueue', () => {
     })
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  it('shows a moderator nothing of an event the operator took down, or of a suspended client (launch review S5)', async () => {
+    photos.seed(aPhoto({ id: 'p1', eventId: 'event-1' }))
+    await events.setTakenDown(EVENT, AT)
+    const down = await pendingQueue()
+    await events.setTakenDown(EVENT, null)
+    const frozenEvents = new FakeEventRepository().seed(
+      Event.restore({ ...anEvent({ id: 'event-1' }).toProps(), clientSuspendedAt: AT }),
+    )
+    const frozen = await makeGetModerationQueue({
+      events: frozenEvents,
+      photos,
+      guests,
+      memberships,
+    })({ eventId: EVENT, filter: 'pending', order: null, limit: null, actor: moderator })
+
+    expect(!down.ok && down.error.code).toBe('event.notFound')
+    expect(!frozen.ok && frozen.error.code).toBe('client.suspended')
   })
 })

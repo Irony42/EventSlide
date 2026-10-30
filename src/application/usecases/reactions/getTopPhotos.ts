@@ -6,9 +6,11 @@ import {
   totalReactions,
   type ReactionCounts,
 } from '../../../domain/reactions/reactionTally'
-import type { DomainError } from '../../../domain/shared/errors'
+import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
-import { ok, type Result } from '../../../domain/shared/result'
+import { err, ok, type Result } from '../../../domain/shared/result'
+import type { EventRepository } from '../../ports/eventRepository'
+import { requireReadable } from '../shared/eventRole'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { ReactionRepository } from '../../ports/reactionRepository'
 
@@ -37,6 +39,7 @@ export interface GetTopPhotosInput {
 }
 
 export interface GetTopPhotosDeps {
+  readonly events: Pick<EventRepository, 'findById'>
   readonly photos: PhotoRepository
   readonly reactions: ReactionRepository
 }
@@ -52,10 +55,16 @@ export type GetTopPhotos = (
 ) => Promise<Result<readonly RankedPhoto[], DomainError>>
 
 export const makeGetTopPhotos =
-  ({ photos, reactions }: GetTopPhotosDeps): GetTopPhotos =>
+  ({ events, photos, reactions }: GetTopPhotosDeps): GetTopPhotos =>
   async ({ eventId, limit }) => {
     const wanted = checkTopLimit(limit)
     if (!wanted.ok) return wanted
+
+    // Photographs, so a frozen client's members and a taken-down event read none (launch review S5).
+    const event = await events.findById(eventId)
+    if (event === null) return err(DomainError.notFound('event.notFound'))
+    const readable = requireReadable(event)
+    if (!readable.ok) return readable
 
     const byPhoto = await reactions.countsForEvent(eventId)
 

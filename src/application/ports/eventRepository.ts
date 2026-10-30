@@ -165,6 +165,10 @@ export interface EventRepository {
    *
    * Both implementations answer the same `now >= deadline`, and the contract suite runs one
    * table of scenarios through them and `purgeDeadline` together.
+   *
+   * **An event the operator holds (`purge_held_at`) is never listed**, whatever its deadline
+   * (launch review S5): the hold is the whole of "preserve this as evidence", and it is asked in
+   * the query so that the sweep never even reads a held event.
    */
   listDueForPurge(now: Date, policy: PurgePolicy): Promise<readonly Event[]>
 
@@ -190,4 +194,22 @@ export interface EventRepository {
    * this only narrows the rows worth looking at.
    */
   listDueForSchedule(now: Date): Promise<readonly Event[]>
+
+  /**
+   * Takes an event down (`at`) or puts it back (`null`): the operator's lever, written by
+   * `setEventTakedown` and by nothing else (launch review S5). **`save` never writes this
+   * column**, so a host's save of a copy read earlier cannot lift it. Idempotent; an id that
+   * names no event changes nothing.
+   *
+   * Every lookup carries the answer back as `Event.takenDownAt`, and **`listForUser` leaves a
+   * taken-down event out**: it is not on any host's dashboard.
+   */
+  setTakenDown(id: EventId, at: Date | null): Promise<void>
+
+  /**
+   * Holds an event's purge (`at`) or releases it (`null`), for `setEventPurgeHold`. Same
+   * contract as {@link EventRepository.setTakenDown}: `save` does not write it, every lookup
+   * carries it as `Event.purgeHeldAt`, and `listDueForPurge` leaves a held event out.
+   */
+  setPurgeHeld(id: EventId, at: Date | null): Promise<void>
 }

@@ -943,6 +943,95 @@ export const eventRepositoryContract = (
       expect(await repo.slugTaken(slug('camille-et-sacha'))).toBe(false)
     })
 
+    // ------------------------------------------- the operator's levers (S5) --
+
+    describe('the operator takedown and purge hold (launch review S5)', () => {
+      const AT_LEVER = atPlus(7_000)
+
+      it('reads as not taken down and not held until the operator acts', async () => {
+        await repo.save(nthEvent(1))
+
+        const event = await repo.findById(asEventId('evt-1'))
+
+        expect(event?.isTakenDown()).toBe(false)
+        expect(event?.isPurgeHeld()).toBe(false)
+      })
+
+      it('reports a takedown and a hold on every lookup, and lifts them when told to', async () => {
+        await repo.save(nthEvent(1))
+        const id = asEventId('evt-1')
+
+        await repo.setTakenDown(id, AT_LEVER)
+        await repo.setPurgeHeld(id, AT_LEVER)
+
+        const stored = await repo.findById(id)
+        for (const found of [
+          stored,
+          stored === null ? null : await repo.findBySlug(stored.slug),
+          stored === null ? null : await repo.findByJoinCode(stored.joinCode),
+        ]) {
+          expect(found?.takenDownAt).toEqual(AT_LEVER)
+          expect(found?.purgeHeldAt).toEqual(AT_LEVER)
+          expect(found?.servesWall()).toBe(false)
+        }
+
+        await repo.setTakenDown(id, null)
+        await repo.setPurgeHeld(id, null)
+
+        const lifted = await repo.findById(id)
+        expect(lifted?.isTakenDown()).toBe(false)
+        expect(lifted?.isPurgeHeld()).toBe(false)
+      })
+
+      it('is not undone by a host saving a copy read before the operator acted', async () => {
+        await repo.save(nthEvent(1))
+        const id = asEventId('evt-1')
+        const stale = await repo.findById(id)
+        if (stale === null) throw new Error('fixture rejected')
+
+        await repo.setTakenDown(id, AT_LEVER)
+        await repo.setPurgeHeld(id, AT_LEVER)
+        await repo.save(stale)
+
+        const after = await repo.findById(id)
+        expect(after?.isTakenDown()).toBe(true)
+        expect(after?.isPurgeHeld()).toBe(true)
+      })
+
+      it('leaves a taken-down event off every dashboard, and changes nothing for an id it does not hold', async () => {
+        await repo.save(nthEvent(1))
+        await repo.save(nthEvent(2))
+
+        await repo.setTakenDown(asEventId('evt-1'), AT_LEVER)
+        await repo.setTakenDown(asEventId('ghost'), AT_LEVER)
+        await repo.setPurgeHeld(asEventId('ghost'), AT_LEVER)
+
+        expect((await repo.listForUser(HOST)).map((summary) => summary.id)).toEqual(['evt-2'])
+        expect(await repo.findById(asEventId('ghost'))).toBeNull()
+      })
+
+      it('never lists a held event for the purge, whatever its deadline, and lists it again once released', async () => {
+        await repo.save(
+          anEvent({
+            ...nthEventInput(1),
+            status: 'closed',
+            createdAt: AT,
+            closedAt: atPlus(DAY),
+            settings: { retentionDays: 1 },
+          }),
+        )
+        const id = asEventId('evt-1')
+
+        await repo.setPurgeHeld(id, AT_LEVER)
+        expect(await repo.listDueForPurge(atPlus(DAY * 30), PURGE_POLICY)).toEqual([])
+
+        await repo.setPurgeHeld(id, null)
+        expect(
+          (await repo.listDueForPurge(atPlus(DAY * 30), PURGE_POLICY)).map((e) => e.id),
+        ).toEqual(['evt-1'])
+      })
+    })
+
     // ------------------------------------------------------------- retention --
 
     /** Closed one day after {@link AT}, keeping its album for the given number of days. */

@@ -1,6 +1,12 @@
 import { Router } from 'express'
 import type { ClientCeilingsInput } from '../../../domain/clients/clientCeilings'
-import { asAccountTokenId, asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
+import {
+  asAccountTokenId,
+  asClientId,
+  asEventId,
+  asPhotoId,
+  asUserId,
+} from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireOperator, requireSecondFactor, requireStepUp } from '../middleware/authz'
 import { userOf } from '../middleware/scope'
@@ -20,9 +26,12 @@ import {
   accountIdParams,
   type CeilingsBody,
   clientIdParams,
+  eventIdParams,
   offboardClientBody,
+  operatorActBody,
   operatorInvitationBody,
   operatorPasswordResetBody,
+  photoIdParams,
   provisionClientBody,
   renameClientBody,
   setCeilingsBody,
@@ -79,7 +88,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  */
 
 /**
- * What the operator's router is handed: the gates' own dependencies, and **the fifteen use cases it
+ * What the operator's router is handed: the gates' own dependencies, and **the eighteen use cases it
  * calls and no others**. It is not given the whole bag, so a handler that reached for
  * `getEventBySlug`, a moderation queue or a photograph would not compile; `deps` is there for
  * `requireOperator` and its siblings, and no handler here reads `deps.events`.
@@ -96,6 +105,9 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'setClientCeilings'
     | 'suspendClient'
     | 'resumeClient'
+    | 'setPhotoTakedown'
+    | 'setEventTakedown'
+    | 'setEventPurgeHold'
     | 'offboardClient'
     | 'disableAccount'
     | 'enableAccount'
@@ -330,6 +342,138 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
       const result = await usecases.resumeClient({
         clientId: asClientId(params.clientId),
         actor: { kind: 'operator', userId: operator },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  // ------------------------------------------------- remove without viewing (S5) --
+  //
+  // By id, with a mandatory reason, and **never an answer that holds a row**: `204`, or a refusal.
+  // The operator names a photograph or an event and says why; it is not shown one, and it does not
+  // need to be to take it down (runbook `retrait-sans-visualisation.md`). Each writes one audit
+  // line that is not in the client's own trail, and is idempotent.
+
+  /**
+   * Takes one photograph down by its id: gone from the wall, the guest feed, a gallery link and
+   * every host view at once, and every screen is told. The row and its bytes are kept. `404
+   * photo.notFound` for an id nobody holds, `400 audit.reasonInvalid` without a reason.
+   */
+  router.post(
+    '/photos/:photoId/take-down',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = photoIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setPhotoTakedown({
+        photoId: asPhotoId(params.photoId),
+        down: true,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** Puts a taken-down photograph back, which the host's own moderation state decides the look of. */
+  router.post(
+    '/photos/:photoId/restore',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = photoIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setPhotoTakedown({
+        photoId: asPhotoId(params.photoId),
+        down: false,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * Takes a whole event down by its id: every surface that serves it, a host's own included,
+   * answers as for an event that does not exist, and an open stream ends. Retention is **not**
+   * stopped by this (that is the purge hold).
+   */
+  router.post(
+    '/events/:eventId/take-down',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = eventIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setEventTakedown({
+        eventId: asEventId(params.eventId),
+        down: true,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** Puts a taken-down event back. */
+  router.post(
+    '/events/:eventId/restore',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = eventIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setEventTakedown({
+        eventId: asEventId(params.eventId),
+        down: false,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * Holds an event's purge, to preserve evidence: the retention sweep skips it and neither its
+   * host's purge nor the deletion of one of its photographs goes through. Hides nothing.
+   */
+  router.post(
+    '/events/:eventId/purge-hold',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = eventIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setEventPurgeHold({
+        eventId: asEventId(params.eventId),
+        held: true,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** Releases that hold: the event is due again at its own deadline. */
+  router.post(
+    '/events/:eventId/purge-release',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = eventIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setEventPurgeHold({
+        eventId: asEventId(params.eventId),
+        held: false,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
       })
 
       sendResultNoContent(res, result)

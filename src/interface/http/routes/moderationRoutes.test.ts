@@ -111,6 +111,9 @@ const usecasesFor = (
     renameClient: notWired,
     setClientCeilings: notWired,
     suspendClient: notWired,
+    setPhotoTakedown: notWired,
+    setEventTakedown: notWired,
+    setEventPurgeHold: notWired,
     resumeClient: notWired,
     offboardClient: notWired,
     disableAccount: notWired,
@@ -183,7 +186,7 @@ const usecasesFor = (
     reactToPhoto: notWired,
     withdrawReaction: notWired,
     getPhotoReactions: notWired,
-    getTopPhotos: makeGetTopPhotos({ photos, reactions }),
+    getTopPhotos: makeGetTopPhotos({ events, photos, reactions }),
   }
 }
 

@@ -38,6 +38,10 @@ export const makePurgeEvent =
     const writable = requireWritable(event)
     if (!writable.ok) return writable
 
+    // The operator holds this event's purge, to preserve evidence (launch review S5). Deliberately
+    // not worded as a hold: the host is not told why (runbook csam.md).
+    if (event.isPurgeHeld()) return err(DomainError.conflict('event.purgeUnavailable'))
+
     // Media first, row second, and the order is the whole point. The row is the only
     // record that this event's bytes exist: delete it first and a failure here leaves
     // gigabytes on the disk with nothing left to find them by. This way a failure

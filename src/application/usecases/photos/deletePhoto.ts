@@ -80,6 +80,9 @@ export const makeDeletePhoto = ({
     const writable = requireWritable(event)
     if (!writable.ok) return writable
 
+    // A held event keeps everything it has, a guest's own photograph included (launch review S5).
+    if (event.isPurgeHeld()) return err(DomainError.conflict('photo.deleteUnavailable'))
+
     // Scoped read: passing `eventId` is what makes a photo of another event a 404
     // rather than a deletion.
     const photo = await photos.findById(eventId, photoId)

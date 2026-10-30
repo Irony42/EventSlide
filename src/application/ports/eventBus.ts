@@ -24,6 +24,13 @@ export type DomainEvent =
     }
   | { readonly type: 'photo.deleted'; readonly eventId: EventId; readonly photoId: PhotoId }
   | { readonly type: 'photo.captionChanged'; readonly eventId: EventId; readonly photoId: PhotoId }
+  /**
+   * The operator took a photograph down, or put it back (launch review S5). A signal like every
+   * other: ids and no more, and a screen that hears it re-reads and finds the photograph gone (or
+   * back). `photo.` prefixed so the moderation console re-reads on it too.
+   */
+  | { readonly type: 'photo.takenDown'; readonly eventId: EventId; readonly photoId: PhotoId }
+  | { readonly type: 'photo.restored'; readonly eventId: EventId; readonly photoId: PhotoId }
   | { readonly type: 'guest.joined'; readonly eventId: EventId; readonly guestId: GuestId }
   | {
       readonly type: 'reaction.added'
@@ -37,6 +44,9 @@ export type DomainEvent =
       readonly status: EventStatus
     }
   | { readonly type: 'event.settingsChanged'; readonly eventId: EventId }
+  /** The operator took the whole event down, or put it back (launch review S5). */
+  | { readonly type: 'event.takenDown'; readonly eventId: EventId }
+  | { readonly type: 'event.restored'; readonly eventId: EventId }
   /**
    * The host's mission list is not what it was: a prompt added, corrected or removed
    * (roadmap §2.1).

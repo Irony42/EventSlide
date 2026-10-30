@@ -57,16 +57,26 @@ describe('AUDIT_ACTIONS', () => {
     }
   })
 
-  it('lets exactly one declaration carry the free-text reason: client.ceilingsChanged, under the key reason', () => {
+  it('lets only the operator mandatory-reason acts carry the free-text reason, under the key reason', () => {
     // The decision of 2026-10-23: a change of ceilings carries a mandatory reason, and it is the
-    // one field of the log a person types. A second declaration using the kind is a new decision,
-    // made in a diff that edits this test, and not a key that rode along.
+    // one field of the log a person types. The operator's "remove without viewing" levers (launch
+    // review S5) are the second decision, made in the diff that edits this test: an act on content
+    // the operator may not look at has to say why in the operator's own words. A further
+    // declaration using the kind is a new decision, and not a key that rode along.
     const carrying = ACTIONS.filter((action) =>
       Object.values(AUDIT_ACTIONS[action].details).some((kind) =>
         leafKinds(kind).includes('reason'),
       ),
     )
-    expect(carrying).toEqual(['client.ceilingsChanged'])
+    expect(carrying).toEqual([
+      'client.ceilingsChanged',
+      'photo.takenDown',
+      'photo.restored',
+      'event.takenDown',
+      'event.restored',
+      'event.purgeHeld',
+      'event.purgeReleased',
+    ])
 
     const details: DetailFields = AUDIT_ACTIONS['client.ceilingsChanged'].details
     expect(details['reason']).toEqual({ type: 'reason' })

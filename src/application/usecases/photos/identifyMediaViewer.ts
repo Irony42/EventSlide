@@ -33,7 +33,7 @@ import type { MediaViewer } from './getPhotoMedia'
  *   **Silent and not stamping the guest as seen**: a wall of thumbnails is a read per image, and a
  *   presence write per image is the cost the stamp's interval exists to avoid.
  * - **A suspended client's event** (roadmap §10.7) is `event.notFound` to the public and to a guest,
- *   as an event that is not there; its moderators still read their own photographs. The rule is
+ *   as an event that is not there; its moderators are refused with `403 client.suspended` (S5), and a taken-down event is `event.notFound` to all. The rule is
  *   here and not in the handler, next to the identity it is a function of.
  */
 
@@ -62,8 +62,14 @@ export const makeIdentifyMediaViewer =
   async ({ event, guestToken, userId }) => {
     const viewer = await identify({ guests, tokens, memberships, clock }, event, guestToken, userId)
 
-    if (event.isClientSuspended() && viewer.kind !== 'moderator') {
-      return err(DomainError.notFound('event.notFound'))
+    // Taken down by the operator: the same answer as an event that is not there, to everybody.
+    if (event.isTakenDown()) return err(DomainError.notFound('event.notFound'))
+    if (event.isClientSuspended()) {
+      // A suspended client's members no longer read photographs either (launch review S5); they
+      // are told why, as on every other refusal of a member, and everybody else is not.
+      return viewer.kind === 'moderator'
+        ? err(DomainError.forbidden('client.suspended'))
+        : err(DomainError.notFound('event.notFound'))
     }
     return ok(viewer)
   }

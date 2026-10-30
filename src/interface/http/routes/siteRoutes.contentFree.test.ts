@@ -113,6 +113,9 @@ interface Call {
   readonly body?: object
 }
 
+/** A photograph with an id the route accepts, planted by `run` for the takedown calls to name. */
+const TAKEDOWN_PHOTO = '99999999-9999-4999-8999-999999999999'
+
 const REASON = 'Capacité du disque revue à la baisse'
 
 /**
@@ -147,6 +150,18 @@ const CALLS: readonly Call[] = [
     path: `/api/site/clients/${ID.clientK}/ceilings`,
     body: { ceilings: { maxEvents: 3, periodStartedAt: AT.toISOString() }, reason: REASON },
   },
+  ...(['take-down', 'restore'] as const).map((verb): Call => ({
+    name: `post /api/site/photos/:photoId/${verb}`,
+    method: 'post',
+    path: `/api/site/photos/${TAKEDOWN_PHOTO}/${verb}`,
+    body: { reason: REASON },
+  })),
+  ...(['take-down', 'restore', 'purge-hold', 'purge-release'] as const).map((verb): Call => ({
+    name: `post /api/site/events/:eventId/${verb}`,
+    method: 'post',
+    path: `/api/site/events/${ID.eventK}/${verb}`,
+    body: { reason: REASON },
+  })),
   {
     name: 'post /api/site/clients/:clientId/invitations',
     method: 'post',
@@ -477,6 +492,9 @@ describe.each(['delivers', 'none'] as const)(
     const run = async () => {
       const { site } = await aBox({ mail })
       await plant(site)
+      await site.world.addPhoto(
+        aPhoto({ id: TAKEDOWN_PHOTO, eventId: ID.eventK, author: { kind: 'host', id: ID.owner } }),
+      )
       const operator = await site.signInAsOperator()
       const answers: { call: Call; status: number; text: string; body: unknown }[] = []
       for (const call of [...CALLS, ...REFUSED]) {
