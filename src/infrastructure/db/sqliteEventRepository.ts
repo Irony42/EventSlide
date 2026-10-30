@@ -337,7 +337,7 @@ const settingsCustomAddedLater = (value: unknown): ThemeCustom | undefined => {
  * this build has never heard of was written by another program, and defaulting it would
  * show a host a wall they did not configure.
  *
- * * **A `material` key in a stored theme is dead and ignored, whatever it holds.** Themes
+ * **A `material` key in a stored theme is dead and ignored, whatever it holds.** Themes
  * written before 3.3 carry `'glass' | 'plain'` (or nothing); the glass material was retired
  * (ADR 0012), so the reader never looks at the key and the writer never writes it. No
  * migration: the column is opaque JSON and the key is harmless where it sits.
