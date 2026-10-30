@@ -132,7 +132,7 @@ test('a closed evening keeps its feed, and an archived one says it is no longer 
   await expect(guest.getByText(fr.feed.unavailable)).toHaveCount(0)
 
   await guest.goto(app.url(`/e/${event.slug}/upload`))
-  await expect(guest.getByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+  await expect(guest.getByText(fr.upload.endedTitle)).toBeVisible()
   await expect(guest.getByRole('link', { name: fr.feed.link })).toBeVisible()
 
   // --- Archived: the wall answers 404, which no retry can change.

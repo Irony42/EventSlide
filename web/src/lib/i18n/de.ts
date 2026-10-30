@@ -61,7 +61,7 @@ export const de: UiText = {
     sendCount: (count: number) =>
       t.count(count, { one: 'Foto senden', other: `${t.number(count)} Fotos senden` }),
     queueEmpty: 'Noch keine Fotos ausgewählt.',
-    itemPending: 'Wartet',
+    itemPending: 'Bereit',
     itemUploading: 'Wird gesendet',
     itemDone: 'Gesendet',
     itemDuplicate: 'Bereits gesendet',
@@ -165,7 +165,7 @@ export const de: UiText = {
     missionDoneByRoom: 'Schon fotografiert',
     missionFor: (prompt: string) => `Diese Fotos zählen für „${prompt}“.`,
 
-    itemQueued: 'Wartet auf das Netz',
+    itemQueued: 'Wird gesendet, sobald das Netz wieder da ist',
     itemExpiredHint:
       'Dieses Foto konnte nicht gesendet werden. Senden Sie es erneut, falls Sie es noch haben.',
     offlineTitle: (count: number) =>
@@ -177,6 +177,26 @@ export const de: UiText = {
       'Sie sind auf Ihrem Telefon gespeichert und werden gesendet, sobald die Verbindung wieder da ist. Sie können diese Seite schließen.',
     offlineSending: 'Wartende Fotos werden gesendet…',
     offlineRetry: 'Jetzt senden',
+
+    /* Guest traps and end-of-evening pass (revue UX 30/10: INV-1, 4, 7, 8). */
+    offlineHintNoSync:
+      'Sie sind auf Ihrem Telefon gespeichert und werden gesendet, sobald die Verbindung wieder da ist. Lassen Sie diese Seite bis dahin geöffnet.',
+    queueReady: (count: number) =>
+      t.count(count, {
+        one: 'Ein Foto ist bereit: Tippen Sie auf „Senden“.',
+        other: `${t.number(count)} Fotos sind bereit: Tippen Sie auf „Senden“.`,
+      }),
+    leaveWaitCount: (done: number, total: number) =>
+      `Bitte warten, Senden läuft (${t.number(done)}/${t.number(total)})`,
+    leaveWait: 'Bitte warten, Senden läuft…',
+    endedTitle: 'Für heute Abend ist Schluss.',
+    endedThanks: (count: number) =>
+      t.count(count, {
+        one: 'Danke für Ihr Foto!',
+        other: `Danke für Ihre ${t.number(count)} Fotos!`,
+      }),
+    endedThanksNone: 'Danke, dass Sie dabei waren!',
+    endedAlbum: 'Die Veranstalter teilen das Album.',
 
     installTitle: 'Die Galerie immer griffbereit',
     installHint:
@@ -681,7 +701,7 @@ export const de: UiText = {
     /* Navigation pass, batch A: a gallery the server no longer serves. */
     unavailable: 'Diese Galerie wird nicht mehr angezeigt.',
     unavailableHint:
-      'Sie ist archiviert oder nicht mehr geöffnet, hier gibt es keine Fotos mehr zu sehen.',
+      'Die Feier ist vorbei, hier gibt es keine Fotos mehr zu sehen. Fragen Sie die Veranstalter nach dem Link zum Album.',
   },
 
   wall: {

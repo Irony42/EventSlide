@@ -61,7 +61,7 @@ export const es: UiText = {
     sendCount: (count: number) =>
       t.count(count, { one: 'Enviar la foto', other: `Enviar las ${t.number(count)} fotos` }),
     queueEmpty: 'Todavía no ha seleccionado ninguna foto.',
-    itemPending: 'En espera',
+    itemPending: 'Lista',
     itemUploading: 'Enviando',
     itemDone: 'Enviada',
     itemDuplicate: 'Ya enviada',
@@ -160,7 +160,7 @@ export const es: UiText = {
     missionDoneByRoom: 'Ya fotografiada',
     missionFor: (prompt: string) => `Estas fotos contarán para «${prompt}».`,
 
-    itemQueued: 'Esperando conexión',
+    itemQueued: 'Saldrá en cuanto vuelva la conexión',
     itemExpiredHint: 'Esta foto no se ha podido enviar. Vuelva a enviarla si todavía la tiene.',
     offlineTitle: (count: number) =>
       t.count(count, {
@@ -171,6 +171,26 @@ export const es: UiText = {
       'Están guardadas en su teléfono y saldrán en cuanto vuelva la conexión. Puede cerrar esta página.',
     offlineSending: 'Enviando las fotos en espera…',
     offlineRetry: 'Enviar ahora',
+
+    /* Guest traps and end-of-evening pass (revue UX 30/10: INV-1, 4, 7, 8). */
+    offlineHintNoSync:
+      'Están guardadas en su teléfono y saldrán en cuanto vuelva la conexión. Mantenga esta página abierta hasta entonces.',
+    queueReady: (count: number) =>
+      t.count(count, {
+        one: 'Una foto lista: pulse Enviar.',
+        other: `${t.number(count)} fotos listas: pulse Enviar.`,
+      }),
+    leaveWaitCount: (done: number, total: number) =>
+      `Espere, envío en curso (${t.number(done)}/${t.number(total)})`,
+    leaveWait: 'Espere, envío en curso…',
+    endedTitle: 'Por esta noche, se acabó.',
+    endedThanks: (count: number) =>
+      t.count(count, {
+        one: '¡Gracias por su foto!',
+        other: `¡Gracias por sus ${t.number(count)} fotos!`,
+      }),
+    endedThanksNone: '¡Gracias por haber estado con nosotros!',
+    endedAlbum: 'Los organizadores compartirán el álbum.',
 
     installTitle: 'Tenga la galería siempre a mano',
     installHint:
@@ -653,7 +673,8 @@ export const es: UiText = {
     own: 'Su foto',
     /* Navigation pass, batch A: a gallery the server no longer serves. */
     unavailable: 'Esta galería ya no se muestra.',
-    unavailableHint: 'Está archivada o ya no está abierta, así que aquí no hay fotos que ver.',
+    unavailableHint:
+      'La fiesta ha terminado, así que aquí no hay fotos que ver. Pida a los organizadores el enlace del álbum.',
   },
 
   wall: {

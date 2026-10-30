@@ -19,9 +19,20 @@ export interface OfflineNoticeProps {
   readonly waiting: number
   readonly draining: boolean
   readonly onSendNow: () => void
+  /**
+   * Whether this phone can send the photos with the page closed (Background Sync). When it
+   * cannot — every iPhone — the sentence tells the guest to keep the page open instead of
+   * saying they may close it: see `useBackgroundSync`.
+   */
+  readonly canCloseSafely: boolean
 }
 
-export function OfflineNotice({ waiting, draining, onSendNow }: OfflineNoticeProps) {
+export function OfflineNotice({
+  waiting,
+  draining,
+  onSendNow,
+  canCloseSafely,
+}: OfflineNoticeProps) {
   const t = useTranslations()
   // Rendered only when there is something to say. An empty reassurance sitting above
   // the picker all evening would be noise, and it would push the composer down.
@@ -40,7 +51,11 @@ export function OfflineNotice({ waiting, draining, onSendNow }: OfflineNoticePro
           {t.upload.offlineTitle(waiting)}
         </p>
         <p className={styles['hint']}>
-          {draining ? t.upload.offlineSending : t.upload.offlineHint}
+          {draining
+            ? t.upload.offlineSending
+            : canCloseSafely
+              ? t.upload.offlineHint
+              : t.upload.offlineHintNoSync}
         </p>
       </div>
 

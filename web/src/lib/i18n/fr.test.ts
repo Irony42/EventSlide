@@ -29,6 +29,8 @@ const COUNTED: readonly CountedPhrase[] = [
   ['upload.queueDone, already there', (count) => fr.upload.queueDone(5, count)],
   ['upload.queueDone, all already there', (count) => fr.upload.queueDone(count, count)],
   ['upload.offlineTitle', fr.upload.offlineTitle],
+  ['upload.queueReady', fr.upload.queueReady],
+  ['upload.endedThanks', fr.upload.endedThanks],
   // The server's own `Retry-After`, which is one second at its floor: "réessayez dans 1
   // secondes" on the one screen a guest reads while standing in a room.
   ['upload.clipQueueFullRetry', fr.upload.clipQueueFullRetry],
@@ -59,6 +61,34 @@ describe('counted French copy', () => {
     // reproduces the singular exactly, then nothing but the number changed and the
     // phrase reads "2 photo en attente" somewhere in the UI.
     expect(phrase(2).replace('2', '1')).not.toBe(phrase(1))
+  })
+})
+
+/**
+ * What the guest is told when the evening is over: a way forward, never a dead end (INV-4).
+ * Pinned as properties and not as sentences, like the rest of this file.
+ */
+describe('French copy for the end of the evening', () => {
+  it('sends a guest on an archived feed to the organisers for the album', () => {
+    expect(fr.feed.unavailableHint).toMatch(/album/i)
+    expect(fr.feed.unavailableHint).toMatch(/organisateurs/i)
+  })
+
+  it('thanks the guest and says who will share the album', () => {
+    expect(fr.upload.endedThanks(12)).toContain('12')
+    expect(fr.upload.endedAlbum).toMatch(/organisateurs/i)
+  })
+})
+
+/**
+ * "En attente" meant three things on the guest's phone (INV-7). The word now belongs to the one
+ * state that is the host's to resolve: the validation of a photo that has arrived.
+ */
+describe('French copy for the states of a photo', () => {
+  it('keeps the word "attente" for the host’s validation', () => {
+    expect(fr.upload.statusPending).toMatch(/attente/i)
+    expect(fr.upload.itemPending).not.toMatch(/attente/i)
+    expect(fr.upload.itemQueued).not.toMatch(/attente/i)
   })
 })
 
