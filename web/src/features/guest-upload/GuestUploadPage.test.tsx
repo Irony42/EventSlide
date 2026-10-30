@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GuestUploadPage } from './GuestUploadPage'
@@ -66,6 +66,19 @@ const withPhotos = (...photos: readonly GuestPhotoDto[]): Partial<Api> => ({
   myPhotos: vi.fn(async () => ({ items: photos })),
 })
 
+/**
+ * Waits until the own-photos read has been asked and its answer applied.
+ *
+ * What the empty list's own sentence used to be the marker for: a guest with nothing sent is shown
+ * no list (INV-12), so there is no longer a line to wait for.
+ */
+const readAnswered = async (api: Api): Promise<void> => {
+  await waitFor(() => expect(api.myPhotos).toHaveBeenCalled())
+  await act(async () => {
+    await Promise.all(vi.mocked(api.myPhotos).mock.results.map((result) => result.value))
+  })
+}
+
 const pickPhotos = async (...files: readonly File[]): Promise<void> => {
   await userEvent.upload(screen.getByLabelText(fr.upload.addPhotos), [...files])
 }
@@ -102,7 +115,9 @@ describe('GuestUploadPage', () => {
     )
   })
 
-  it('says it is fetching the guest’s own photos', () => {
+  it('shows no list of the guest’s own photos while it is being fetched, since a first visit has none', () => {
+    // A card with a spinner that vanishes for every first-time guest is a flash on the one screen
+    // that has to be calm (INV-12). The composer is all there is to see until there is a list.
     havingJoined()
     const api = fakeApi({
       myPhotos: vi.fn(() => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {})),
@@ -110,17 +125,62 @@ describe('GuestUploadPage', () => {
 
     renderUpload(api)
 
-    expect(screen.getByRole('status')).toHaveTextContent(fr.app.loading)
+    expect(screen.queryByRole('heading', { name: fr.upload.mine })).toBeNull()
+    expect(screen.queryByRole('status', { name: fr.app.loading })).toBeNull()
+    expect(screen.getByLabelText(fr.upload.addPhotos)).toBeInTheDocument()
   })
 
-  it('says plainly that nothing has been sent yet', async () => {
-    havingJoined()
-    renderUpload(fakeApi(withPhotos()))
+  describe('a first visit, with nothing sent yet (INV-12)', () => {
+    it('shows neither an empty "Vos envois" card nor a button to delete what was never sent', async () => {
+      havingJoined()
+      const api = fakeApi(withPhotos())
+      renderUpload(api)
+      await readAnswered(api)
 
-    // An empty panel is indistinguishable from a screen that failed to load, and a
-    // guest who cannot tell reloads instead of sending a photo.
-    expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
-    expect(screen.getByText(fr.upload.queueEmpty)).toBeVisible()
+      expect(screen.queryByRole('heading', { name: fr.upload.mine })).toBeNull()
+      expect(screen.queryByText(fr.upload.mineEmpty)).toBeNull()
+      expect(screen.queryByRole('button', { name: fr.upload.eraseOpen })).toBeNull()
+      // What the page is for is still there, and still says there is nothing selected.
+      expect(screen.getByText(fr.upload.queueEmpty)).toBeVisible()
+      expect(screen.getByLabelText(fr.upload.addPhotos)).toBeInTheDocument()
+    })
+
+    it('keeps the erasure reachable from the privacy notice, where it is promised', async () => {
+      havingJoined()
+      const api = fakeApi(withPhotos())
+      renderUpload(api)
+      await readAnswered(api)
+
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.noticeLink }))
+      const notice = await screen.findByRole('dialog', { name: fr.upload.noticeLink })
+      await userEvent.click(within(notice).getByRole('button', { name: fr.upload.eraseOpen }))
+      const confirm = await screen.findByRole('dialog', { name: fr.upload.eraseTitle })
+      await userEvent.click(within(confirm).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+      await waitFor(() => expect(api.eraseMyContribution).toHaveBeenCalledWith(SLUG))
+    })
+
+    it('shows the list and the erasure once there is a photo, and not twice', async () => {
+      havingJoined()
+      renderUpload(fakeApi(withPhotos(aGuestPhoto())))
+
+      expect(await screen.findByRole('heading', { name: fr.upload.mine })).toBeVisible()
+      expect(screen.getAllByRole('button', { name: fr.upload.eraseOpen })).toHaveLength(1)
+    })
+
+    it('keeps the list on a failed read, whose retry is the only way back to it', async () => {
+      havingJoined()
+      renderUpload(
+        fakeApi({
+          myPhotos: vi.fn(async () => {
+            throw ApiError.network()
+          }),
+        }),
+      )
+
+      expect(await screen.findByText(fr.upload.mineFailed)).toBeVisible()
+      expect(screen.getByRole('button', { name: fr.app.retry })).toBeVisible()
+    })
   })
 
   it('says what to do when the guest’s own photos cannot be fetched, and retries', async () => {
@@ -241,9 +301,10 @@ describe('GuestUploadPage', () => {
     // A prompt on arrival is friction at the worst possible moment: the guest has just
     // scanned a QR code and is forty seconds from sending a photo.
     havingJoined()
-    renderUpload(fakeApi(withPhotos()))
+    const api = fakeApi(withPhotos())
+    renderUpload(api)
 
-    await waitFor(() => expect(screen.getByText(fr.upload.mineEmpty)).toBeVisible())
+    await readAnswered(api)
     expect(screen.queryByTestId('install-card')).not.toBeInTheDocument()
   })
 
@@ -287,7 +348,10 @@ describe('GuestUploadPage', () => {
       expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'queued'),
     )
     expect(screen.getByText(fr.upload.offlineTitle(1))).toBeVisible()
-    expect(screen.getByText(fr.upload.offlineHint)).toBeVisible()
+    // jsdom has no service worker, hence no Background Sync: the page must not tell the guest they
+    // can close it (INV-8). The sentence for a browser that can has its own test below.
+    expect(screen.getByText(fr.upload.offlineHintNoSync)).toBeVisible()
+    expect(screen.queryByText(fr.upload.offlineHint)).toBeNull()
 
     // A guest who can see a bar of signal should not have to wait for the browser to
     // agree; the same drain runs on the `online` event with nobody watching.
@@ -472,17 +536,45 @@ describe('an event that no longer takes photos', () => {
   const closed = (photos: readonly GuestPhotoDto[] = []): Api =>
     fakeApi({ myPhotos: vi.fn(async () => ({ items: photos, acceptingUploads: false })) })
 
-  it('says the gallery takes no more photos, and offers no way to pick one', async () => {
+  it('says the evening is over, and offers no way to pick a photo', async () => {
     renderUpload(closed())
 
-    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(await screen.findByText(fr.upload.endedTitle)).toBeVisible()
     expect(screen.queryByLabelText(fr.upload.addPhotos)).toBeNull()
+  })
+
+  it('thanks the guest for their photos and says where the album will come from, in a card and not a warning (INV-4)', async () => {
+    const photos = [aGuestPhoto({ id: 'mine-1' }), aGuestPhoto({ id: 'mine-2' })]
+    renderUpload(closed(photos))
+
+    const card = await screen.findByTestId('evening-ended')
+    expect(within(card).getByRole('heading', { name: fr.upload.endedTitle })).toBeVisible()
+    expect(within(card).getByText(fr.upload.endedThanks(2))).toBeVisible()
+    expect(within(card).getByText(fr.upload.endedAlbum)).toBeVisible()
+    // The refusal sentence is the server's, for an upload that was tried; nothing was.
+    expect(screen.queryByText(fr.errors['event.notAcceptingUploads'])).toBeNull()
+  })
+
+  it('counts the photos from the list already on screen, and thanks a guest who sent none all the same', async () => {
+    const photos = [aGuestPhoto({ id: 'mine-1' })]
+    const api = closed(photos)
+    renderUpload(api)
+    expect(await screen.findByText(fr.upload.endedThanks(1))).toBeVisible()
+    // One read, which the page already made: the card adds no request.
+    expect(api.myPhotos).toHaveBeenCalledTimes(1)
+  })
+
+  it('thanks a guest who sent nothing without counting them', async () => {
+    renderUpload(closed())
+
+    expect(await screen.findByText(fr.upload.endedThanksNone)).toBeVisible()
+    expect(screen.queryByText(fr.upload.endedThanks(0))).toBeNull()
   })
 
   it('keeps showing the guest their own photos, which are what they come back for', async () => {
     renderUpload(closed([aGuestPhoto({ id: 'mine-1' })]))
 
-    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(await screen.findByText(fr.upload.endedTitle)).toBeVisible()
     expect(screen.getAllByRole('img').length).toBeGreaterThan(0)
   })
 
@@ -502,7 +594,7 @@ describe('an event that no longer takes photos', () => {
     await pickPhotos(aPhotoFile('confettis.jpg'))
     await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
 
-    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(await screen.findByText(fr.upload.endedTitle)).toBeVisible()
     expect(screen.queryByTestId('offline-notice')).not.toBeInTheDocument()
   })
 
@@ -516,14 +608,14 @@ describe('an event that no longer takes photos', () => {
       }),
     )
 
-    expect(await screen.findByText(fr.errors['event.notAcceptingUploads'])).toBeVisible()
+    expect(await screen.findByText(fr.upload.endedTitle)).toBeVisible()
   })
 
   it('offers the picker as before while the event takes photos, and on a server that does not say', async () => {
     renderUpload(fakeApi())
 
     expect(await screen.findByLabelText(fr.upload.addPhotos)).toBeInTheDocument()
-    expect(screen.queryByText(fr.errors['event.notAcceptingUploads'])).toBeNull()
+    expect(screen.queryByText(fr.upload.endedTitle)).toBeNull()
   })
 })
 
@@ -902,9 +994,10 @@ describe('sending a video', () => {
 
     it('keeps the stored theme when a server that predates the field answers without one', async () => {
       havingJoined({ theme: ROSE })
-      renderUpload(fakeApi(withPhotos()))
+      const api = fakeApi(withPhotos())
+      renderUpload(api)
 
-      expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
+      await readAnswered(api)
       expect(await pageOf()).toHaveAttribute('data-event-accent', '345')
       expect(readGuestSession(SLUG)?.event.theme).toEqual(ROSE)
     })
@@ -919,8 +1012,7 @@ describe('sending a video', () => {
       const api = fakeApi(answeringWith(theme))
       renderUpload(api)
 
-      await waitFor(() => expect(api.myPhotos).toHaveBeenCalled())
-      expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
+      await readAnswered(api)
       const page = await pageOf()
       expect(page).not.toHaveAttribute('data-event-accent')
       expect(page?.getAttribute('style')).toBeNull()
@@ -948,8 +1040,8 @@ describe('sending a video', () => {
       const dialog = await screen.findByRole('dialog', { name: fr.upload.deleteOwnConfirm })
       await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.deleteOwn }))
 
-      expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
-      expect(reads).toBe(2)
+      await waitFor(() => expect(reads).toBe(2))
+      await readAnswered(api)
       expect(await pageOf()).toHaveAttribute('data-event-accent', '345')
     })
 
@@ -1112,8 +1204,8 @@ describe('the privacy notice', () => {
     renderUpload(answering(unread))
 
     expect(screen.getByRole('heading', { level: 1, name: 'Camille & Sacha' })).toBeVisible()
-    expect(await screen.findByText(fr.upload.mineEmpty)).toBeVisible()
     expect(screen.getByText(fr.upload.queueEmpty)).toBeVisible()
+    expect(screen.getByRole('link', { name: fr.feed.link })).toBeVisible()
   })
 
   it('answers the four questions, from what the server said about this event', () => {
@@ -1429,8 +1521,9 @@ describe('a gallery the server no longer serves (A3)', () => {
 
   it('keeps the link to the feed on a closed evening, which still has its wall', async () => {
     renderUpload(fakeApi({ myPhotos: vi.fn(async () => ({ items: [], acceptingUploads: false })) }))
-    await screen.findByText(fr.errors['event.notAcceptingUploads'])
+    await screen.findByText(fr.upload.endedTitle)
 
+    // Closed, not archived: the wall and the feed still exist, and "C'est fini" is no reason to hide them.
     expect(screen.getByRole('link', { name: fr.feed.link })).toBeVisible()
   })
 
@@ -1687,5 +1780,177 @@ describe('GuestUploadPage: a guest the host removed can still erase what they se
 
     expect(await screen.findByTestId('upload-composer')).toBeVisible()
     expect(screen.queryByText(fr.upload.revokedTitle)).toBeNull()
+  })
+})
+
+describe('leaving for the feed while photos are on their way (INV-1)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    havingJoined()
+  })
+
+  it('swaps the link for a wait message with the count while a batch is sent, and gives it back after', async () => {
+    let finish: (response: UploadResponse) => void = () => {}
+    const api = fakeApi({
+      uploadPhotos: vi.fn(
+        () =>
+          new Promise<UploadResponse>((resolve) => {
+            finish = resolve
+          }),
+      ),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('un.jpg'), aPhotoFile('deux.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+
+    // Leaving would unmount the screen and cancel the sends: the link is not one while they run.
+    expect(await screen.findByText(fr.upload.leaveWaitCount(0, 2))).toBeVisible()
+    expect(screen.queryByRole('link', { name: fr.feed.link })).toBeNull()
+
+    await act(async () => finish(accepted('photo-1')))
+    await waitFor(() => expect(screen.getByText(fr.upload.leaveWaitCount(1, 2))).toBeVisible())
+    await act(async () => finish(accepted('photo-2')))
+
+    expect(await screen.findByRole('link', { name: fr.feed.link })).toBeVisible()
+    expect(screen.queryByText(fr.upload.leaveWaitCount(2, 2))).toBeNull()
+  })
+
+  it('is a link when nothing is being sent', () => {
+    renderUpload(fakeApi())
+
+    expect(screen.getByRole('link', { name: fr.feed.link })).toBeVisible()
+    expect(screen.queryByText(fr.upload.leaveWait)).toBeNull()
+  })
+})
+
+describe('the caption once a batch has been sent (INV-5)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  const writeCaption = async (text: string): Promise<void> => {
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.captionLabel }))
+    await userEvent.type(screen.getByLabelText(/Légende/), text)
+  }
+
+  it('empties the caption after a batch that arrived, so it does not stick to the next photos', async () => {
+    havingJoined()
+    const api = fakeApi({ ...withPhotos(), uploadPhotos: vi.fn(async () => accepted('photo-1')) })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await writeCaption('Joyeux anniversaire Mamie')
+
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+    await waitFor(() =>
+      expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done'),
+    )
+
+    await waitFor(() => expect(screen.getByLabelText(/Légende/)).toHaveValue(''))
+
+    // And the next photos go with no caption at all.
+    await pickPhotos(aPhotoFile('suivante.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+    await waitFor(() => expect(api.uploadPhotos).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(api.uploadPhotos).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ caption: null }),
+    )
+  })
+
+  it('keeps the caption when a photo failed, since the retry sends it again', async () => {
+    havingJoined()
+    const api = fakeApi({
+      ...withPhotos(),
+      uploadPhotos: vi.fn(async () => {
+        throw new ApiError(400, 'request.invalid')
+      }),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await writeCaption('Joyeux anniversaire Mamie')
+
+    await userEvent.click(screen.getByRole('button', { name: /Envoyer/ }))
+    await waitFor(() =>
+      expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'failed'),
+    )
+
+    expect(screen.getByLabelText(/Légende/)).toHaveValue('Joyeux anniversaire Mamie')
+  })
+
+  it('keeps the chosen mission, which several photos may answer', async () => {
+    havingJoined()
+    const api = fakeApi({
+      myMissions: vi.fn(async () => ({
+        items: [aGuestMission({ id: 'm1', prompt: 'un selfie' })],
+      })),
+      uploadPhotos: vi.fn(async () => accepted('photo-1')),
+    })
+    renderUpload(api)
+    await userEvent.click(await screen.findByRole('button', { name: /un selfie/ }))
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+    await waitFor(() =>
+      expect(screen.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done'),
+    )
+
+    expect(screen.getByText(fr.upload.missionFor('un selfie'))).toBeVisible()
+  })
+})
+
+describe('"you can close this page" (INV-8)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    havingJoined()
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'serviceWorker')
+  })
+
+  const offlineSend = async (): Promise<void> => {
+    renderUpload(
+      fakeApi({
+        ...withPhotos(),
+        uploadPhotos: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      }),
+    )
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+    await screen.findByText(fr.upload.offlineTitle(1))
+  }
+
+  it('is said on a browser with Background Sync', async () => {
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistration: async () => ({ sync: { register: async () => undefined } }),
+        ready: Promise.resolve({ sync: { register: async () => undefined } }),
+      },
+    })
+    await offlineSend()
+
+    expect(await screen.findByText(fr.upload.offlineHint)).toBeVisible()
+    expect(screen.queryByText(fr.upload.offlineHintNoSync)).toBeNull()
+  })
+
+  it('is not said on a browser without it, which asks the guest to keep the page open', async () => {
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistration: async () => ({}),
+        ready: Promise.resolve({}),
+      },
+    })
+    await offlineSend()
+
+    expect(screen.getByText(fr.upload.offlineHintNoSync)).toBeVisible()
+    expect(screen.queryByText(fr.upload.offlineHint)).toBeNull()
   })
 })

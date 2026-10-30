@@ -7,6 +7,7 @@ import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { prefersReducedMotion } from '../../lib/prefersReducedMotion'
+import { cx } from '../../design-system/classNames'
 import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { MissionChecklist } from './components/MissionChecklist'
@@ -17,6 +18,7 @@ import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { PrivacyNoticeCard, PrivacyNoticeDialog } from './components/PrivacyNotice'
 import { UploadQueue } from './components/UploadQueue'
+import { useBackgroundSync } from './hooks/useBackgroundSync'
 import { useClipUpload } from './hooks/useClipUpload'
 import { useEraseEverything } from './hooks/useEraseEverything'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
@@ -25,7 +27,7 @@ import { useMyPhotos } from './hooks/useMyPhotos'
 import { useOutbox } from './hooks/useOutbox'
 import { useOversizedPane } from './hooks/useOversizedPane'
 import { usePrivacyNotice } from './hooks/usePrivacyNotice'
-import { useUploadQueue } from './hooks/useUploadQueue'
+import { useUploadQueue, type SettledOutcome } from './hooks/useUploadQueue'
 import type { PrivacyNoticeState, PublicEventDto } from '../../lib/api/dto'
 import type { DrainReport } from '../../lib/offline/drainOutbox'
 import styles from './GuestUploadPage.module.css'
@@ -206,8 +208,26 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
     [onBatchSettled],
   )
 
+  /**
+   * A batch that left the phone for good has used its caption up (INV-5): kept, it would be
+   * printed under the ten photos the guest takes next, and nobody rereads it at the second one.
+   * The prompt stays (several photos for one challenge is a use, and the line under "Envoyer"
+   * says which one it is). A batch with a failure keeps everything, because the retry sends the
+   * same caption again and the guest has to be able to see it. "Left for good" includes a photo
+   * the outbox now holds: its caption went into the entry, so the field has nothing left to do.
+   */
+  const onQueueSettled = useCallback(
+    (outcome: SettledOutcome) => {
+      onBatchSettled()
+      if (outcome.allSent) setCaption('')
+    },
+    [onBatchSettled],
+  )
+
   const outbox = useOutbox({ slug, onDrained })
-  const queue = useUploadQueue({ slug, outbox, onSettled: onBatchSettled })
+  const queue = useUploadQueue({ slug, outbox, onSettled: onQueueSettled })
+  /** Whether "you can close this page" is true on this phone: it is not on an iPhone (INV-8). */
+  const canCloseSafely = useBackgroundSync()
 
   /**
    * The video path, and it is deliberately not part of the queue above.
@@ -323,6 +343,16 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
 
   const sending = queue.sending || outbox.draining || clip.stage === 'uploading'
   const trimmedCaption = caption.trim()
+  /**
+   * Whether the guest has anything on the server to list or take back (INV-12).
+   *
+   * A first visit used to read a card of an empty list and, under it, "Supprimer tout ce que j'ai
+   * envoyé" with nothing to delete: a permanent-deletion button before the first photo, and two
+   * empty states pushing the picker down. Neither is rendered until there is something in them. A
+   * failed read still shows the card, because its retry is the only way back to the list.
+   */
+  const hasPhotos = mine.photos.length > 0
+  const showMine = !mine.unavailable && (hasPhotos || mine.error !== null)
 
   /** The words of the chosen prompt, for the line under the send button. */
   const selectedPrompt =
@@ -371,7 +401,16 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         {/* Not once the server has stopped serving the gallery: the link would lead to a
             page that can only say so. A closed or archived evening keeps it, because a
             closed one still has its wall and an archived one's feed explains itself. */}
-        {mine.unavailable ? null : (
+        {mine.unavailable ? null : sending ? (
+          // Not a link while photos are on their way (INV-1): it opens a page of its own in this
+          // tab, and leaving unmounts this screen, which cancels the sends in flight. The same rule
+          // as the button below, and the reason is said instead of the link going quietly grey.
+          <span className={cx(styles['feedLink'], styles['feedLinkWaiting'])} aria-disabled="true">
+            {queue.sending && queue.items.length > 0
+              ? t.upload.leaveWaitCount(queue.batch.arrived, queue.items.length)
+              : t.upload.leaveWait}
+          </span>
+        ) : (
           <Link className={styles['feedLink']} to={`/e/${slug}/photos`}>
             {t.feed.link}
           </Link>
@@ -407,12 +446,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               notice={notice.state.notice}
               open={noticeOpen}
               onClose={() => setNoticeOpen(false)}
+              // The way to take everything back for a guest whose list is not on the page yet
+              // (INV-12): the notice promises it, so it is offered where the notice is read.
+              extra={
+                mine.unavailable || hasPhotos ? undefined : <EraseEverything state={erasure} />
+              }
             />
           </>
         )}
       </header>
 
-      {mine.unavailable ? null : (
+      {showMine ? (
         <MyPhotos
           photos={mine.photos}
           loading={mine.loading}
@@ -423,8 +467,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           highlighted={highlighted}
           onHighlightEnd={endHighlight}
         />
-      )}
-      {mine.unavailable ? null : <EraseEverything state={erasure} />}
+      ) : null}
+      {showMine && hasPhotos ? <EraseEverything state={erasure} /> : null}
 
       {/* Below the proof that it worked, above the controls: a reward for having sent
           something, never a gate in front of sending it.
@@ -460,6 +504,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
             waiting={outbox.waiting}
             draining={outbox.draining}
             onSendNow={outbox.drain}
+            canCloseSafely={canCloseSafely}
           />
         ) : null}
         <UploadQueue
@@ -469,7 +514,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           onRemove={queue.remove}
           onDismiss={queue.clearSettled}
           // Not once the server has stopped serving the gallery: there is no list to go to.
-          onViewMine={mine.unavailable ? undefined : viewMine}
+          onViewMine={showMine ? viewMine : undefined}
         />
         {/*
           The notice, in the place the picker will be, until this device has read the one
@@ -493,11 +538,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           </>
         ) : !mine.acceptingUploads ? (
           // The host closed the evening (or archived it, or its account is suspended): there is
-          // nothing left to send, so none of the controls is offered, and the sentence is the one the
-          // server would have refused an upload with. What the guest sent stays listed above.
-          <Notice tone="warning" variant="boxed" role="status">
-            {t.errors['event.notAcceptingUploads']}
-          </Notice>
+          // nothing left to send, so none of the controls is offered. A quiet thank-you and not a
+          // warning (INV-4): nothing went wrong, the evening ended, and the guest's next question is
+          // where the photos will be. The count is the list already on screen, so no request is added.
+          // What the guest sent stays listed above.
+          <section className={styles['ended']} role="status" data-testid="evening-ended">
+            <h2 className={styles['endedTitle']}>{t.upload.endedTitle}</h2>
+            <p className={styles['endedBody']}>
+              {hasPhotos ? t.upload.endedThanks(mine.photos.length) : t.upload.endedThanksNone}
+            </p>
+            <p className={styles['endedBody']}>{t.upload.endedAlbum}</p>
+          </section>
         ) : notice.state !== null && gated ? (
           <PrivacyNoticeCard
             ref={noticeCard}
