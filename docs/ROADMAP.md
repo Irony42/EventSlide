@@ -954,7 +954,7 @@ most of this product — login, the dashboard, the create form, the settings pag
 screen — to a number a white dress demands, on screens that never show a photograph. There
 are now two floors: `0.95` over an unknown photograph, and `0.92` over our own ground, where
 the backdrop is a colour this design system declares and the worst case is therefore
-enumerable. Which one a surface gets is decided structurally — `app/glassBackdrop.test.ts`
+enumerable. Which one a surface gets is decided structurally — `app/glassBackdrop.test.ts` (deleted with the glass, ADR 0012)
 walks the real import graph and refuses the translucent floor to any address that can reach
 an `<img>`, a `<video>`, or a fill brighter than the backdrop that floor was derived
 against.
@@ -1042,7 +1042,7 @@ two in a row fall under 24. That floor is the third rule that was tried — a dr
 count and a delivered-frame share were both measured against real walls first, and neither
 could separate a healthy wall on a loaded machine from a wall in trouble. The rule for _what_
 it gives up is a list —
-`design-system/budget.ts` — with one entry per cost in the order they go: **glass, then Ken
+`design-system/budget.ts` — with one entry per cost in the order they go: **glass (retired, ADR 0012), then Ken
 Burns, then the crossfade**, one ladder for every surface, with the room starting one rung
 down because it can never afford the first. The guest's half is not a frame rate at all: an
 upload screen is still between taps, so what is measured there is how long the interface
@@ -1085,7 +1085,7 @@ So the tempting version of this item — let a host upload a background image, o
 event template — is the **second** half of it, and on its own it makes the product worse:
 
 - A host's own photograph is by definition an unknown backdrop, so every surface that can
-  reach it goes to the strict floor. `app/glassBackdrop.test.ts` already enforces exactly
+  reach it goes to the strict floor. `app/glassBackdrop.test.ts` (deleted with the glass, ADR 0012) already enforces exactly
   this, and it is right to. Uploading a background makes the panes **more** opaque, not the
   glass more visible.
 - A background we ship has an enumerable worst case, which is what a lower floor needs. It can

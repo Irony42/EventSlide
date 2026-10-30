@@ -1201,6 +1201,31 @@ describe('the glass material is retired (ADR 0012)', () => {
     for (const name of ['--pane-border', '--pane-highlight', '--pane-shadow'])
       expect(ROOT_BLOCK, name).toMatch(new RegExp(`${name}:`))
   })
+
+  /**
+   * Each ambiance restates its pane hairlines in its own polarity. A block that drops them
+   * inherits the root's near-white border, which vanishes on a light surface (the Noces, a
+   * light custom ground) and nothing else would notice.
+   */
+  const OWN_PANES: readonly (readonly [string, string, 'light' | 'dark'])[] = [
+    ...AMBIANCES.filter((name) => name !== 'eventslide').map(
+      (name) => [name, ambianceBlock(TOKENS, name), name === 'noces' ? 'light' : 'dark'] as const,
+    ),
+    ...CUSTOM_POLARITIES.map(
+      (polarity) => [`custom ${polarity}`, customBody(polarity), polarity] as const,
+    ),
+  ]
+
+  it.each(OWN_PANES)(
+    'has the %s ambiance draw its pane hairline in its own polarity',
+    (_name, body, ground) => {
+      expect(body).toMatch(/--pane-highlight:/)
+      const lightness = Number(/--pane-border:\s*oklch\((\d+(?:\.\d+)?)%/.exec(body)?.[1])
+      expect(lightness).not.toBeNaN()
+      if (ground === 'light') expect(lightness).toBeLessThan(50)
+      else expect(lightness).toBeGreaterThan(50)
+    },
+  )
 })
 
 describe('a miniature inside a page that wears another ambiance', () => {
