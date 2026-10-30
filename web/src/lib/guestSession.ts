@@ -165,6 +165,7 @@ const PUBLICATIONS: readonly NoticePublication[] = ['afterReview', 'immediate']
  */
 const WORDED_AUDIENCES = {
   wall: true,
+  guestFeed: true,
   organisers: true,
   sharedGallery: true,
 } as const satisfies Record<NoticeAudience, true>

@@ -49,6 +49,12 @@ export type NoticePublication = (typeof NOTICE_PUBLICATIONS)[number]
  *   and it keeps playing after the gallery closes, until the host archives the event.
  *   Named for the page rather than for the people in front of it, so the notice cannot
  *   be read as promising that only the guests in the room will see a photo.
+ * - `guestFeed` — the other guests of the event, on their own phones, in the page « Les photos
+ *   de la soirée »: every published photo with its author’s first name, and its caption in the
+ *   photo’s text alternative (a guest sees only their own reactions). Like the wall it shows `published` and nothing else. No setting
+ *   switches it off (there is no per-event flag: the page is part of the guest flow), so like
+ *   `sharedGallery` it is named on every event rather than conditioned on something that
+ *   cannot vary.
  * - `organisers` — the host and their moderators, who see **everything** a guest sends,
  *   including what never reaches the screen, and who may download the album
  *   (`GET /album.zip` is `requireRole('moderator')`).
@@ -73,10 +79,10 @@ export type NoticePublication = (typeof NOTICE_PUBLICATIONS)[number]
  * (`noticeVocabulary.test.ts` fails until it has the member), and one sentence per
  * language in `upload.noticeAudiences`, which is keyed by that type and refuses to
  * compile until all five tables can say it. {@link revisionOf} is built from the list, so
- * every guest who acknowledged the two-audience notice is asked once more before their
+ * every guest who acknowledged the three-audience notice is asked once more before their
  * next photo — which is right: the notice now reads differently.
  */
-export const NOTICE_AUDIENCES = ['wall', 'organisers', 'sharedGallery'] as const
+export const NOTICE_AUDIENCES = ['wall', 'guestFeed', 'organisers', 'sharedGallery'] as const
 
 export type NoticeAudience = (typeof NOTICE_AUDIENCES)[number]
 
@@ -198,7 +204,7 @@ const selfRemovalFor = (policy: NoticePolicy): number | null => {
  *
  * **Readable text rather than a hash**, and the readability is the feature. It is stored
  * on the guest's row when they acknowledge, so "what was this guest told?" is answered by
- * reading the column — `publication=afterReview;audiences=wall+organisers+sharedGallery;
+ * reading the column — `publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;
  * retention=30;selfRemoval=900` — rather than by recomputing hashes of every configuration the event
  * has ever had. It also cannot collide, which a 32-bit hash could, and a collision here
  * would be a guest silently not re-asked about a changed retention period.
