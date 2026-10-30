@@ -49,6 +49,9 @@ export const makeRemoveVenuePhoto =
     const writable = requireWritable(event)
     if (!writable.ok) return writable
 
+    // A held event keeps every file it has, the venue photograph's included (launch review S5).
+    if (event.isPurgeHeld()) return err(DomainError.conflict('event.purgeUnavailable'))
+
     const previous = event.settings.venuePhoto
     if (previous === null) return ok(event)
 

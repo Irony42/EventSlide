@@ -469,7 +469,7 @@ alone (`:photoId` and `:eventId` are ids, never slugs). Each needs the second fa
 
 - **`take-down` (photograph)**: the photograph is left out of the wall and its playlist, the guest's feed, a gallery
   link, the host's grid, the moderation queue, the album download and the media route, at once, and every screen is told
-  (`photo.takenDown`, a signal with ids only). The row, its bytes and its quota charge stay. A host cannot moderate it
+  (a neutral `photo.deleted` signal, ids only, which never says why). The row, its bytes and its quota charge stay. A host cannot moderate it
   back and a guest cannot delete it: both are `404 photo.notFound`. The same bytes uploaded again are a duplicate of it.
   `restore` brings it back with the status the host had given it.
 - **`take-down` (event)**: every surface that serves the event answers as for an event that does not exist, **a member's
@@ -477,7 +477,7 @@ alone (`:photoId` and `:eventId` are ids, never slugs). Each needs the second fa
   a gallery link and every `/api/events/:slug/**` route (`404 event.notFound`). It is off the host's dashboard. It does
   **not** stop the retention clock and touches no photograph. `restore` lifts all of it.
 - **`purge-hold`**: the retention sweep skips the event, the host's purge answers `409 event.purgeUnavailable` and the
-  deletion of a photograph (a host's, a moderator's or the guest's own) `409 photo.deleteUnavailable`. It hides nothing.
+  deletion of a photograph (a host's, a moderator's or the guest's own) `409 photo.deleteUnavailable`; replacing or removing the venue photograph is `409 event.purgeUnavailable`. It hides nothing.
   The wording does not say why: the host is not told. `purge-release` makes the event due again at its own deadline,
   which may have passed, so the next sweep purges it.
 - **Audit**: one line per change (`photo.takenDown`, `photo.restored`, `event.takenDown`, `event.restored`,

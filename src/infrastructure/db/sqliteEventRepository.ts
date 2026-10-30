@@ -555,9 +555,11 @@ const toSummary = (row: SummaryRow): EventSummary => ({
  * clips still waiting to be transcoded), so the dashboard says what the upload path will
  * enforce: it used to count photographs alone.
  */
-const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p WHERE p.event_id = e.id) AS photo_count,
+const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p
+                WHERE p.event_id = e.id AND p.taken_down_at IS NULL) AS photo_count,
               (SELECT COUNT(*) FROM photos p
-                WHERE p.event_id = e.id AND p.status = 'pending')      AS pending_count,
+                WHERE p.event_id = e.id AND p.status = 'pending'
+                  AND p.taken_down_at IS NULL)                         AS pending_count,
               (SELECT COUNT(*) FROM guests g WHERE g.event_id = e.id)  AS guest_count,
               ${eventHoldingBytesSum('e.id')}                           AS used_bytes`
 

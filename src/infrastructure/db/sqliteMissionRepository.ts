@@ -124,6 +124,7 @@ export class SqliteMissionRepository implements MissionRepository {
           WHERE event_id = ?
             AND mission_id IS NOT NULL
             AND status = 'published'
+            AND taken_down_at IS NULL
           GROUP BY mission_id`,
       )
       .all(eventId)
@@ -155,7 +156,8 @@ export class SqliteMissionRepository implements MissionRepository {
           WHERE event_id = ?
             AND author_guest_id = ?
             AND mission_id IS NOT NULL
-            AND status = 'published'`,
+            AND status = 'published'
+            AND taken_down_at IS NULL`,
       )
       .all(eventId, guestId)
 

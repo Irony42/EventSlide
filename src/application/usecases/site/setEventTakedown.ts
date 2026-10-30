@@ -15,7 +15,7 @@ import { recordOperatorAct, type OperatorActInput } from './operatorAct'
  *
  * The wall, the guest feed, the join, a gallery link and the host's own views all answer as for an
  * event that does not exist (`Event.isTakenDown`, asked by every surface that serves an event), and
- * an open stream ends at its next beat after hearing `event.takenDown`. It does **not** stop the
+ * an open stream ends at its next beat after hearing `event.settingsChanged`. It does **not** stop the
  * retention clock (that is the purge hold) and it touches no photograph, so it is undone by one
  * call and loses nothing.
  */
@@ -56,6 +56,7 @@ export const makeSetEventTakedown =
     if (!recorded.ok) return recorded
 
     await events.setTakenDown(event.id, down ? at : null)
-    bus.publish({ type: down ? 'event.takenDown' : 'event.restored', eventId: event.id })
+    // Neutral, like the photograph's: the stream forwards the type to everyone who listens.
+    bus.publish({ type: 'event.settingsChanged', eventId: event.id })
     return ok(undefined)
   }

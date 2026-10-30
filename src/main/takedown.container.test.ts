@@ -59,6 +59,8 @@ const aBrowser = async (booted: Container) => {
     patch: async (path: string, body: object = {}) =>
       note(await agent.patch(path).set(CSRF_HEADER, csrf).send(body)),
     delete: async (path: string) => note(await agent.delete(path).set(CSRF_HEADER, csrf)),
+    putFile: async (path: string, bytes: Buffer) =>
+      note(await agent.put(path).set(CSRF_HEADER, csrf).attach('photo', bytes, 'lieu.jpg')),
     upload: async (path: string, bytes: Buffer) =>
       note(await agent.post(path).set(CSRF_HEADER, csrf).attach('photos', bytes, 'photo.jpg')),
   }
@@ -200,6 +202,9 @@ describe('a photograph the operator took down, by its id', () => {
       gallery: false,
       media: 404,
     })
+
+    // The dashboard's own count follows: nothing is left to count that the host can see.
+    expect(JSON.stringify((await s.host.get('/api/events')).body)).toContain('"photoCount":0')
 
     expect((await act(s, `photos/${s.photoId}/restore`)).status).toBe(204)
     expect((await readings(s)).media).toBe(200)
@@ -362,6 +367,15 @@ describe('a purge hold', () => {
     const deleted = await s.guest.delete(`/api/events/${SLUG}/photos/${s.photoId}`)
 
     expect(readable.media).toBe(200)
+    const venue = await s.host.delete(`/api/events/${SLUG}/venue-photo`)
+    expect([venue.status, venue.body.error.code]).toEqual([409, 'event.purgeUnavailable'])
+    const jpeg = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .jpeg()
+      .toBuffer()
+    const replaced = await s.host.putFile(`/api/events/${SLUG}/venue-photo`, jpeg)
+    expect([replaced.status, replaced.body.error.code]).toEqual([409, 'event.purgeUnavailable'])
     expect([purged.status, purged.body.error.code]).toEqual([409, 'event.purgeUnavailable'])
     expect([deleted.status, deleted.body.error.code]).toEqual([409, 'photo.deleteUnavailable'])
   })

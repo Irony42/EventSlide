@@ -74,7 +74,7 @@ describe('the operator takedown acts', () => {
           details: { reason: REASON },
         },
       ])
-      expect(bus.published).toEqual([{ type: 'photo.takenDown', eventId: EVENT, photoId: PHOTO }])
+      expect(bus.published).toEqual([{ type: 'photo.deleted', eventId: EVENT, photoId: PHOTO }])
     })
 
     it('puts it back, with its own line and its own signal', async () => {
@@ -92,8 +92,8 @@ describe('the operator takedown acts', () => {
       expect((await photos.findById(EVENT, PHOTO))?.id).toBe(PHOTO)
       expect(audit.all().map((row) => row.action)).toEqual(['photo.takenDown', 'photo.restored'])
       expect(bus.published.map((signal) => signal.type)).toEqual([
-        'photo.takenDown',
-        'photo.restored',
+        'photo.deleted',
+        'photo.uploaded',
       ])
     })
 
@@ -195,8 +195,8 @@ describe('the operator takedown acts', () => {
         ['event.restored', { type: 'event', id: 'event-1' }, null, { reason: REASON }],
       ])
       expect(bus.published).toEqual([
-        { type: 'event.takenDown', eventId: EVENT },
-        { type: 'event.restored', eventId: EVENT },
+        { type: 'event.settingsChanged', eventId: EVENT },
+        { type: 'event.settingsChanged', eventId: EVENT },
       ])
     })
 

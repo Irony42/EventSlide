@@ -150,7 +150,7 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
    * question must not each invent their own answer.
    */
   ofEvent(eventId: EventId): readonly Photo[] {
-    return this.forEvent(eventId)
+    return this.visibleOf(eventId)
   }
 
   /**
@@ -350,7 +350,8 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
   }
 
   async countByAuthor(eventId: EventId, guestId: GuestId): Promise<number> {
-    return this.authoredBy(eventId, guestId)
+    // The author's cap counts every row, taken-down ones included, as the adapter's does.
+    return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
   }
 
   /**
@@ -359,7 +360,7 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
    * derives `photoCount` from. **Test infrastructure, not a port method.**
    */
   authoredBy(eventId: EventId, guestId: GuestId): number {
-    return this.forEvent(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
+    return this.visibleOf(eventId).filter((photo) => this.matchesAuthor(photo, guestId)).length
   }
 
   /**

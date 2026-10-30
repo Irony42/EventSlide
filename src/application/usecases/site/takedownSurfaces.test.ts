@@ -11,6 +11,8 @@ import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makePurgeEvent } from '../events/purgeEvent'
 import { makeDeletePhoto } from '../photos/deletePhoto'
+import { makeRemoveVenuePhoto } from '../venue/removeVenuePhoto'
+import { CapturingLogger } from '../../testing/capturingLogger'
 import { requireReadable, requireWritable } from '../shared/eventRole'
 
 /**
@@ -149,5 +151,22 @@ describe('a purge hold', () => {
 
     expect(result.ok).toBe(true)
     expect(await events.findById(EVENT)).toBeNull()
+  })
+
+  it('stops the host removing the venue photograph, whose bytes it would delete', async () => {
+    const remove = makeRemoveVenuePhoto({
+      events,
+      memberships,
+      media,
+      bus: new RecordingEventBus(),
+      logger: new CapturingLogger(),
+    })
+
+    const result = await remove({ eventId: EVENT, actorId: OWNER })
+
+    expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
+      'conflict',
+      'event.purgeUnavailable',
+    ])
   })
 })

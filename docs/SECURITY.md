@@ -3581,7 +3581,7 @@ A taken-down event is **the same 404 as an unknown one**, the host's included, a
 runbook's rule: the host may be the person concerned). So the audit lines of these six actions carry **no client id**
 and are absent from the client's `GET /api/client/audit`; the operator's unfiltered view has them. The line is
 recorded before the lever moves, the act is idempotent and writes one line, and a screen is told by a signal with ids
-only (`photo.takenDown`, `event.takenDown`). A hold is not announced to anybody.
+only, and **a neutral one** (`photo.deleted`, `photo.uploaded`, `event.settingsChanged`): the stream forwards a signal's type to the host and to every guest, so a dedicated type would be the warning the audit trail is careful not to give. A hold is not announced to anybody.
 
 **A suspended client's members no longer read photographs.** Suspension used to leave them the grid, the moderation
 queue, the album download, the top photos and the media route ("members keep their reads"), which is what the review
@@ -3594,6 +3594,7 @@ are separate levers: the suspension still does not stop the retention clock, and
 - **No operator screen.** The levers are API calls; the console has none yet.
 - **A takedown does not delete.** The bytes stay on the disk and in the backups, for the authority that asks for them
   (runbook `csam.md` §5 and §7). The backups are not held by `purge_held_at`: `restic forget` is the runbook's step.
+- **A copy already in a browser stays there.** Originals are served `private, max-age=31536000, immutable`, so a device that already loaded a photograph keeps showing it; the server cannot recall it. The wall drops it at its next read.
 - **A taken-down photograph still counts** toward the event's quota and the client's bytes, and a re-upload of the same
   bytes is a duplicate of it.
 - **A 3.2.x build ignores the columns** and would serve again what was taken down: going back means restoring the archive.

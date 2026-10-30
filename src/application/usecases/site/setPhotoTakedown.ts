@@ -14,7 +14,7 @@ import { recordOperatorAct, type OperatorActInput } from './operatorAct'
  *
  * It is gone from the wall, the guest feed, a gallery link, the host's grid and the media route at
  * once, because the photo repository's reads leave a taken-down row out. **Every screen is told**
- * (`photo.takenDown`, a signal with ids and nothing else) so a projector drops it on its next read
+ * (a neutral `photo.deleted` or `photo.uploaded` signal, which never says why) so a projector drops it on its next read
  * instead of waiting for a refresh. The row, its bytes and its quota charge stay, for an authority
  * that asks for them.
  *
@@ -59,8 +59,10 @@ export const makeSetPhotoTakedown =
     if (!recorded.ok) return recorded
 
     await photos.setTakenDown(located.eventId, photoId, down ? at : null)
+    // A neutral signal that already means "read again": the stream forwards a signal's type to the
+    // host and to every guest, and none of them is told that the operator acted (runbook csam.md).
     bus.publish({
-      type: down ? 'photo.takenDown' : 'photo.restored',
+      type: down ? 'photo.deleted' : 'photo.uploaded',
       eventId: located.eventId,
       photoId,
     })
