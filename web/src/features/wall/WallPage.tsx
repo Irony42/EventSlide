@@ -23,11 +23,23 @@ import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
 import { useLayoutParam } from './hooks/useLayoutParam'
+import { useIdleCursor } from './hooks/useIdleCursor'
+import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
+import { useWakeLock } from './hooks/useWakeLock'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
 import { useWallPlaylist } from './hooks/useWallPlaylist'
 import styles from './WallPage.module.css'
+
+/**
+ * How long a host's `Q` keeps the corner QR away.
+ *
+ * Nobody is at the projector to bring it back, and the QR is the one way a late guest gets in:
+ * a hiding that outlived the host's attention would cost them their evening, so it undoes
+ * itself (MUR-5).
+ */
+export const QR_HIDDEN_MS = 10 * 60_000
 
 /** One frozen array, so an empty playlist keeps a stable identity between renders. */
 const NO_ITEMS: readonly WallItemDto[] = []
@@ -74,8 +86,6 @@ const nextLayout = (current: WallLayout): WallLayout => {
 interface WallNoticeProps {
   readonly tone: StatusTone
   readonly text: string
-  /** Hold the notice back, so a two-second network blip never reaches the room. */
-  readonly delayed?: boolean
 }
 
 /**
@@ -86,9 +96,9 @@ interface WallNoticeProps {
  * `StatusIcon` and a word next to the colour, so the signal survives a colourblind
  * viewer and a washed-out projector lamp.
  */
-function WallNotice({ tone, text, delayed = false }: WallNoticeProps) {
+function WallNotice({ tone, text }: WallNoticeProps) {
   return (
-    <p className={cx(styles['notice'], styles[tone], delayed && styles['delayed'])}>
+    <p className={cx(styles['notice'], styles[tone])}>
       <StatusIcon tone={tone} className={styles['noticeIcon']} />
       {text}
     </p>
@@ -132,6 +142,9 @@ export function WallPage() {
   const { wall, loading, error, notServed, offline, reactionPulse, refresh } =
     useWallPlaylist(eventSlug)
   const text = useTranslations()
+  const outage = useOutageStage(offline)
+  const awake = useWakeLock()
+  const cursorIdle = useIdleCursor()
 
   /**
    * The language the room is in, told to the shell above this page. It is the **event's**,
@@ -161,6 +174,28 @@ export function WallPage() {
   const slideshow = useSlideshow({ items, intervalMs: wall?.slideIntervalMs ?? 0 })
 
   /**
+   * The invitation, or nothing — never half of it.
+   *
+   * The code and the link arrive together from one presenter, so there is no deployment in
+   * which the server sends one and not the other. Requiring both here is what keeps the
+   * browser from inventing the missing half from `window.location.origin`: that is the
+   * address this projector was opened on rather than the one a guest's phone can reach,
+   * and printing it inside a QR is trap 1 with a different mismatch.
+   */
+  const join =
+    wall?.joinCode !== undefined && wall.joinUrl !== undefined
+      ? { code: wall.joinCode, url: wall.joinUrl }
+      : null
+  /**
+   * Whether the room may still be invited — the server's answer, read from the domain's own
+   * rule. Absent means an older server, which never said otherwise. Once the host has
+   * closed the evening the wall keeps playing, but a QR on it leads to "not open"
+   * (MUR-3), so neither the card, nor the code, nor the missions are drawn.
+   */
+  const acceptsGuests = wall?.acceptsGuests !== false
+  const invitation = acceptsGuests ? join : null
+
+  /**
    * Four sources, in the order a room means them: the key somebody just pressed, then
    * the display URL the projector was launched on, then the layout the event's ambiance
    * suggests (`ambianceLayout.ts`), then the layout the wall response carries. Derived
@@ -170,19 +205,22 @@ export function WallPage() {
   const [layoutOverride, setLayoutOverride] = useState<WallLayout | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
   /**
-   * Two flags, because there are two things a host can mean.
+   * The corner QR, put away by the host: `Q`, or the card's own button.
    *
-   * **Escape means "put away whatever is covering the photos"** — it always has, and it
-   * now reaches the mission panel as well, which is the honest reading of one key with
-   * one meaning.
+   * **Escape is not this.** It used to put away the QR and the missions with no way back, and
+   * it is also the key the browser's own advice for leaving fullscreen points at, so a host
+   * who pressed it twice while setting the projector up took the only door a late guest has
+   * off the wall for the whole night (MUR-5). It closes the help now, and nothing more.
    *
-   * **The card's own button means what its label says**, and its label is "Masquer le
-   * rappel du code". A host who wants the QR out of the corner has not asked for the
-   * room's mission list to go with it, and nothing on this screen puts either back: the
-   * projector is unattended, so a wrong dismissal lasts until somebody reloads it.
+   * It comes back on its own after `QR_HIDDEN_MS`: the projector is unattended, so a wrong
+   * dismissal must not last until somebody reloads it.
    */
-  const [chromeDismissed, setChromeDismissed] = useState(false)
-  const [joinCardDismissed, setJoinCardDismissed] = useState(false)
+  const [qrHidden, setQrHidden] = useState(false)
+  useEffect(() => {
+    if (!qrHidden) return
+    const timer = window.setTimeout(() => setQrHidden(false), QR_HIDDEN_MS)
+    return () => window.clearTimeout(timer)
+  }, [qrHidden])
 
   const serverLayout = wall?.layout
 
@@ -194,6 +232,7 @@ export function WallPage() {
   const ambianceLayout = eventTheme === null ? null : AMBIANCE_LAYOUT[eventTheme.ambiance]
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
+  const showsOverlay = invitation !== null && !qrHidden && items.length > 0
 
   /**
    * What the room is looking at, named on the wall element itself.
@@ -214,30 +253,14 @@ export function WallPage() {
         nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
-    onDismiss: () => {
-      // One key, the obvious meaning: put away whatever is covering the photos.
-      if (helpOpen) {
-        setHelpOpen(false)
-        return
-      }
-      setChromeDismissed(true)
+    // Escape closes the help and nothing else; leaving fullscreen is the browser's own.
+    onDismiss: closeHelp,
+    onToggleQr: () => {
+      // Nothing to put away on a closed event or a server that sends no invitation, and
+      // flipping the flag then would hide the card at some later moment for no reason.
+      if (invitation !== null) setQrHidden((hidden) => !hidden)
     },
   })
-
-  /**
-   * The invitation, or nothing — never half of it.
-   *
-   * The code and the link arrive together from one presenter, so there is no deployment in
-   * which the server sends one and not the other. Requiring both here is what keeps the
-   * browser from inventing the missing half from `window.location.origin`: that is the
-   * address this projector was opened on rather than the one a guest's phone can reach,
-   * and printing it inside a QR is trap 1 with a different mismatch.
-   */
-  const join =
-    wall?.joinCode !== undefined && wall.joinUrl !== undefined
-      ? { code: wall.joinCode, url: wall.joinUrl }
-      : null
-  const showsOverlay = join !== null && !chromeDismissed && !joinCardDismissed && items.length > 0
 
   /**
    * The host's prompts, when there are any (roadmap §2.1).
@@ -249,7 +272,7 @@ export function WallPage() {
    * nothing rather than crashing it.
    */
   const missions = wall?.missions ?? []
-  const showsMissions = !chromeDismissed && items.length > 0 && missions.length > 0
+  const showsMissions = acceptsGuests && items.length > 0 && missions.length > 0
 
   /**
    * The event's own look, worn by the element that renders it (roadmap 2.2).
@@ -288,10 +311,21 @@ export function WallPage() {
       // The card is chrome and the caption is the guest's words, so the card is what the
       // wall reserves around rather than what it prints over.
       data-wall-chrome={showsOverlay ? 'corner' : undefined}
+      // The arrow is taken off the photo after a few idle seconds (MUR-2), and is back at the
+      // first movement. An attribute, so the rule that hides it is one selector in CSS.
+      data-idle={cursorIdle ? 'true' : undefined}
     >
       {/* One region for the whole concern, mounted once — never one per notice. */}
       <div className={styles['notices']} aria-live="polite">
-        {offline ? <WallNotice tone="warning" text={text.wall.offline} delayed /> : null}
+        {/*
+          A lost connection is not announced to the room (MUR-9). Nothing for a minute, then a
+          dot with no words, and the sentence only once it has lasted for minutes. The dot
+          still carries its text as an accessible name, for the laptop a host sets up from.
+        */}
+        {outage === 'dot' ? (
+          <span className={styles['outageDot']} role="img" aria-label={text.wall.offline} />
+        ) : null}
+        {outage === 'text' ? <WallNotice tone="warning" text={text.wall.offline} /> : null}
         {slideshow.paused ? <WallNotice tone="accent" text={text.wall.paused} /> : null}
       </div>
 
@@ -300,8 +334,18 @@ export function WallPage() {
           {loading ? (
             <Spinner size="lg" label={text.app.loading} />
           ) : (
-            <div className={styles['failure']} role="alert">
-              <StatusIcon tone="danger" className={styles['failureIcon']} />
+            <div className={styles['failure']} role={notServed ? 'status' : 'alert'}>
+              {/*
+                An event that is not on yet is not a failure (MUR-4): a host who opens the
+                projector's address the day before is testing, and a red icon over "Réessayer"
+                on a screen with no mouse told them it was broken. A hollow, neutral glyph,
+                no button, and a promise. The server answers 404 for a draft, an archive and a
+                slug that does not exist alike, so this says nothing about which one it is.
+              */}
+              <StatusIcon
+                tone={notServed ? 'neutral' : 'danger'}
+                className={cx(styles['failureIcon'], notServed && styles['calmIcon'])}
+              />
               <h1 className={styles['failureTitle']}>
                 {notServed
                   ? text.wall.notServedTitle
@@ -313,15 +357,18 @@ export function WallPage() {
                 {notServed ? text.wall.notServedHint : text.wall.errorHint}
               </p>
               {/* The wall retries on its own; this is for the host who walked over
-                  rather than waiting for the next attempt. */}
-              <Button size="lg" onClick={refresh}>
-                {text.app.retry}
-              </Button>
+                  rather than waiting for the next attempt. A not-served screen offers none:
+                  it reads again every few seconds and wakes by itself. */}
+              {notServed ? null : (
+                <Button size="lg" onClick={refresh}>
+                  {text.app.retry}
+                </Button>
+              )}
             </div>
           )}
         </div>
       ) : items.length === 0 ? (
-        <WallEmptyState eventName={wall.event.name} join={join} />
+        <WallEmptyState eventName={wall.event.name} join={join} acceptsGuests={acceptsGuests} />
       ) : (
         <WallLayouts
           layout={layout ?? wall.layout}
@@ -334,8 +381,8 @@ export function WallPage() {
 
       {showsMissions ? <WallMissions missions={missions} /> : null}
 
-      {showsOverlay && join !== null ? (
-        <WallOverlay join={join} onDismiss={() => setJoinCardDismissed(true)} />
+      {showsOverlay && invitation !== null ? (
+        <WallOverlay join={invitation} onDismiss={() => setQrHidden(true)} />
       ) : null}
 
       <ReactionBurst pulse={reactionPulse} />
@@ -347,7 +394,16 @@ export function WallPage() {
         // one screen that explains `L` names what it walks through.
         // And how to leave: there is deliberately no exit button on the projected screen, so a guest
         // cannot drop the picture by mistake (navigation pass, A5; decision 5).
-        description={`${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}`}
+        description={[
+          text.wall.shortcutsHint,
+          layoutOrderHint(text),
+          text.wall.leaveHint,
+          // Only a wall the browser could not keep awake needs telling (MUR-2): the host's
+          // own computer is then the one thing left that can turn the projector off.
+          awake ? null : text.wall.keepAwakeHint,
+        ]
+          .filter((line) => line !== null)
+          .join(' ')}
         onClose={closeHelp}
       />
     </div>

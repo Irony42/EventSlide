@@ -7,8 +7,14 @@ export interface WallShortcuts {
   readonly onToggleFullscreen: () => void
   readonly onCycleLayout: () => void
   readonly onToggleHelp: () => void
-  /** Escape: put away whatever is covering the photo. */
+  /**
+   * Escape. It closes the help panel and nothing else: the browser itself uses the key to
+   * leave fullscreen, and a host who presses it twice while setting the projector up must
+   * not take the invitation off the wall for the night (MUR-5). Hiding the QR is `Q`.
+   */
   readonly onDismiss: () => void
+  /** `Q`: put the corner QR away, or bring it back. */
+  readonly onToggleQr: () => void
 }
 
 /** A control the browser already operates with these keys owns them. */
@@ -80,6 +86,10 @@ export const useWallKeyboard = (shortcuts: WallShortcuts): void => {
         case 'l':
           event.preventDefault()
           handlers.onCycleLayout()
+          return
+        case 'q':
+          event.preventDefault()
+          handlers.onToggleQr()
           return
         default:
           return

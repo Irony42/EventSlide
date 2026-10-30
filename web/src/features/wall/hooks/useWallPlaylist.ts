@@ -153,6 +153,10 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   // a corrected public address would otherwise leave the projector drawing yesterday's
   // QR for the rest of the evening, with the right six characters underneath it.
   kept.joinUrl === fresh.joinUrl &&
+  // Whether the room may still be invited (MUR-3). The host closing the evening moves no
+  // photograph, so `revision` stays put — and without this line the projector would go on
+  // printing a QR that leads to "not open" until somebody reloaded it.
+  kept.acceptsGuests === fresh.acceptsGuests &&
   kept.slideIntervalMs === fresh.slideIntervalMs &&
   kept.kenBurnsDurationMs === fresh.kenBurnsDurationMs &&
   kept.layout === fresh.layout &&

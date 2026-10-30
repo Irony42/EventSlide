@@ -656,26 +656,36 @@ export const es: UiText = {
   wall: {
     empty: 'Las primeras fotos llegarán enseguida',
     emptyHint: 'Escanee el código QR para enviar las suyas.',
-    joinPrompt: 'Únase a la galería',
-    offline: 'Conexión perdida — se está reintentando',
+    joinPrompt: 'Únase a la fiesta',
+    offline: 'Nuevas fotos a la espera de la red',
     paused: 'Presentación en pausa',
 
     codeLabel: 'Código de la fiesta',
     // Read by nothing in the room: the wall is also opened on a laptop while a host
     // sets the projector up.
-    qrTitle: 'Código QR para unirse a la galería',
+    qrTitle: 'Código QR para unirse a la fiesta',
     photoBy: (name: string) => `Foto enviada por ${name}`,
     photoByAnonymous: 'Foto enviada por un invitado',
     errorTitle: 'No se han podido cargar las fotos',
     errorHint: 'Se está reintentando. Revise la red del local si la pantalla sigue vacía.',
-    notServedTitle: 'Esta galería no se muestra',
-    notServedHint: 'No está abierta o se ha archivado. Si se abre, la pantalla se reanudará sola.',
+    notServedTitle: 'Esta pantalla está en espera',
+    notServedHint: 'Esta pantalla se encenderá sola en cuanto se abra la fiesta.',
     dismissJoinCard: 'Ocultar el aviso del código',
     shortcuts: 'Atajos de teclado',
     shortcutsHint:
-      'Espacio pausa, las flechas cambian de foto, F pasa a pantalla completa, L cambia la disposición.',
+      'Espacio pausa, las flechas cambian de foto, F pasa a pantalla completa, L cambia la disposición, Q oculta o muestra el código QR.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Para salir: Esc o F salen de la pantalla completa; después cierre la pestaña.',
+
+    /* ---- Before and after the evening (UX review 30/10, MUR-2 to MUR-9). Keep additions inside this block. ---- */
+    // The corner card's title: what to do, in a verb a guest reads from ten metres.
+    sendPrompt: 'Envíe sus fotos a la pantalla',
+    // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
+    typeCodeAt: (code: string, host: string) => `o escriba ${code} en ${host}`,
+    // An empty wall of an event the host has closed: nobody can send a photo any more.
+    emptyClosed: '¡Gracias por venir!',
+    // In the shortcuts panel, only when the browser could not keep the screen awake itself.
+    keepAwakeHint: 'Desactive la suspensión de este ordenador.',
 
     /**
      * The working words a Spanish host at the projector would use for each grid, not
@@ -758,7 +768,7 @@ export const es: UiText = {
      */
     wallLanguage: 'Idioma de la pantalla de la sala',
     wallLanguageHint:
-      'Las palabras de la pantalla de la sala: «Únase a la galería», «Misiones», los mensajes de espera. Lo que usted y sus invitados escriben — el nombre del evento, los pies de foto, los textos de las misiones — se muestra tal cual y nunca se traduce. Sus invitados eligen su propio idioma en su teléfono; este ajuste no les afecta.',
+      'Las palabras de la pantalla de la sala: «Únase a la fiesta», «Misiones», los mensajes de espera. Lo que usted y sus invitados escriben — el nombre del evento, los pies de foto, los textos de las misiones — se muestra tal cual y nunca se traduce. Sus invitados eligen su propio idioma en su teléfono; este ajuste no les afecta.',
 
     theme: 'Apariencia',
     themeHint:

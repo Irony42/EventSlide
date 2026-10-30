@@ -49,4 +49,32 @@ describe('WallEmptyState', () => {
     expect(screen.getByText(JOIN.code)).toBeVisible()
     expect(screen.getByText(fr.wall.codeLabel)).toBeVisible()
   })
+
+  it('says where to type the code, for the phone that cannot read the QR (MUR-7)', () => {
+    render(<WallEmptyState eventName="Camille & Sacha" join={JOIN} />)
+
+    expect(screen.getByText(fr.wall.typeCodeAt(JOIN.code, 'photos.example.com'))).toBeVisible()
+  })
+
+  it('draws no address when the link carries none it could name', () => {
+    render(<WallEmptyState eventName="Camille & Sacha" join={{ code: JOIN.code, url: 'nope' }} />)
+
+    expect(screen.queryByText(/photos.example/)).toBeNull()
+    expect(screen.getByText(JOIN.code)).toBeVisible()
+  })
+
+  describe('once the host has closed the event (MUR-3)', () => {
+    it('prints neither the QR nor the code nor the address, and thanks the room instead', () => {
+      render(<WallEmptyState eventName="Camille & Sacha" join={JOIN} acceptsGuests={false} />)
+
+      expect(screen.queryByTestId('wall-join')).toBeNull()
+      expect(screen.queryByTitle(fr.wall.qrTitle)).toBeNull()
+      expect(screen.queryByText(JOIN.code)).toBeNull()
+      expect(screen.queryByText(fr.wall.joinPrompt)).toBeNull()
+      expect(screen.queryByText(fr.wall.emptyHint)).toBeNull()
+      expect(screen.queryByText(fr.wall.empty)).toBeNull()
+      expect(screen.getByText(fr.wall.emptyClosed)).toBeVisible()
+      expect(screen.getByRole('heading', { name: 'Camille & Sacha' })).toBeVisible()
+    })
+  })
 })

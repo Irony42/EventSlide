@@ -684,26 +684,35 @@ export const de: UiText = {
   wall: {
     empty: 'Die ersten Fotos kommen gleich',
     emptyHint: 'Scannen Sie den QR-Code und senden Sie Ihre eigenen Fotos.',
-    joinPrompt: 'Treten Sie der Galerie bei',
-    offline: 'Verbindung unterbrochen — es wird erneut versucht',
+    joinPrompt: 'Treten Sie der Feier bei',
+    offline: 'Neue Fotos warten auf das Netzwerk',
     paused: 'Diashow angehalten',
 
     codeLabel: 'Code der Feier',
-    qrTitle: 'QR-Code für den Beitritt zur Galerie',
+    qrTitle: 'QR-Code für den Beitritt zur Feier',
     photoBy: (name: string) => `Foto, gesendet von ${name}`,
     photoByAnonymous: 'Foto, gesendet von einem Gast',
     errorTitle: 'Die Fotos konnten nicht geladen werden',
     errorHint:
       'Es wird erneut versucht. Prüfen Sie das Netz vor Ort, wenn der Bildschirm leer bleibt.',
-    notServedTitle: 'Diese Galerie wird nicht angezeigt',
-    notServedHint:
-      'Sie ist nicht geöffnet oder wurde archiviert. Wird sie geöffnet, zeigt der Bildschirm die Fotos von selbst wieder an.',
+    notServedTitle: 'Diese Anzeige wartet',
+    notServedHint: 'Diese Anzeige schaltet sich von selbst ein, sobald die Feier geöffnet wird.',
     dismissJoinCard: 'Code-Hinweis ausblenden',
     shortcuts: 'Tastenkürzel',
     shortcutsHint:
-      'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung.',
+      'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung, Q blendet den QR-Code aus oder ein.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Zum Verlassen: Esc oder F beenden den Vollbildmodus, danach den Tab schließen.',
+
+    /* ---- Before and after the evening (UX review 30/10, MUR-2 to MUR-9). Keep additions inside this block. ---- */
+    // The corner card's title: what to do, in a verb a guest reads from ten metres.
+    sendPrompt: 'Senden Sie Ihre Fotos auf die Leinwand',
+    // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
+    typeCodeAt: (code: string, host: string) => `oder geben Sie ${code} auf ${host} ein`,
+    // An empty wall of an event the host has closed: nobody can send a photo any more.
+    emptyClosed: 'Danke fürs Kommen!',
+    // In the shortcuts panel, only when the browser could not keep the screen awake itself.
+    keepAwakeHint: 'Deaktivieren Sie den Ruhezustand dieses Computers.',
 
     layoutNames: {
       spotlight: 'Vollbild',
@@ -773,7 +782,7 @@ export const de: UiText = {
 
     wallLanguage: 'Sprache der Leinwand im Saal',
     wallLanguageHint:
-      'Die Wörter auf der Leinwand im Saal: „Treten Sie der Galerie bei“, „Missionen“, die Wartemeldungen. Was Sie und Ihre Gäste schreiben — der Name der Veranstaltung, die Bildunterschriften, die Aufgaben — erscheint unverändert und wird nie übersetzt. Ihre Gäste wählen ihre eigene Sprache auf ihrem Telefon; diese Einstellung betrifft sie nicht.',
+      'Die Wörter auf der Leinwand im Saal: „Treten Sie der Feier bei“, „Missionen“, die Wartemeldungen. Was Sie und Ihre Gäste schreiben — der Name der Veranstaltung, die Bildunterschriften, die Aufgaben — erscheint unverändert und wird nie übersetzt. Ihre Gäste wählen ihre eigene Sprache auf ihrem Telefon; diese Einstellung betrifft sie nicht.',
 
     theme: 'Erscheinungsbild',
     themeHint:

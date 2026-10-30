@@ -675,15 +675,15 @@ export const fr = {
   wall: {
     empty: 'Les premières photos vont bientôt arriver',
     emptyHint: 'Scannez le QR code pour envoyer les vôtres.',
-    joinPrompt: 'Rejoignez la galerie',
-    offline: 'Connexion perdue — nouvelle tentative en cours',
+    joinPrompt: 'Rejoignez la soirée',
+    offline: 'Nouvelles photos en attente du réseau',
     paused: 'Diaporama en pause',
 
     /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Code de la soirée',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
     // is also opened on a laptop while a host sets the projector up.
-    qrTitle: 'QR code pour rejoindre la galerie',
+    qrTitle: 'QR code pour rejoindre la soirée',
     // A photo's alt text. 1.0 used the filename, which reads aloud as IMG_4821.jpg.
     photoBy: (name: string) => `Photo envoyée par ${name}`,
     photoByAnonymous: 'Photo envoyée par un invité',
@@ -691,15 +691,24 @@ export const fr = {
     errorHint: 'Nouvelle tentative en cours. Vérifiez le réseau du lieu si l’écran reste vide.',
     // The event is not served to the room: not open yet, archived, or its client suspended. The
     // server answered, so the venue's network is fine and neither line sends a host to look at it.
-    notServedTitle: 'Cette galerie n’est pas affichée',
-    notServedHint:
-      'Elle n’est pas ouverte, ou elle a été archivée. Si elle s’ouvre, l’écran reprendra tout seul.',
+    notServedTitle: 'Cet écran est en attente',
+    notServedHint: 'Cet écran s’allumera tout seul dès l’ouverture de la soirée.',
     dismissJoinCard: 'Masquer le rappel du code',
     shortcuts: 'Raccourcis clavier',
     shortcutsHint:
-      'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition.',
+      'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition, Q masque ou affiche le QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Pour quitter : Échap ou F sortent du plein écran, puis fermez l’onglet.',
+
+    /* ---- Before and after the evening (UX review 30/10, MUR-2 to MUR-9). Keep additions inside this block. ---- */
+    // The corner card's title: what to do, in a verb a guest reads from ten metres.
+    sendPrompt: 'Envoyez vos photos sur l’écran',
+    // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
+    typeCodeAt: (code: string, host: string) => `ou tapez ${code} sur ${host}`,
+    // An empty wall of an event the host has closed: nobody can send a photo any more.
+    emptyClosed: 'Merci d’être venus !',
+    // In the shortcuts panel, only when the browser could not keep the screen awake itself.
+    keepAwakeHint: 'Désactivez la mise en veille de cet ordinateur.',
 
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**
@@ -845,7 +854,7 @@ export const fr = {
      */
     wallLanguage: 'Langue de l’écran de la salle',
     wallLanguageHint:
-      'Les mots de l’écran de la salle : « Rejoignez la galerie », « Missions », les messages d’attente. Ce que vous et vos invités écrivez — le nom de l’évènement, les légendes, les consignes — s’affiche tel quel et n’est jamais traduit. Vos invités choisissent leur propre langue sur leur téléphone ; ce réglage ne les concerne pas.',
+      'Les mots de l’écran de la salle : « Rejoignez la soirée », « Missions », les messages d’attente. Ce que vous et vos invités écrivez — le nom de l’évènement, les légendes, les consignes — s’affiche tel quel et n’est jamais traduit. Vos invités choisissent leur propre langue sur leur téléphone ; ce réglage ne les concerne pas.',
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
             because a single choice with four options does not deserve four strings. ---- */

@@ -635,28 +635,37 @@ export const en: UiText = {
   wall: {
     empty: 'The first photos will arrive soon',
     emptyHint: 'Scan the QR code to send yours.',
-    joinPrompt: 'Join the gallery',
-    offline: 'Connection lost — reconnecting',
+    joinPrompt: 'Join the event',
+    offline: 'New photos waiting for the network',
     paused: 'Slideshow paused',
 
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
     // is also opened on a laptop while a host sets the projector up.
-    qrTitle: 'QR code to join the gallery',
+    qrTitle: 'QR code to join the event',
     // The alt text of a photo. 1.0 used the filename, which reads aloud as IMG_4821.jpg.
     photoBy: (name: string) => `Photo sent by ${name}`,
     photoByAnonymous: 'Photo sent by a guest',
     errorTitle: 'The photos could not be loaded',
     errorHint: 'Trying again. Check the venue network if the screen stays empty.',
-    notServedTitle: 'This gallery is not on display',
-    notServedHint:
-      'It is not open, or it has been archived. If it opens, the screen will resume by itself.',
+    notServedTitle: 'This screen is waiting',
+    notServedHint: 'This screen will switch on by itself as soon as the event opens.',
     dismissJoinCard: 'Hide the code reminder',
     shortcuts: 'Keyboard shortcuts',
     shortcutsHint:
-      'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout.',
+      'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout, Q hides or shows the QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
+
+    /* ---- Before and after the evening (UX review 30/10, MUR-2 to MUR-9). Keep additions inside this block. ---- */
+    // The corner card's title: what to do, in a verb a guest reads from ten metres.
+    sendPrompt: 'Send your photos to the screen',
+    // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
+    typeCodeAt: (code: string, host: string) => `or type ${code} at ${host}`,
+    // An empty wall of an event the host has closed: nobody can send a photo any more.
+    emptyClosed: 'Thank you for coming!',
+    // In the shortcuts panel, only when the browser could not keep the screen awake itself.
+    keepAwakeHint: 'Turn off sleep mode on this computer.',
 
     layoutNames: {
       spotlight: 'Full screen',
@@ -725,7 +734,7 @@ export const en: UiText = {
 
     wallLanguage: 'Language of the screen in the room',
     wallLanguageHint:
-      'The words on the screen in the room: “Join the gallery”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
+      'The words on the screen in the room: “Join the event”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
 
     theme: 'Appearance',
     themeHint:
