@@ -6,11 +6,8 @@
  * the number it guards are computed by one implementation rather than by two that agree
  * until somebody edits one of them.
  *
- * It exists because roadmap 11.2 gave the material a second tint floor. The floor is
- * derived in `tokens.contrast.test.ts` against the brightest field this product paints, and
- * `app/glassBackdrop.test.ts` refuses a screen that could paint a brighter one. Those two
- * numbers have to be the same number; a second copy of `toLinearSrgb` is how they would
- * stop being.
+ * It exists so that a guard and the number it guards are one implementation: a second copy of
+ * `toLinearSrgb` is how two checks come to disagree about the same colour.
  *
  * ## Two kinds of arithmetic, deliberately
  *
@@ -19,8 +16,7 @@
  * compositing happens in gamma-encoded sRGB — which is why 50% black over white renders as
  * mid grey rather than the much darker colour a linear blend gives — so `composite` encodes
  * first, blends, and lets `luminanceOf` decode again. Measuring a blend in Oklab or in
- * linear light flatters it by a wide margin, and the glass tint floor is exactly the number
- * that would have been flattered.
+ * linear light flatters it by a wide margin.
  */
 
 export interface Oklch {
@@ -115,23 +111,6 @@ export const composite = (source: Oklch, backdrop: Srgb): Srgb => {
 
 /** The ceiling of the gamut: a white dress in full sun, and nothing can be brighter. */
 export const WHITE: Srgb = [1, 1, 1]
-
-/**
- * The same token at whichever of the 360 hues renders lightest.
- *
- * Roadmap 2.2 lets a host move `--accent-hue` and nothing else, so a token derived from it
- * is not one colour but a circle of them — and oklch's `L` is perceptual lightness, which
- * does not track relative luminance: a yellow and a blue at the same `L` are far apart on
- * the axis WCAG measures. The worst case therefore has to be found rather than assumed.
- *
- * This is the backdrop the ground tint floor is derived against, and the ceiling
- * `app/glassBackdrop.test.ts` refuses a brighter field than — one function, so the floor
- * and the guard cannot come to different answers about the same colour.
- */
-export const lightestHue = (colour: Oklch): Oklch =>
-  Array.from({ length: 360 }, (_unused, h) => ({ ...colour, h })).reduce((light, next) =>
-    luminanceOf(srgb(next)) > luminanceOf(srgb(light)) ? next : light,
-  )
 
 /**
  * `tokens.css` without its ambiance blocks (ADR 0010): the root look, and nothing a themed

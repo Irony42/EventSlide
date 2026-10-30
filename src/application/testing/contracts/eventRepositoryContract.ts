@@ -168,18 +168,17 @@ export const eventRepositoryContract = (
             retentionDays: 30,
             maxPhotosPerGuest: 5,
             // A theme in which **every** field is off its default, so a store that dropped
-            // one would fail here rather than quietly agreeing with it. `material: 'plain', ambiance: 'guinguette'`
-            // is load-bearing for exactly that reason: `glass` is both the default and what
+            // one would fail here rather than quietly agreeing with it. `ambiance: 'guinguette'`
+            // is load-bearing for exactly that reason: `eventslide` is both the default and what
             // the SQLite adapter fills in for an absent key, so a store that never wrote
             // the field would have round-tripped clean.
             theme: {
               accentHue: 345,
               fonts: 'serif',
               frame: 'round',
-              material: 'plain',
               ambiance: 'guinguette',
             },
-            // Off the default for the same reason `material: 'plain', ambiance: 'guinguette'` is: `fr` is both the
+            // Off the default for the same reason `ambiance: 'guinguette'` is: `fr` is both the
             // domain's default and what the SQLite adapter fills in for an absent key, so
             // a store that never wrote this field would have round-tripped clean.
             wallLanguage: 'de',
@@ -204,7 +203,6 @@ export const eventRepositoryContract = (
           accentHue: 345,
           fonts: 'serif',
           frame: 'round',
-          material: 'plain',
           ambiance: 'guinguette',
         },
         wallLanguage: 'de',
@@ -222,7 +220,6 @@ export const eventRepositoryContract = (
               accentHue: 250,
               fonts: 'sans',
               frame: 'soft',
-              material: 'glass',
               ambiance: 'custom',
               custom,
             },

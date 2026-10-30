@@ -773,13 +773,6 @@ export const de: UiText = {
       square: 'Gerade Ecken',
       round: 'Stark abgerundete Ecken',
     },
-    themeMaterial: 'Material der Flächen',
-    themeMaterialHint:
-      'Glas lässt ahnen, was darunter liegt; die einfarbige Fläche ist undurchsichtig. Der Unterschied ist dezent, und er betrifft nur die Seite, auf der Ihre Gäste ihre Fotos senden: Ihre Moderationskonsole und die Leinwand im Saal ändern sich nicht.',
-    themeMaterialNames: {
-      glass: 'Milchglas',
-      plain: 'Einfarbige Fläche',
-    },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:
       'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrer Konsole tragen.',

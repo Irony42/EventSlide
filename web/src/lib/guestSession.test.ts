@@ -224,19 +224,15 @@ describe('guestSession', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'eventslide',
     })
   })
 
-  it('completes a theme written before the material was part of one', () => {
-    // Roadmap 11.5, and the narrower version of the case above: the entry has a theme, it
-    // is a theme this build can read, and it is one field short. The session the upload
-    // screen receives has to carry the whole shape `PublicEventDto` promises — otherwise
-    // `theme.material` is `undefined` on a phone in the room while every type says it is
-    // not, and the first copy table indexed by it prints nothing.
+  it('drops the retired material of an older entry rather than handing it on', () => {
+    // ADR 0012: a tab that joined before 3.3 stored `material`, and nothing reads it any more.
+    // The session the upload screen receives carries the shape `PublicEventDto` promises.
     const older: Record<string, unknown> = { ...aPublicEvent({ slug: 'gala' }) }
-    older['theme'] = { accentHue: 345, fonts: 'serif', frame: 'round' }
+    older['theme'] = { accentHue: 345, fonts: 'serif', frame: 'round', material: 'plain' }
     sessionStorage.setItem(
       'eventslide.guest.gala',
       JSON.stringify({ event: older, displayName: 'Léa' }),
@@ -246,7 +242,6 @@ describe('guestSession', () => {
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
-      material: 'glass',
       ambiance: 'eventslide',
     })
   })
@@ -260,7 +255,6 @@ describe('guestSession', () => {
       accentHue: 'rose',
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'eventslide',
     }
     sessionStorage.setItem(
@@ -575,7 +569,6 @@ describe('guestSession: a theme the server has since changed', () => {
     accentHue: 345,
     fonts: 'serif',
     frame: 'round',
-    material: 'plain',
     ambiance: 'eventslide',
   } as const
 

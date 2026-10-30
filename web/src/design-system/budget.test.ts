@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   afterVerdict,
   affords,
-  budgetFloorFor,
   frameRateOf,
   FRAME_WINDOW,
-  INTERACTION_BUDGET_MS,
-  interactionsHold,
   frameIntervalOf,
   STOPPED_PAINTING_MS,
   MIN_FRAMES_PER_SECOND,
@@ -27,10 +24,11 @@ import {
  * the tests below are what fails when somebody reorders it.
  */
 describe('the order things are given up in', () => {
-  it('is glass, then the zoom, then the fade — and nothing else is in it', () => {
+  it('is the zoom, then the fade — and nothing else is in it', () => {
     // The whole rule as one assertion. Reordering it is a decision about what a room sees
-    // when the machine driving it runs out, and it should cost a red test.
-    expect(SHED_ORDER).toEqual(['glass', 'ken-burns', 'crossfade'])
+    // when the machine driving it runs out, and it should cost a red test. The blur that used
+    // to head the ladder is retired (ADR 0012).
+    expect(SHED_ORDER).toEqual(['ken-burns', 'crossfade'])
   })
 
   it('affords every cost at the top of the ladder, where nothing has been given up', () => {
@@ -38,84 +36,42 @@ describe('the order things are given up in', () => {
   })
 
   it('affords none of them at the bottom, where everything has', () => {
-    for (const cost of SHED_ORDER) expect(affords(3, cost)).toBe(false)
-  })
-
-  it('gives up the blur before it gives up any motion', () => {
-    // The direction roadmap 11.3 fixes. Glass is decoration and Ken Burns is what the room
-    // is looking at, so a machine in trouble loses the decoration first — on every surface,
-    // which is why there is one ladder and not one per audience.
-    expect(affords(1, 'glass')).toBe(false)
-    expect(affords(1, 'ken-burns')).toBe(true)
-    expect(affords(1, 'crossfade')).toBe(true)
+    for (const cost of SHED_ORDER) expect(affords(2, cost)).toBe(false)
   })
 
   it('gives up the zoom before it gives up the fade', () => {
     // Ken Burns runs on every frame of every slide; the crossfade runs for one second in
     // eight. Giving up the continuous one first buys more and costs less to look at.
-    expect(affords(2, 'ken-burns')).toBe(false)
-    expect(affords(2, 'crossfade')).toBe(true)
+    expect(affords(1, 'ken-burns')).toBe(false)
+    expect(affords(1, 'crossfade')).toBe(true)
   })
 
   it('sheds one rung at a time and stops at the bottom', () => {
     expect(shedOne(0)).toBe(1)
     expect(shedOne(1)).toBe(2)
-    expect(shedOne(2)).toBe(3)
     // There is nothing under the last rung: what is left is the photograph, which is the
     // product. A ladder that ran off its own end would be one that could switch the wall off.
-    expect(shedOne(3)).toBe(3)
+    expect(shedOne(2)).toBe(2)
   })
-})
-
-describe('where each surface starts', () => {
-  it('starts the room one rung down, because the room can never afford a blur', () => {
-    // Decided in advance rather than discovered at a wedding, and expressed as the floor of
-    // the ladder rather than as a second rule beside it: the wall is crossfading, running
-    // Ken Burns and possibly decoding a clip, so its backdrop changes every frame and a
-    // filter over it is recomputed every frame at full screen.
-    expect(budgetFloorFor('wall')).toBe(1)
-    expect(affords(budgetFloorFor('wall'), 'glass')).toBe(false)
-  })
-
-  it.each(['guest', 'host'] as const)(
-    'starts %s with nothing given up yet, so it can still afford everything',
-    (surface) => {
-      // The other half of the pair, and the half worth having. "The wall gets the opaque
-      // fallback and the guest surfaces keep the blur" is one decision, so a test that only
-      // checked the wall would pass just as well if the material had been switched off
-      // everywhere.
-      expect(budgetFloorFor(surface)).toBe(0)
-      expect(affords(budgetFloorFor(surface), 'glass')).toBe(true)
-    },
-  )
 })
 
 describe('the marker the wall renders its rungs as', () => {
   it('spreads nothing while the wall still has its motion', () => {
-    // The same promise `glassSurfaceProps` makes: a wall that is holding its frame rate
-    // renders the DOM it rendered before any of this existed, which is what lets the
-    // committed visual baselines stay committed.
-    expect(wallBudgetProps(1)).toEqual({})
+    // A wall that is holding its frame rate renders the DOM it rendered before any of this
+    // existed, which is what lets the committed visual baselines stay committed.
+    expect(wallBudgetProps(0)).toEqual({})
   })
 
   it('marks a wall that has given up the zoom, and then the fade', () => {
-    expect(wallBudgetProps(2)).toEqual({ 'data-wall-budget': 'still' })
-    expect(wallBudgetProps(3)).toEqual({ 'data-wall-budget': 'cut' })
-  })
-
-  it('never claims a rung the room has not reached', () => {
-    // Level 0 cannot happen on the wall — the floor is 1 — but the function is total, and
-    // answering "still" for a surface that has shed nothing would stop the wall's Ken Burns
-    // on a machine that is perfectly happy.
-    expect(wallBudgetProps(0)).toEqual({})
+    expect(wallBudgetProps(1)).toEqual({ 'data-wall-budget': 'still' })
+    expect(wallBudgetProps(2)).toEqual({ 'data-wall-budget': 'cut' })
   })
 })
 
 /**
  * The verdict reducer, which is where the hysteresis lives.
  *
- * Both monitors — frames on the wall, interactions on a phone — produce a stream of
- * verdicts, and both feed this. One bad window is a garbage collection, a video keyframe or
+ * The wall's frame monitor produces a stream of verdicts, and feeds this. One bad window is a garbage collection, a video keyframe or
  * a photograph being decoded; it is not a machine that cannot afford the interface, and
  * switching Ken Burns off in front of a hundred people because of one of them would be a
  * worse bug than the one this exists to prevent.
@@ -138,10 +94,10 @@ describe('how a verdict turns into a rung', () => {
   })
 
   it('never climbs back, whatever the machine does afterwards', () => {
-    // One-way on purpose. Giving an effect back means the wall can oscillate — blur on,
-    // blur off, blur on — in front of a room, and the thing that made the frames come back
+    // One-way on purpose. Giving an effect back means the wall can oscillate — zoom on,
+    // zoom off, zoom on — in front of a room, and the thing that made the frames come back
     // may well be the effect being off. An evening is short and a reload is free.
-    const degraded = { level: 2 as BudgetLevel, strikes: 0 }
+    const degraded = { level: 1 as BudgetLevel, strikes: 0 }
 
     expect(afterVerdict(degraded, true)).toEqual(degraded)
     expect(afterVerdict(afterVerdict(degraded, true), true)).toEqual(degraded)
@@ -151,7 +107,7 @@ describe('how a verdict turns into a rung', () => {
     // The monitor stops sampling at the bottom of the ladder, and this is what makes that
     // safe rather than a behaviour of the hook: a strike recorded there would be a strike
     // that can never be spent.
-    expect(afterVerdict({ level: 3, strikes: 0 }, false)).toEqual({ level: 3, strikes: 0 })
+    expect(afterVerdict({ level: 2, strikes: 0 }, false)).toEqual({ level: 2, strikes: 0 })
   })
 
   it('takes two strikes, and the number is the one the constant says', () => {
@@ -257,38 +213,5 @@ describe('whether a window of frames held', () => {
 
   it('is cinema’s floor and not a number somebody liked', () => {
     expect(MIN_FRAMES_PER_SECOND).toBe(24)
-  })
-})
-
-/**
- * The guest's verdict, which is not a frame rate.
- *
- * Roadmap 11.3 asks for "a first-interaction budget on the guest surface", and a frame rate
- * is the wrong measurement for it: the upload screen is still between taps, so its frames
- * are perfect right up until the moment a guest touches it. What a guest on a saturated
- * venue Wi-Fi mid-encode actually experiences is the tap that takes a second to do anything,
- * and that has a published number — 200 ms is the INP threshold for a "good" interaction.
- */
-describe('whether the guest surface answered the hand in time', () => {
-  it('holds an interaction inside the budget', () => {
-    expect(interactionsHold([INTERACTION_BUDGET_MS])).toBe(true)
-  })
-
-  it('refuses one outside it', () => {
-    expect(interactionsHold([INTERACTION_BUDGET_MS + 1])).toBe(false)
-  })
-
-  it('takes the worst of a batch, because a guest remembers the slow one', () => {
-    expect(interactionsHold([8, 16, INTERACTION_BUDGET_MS + 1, 24])).toBe(false)
-  })
-
-  it('says nothing about a batch with nothing in it', () => {
-    // No interaction is not a slow interaction. A guest reading the screen must not cost
-    // the screen its material.
-    expect(interactionsHold([])).toBe(true)
-  })
-
-  it('is the published threshold and not a number somebody liked', () => {
-    expect(INTERACTION_BUDGET_MS).toBe(200)
   })
 })

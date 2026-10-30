@@ -17,7 +17,6 @@ export const toSettingsPatch = (settings: EventSettingsDto): EventSettingsDto =>
     accentHue: settings.theme.accentHue,
     fonts: settings.theme.fonts,
     frame: settings.theme.frame,
-    material: settings.theme.material,
     ambiance: settings.theme.ambiance,
     // Sent back as it was read: the ambiance's own page edits it, and a save from this form
     // must not drop what the host made there (the server refuses `custom` without its object).

@@ -14,7 +14,7 @@ import type { EventTemplateKey } from '../../../lib/api/dto'
  *
  * The root takes `themeSurfaceProps(theme, 'wall')`, which is what `WallPage` spreads onto
  * the projector's own element: the same `--accent-hue`, the same `data-event-accent`,
- * `data-event-fonts`, `data-event-frame` and `data-glass`. Every colour, face and corner
+ * `data-event-fonts`, and `data-event-frame`. Every colour, face and corner
  * below then resolves through `tokens.css` exactly as it does in the room — the accent
  * through `var(--accent)`, the heading through `var(--font-display)`, the photographs'
  * corners through `var(--wall-frame-radius)`. The panel is the one part that is not worn, below. This
@@ -24,16 +24,10 @@ import type { EventTemplateKey } from '../../../lib/api/dto'
  * The console is deliberately not themed (DESIGN-SYSTEM.md section 12), and that is why the
  * attributes go on this element and not above it: nothing else on the page can inherit them.
  *
- * ## What the panel does not show, and why
+ * ## The panel
  *
- * `data-glass` is carried like the rest, but the panel is painted `--surface-raised` and does
- * not compose the glass sheet. Wearing it would put this screen into the material's guards —
- * `glass.material.test.ts` lists the argued wearers (a pane with content moving under it, which
- * a static miniature is not), and `glassBackdrop.test.ts` refuses a `ground` claim for a page
- * that can reach `glass.module.css`, which would move `/admin/events/new` to the strict floor
- * and blunt the test that proves the router's ranking. And nothing would be gained to look at:
- * every template sets `glass`, the default, and glass over a flat ground is within a tint of the
- * opaque colour — the difference is the blur over motion, which a still box cannot show.
+ * Painted `--surface-raised`, the colour every pane of the product is drawn on (the glass
+ * material that once sat on it is retired, ADR 0012).
  *
  * ## Decorative, and nothing else
  *

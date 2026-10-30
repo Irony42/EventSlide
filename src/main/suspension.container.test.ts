@@ -438,7 +438,6 @@ describe('a suspended client, through the real composition root', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'guinguette',
       },
     }

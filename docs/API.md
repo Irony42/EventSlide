@@ -975,7 +975,6 @@ which is allowed.
       "accentHue": 345,
       "fonts": "serif",
       "frame": "round",
-      "material": "glass",
       "ambiance": "guinguette",
       "groundUrl": null
     }
@@ -1142,8 +1141,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "theme": {
     "accentHue": 345,
     "fonts": "serif",
-    "frame": "round",
-    "material": "glass"
+    "frame": "round"
   },
   "missions": [
     {
@@ -1269,7 +1267,7 @@ after the page loaded is refused although its URL is correctly signed.
 ```json
 {
   "eventName": "Camille & Sacha",
-  "theme": { "accentHue": 305, "fonts": "…", "frame": "…", "material": "glass" },
+  "theme": { "accentHue": 305, "fonts": "…", "frame": "…" },
   "photoCount": 124,
   "expiresAt": "2026-07-20T21:00:00.000Z",
   "archiveUrl": "/api/gallery-media/<linkId>/album.zip?e=<ms>&s=<signature>"
@@ -1470,7 +1468,7 @@ the evening is over instead of offering a form the server would refuse with `409
     }
   ],
   "acceptingUploads": true,
-  "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft", "material": "glass" }
+  "theme": { "accentHue": 305, "fonts": "sans", "frame": "soft" }
 }
 ```
 
@@ -2768,8 +2766,7 @@ The shape every route in the table that answers `200` returns.
     "theme": {
       "accentHue": 305,
       "fonts": "sans",
-      "frame": "soft",
-      "material": "glass"
+      "frame": "soft"
     },
     "wallLanguage": "fr"
   },
@@ -2879,8 +2876,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "theme": {
     "accentHue": 345,
     "fonts": "serif",
-    "frame": "round",
-    "material": "glass"
+    "frame": "round"
   },
   "wallLanguage": "de"
 }
@@ -2955,20 +2951,22 @@ page showed the host the tag they chose.
 
 ```
 { "accentHue": 0..359, "fonts": "sans" | "serif",
-  "frame": "soft" | "square" | "round", "material": "glass" | "plain" }
+  "frame": "soft" | "square" | "round", "ambiance": "…" }
 ```
 
 The one field here that is **not** a partial update: absent leaves the theme alone, but a
-`theme` that is present must carry all four keys, and anything else is
+`theme` that is present must carry all its keys (`accentHue`, `fonts`, `frame`, `ambiance`), and anything else is
 `400 request.invalid`. They are one decision made on one form — the same argument
 `PATCH /schedule` makes about its two instants — and the legibility rule below judges them
 together, so merging half a theme into a stored one would produce a palette nobody chose.
 
-`material` arrived after the other three, so a client written against the older shape sends
-three keys and is refused until it is reloaded. That is the intended trade: the alternative
-is for an absent `material` to mean something, the only sane meaning is `glass`, and a host
-who chose `plain` would then have it silently undone by a stale tab saving an unrelated
-checkbox. A refusal a reload fixes beats a choice quietly reverted.
+**`material` is retired (ADR 0012).** The liquid-glass material and its host setting are gone, so
+the key is no longer part of the theme: nothing emits it, `GET` answers no `material`, and no
+route forwards it. It is still **accepted and ignored** on `PATCH`, with `"glass"` or `"plain"`,
+because a tab left open across the deploy still sends it and must not be answered
+`400 request.invalid`; any other value for it is refused as before. The same goes for the
+photograph's `groundUrl`. Stored rows that still carry a `material` key are read as if it were
+absent, whatever it holds, and the next save drops it. There is no migration.
 
 `ambiance` (ADR 0010) is one of `guinguette | riviera | champs | bivouac | cabaret | noces | custom`,
 and, like the other keys, is required (a request without it is `400 request.invalid`).
@@ -3003,30 +3001,6 @@ broken; the host is told rather than silently moved to a colour they did not pic
 The console offers four named hues (violet 305, rose 345, azure 250, teal 195) and this
 endpoint accepts any angle it can prove legible. The list is an affordance; the rule is
 the guard.
-
-`material` is whether the event's panes wear the liquid-glass material or the opaque
-surface the product already ships everywhere else. It is the host's decision about their
-evening, not the viewer's about their phone: a device's own answers — a missing
-`backdrop-filter`, `prefers-reduced-transparency`, a frame rate that stopped holding — are
-decided in the browser and **outrank** it, so `plain` means "never the material" while
-`glass` means "the material, where this machine can hold it". It never reaches the wall's
-rendering, which gave the material up on every machine before this field existed.
-
-An event whose stored settings predate this field reads the product's own look —
-`{ "accentHue": 305, "fonts": "sans", "frame": "soft", "material": "glass" }` — which is
-exactly what it has been rendering, so nothing changes on any screen at the deploy. The
-same holds one level down for an event themed before `material` existed: the key is filled
-in as `glass`, which is what that blob was already rendering. That is deliberately _not_
-the shape of the `allowClips` fallback above: these consent to nothing and cost nothing, so
-the absent-key answer and the default answer coincide — which is also why neither of them
-needed a migration.
-
-**A downgrade past this field discards it, and that is worth knowing before an event rather
-than after one.** An older build hydrates a `"material": "plain"` event happily, because it
-ignores the key — but the first save of any setting on that build re-serialises the whole
-blob without it, so rolling forward again reads the host's choice as `glass`. Self-hosted
-operators do roll back on the day; if one does, the host's surface finish is the thing to
-re-pick afterwards.
 
 The theme also rides on `POST /api/join` (§3), `GET /api/events/:slug/wall` (§4) and
 `GET /api/events/:slug/photos/mine` (§3), so the guest's phone and the projector paint the right

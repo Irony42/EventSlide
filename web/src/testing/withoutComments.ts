@@ -4,7 +4,7 @@
  * For a test that reads code as text. A guard that looks for a spelling has to look at code
  * and not at prose: the module that replaced a spelling usually explains the old one in a
  * comment, and a sweep that counted the prose would be satisfied by deleting the explanation.
- * `glassBackdrop.test.ts` needed it first: `WallLayouts.tsx` discusses how many `<img>`
+ * It was needed first by a sweep of the wall's modules: `WallLayouts.tsx` discusses how many `<img>`
  * elements a layout may hold and `SlideLayer.tsx` explains what happens to a `<video>` on the
  * outgoing layer, so a sweep that counted prose would put half the wall's modules in the wrong
  * category — and would be fixed by deleting the comment.
@@ -14,8 +14,8 @@
  * `accept` attribute whose value ends in a slash-star reads as an opening comment to an
  * unanchored sweep, which then deletes everything up to the next closing pair anywhere in the
  * file. Measured on this tree rather than assumed: 646 bytes of `ClipComposer.tsx` (the
- * attribute is `video/` + star) and 1 225 bytes of `glassBackdrop.ts` itself, where the opener
- * is the route string for the join catch-all. Whether the fault bites depends on what comes
+ * attribute is `video/` + star), and 1 225 bytes of a router module, where the opener was the
+ * route string for the join catch-all. Whether the fault bites depends on what comes
  * later in the file, so it is invisible until the day somebody adds an element below it.
  * Requiring a boundary costs nothing: a real comment is preceded by a line start, whitespace,
  * or one of `{ ; ( ,`.

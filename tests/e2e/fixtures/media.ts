@@ -70,7 +70,7 @@ export const aPhoto = async (label = 'photo', width = 1600, height = 1200): Prom
  *
  * Pure white rather than merely bright: it is the ceiling of the sRGB gamut, so a caption
  * that reads here reads over every photograph a guest can send. It is the same backdrop
- * `tokens.contrast.test.ts` derives the scrim's alpha and the glass tint's floor against,
+ * `tokens.contrast.test.ts` derives the scrim's alpha against,
  * which is what makes the baseline beside it a picture of that arithmetic.
  */
 export const aBrightPhoto = async (
