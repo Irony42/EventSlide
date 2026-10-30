@@ -65,13 +65,21 @@ const SPLIT_PANES = 2
 const CLOTHESLINE_PRINTS = 5
 
 /**
- * Which photos a rotating layout is holding at slide `index`.
+ * Which photos a rotating layout is holding right now.
  *
- * One slot changes per interval, in turn, rather than all of them at once: a whole-wall
+ * One slot changes per slide, in turn, rather than all of them at once: a whole-wall
  * refresh every eight seconds reads as a fault from across the room, and it is what
- * gives each photo `slotCount` intervals on screen — the reason a host picks a
- * multi-slot layout for a busy cocktail hour in the first place. Derived purely from the
- * index, so two projectors on the same event agree slot for slot.
+ * gives each photo `slotCount` slides on screen — the reason a host picks a multi-slot
+ * layout for a busy cocktail hour in the first place. The slot whose turn it is takes the
+ * photo the wall has just moved to, which is `slideshow.recent[0]`; the others keep what
+ * they took on their own earlier turns, `recent[1]` and so on. So a photo that has just
+ * been published and jumps the queue goes into the next slot to turn, wherever it sits in
+ * the playlist. Derived purely from the slideshow's history and its generation, so two
+ * projectors that have shown the same slides agree slot for slot.
+ *
+ * A slot whose photo has since been taken down, or that a short playlist would hang twice,
+ * takes the newest photo that is not already up: a host's "remove from the screen" has to
+ * be prompt in every layout, not only the spotlight.
  *
  * The result is as short as the playlist when the playlist is shorter than the grid.
  * Repeating a photo to fill the holes was the alternative and it is worse: the same face
@@ -80,30 +88,41 @@ const CLOTHESLINE_PRINTS = 5
  */
 const rotatingSlots = (
   items: readonly WallItemDto[],
-  index: number,
+  slideshow: Pick<Slideshow, 'recent' | 'generation'>,
   slotCount: number,
 ): readonly WallItemDto[] => {
   const visible = Math.min(slotCount, items.length)
-  const slots: WallItemDto[] = []
+  const { recent, generation } = slideshow
   // The turn cycle is as long as what is on the wall. With fewer photos than slots, a cycle
   // of `slotCount` and a playlist of another length put one photo in two slots at once.
   const cycle = visible
 
+  const claimed = new Set<string>()
+  const held: (WallItemDto | undefined)[] = []
   for (let slot = 0; slot < visible; slot += 1) {
-    const sinceItsTurn = (((index - slot) % cycle) + cycle) % cycle
-    const turn = index - sinceItsTurn
+    const sinceItsTurn = (((generation - slot) % cycle) + cycle) % cycle
     // Before a slot's first turn it simply shows the photo at its own position, so the
     // wall is full from the first frame instead of filling in over a minute.
-    const position = turn < 0 ? slot : turn
-    const item = items[position % items.length]
-    // `visible` never exceeds the playlist and the modulo lands inside it, so every slot
-    // resolves. This is the narrowing `noUncheckedIndexedAccess` asks for and not a
-    // fallback: there is no photo to put in a slot that resolved to nothing, and
-    // inventing one is how a wall ends up showing the same face twice.
-    if (item !== undefined) slots.push(item)
+    const item =
+      generation - sinceItsTurn < 0 ? items[slot] : (recent[sinceItsTurn]?.item ?? undefined)
+    if (item === undefined || claimed.has(item.id)) {
+      held.push(undefined)
+    } else {
+      claimed.add(item.id)
+      held.push(item)
+    }
   }
 
-  return slots
+  return held.flatMap((item) => {
+    if (item !== undefined) return [item]
+    // `visible` never exceeds the playlist and fewer than `visible` ids are claimed
+    // here, so there is always one left. The `undefined` branch is the narrowing
+    // `noUncheckedIndexedAccess` asks for and not a fallback to invent a photo with.
+    const spare = items.find((candidate) => !claimed.has(candidate.id))
+    if (spare === undefined) return []
+    claimed.add(spare.id)
+    return [spare]
+  })
 }
 
 /**
@@ -166,28 +185,42 @@ const tiltFor = (photoId: string): number => {
 const splitLag = (length: number): number => (length < 4 ? 0 : Math.floor(length / 2))
 
 /**
- * The two halves of the split, at slide `index`.
+ * The two halves of the split, right now.
  *
  * The panes take their turn alternately — the same derivation the mosaic uses, with two
  * slots — so one half is always stable while the other changes. A wall where both halves
  * cut at once is two slideshows, not a pairing, and there is nothing left for the eye to
  * rest on.
+ *
+ * The left pane's turn is a look back, so it does not show the photo the wall moved to but
+ * one half a playlist older. Except for a photo that has just been published and jumped the
+ * queue: that one is shown as it is, on whichever pane's turn it takes, because "look up,
+ * it is on the screen" must not depend on a pane's parity.
  */
-const splitPanes = (items: readonly WallItemDto[], index: number): readonly WallItemDto[] => {
+const splitPanes = (
+  items: readonly WallItemDto[],
+  slideshow: Pick<Slideshow, 'recent' | 'generation'>,
+): readonly WallItemDto[] => {
   const length = items.length
   if (length === 0) return []
 
+  const { recent, generation } = slideshow
   const visible = Math.min(SPLIT_PANES, length)
   const lag = splitLag(length)
   const panes: WallItemDto[] = []
 
   for (let pane = 0; pane < visible; pane += 1) {
-    const sinceItsTurn = (((index - pane) % SPLIT_PANES) + SPLIT_PANES) % SPLIT_PANES
-    const turn = index - sinceItsTurn
-    const base = turn < 0 ? pane : turn
-    // Only the left pane looks back; the right one stays with the cursor, so the newest
-    // photo is always on the wall within a slide of arriving.
-    const offset = pane === 0 ? lag : 0
+    const sinceItsTurn = (((generation - pane) % SPLIT_PANES) + SPLIT_PANES) % SPLIT_PANES
+    const turn = generation - sinceItsTurn
+    const slide = turn < 0 ? undefined : recent[sinceItsTurn]
+    const shown = slide?.item ?? undefined
+    // Where the pane's photo sits in the playlist: the slide's own, or the pane's position
+    // before its first turn (and when the slide has since been taken down).
+    const found = shown === undefined ? -1 : items.findIndex((item) => item.id === shown.id)
+    const base = found === -1 ? pane : found
+    // Only the left pane looks back; the right one stays with the wall, so the newest
+    // photo is always on the screen within a slide of arriving.
+    const offset = pane === 0 && slide?.fresh !== true ? lag : 0
     const item = items[(base + offset) % length]
     if (item !== undefined) panes.push(item)
   }
@@ -242,7 +275,14 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs, plays }:
       plays={plays}
       caption={
         current === null ? null : (
-          <SlideCaption caption={current.caption} authorName={current.authorName} />
+          <SlideCaption
+            caption={current.caption}
+            authorName={current.authorName}
+            // Said the first time the photo comes up, which is the moment the guest and their
+            // table are looking. Said again at every lap, it would sit under a photo for the
+            // whole evening, and a hundred guests' first photos would all carry it.
+            firstFromGuest={slideshow.fresh && current.firstFromGuest === true}
+          />
         )
       }
     />
@@ -262,7 +302,7 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs, plays }:
  */
 function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const text = useTranslations()
-  const tiles = rotatingSlots(items, slideshow.index, MOSAIC_SLOTS)
+  const tiles = rotatingSlots(items, slideshow, MOSAIC_SLOTS)
 
   return (
     <div className={styles['mosaic']} style={stageStyleFor(transitionMs)}>
@@ -317,7 +357,7 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
 function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
-  const prints = rotatingSlots(items, slideshow.index, POLAROID_PRINTS)
+  const prints = rotatingSlots(items, slideshow, POLAROID_PRINTS)
 
   return (
     <div
@@ -379,7 +419,7 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
 function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
-  const prints = rotatingSlots(items, slideshow.index, CLOTHESLINE_PRINTS)
+  const prints = rotatingSlots(items, slideshow, CLOTHESLINE_PRINTS)
   const newest = newestOf(prints)
   const sways = !reducedMotion && slideshow.intervalMs > 0
 
@@ -459,7 +499,14 @@ function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewPr
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const scrolls = items.length > FILMSTRIP_FRAMES
-  const frames = playlistWindow(items, scrolls ? slideshow.index : 0, FILMSTRIP_FRAMES + 1)
+  // A strip that scrolls is the photo on screen and the slides the wall has planned after
+  // it, so a photo that has just been published is the next frame in, rather than a jump to
+  // the head of the playlist and a jump back.
+  const frames = scrolls
+    ? [slideshow.current, ...slideshow.upcoming]
+        .filter((item): item is WallItemDto => item !== null)
+        .slice(0, FILMSTRIP_FRAMES + 1)
+    : playlistWindow(items, 0, FILMSTRIP_FRAMES + 1)
   const drifts = scrolls && !reducedMotion && slideshow.intervalMs > 0
   const driftStyle: CSSProperties | DriftStyle = drifts
     ? { '--wall-drift-duration': `${slideshow.intervalMs}ms` }
@@ -468,8 +515,9 @@ function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewPr
   return (
     <div className={styles['filmstrip']} style={stageStyleFor(transitionMs)}>
       <div
-        // The index, so the drift restarts in step with the window it is moving.
-        key={scrolls ? slideshow.index : 'still'}
+        // The generation, so the drift restarts in step with the window it is moving. The
+        // index would do until a photo jumped the queue and it could repeat.
+        key={scrolls ? slideshow.generation : 'still'}
         className={styles['track']}
         style={driftStyle}
         // Whether the strip overflows, which decides where it is anchored. Not the same
@@ -525,7 +573,7 @@ function FilmstripLayout({ items, slideshow, transitionMs, plays }: LayoutViewPr
  */
 function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const text = useTranslations()
-  const composed = rotatingSlots(items, slideshow.index, COLLAGE_CELLS)
+  const composed = rotatingSlots(items, slideshow, COLLAGE_CELLS)
   const filled = Math.min(slideshow.generation + 1, composed.length)
   const cells = composed.slice(0, filled)
 
@@ -568,7 +616,7 @@ function CollageLayout({ items, slideshow, transitionMs, plays }: LayoutViewProp
  */
 function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
   const text = useTranslations()
-  const panes = splitPanes(items, slideshow.index)
+  const panes = splitPanes(items, slideshow)
 
   return (
     <div className={styles['split']} style={stageStyleFor(transitionMs)}>
