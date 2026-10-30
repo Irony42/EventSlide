@@ -96,6 +96,12 @@ const WALK = `(() => {
   return { bad, disabled, ok: ok.length }
 })()`
 
+/** The same walk over "Vos envois" (variant W1: the card is gone, so its words need chips of their own). */
+const LIST_WALK = WALK.replace(
+  "document.querySelector('[data-testid=upload-composer]')",
+  "document.querySelector('h2[tabindex=\"-1\"]').closest('section').querySelector('ul')",
+)
+
 /**
  * Clear glass (ADR 0010, proposed amendment): the pane is transparent, so no text may stand on it.
  * Every text node of the guest composer, in every state and three ambiances, must have a (near-)opaque
@@ -141,6 +147,10 @@ test.describe('clear glass: text never sits on the pane', () => {
         timeout: 30_000,
       })
       results[`${th.ambiance}:done`] = await page.evaluate(WALK)
+      await expect(
+        page.locator('h2[tabindex="-1"]').locator('xpath=ancestor::section//ul//img').first(),
+      ).toBeVisible()
+      results[`${th.ambiance}:mine`] = await page.evaluate(LIST_WALK)
       await ctx.close()
     }
     const offenders = Object.entries(results)
