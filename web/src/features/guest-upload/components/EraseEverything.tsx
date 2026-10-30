@@ -21,7 +21,7 @@ export function EraseEverything({ state }: { readonly state: EraseEverythingStat
 
   return (
     <section className={styles['root']}>
-      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="ghost" size="sm" className={styles['button']} onClick={() => setOpen(true)}>
         {t.upload.eraseOpen}
       </Button>
       {state.failed ? (
