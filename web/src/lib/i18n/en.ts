@@ -729,13 +729,6 @@ export const en: UiText = {
       square: 'Square corners',
       round: 'Very rounded corners',
     },
-    themeMaterial: 'Panel material',
-    themeMaterialHint:
-      'Glass lets you sense what passes underneath; the plain surface is opaque. The difference is subtle, and it only affects the upload screen your guests see: your moderation console and the screen in the room do not change.',
-    themeMaterialNames: {
-      glass: 'Frosted glass',
-      plain: 'Plain surface',
-    },
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
       'The world your guests’ phones, the room’s screen and this event’s pages in your console wear.',

@@ -9,7 +9,6 @@ describe('toSettingsPatch', () => {
         accentHue: 345,
         fonts: 'serif',
         frame: 'round',
-        material: 'plain',
         ambiance: 'eventslide',
         groundUrl: `/api/events/camille-et-sacha/venue-photo/${'ab'.repeat(32)}`,
       },
@@ -19,7 +18,6 @@ describe('toSettingsPatch', () => {
       accentHue: 345,
       fonts: 'serif',
       frame: 'round',
-      material: 'plain',
       ambiance: 'eventslide',
     })
     expect(toSettingsPatch(draft).theme).not.toHaveProperty('groundUrl')

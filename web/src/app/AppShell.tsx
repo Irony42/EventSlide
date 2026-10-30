@@ -1,8 +1,6 @@
 import { useLayoutEffect, type ReactNode } from 'react'
 import { cx } from '../design-system/classNames'
-import { glassSurfaceProps, type GlassBackdrop } from '../design-system/glass'
 import { useLocale } from '../lib/i18n/useTranslations'
-import { useInteractionBudget } from './useInteractionBudget'
 import styles from './AppShell.module.css'
 
 /** Which of the three surfaces this page is. It decides the container, nothing else. */
@@ -12,15 +10,6 @@ export const MAIN_CONTENT_ID = 'main-content'
 
 export interface AppShellProps {
   readonly surface: Surface
-  /**
-   * What the address under this shell can paint beneath a glass pane — roadmap 11.2.
-   *
-   * Omitted means `photo`, the floor that survives an unknown photograph. A default that
-   * has to be argued for is the strict one: a screen nobody classified is a screen nobody
-   * looked at, and the translucent tier is the claim that has to be earned. `router.tsx`
-   * supplies it from `glassBackdrop.ts`, which is checked against the real import graph.
-   */
-  readonly backdrop?: GlassBackdrop
   /** A toolbar or a header bar. The wall passes none: there is nobody to click it. */
   readonly header?: ReactNode
   /**
@@ -37,9 +26,8 @@ export interface AppShellProps {
 /**
  * The layout wrapper.
  *
- * It owns four things a page must not reinvent: the skip link, the container width for
- * the surface, `<html lang>`, and which tier of the glass material the surface may
- * afford (roadmap 11.3 — `design-system/glass.ts` holds the rule).
+ * It owns three things a page must not reinvent: the skip link, the container width for
+ * the surface and `<html lang>`.
  *
  * A control that is comfortable on a laptop is unusable at arm's length on a phone, so
  * the width comes from the surface rather than from the page.
@@ -54,28 +42,9 @@ export interface AppShellProps {
  * decides which voice a screen reader pronounces the page with, and `index.html` ships
  * `lang="fr"` so the first paint is right before React has mounted anything.
  */
-export function AppShell({
-  surface,
-  backdrop,
-  header,
-  footer,
-  children,
-  className,
-}: AppShellProps) {
+export function AppShell({ surface, header, footer, children, className }: AppShellProps) {
   const { locale, text } = useLocale()
   const classes = cx(styles['main'], styles[surface], className)
-
-  /**
-   * What this machine has turned out to be able to afford — roadmap 11.3.
-   *
-   * The third input to the material, beside "which surface is this" and "what can be painted
-   * underneath it". The first two are answered before anything renders; this one can only be
-   * answered by the phone in somebody's hand, and on a venue's Wi-Fi mid-encode the answer is
-   * sometimes no. The rule is `design-system/budget.ts` and the measurement is the browser's
-   * own event timing; what arrives here is a rung, and `glassSurfaceProps` composes it with
-   * the other two.
-   */
-  const budget = useInteractionBudget(surface)
 
   // A layout effect, not a passive one: it runs inside the commit that puts the words on
   // screen, so no frame ever shows Italian under `lang="fr"`. A passive effect ran a turn
@@ -85,12 +54,7 @@ export function AppShell({
   }, [locale])
 
   return (
-    /* The glass tier goes on the shell rather than on `<main>`, because the skip link is
-       outside `<main>` and a header may be too: everything the surface renders has to
-       inherit the same material. A surface on the default tier spreads nothing, so the DOM
-       is unchanged wherever a photograph can appear — which includes the wall's baselines,
-       and the two panes that wear the material today. */
-    <div className={styles['shell']} {...glassSurfaceProps(surface, backdrop, budget)}>
+    <div className={styles['shell']}>
       <a className={styles['skipLink']} href={`#${MAIN_CONTENT_ID}`}>
         {text.shell.skipToContent}
       </a>

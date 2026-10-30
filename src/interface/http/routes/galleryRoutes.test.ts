@@ -83,7 +83,7 @@ describe('the shared gallery over HTTP', () => {
       expect(response.body.archiveUrl).toMatch(
         new RegExp(`^/api/gallery-media/${link.id}/album[.]zip[?]e=\\d+&s=[A-Za-z0-9_-]{43}$`),
       )
-      expect(response.body.theme).toMatchObject({ material: expect.any(String) })
+      expect(response.body.theme).not.toHaveProperty('material')
     })
 
     it('tells no referrer, no crawler and no cache about the page', async () => {

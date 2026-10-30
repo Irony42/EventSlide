@@ -744,13 +744,6 @@ export const it: UiText = {
       square: 'Angoli vivi',
       round: 'Angoli molto arrotondati',
     },
-    themeMaterial: 'Materiale dei pannelli',
-    themeMaterialHint:
-      'Il vetro lascia intravedere quello che passa sotto; la superficie piena è opaca. La differenza è discreta e riguarda solo la schermata di invio dei suoi invitati: la sua console di moderazione e lo schermo in sala non cambiano.',
-    themeMaterialNames: {
-      glass: 'Vetro smerigliato',
-      plain: 'Superficie piena',
-    },
     themeAmbiance: 'Atmosfera',
     themeAmbianceHint:
       'Il mondo che indossano i telefoni dei vostri ospiti, lo schermo della sala e le pagine di questo evento nella vostra console.',

@@ -140,11 +140,11 @@ const withClipDefaults = (event: object): PublicEventDto | null => {
  * An entry that carries a theme and gets it *wrong* is still refused, by `isPublicEvent`.
  *
  * **It hands on the narrowed theme rather than the stored one, and that is not tidying.**
- * `readEventTheme` fills in a field an older entry is missing — `material`, for a tab that
- * joined between roadmap 2.2 and 11.5 — and `isPublicEvent` calls it only for its verdict,
- * throwing the value away. So the stored object was reaching `GuestUploadPage` with three
- * keys where `PublicEventDto` promises four: harmless for the one reader there is today,
- * and `undefined` the first time somebody indexes a copy table by it.
+ * `readEventTheme` drops a key an older entry still carries — the retired `material` of a tab
+ * that joined before 3.3 — and `isPublicEvent` calls it only for its verdict, throwing the
+ * value away. So the stored object would keep reaching `GuestUploadPage` with a key
+ * `PublicEventDto` no longer declares: harmless for the one reader there is today, and a
+ * surprise the first time somebody spreads or compares a copy of it.
  */
 const withNarrowedTheme = (event: object): object => {
   const stored = field(event, 'theme')

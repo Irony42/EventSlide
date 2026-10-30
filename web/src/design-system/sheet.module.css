@@ -1,0 +1,31 @@
+/**
+ * The pane: the one surface this product draws a pinned bar on.
+ *
+ * Three consumers ask for it by name, so that no stylesheet owns a pane's colour, hairline or
+ * shadow for itself:
+ *
+ *     .composer {
+ *       composes: sheet from '../../design-system/sheet.module.css';
+ *     }
+ *
+ * It paints `--surface-raised`, opaque, with a hairline border and an inner highlight. It was
+ * a translucent glass material until 3.3; the legibility rules pinned its tint so high that
+ * the blur was invisible, and it was retired (docs/adr/0012-retire-glass.md). What is left is
+ * exactly what the opaque tier painted.
+ *
+ * It owns the three declarations its parts need — colour, hairline, and a `box-shadow` carrying
+ * the inner highlight and the elevation — and nothing else: no padding, no radius, no layout,
+ * no z-index. A consumer therefore has nothing to override, which matters because CSS Modules
+ * emits this file's rules wherever the bundler chooses, and in a code-split chunk that can land
+ * after the consumer's own rule.
+ */
+.sheet {
+  background: var(--surface-raised);
+  border: 1px solid var(--pane-border);
+  /*
+   * The second layer is the elevation a pane wears while it is pinned over content (`--sheet-lift`,
+   * set by the consumer to `--elevation-sheet`), and nothing when it is not set. A layer drawn
+   * outside the box: the pane's own height does not move.
+   */
+  box-shadow: var(--pane-shadow), var(--sheet-lift, var(--elevation-flat));
+}

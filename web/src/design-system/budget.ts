@@ -1,12 +1,8 @@
-import type { GlassSurface } from './glass'
-
 /**
  * What is switched off first when a machine cannot afford the interface — roadmap 11.3.
  *
- * `glass.ts` answers "what does the material cost on this surface" and "what can be painted
- * underneath it". Both of those are answered before anything renders. This file answers the
- * third question, the one that can only be answered by the machine actually running the
- * thing: **it is not coping — what goes?**
+ * The wall measures itself while it runs, because the only honest frame-rate number is one taken
+ * on the machine that has to hold it: **it is not coping — what goes?**
  *
  * ## Why this is a list and not a judgement
  *
@@ -14,41 +10,32 @@ import type { GlassSurface } from './glass'
  * afford it". A rule written down and nowhere else is the shape of defect a mutation audit
  * has already found in this repository more than once, so the order lives here as data,
  * every consequence is derived from it, and `budget.test.ts` is what fails when somebody
- * reorders it. There is one ladder rather than one per audience, because "the wall gets the
- * opaque fallback and the guest keeps the blur" is the *same* rule seen from two surfaces:
- * both give up glass first, and the wall simply starts already having given it up.
+ * reorders it.
  *
  * ## The order, and the reason for each step
  *
- * 1. **`glass`.** The blur is the only thing here that is decoration. It is also the most
- *    expensive per pixel — a `backdrop-filter` over content that changes is recomputed
- *    every frame at the pane's full size — and the fallback is a surface this product
- *    already ships everywhere else (§13: `--glass-opaque` *is* `--surface-raised`). First,
- *    on every surface, without argument.
- * 2. **`ken-burns`.** The wall's slow zoom runs on every frame of every slide. Giving it up
+ * 1. **`ken-burns`.** The wall's slow zoom runs on every frame of every slide. Giving it up
  *    is the largest saving left, and what remains is a photograph held still — which is
  *    what a guest who asked for reduced motion already sees.
- * 3. **`crossfade`.** A second of compositing in every eight. Last, because it is the
+ * 2. **`crossfade`.** A second of compositing in every eight. Last, because it is the
  *    cheapest and because a cut is the most noticeable of the three losses.
  *
  * ## What is *not* on the ladder, and will not be
  *
- * The guest's critical path. Join, pick, send. Roadmap 11.3's third non-goal is explicit
- * that nothing there may get slower or longer, and the converse holds too: there is nothing
- * in it to switch off. A guest whose phone is struggling loses a blur and keeps every
- * control, every label and every affordance they had.
+ * The guest's critical path, and every surface that is not the wall. Join, pick, send. Roadmap
+ * 11.3's third non-goal is explicit that nothing there may get slower or longer. The ladder
+ * used to open with the glass blur, which was the one rung a phone could give up; with the
+ * material retired (ADR 0012) a phone has nothing left to shed, so only the wall measures.
  *
  * ## Every rung is a rendering this product already ships
  *
- * That is the argument for doing this automatically at all. Shedding `glass` lands on the
- * tier `@supports not (backdrop-filter)` and `prefers-reduced-transparency` already land
- * on; shedding `ken-burns` and `crossfade` lands on exactly what `prefers-reduced-motion`
+ * That is the argument for doing this automatically at all. Shedding `ken-burns` and `crossfade` lands on exactly what `prefers-reduced-motion`
  * renders, which has committed visual baselines of its own. So a degraded wall is not an
  * unreviewed look — it is a reviewed one, arrived at for a second reason.
  */
 
 /** The order, and the whole of the rule. Everything below is derived from it. */
-export const SHED_ORDER = ['glass', 'ken-burns', 'crossfade'] as const
+export const SHED_ORDER = ['ken-burns', 'crossfade'] as const
 
 export type Cost = (typeof SHED_ORDER)[number]
 
@@ -59,7 +46,7 @@ export type Cost = (typeof SHED_ORDER)[number]
  * it a cost falls on, and a count is the only spelling of that which cannot disagree with
  * the order above.
  */
-export type BudgetLevel = 0 | 1 | 2 | 3
+export type BudgetLevel = 0 | 1 | 2
 
 /** Whether a surface at this level still pays for a given cost. */
 export const affords = (level: BudgetLevel, cost: Cost): boolean =>
@@ -68,18 +55,6 @@ export const affords = (level: BudgetLevel, cost: Cost): boolean =>
 /** One more rung down, and never past the last one: what is left is the photograph. */
 export const shedOne = (level: BudgetLevel): BudgetLevel =>
   level >= SHED_ORDER.length ? level : ((level + 1) as BudgetLevel)
-
-/**
- * Where a surface starts, before any machine has been measured.
- *
- * The room starts one rung down and that is the whole of §13's "the room takes the fallback
- * and the guest keeps the blur": the wall's backdrop is never still — a crossfade, Ken
- * Burns, and since roadmap 1.4 a video clip decoding under both — so a filter there is
- * recomputed every frame at full screen, on a venue mini-PC, unattended, for eight hours.
- * That is a property of the surface rather than of the device, which is why it is a floor
- * and not something a measurement could ever undo.
- */
-export const budgetFloorFor = (surface: GlassSurface): BudgetLevel => (surface === 'wall' ? 1 : 0)
 
 /** What the wall has given up, for the stylesheets that have to know. */
 export type WallBudget = 'still' | 'cut'
@@ -91,8 +66,7 @@ export interface WallBudgetProps {
 /**
  * The marker the wall spreads on its own root.
  *
- * Absent while the wall still has its motion, for the reason `glassSurfaceProps` spreads
- * nothing on the strict tier: a wall that is coping renders the DOM it rendered before any
+ * Absent while the wall still has its motion, so that a wall that is coping renders the DOM it rendered before any
  * of this existed, so the committed baselines in `tests/e2e/visual/` stay committed and the
  * default is the undegraded one.
  */
@@ -121,7 +95,7 @@ export interface BudgetState {
  *
  * **One-way.** A good verdict clears the strikes and never gives a rung back. That is a
  * decision and not an omission: what made the frames come back may well be the effect being
- * off, so restoring it invites a wall that oscillates — blur on, blur off, blur on — in
+ * off, so restoring it invites a wall that oscillates — zoom on, zoom off, zoom on — in
  * front of a room. An evening is a few hours and a reload costs a keystroke.
  */
 export const afterVerdict = ({ level, strikes }: BudgetState, held: boolean): BudgetState => {
@@ -202,7 +176,7 @@ export const STOPPED_PAINTING_MS = 1_000
 export const frameIntervalOf = (ms: number): number | null =>
   ms > 0 ? Math.min(ms, STOPPED_PAINTING_MS) : null
 
-/** How many frames a second this stretch of intervals actually put on the glass. */
+/** How many frames a second this stretch of intervals actually put on the screen. */
 export const frameRateOf = (intervals: readonly number[]): number => {
   const elapsed = intervals.reduce((total, ms) => total + ms, 0)
   if (elapsed === 0) return Number.POSITIVE_INFINITY
@@ -223,19 +197,3 @@ export const frameRateOf = (intervals: readonly number[]): number => {
  */
 export const windowHolds = (intervals: readonly number[]): boolean =>
   intervals.length < FRAME_WINDOW || frameRateOf(intervals) >= MIN_FRAMES_PER_SECOND
-
-/**
- * The guest's budget, which is an interaction and not a frame.
- *
- * A frame rate is the wrong measurement for the upload screen: it is still between taps, so
- * its frames are perfect right up to the moment somebody touches it. What a guest on a
- * saturated venue Wi-Fi mid-encode actually meets is the tap that takes a second to do
- * anything — and unlike a frame rate, that has a published number rather than one this
- * repository would have had to invent. 200 ms is the threshold at which an interaction stops
- * counting as "good" in Interaction to Next Paint, which is the metric browsers expose.
- */
-export const INTERACTION_BUDGET_MS = 200
-
-/** The worst of a batch, because a guest remembers the slow tap and not the mean. */
-export const interactionsHold = (durationsMs: readonly number[]): boolean =>
-  durationsMs.every((ms) => ms <= INTERACTION_BUDGET_MS)

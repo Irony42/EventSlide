@@ -334,7 +334,6 @@ describe('POST /api/join', () => {
           accentHue: 305,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'eventslide',
           groundUrl: null,
         },
@@ -736,7 +735,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'eventslide',
       groundUrl: null,
     })
@@ -761,7 +759,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
             accentHue: 345,
             fonts: 'serif',
             frame: 'square',
-            material: 'glass',
             ambiance: 'guinguette',
           },
         },
@@ -774,7 +771,6 @@ describe('GET /api/events/:eventSlug/wall', () => {
       accentHue: 345,
       fonts: 'serif',
       frame: 'square',
-      material: 'glass',
       ambiance: 'guinguette',
       groundUrl: null,
     })

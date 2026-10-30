@@ -14,7 +14,6 @@ import {
   accentHueRange,
   THEME_FONTS,
   THEME_FRAMES,
-  THEME_MATERIALS,
   THEME_AMBIANCES,
   THEME_FACES,
   THEME_GROUNDS,
@@ -399,7 +398,7 @@ export const updateSettingsBody = z.strictObject({
   retentionDays: z.number().int().min(1).max(3_650).nullable().optional(),
   maxPhotosPerGuest: z.number().int().min(1).max(10_000).nullable().optional(),
   /**
-   * The event's look (roadmap 2.2, and the material since 11.5). One object with four
+   * The event's look (roadmap 2.2). One object with its choices as
    * required keys, which is not the partial-update shape its neighbours use.
    *
    * Same argument as `eventScheduleBody` below: this is one decision made on one form,
@@ -411,22 +410,16 @@ export const updateSettingsBody = z.strictObject({
    * a second copy of `0-359` here is a second thing to forget. What this schema does
    * *not* do is decide legibility: `z.number().int().min(0).max(359)` is the shape of a
    * hue, and whether a hue can be read at ten metres is a rule, not a shape.
-   *
-   * **`material` is required like the other three, and that has a cost worth naming.** A
-   * tab left open across the deploy that adds it sends three keys and is answered
-   * `400 request.invalid` on save, until it is reloaded. The alternative — accepting a
-   * theme without it — is worse in the direction this repository cares about: absent
-   * would have to mean something, the only sane meaning is `glass`, and a host who chose
-   * `plain` would have it silently undone by an old tab saving an unrelated checkbox.
-   * A refusal a reload fixes beats a choice quietly reverted.
    */
   theme: z
     .strictObject({
       accentHue: z.number().int().min(accentHueRange.min).max(accentHueRange.max),
       fonts: z.enum(THEME_FONTS),
       frame: z.enum(THEME_FRAMES),
-      material: z.enum(THEME_MATERIALS),
-      // Required for the reason `material` gives above: an old tab must not undo a choice.
+      // **Read and ignored.** The glass material was retired (ADR 0012), but a tab left open across
+      // the deploy still sends `material` with the theme and must not be answered 400 for it. The
+      // route never forwards it, so it can reach neither the domain nor the stored JSON.
+      material: z.enum(['glass', 'plain']).optional(),
       ambiance: z.enum(THEME_AMBIANCES),
       // The host's own ambiance (ADR 0011). Optional here, and the domain pairs it with
       // `ambiance: 'custom'`: required then, refused otherwise (`eventTheme.customRequired`,
@@ -441,7 +434,7 @@ export const updateSettingsBody = z.strictObject({
       // **Read and ignored.** It is what `GET` answers in the theme (the host's own venue photograph,
       // ADR 0010), so a client that sends the theme back as it received it, such as a tab left open
       // across the deploy, must not be answered 400 for it. It names nothing: the route forwards the
-      // five fields above and never this one, and the photograph has routes of its own.
+      // fields above and never this one, and the photograph has routes of its own.
       groundUrl: z.string().max(200).nullable().optional(),
     })
     .optional(),

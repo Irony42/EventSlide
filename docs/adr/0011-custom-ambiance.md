@@ -114,3 +114,10 @@ the host intended.
 ## Related
 
 - ADR 0010 (ambiances, venue photograph), roadmap 2.2 (event theme), DESIGN-SYSTEM §2 and §8.
+
+## Note of 30/10/2026: no glass tints
+
+[ADR 0012](0012-retire-glass.md) retired the glass material, so « Sur mesure » no longer derives glass
+tints from the ground hue: where this ADR says its blocks compute "glass tints", read the pane
+hairline and highlight only (`--pane-border`, `--pane-highlight`). Panes are opaque `--surface-raised`.
+The ground sweep over all 360 hues and every other decision here stand.

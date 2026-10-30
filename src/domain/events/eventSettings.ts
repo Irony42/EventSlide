@@ -78,10 +78,9 @@ export interface EventSettingsProps {
   /** `null` is unlimited. */
   readonly maxPhotosPerGuest: number | null
   /**
-   * How the event looks: an accent hue, a font pairing, a frame style (roadmap 2.2) and
-   * the material its panes are made of (roadmap 11.5).
+   * How the event looks: an accent hue, a font pairing, and a frame style (roadmap 2.2).
    *
-   * One object rather than four sibling fields, and read together the way
+   * One object rather than three sibling fields, and read together the way
    * `eventScheduleBody` reads its two instants: they are one decision made on one form,
    * and the legibility rule is about the palette as a whole rather than about a field.
    *

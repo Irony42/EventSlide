@@ -145,7 +145,6 @@ describe('what a wedding starts from', () => {
       accentHue: CURATED_ACCENT_HUES.rose,
       fonts: 'serif',
       frame: 'round',
-      material: 'glass',
       ambiance: 'champs',
     })
   })
@@ -167,7 +166,6 @@ describe('what a birthday starts from', () => {
       accentHue: CURATED_ACCENT_HUES.violet,
       fonts: 'sans',
       frame: 'round',
-      material: 'glass',
       ambiance: 'eventslide',
     })
   })
@@ -195,7 +193,6 @@ describe('what a conference starts from', () => {
       accentHue: CURATED_ACCENT_HUES.azure,
       fonts: 'sans',
       frame: 'square',
-      material: 'glass',
       ambiance: 'eventslide',
     })
   })
@@ -223,7 +220,6 @@ describe('what a party starts from', () => {
       accentHue: CURATED_ACCENT_HUES.teal,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'bivouac',
     })
   })

@@ -10,7 +10,6 @@ import {
   DEFAULT_EVENT_THEME,
   isThemeFonts,
   isThemeFrame,
-  isThemeMaterial,
   currentAmbianceName,
   isThemeAmbiance,
   isThemeFaces,
@@ -21,7 +20,6 @@ import {
   restoreEventTheme,
   THEME_FONTS,
   THEME_FRAMES,
-  THEME_MATERIALS,
   type AccentPalette,
   type EventThemeProps,
 } from './eventTheme'
@@ -246,7 +244,6 @@ describe('the shipped hues', () => {
       accentHue: 305,
       fonts: 'sans',
       frame: 'soft',
-      material: 'glass',
       ambiance: 'eventslide',
     })
     expect(CURATED_ACCENT_HUES['violet']).toBe(DEFAULT_EVENT_THEME.accentHue)
@@ -286,20 +283,6 @@ describe('narrowing a value read back from storage', () => {
   it.each([['oval'], [null], [7], [undefined]])('refuses %s as a frame style', (value) => {
     expect(isThemeFrame(value)).toBe(false)
   })
-
-  it.each(THEME_MATERIALS)('recognises %s as a material', (value) => {
-    expect(isThemeMaterial(value)).toBe(true)
-  })
-
-  it.each([['opaque'], ['frosted'], [null], [true], [undefined]])(
-    'refuses %s as a material',
-    (value) => {
-      // `opaque` is the tier's name in the design system and deliberately not the theme's:
-      // one is what the browser resolved, the other is what the host asked for, and a blob
-      // carrying the first was written by something reading the wrong vocabulary.
-      expect(isThemeMaterial(value)).toBe(false)
-    },
-  )
 })
 
 describe('the ambiance an event wears (ADR 0010)', () => {
@@ -344,56 +327,6 @@ describe('the ambiance an event wears (ADR 0010)', () => {
       expect(isThemeAmbiance(value)).toBe(false)
     },
   )
-})
-
-describe('the material a host chooses for their panes', () => {
-  it('ships on, because that is what every event already renders', () => {
-    // The same promise the accent, the pairing and the frame make: an event that chose
-    // nothing renders the DOM it rendered before the field existed. A default of `plain`
-    // would silently strip the material from every gallery on the box at the next deploy.
-    expect(DEFAULT_EVENT_THEME.material).toBe('glass')
-  })
-
-  it.each(THEME_MATERIALS)('lets a host choose %s', (material) => {
-    expect(createEventTheme(aTheme({ material })).ok).toBe(true)
-  })
-
-  it('is not judged on legibility, because the opaque tier is the better ground', () => {
-    // Stated as a test rather than only as a comment. Turning the material off replaces a
-    // tint at 0.92–0.95 alpha with the same colour at 1.0, so every ink on a pane gains
-    // contrast — DESIGN-SYSTEM.md §13 derives both translucent floors by measuring how
-    // close they come to exactly this surface. A hue the rule refuses is refused whichever
-    // material it is wearing, and a hue it accepts is accepted the same way: the two
-    // decisions are independent, and a rule that made them interact would be inventing one.
-    expect(
-      createEventTheme(aTheme({ accentHue: 160, material: 'plain', ambiance: 'guinguette' })).ok,
-    ).toBe(false)
-    expect(
-      createEventTheme(aTheme({ accentHue: 250, material: 'plain', ambiance: 'guinguette' })).ok,
-    ).toBe(true)
-  })
-
-  it('keeps a stored choice on the read path rather than resetting it', () => {
-    // `restoreEventTheme` is lenient about the *hue* and about nothing else. A host who
-    // turned the material off did so on purpose, and a rule tightened on Tuesday must not
-    // put a blur back on their wedding on Saturday.
-    const restored = restoreEventTheme(aTheme({ material: 'plain', ambiance: 'guinguette' }))
-
-    expect(restored.ok && restored.value.material).toBe('plain')
-  })
-
-  it('loses a stored choice when the hue beside it is not a point on the circle', () => {
-    // The cost of the fallback above, named rather than hidden: a theme that shape-fails
-    // is replaced **whole**, so a hand-edited hue takes the material back to the default
-    // with it. That is right — a blob that shape-fails was not written by this product, so
-    // there is no host choice in it to keep — but it is worth a test saying which way it
-    // goes, because the alternative reading is "keep the parts that still parse".
-    const restored = restoreEventTheme(
-      aTheme({ accentHue: 400, material: 'plain', ambiance: 'guinguette' }),
-    )
-
-    expect(restored.ok && restored.value).toEqual(DEFAULT_EVENT_THEME)
-  })
 })
 
 describe('a stored theme this product did not write', () => {
