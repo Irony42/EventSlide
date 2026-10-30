@@ -564,6 +564,17 @@ describe('an event that no longer takes photos', () => {
     expect(api.myPhotos).toHaveBeenCalledTimes(1)
   })
 
+  it('does not thank the guest for photos the host refused', async () => {
+    renderUpload(
+      closed([
+        aGuestPhoto({ id: 'ok', status: 'published' }),
+        aGuestPhoto({ id: 'no', status: 'rejected' }),
+      ]),
+    )
+
+    expect(await screen.findByText(fr.upload.endedThanks(1))).toBeVisible()
+  })
+
   it('thanks a guest who sent nothing without counting them', async () => {
     renderUpload(closed())
 

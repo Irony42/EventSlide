@@ -352,6 +352,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
    * failed read still shows the card, because its retry is the only way back to the list.
    */
   const hasPhotos = mine.photos.length > 0
+  /** What the closed evening thanks the guest for: not the photos the host refused. */
+  const thanked = mine.photos.filter((photo) => photo.status !== 'rejected').length
   const showMine = !mine.unavailable && (hasPhotos || mine.error !== null)
 
   /** The words of the chosen prompt, for the line under the send button. */
@@ -545,7 +547,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           <section className={styles['ended']} role="status" data-testid="evening-ended">
             <h2 className={styles['endedTitle']}>{t.upload.endedTitle}</h2>
             <p className={styles['endedBody']}>
-              {hasPhotos ? t.upload.endedThanks(mine.photos.length) : t.upload.endedThanksNone}
+              {thanked > 0 ? t.upload.endedThanks(thanked) : t.upload.endedThanksNone}
             </p>
             <p className={styles['endedBody']}>{t.upload.endedAlbum}</p>
           </section>
