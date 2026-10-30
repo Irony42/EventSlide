@@ -1,0 +1,11 @@
+/**
+ * The foot of "Vos envois": one quiet button, and the sentence a failed attempt leaves.
+ * Nothing here is a primary action, so nothing here is saturated.
+ */
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}

@@ -121,6 +121,20 @@ export const fr = {
     statusHidden: 'Retirée de l’écran',
     deleteOwn: 'Supprimer',
     deleteOwnConfirm: 'Supprimer cette photo ? Cette action est définitive.',
+    eraseOpen: 'Supprimer tout ce que j’ai envoyé',
+    eraseTitle: 'Tout supprimer ?',
+    eraseBody:
+      'Vos photos, vos vidéos, vos légendes, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de la galerie et de la liste de l’organisateur. C’est définitif.',
+    eraseLimits:
+      'Une copie déjà enregistrée par l’organisateur, ou par quelqu’un qui a fait une capture, ne peut pas être reprise.',
+    eraseConfirm: 'Oui, tout supprimer',
+    eraseCancel: 'Non, je garde',
+    eraseFailed: 'La suppression n’a pas abouti. Réessayez, ou demandez à l’organisateur.',
+    eraseDoneTitle: 'C’est fait',
+    eraseDone:
+      'Tout ce que vous aviez envoyé a été supprimé de la soirée. Vous n’êtes plus rattaché à cet événement sur ce téléphone.',
+    eraseLostAccess:
+      'Vous avez changé de téléphone ou perdu l’accès ? Demandez à l’organisateur de supprimer vos photos : il peut le faire depuis son espace.',
 
     /* ---------- guest surface: features/join + features/guest-upload ---------- */
 

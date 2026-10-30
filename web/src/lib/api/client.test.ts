@@ -186,6 +186,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.deleteMyPhoto(SLUG, PHOTO),
   },
   {
+    name: 'eraseMyContribution',
+    verb: 'del',
+    path: `/api/events/${SLUG}/guests/me`,
+    invoke: (client) => client.eraseMyContribution(SLUG),
+  },
+  {
     name: 'react',
     verb: 'post',
     path: `/api/events/${SLUG}/photos/${PHOTO}/reactions`,

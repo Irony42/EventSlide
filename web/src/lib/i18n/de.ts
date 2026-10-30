@@ -73,6 +73,21 @@ export const de: UiText = {
     statusHidden: 'Vom Bildschirm genommen',
     deleteOwn: 'Löschen',
     deleteOwnConfirm: 'Dieses Foto löschen? Das lässt sich nicht rückgängig machen.',
+    eraseOpen: 'Alles löschen, was ich gesendet habe',
+    eraseTitle: 'Alles löschen?',
+    eraseBody:
+      'Ihre Fotos, Videos, Bildunterschriften, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus der Galerie und aus der Liste der Veranstalterin oder des Veranstalters. Das lässt sich nicht rückgängig machen.',
+    eraseLimits:
+      'Eine Kopie, die der Veranstalter bereits gespeichert hat oder die jemand per Screenshot gesichert hat, lässt sich nicht zurückholen.',
+    eraseConfirm: 'Ja, alles löschen',
+    eraseCancel: 'Nein, behalten',
+    eraseFailed:
+      'Das Löschen hat nicht geklappt. Versuchen Sie es erneut oder fragen Sie den Veranstalter.',
+    eraseDoneTitle: 'Erledigt',
+    eraseDone:
+      'Alles, was Sie gesendet hatten, wurde aus der Feier gelöscht. Dieses Telefon ist dieser Veranstaltung nicht mehr zugeordnet.',
+    eraseLostAccess:
+      'Neues Telefon oder Zugang verloren? Bitten Sie den Veranstalter, Ihre Fotos zu löschen: Das kann er in seinem Bereich tun.',
 
     itemPreparing: 'Wird vorbereitet…',
     queueLabel: 'Fotos zum Senden',

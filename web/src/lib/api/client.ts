@@ -7,6 +7,7 @@ import type {
   ClientCeilingsChangedDto,
   ClientDefaultsDto,
   ClipJobDto,
+  ErasedContributionDto,
   EventDto,
   EventLanguage,
   EventSettingsDto,
@@ -333,6 +334,10 @@ export const createApi = (transport: Transport) => ({
 
   deleteMyPhoto: (slug: string, photoId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
+
+  /** `DELETE …/guests/me`: everything this device's guest sent to the event, and the guest. */
+  eraseMyContribution: (slug: string): Promise<ErasedContributionDto> =>
+    transport.del(`/api/events/${encode(slug)}/guests/me`),
 
   react: (slug: string, photoId: string, kind: ReactionKind): Promise<void> =>
     transport.post(`/api/events/${encode(slug)}/photos/${encode(photoId)}/reactions`, { kind }),

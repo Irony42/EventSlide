@@ -347,6 +347,12 @@ export interface MyPhotosDto {
   readonly theme?: EventThemeDto
 }
 
+/** What `DELETE /api/events/:slug/guests/me` removed. */
+export interface ErasedContributionDto {
+  readonly photos: number
+  readonly clips: number
+}
+
 export interface GuestPhotoDto {
   readonly id: string
   readonly status: PhotoStatus

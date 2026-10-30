@@ -470,6 +470,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   deleteMyPhoto: vi.fn(async () => undefined),
+  eraseMyContribution: vi.fn(async () => ({ photos: 0, clips: 0 })),
   react: vi.fn(async () => undefined),
   withdrawReaction: vi.fn(async () => undefined),
   reactions: vi.fn(async () => ({

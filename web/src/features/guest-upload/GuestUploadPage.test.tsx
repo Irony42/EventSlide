@@ -1598,3 +1598,68 @@ describe('leaving the event from the header (A10)', () => {
     ).toHaveAttribute('href', '/join')
   })
 })
+
+describe('GuestUploadPage: delete everything I sent (roadmap §5.2)', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  const openDialog = async () => {
+    await userEvent.click(await screen.findByRole('button', { name: fr.upload.eraseOpen }))
+    return screen.findByRole('dialog', { name: fr.upload.eraseTitle })
+  }
+
+  it('asks first, in words that say it cannot be undone, and sends nothing until confirmed', async () => {
+    havingJoined()
+    const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-1' })))
+    renderUpload(api)
+
+    const dialog = await openDialog()
+
+    expect(dialog).toHaveTextContent(fr.upload.eraseBody)
+    expect(dialog).toHaveTextContent(fr.upload.eraseLimits)
+    expect(api.eraseMyContribution).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseCancel }))
+    expect(api.eraseMyContribution).not.toHaveBeenCalled()
+  })
+
+  it('erases on confirmation, says it is done and forgets the event on this device', async () => {
+    havingJoined()
+    const api = fakeApi(withPhotos(aGuestPhoto({ id: 'photo-1' })))
+    renderUpload(api)
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('heading', { name: fr.upload.eraseDoneTitle })).toBeVisible()
+    expect(api.eraseMyContribution).toHaveBeenCalledWith(SLUG)
+    expect(readGuestSession(SLUG)).toBeNull()
+    expect(readRememberedGuestSession()).toBeNull()
+  })
+
+  it('keeps the session and says so when the server refuses', async () => {
+    havingJoined()
+    const api = fakeApi({
+      ...withPhotos(aGuestPhoto({ id: 'photo-1' })),
+      eraseMyContribution: vi.fn(async () => {
+        throw new ApiError(500, 'internal.error')
+      }),
+    })
+    renderUpload(api)
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.upload.eraseFailed)
+    expect(readGuestSession(SLUG)).not.toBeNull()
+  })
+
+  it('tells a guest who has lost access how to ask the organiser', async () => {
+    renderUpload(fakeApi())
+
+    expect(
+      await screen.findByText(new RegExp(fr.upload.eraseLostAccess.slice(0, 30))),
+    ).toBeVisible()
+  })
+})

@@ -72,6 +72,20 @@ export const en: UiText = {
     statusHidden: 'Taken off the screen',
     deleteOwn: 'Delete',
     deleteOwnConfirm: 'Delete this photo? This cannot be undone.',
+    eraseOpen: 'Delete everything I sent',
+    eraseTitle: 'Delete everything?',
+    eraseBody:
+      'Your photos, videos, captions, reactions and first name will be erased from the event: from the screen, the gallery and the organiser’s list. This cannot be undone.',
+    eraseLimits:
+      'A copy the organiser has already saved, or that someone captured with a screenshot, cannot be taken back.',
+    eraseConfirm: 'Yes, delete everything',
+    eraseCancel: 'No, keep them',
+    eraseFailed: 'The deletion did not go through. Try again, or ask the organiser.',
+    eraseDoneTitle: 'Done',
+    eraseDone:
+      'Everything you had sent has been deleted from the event. This phone is no longer linked to it.',
+    eraseLostAccess:
+      'New phone, or lost access? Ask the organiser to delete your photos: they can do it from their own area.',
 
     itemPreparing: 'Preparing…',
     queueLabel: 'Photos to send',
