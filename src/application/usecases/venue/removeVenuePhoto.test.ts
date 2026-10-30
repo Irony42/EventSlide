@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { Event } from '../../../domain/events/event'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
@@ -62,6 +63,41 @@ describe('removeVenuePhoto', () => {
     expect(result.ok && result.value.settings.venuePhoto).toBeNull()
     expect((await events.findById(WEDDING))?.settings.venuePhoto).toBeNull()
     expect(media.objectCount).toBe(0)
+  })
+
+  it('refuses an event the operator took down as one that is not there, and a frozen client event with 403 client.suspended', async () => {
+    await events.setTakenDown(WEDDING, AT)
+    const down = await removeVenuePhoto({ eventId: WEDDING, actorId: OWNER })
+    await events.setTakenDown(WEDDING, null)
+    const frozenEvents = new FakeEventRepository().seed(
+      Event.restore({
+        ...anEvent({ id: WEDDING, ownerId: OWNER }).toProps(),
+        clientSuspendedAt: AT,
+      }),
+    )
+    const frozen = await makeRemoveVenuePhoto({
+      events: frozenEvents,
+      memberships,
+      media,
+      bus,
+      logger,
+    })({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!down.ok && down.error.code).toBe('event.notFound')
+    expect(!frozen.ok && frozen.error.code).toBe('client.suspended')
+  })
+
+  it('refuses while the operator holds the purge, with a failure a host can already get, and keeps the file (launch review S5)', async () => {
+    await events.setPurgeHeld(WEDDING, AT)
+
+    const result = await removeVenuePhoto({ eventId: WEDDING, actorId: OWNER })
+
+    expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
+      'unexpected',
+      'venuePhoto.saveFailed',
+    ])
+    expect((await events.findById(WEDDING))?.settings.venuePhoto).not.toBeNull()
+    expect(media.objectCount).toBe(1)
   })
 
   it('keeps the rest of the theme, so the host is back on the bundled ground and nothing else', async () => {

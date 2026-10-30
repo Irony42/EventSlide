@@ -102,6 +102,29 @@ describe('purgeExpiredEvents', () => {
     expect(calls.names).toEqual([])
   })
 
+  it('reports an event as failed, and carries on, when the conditional delete itself throws (launch review S5)', async () => {
+    seedExpiredWedding()
+    const broken = {
+      ...events,
+      listDueForPurge: (...args: Parameters<typeof events.listDueForPurge>) =>
+        events.listDueForPurge(...args),
+      deleteUnlessHeld: async (): Promise<boolean> => {
+        throw new Error('SQLITE_BUSY: database is locked')
+      },
+    }
+
+    const report = await makePurgeExpiredEvents({
+      events: broken as unknown as typeof events,
+      media: watched(media),
+      clock,
+      capNoticeDays: 30,
+    })()
+
+    expect(report).toEqual({ purged: [], failed: [WEDDING] })
+    expect(calls.names).toEqual([])
+    expect(await bytesLeft()).toEqual([1, 1])
+  })
+
   it('purges the row of an event past its retention deadline', async () => {
     seedExpiredWedding()
 
