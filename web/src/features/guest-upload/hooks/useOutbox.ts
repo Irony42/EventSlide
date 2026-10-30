@@ -136,6 +136,14 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
    * every write and lose exactly the photos this exists to keep.
    */
   const handingOver = useRef<Promise<void> | null>(null)
+  /**
+   * The writes `enqueue` has begun and not finished, which the store's closing waits for as well.
+   *
+   * A guest who leaves while a photo is being written to the outbox (offline, the network refusing)
+   * would otherwise see the store closed under that write, and the photo — which the queue no longer
+   * hands over, because this write is already keeping it — would be lost.
+   */
+  const writes = useRef(new Set<Promise<unknown>>())
   /** `handOver`, read through a ref for the reason `drainRef` is: the cleanup that calls it is declared first. */
   const handOverRef = useRef<
     (opened: OutboxStore, photos: readonly OutboxHandOff[]) => Promise<void>
@@ -313,11 +321,12 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       retry.current = null
       const closing = store.current
       store.current = null
-      // Behind a hand-over that is still writing: see `handingOver`.
-      const pending = handingOver.current
+      // Behind a hand-over or a write that is still going: see `handingOver` and `writes`.
+      const pending: Promise<unknown>[] = [...writes.current]
+      if (handingOver.current !== null) pending.push(handingOver.current)
       handingOver.current = null
-      if (pending === null) closing?.close()
-      else void pending.finally(() => closing?.close())
+      if (pending.length === 0) closing?.close()
+      else void Promise.allSettled(pending).then(() => closing?.close())
     }
   }, [count, drainNow, schedule])
 
@@ -419,13 +428,21 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
     ): Promise<string | null> => {
       const opened = store.current
       if (opened === null) return null
-      const id = await storeIn(opened, file, caption, missionId)
-      if (id === null) return null
-      await count()
-      // Best effort, and never awaited for its answer: the foreground drain is what
-      // every guest gets, and this only adds the case where there is no tab left.
-      void requestBackgroundSync()
-      return id
+      const write = (async (): Promise<string | null> => {
+        const id = await storeIn(opened, file, caption, missionId)
+        if (id === null) return null
+        await count()
+        // Best effort, and never awaited for its answer: the foreground drain is what
+        // every guest gets, and this only adds the case where there is no tab left.
+        void requestBackgroundSync()
+        return id
+      })()
+      writes.current.add(write)
+      try {
+        return await write
+      } finally {
+        writes.current.delete(write)
+      }
     },
     [count, storeIn],
   )

@@ -47,6 +47,25 @@ class RecordingOutbox extends MemoryOutbox {
   }
 }
 
+/** A store whose first write does not land until the test opens the gate: the guest leaves in the middle of it. */
+class GatedOutbox extends RecordingOutbox {
+  started = false
+  private open: () => void = () => {}
+  private readonly gate = new Promise<void>((resolve) => {
+    this.open = resolve
+  })
+
+  letWriteLand(): void {
+    this.open()
+  }
+
+  override async add(entry: NewOutboxEntry, now: number): Promise<OutboxAddition> {
+    this.started = true
+    await this.gate
+    return super.add(entry, now)
+  }
+}
+
 /** An upload that stays in the air until the test says otherwise, and cannot be reached by an abort. */
 const held = (): { api: Api; calls: string[] } => {
   const calls: string[] = []
@@ -214,5 +233,71 @@ describe('leaving the upload screen while photos are on their way', () => {
 
     unmount()
     await waitFor(() => expect(store.written).toHaveLength(1))
+  })
+})
+
+describe('leaving the upload screen while a photo is being written to the outbox', () => {
+  /** Offline, a photo goes straight to the outbox: its row stays `preparing` until that write lands. */
+  const offline = () => vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+
+  it('offline, leaving while the write is in flight writes the photo once', async () => {
+    offline()
+    const store = new GatedOutbox()
+    const { api, calls } = held()
+    const { result, unmount } = mount(api, store)
+    await waitFor(() => expect(result.current.outbox.ready).toBe(true))
+    act(() => result.current.queue.add([aPhotoFile('un.jpg')]))
+    act(() => result.current.queue.send(null, null))
+    await waitFor(() => expect(store.started).toBe(true))
+
+    unmount()
+    store.letWriteLand()
+
+    await waitFor(() => expect(store.writtenWhenClosed).not.toBeNull())
+    // Neither the enqueue in flight nor the hand-over is the second copy: one of them is enough.
+    expect(store.written.map((entry) => entry.fileName)).toEqual(['reduite-un.jpg'])
+    expect(calls).toEqual([])
+  })
+
+  it('offline, leaving while the write is in flight keeps the store open until it lands', async () => {
+    // With the hand-over no longer repeating this photo, nothing else would hold the store open for it.
+    offline()
+    const store = new GatedOutbox()
+    const { api } = held()
+    const { result, unmount } = mount(api, store)
+    await waitFor(() => expect(result.current.outbox.ready).toBe(true))
+    act(() => result.current.queue.add([aPhotoFile('un.jpg')]))
+    act(() => result.current.queue.send(null, null))
+    await waitFor(() => expect(store.started).toBe(true))
+
+    unmount()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect(store.writtenWhenClosed).toBeNull()
+    store.letWriteLand()
+
+    await waitFor(() => expect(store.writtenWhenClosed).not.toBeNull())
+    expect(store.writtenWhenClosed).toBe(1)
+  })
+
+  it('hands over the photos queued behind the one being written, and only those', async () => {
+    offline()
+    const store = new GatedOutbox()
+    const { api } = held()
+    const { result, unmount } = mount(api, store)
+    await waitFor(() => expect(result.current.outbox.ready).toBe(true))
+    act(() => result.current.queue.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+    act(() => result.current.queue.send(null, null))
+    await waitFor(() => expect(store.started).toBe(true))
+
+    unmount()
+    store.letWriteLand()
+
+    await waitFor(() => expect(store.writtenWhenClosed).not.toBeNull())
+    expect(store.written.map((entry) => entry.fileName)).toEqual([
+      'reduite-un.jpg',
+      'reduite-deux.jpg',
+    ])
   })
 })

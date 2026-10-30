@@ -53,8 +53,9 @@ export interface UploadItem {
 /**
  * The half of {@link useOutbox} this hook needs.
  *
- * Narrowed to two members on purpose: the queue stores a photo and asks whether storing
- * is possible, and it has no business draining, counting or closing anything.
+ * Narrowed on purpose: the queue stores a photo, forgets one, says whether storing is possible
+ * and registers what it owes for the hand-over on leaving. It has no business draining, counting
+ * or closing anything.
  */
 export interface UploadOutbox {
   readonly ready: boolean
@@ -125,9 +126,6 @@ export interface UploadQueue {
 
 const SETTLED: readonly UploadItemState[] = ['done', 'duplicate']
 
-/** The rows a photograph is on its way through: the guest leaving now would cancel them. */
-const OWED: readonly UploadItemState[] = ['pending', 'preparing', 'uploading']
-
 /** A row that no longer needs the caption: in the event, or kept on the phone to be sent. */
 const SENT: readonly UploadItemState[] = ['done', 'duplicate', 'queued']
 
@@ -167,6 +165,15 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    * to the outbox and drops the second, which the guest never asked to send.
    */
   const owed = useRef(new Set<string>())
+  /**
+   * The rows whose bytes are being written to the outbox right now, by row id.
+   *
+   * Such a row is still `preparing` or `uploading` and still in `owed` until the write lands, so
+   * a guest leaving at that moment would have it handed over a second time: the outbox would hold
+   * the photo twice and the wall would show it twice. The write itself is kept alive by the outbox
+   * (it holds the store open for it), so the hand-over has nothing to add for these rows.
+   */
+  const storing = useRef(new Set<string>())
   /**
    * The shrunk bytes of a row, from the moment they exist until its attempt is over.
    *
@@ -260,7 +267,13 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   const storeForLater = useCallback(
     async (id: string, file: File): Promise<boolean> => {
       if (outbox === undefined || !outbox.ready) return false
-      const entryId = await outbox.enqueue(file, caption.current, mission.current)
+      let entryId: string | null
+      storing.current.add(id)
+      try {
+        entryId = await outbox.enqueue(file, caption.current, mission.current)
+      } finally {
+        storing.current.delete(id)
+      }
       if (entryId === null) return false
       if (!itemsRef.current.some((candidate) => candidate.id === id)) return true
       patch(id, {
@@ -436,14 +449,16 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    * about to end every attempt and clear what they hold. A row whose bytes are not ready yet
    * (`pending`, or still `preparing`) is shrunk by the hand-over itself, with the same `resize`.
    * What is *not* handed over: a photo the guest picked and never pressed "Envoyer" for, a row
-   * that already failed (it says so, with its retry, and the guest chose to leave it), and a
-   * `queued` row, which the outbox already holds.
+   * that already failed (it says so, with its retry, and the guest chose to leave it), a `queued`
+   * row, which the outbox already holds, and a row whose write to the outbox is in flight, which
+   * is about to be held and must not be written twice. None of the first three is in `owed`: a
+   * row leaves it the moment its attempt ends, whatever the attempt ended with.
    */
   const handOff = useCallback((): readonly OutboxHandOff[] => {
     const batchCaption = caption.current
     const batchMission = mission.current
     return itemsRef.current
-      .filter((item) => owed.current.has(item.id) && OWED.includes(item.state))
+      .filter((item) => owed.current.has(item.id) && !storing.current.has(item.id))
       .map((item): OutboxHandOff => {
         const ready = prepared.current.get(item.id)
         return {
