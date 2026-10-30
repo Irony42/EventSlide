@@ -140,7 +140,7 @@ describe('privacyNoticeFor — the revision', () => {
     )
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900',
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone',
     )
   })
 
@@ -148,7 +148,7 @@ describe('privacyNoticeFor — the revision', () => {
     const notice = privacyNoticeFor(settings({ retentionDays: null, allowGuestSelfDelete: false }))
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=none',
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=none;selfErase=phone',
     )
   })
 
@@ -220,7 +220,7 @@ describe('privacyNoticeFor — who hosts it (roadmap G2-17)', () => {
     )
 
     expect(notice.revision).toBe(
-      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900',
+      'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone',
     )
     expect(notice.revision).toBe(
       privacyNoticeFor(
@@ -233,7 +233,7 @@ describe('privacyNoticeFor — who hosts it (roadmap G2-17)', () => {
     const notice = privacyNoticeFor(settings({ retentionDays: 30 }), HOST)
 
     expect(notice.revision).toBe(
-      `publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;operator=${HOST}`,
+      `publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900;selfErase=phone;operator=${HOST}`,
     )
   })
 

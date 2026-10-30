@@ -3,7 +3,7 @@ import { blocksReupload, holdsStagedBytes } from '../../domain/clips/clipJobStat
 import { admitsAnotherClip } from '../../domain/clips/clipQueue'
 import type { ContentHash } from '../../domain/photos/contentHash'
 import { storageRefusalFor } from '../../domain/events/admission'
-import type { ClipJobId, EventId, PhotoId } from '../../domain/shared/ids'
+import type { ClipJobId, EventId, GuestId, PhotoId } from '../../domain/shared/ids'
 import type {
   ClipAdmission,
   ClipAdmissionLimits,
@@ -79,6 +79,20 @@ export class FakeClipJobRepository implements ClipJobRepository {
   async deleteForPhoto(eventId: EventId, photoId: PhotoId): Promise<void> {
     for (const [key, job] of this.rows) {
       if (job.eventId === eventId && job.photoId === photoId) this.rows.delete(key)
+    }
+  }
+
+  private authoredBy(job: ClipJob, eventId: EventId, guestId: GuestId): boolean {
+    return job.eventId === eventId && job.author.kind === 'guest' && job.author.guestId === guestId
+  }
+
+  async listByAuthor(eventId: EventId, guestId: GuestId): Promise<readonly ClipJob[]> {
+    return [...this.rows.values()].filter((job) => this.authoredBy(job, eventId, guestId))
+  }
+
+  async deleteForAuthor(eventId: EventId, guestId: GuestId): Promise<void> {
+    for (const [key, job] of this.rows) {
+      if (this.authoredBy(job, eventId, guestId)) this.rows.delete(key)
     }
   }
 

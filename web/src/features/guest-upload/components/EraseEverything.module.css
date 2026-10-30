@@ -1,0 +1,26 @@
+/**
+ * The foot of "Vos envois": one quiet button, and the sentence a failed attempt leaves.
+ * Nothing here is a primary action, so nothing here is saturated.
+ */
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/**
+ * Wraps. A button's own rule keeps its label on one line, and at a guest's own text size on the
+ * narrowest phone this label is wider than the screen: the page then scrolls sideways and a mobile
+ * browser zooms it out to fit. Left-aligned and a line taller instead, nothing dropped.
+ * `.root > .button` rather than `.button`, so it outranks the primitive wherever the two
+ * stylesheets land in the bundle (the same arrangement as the header's `.noticeLink`).
+ */
+.root > .button {
+  max-inline-size: 100%;
+  white-space: normal;
+  text-align: start;
+  line-height: var(--leading-snug);
+  padding-block: var(--space-2);
+}

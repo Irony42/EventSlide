@@ -170,6 +170,12 @@ export class SqliteReactionRepository implements ReactionRepository {
       .run(eventId, photoId, guestId, kind)
   }
 
+  async deleteByGuest(eventId: EventId, guestId: GuestId): Promise<void> {
+    this.db
+      .prepare<[string, string]>(`DELETE FROM reactions WHERE event_id = ? AND guest_id = ?`)
+      .run(eventId, guestId)
+  }
+
   async countsFor(eventId: EventId, photoId: PhotoId): Promise<ReactionCounts> {
     const rows = this.db
       .prepare<[string, string], KindTallyRow>(

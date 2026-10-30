@@ -19,6 +19,7 @@ import {
   asUserId,
   type ClipJobId,
   type EventId,
+  type GuestId,
   type PhotoId,
 } from '../../domain/shared/ids'
 import type { Result } from '../../domain/shared/result'
@@ -238,6 +239,21 @@ export class SqliteClipJobRepository implements ClipJobRepository {
       .get(eventId, clipJobId)
 
     return row === undefined ? null : toClipJob(row)
+  }
+
+  async listByAuthor(eventId: EventId, guestId: GuestId): Promise<readonly ClipJob[]> {
+    return this.db
+      .prepare<[string, string], ClipJobRow>(
+        `SELECT ${CLIP_JOB_COLUMNS} FROM clip_jobs WHERE event_id = ? AND author_guest_id = ?`,
+      )
+      .all(eventId, guestId)
+      .map(toClipJob)
+  }
+
+  async deleteForAuthor(eventId: EventId, guestId: GuestId): Promise<void> {
+    this.db
+      .prepare<[string, string]>(`DELETE FROM clip_jobs WHERE event_id = ? AND author_guest_id = ?`)
+      .run(eventId, guestId)
   }
 
   async findBySourceHash(eventId: EventId, sourceHash: ContentHash): Promise<ClipJob | null> {

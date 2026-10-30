@@ -82,6 +82,7 @@ import { makeAuthenticateGuest } from '../application/usecases/guests/authentica
 import { makeGetPrivacyNotice } from '../application/usecases/guests/getPrivacyNotice'
 import { makeJoinEvent } from '../application/usecases/guests/joinEvent'
 import { makeListGuests } from '../application/usecases/guests/listGuests'
+import { makeEraseGuestContribution } from '../application/usecases/guests/eraseGuestContribution'
 import { makeRenameGuest } from '../application/usecases/guests/renameGuest'
 import { makeRevokeGuest } from '../application/usecases/guests/revokeGuest'
 
@@ -624,6 +625,16 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       logger: adapters.logger,
     }),
     renameGuest: makeRenameGuest({ guests: adapters.guests, events: adapters.events }),
+    eraseGuestContribution: makeEraseGuestContribution({
+      events: adapters.events,
+      guests: adapters.guests,
+      photos: adapters.photos,
+      reactions: adapters.reactions,
+      clips: adapters.clips,
+      media: adapters.media,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
     revokeGuest: makeRevokeGuest({
       events: adapters.events,
       guests: adapters.guests,

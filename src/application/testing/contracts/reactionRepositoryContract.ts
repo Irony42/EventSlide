@@ -400,5 +400,41 @@ export const reactionRepositoryContract = (
 
       expect((await repo.findOne(WEDDING, P1, LEA, 'love'))?.id).toBe('r2')
     })
+
+    // ---------------------------------------------------------- deleteByGuest --
+
+    describe('deleteByGuest', () => {
+      it('removes every reaction the guest left, on any photograph, and no one else', async () => {
+        await repo.save(
+          aReaction({ id: 'r1', eventId: WEDDING, photoId: P1, guestId: LEA, kind: 'love' }),
+        )
+        await repo.save(
+          aReaction({ id: 'r2', eventId: WEDDING, photoId: P2, guestId: LEA, kind: 'wow' }),
+        )
+        await repo.save(
+          aReaction({ id: 'r3', eventId: WEDDING, photoId: P1, guestId: NILS, kind: 'love' }),
+        )
+
+        await repo.deleteByGuest(WEDDING, LEA)
+
+        expect(await repo.listByGuest(WEDDING, LEA)).toEqual([])
+        expect(await repo.countsFor(WEDDING, P1)).toEqual({ ...noReactions, love: 1 })
+        expect(await repo.countsFor(WEDDING, P2)).toEqual(noReactions)
+      })
+
+      it('is scoped by event: another event is never reached with this guest id', async () => {
+        await repo.save(
+          aReaction({ id: 'r1', eventId: WEDDING, photoId: P1, guestId: LEA, kind: 'love' }),
+        )
+
+        await repo.deleteByGuest(GALA, LEA)
+
+        expect((await repo.findOne(WEDDING, P1, LEA, 'love'))?.id).toBe('r1')
+      })
+
+      it('is a no-op for a guest who reacted to nothing', async () => {
+        await expect(repo.deleteByGuest(WEDDING, SAM)).resolves.toBeUndefined()
+      })
+    })
   })
 }

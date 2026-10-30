@@ -68,6 +68,16 @@ describe('Guest.create', () => {
   })
 })
 
+describe('Guest.withoutName', () => {
+  it('takes the name off, even for a revoked guest, who cannot be renamed', () => {
+    const revoked = aGuest({ displayName: nameOf('Léa'), revokedAt: at(1_000) })
+
+    expect(revoked.rename(null).ok).toBe(false)
+    expect(revoked.withoutName().label()).toBeNull()
+    expect(revoked.withoutName().isRevoked()).toBe(true)
+  })
+})
+
 describe('Guest.rename', () => {
   it('puts the new name under the photos', () => {
     const guest = aGuest({ displayName: nameOf('Léa') })

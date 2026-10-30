@@ -73,6 +73,24 @@ export const de: UiText = {
     statusHidden: 'Vom Bildschirm genommen',
     deleteOwn: 'Löschen',
     deleteOwnConfirm: 'Dieses Foto löschen? Das lässt sich nicht rückgängig machen.',
+    eraseOpen: 'Alles löschen, was ich gesendet habe',
+    eraseTitle: 'Alles löschen?',
+    eraseBody:
+      'Ihre Fotos, Videos, Bildunterschriften, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus der Galerie und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
+    eraseLimits:
+      'Eine Kopie, die der Veranstalter bereits gespeichert hat oder die jemand per Screenshot gesichert hat, lässt sich nicht zurückholen.',
+    eraseConfirm: 'Ja, alles löschen',
+    eraseCancel: 'Nein, behalten',
+    eraseFailed:
+      'Das Löschen hat nicht geklappt. Versuchen Sie es erneut oder fragen Sie den Veranstalter.',
+    eraseDoneTitle: 'Erledigt',
+    eraseDone:
+      'Alles, was Sie gesendet hatten, wurde aus der Feier gelöscht. Dieses Telefon ist dieser Veranstaltung nicht mehr zugeordnet.',
+    eraseLostAccess:
+      'Neues Telefon oder Zugang verloren? Bitten Sie den Veranstalter, Ihre Fotos zu löschen: Das kann er in seinem Bereich tun.',
+    revokedTitle: 'Ihr Zugang wurde entfernt',
+    revokedBody:
+      'Der Veranstalter hat Ihren Zugang entfernt: Sie können keine Fotos mehr senden. Sie können aber weiterhin alles löschen, was Sie gesendet haben.',
 
     itemPreparing: 'Wird vorbereitet…',
     queueLabel: 'Fotos zum Senden',
@@ -251,6 +269,8 @@ export const de: UiText = {
     noticeRemovalOtherwise:
       'Andernfalls wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
     noticeRemovalAskHost: 'Wenden Sie sich an den Veranstalter: Er kann jedes Foto löschen.',
+    noticeErasure: (action: string, section: string) =>
+      `Sie können auch alles von Ihrem Telefon aus löschen: „${action}“ unter „${section}“.`,
     clipDoneImmediate: 'Video gesendet. Es erscheint jetzt auf dem Bildschirm.',
 
     /* ---- Added by guest reactions. ---- */

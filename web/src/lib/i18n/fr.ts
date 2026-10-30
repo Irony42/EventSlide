@@ -120,6 +120,23 @@ export const fr = {
     statusHidden: 'Retirée de l’écran',
     deleteOwn: 'Supprimer',
     deleteOwnConfirm: 'Supprimer cette photo ? Cette action est définitive.',
+    eraseOpen: 'Supprimer tout ce que j’ai envoyé',
+    eraseTitle: 'Tout supprimer ?',
+    eraseBody:
+      'Vos photos, vos vidéos, vos légendes, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de la galerie et de la liste de l’organisateur. C’est définitif.',
+    eraseLimits:
+      'Une copie déjà enregistrée par l’organisateur, ou par quelqu’un qui a fait une capture, ne peut pas être reprise.',
+    eraseConfirm: 'Oui, tout supprimer',
+    eraseCancel: 'Non, je garde',
+    eraseFailed: 'La suppression n’a pas abouti. Réessayez, ou demandez à l’organisateur.',
+    eraseDoneTitle: 'C’est fait',
+    eraseDone:
+      'Tout ce que vous aviez envoyé a été supprimé de la soirée. Vous n’êtes plus rattaché à cet événement sur ce téléphone.',
+    eraseLostAccess:
+      'Vous avez changé de téléphone ou perdu l’accès ? Demandez à l’organisateur de supprimer vos photos : il peut le faire depuis son espace.',
+    revokedTitle: 'Votre accès a été retiré',
+    revokedBody:
+      'L’organisateur a retiré votre accès : vous ne pouvez plus envoyer de photos. Vous pouvez encore effacer tout ce que vous avez envoyé.',
 
     /* ---------- guest surface: features/join + features/guest-upload ---------- */
 
@@ -461,12 +478,14 @@ export const fr = {
       }),
     /**
      * Always the last line, because it is always true: a moderator can delete any photo
-     * of their event. There is no "delete everything I sent" to point at instead — that
-     * is roadmap 5.2 and it is not built, so the notice does not mention it.
+     * of their event. The sentence after it (noticeErasure) names the guest's own "delete everything
+     * I sent" button, roadmap 5.2.
      */
     noticeRemovalOtherwise:
       'Sinon, demandez à l’organisateur : il peut supprimer n’importe quelle photo.',
     noticeRemovalAskHost: 'Demandez à l’organisateur : il peut supprimer n’importe quelle photo.',
+    noticeErasure: (action: string, section: string) =>
+      `Vous pouvez aussi tout supprimer depuis votre téléphone : « ${action} », sous « ${section} ».`,
     /** `clipDone` for an event that publishes on arrival, for `introImmediate`'s reason. */
     clipDoneImmediate: 'Vidéo envoyée. Elle passe à l’écran.',
 

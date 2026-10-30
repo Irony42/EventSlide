@@ -314,6 +314,7 @@ const buildWorld = ({
 
         joinEvent: absent('joinEvent'),
         renameGuest: absent('renameGuest'),
+        eraseGuestContribution: absent('eraseGuestContribution'),
         revokeGuest: makeRevokeGuest({ events, guests, memberships, clock: deps.clock }),
         listGuests: makeListGuests({ guests, memberships, clock: deps.clock }),
         getPrivacyNotice: absent('getPrivacyNotice'),

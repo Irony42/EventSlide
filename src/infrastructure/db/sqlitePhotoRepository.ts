@@ -445,6 +445,16 @@ export class SqlitePhotoRepository implements PhotoRepository {
       : { eventId: asEventId(row.event_id), takenDownAt: fromNullableIsoText(row.taken_down_at) }
   }
 
+  async countTakenDownBy(eventId: EventId, guestId: GuestId): Promise<number> {
+    const row = this.db
+      .prepare<[string, string], { readonly total: number }>(
+        `SELECT COUNT(*) AS total FROM photos
+          WHERE event_id = ? AND author_guest_id = ? AND taken_down_at IS NOT NULL`,
+      )
+      .get(eventId, guestId)
+    return row?.total ?? 0
+  }
+
   async setTakenDown(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<void> {
     this.db
       .prepare<[string | null, string, string]>(

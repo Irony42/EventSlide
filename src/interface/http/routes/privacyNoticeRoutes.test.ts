@@ -229,6 +229,27 @@ describe('POST /api/events/:slug/privacy-notice/acknowledgement', () => {
     expect(response.body.notice.audiences).toContain('guestFeed')
   })
 
+  it('shows the notice again to a guest who acknowledged the one that did not say they can delete everything', async () => {
+    // The literal is the revision as it was before self-service erasure (roadmap §5.2) joined the
+    // notice. Kept as text and not recomputed, so that dropping the clause again fails here.
+    harness.guests.seed(
+      aGuest({
+        id: LEA,
+        eventId: WEDDING,
+        noticeAcknowledgement: {
+          revision:
+            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=30;selfRemoval=900',
+          at: AT,
+        },
+      }),
+    )
+
+    const response = await request(harness.app).get(NOTICE).set('Cookie', lea())
+
+    expect(response.body.acknowledgement).toBe('outdated')
+    expect(response.body.notice.revision).toContain('selfErase=phone')
+  })
+
   it('answers 409 when the host changed the notice while the guest was reading it', async () => {
     await hostKeepsTheAlbumForever()
 

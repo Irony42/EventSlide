@@ -47,9 +47,9 @@ export const selfRemovalSentence = (seconds: number, text: UiText): string => {
  * themselves, so it is printed as written and never translated. A notice with no operator is
  * the four sections it always was.
  *
- * "Ask the organiser" is always the last sentence, because it is always true — a
- * moderator can delete any photo of their event — and there is no self-service "delete
- * everything I sent" to point at instead: that is roadmap §5.2, and it is not built.
+ * "Ask the organiser" is always true — a moderator can delete any photo of their event — and the
+ * last sentence points at the guest's own "delete everything I sent" (roadmap §5.2), which exists
+ * on every event and so is stated unconditionally (it is also a clause of the notice's revision).
  */
 export const noticeSections = (
   notice: PrivacyNoticeDto,
@@ -61,6 +61,8 @@ export const noticeSections = (
     notice.selfRemovalSeconds === null
       ? [copy.noticeRemovalAskHost]
       : [selfRemovalSentence(notice.selfRemovalSeconds, text), copy.noticeRemovalOtherwise]
+  // Always true, so said on every event: the button is on the guest's own page (roadmap §5.2).
+  const erasure = copy.noticeErasure(copy.eraseOpen, copy.mine)
 
   return [
     {
@@ -81,7 +83,7 @@ export const noticeSections = (
           : copy.noticeRetentionDays(notice.retentionDays),
       ],
     },
-    { term: copy.noticeRemoval, sentences: removal },
+    { term: copy.noticeRemoval, sentences: [...removal, erasure] },
     ...(notice.operator === undefined
       ? []
       : [{ term: text.about.operatorHostedBy, sentences: [notice.operator] }]),

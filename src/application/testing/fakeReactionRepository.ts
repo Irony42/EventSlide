@@ -90,6 +90,13 @@ export class FakeReactionRepository implements ReactionRepository {
     this.rows.delete(key(eventId, photoId, guestId, kind))
   }
 
+  /** Idempotent. Scoped by event: the same guest id at another event keeps its hearts. */
+  async deleteByGuest(eventId: EventId, guestId: GuestId): Promise<void> {
+    for (const [rowKey, reaction] of this.rows) {
+      if (reaction.eventId === eventId && reaction.guestId === guestId) this.rows.delete(rowKey)
+    }
+  }
+
   async countsFor(eventId: EventId, photoId: PhotoId): Promise<ReactionCounts> {
     return tally(
       this.forEvent(eventId)

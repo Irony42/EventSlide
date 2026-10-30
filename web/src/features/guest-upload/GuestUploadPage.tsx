@@ -10,6 +10,7 @@ import { prefersReducedMotion } from '../../lib/prefersReducedMotion'
 import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { MissionChecklist } from './components/MissionChecklist'
+import { EraseEverything } from './components/EraseEverything'
 import { MyPhotos } from './components/MyPhotos'
 import { Notice } from '../../design-system/components/Notice'
 import { OfflineNotice } from './components/OfflineNotice'
@@ -17,6 +18,7 @@ import { PhotoPicker } from './components/PhotoPicker'
 import { PrivacyNoticeCard, PrivacyNoticeDialog } from './components/PrivacyNotice'
 import { UploadQueue } from './components/UploadQueue'
 import { useClipUpload } from './hooks/useClipUpload'
+import { useEraseEverything } from './hooks/useEraseEverything'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useMissions } from './hooks/useMissions'
 import { useMyPhotos } from './hooks/useMyPhotos'
@@ -59,6 +61,50 @@ export function GuestUploadPage() {
   )
 }
 
+/**
+ * The host removed this guest. Nothing is offered to send, and the one thing that stays is the
+ * right to take back what they sent (roadmap §5.2): the same button, the same confirmation.
+ */
+function Revoked({
+  eventName,
+  erasure,
+}: {
+  readonly eventName: string
+  readonly erasure: ReturnType<typeof useEraseEverything>
+}) {
+  const t = useTranslations()
+
+  return (
+    <div className={styles['page']}>
+      <header className={styles['header']}>
+        <h1 className={styles['title']}>{eventName}</h1>
+        <Notice tone="warning" variant="boxed" role="status">
+          <strong>{t.upload.revokedTitle}</strong> {t.upload.revokedBody}
+        </Notice>
+      </header>
+      <EraseEverything state={erasure} />
+    </div>
+  )
+}
+
+/** After "delete everything I sent": said once, with the way back in if the guest wants it. */
+function Erased() {
+  const t = useTranslations()
+
+  return (
+    <EmptyState
+      as="h1"
+      title={t.upload.eraseDoneTitle}
+      description={t.upload.eraseDone}
+      action={
+        <Link className={styles['rejoin']} to="/join">
+          {t.upload.notJoinedAction}
+        </Link>
+      }
+    />
+  )
+}
+
 /** Reached by a bookmark, or after the tab was closed and reopened. */
 function NotJoined() {
   const t = useTranslations()
@@ -68,7 +114,7 @@ function NotJoined() {
     <EmptyState
       as="h1"
       title={t.upload.notJoinedTitle}
-      description={t.upload.notJoinedHint}
+      description={`${t.upload.notJoinedHint} ${t.upload.eraseLostAccess}`}
       action={
         // Where the guest was heading, so the code entry returns here.
         <Link className={styles['rejoin']} to="/join" state={{ from: pathname }}>
@@ -91,6 +137,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   const t = useTranslations()
   const navigate = useNavigate()
   const mine = useMyPhotos(slug)
+  /** "Delete everything I sent" (roadmap §5.2): its request, and what the device forgets after. */
+  const erasure = useEraseEverything(slug)
   /**
    * The privacy notice (roadmap §5.1): what happens to a photo, read once per device
    * before the first one is sent, and again if the host changes what it says.
@@ -267,7 +315,11 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   useEffect(() => {
     if (signedOut) forgetGuestSession(slug)
   }, [signedOut, slug])
+  // Before the signed-out branch: the erased guest is signed out too, and the sentence for that
+  // is not "scan again" but "it is done".
+  if (erasure.done) return <Erased />
   if (signedOut) return <NotJoined />
+  if (mine.revoked) return <Revoked eventName={event.name} erasure={erasure} />
 
   const sending = queue.sending || outbox.draining || clip.stage === 'uploading'
   const trimmedCaption = caption.trim()
@@ -372,6 +424,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           onHighlightEnd={endHighlight}
         />
       )}
+      {mine.unavailable ? null : <EraseEverything state={erasure} />}
 
       {/* Below the proof that it worked, above the controls: a reward for having sent
           something, never a gate in front of sending it.

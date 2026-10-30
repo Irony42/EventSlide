@@ -76,6 +76,24 @@ export const it: UiText = {
     statusHidden: 'Rimossa dallo schermo',
     deleteOwn: 'Elimina',
     deleteOwnConfirm: 'Eliminare questa foto? L’operazione è definitiva.',
+    eraseOpen: 'Elimina tutto quello che ho inviato',
+    eraseTitle: 'Eliminare tutto?',
+    eraseBody:
+      'Le sue foto, i video, le didascalie, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dalla galleria e dall’elenco dell’organizzatore. L’operazione è definitiva.',
+    eraseLimits:
+      'Una copia già salvata dall’organizzatore, o catturata da qualcuno con uno screenshot, non si può riprendere.',
+    eraseConfirm: 'Sì, elimina tutto',
+    eraseCancel: 'No, le tengo',
+    eraseFailed:
+      'L’eliminazione non è andata a buon fine. Riprovi, oppure chieda all’organizzatore.',
+    eraseDoneTitle: 'Fatto',
+    eraseDone:
+      'Tutto quello che aveva inviato è stato eliminato dalla serata. Questo telefono non è più collegato a questa serata.',
+    eraseLostAccess:
+      'Ha cambiato telefono o perso l’accesso? Chieda all’organizzatore di eliminare le sue foto: può farlo dal suo spazio.',
+    revokedTitle: 'Il suo accesso è stato rimosso',
+    revokedBody:
+      'L’organizzatore ha rimosso il suo accesso: non può più inviare foto. Può ancora eliminare tutto quello che ha inviato.',
 
     itemPreparing: 'Preparazione…',
     queueLabel: 'Foto da inviare',
@@ -249,6 +267,8 @@ export const it: UiText = {
     noticeRemovalOtherwise:
       'Altrimenti, lo chieda all’organizzatore: può eliminare qualsiasi foto.',
     noticeRemovalAskHost: 'Lo chieda all’organizzatore: può eliminare qualsiasi foto.',
+    noticeErasure: (action: string, section: string) =>
+      `Può anche eliminare tutto dal suo telefono: «${action}», sotto «${section}».`,
     clipDoneImmediate: 'Video inviato. Sta per apparire sullo schermo.',
 
     /* ---- Added by guest reactions. ---- */
