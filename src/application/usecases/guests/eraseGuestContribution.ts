@@ -119,13 +119,16 @@ export const makeEraseGuestContribution = ({
 
     let erasedPhotos = 0
     let erasedClips = 0
-    for (const photo of await authoredBy(eventId, guestId)) {
-      await removePhotoRecord(eventId, photo)
-      bus.publish({ type: 'photo.deleted', eventId, photoId: photo.id })
+    const removeAll = async (): Promise<void> => {
+      for (const photo of await authoredBy(eventId, guestId)) {
+        await removePhotoRecord(eventId, photo, { ignoreRecency: true })
+        bus.publish({ type: 'photo.deleted', eventId, photoId: photo.id })
 
-      if (photo.kind === 'clip') erasedClips += 1
-      else erasedPhotos += 1
+        if (photo.kind === 'clip') erasedClips += 1
+        else erasedPhotos += 1
+      }
     }
+    await removeAll()
 
     // Clips with no photograph yet: reserved, queued or running. Their staged source is the
     // guest's own video on the disk and nothing else names it, so it goes before the row that
@@ -138,6 +141,11 @@ export const makeEraseGuestContribution = ({
     }
     // Every job of the guest, `done` ones included: a `done` job blocks a re-upload of the same bytes.
     await clips.deleteForAuthor(eventId, guestId)
+
+    // **Again, now that the jobs are gone.** The first pass is a snapshot, and a transcode that was
+    // running finishes by inserting its clip row while the guest row still exists. With the job
+    // retired no new one can start, so one more sweep catches whatever landed in between.
+    await removeAll()
 
     await reactions.deleteByGuest(eventId, guestId)
     await guests.delete(eventId, guestId)

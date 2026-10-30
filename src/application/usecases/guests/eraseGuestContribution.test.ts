@@ -41,7 +41,8 @@ describe('eraseGuestContribution', () => {
     guests = new FakeGuestRepository(photos)
     reactions = new FakeReactionRepository()
     clips = new FakeClipJobRepository()
-    media = new InMemoryMediaStore()
+    const clock = new FakeClock()
+    media = new InMemoryMediaStore(clock)
     bus = new RecordingEventBus()
     events.seed(anEvent({ id: 'event-1' }))
     guests.seed(aGuest({ id: 'guest-lea', eventId: 'event-1', displayName: 'Léa' }))
@@ -54,7 +55,7 @@ describe('eraseGuestContribution', () => {
       clips,
       media,
       bus,
-      clock: new FakeClock(),
+      clock,
     })
   })
 
@@ -240,5 +241,45 @@ describe('eraseGuestContribution', () => {
 
     expect(result).toEqual({ ok: true, value: { photos: 205, clips: 0 } })
     expect((await photos.list(EVENT)).items).toEqual([])
+  })
+
+  it('removes a clip poster written seconds ago: the recency guard is for another writer', async () => {
+    const clip = await seedPhoto({
+      id: 'c-fresh',
+      eventId: 'event-1',
+      author: { kind: 'guest', id: 'guest-lea' },
+      clip: {},
+    })
+    const [, poster] = clip.storageHashes
+    if (poster === undefined) throw new Error('a clip has a poster')
+    await media.put(EVENT, poster, 'thumb', Uint8Array.of(1))
+
+    await run()
+
+    expect(media.variantsOf(EVENT, poster)).toEqual([])
+  })
+
+  it('also removes a clip that a running transcode inserted while the erasure was under way', async () => {
+    const late = aClip({
+      id: 'c-late',
+      eventId: 'event-1',
+      author: { kind: 'guest', id: 'guest-lea' },
+    })
+    const original = clips.deleteForAuthor.bind(clips)
+    clips.deleteForAuthor = async (eventId, guestId) => {
+      await original(eventId, guestId)
+      photos.seed(late)
+      await media.put(EVENT, late.contentHash, 'original', Uint8Array.of(1))
+    }
+
+    const result = await run()
+
+    expect(result.ok).toBe(true)
+    expect(media.variantsOf(EVENT, late.contentHash)).toEqual([])
+    expect(bus.published).toContainEqual({
+      type: 'photo.deleted',
+      eventId: EVENT,
+      photoId: late.id,
+    })
   })
 })

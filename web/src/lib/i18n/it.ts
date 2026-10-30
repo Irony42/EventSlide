@@ -88,7 +88,7 @@ export const it: UiText = {
       'L’eliminazione non è andata a buon fine. Riprovi, oppure chieda all’organizzatore.',
     eraseDoneTitle: 'Fatto',
     eraseDone:
-      'Tutto quello che aveva inviato è stato eliminato dalla serata. Questo telefono non è più collegato.',
+      'Tutto quello che aveva inviato è stato eliminato dalla serata. Questo telefono non è più collegato a questa serata.',
     eraseLostAccess:
       'Ha cambiato telefono o perso l’accesso? Chieda all’organizzatore di eliminare le sue foto: può farlo dal suo spazio.',
 

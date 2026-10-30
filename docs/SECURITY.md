@@ -581,7 +581,7 @@ transcode running at that moment is refused at its insert and discards its sourc
 log is about accounts and clients, content-free by construction, and a guest has no account to attribute it to; the moderation
 decision lived on the photograph row and goes with it. It cannot reach a copy the host exported (the album archive is streamed,
 never stored), a download from the shared gallery link, a screenshot, or the hourly backup, which keeps a deleted photograph for
-the retention the privacy notice states; the confirmation dialog says so in plain words.
+the retention the privacy notice states; the confirmation dialog names the organiser's copy and screenshots in plain words; the other two are for this page.
 
 ### Middleware table
 

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { forgetGuestSession } from '../../../lib/guestSession'
+import { ApiError } from '../../../lib/http'
 import { openOutbox } from '../../../lib/offline/openOutbox'
 
 /**
@@ -31,10 +32,15 @@ export function useEraseEverything(slug: string): EraseEverythingState {
     setFailed(false)
     try {
       await api.eraseMyContribution(slug)
-    } catch {
-      setBusy(false)
-      setFailed(true)
-      return
+    } catch (cause) {
+      // A 401 means the guest is already gone: an earlier press erased everything and its answer
+      // was lost on the way back. Finishing the cleanup is the honest answer, and harmless for a
+      // guest who simply lost the token (there is nothing of theirs left to protect on this phone).
+      if (!(cause instanceof ApiError && cause.status === 401)) {
+        setBusy(false)
+        setFailed(true)
+        return
+      }
     }
     try {
       const outbox = await openOutbox()

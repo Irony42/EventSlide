@@ -40,11 +40,25 @@ export interface RemovePhotoRecordDeps {
  * about which files are theirs to delete. Permission is the caller's business; this only
  * knows how to remove without leaving an orphan and without taking a neighbour's bytes.
  */
-export type RemovePhotoRecord = (eventId: EventId, photo: Photo) => Promise<void>
+export interface RemoveOptions {
+  /**
+   * Skip the recency guard. For the author erasing their own clip: the poster was written
+   * moments before the row, by this very guest, and the guard exists for **another** writer's
+   * uncommitted bytes. Committed holders are still asked (`findIdsReferencing`), so a poster
+   * another clip's row names survives either way.
+   */
+  readonly ignoreRecency?: boolean
+}
+
+export type RemovePhotoRecord = (
+  eventId: EventId,
+  photo: Photo,
+  options?: RemoveOptions,
+) => Promise<void>
 
 export const makeRemovePhotoRecord =
   ({ photos, media, clock }: RemovePhotoRecordDeps): RemovePhotoRecord =>
-  async (eventId, photo) => {
+  async (eventId, photo, options = {}) => {
     const photoId = photo.id
 
     // Media first: the row is the only record of the file's address, so removing it
@@ -88,7 +102,13 @@ export const makeRemovePhotoRecord =
         if (!photo.hasVariant(variant)) continue
         if (photo.hashFor(variant).value !== hash.value) continue
         const object = await media.stat(eventId, hash, variant)
-        if (object !== null && object.modifiedAt.getTime() > collectableBefore) return false
+        if (
+          options.ignoreRecency !== true &&
+          object !== null &&
+          object.modifiedAt.getTime() > collectableBefore
+        ) {
+          return false
+        }
       }
       return true
     }

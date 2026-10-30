@@ -1884,9 +1884,9 @@ told at once: each photograph announces `photo.deleted` and the operation ends w
 wall re-reads on any signal but a reaction, the moderation queue on each `photo.*`), so a slide leaves the projector
 and the host's queue without a reload; the guest list and the guest feed show it on their next read.
 
-**What it cannot reach**, and what the guest is told on the phone: a copy the host already exported (the album archive is
+**What it cannot reach**, (the phone's confirmation names the first and the screenshots): a copy the host already exported (the album archive is
 streamed, never kept), a download from the shared gallery link, a screenshot, and the hourly backup, which holds a deleted
-photograph for the retention the privacy notice states. A photograph that was a **duplicate** of an earlier one in the
+photograph for the retention the privacy notice states. A queued clip whose bytes another guest also sent shares one job (the dedupe is per event), so erasing the first sender removes it for both. A photograph that was a **duplicate** of an earlier one in the
 same event (the same bytes sent twice) is one row owned by its first sender, so the second sender's erasure does not
 remove it and the first one's does.
 

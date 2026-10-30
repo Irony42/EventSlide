@@ -1655,6 +1655,23 @@ describe('GuestUploadPage: delete everything I sent (roadmap §5.2)', () => {
     expect(readGuestSession(SLUG)).not.toBeNull()
   })
 
+  it('treats a 401 as already erased: the answer of an earlier press was lost on the way back', async () => {
+    havingJoined()
+    const api = fakeApi({
+      ...withPhotos(aGuestPhoto({ id: 'photo-1' })),
+      eraseMyContribution: vi.fn(async () => {
+        throw new ApiError(401, 'guestToken.malformed')
+      }),
+    })
+    renderUpload(api)
+
+    const dialog = await openDialog()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('heading', { name: fr.upload.eraseDoneTitle })).toBeVisible()
+    expect(readGuestSession(SLUG)).toBeNull()
+  })
+
   it('tells a guest who has lost access how to ask the organiser', async () => {
     renderUpload(fakeApi())
 

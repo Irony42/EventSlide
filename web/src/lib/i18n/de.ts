@@ -76,7 +76,7 @@ export const de: UiText = {
     eraseOpen: 'Alles löschen, was ich gesendet habe',
     eraseTitle: 'Alles löschen?',
     eraseBody:
-      'Ihre Fotos, Videos, Bildunterschriften, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus der Galerie und aus der Liste der Veranstalterin oder des Veranstalters. Das lässt sich nicht rückgängig machen.',
+      'Ihre Fotos, Videos, Bildunterschriften, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus der Galerie und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
     eraseLimits:
       'Eine Kopie, die der Veranstalter bereits gespeichert hat oder die jemand per Screenshot gesichert hat, lässt sich nicht zurückholen.',
     eraseConfirm: 'Ja, alles löschen',
