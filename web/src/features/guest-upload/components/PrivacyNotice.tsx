@@ -1,4 +1,4 @@
-import { forwardRef, useId } from 'react'
+import { forwardRef, useId, type ReactNode } from 'react'
 import { NewTabLink } from '../../../app/NewTabLink'
 import { useAbout } from '../../../app/useAbout'
 import { Button } from '../../../design-system/components/Button'
@@ -122,6 +122,11 @@ export interface PrivacyNoticeDialogProps {
   readonly notice: PrivacyNoticeDto
   readonly open: boolean
   readonly onClose: () => void
+  /**
+   * Something the page wants offered below the notice: the guest's "delete everything I sent"
+   * when their own list, where it normally lives, is not on the page (INV-12).
+   */
+  readonly extra?: ReactNode
 }
 
 /**
@@ -132,7 +137,7 @@ export interface PrivacyNoticeDialogProps {
  * bottom as well as the one in the corner, because the corner is the far side of a phone
  * from the thumb that just scrolled to the end.
  */
-export function PrivacyNoticeDialog({ notice, open, onClose }: PrivacyNoticeDialogProps) {
+export function PrivacyNoticeDialog({ notice, open, onClose, extra }: PrivacyNoticeDialogProps) {
   const t = useTranslations()
 
   return (
@@ -148,6 +153,7 @@ export function PrivacyNoticeDialog({ notice, open, onClose }: PrivacyNoticeDial
     >
       <PrivacyNoticeContent notice={notice} />
       <PrivacyPolicyLink />
+      {extra}
     </Dialog>
   )
 }

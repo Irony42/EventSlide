@@ -106,7 +106,7 @@ export const fr = {
         other: `Envoyer les ${t.number(count)} photos`,
       }),
     queueEmpty: 'Aucune photo sélectionnée pour le moment.',
-    itemPending: 'En attente',
+    itemPending: 'Prête',
     itemUploading: 'Envoi en cours',
     itemDone: 'Envoyée',
     itemDuplicate: 'Déjà envoyée',
@@ -226,7 +226,7 @@ export const fr = {
      * error. A guest told "Échec" sends the photo again; a guest told it is on its way
      * puts the phone back in their pocket, which is the entire point of the feature.
      */
-    itemQueued: 'En attente du réseau',
+    itemQueued: 'Partira dès que le réseau revient',
     /**
      * Said for every photo the outbox gave up on — out of time, past the per-event
      * limit, or refused by the server on its merits. Deliberately one sentence for all
@@ -243,6 +243,35 @@ export const fr = {
       'Elles sont enregistrées sur votre téléphone et partiront dès que la connexion revient. Vous pouvez fermer cette page.',
     offlineSending: 'Envoi des photos en attente…',
     offlineRetry: 'Envoyer maintenant',
+
+    /* ---- Added by the guest traps and end-of-evening pass (revue UX 30/10: INV-1, 4, 7, 8). Keep additions inside this block. ---- */
+
+    /**
+     * Where this phone has no Background Sync (every iPhone): the photos leave only while
+     * a page of the app is open, so "you can close this page" would be a lie that costs the
+     * evening's photos. Said instead of `offlineHint`, which stays for the browsers that can.
+     */
+    offlineHintNoSync:
+      'Elles sont enregistrées sur votre téléphone et partiront dès que la connexion revient. Gardez cette page ouverte jusque-là.',
+    /** Before the guest presses « Envoyer »: nothing has left the phone yet, and the line must not read like an upload that stalled. */
+    queueReady: (count: number) =>
+      t.count(count, {
+        one: 'Une photo prête : appuyez sur Envoyer.',
+        other: `${t.number(count)} photos prêtes : appuyez sur Envoyer.`,
+      }),
+    /** Stands where « Voir les photos de la soirée » is while photos are on their way: leaving would cancel them. */
+    leaveWaitCount: (done: number, total: number) =>
+      `Patientez, envoi en cours (${t.number(done)}/${t.number(total)})`,
+    leaveWait: 'Patientez, envoi en cours…',
+    /** The evening is closed: a quiet thank-you in place of the warning, counted from the list already on screen. */
+    endedTitle: 'C’est fini pour ce soir.',
+    endedThanks: (count: number) =>
+      t.count(count, {
+        one: 'Merci pour votre photo !',
+        other: `Merci pour vos ${t.number(count)} photos !`,
+      }),
+    endedThanksNone: 'Merci d’avoir été des nôtres !',
+    endedAlbum: 'Les organisateurs partageront l’album.',
 
     /* ---- Added by the installable app (roadmap 1.2). ---- */
 
@@ -671,7 +700,7 @@ export const fr = {
     /* Navigation pass, batch A: a gallery the server no longer serves. */
     unavailable: 'Cette soirée n’est plus affichée.',
     unavailableHint:
-      'Elle est archivée ou n’est plus ouverte : il n’y a plus de photos à voir ici.',
+      'Elle est terminée, et il n’y a plus de photos à voir ici. Demandez le lien de l’album aux organisateurs.',
   },
 
   wall: {

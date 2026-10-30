@@ -110,3 +110,28 @@ export const requestBackgroundSync = async (): Promise<boolean> => {
     return false
   }
 }
+
+/**
+ * Whether this browser can finish an upload with no page open (Background Sync).
+ *
+ * The guest screen reads it to choose a sentence: where it is `true`, "you can close this page"
+ * is honest; where it is `false` (every iPhone, and any browser with no worker) the photos
+ * leave only while a page of the app is open, and that sentence would cost the guest their
+ * evening's photos. The answer is the registration's own `sync` member, the same test
+ * {@link requestBackgroundSync} makes before it registers.
+ *
+ * Resolves `false` and never rejects. It also resolves `false` when no worker has been
+ * registered yet, because `navigator.serviceWorker.ready` would then wait for ever: the
+ * registration is looked up with `getRegistration`, and a page nothing registered a worker for
+ * has nothing that could finish an upload without it.
+ */
+export const supportsBackgroundSync = async (): Promise<boolean> => {
+  if (!supported()) return false
+  try {
+    const registration: SyncCapableRegistration | undefined =
+      await navigator.serviceWorker.getRegistration()
+    return registration !== undefined && 'sync' in registration
+  } catch {
+    return false
+  }
+}
