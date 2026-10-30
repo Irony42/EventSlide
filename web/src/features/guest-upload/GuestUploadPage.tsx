@@ -7,6 +7,7 @@ import { RootGroundHue } from '../../design-system/useRootGroundHue'
 import { forgetGuestSession, readGuestSession } from '../../lib/guestSession'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { prefersReducedMotion } from '../../lib/prefersReducedMotion'
+import { GuestBackdrop } from './components/GuestBackdrop'
 import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { MissionChecklist } from './components/MissionChecklist'
@@ -301,6 +302,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
      */
     <div {...themeSurfaceProps(mine.theme ?? event.theme, 'guest')} className={styles['page']}>
       <RootGroundHue theme={mine.theme ?? event.theme} />
+      {/* Variant W2 of the clear-glass prototype: the guest's latest photographs as ambient light. */}
+      <GuestBackdrop photos={mine.photos} />
       <header className={styles['header']}>
         {/* The event name, on the screen the guest actually uploads from. 1.0 read the
             event from a query parameter the QR page never set, so every photo went to

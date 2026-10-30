@@ -1,0 +1,41 @@
+/**
+ * Under the page, over the ambiance's ground (`html::before` is at -2): the guest's photographs,
+ * blurred, and a coat of the ambiance's own surface colour above them.
+ *
+ * `display` is a token so the opaque tiers (`plain`, reduced transparency, more contrast, no
+ * backdrop-filter) can switch the whole layer off: with no glass there is nothing for it to light,
+ * and the ground shows as it always did.
+ */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  display: var(--guest-backdrop-display);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Bled past the screen so the blur's own edge is never seen. */
+.photos {
+  position: absolute;
+  inset: calc(var(--space-8) * -1);
+  display: flex;
+  /* Composed here, not in a token: a token naming --guest-backdrop-brightness would be resolved once, at
+     :root, and a light ambiance's own value would never reach it. */
+  filter: blur(var(--guest-backdrop-blur)) saturate(var(--guest-backdrop-saturate))
+    brightness(var(--guest-backdrop-brightness));
+}
+
+.tile {
+  flex: 1 1 0;
+  background: var(--backdrop-image) center / cover no-repeat;
+}
+
+/* The coat: what the contrast bars are measured under. Never lighter than the derived share. */
+.backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--surface-base);
+  background: color-mix(in oklch, var(--surface-base) var(--guest-backdrop-coat), transparent);
+}

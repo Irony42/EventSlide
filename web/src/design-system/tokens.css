@@ -276,6 +276,21 @@
      rather than as a dark rectangle, and the same in a light ambiance and a dark one. */
   --glass-clear-sheen: 16%;
 
+  /* ---- The guest's own photographs as the page's ambient light (variant W2, ADR 0010 proposed
+         amendment). A clear pane shows what is behind it, and behind it there is the ambiance's dark
+         ground. So the latest photographs sit under the page, blurred, saturated and dimmed, under a
+         coat of the ambiance's own surface colour. The coat is the whole legibility argument: it is the
+         lowest share at which the three inks hold their bars over the brightest photograph (a white
+         one, dimmed by --guest-backdrop-brightness) and over a black one, and each ambiance restates
+         its own because its inks and surface differ (web/src/design-system/glass.backdrop.test.ts).
+         A light ambiance's worst photograph is a black one, so it does not dim. Chroma costs no
+         contrast: the saturation is what keeps a coat this heavy colourful. ---- */
+  --guest-backdrop-brightness: 0.5;
+  --guest-backdrop-blur: 40px;
+  --guest-backdrop-saturate: 180%;
+  --guest-backdrop-coat: 79%;
+  --guest-backdrop-display: block;
+
   /* ---- Sheet elevation. A pane pinned over content that scrolls under it must read as a
          layer *above* that content, and the glass material alone does not say so: its shadow
          falls downward (`--shadow-lg` is offset 24px and pulled in 12px), so nothing is cast
@@ -577,6 +592,7 @@
   );
   /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --guest-backdrop-coat: 71%;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   /* The join card is a kraft ticket. */
@@ -631,6 +647,7 @@
   );
   /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --guest-backdrop-coat: 70%;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   --wall-card-bg: var(--accent);
@@ -677,6 +694,7 @@
   );
   /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --guest-backdrop-coat: 67%;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   --wall-card-bg: var(--accent);
@@ -725,6 +743,7 @@
   /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a); 0.66 is the least that
      holds all three inks over pure white here, because this photograph is dark and its grade thin. */
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 70%, transparent);
+  --guest-backdrop-coat: 71%;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   --wall-card-bg: var(--accent);
@@ -773,6 +792,7 @@
   );
   /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --guest-backdrop-coat: 68%;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   --wall-card-bg: var(--accent);
@@ -835,6 +855,8 @@
   );
   /* The coat a host's own photograph gets on top of this grade (ADR 0010, 8a). */
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --guest-backdrop-coat: 86%;
+  --guest-backdrop-brightness: 1;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   /* Behind the wall's captions: ivory, because the inks are dark. */
@@ -918,6 +940,7 @@
     oklch(15% 0.02 var(--ground-hue) / 0.96)
   );
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --guest-backdrop-coat: 80%;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   --wall-card-bg: var(--accent);
@@ -977,6 +1000,8 @@
     oklch(97.5% 0.01 var(--ground-hue) / 0.96)
   );
   --ambiance-scrim: color-mix(in oklch, var(--surface-base) 30%, transparent);
+  --guest-backdrop-coat: 87%;
+  --guest-backdrop-brightness: 1;
   --wall-ground:
     var(--ambiance-grade), var(--ambiance-ground) center / cover no-repeat, var(--surface-base);
   --wall-card-bg: var(--surface-raised);
@@ -1191,6 +1216,7 @@
     --glass-clear-filter: none;
     --glass-clear-alpha: 100%;
     --glass-clear-sheen: 0%;
+    --guest-backdrop-display: none;
   }
 }
 
@@ -1212,6 +1238,7 @@
     --glass-clear-filter: none;
     --glass-clear-alpha: 100%;
     --glass-clear-sheen: 0%;
+    --guest-backdrop-display: none;
   }
 }
 
@@ -1256,4 +1283,5 @@
   --glass-clear-filter: none;
   --glass-clear-alpha: 100%;
   --glass-clear-sheen: 0%;
+  --guest-backdrop-display: none;
 }
