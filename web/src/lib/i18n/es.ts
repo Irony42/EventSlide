@@ -332,7 +332,8 @@ export const es: UiText = {
     'clientCeilings.maxEventQuotaBytesInvalid': 'Esta cuota de evento no se acepta.',
     'clientCeilings.maxRetentionDaysInvalid':
       'Esta duración de conservación no se acepta: de 1 a 3.650 días.',
-    'clientCeilings.maxLiveDaysInvalid': 'Esta duración de directo no se acepta: de 1 a 365 días.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'Esta duración de evento en curso no se acepta: de 1 a 365 días.',
     'clientCeilings.periodStartedAtInvalid': 'Este inicio de periodo no se acepta.',
     'clientCeilings.clipsAllowedInvalid': 'Este ajuste de vídeos no se acepta.',
     'clientCeilings.liveAllowedInvalid': 'Este ajuste de apertura no se acepta.',
@@ -863,7 +864,7 @@ export const es: UiText = {
     joinLink: 'Enlace para sus invitados',
     printQr: 'Imprimir el código QR',
     qrScanPrompt: 'Escanee para enviar sus fotos.',
-    qrAlt: (eventName: string) => `Código QR de acceso a ${eventName}`,
+    qrAlt: (eventName: string) => `Código QR para unirse a ${eventName}`,
     storageLabel: 'Espacio de fotos utilizado',
     storage: (used: string) => `${used} utilizados`,
     statusSaved: 'El nuevo estado se ha guardado.',
@@ -1327,7 +1328,7 @@ export const es: UiText = {
     actionResetShown: 'Se ha entregado un enlace de restablecimiento al operador.',
     actionTermsAccepted: 'Una persona aceptó las condiciones de uso al aceptar una invitación.',
     actionOther: 'Se ha registrado una acción.',
-    liveWindowEnd: (date: string) => `La ventana en directo termina el ${date}.`,
+    liveWindowEnd: (date: string) => `El evento termina el ${date}.`,
   },
 
   site: {
@@ -1400,7 +1401,7 @@ export const es: UiText = {
     maxTotalGigabytes: 'Almacenamiento total, en GB',
     maxEventQuotaGigabytes: 'Cuota de un evento, en GB',
     maxRetentionDays: 'Conservación tras el cierre, en días, como máximo',
-    maxLiveDays: 'Duración de un directo, en días, como máximo',
+    maxLiveDays: 'Duración de un evento en curso, en días, como máximo',
     clipsAllowed: 'Vídeos permitidos',
     liveAllowed: 'Apertura de eventos permitida',
     renewPeriod: 'Renovar el periodo ahora',

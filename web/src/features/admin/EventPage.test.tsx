@@ -190,7 +190,7 @@ describe('EventPage', () => {
     renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto()) }))
 
     await screen.findByRole('progressbar', { name: fr.admin.storageLabel })
-    expect(screen.queryByText(/Le direct se termine/)).toBeNull()
+    expect(screen.queryByText(/L’évènement se termine/)).toBeNull()
   })
 
   it('asks before changing the join code, and says the connected guests stay connected', async () => {

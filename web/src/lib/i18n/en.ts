@@ -326,7 +326,8 @@ export const en: UiText = {
     'clientCeilings.maxEventQuotaBytesInvalid': 'This event quota is not accepted.',
     'clientCeilings.maxRetentionDaysInvalid':
       'This retention is not accepted: from 1 to 3,650 days.',
-    'clientCeilings.maxLiveDaysInvalid': 'This live length is not accepted: from 1 to 365 days.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'This length of an ongoing event is not accepted: from 1 to 365 days.',
     'clientCeilings.periodStartedAtInvalid': 'This start of period is not accepted.',
     'clientCeilings.clipsAllowedInvalid': 'This video setting is not accepted.',
     'clientCeilings.liveAllowedInvalid': 'This opening setting is not accepted.',
@@ -1283,7 +1284,7 @@ export const en: UiText = {
     actionResetShown: 'A reset link was handed to the operator.',
     actionTermsAccepted: 'A person accepted the terms of use by accepting an invitation.',
     actionOther: 'An action was recorded.',
-    liveWindowEnd: (date: string) => `The live window ends on ${date}.`,
+    liveWindowEnd: (date: string) => `The event ends on ${date}.`,
   },
 
   site: {
@@ -1356,7 +1357,7 @@ export const en: UiText = {
     maxTotalGigabytes: 'Total storage, in GB',
     maxEventQuotaGigabytes: 'Quota of one event, in GB',
     maxRetentionDays: 'Retention after closing, in days, at most',
-    maxLiveDays: 'Length of a live event, in days, at most',
+    maxLiveDays: 'Length of an ongoing event, in days, at most',
     clipsAllowed: 'Videos allowed',
     liveAllowed: 'Opening events allowed',
     renewPeriod: 'Renew the period now',

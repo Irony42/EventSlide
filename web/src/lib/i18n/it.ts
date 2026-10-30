@@ -341,7 +341,7 @@ export const it: UiText = {
     'clientCeilings.maxRetentionDaysInvalid':
       'Questa durata di conservazione non è accettata: da 1 a 3.650 giorni.',
     'clientCeilings.maxLiveDaysInvalid':
-      'Questa durata di diretta non è accettata: da 1 a 365 giorni.',
+      'Questa durata di evento in corso non è accettata: da 1 a 365 giorni.',
     'clientCeilings.periodStartedAtInvalid': 'Questo inizio di periodo non è accettato.',
     'clientCeilings.clipsAllowedInvalid': 'Questa impostazione dei video non è accettata.',
     'clientCeilings.liveAllowedInvalid': 'Questa impostazione di apertura non è accettata.',
@@ -844,7 +844,7 @@ export const it: UiText = {
     joinLink: 'Link per i suoi invitati',
     printQr: 'Stampa il codice QR',
     qrScanPrompt: 'Scansioni per inviare le sue foto.',
-    qrAlt: (eventName: string) => `Codice QR di accesso a ${eventName}`,
+    qrAlt: (eventName: string) => `Codice QR per entrare in ${eventName}`,
     storageLabel: 'Spazio foto utilizzato',
     storage: (used: string) => `${used} utilizzati`,
     statusSaved: 'Il nuovo stato è stato salvato.',
@@ -1300,7 +1300,7 @@ export const it: UiText = {
     actionResetShown: 'Un link di ripristino è stato consegnato all’operatore.',
     actionTermsAccepted: 'Una persona ha accettato le condizioni d’uso accettando un invito.',
     actionOther: 'È stata registrata un’azione.',
-    liveWindowEnd: (date: string) => `La finestra in diretta termina il ${date}.`,
+    liveWindowEnd: (date: string) => `L’evento termina il ${date}.`,
   },
 
   site: {
@@ -1373,7 +1373,7 @@ export const it: UiText = {
     maxTotalGigabytes: 'Spazio totale, in GB',
     maxEventQuotaGigabytes: 'Quota di un evento, in GB',
     maxRetentionDays: 'Conservazione dopo la chiusura, in giorni, al massimo',
-    maxLiveDays: 'Durata di una diretta, in giorni, al massimo',
+    maxLiveDays: 'Durata di un evento in corso, in giorni, al massimo',
     clipsAllowed: 'Video consentiti',
     liveAllowed: 'Apertura di eventi consentita',
     renewPeriod: 'Rinnova il periodo adesso',

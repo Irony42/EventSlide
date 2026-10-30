@@ -343,7 +343,7 @@ export const de: UiText = {
     'clientCeilings.maxRetentionDaysInvalid':
       'Diese Aufbewahrungsdauer wird nicht akzeptiert: von 1 bis 3.650 Tagen.',
     'clientCeilings.maxLiveDaysInvalid':
-      'Diese Live-Dauer wird nicht akzeptiert: von 1 bis 365 Tagen.',
+      'Diese Dauer einer laufenden Veranstaltung wird nicht akzeptiert: von 1 bis 365 Tagen.',
     'clientCeilings.periodStartedAtInvalid': 'Dieser Zeitraumbeginn wird nicht akzeptiert.',
     'clientCeilings.clipsAllowedInvalid': 'Diese Videoeinstellung wird nicht akzeptiert.',
     'clientCeilings.liveAllowedInvalid': 'Diese Öffnungseinstellung wird nicht akzeptiert.',
@@ -521,7 +521,7 @@ export const de: UiText = {
     'membership.notFound': 'Diese Person moderiert diese Veranstaltung nicht.',
     'guest.notFound': 'Dieser Gast steht nicht mehr in der Liste. Aktualisieren Sie die Seite.',
 
-    'event.scheduleOutOfOrder': 'Das Ende muss nach dem Beginn liegen.',
+    'event.scheduleOutOfOrder': 'Das Ende muss nach der Öffnung liegen.',
     'event.scheduleInPast':
       'Dieser Zeitpunkt ist bereits vorbei. Prüfen Sie das Datum: Für das Ende des Abends wählen Sie den nächsten Tag.',
     'event.scheduleInvalid': 'Diese Datumsangaben sind nicht lesbar. Wählen Sie sie erneut.',
@@ -878,7 +878,7 @@ export const de: UiText = {
     joinLink: 'Link für Ihre Gäste',
     printQr: 'QR-Code drucken',
     qrScanPrompt: 'Scannen Sie, um Ihre Fotos zu senden.',
-    qrAlt: (eventName: string) => `QR-Code für den Zugang zu ${eventName}`,
+    qrAlt: (eventName: string) => `QR-Code zum Beitritt zu ${eventName}`,
     storageLabel: 'Belegter Speicher für Fotos',
     storage: (used: string) => `${used} belegt`,
     statusSaved: 'Der neue Status ist gespeichert.',
@@ -1346,7 +1346,7 @@ export const de: UiText = {
     actionTermsAccepted:
       'Eine Person hat die Nutzungsbedingungen akzeptiert, indem sie eine Einladung angenommen hat.',
     actionOther: 'Eine Aktion wurde aufgezeichnet.',
-    liveWindowEnd: (date: string) => `Das Live-Fenster endet am ${date}.`,
+    liveWindowEnd: (date: string) => `Die Veranstaltung endet am ${date}.`,
   },
 
   site: {
@@ -1419,7 +1419,7 @@ export const de: UiText = {
     maxTotalGigabytes: 'Gesamtspeicher in GB',
     maxEventQuotaGigabytes: 'Kontingent einer Veranstaltung in GB',
     maxRetentionDays: 'Aufbewahrung nach dem Ende, in Tagen, höchstens',
-    maxLiveDays: 'Dauer einer Live-Veranstaltung, in Tagen, höchstens',
+    maxLiveDays: 'Dauer einer laufenden Veranstaltung, in Tagen, höchstens',
     clipsAllowed: 'Videos erlaubt',
     liveAllowed: 'Öffnen von Veranstaltungen erlaubt',
     renewPeriod: 'Zeitraum jetzt erneuern',

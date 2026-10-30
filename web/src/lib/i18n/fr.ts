@@ -1008,7 +1008,7 @@ export const fr = {
     joinLink: 'Lien pour vos invités',
     printQr: 'Imprimer le QR code',
     qrScanPrompt: 'Scannez pour envoyer vos photos.',
-    qrAlt: (eventName: string) => `QR code d’accès à ${eventName}`,
+    qrAlt: (eventName: string) => `QR code pour rejoindre ${eventName}`,
     storageLabel: 'Espace photos utilisé',
     storage: (used: string) => `${used} utilisés`,
     statusSaved: 'Le nouvel état est enregistré.',
@@ -1086,7 +1086,7 @@ export const fr = {
      * which is at the venue — so "18:00" means 18:00 where the party is. Only the
      * instant travels to the server. See web/src/features/admin/eventSchedule.ts.
      * ---------------------------------------------------------------------- */
-    schedule: 'Ouverture et fermeture automatiques',
+    schedule: 'Ouverture et fin automatiques',
     scheduleHint:
       'Laissez vide pour ouvrir et terminer vous-même. Les heures sont celles de votre ordinateur, donc celles du lieu de la fête.',
     scheduleOpenAt: 'Ouvrir aux invités le',
@@ -1096,9 +1096,9 @@ export const fr = {
     scheduleNone: 'Aucun horaire : vous ouvrez et vous terminez vous-même.',
     /** Rendered as a reminder under the fields once a schedule is armed. */
     scheduleArmed: (opensAt: string, closesAt: string) =>
-      `Ouverture le ${opensAt}, fermeture le ${closesAt}.`,
+      `Ouverture le ${opensAt}, fin le ${closesAt}.`,
     scheduleOpensOnly: (opensAt: string) => `Ouverture le ${opensAt}. Vous terminerez vous-même.`,
-    scheduleClosesOnly: (closesAt: string) => `Fermeture le ${closesAt}. Vous ouvrirez vous-même.`,
+    scheduleClosesOnly: (closesAt: string) => `Fin le ${closesAt}. Vous ouvrirez vous-même.`,
     scheduleSave: 'Enregistrer l’horaire',
     /**
      * The sweep threw a schedule away because the event could not change state then —
@@ -1409,7 +1409,7 @@ export const fr = {
     'clientCeilings.maxRetentionDaysInvalid':
       'Cette durée de conservation n’est pas acceptée : de 1 à 3 650 jours.',
     'clientCeilings.maxLiveDaysInvalid':
-      'Cette durée de direct n’est pas acceptée : de 1 à 365 jours.',
+      'Cette durée d’évènement en cours n’est pas acceptée : de 1 à 365 jours.',
     'clientCeilings.periodStartedAtInvalid': 'Ce début de période n’est pas accepté.',
     'clientCeilings.clipsAllowedInvalid': 'Ce réglage des vidéos n’est pas accepté.',
     'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
@@ -1587,7 +1587,7 @@ export const fr = {
     /* ---- Added by the scheduled open and close (docs/ROADMAP.md §3.4). These live
             here and not in the `admin` block above because `messageForCode` resolves a
             server error code against `fr.errors` and nothing else. ---- */
-    'event.scheduleOutOfOrder': 'La fermeture doit venir après l’ouverture.',
+    'event.scheduleOutOfOrder': 'La fin doit venir après l’ouverture.',
     /**
      * The likeliest mistake with this form: it is 21:30, the host picks 02:00 for the
      * closing and leaves the date on today. The sentence names the fix rather than the
@@ -1942,7 +1942,7 @@ export const fr = {
     actionTermsAccepted:
       'Une personne a accepté les conditions d’utilisation en acceptant une invitation.',
     actionOther: 'Une action a été enregistrée.',
-    liveWindowEnd: (date: string) => `Le direct se termine le ${date}.`,
+    liveWindowEnd: (date: string) => `L’évènement se termine le ${date}.`,
   },
 
   /* ---- Added by features/site: the operator’s console (G2-15 / P3-16). ---- */
@@ -2016,7 +2016,7 @@ export const fr = {
     maxTotalGigabytes: 'Stockage total, en Go',
     maxEventQuotaGigabytes: 'Quota d’un évènement, en Go',
     maxRetentionDays: 'Conservation après la fin de l’évènement, en jours, au plus',
-    maxLiveDays: 'Durée d’un direct, en jours, au plus',
+    maxLiveDays: 'Durée d’un évènement en cours, en jours, au plus',
     clipsAllowed: 'Vidéos autorisées',
     liveAllowed: 'Ouverture d’évènements autorisée',
     renewPeriod: 'Renouveler la période maintenant',

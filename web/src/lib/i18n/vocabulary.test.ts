@@ -33,7 +33,7 @@ const RETIRED: Readonly<Record<Locale, readonly [RegExp, string][]>> = {
   fr: [
     [/galerie/iu, 'galerie: the live event is "la soirée", and what is left after it is "l’album"'],
     [/événement/iu, 'événement: this product writes évènement'],
-    [/(?<!QR )code d’accès/iu, 'Code d’accès: the code is "Code de la soirée" on both sides'],
+    [/code d’accès/iu, 'Code d’accès: the code is "Code de la soirée" on both sides'],
     [/réouvr/iu, 'Réouvrir: the verb is rouvrir'],
     [/kraft/iu, 'Kraft: the default colour is the ambiance’s own, not a paper'],
     [/\bclore\b|clôtur/iu, 'clore / clôturer: the lifecycle says terminer'],
@@ -78,7 +78,9 @@ describe.each(SUPPORTED_LOCALES)('%s', (locale) => {
     const table = TRANSLATIONS[locale]
 
     expect(table.admin.joinLink).not.toBe(table.site.invitationLinkLabel)
-    expect(table.admin.joinLink.toLowerCase()).not.toMatch(/invit(ation|e)?$|einladung|invito/u)
+    expect(table.admin.joinLink.toLowerCase()).not.toMatch(
+      /invitation|einladung|invito|invitación/u,
+    )
   })
 
   it('says the same status words in the operator’s console as on the host’s page', () => {
