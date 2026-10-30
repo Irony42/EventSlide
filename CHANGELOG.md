@@ -20,6 +20,24 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [Unreleased]
+
+### Removed
+
+- **The glass material** ([ADR 0012](docs/adr/0012-retire-glass.md)): panes are opaque
+  `--surface-raised` everywhere. The legibility rules pinned the tints at 80 to 95 % opacity, so the
+  blur was invisible (under 1.5 % of pixels differed) and the setting did nothing a host could see.
+  Réglages → Matière des panneaux is gone, with its copy in the five languages.
+- The per-event `material` theme field. The API still accepts `material` on `PATCH` settings and
+  ignores it, so a tab left open across the upgrade is not refused, and no longer returns it. Stored
+  values are ignored; there is no migration and nothing to change in `.env`.
+
+### Changed
+
+- The wall's render budget loses its first rung (the glass blur). It now gives up Ken Burns, then the
+  crossfade, exactly as before on the wall; the guest and host interaction budget, which only shed
+  glass, is removed.
+
 ## [3.2.0] - 2026-10-29
 
 Everything merged to `main` after the tag `v3.1.0`: pull requests #261, #263, #265, #266, #264, #267

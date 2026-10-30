@@ -131,7 +131,7 @@ cost there. A chunk per locale is the next thing to do and is not free —
 The wall is what two hundred people look at all evening. It is also the surface with the
 least engineering attention in most tools of this kind.
 
-_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.1](#21-photo-missions-p1-effort-m-risk-low) and [2.2](#22-per-event-theming-p1-effort-s-risk-low) are shipped and stayed in place.** 2.6 (print station) and 2.7 (photobooth mode) were dropped — see [§7](#7-deliberate-non-goals)._
+_Shipped and moved to §9: [2.3](#93-more-wall-layouts). **[2.1](#21-photo-missions-p1-effort-m-risk-low) and [2.2](#22-per-event-theming-p1-effort-s-risk-low) were shipped; 11.1 and 11.5 are retired, 11.2 and 11.3 stand without glass.** 2.6 (print station) and 2.7 (photobooth mode) were dropped — see [§7](#7-deliberate-non-goals)._
 
 ### 2.1 Photo missions (P1, effort M, risk: low)
 
@@ -880,7 +880,12 @@ Rejected, and why:
 
 ---
 
-## 11. The feel of the thing — a liquid-glass interface
+## 11. The feel of the thing — a liquid-glass interface (glass retired)
+
+> **The glass material was retired on 30/10/2026 ([ADR 0012](adr/0012-retire-glass.md)).** Under the
+> legibility rules a pane is 80 to 95 % opaque, which made it indistinguishable from the opaque surface
+> (under 1.5 % of pixels differ), so the material, its host setting and its tokens are gone and every pane
+> is `--surface-raised`. 11.2's motion and 11.3's wall budget stay, minus the glass rung; 11.4 will not be built.
 
 Everything in this document so far is about what the product does. This category is about
 what it feels like to use, which is not decoration: a guest decides in the first three
@@ -900,6 +905,8 @@ _**[11.1](#111-a-glass-material-as-tokens-rather-than-as-css-sprinkled-per-compo
 [11.4](#114-something-behind-the-glass-p2-effort-m-risk-medium) is not built._
 
 ### 11.1 A glass material, as tokens rather than as CSS sprinkled per component (P1, effort M, risk: medium)
+
+> **Retired 30/10/2026 ([ADR 0012](adr/0012-retire-glass.md)).** The material, its tokens (`--glass-*`) and the `sheet` that composed them are replaced by an opaque `--surface-raised` pane. The text below is the record of what was built.
 
 > **Shipped** in [#32](https://github.com/Irony42/EventSlide/pull/32). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
@@ -964,6 +971,8 @@ near-white `--text-primary` field.
 
 ### 11.2 Motion that answers the hand (P1, effort M, risk: medium)
 
+> **Retired 30/10/2026 ([ADR 0012](adr/0012-retire-glass.md)).** The motion work stands. The translucent tint floors and `app/glassBackdrop.ts` it introduced are gone with the glass; panes are opaque on every address.
+
 > **Shipped** in [#48](https://github.com/Irony42/EventSlide/pull/48). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
 The animation work is not "add transitions". It is: what does the interface do when a guest
@@ -1002,6 +1011,8 @@ with `motion.budget.test.ts` failing on any animation that gives none — which 
 health requirement stops depending on whoever reviews the diff.
 
 ### 11.3 The budget that keeps it usable (P1, effort S, risk: low)
+
+> **Retired 30/10/2026 ([ADR 0012](adr/0012-retire-glass.md)).** The ladder is now `ken-burns`, then `crossfade`, and only the wall measures: the `glass` rung and the guest/host interaction budget (`useInteractionBudget`) are removed, and the wall starts at level 0.
 
 > **Shipped** in [#58](https://github.com/Irony42/EventSlide/pull/58). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
@@ -1057,6 +1068,8 @@ the backdrop the alpha is derived against.
 
 ### 11.4 Something behind the glass (P2, effort M, risk: medium)
 
+> **Retired 30/10/2026 ([ADR 0012](adr/0012-retire-glass.md)).** Will not be built: there is no glass to put something behind.
+
 Photograph the product with and without everything above and four surfaces come back
 **pixel-identical**: the join screen, the phone moderation console, login, the dashboard. The
 wall moves 0.04%. The guest's upload screen moves the most, and even there the difference is
@@ -1099,6 +1112,8 @@ actually met. Expect the shed order to earn its keep here, and expect the first 
 measurement of it to come from this item rather than from a synthetic throttle.
 
 ### 11.5 A switch the host owns (P2, effort S, risk: low)
+
+> **Retired 30/10/2026 ([ADR 0012](adr/0012-retire-glass.md)).** The `material` theme field and the "Matière des panneaux" setting are removed. The API still accepts and ignores `material` for tabs left open across the deploy, and stored values are ignored.
 
 > **Shipped** in [#61](https://github.com/Irony42/EventSlide/pull/61). Kept here rather than moved to §9: the retrospective below is written against the item it argued, and the numbering never changes.
 
