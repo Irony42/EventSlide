@@ -103,7 +103,32 @@ interface Restore {
   readonly exact: boolean
 }
 
+/**
+ * A row as the boundary hands it over, trusted no further than the wire.
+ *
+ * `allowedDecisions` arrived with MOD-4. A console bundle that outlives a server rollback
+ * (or the other way round) reads rows without it, and every place that offers a button
+ * would then throw on `undefined`. An absent field means "the server has not said", which
+ * is the same as no decision: the buttons wait for the next read instead of the tab
+ * crashing.
+ */
+const withDecisions = (row: ModerationPhotoDto): ModerationPhotoDto =>
+  (row.allowedDecisions as readonly ModerationDecision[] | undefined) === undefined
+    ? { ...row, allowedDecisions: [] }
+    : row
+
 const restoringDecision = (previousStatus: PhotoStatus, currentStatus: PhotoStatus): Restore => {
+  /**
+   * A refusal of a hidden photo cannot be taken back: the way back to `hidden` is `hide`,
+   * and the status machine only lets a rejected photo return to `published`
+   * (`src/domain/photos/photoStatus.ts`). Offering "Annuler" would be a button the server
+   * skips without a word, under a notice that said the refusal could be taken back.
+   * Every other previous status has a restoring decision the machine allows from where
+   * the photo went, so this is the single case where the table above is not enough.
+   */
+  if (previousStatus === 'hidden' && currentStatus === 'rejected') {
+    return { decision: null, exact: false }
+  }
   const direct = RESTORING_DECISION[previousStatus]
   if (direct !== undefined) return { decision: direct, exact: true }
   return currentStatus === 'published'
@@ -266,14 +291,20 @@ export const useModerationQueue = (
       serverRef.current = next
     }
 
+    const readRows = (rows: readonly ModerationPhotoDto[]): readonly ModerationPhotoDto[] => {
+      const safe = rows.map(withDecisions)
+      remember(safe)
+      return safe
+    }
+
     if (onScreenLimit !== undefined) {
       api
         .moderationQueue(slug, { status: 'published', limit: onScreenLimit }, controller.signal)
         .then(
           (response) => {
             if (!live) return
-            remember(response.items)
-            setState((previous) => ({ ...previous, onScreen: response.items }))
+            const onScreen = readRows(response.items)
+            setState((previous) => ({ ...previous, onScreen }))
           },
           // A convenience beside the queue: a failed read keeps the last strip and says
           // nothing, because the queue's own failure is the one worth a sentence.
@@ -284,10 +315,10 @@ export const useModerationQueue = (
     api.moderationQueue(slug, { status: filter }, controller.signal).then(
       (response) => {
         if (!live) return
-        remember(response.items)
+        const items = readRows(response.items)
         setState((previous) => ({
           ...previous,
-          items: response.items,
+          items,
           pendingCount: response.pendingCount,
           loading: false,
           error: null,
@@ -410,8 +441,8 @@ export const useModerationQueue = (
 
     /**
      * Grouped by the decision that restores each photo, because one bulk action can
-     * span statuses: rejecting a published photo and a hidden one in the same batch is
-     * undone by `publish` for the first and `hide` for the second.
+     * span statuses: publishing a refused photo and a hidden one in the same batch is
+     * undone by `reject` for the first and `hide` for the second.
      *
      * The optimistic status is taken from that decision rather than from where the
      * photo came from. The two are the same for everything the desktop console offers,
@@ -434,11 +465,13 @@ export const useModerationQueue = (
     setBusy(true)
     try {
       const skipped: string[] = []
+      const applied = new Set<string>()
       for (const [decision, ids] of groups) {
         // The bulk endpoint for a single photo too: one code path, and it is the one
         // that reports what it could not do instead of failing the lot.
         const response = await api.moderateBulk(slug, ids, decision)
         skipped.push(...response.skipped)
+        for (const id of response.applied) applied.add(id)
       }
 
       /**
@@ -461,8 +494,14 @@ export const useModerationQueue = (
         )
       }
 
-      const applied = restored.size - skipped.length
-      if (applied > 0) {
+      /**
+       * Counted from what the server says it did, not from what was asked minus what it
+       * skipped. A photo its guest erased in between is in neither list, and a green
+       * "décision annulée" over a photo that no longer exists tells the host something
+       * was put back when nothing was.
+       */
+      const appliedCount = entries.filter((entry) => applied.has(entry.id)).length
+      if (appliedCount > 0) {
         /**
          * "Décision annulée" only when it was one.
          *
@@ -473,9 +512,12 @@ export const useModerationQueue = (
          * revisiting this line.
          */
         const restoredExactly = entries.every((entry) => entry.exact)
-        toast.show(restoredExactly ? text.moderation.undone : text.moderation.removed(applied), {
-          tone: 'success',
-        })
+        toast.show(
+          restoredExactly ? text.moderation.undone : text.moderation.removed(appliedCount),
+          {
+            tone: 'success',
+          },
+        )
       }
       if (skipped.length > 0) {
         toast.show(text.moderation.bulkSkipped(skipped.length), { tone: 'warning' })

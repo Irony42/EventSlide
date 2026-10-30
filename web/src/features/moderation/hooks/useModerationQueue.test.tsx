@@ -200,6 +200,106 @@ describe('useModerationQueue', () => {
     expect(result.current.canUndo).toBe(false)
   })
 
+  it('refusing a hidden photo offers no undo, because a refused photo can only return to the wall', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () =>
+        queueOf([aModerationPhoto({ id: 'photo-1', status: 'hidden' })]),
+      ),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.decide('photo-1', 'reject')
+    })
+
+    expect(result.current.canUndo).toBe(false)
+    expect(screen.queryByRole('button', { name: fr.moderation.undo })).toBeNull()
+  })
+
+  it('offers no undo for a bulk refusal that includes a hidden photo', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () =>
+        queueOf([
+          aModerationPhoto({ id: 'photo-1', status: 'published' }),
+          aModerationPhoto({ id: 'photo-2', status: 'hidden' }),
+        ]),
+      ),
+      moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
+        applied: ['photo-1', 'photo-2'],
+        skipped: [],
+      })),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(2))
+
+    await act(async () => {
+      await result.current.decideBulk(['photo-1', 'photo-2'], 'reject')
+    })
+
+    expect(result.current.canUndo).toBe(false)
+  })
+
+  it('still offers an undo for the refusal of a published photo', async () => {
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () =>
+        queueOf([aModerationPhoto({ id: 'photo-1', status: 'published' })]),
+      ),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.decide('photo-1', 'reject')
+    })
+
+    expect(result.current.canUndo).toBe(true)
+  })
+
+  it('does not say a decision was undone when the photo is gone, counting what the server applied', async () => {
+    // Its guest erased the photo between the refusal and "Annuler": the server names it
+    // in neither applied nor skipped. Asked minus skipped is one, and a green
+    // "décision annulée" then sits over a photo that no longer exists.
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () =>
+        queueOf([aModerationPhoto({ id: 'photo-1', status: 'published' })]),
+      ),
+      moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
+        applied: [],
+        skipped: [],
+      })),
+    })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    await act(async () => {
+      await result.current.decide('photo-1', 'reject')
+    })
+
+    await act(async () => {
+      await result.current.undo()
+    })
+
+    expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'publish')
+    expect(screen.queryByText(fr.moderation.undone)).toBeNull()
+  })
+
+  it('reads a row without allowedDecisions as one that allows nothing, on the queue and on the strip', async () => {
+    const bare = (id: string) => {
+      const { allowedDecisions: absent, ...row } = aModerationPhoto({ id, status: 'published' })
+      void absent
+      return row as unknown as ModerationPhotoDto
+    }
+    const api = fakeApi({
+      moderationQueue: vi.fn(async () => queueOf([bare('photo-1')])),
+    })
+    const { result } = mountFor(api, SLUG, { onScreenLimit: 6 })
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    await waitFor(() => expect(result.current.onScreen).toHaveLength(1))
+
+    expect(result.current.items[0]?.allowedDecisions).toEqual([])
+    expect(result.current.onScreen?.[0]?.allowedDecisions).toEqual([])
+  })
+
   it('does not decide a photo a second moderator has already dealt with', async () => {
     // Two laptops at the same event. The stream carries an invalidation signal, the
     // console refetches, and the tile is gone — so the decision the host was about to

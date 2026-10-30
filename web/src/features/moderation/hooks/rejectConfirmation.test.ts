@@ -18,10 +18,20 @@ describe('needsRejectConfirmation', () => {
     expect(needsRejectConfirmation(of('published', 'published', 'pending'))).toBe(true)
   })
 
-  it.each(['published', 'hidden', 'rejected'] as const)(
-    'does not ask for %s photos, which the notice takes back',
+  it('does not ask for photos that are all on the wall, which the notice takes back', () => {
+    expect(needsRejectConfirmation(of('published', 'published', 'published', 'published'))).toBe(
+      false,
+    )
+  })
+
+  it.each(['hidden', 'rejected'] as const)(
+    'asks for %s photos, which no notice takes back',
     (status) => {
-      expect(needsRejectConfirmation(of(status, status, status, status))).toBe(false)
+      expect(needsRejectConfirmation(of(status, status, status))).toBe(true)
     },
   )
+
+  it('asks when a single hidden photo hides among published ones, because that batch has no undo', () => {
+    expect(needsRejectConfirmation(of('published', 'published', 'hidden'))).toBe(true)
+  })
 })
