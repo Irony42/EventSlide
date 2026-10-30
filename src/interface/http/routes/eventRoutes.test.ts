@@ -980,7 +980,6 @@ describe('the host event routes', () => {
           accentHue: 305,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'eventslide',
         },
       })
@@ -1015,7 +1014,6 @@ describe('the host event routes', () => {
         accentHue: 345,
         fonts: 'serif',
         frame: 'round',
-        material: 'glass',
         ambiance: 'champs',
         groundUrl: null,
       })
@@ -1165,7 +1163,6 @@ describe('the host event routes', () => {
           accentHue: 345,
           fonts: 'serif',
           frame: 'round',
-          material: 'glass',
           ambiance: 'guinguette',
         },
         wallLanguage: 'en',
@@ -1185,7 +1182,6 @@ describe('the host event routes', () => {
           accentHue: 345,
           fonts: 'serif',
           frame: 'round',
-          material: 'glass',
           ambiance: 'guinguette',
           groundUrl: null,
         },
@@ -1206,7 +1202,6 @@ describe('the host event routes', () => {
           accentHue: 160,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'guinguette',
         },
       })
@@ -1230,7 +1225,6 @@ describe('the host event routes', () => {
           accentHue: 160,
           fonts: 'serif',
           frame: 'round',
-          material: 'glass',
           ambiance: 'guinguette',
         },
       })
@@ -1239,7 +1233,6 @@ describe('the host event routes', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'eventslide',
       })
     })
@@ -1250,7 +1243,6 @@ describe('the host event routes', () => {
         accentHue: 345,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ...extra,
       })
 
@@ -1333,46 +1325,33 @@ describe('the host event routes', () => {
       expect(response.body.error.code).toBe('request.invalid')
     })
 
-    it('refuses a theme with no material rather than guessing at one', async () => {
-      // The shape a tab left open across this deploy still sends. It is a refusal on
-      // purpose, and the cost is a reload: the alternative is that absent has to mean
-      // something, the only sane meaning is `glass`, and a host who chose the plain
-      // surface would have it silently undone by an old tab saving an unrelated checkbox.
-      const agent = await signedIn(world, 'owner')
+    it.each(['glass', 'plain'])(
+      'accepts a theme that still carries material %s, and answers without it',
+      async (material) => {
+        // ADR 0012: glass is retired. A tab left open across the deploy still sends the key and
+        // must not get a 400; the route never forwards it, so it is neither stored nor answered.
+        const agent = await signedIn(world, 'owner')
 
-      const response = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ theme: { accentHue: 345, fonts: 'serif', frame: 'round' } })
+        const response = await agent.patch(`/api/events/${SLUG}/settings`).send({
+          theme: {
+            accentHue: 305,
+            fonts: 'sans',
+            frame: 'soft',
+            material,
+            ambiance: 'guinguette',
+          },
+        })
 
-      expect(response.status).toBe(400)
-      expect(response.body.error.code).toBe('request.invalid')
-    })
+        expect(response.status).toBe(200)
+        expect(response.body.settings.theme).not.toHaveProperty('material')
+        expect((await world.events.findById(WEDDING))?.settings.theme).not.toHaveProperty(
+          'material',
+        )
+      },
+    )
 
-    it('stores the material a host turned off, and answers with it', async () => {
-      // Roadmap 11.5. The wire half: the host's choice about how their evening looks has
-      // to survive the round trip, or the settings form is showing something the guests'
-      // phones will not.
-      const agent = await signedIn(world, 'owner')
-
-      const response = await agent.patch(`/api/events/${SLUG}/settings`).send({
-        theme: {
-          accentHue: 305,
-          fonts: 'sans',
-          frame: 'soft',
-          material: 'plain',
-          ambiance: 'guinguette',
-        },
-      })
-
-      expect(response.status).toBe(200)
-      expect(response.body.settings.theme.material).toBe('plain')
-      expect((await world.events.findById(WEDDING))?.settings.theme.material).toBe('plain')
-    })
-
-    it('refuses a material the design system has no tier for', async () => {
-      // A closed vocabulary at the boundary, like the pairing and the frame. The value
-      // reaches a CSS attribute selector; an unknown one matches no block at all, so the
-      // event would render the material its host had just tried to turn off.
+    it('refuses a material outside the retired vocabulary', async () => {
+      // Read and ignored, but still a closed vocabulary: a value no build ever sent is not an old tab.
       const agent = await signedIn(world, 'owner')
 
       const response = await agent
@@ -1397,7 +1376,6 @@ describe('the host event routes', () => {
         accentHue: 305,
         fonts: 'sans',
         frame: 'soft',
-        material: 'glass',
         ambiance: 'eventslide',
         groundUrl: null,
       })

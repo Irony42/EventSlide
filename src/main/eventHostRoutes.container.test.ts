@@ -206,7 +206,6 @@ describe('the host’s own venue photograph, through the real container (ADR 001
           accentHue: 305,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'guinguette',
         },
       })
@@ -246,7 +245,6 @@ describe('the host’s own venue photograph, through the real container (ADR 001
           accentHue: 345,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'guinguette',
         },
       })
@@ -264,7 +262,6 @@ describe('the host’s own venue photograph, through the real container (ADR 001
           accentHue: 305,
           fonts: 'sans',
           frame: 'soft',
-          material: 'glass',
           ambiance: 'guinguette',
           groundUrl: '/api/events/anything/venue-photo/' + 'ab'.repeat(32),
         },
