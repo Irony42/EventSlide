@@ -59,9 +59,15 @@ const RESTORING_DECISION: Readonly<Partial<Record<PhotoStatus, ModerationDecisio
 
 /**
  * What "annuler" does to a photo that was still awaiting a decision when the host
- * published it. `'hide'` is the only safe answer, which is why it is the only value.
+ * published it: take it back off the wall. `hide` is the only safe answer, which is why
+ * it is not a parameter, and it is the same on the laptop and on the phone.
+ *
+ * Until MOD-1 the desktop console left it out, on the argument that the tile stays on
+ * screen with a "retirer" button on it. It does not: the server signals `photo.moderated`,
+ * the console reloads "En attente", and the tile is gone within the second. A mis-pressed
+ * P then left a photo on the wall that only a change of tab could take down.
  */
-export type UndoOfPublish = 'hide'
+const UNDO_OF_PUBLISH: ModerationDecision = 'hide'
 
 /**
  * Which decision takes this one back, given where the photo came from and where it
@@ -69,16 +75,14 @@ export type UndoOfPublish = 'hide'
  *
  * The `pending` case is the whole reason this is a function rather than the map above.
  * Nothing puts a photo back to `pending`, so the answer is `null` — except for one
- * surface, and only in one direction:
+ * direction:
  *
- * - **A publish can be taken back with `hide`**, when the caller asks for it. The photo
- *   comes off the wall, which is what the host meant, and it lands in `hidden` rather
- *   than back in the queue — `hidden` keeps it in the album and reachable from the
- *   "Retirées" filter, and it is the only status change here that cannot put something
- *   unapproved on a screen. The phone console asks for it because a decided photo
- *   leaves that screen immediately and there is no grid to press "retirer" on; the
- *   desktop console does not, because the tile is still sitting there with the button
- *   on it.
+ * - **A publish can be taken back with `hide`**, on both consoles. The photo comes off
+ *   the wall, which is what the host meant, and it lands in `hidden` rather than back in
+ *   the queue — `hidden` keeps it in the album and reachable from the "Retirées" filter,
+ *   and it is the only status change here that cannot put something unapproved on a
+ *   screen. A decided photo leaves the queue as soon as the server confirms it, so
+ *   without this nothing on either console could take it back.
  * - **A refusal is never taken back from `pending`.** The only verb that would reverse
  *   it is `publish`, and the photo was awaiting a decision, so "put that back" would
  *   throw it onto the projector with no approval behind it — the one thing a host is
@@ -99,15 +103,36 @@ interface Restore {
   readonly exact: boolean
 }
 
-const restoringDecision = (
-  previousStatus: PhotoStatus,
-  currentStatus: PhotoStatus,
-  undoOfPublish: UndoOfPublish | undefined,
-): Restore => {
+/**
+ * A row as the boundary hands it over, trusted no further than the wire.
+ *
+ * `allowedDecisions` arrived with MOD-4. A console bundle that outlives a server rollback
+ * (or the other way round) reads rows without it, and every place that offers a button
+ * would then throw on `undefined`. An absent field means "the server has not said", which
+ * is the same as no decision: the buttons wait for the next read instead of the tab
+ * crashing.
+ */
+const withDecisions = (row: ModerationPhotoDto): ModerationPhotoDto =>
+  (row.allowedDecisions as readonly ModerationDecision[] | undefined) === undefined
+    ? { ...row, allowedDecisions: [] }
+    : row
+
+const restoringDecision = (previousStatus: PhotoStatus, currentStatus: PhotoStatus): Restore => {
+  /**
+   * A refusal of a hidden photo cannot be taken back: the way back to `hidden` is `hide`,
+   * and the status machine only lets a rejected photo return to `published`
+   * (`src/domain/photos/photoStatus.ts`). Offering "Annuler" would be a button the server
+   * skips without a word, under a notice that said the refusal could be taken back.
+   * Every other previous status has a restoring decision the machine allows from where
+   * the photo went, so this is the single case where the table above is not enough.
+   */
+  if (previousStatus === 'hidden' && currentStatus === 'rejected') {
+    return { decision: null, exact: false }
+  }
   const direct = RESTORING_DECISION[previousStatus]
   if (direct !== undefined) return { decision: direct, exact: true }
-  return currentStatus === 'published' && undoOfPublish !== undefined
-    ? { decision: undoOfPublish, exact: false }
+  return currentStatus === 'published'
+    ? { decision: UNDO_OF_PUBLISH, exact: false }
     : { decision: null, exact: false }
 }
 
@@ -127,6 +152,9 @@ const appliedMessage = (decision: ModerationDecision, count: number, text: UiTex
   return phrase[decision](count)
 }
 
+/** A one-line answer, gone before the host has looked up from the projector. */
+const NOTHING_TO_UNDO_MS = 2_500
+
 interface UndoEntry {
   readonly id: string
   /** What the decision made of it, so a failed undo can roll forward again. */
@@ -143,6 +171,16 @@ interface UndoEntry {
 
 interface QueueState {
   readonly items: readonly ModerationPhotoDto[]
+  /**
+   * The photos on the wall right now, newest first, when the surface asked for them
+   * (`onScreenLimit`). A second, small read beside the filtered one: the phone console
+   * has no filters, and "retirer de l'écran" is what a host needs first on a bad night.
+   *
+   * `null` until that read has answered, and for ever if it never does or was not asked for:
+   * an empty list says "nothing is on the wall", which is a claim, and a strip whose read
+   * failed must not make it.
+   */
+  readonly onScreen: readonly ModerationPhotoDto[] | null
   readonly pendingCount: number
   readonly loading: boolean
   /**
@@ -155,11 +193,16 @@ interface QueueState {
 
 export interface ModerationQueueOptions {
   /**
-   * Offer an undo for a publish taken on a photo that was still `pending`, performed
-   * with this decision. Absent everywhere but the phone console, where a decided photo
-   * leaves the screen and nothing else can reach it.
+   * Also load this many of the photos currently on the wall, newest first (MOD-2). The
+   * phone console asks for six; the laptop has the "À l'écran" filter instead.
    */
-  readonly undoOfPublish?: UndoOfPublish
+  readonly onScreenLimit?: number
+  /**
+   * After a refusal that nothing takes back, put "Voir dans Refusées" on the notice.
+   * Only a surface with a filter bar can honour it: on the phone it would empty the
+   * screen, which shows nothing but pending photos.
+   */
+  readonly linkToRejected?: boolean
 }
 
 export interface ModerationQueue extends QueueState {
@@ -192,7 +235,7 @@ const failureMessage = (cause: unknown, fallback: string, text: UiText): string 
 
 export const useModerationQueue = (
   slug: string | undefined,
-  { undoOfPublish }: ModerationQueueOptions = {},
+  { onScreenLimit, linkToRejected = false }: ModerationQueueOptions = {},
 ): ModerationQueue => {
   const text = useTranslations()
   const api = useApi()
@@ -203,6 +246,7 @@ export const useModerationQueue = (
   const [busy, setBusy] = useState(false)
   const [state, setState] = useState<QueueState>({
     items: [],
+    onScreen: null,
     pendingCount: 0,
     // A route with no slug never fetches, so it must not sit on a spinner for ever.
     loading: slug !== undefined,
@@ -210,10 +254,24 @@ export const useModerationQueue = (
   })
 
   /** Read by the decision handlers, so their identity does not change per photo. */
-  const itemsRef = useRef(state.items)
+  const itemsRef = useRef<readonly ModerationPhotoDto[]>(state.items)
   useEffect(() => {
-    itemsRef.current = state.items
-  }, [state.items])
+    // The wall strip too: a photo taken off the screen is decided like any other.
+    itemsRef.current = [...state.items, ...(state.onScreen ?? [])]
+  }, [state.items, state.onScreen])
+
+  /**
+   * What the server last said about each photo on screen: its status, and the decisions
+   * it allows from there.
+   *
+   * Kept beside the optimistic state so that a local change never invents the second
+   * half. `allowedDecisions` is the server's reading of its status machine and this
+   * console holds no copy of it: while a decision is only local the photo shows no
+   * decision at all, and a rollback or an exact undo gets the server's own answer back.
+   */
+  const serverRef = useRef<
+    ReadonlyMap<string, { status: PhotoStatus; allowedDecisions: readonly ModerationDecision[] }>
+  >(new Map())
 
   const undoRef = useRef<readonly UndoEntry[] | null>(null)
   const undoToastRef = useRef<string | null>(null)
@@ -225,15 +283,46 @@ export const useModerationQueue = (
     const controller = new AbortController()
     let live = true
 
+    const remember = (rows: readonly ModerationPhotoDto[]) => {
+      const next = new Map(serverRef.current)
+      for (const row of rows) {
+        next.set(row.id, { status: row.status, allowedDecisions: row.allowedDecisions })
+      }
+      serverRef.current = next
+    }
+
+    const readRows = (rows: readonly ModerationPhotoDto[]): readonly ModerationPhotoDto[] => {
+      const safe = rows.map(withDecisions)
+      remember(safe)
+      return safe
+    }
+
+    if (onScreenLimit !== undefined) {
+      api
+        .moderationQueue(slug, { status: 'published', limit: onScreenLimit }, controller.signal)
+        .then(
+          (response) => {
+            if (!live) return
+            const onScreen = readRows(response.items)
+            setState((previous) => ({ ...previous, onScreen }))
+          },
+          // A convenience beside the queue: a failed read keeps the last strip and says
+          // nothing, because the queue's own failure is the one worth a sentence.
+          () => undefined,
+        )
+    }
+
     api.moderationQueue(slug, { status: filter }, controller.signal).then(
       (response) => {
         if (!live) return
-        setState({
-          items: response.items,
+        const items = readRows(response.items)
+        setState((previous) => ({
+          ...previous,
+          items,
           pendingCount: response.pendingCount,
           loading: false,
           error: null,
-        })
+        }))
       },
       (cause: unknown) => {
         if (!live) return
@@ -250,7 +339,7 @@ export const useModerationQueue = (
       live = false
       controller.abort()
     }
-  }, [api, slug, filter, attempt])
+  }, [api, slug, filter, attempt, onScreenLimit])
 
   /** A host asked for fresh data and should see that something is happening. */
   const refresh = useCallback(() => {
@@ -283,6 +372,14 @@ export const useModerationQueue = (
    * change rather than recomputed from what is on screen.
    */
   const setStatuses = useCallback((next: ReadonlyMap<string, PhotoStatus>) => {
+    const withStatus = (item: ModerationPhotoDto, status: PhotoStatus): ModerationPhotoDto => {
+      const known = serverRef.current.get(item.id)
+      return {
+        ...item,
+        status,
+        allowedDecisions: known?.status === status ? known.allowedDecisions : [],
+      }
+    }
     setState((previous) => {
       let delta = 0
       const items = previous.items.map((item) => {
@@ -290,9 +387,19 @@ export const useModerationQueue = (
         if (status === undefined || status === item.status) return item
         if (item.status === 'pending') delta -= 1
         if (status === 'pending') delta += 1
-        return { ...item, status }
+        return withStatus(item, status)
       })
-      return { ...previous, items, pendingCount: Math.max(0, previous.pendingCount + delta) }
+      const onScreen =
+        previous.onScreen?.map((item) => {
+          const status = next.get(item.id)
+          return status === undefined || status === item.status ? item : withStatus(item, status)
+        }) ?? null
+      return {
+        ...previous,
+        items,
+        onScreen,
+        pendingCount: Math.max(0, previous.pendingCount + delta),
+      }
     })
   }, [])
 
@@ -318,15 +425,24 @@ export const useModerationQueue = (
 
   const undo = useCallback(async () => {
     const entries = undoRef.current
-    if (slug === undefined || entries === null || entries.length === 0) return
+    if (slug === undefined) return
+    if (entries === null || entries.length === 0) {
+      // Said rather than ignored (MOD-1): the toolbar promises "Z pour annuler", and a
+      // key that answers nothing reads as a keyboard that stopped working.
+      toast.show(text.moderation.nothingToUndo, {
+        tone: 'neutral',
+        durationMs: NOTHING_TO_UNDO_MS,
+      })
+      return
+    }
     // Takes the offer off the screen too: leaving it up invites a second press that
     // would undo the undo.
     forgetUndo()
 
     /**
      * Grouped by the decision that restores each photo, because one bulk action can
-     * span statuses: rejecting a published photo and a hidden one in the same batch is
-     * undone by `publish` for the first and `hide` for the second.
+     * span statuses: publishing a refused photo and a hidden one in the same batch is
+     * undone by `reject` for the first and `hide` for the second.
      *
      * The optimistic status is taken from that decision rather than from where the
      * photo came from. The two are the same for everything the desktop console offers,
@@ -349,11 +465,13 @@ export const useModerationQueue = (
     setBusy(true)
     try {
       const skipped: string[] = []
+      const applied = new Set<string>()
       for (const [decision, ids] of groups) {
         // The bulk endpoint for a single photo too: one code path, and it is the one
         // that reports what it could not do instead of failing the lot.
         const response = await api.moderateBulk(slug, ids, decision)
         skipped.push(...response.skipped)
+        for (const id of response.applied) applied.add(id)
       }
 
       /**
@@ -376,8 +494,14 @@ export const useModerationQueue = (
         )
       }
 
-      const applied = restored.size - skipped.length
-      if (applied > 0) {
+      /**
+       * Counted from what the server says it did, not from what was asked minus what it
+       * skipped. A photo its guest erased in between is in neither list, and a green
+       * "décision annulée" over a photo that no longer exists tells the host something
+       * was put back when nothing was.
+       */
+      const appliedCount = entries.filter((entry) => applied.has(entry.id)).length
+      if (appliedCount > 0) {
         /**
          * "Décision annulée" only when it was one.
          *
@@ -388,9 +512,12 @@ export const useModerationQueue = (
          * revisiting this line.
          */
         const restoredExactly = entries.every((entry) => entry.exact)
-        toast.show(restoredExactly ? text.moderation.undone : text.moderation.removed(applied), {
-          tone: 'success',
-        })
+        toast.show(
+          restoredExactly ? text.moderation.undone : text.moderation.removed(appliedCount),
+          {
+            tone: 'success',
+          },
+        )
       }
       if (skipped.length > 0) {
         toast.show(text.moderation.bulkSkipped(skipped.length), { tone: 'warning' })
@@ -427,6 +554,28 @@ export const useModerationQueue = (
       forgetUndo()
 
       if (!reversible) {
+        /**
+         * A refusal of a photo that was waiting is the one decision nothing takes back,
+         * so the notice says where it went instead (MOD-1): "Refusées" is where the host
+         * finds it, and a published photo it was mistaken for is not.
+         *
+         * Held as `undoToastRef` too, so the next decision takes it off the screen like
+         * any other offer that no longer describes the latest decision.
+         */
+        if (decision === 'reject' && linkToRejected && entries.length > 0) {
+          const id = toast.show(message, {
+            tone: 'success',
+            action: {
+              label: text.moderation.seeRejected,
+              onAction: () => {
+                setFilter('rejected')
+                forgetUndo()
+              },
+            },
+          })
+          undoToastRef.current = id
+          return
+        }
         toast.show(message, { tone: 'success' })
         return
       }
@@ -440,14 +589,19 @@ export const useModerationQueue = (
       undoToastRef.current = toast.show(message, {
         tone: 'success',
         action: {
-          label: text.moderation.undo,
+          // "Retirer" when the offer is a publication taken back off the wall: that is
+          // what pressing it does, and "Annuler" would promise the photo goes back to the
+          // queue it is no longer in.
+          label: entries.every((entry) => entry.exact)
+            ? text.moderation.undo
+            : text.moderation.undoPublish,
           onAction: () => {
             void undo()
           },
         },
       })
     },
-    [text, toast, undo, forgetUndo],
+    [text, toast, undo, forgetUndo, linkToRejected, setFilter],
   )
 
   const decide = useCallback(
@@ -457,7 +611,7 @@ export const useModerationQueue = (
       if (photo === undefined) return
 
       const target = TARGET_STATUS[decision]
-      const restore = restoringDecision(photo.status, target, undoOfPublish)
+      const restore = restoringDecision(photo.status, target)
       const entries: readonly UndoEntry[] = [
         { id: photoId, currentStatus: target, restoreWith: restore.decision, exact: restore.exact },
       ]
@@ -475,7 +629,7 @@ export const useModerationQueue = (
         setBusy(false)
       }
     },
-    [api, slug, text, toast, setStatuses, announce, forgetUndo, undoOfPublish],
+    [api, slug, text, toast, setStatuses, announce, forgetUndo],
   )
 
   const decideBulk = useCallback(
@@ -509,7 +663,7 @@ export const useModerationQueue = (
         const entries = response.applied.flatMap<UndoEntry>((id) => {
           const previousStatus = before.get(id)
           if (previousStatus === undefined) return []
-          const restore = restoringDecision(previousStatus, target, undoOfPublish)
+          const restore = restoringDecision(previousStatus, target)
           return [
             { id, currentStatus: target, restoreWith: restore.decision, exact: restore.exact },
           ]
@@ -530,7 +684,7 @@ export const useModerationQueue = (
         setBusy(false)
       }
     },
-    [api, slug, text, toast, setStatuses, announce, forgetUndo, undoOfPublish],
+    [api, slug, text, toast, setStatuses, announce, forgetUndo],
   )
 
   const onSignal = useCallback(

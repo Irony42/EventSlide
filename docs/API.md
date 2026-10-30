@@ -3727,7 +3727,8 @@ for the reason `nextCursor` is always `null` below. The cursor-paged surface is
       "createdAt": "2026-06-20T21:04:11.031Z",
       "kind": "photo",
       "videoUrl": null,
-      "durationMs": null
+      "durationMs": null,
+      "allowedDecisions": ["publish", "reject"]
     }
   ],
   "pendingCount": 12,
@@ -3742,6 +3743,16 @@ one batched read, and `null` for a guest who stayed anonymous or for a host's ow
 upload — the client picks the French for an unattributed photo, and the server never
 invents a name. `width` and `height` are the intrinsic size, so the grid is laid out
 before the thumbnails arrive.
+
+`allowedDecisions` is the list of decisions this photo may take **now**, in the order `publish`,
+`reject`, `hide`, and it is the server's own reading of the photo status machine
+(`allowedDecisionsFrom`, derived from `allowedTransitionsFrom` rather than copied from it): a decision
+is listed when the status it produces is a legal move from the photo's status. A `pending` photo
+lists `publish` and `reject`; a `published` one `reject` and `hide`; a `rejected` one `publish`; a
+`hidden` one `publish` and `reject`. The console offers exactly these buttons and keeps no table of its
+own, so a button never ends in `409 photo.illegalTransition` and a no-op (`publish` on a photo already
+on the wall) is never offered. The gallery rows of `GET /photos` do not carry it: no client consumes that
+read.
 
 A moderation row may say more than a wall item, because a moderator is not the room. It
 still carries no content hash, no storage key, no path — and no byte size, because

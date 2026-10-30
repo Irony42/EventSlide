@@ -77,6 +77,10 @@ const renderPhone = (api: Api) =>
     path: '/admin/events/:slug/moderation/mobile',
   })
 
+/** The reads of the waiting queue, as opposed to the wall strip's (`status=published`). */
+const queueReads = (api: Api) =>
+  vi.mocked(api.moderationQueue).mock.calls.filter(([, query]) => query?.status !== 'published')
+
 const card = (): HTMLElement => screen.getByTestId('mobile-moderation-card')
 
 /** A thumb crossing the card from the middle outwards, and lifting at the end. */
@@ -148,7 +152,8 @@ describe('MobileModerationPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: fr.app.retry }))
 
-    expect(api.moderationQueue).toHaveBeenCalledTimes(2)
+    // The queue's own reads: the wall strip beside it asks for the published photos.
+    expect(queueReads(api)).toHaveLength(2)
   })
 
   it('offers the list of events inside the failure itself, beside the retry', async () => {
@@ -370,9 +375,10 @@ describe('MobileModerationPage', () => {
     await screen.findByRole('article', { name: fr.moderation.photoOf('Sacha') })
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.publishPhoto('Sacha') }))
 
-    expect(screen.getAllByRole('button', { name: fr.moderation.undo })).toHaveLength(1)
+    // "Retirer", not "Annuler": what the offer does to a photo that was waiting.
+    expect(screen.getAllByRole('button', { name: fr.moderation.undoPublish })).toHaveLength(1)
 
-    await userEvent.click(screen.getByRole('button', { name: fr.moderation.undo }))
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.undoPublish }))
 
     // The one offer on screen belongs to the decision the host just took.
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-2'], 'hide')
@@ -392,7 +398,7 @@ describe('MobileModerationPage', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.rejectPhoto('Sacha') }))
 
     expect(await screen.findByText(fr.moderation.refused(1))).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: fr.moderation.undo })).toBeNull()
+    expect(screen.queryByRole('button', { name: fr.moderation.undoPublish })).toBeNull()
     expect(screen.getByRole('button', { name: fr.mobileModeration.undoLast })).toBeDisabled()
   })
 
@@ -491,7 +497,8 @@ describe('MobileModerationPage', () => {
     // going to pull to refresh between courses.
     let answered = 0
     const api = fakeApi({
-      moderationQueue: vi.fn(async () => {
+      moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) => {
+        if (query?.status === 'published') return queueOf([])
         answered += 1
         return answered === 1 ? queueOf([lea()]) : queueOf([lea(), sacha()])
       }),
@@ -511,7 +518,8 @@ describe('MobileModerationPage', () => {
   it('keeps the photo on screen when a refresh fails under the host', async () => {
     let answered = 0
     const api = fakeApi({
-      moderationQueue: vi.fn(async () => {
+      moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) => {
+        if (query?.status === 'published') return queueOf([])
         answered += 1
         if (answered === 1) return queueOf([lea()])
         throw ApiError.network()
@@ -777,5 +785,120 @@ describe('a clip on the phone', () => {
     await screen.findByTestId('mobile-moderation-card')
 
     expect(screen.queryByRole('button', { name: fr.moderation.playVideo('Léa') })).toBeNull()
+  })
+
+  describe('the photos on the wall now (MOD-2)', () => {
+    /** The queue answers the waiting photo; the strip's own read answers what is up. */
+    const withWall = (
+      wall: readonly ModerationPhotoDto[],
+      waiting: readonly ModerationPhotoDto[],
+    ) =>
+      fakeApi({
+        moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) =>
+          query?.status === 'published' ? queueOf(wall) : queueOf(waiting),
+        ),
+        moderateBulk: vi.fn(async () => ({ applied: ['wall-1'], skipped: [] })),
+      })
+
+    const onWall = (id: string, author: string) =>
+      aModerationPhoto({ id, status: 'published', authorName: author })
+
+    it('asks for the last six published photos, newest first, and shows them', async () => {
+      const api = withWall([onWall('wall-2', 'Camille'), onWall('wall-1', 'Sacha')], [lea()])
+
+      renderPhone(api)
+
+      expect(
+        await screen.findByRole('heading', { name: fr.mobileModeration.onScreenTitle }),
+      ).toBeInTheDocument()
+      expect(api.moderationQueue).toHaveBeenCalledWith(
+        SLUG,
+        { status: 'published', limit: 6 },
+        expect.anything(),
+      )
+      expect(
+        await screen.findByRole('button', { name: fr.mobileModeration.openOnScreen('Camille') }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: fr.mobileModeration.openOnScreen('Sacha') }),
+      ).toBeInTheDocument()
+    })
+
+    it('says nothing about the wall when its read failed, rather than claiming it is empty', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) => {
+          if (query?.status === 'published') throw ApiError.network()
+          return queueOf([lea()])
+        }),
+      })
+
+      renderPhone(api)
+      await screen.findByTestId('mobile-moderation-card')
+
+      expect(screen.queryByText(fr.mobileModeration.onScreenEmpty)).toBeNull()
+      expect(screen.queryByRole('heading', { name: fr.mobileModeration.onScreenTitle })).toBeNull()
+    })
+
+    it('says so when nothing is on the wall', async () => {
+      renderPhone(withWall([], [lea()]))
+
+      expect(await screen.findByText(fr.mobileModeration.onScreenEmpty)).toBeInTheDocument()
+    })
+
+    it('opens a photo with one action only, and takes it off the screen from there', async () => {
+      const api = withWall([onWall('wall-1', 'Sacha')], [lea()])
+      renderPhone(api)
+
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.mobileModeration.openOnScreen('Sacha') }),
+      )
+      const viewer = await screen.findByRole('dialog')
+
+      // One decision, and not the swipe card's two: a thumb that only meant to look must
+      // not be one tap from refusing the photo.
+      expect(
+        within(viewer)
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label') ?? ''),
+      ).toContain(fr.moderation.hidePhoto('Sacha'))
+      expect(
+        within(viewer).queryByRole('button', { name: fr.moderation.publishPhoto('Sacha') }),
+      ).toBeNull()
+      expect(
+        within(viewer).queryByRole('button', { name: fr.moderation.rejectPhoto('Sacha') }),
+      ).toBeNull()
+
+      await userEvent.click(
+        within(viewer).getByRole('button', { name: fr.moderation.hidePhoto('Sacha') }),
+      )
+
+      expect(api.moderate).toHaveBeenCalledWith(SLUG, 'wall-1', 'hide')
+      // The confirmation says where the photo went: it is not lost.
+      expect(await screen.findByText(fr.moderation.removed(1))).toBeInTheDocument()
+      // And it leaves the strip at once.
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: fr.mobileModeration.openOnScreen('Sacha') }),
+        ).toBeNull(),
+      )
+    })
+
+    it('takes the removal back with the page’s own undo', async () => {
+      const api = withWall([onWall('wall-1', 'Sacha')], [lea()])
+      renderPhone(api)
+      await userEvent.click(
+        await screen.findByRole('button', { name: fr.mobileModeration.openOnScreen('Sacha') }),
+      )
+      await userEvent.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: fr.moderation.hidePhoto('Sacha'),
+        }),
+      )
+      await screen.findByText(fr.moderation.removed(1))
+
+      await userEvent.click(screen.getByRole('button', { name: fr.mobileModeration.undoLast }))
+
+      expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['wall-1'], 'publish')
+    })
   })
 })

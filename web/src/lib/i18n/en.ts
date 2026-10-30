@@ -571,7 +571,7 @@ export const en: UiText = {
     by: (name: string) => `by ${name}`,
     byAnonymous: 'Anonymous guest',
     shortcuts: 'Shortcuts',
-    shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo.',
+    shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo the last decision.',
 
     shortcutsMore: 'H to take off the screen, Space to select, Esc to clear the selection.',
     queueLabel: 'Photos to moderate',
@@ -584,7 +584,7 @@ export const en: UiText = {
     // The word beside the border colour and the icon, so the status survives stage
     // lighting and a red-green colourblind host.
     statePending: 'Waiting',
-    statePublished: 'Published',
+    statePublished: 'On the screen',
     stateRejected: 'Rejected',
     stateHidden: 'Taken off the screen',
     selected: (count: number) =>
@@ -617,13 +617,33 @@ export const en: UiText = {
       }),
     removed: (count: number) =>
       t.count(count, {
-        one: `${t.number(count)} photo taken off the screen.`,
-        other: `${t.number(count)} photos taken off the screen.`,
+        one: `${t.number(count)} photo taken off the screen. It stays in your album.`,
+        other: `${t.number(count)} photos taken off the screen. They stay in your album.`,
       }),
     decisionFailed: 'The decision could not be saved. Try again.',
     undoFailed: 'The decision could not be undone. Try again.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
     noCaption: 'No caption',
+
+    /* ---- Moderation traps pass (MOD-1, MOD-4, MOD-9, MOD-13). Keep additions inside this block. ---- */
+    nothingToUndo: 'Nothing to undo.',
+    undoPublish: 'Take off',
+    seeRejected: 'See Rejected',
+    republish: 'Put back on the screen',
+    republishPhoto: (author: string) => `Put the photo by ${author} back on the screen`,
+    publishAnyway: 'Publish anyway',
+    publishAnywayPhoto: (author: string) => `Publish the photo by ${author} anyway`,
+    alreadyOnScreen: 'This photo is already on the screen.',
+    alreadyRefused: 'This photo is already rejected.',
+    notOnScreen: 'This photo is not on the screen.',
+    decisionsExplained:
+      'Take off the screen: the photo stays in your album. Reject: it leaves the album and its guest sees “Not selected”.',
+    filterRejectedHint: 'Out of the album. The guest sees “Not selected”.',
+    filterHiddenHint: 'Taken off the screen. They stay in your album.',
+    confirmRejectTitle: (count: number) => `Reject ${t.number(count)} photos?`,
+    confirmRejectBody:
+      'Their guests will see “Not selected” and the photos will leave the album. This cannot be undone.',
+    confirmRejectLabel: (count: number) => `Reject ${t.number(count)} photos`,
 
     videoBadge: 'Video',
     videoLength: (seconds: number) => `Video · ${seconds} s`,
@@ -1184,6 +1204,12 @@ export const en: UiText = {
     nowDeciding: (photo: string) => `Photo to moderate. ${photo}`,
     undoLast: 'Undo the last decision',
     undoUnavailable: 'Only publishing can be undone.',
+
+    /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
+    onScreenTitle: 'Latest photos on the screen',
+    onScreenHint: 'Tap a photo to take it off the screen.',
+    onScreenEmpty: 'Nothing on the screen right now.',
+    openOnScreen: (author: string) => `View the photo by ${author}, on the screen`,
   },
   gallery: {
     title: 'Shared album',

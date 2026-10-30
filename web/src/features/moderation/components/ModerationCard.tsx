@@ -2,6 +2,7 @@ import { Badge, type BadgeTone } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
+import { decisionWording, inDisplayOrder } from './decisionWording'
 import styles from './ModerationCard.module.css'
 
 /**
@@ -20,6 +21,13 @@ const TONE: Readonly<Record<PhotoStatus, BadgeTone>> = {
   published: 'success',
   rejected: 'danger',
   hidden: 'neutral',
+}
+
+/** Publishing leads, refusing is red, taking off the screen is the quiet one. */
+const VARIANT: Readonly<Record<ModerationDecision, 'primary' | 'danger' | 'ghost'>> = {
+  publish: 'primary',
+  reject: 'danger',
+  hide: 'ghost',
 }
 
 export interface ModerationCardProps {
@@ -160,36 +168,26 @@ export function ModerationCard({
       </div>
 
       {/*
-        All three decisions are always offered. Which of them a photo may legally take
-        is the server's rule, not this component's: it answers `photo.illegalTransition`
-        and the console reports it. Re-deriving the state machine here is how a client
-        ends up disagreeing with the server about what is possible.
+        Only what the server says this photo may do. The rule is its status machine's,
+        and `allowedDecisions` is that rule's answer: a client table of its own is how
+        "Retirer de l'écran" ended up on photos that are not on the screen, answering
+        `photo.illegalTransition` to the click.
       */}
       <div className={styles['actions']}>
-        <Button
-          variant="primary"
-          size="sm"
-          aria-label={t.moderation.publishPhoto(authorInName)}
-          onClick={() => onDecide(photo.id, 'publish')}
-        >
-          {t.moderation.publish}
-        </Button>
-        <Button
-          variant="danger"
-          size="sm"
-          aria-label={t.moderation.rejectPhoto(authorInName)}
-          onClick={() => onDecide(photo.id, 'reject')}
-        >
-          {t.moderation.reject}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t.moderation.hidePhoto(authorInName)}
-          onClick={() => onDecide(photo.id, 'hide')}
-        >
-          {t.moderation.hide}
-        </Button>
+        {inDisplayOrder(photo.allowedDecisions).map((decision) => {
+          const wording = decisionWording(decision, photo.status, authorInName, t)
+          return (
+            <Button
+              key={decision}
+              variant={VARIANT[decision]}
+              size="sm"
+              aria-label={wording.ariaLabel}
+              onClick={() => onDecide(photo.id, decision)}
+            >
+              {wording.label}
+            </Button>
+          )
+        })}
       </div>
     </article>
   )

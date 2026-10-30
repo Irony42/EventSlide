@@ -1431,23 +1431,36 @@ What landed, at `/admin/events/:slug/moderation/mobile`, reached from the event 
 literally deliverable on this surface without server work the entry forbids. A photo
 awaiting a decision has no status any verb puts it back into — `pending` is not a
 moderation outcome — so `useModerationQueue` offered nothing after a decision on a fresh
-photo, and a persistent "annuler" would have been a permanently disabled button. What
-shipped instead is one opt-in option, `useModerationQueue(slug, { undoOfPublish: 'hide' })`,
-passed by the phone console and by nothing else:
+photo. What shipped instead is that **a publication is taken back with `hide`**:
 
 - **A publication can be taken back**, with `hide`. The photo leaves the wall, which is
   what the host meant, and lands in "Retirées" rather than back in the queue — so the
-  console says "retirée de l'écran" rather than claiming a decision was cancelled.
+  notice reads "Retirer" and the console says "retirée de l'écran" rather than claiming a
+  decision was cancelled.
 - **A refusal cannot**, here or anywhere. The only verb that would reverse it is
   `publish`, on a photo the host has just turned down, which would put it on a screen in
   front of the room with nobody's approval behind it. `src/domain/moderation/
-moderationDecision.ts` refuses the same inference, and this agrees with it.
+moderationDecision.ts` refuses the same inference, and this agrees with it. The desktop
+  console says where the photo went instead ("Voir dans Refusées"), and a bulk refusal asks
+  first (from three photos) as soon as one photo is not on the wall, since that batch has no
+  way back. A hidden photo is in that case too: a refused photo may return to the wall and
+  nowhere else, so refusing a hidden one is not offered an undo either.
 
-The desktop console keeps the old behaviour exactly, and a regression test pins it: with
-no options, publishing a pending photo still offers no undo. Restoring a photo to
-`pending` — a true undo, and the only one that would satisfy the entry as written —
-needs the server to record where a decision came from, which is a use case and a
+This was an opt-in option, `useModerationQueue(slug, { undoOfPublish: 'hide' })`, passed by
+the phone console alone, and the desktop console kept the opposite on the argument that the
+published tile "is still sitting there with the button on it". It is not: the server signals
+`photo.moderated`, the console reloads "En attente" and the tile is gone within the second, so
+a mis-pressed P left a photo on the wall that only a change of tab could take down (UX review
+of 2026-10-30, MOD-1). The option is gone and the behaviour is the same on both consoles.
+Restoring a photo to `pending` — a true undo, and the only one that would satisfy the entry as
+written — needs the server to record where a decision came from, which is a use case and a
 migration, so it belongs in its own roadmap item rather than in this one.
+
+The phone console also shows **"Dernières photos à l'écran"** (MOD-2): the six latest published
+photos by upload time, read beside the queue with `status=published&limit=6`. It is a strip of the
+latest, not a claim about what the room is looking at: the wall also cycles through older photos,
+and ordering by publication time is a follow-up (MOD-5). A touch opens one with a single action,
+"Retirer de l'écran", and the photo stays in the album.
 
 ### 9.5 Scheduled open and close
 

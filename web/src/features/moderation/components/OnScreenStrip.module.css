@@ -1,0 +1,52 @@
+.strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-lg);
+}
+
+/* `--text-muted` is only allowed from `--text-sm` up — docs/DESIGN-SYSTEM.md section 8. */
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* One row that scrolls sideways, so six photos never push the decision bar off a short phone. */
+.list {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  overflow-x: auto;
+}
+
+.thumb {
+  display: block;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.image {
+  display: block;
+  inline-size: var(--space-10);
+  block-size: var(--space-10);
+  object-fit: cover;
+}
+
+.large {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 60dvh;
+  object-fit: contain;
+  background: var(--surface-base);
+  border-radius: var(--radius-sm);
+}

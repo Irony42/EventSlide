@@ -599,7 +599,8 @@ export const it: UiText = {
     by: (name: string) => `di ${name}`,
     byAnonymous: 'Invitato anonimo',
     shortcuts: 'Scorciatoie',
-    shortcutsHint: 'J / K per navigare, P per pubblicare, R per rifiutare, Z per annullare.',
+    shortcutsHint:
+      'J / K per navigare, P per pubblicare, R per rifiutare, Z per annullare l’ultima decisione.',
     shortcutsMore:
       'H per rimuovere dallo schermo, Spazio per selezionare, Esc per deselezionare tutto.',
     queueLabel: 'Foto da moderare',
@@ -610,7 +611,7 @@ export const it: UiText = {
     live: 'Aggiornamenti in diretta',
     liveLost: 'Connessione persa — nuovo tentativo in corso.',
     statePending: 'In attesa',
-    statePublished: 'Pubblicata',
+    statePublished: 'Sullo schermo',
     stateRejected: 'Rifiutata',
     stateHidden: 'Rimossa dallo schermo',
     selected: (count: number) =>
@@ -643,13 +644,33 @@ export const it: UiText = {
       }),
     removed: (count: number) =>
       t.count(count, {
-        one: `${t.number(count)} foto rimossa dallo schermo.`,
-        other: `${t.number(count)} foto rimosse dallo schermo.`,
+        one: `${t.number(count)} foto rimossa dallo schermo. Resta nel vostro album.`,
+        other: `${t.number(count)} foto rimosse dallo schermo. Restano nel vostro album.`,
       }),
     decisionFailed: 'Non è stato possibile registrare la decisione. Riprovi.',
     undoFailed: 'Non è stato possibile registrare l’annullamento. Riprovi.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixel`,
     noCaption: 'Senza didascalia',
+
+    /* ---- Moderation traps pass (MOD-1, MOD-4, MOD-9, MOD-13). Keep additions inside this block. ---- */
+    nothingToUndo: 'Niente da annullare.',
+    undoPublish: 'Rimuovi',
+    seeRejected: 'Vedi tra le Rifiutate',
+    republish: 'Rimetti sullo schermo',
+    republishPhoto: (author: string) => `Rimetti sullo schermo la foto di ${author}`,
+    publishAnyway: 'Pubblica comunque',
+    publishAnywayPhoto: (author: string) => `Pubblica comunque la foto di ${author}`,
+    alreadyOnScreen: 'Questa foto è già sullo schermo.',
+    alreadyRefused: 'Questa foto è già rifiutata.',
+    notOnScreen: 'Questa foto non è sullo schermo.',
+    decisionsExplained:
+      'Rimuovi dallo schermo: la foto resta nel vostro album. Rifiuta: esce dall’album e chi l’ha inviata la vede come «Non selezionata».',
+    filterRejectedHint: 'Fuori dall’album. L’ospite le vede come «Non selezionata».',
+    filterHiddenHint: 'Rimosse dallo schermo. Restano nel vostro album.',
+    confirmRejectTitle: (count: number) => `Rifiutare ${t.number(count)} foto?`,
+    confirmRejectBody:
+      'Chi le ha inviate le vedrà come «Non selezionata» e usciranno dall’album. Questa decisione non si può annullare.',
+    confirmRejectLabel: (count: number) => `Rifiuta ${t.number(count)} foto`,
     videoBadge: 'Video',
     videoLength: (seconds: number) => `Video · ${seconds} s`,
     watchVideo: (author: string) => `Guarda il video di ${author}`,
@@ -1201,6 +1222,12 @@ export const it: UiText = {
     nowDeciding: (photo: string) => `Foto da moderare. ${photo}`,
     undoLast: 'Annulla l’ultima decisione',
     undoUnavailable: 'Si può annullare solo una pubblicazione.',
+
+    /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
+    onScreenTitle: 'Ultime foto sullo schermo',
+    onScreenHint: 'Toccate una foto per rimuoverla dallo schermo.',
+    onScreenEmpty: 'Niente sullo schermo per ora.',
+    openOnScreen: (author: string) => `Vedi la foto di ${author}, sullo schermo`,
   },
   gallery: {
     title: 'Album condiviso',

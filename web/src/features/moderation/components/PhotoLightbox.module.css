@@ -37,3 +37,10 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/* The cost of each way of taking a photo down, under the picture and above the buttons. */
+.explained {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

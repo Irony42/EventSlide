@@ -17,6 +17,8 @@ import styles from './ModerationToolbar.module.css'
 interface FilterOption {
   readonly value: StatusFilter
   readonly label: string
+  /** What the filter holds, where the words alone do not say (MOD-13). */
+  readonly hint?: string
 }
 
 export interface ModerationToolbarProps {
@@ -56,8 +58,12 @@ export function ModerationToolbar({
     { value: 'pending', label: t.moderation.filterPending },
     { value: 'all', label: t.moderation.filterAll },
     { value: 'published', label: t.moderation.filterPublished },
-    { value: 'rejected', label: t.moderation.filterRejected },
-    { value: 'hidden', label: t.moderation.filterHidden },
+    {
+      value: 'rejected',
+      label: t.moderation.filterRejected,
+      hint: t.moderation.filterRejectedHint,
+    },
+    { value: 'hidden', label: t.moderation.filterHidden, hint: t.moderation.filterHiddenHint },
   ]
 
   return (
@@ -92,6 +98,7 @@ export function ModerationToolbar({
             size="sm"
             variant={option.value === filter ? 'primary' : 'ghost'}
             aria-pressed={option.value === filter}
+            {...(option.hint === undefined ? {} : { title: option.hint })}
             onClick={() => onFilterChange(option.value)}
           >
             {option.label}

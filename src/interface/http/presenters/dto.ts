@@ -20,6 +20,7 @@ import type {
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { MissionScope } from '../../../domain/missions/missionScope'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
+import type { ModerationDecision } from '../../../domain/moderation/moderationDecision'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type {
   NoticeAcknowledgementStatus,
@@ -659,6 +660,13 @@ export interface ModerationQueueItemDto {
   readonly kind: MediaKind
   readonly videoUrl: string | null
   readonly durationMs: number | null
+  /**
+   * The decisions this photo may take **now**, derived server-side from the status machine
+   * (`allowedDecisionsFrom`). The console offers exactly these buttons: a client that kept
+   * its own copy of the machine would offer "retirer de l'écran" on a photo that is not on
+   * the screen and answer `photo.illegalTransition` to the click.
+   */
+  readonly allowedDecisions: readonly ModerationDecision[]
 }
 
 export interface ModerationQueuePageDto {
