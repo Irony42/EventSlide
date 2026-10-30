@@ -307,3 +307,13 @@ without `color-mix` keeps an opaque first `background`.
 
 **Cost.** Every new text on a clear pane needs a chip, and the walker is what notices a forgotten
 one. The composer and the gallery's download bar wear it; the moderation toolbar stays on `.sheet`.
+
+**Follow-up (30/10), still not merged: what the pane can show.** A clear pane shows what is under it, and
+the guest page had an opaque card there. Two variants were measured (`glass-check`, section "Variante W1 /
+W2"). **W1** removes the card from "Vos envois" and lays the photographs out as a grid of large tiles under
+the pane, their status, caption and delete control on chips: the glass-against-plain difference over the
+pane goes from 2 to 4 per cent to 6 to 12 per cent. **W2** lays the guest's three latest photographs
+under the page, blurred, saturated and dimmed, under a coat of the ambiance's own surface colour that
+`glass.backdrop.test.ts` derives against the brightest and the darkest photograph possible (67 to 87 per
+cent): alone it changes nothing measurable, because the card still covers it, and with W1 it adds nothing
+the pane shows. W1 is the part worth keeping; W2 is kept in the history as the experiment.
