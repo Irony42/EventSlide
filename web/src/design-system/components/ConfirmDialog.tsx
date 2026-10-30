@@ -10,6 +10,12 @@ export interface ConfirmDialogProps {
   readonly description?: string
   readonly confirmLabel?: string
   readonly cancelLabel?: string
+  /**
+   * `danger` by default, because the dialog exists for destructive acts. `primary` is for the
+   * light confirmation of something that is a commitment rather than a loss (opening the doors
+   * to guests), where a red button would say the wrong thing.
+   */
+  readonly confirmVariant?: 'danger' | 'primary'
   /** The confirm request is in flight: the button keeps its label and shows a spinner. */
   readonly busy?: boolean
   readonly onConfirm: () => void
@@ -30,6 +36,7 @@ export function ConfirmDialog({
   description,
   confirmLabel,
   cancelLabel,
+  confirmVariant = 'danger',
   busy = false,
   onConfirm,
   onCancel,
@@ -51,7 +58,7 @@ export function ConfirmDialog({
           <Button ref={cancelRef} variant="secondary" onClick={onCancel}>
             {cancelLabel ?? t.app.cancel}
           </Button>
-          <Button variant="danger" loading={busy} onClick={onConfirm}>
+          <Button variant={confirmVariant} loading={busy} onClick={onConfirm}>
             {confirmLabel ?? t.app.confirm}
           </Button>
         </>

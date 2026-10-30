@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   allowsModeration,
   canManageEvent,
+  confirmationFor,
+  isAfterEvening,
   isMutable,
   lifecycleActions,
+  linksToWall,
   offersSupport,
   servesWall,
   statusLabel,
+  transitionNotice,
 } from './eventLifecycle'
 import { fr } from '../../lib/i18n/fr'
 import type { EventStatus } from '../../lib/api/dto'
@@ -14,10 +18,11 @@ import type { EventStatus } from '../../lib/api/dto'
 /**
  * The pins for the transcription in `eventLifecycle.ts`.
  *
- * Each expectation below is the same fact as one in
- * `src/domain/events/eventStatus.test.ts`. The web app cannot import the domain, so
- * this suite is the only thing that fails when the lifecycle moves and the admin
- * screens start offering a button the server refuses.
+ * What the console offers is a deliberate subset of the domain's transition table (a live
+ * event is not offered "archive"), so these expectations are not copies of the ones in
+ * `src/domain/events/eventStatus.test.ts`, which pins the full table. The web app cannot
+ * import the domain: this suite is what fails when the console's own choices change, and it
+ * is read beside the domain's test when the lifecycle moves.
  */
 const transitionsOf = (status: EventStatus) =>
   lifecycleActions(status, fr).map((action) => action.to)
@@ -29,8 +34,12 @@ describe('the transitions the admin surface offers', () => {
 
   // Going back to draft is not offered: guests may already hold the join link, so
   // "not started yet" would be a lie.
-  it('lets a live event be closed or archived', () => {
-    expect(transitionsOf('live')).toEqual(['closed', 'archived'])
+  //
+  // The domain also lets a live event be archived, and this surface leaves it out on purpose:
+  // archiving is terminal and sat one thumb-width from "End the evening", so the way to it is
+  // to end the evening first (revue UX 30/10, HOT-4).
+  it('lets a live event be ended, and not archived from beside the button that ends it', () => {
+    expect(transitionsOf('live')).toEqual(['closed'])
   })
 
   // The speeches run late and the party restarts.
@@ -96,6 +105,68 @@ describe('status labels', () => {
     expect(statusLabel('live', fr)).toBe(fr.admin.statusLive)
     expect(statusLabel('closed', fr)).toBe(fr.admin.statusClosed)
     expect(statusLabel('archived', fr)).toBe(fr.admin.statusArchived)
+  })
+})
+
+describe('which moves ask first', () => {
+  // Terminal: the screen stops, the settings freeze, nothing brings it back.
+  it('always asks before archiving, from any state that offers it', () => {
+    expect(confirmationFor('draft', 'archived')).toBe('archive')
+    expect(confirmationFor('live', 'archived')).toBe('archive')
+    expect(confirmationFor('closed', 'archived')).toBe('archive')
+  })
+
+  // There is no way back to "not started yet" once guests hold the link.
+  it('asks once, lightly, before opening a draft to guests', () => {
+    expect(confirmationFor('draft', 'live')).toBe('open')
+  })
+
+  it('lets ending the evening and reopening it go through, since each undoes the other', () => {
+    expect(confirmationFor('live', 'closed')).toBeNull()
+    expect(confirmationFor('closed', 'live')).toBeNull()
+  })
+})
+
+describe('the toast of each move', () => {
+  it('says something different for opening, ending, reopening and archiving', () => {
+    const notices = [
+      transitionNotice('draft', 'live', fr),
+      transitionNotice('live', 'closed', fr),
+      transitionNotice('closed', 'live', fr),
+      transitionNotice('closed', 'archived', fr),
+    ]
+    expect(new Set(notices).size).toBe(4)
+    expect(notices).toEqual([
+      fr.admin.noticeOpened,
+      fr.admin.noticeClosed,
+      fr.admin.noticeReopened,
+      fr.admin.noticeArchived,
+    ])
+  })
+})
+
+describe('the toast of archiving a draft', () => {
+  // Nothing ever ran in a draft, so "the album stays downloadable" would be about nothing.
+  it('does not promise an album when the archived event never began', () => {
+    expect(transitionNotice('draft', 'archived', fr)).toBe(fr.admin.noticeArchivedDraft)
+    expect(transitionNotice('closed', 'archived', fr)).toBe(fr.admin.noticeArchived)
+  })
+})
+
+describe('what the page leads with, and what it links to', () => {
+  // The projector is plugged in before the doors open: a draft links to the wall, which waits.
+  it('links to the wall from the draft on, and not once the event is archived', () => {
+    expect(linksToWall('draft')).toBe(true)
+    expect(linksToWall('live')).toBe(true)
+    expect(linksToWall('closed')).toBe(true)
+    expect(linksToWall('archived')).toBe(false)
+  })
+
+  it('treats a closed and an archived event as the evening being over', () => {
+    expect(isAfterEvening('draft')).toBe(false)
+    expect(isAfterEvening('live')).toBe(false)
+    expect(isAfterEvening('closed')).toBe(true)
+    expect(isAfterEvening('archived')).toBe(true)
   })
 })
 

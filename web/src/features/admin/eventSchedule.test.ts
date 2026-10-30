@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toInstant, toLocalInput } from './eventSchedule'
+import { scheduleMoment, toInstant, toLocalInput, upcomingMoves } from './eventSchedule'
 
 /**
  * Ring 5's cheapest half: the conversion the schedule form depends on.
@@ -62,5 +62,57 @@ describe('toInstant', () => {
 
   it('produces an instant with an offset, which is what the server accepts', () => {
     expect(toInstant('2026-06-20T18:00')).toMatch(/Z$/)
+  })
+})
+
+describe('upcomingMoves', () => {
+  const armed = {
+    scheduledOpenAt: '2026-06-20T16:00:00.000Z',
+    scheduledCloseAt: '2026-06-21T00:00:00.000Z',
+  }
+
+  it('lists the opening and then the closing of a draft', () => {
+    expect(upcomingMoves('draft', armed)).toEqual([
+      { kind: 'open', at: armed.scheduledOpenAt },
+      { kind: 'close', at: armed.scheduledCloseAt },
+    ])
+  })
+
+  it('lists only the closing of a live event, whose opening is behind it', () => {
+    expect(upcomingMoves('live', armed)).toEqual([{ kind: 'close', at: armed.scheduledCloseAt }])
+  })
+
+  it('lists nothing once the evening is over', () => {
+    expect(upcomingMoves('closed', armed)).toEqual([])
+    expect(upcomingMoves('archived', armed)).toEqual([])
+  })
+
+  it('lists nothing for an event with no schedule', () => {
+    expect(upcomingMoves('draft', { scheduledOpenAt: null, scheduledCloseAt: null })).toEqual([])
+  })
+})
+
+describe('scheduleMoment', () => {
+  // Built from local fields, so the answer is the same in whichever zone the runner is in.
+  const at = new Date(2026, 5, 20, 18, 0)
+
+  it('gives only the time when the instant is today', () => {
+    const moment = scheduleMoment(at.toISOString(), new Date(2026, 5, 20, 9, 30), 'fr')
+
+    expect(moment?.today).toBe(true)
+    expect(moment?.text).toMatch(/18[:h]00/)
+    expect(moment?.text).not.toContain('2026')
+  })
+
+  it('gives the date as well when the instant is another day', () => {
+    const moment = scheduleMoment(at.toISOString(), new Date(2026, 5, 17, 9, 30), 'fr')
+
+    expect(moment?.today).toBe(false)
+    expect(moment?.text).toContain('20')
+    expect(moment?.text).toMatch(/18[:h]00/)
+  })
+
+  it('shows nothing for a stamp the browser cannot read', () => {
+    expect(scheduleMoment('not a date', new Date(), 'fr')).toBeNull()
   })
 })

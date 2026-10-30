@@ -24,6 +24,13 @@ import type { UiText } from './translations'
 
 const t = formattersFor('it')
 
+/**
+ * "all’1:00" but "alle 13:00": the article agrees with the hour, and the time arrives already
+ * formatted by the browser ("1:00", "01:00"), so the hour is read off its front.
+ */
+const atTime = (time: string): string =>
+  /^0?1(?![0-9])/.test(time) ? `all’${time}` : `alle ${time}`
+
 export const it: UiText = {
   app: {
     name: 'EventSlide',
@@ -766,7 +773,7 @@ export const it: UiText = {
     joinCode: 'Codice di accesso',
     rotateJoinCode: 'Cambia il codice',
     rotateJoinCodeHint:
-      'Gli invitati già collegati restano collegati. Il nuovo codice sostituisce subito il precedente.',
+      'I codici QR già stampati e il link già inviato smetteranno di funzionare: bisognerà ristamparli e inviare di nuovo il link. Gli invitati già collegati restano collegati.',
     qrCode: 'Codice QR',
     qrCodeHint: 'Da stampare e mettere sui tavoli.',
     openWall: 'Apri lo schermo',
@@ -777,7 +784,7 @@ export const it: UiText = {
     statusClosed: 'Terminato',
     statusArchived: 'Archiviato',
     goLive: 'Apri agli invitati',
-    closeEvent: 'Chiudi l’evento',
+    closeEvent: 'Termina l’evento',
     reopenEvent: 'Riapri',
     archiveEvent: 'Archivia',
     photos: (count: number) =>
@@ -865,10 +872,12 @@ export const it: UiText = {
     loading: 'Caricamento dei suoi eventi…',
     eventLoading: 'Caricamento dell’evento…',
     eventsEmpty: 'Nessun evento al momento.',
-    eventsEmptyHint: 'Tre passaggi per essere pronti il giorno dell’evento.',
+    eventsEmptyHint: 'Cinque passaggi per essere pronti il giorno dell’evento.',
     emptyStepCreate: 'Crei l’evento.',
-    emptyStepTest: 'Provi lo schermo sulla rete del locale, da un telefono che non sia il suo.',
     emptyStepPrint: 'Stampi il codice QR e lo metta sui tavoli.',
+    emptyStepScreen: 'Colleghi lo schermo del locale e lo apra: attenderà l’apertura.',
+    emptyStepOpen: 'Apra l’evento agli invitati.',
+    emptyStepTest: 'Provi da un telefono che non sia il suo, sulla rete del locale.',
     create: 'Crea l’evento',
     slugHint: 'Facoltativo. Lo lasci vuoto per ricavarlo dal nome.',
     slugPreviewLabel: 'Indirizzo della galleria',
@@ -882,9 +891,8 @@ export const it: UiText = {
     qrAlt: (eventName: string) => `Codice QR di accesso a ${eventName}`,
     storageLabel: 'Spazio foto utilizzato',
     storage: (used: string) => `${used} utilizzati`,
-    statusSaved: 'Il nuovo stato è stato salvato.',
     rotateJoinCodeTitle: 'Cambiare il codice di accesso?',
-    codeRotated: 'Il codice di accesso è stato cambiato. Il precedente non funziona più.',
+    codeRotated: 'Nuovo codice attivo. Il precedente non funziona più.',
     settingsSaved: 'Impostazioni salvate.',
     settingsReadOnly:
       'Questo evento è archiviato: le sue impostazioni non possono più essere modificate.',
@@ -951,8 +959,8 @@ export const it: UiText = {
     scheduleHint:
       'Lasci vuoto per aprire e chiudere di persona. Gli orari sono quelli del suo computer, quindi quelli del luogo della festa.',
     scheduleOpenAt: 'Apri agli invitati il',
-    scheduleCloseAt: 'Chiudi l’evento il',
-    scheduleCloseAtHint: 'Le foto e l’album restano: chiudere non cancella nulla.',
+    scheduleCloseAt: 'Termina l’evento il',
+    scheduleCloseAtHint: 'Le foto e l’album restano: terminare non cancella nulla.',
     scheduleSaved: 'La programmazione è stata salvata.',
     scheduleNone: 'Nessuna programmazione: apre e chiude di persona.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
@@ -960,6 +968,32 @@ export const it: UiText = {
     scheduleOpensOnly: (opensAt: string) => `Apertura il ${opensAt}. Chiuderà di persona.`,
     scheduleClosesOnly: (closesAt: string) => `Chiusura il ${closesAt}. Aprirà di persona.`,
     scheduleSave: 'Salva la programmazione',
+    /* ---- Added by the host lifecycle pass (revue UX 30/10). ---- */
+    noticeOpened: 'Evento aperto agli invitati.',
+    noticeClosed: 'Evento terminato. Gli invitati non possono più inviare foto.',
+    noticeReopened: 'Evento riaperto: gli invitati possono di nuovo inviare foto.',
+    noticeArchived: 'Evento archiviato. L’album resta scaricabile.',
+    noticeArchivedDraft: 'Evento archiviato.',
+    archiveTitle: (eventName: string) => `Archiviare ${eventName}?`,
+    archiveHint:
+      'Lo schermo si ferma, le impostazioni si bloccano ed è definitivo. L’album resta scaricabile.',
+    archiveDraftHint:
+      'Le impostazioni si bloccano e l’evento non potrà più essere aperto: è definitivo.',
+    openTitle: (eventName: string) => `Aprire ${eventName} agli invitati?`,
+    openHint:
+      'Chiunque abbia il codice QR potrà inviare foto. Non sarà più possibile tornare alla bozza.',
+    wallDraftHint: 'Si accenderà da solo non appena l’evento si apre agli invitati',
+    codeRotatedAction: 'Stampa il nuovo QR',
+    afterTitle: 'Dopo l’evento',
+    afterHint: 'Invii l’album ai suoi invitati, o lo tenga per sé.',
+    afterShare: 'Condividi l’album',
+    autoOpenAt: (time: string) => `Apertura automatica ${atTime(time)}`,
+    autoOpenOn: (dateTime: string) => `Apertura automatica il ${dateTime}`,
+    autoCloseAt: (time: string) => `Chiusura automatica ${atTime(time)}`,
+    autoCloseOn: (dateTime: string) => `Chiusura automatica il ${dateTime}`,
+    autoEdit: 'Modifica l’orario',
+    scheduleDiscardedAction: 'Imposta un nuovo orario',
+
     scheduleDiscarded: (when: string) =>
       `La programmazione automatica non è stata applicata il ${when}: in quel momento l’evento non poteva cambiare stato. È stata cancellata. Ne salvi una nuova se le serve.`,
 

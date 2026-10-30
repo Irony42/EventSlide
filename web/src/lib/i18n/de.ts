@@ -794,7 +794,7 @@ export const de: UiText = {
     joinCode: 'Zugangscode',
     rotateJoinCode: 'Code ändern',
     rotateJoinCodeHint:
-      'Bereits verbundene Gäste bleiben verbunden. Der neue Code ersetzt den alten sofort.',
+      'Bereits gedruckte QR-Codes und der bereits verschickte Link funktionieren nicht mehr: Sie müssen sie neu drucken und den Link erneut senden. Bereits verbundene Gäste bleiben verbunden.',
     qrCode: 'QR-Code',
     qrCodeHint: 'Zum Ausdrucken und Aufstellen auf den Tischen.',
     openWall: 'Bildschirm öffnen',
@@ -896,11 +896,14 @@ export const de: UiText = {
     loading: 'Ihre Veranstaltungen werden geladen…',
     eventLoading: 'Die Veranstaltung wird geladen…',
     eventsEmpty: 'Noch keine Veranstaltungen.',
-    eventsEmptyHint: 'Drei Schritte, damit am Tag selbst alles bereit ist.',
+    eventsEmptyHint: 'Fünf Schritte, damit am Tag selbst alles bereit ist.',
     emptyStepCreate: 'Legen Sie die Veranstaltung an.',
-    emptyStepTest:
-      'Testen Sie den Bildschirm im Netzwerk des Veranstaltungsorts, mit einem Telefon, das nicht Ihres ist.',
     emptyStepPrint: 'Drucken Sie den QR-Code aus und legen Sie ihn auf die Tische.',
+    emptyStepScreen:
+      'Schließen Sie den Bildschirm des Veranstaltungsorts an und öffnen Sie ihn: Er wartet auf die Öffnung.',
+    emptyStepOpen: 'Öffnen Sie die Veranstaltung für Gäste.',
+    emptyStepTest:
+      'Testen Sie mit einem Telefon, das nicht Ihres ist, im Netzwerk des Veranstaltungsorts.',
     create: 'Veranstaltung anlegen',
     slugHint: 'Optional. Leer lassen, dann wird sie aus dem Namen abgeleitet.',
     slugPreviewLabel: 'Adresse der Galerie',
@@ -915,9 +918,8 @@ export const de: UiText = {
     qrAlt: (eventName: string) => `QR-Code für den Zugang zu ${eventName}`,
     storageLabel: 'Belegter Speicher für Fotos',
     storage: (used: string) => `${used} belegt`,
-    statusSaved: 'Der neue Status ist gespeichert.',
     rotateJoinCodeTitle: 'Zugangscode ändern?',
-    codeRotated: 'Der Zugangscode wurde geändert. Der alte funktioniert nicht mehr.',
+    codeRotated: 'Neuer Code aktiv. Der alte funktioniert nicht mehr.',
     settingsSaved: 'Einstellungen gespeichert.',
     settingsReadOnly:
       'Diese Veranstaltung ist archiviert: Die Einstellungen können nicht mehr geändert werden.',
@@ -996,6 +998,32 @@ export const de: UiText = {
     scheduleOpensOnly: (opensAt: string) => `Öffnung am ${opensAt}. Sie beenden selbst.`,
     scheduleClosesOnly: (closesAt: string) => `Ende am ${closesAt}. Sie öffnen selbst.`,
     scheduleSave: 'Zeitplanung speichern',
+    /* ---- Added by the host lifecycle pass (revue UX 30/10). ---- */
+    noticeOpened: 'Veranstaltung für Gäste geöffnet.',
+    noticeClosed: 'Veranstaltung beendet. Gäste können keine Fotos mehr senden.',
+    noticeReopened: 'Veranstaltung wieder geöffnet: Gäste können wieder Fotos senden.',
+    noticeArchived: 'Veranstaltung archiviert. Das Album bleibt herunterladbar.',
+    noticeArchivedDraft: 'Veranstaltung archiviert.',
+    archiveTitle: (eventName: string) => `${eventName} archivieren?`,
+    archiveHint:
+      'Der Bildschirm stoppt, die Einstellungen werden eingefroren, und das ist endgültig. Das Album bleibt herunterladbar.',
+    archiveDraftHint:
+      'Die Einstellungen werden eingefroren, und die Veranstaltung kann nie mehr geöffnet werden: Das ist endgültig.',
+    openTitle: (eventName: string) => `${eventName} für Gäste öffnen?`,
+    openHint:
+      'Alle mit dem QR-Code können dann Fotos senden. Eine Rückkehr zum Entwurf ist nicht mehr möglich.',
+    wallDraftHint: 'Schaltet sich von selbst ein, sobald die Veranstaltung für Gäste öffnet',
+    codeRotatedAction: 'Neuen QR-Code drucken',
+    afterTitle: 'Nach der Veranstaltung',
+    afterHint: 'Schicken Sie das Album an Ihre Gäste oder behalten Sie es für sich.',
+    afterShare: 'Album teilen',
+    autoOpenAt: (time: string) => `Öffnet automatisch um ${time}`,
+    autoOpenOn: (dateTime: string) => `Öffnet automatisch am ${dateTime}`,
+    autoCloseAt: (time: string) => `Schließt automatisch um ${time}`,
+    autoCloseOn: (dateTime: string) => `Schließt automatisch am ${dateTime}`,
+    autoEdit: 'Zeitplan ändern',
+    scheduleDiscardedAction: 'Neuen Zeitplan festlegen',
+
     scheduleDiscarded: (when: string) =>
       `Die automatische Zeitplanung konnte am ${when} nicht greifen: Die Veranstaltung konnte zu diesem Zeitpunkt den Status nicht wechseln. Sie wurde gelöscht. Speichern Sie eine neue, wenn Sie eine wollen.`,
 

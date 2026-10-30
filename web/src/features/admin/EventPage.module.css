@@ -97,3 +97,13 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/* What is armed to happen by itself, under the badge row: the times and the way to change them. */
+.schedule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
