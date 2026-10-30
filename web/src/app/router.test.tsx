@@ -348,8 +348,9 @@ describe('the toast region', () => {
     id: 'event-1',
     slug: 'camille-et-sacha',
     name: 'Camille & Sacha',
-    // `draft` is the one status whose primary action is a single click away.
-    status: 'draft',
+    // `live`: ending the evening is the one lifecycle move that is a single click away (opening
+    // and archiving ask first).
+    status: 'live',
     photoCount: 0,
     pendingCount: 0,
     guestCount: 0,
@@ -371,7 +372,7 @@ describe('the toast region', () => {
     })
     renderWithProviders(<AppRoutes />, { api, route: '/admin', locale: 'de' })
 
-    await userEvent.click(await screen.findByRole('button', { name: de.admin.goLive }))
+    await userEvent.click(await screen.findByRole('button', { name: de.admin.closeEvent }))
 
     // The toast itself, and the control on it. Both German, because the host is reading
     // German — the console and the chrome over it are one screen.

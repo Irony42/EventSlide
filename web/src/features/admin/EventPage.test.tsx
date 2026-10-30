@@ -633,7 +633,9 @@ describe('EventPage, what is armed to happen by itself', () => {
     draftWith({ scheduleDiscardedAt: '2031-06-20T16:00:00.000Z' })
 
     await screen.findByRole('heading', { name: 'Camille & Sacha' })
-    const warning = screen.getByText(/n’a pas pu s’appliquer/).closest('[role="status"]')
+    const warning = screen
+      .getByText(/n’a pas pu s’appliquer/)
+      .closest<HTMLElement>('[role="status"]')
     if (warning === null) throw new Error('the warning is not a status')
     expect(warning).toHaveAttribute('role', 'status')
     expect(within(warning).getByRole('link', { name: fr.admin.autoEdit })).toBeVisible()
