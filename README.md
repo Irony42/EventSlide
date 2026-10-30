@@ -39,7 +39,7 @@ the photos on a machine you control, and stays the recommended path.
   until you approve it. Two hundred people are watching that screen; that is not a
   setting to leave to chance.
 - **The wall is meant to be looked at.** One photo at a time, whole and with a slow
-  zoom, or one of five other layouts; captions and the sender's name, a join code in the
+  zoom, or one of six other layouts; captions and the sender's name, a join code in the
   corner for whoever arrives late.
 - **It survives the venue.** Uploads retry, the wall keeps playing when the network
   drops, and it runs unattended for an eight-hour evening — true for a box running on
@@ -94,19 +94,23 @@ And the parts that only show up on the night:
   and wall surfaces; the French is hand-written and is the source the rest is translated
   from.
 
-- **It looks like the evening it is running.** The host picks an accent colour, a font
-  pairing and a frame style; the wall takes all three (the frame in the layouts that
+- **It looks like the evening it is running.** Each event wears an ambiance: the
+  product's own violet by default, or one of six designed worlds — Guinguette, Riviera,
+  Golden fields, Bivouac, Cabaret and Wedding, in red and white — each with its own
+  surfaces, inks, display face and background photograph. A venue photograph of your own
+  can replace that background. On top of the ambiance the host picks an accent colour, a
+  font pairing and a frame style; the wall takes all three (the frame in the layouts that
   draw one), and the guests' phones the colour. The colour is checked against the
-  accessibility contract server-side — the text on it must read at ten metres, and it
-  must not pass for the colours that mean success, warning or error — and one that fails
-  is refused rather than rendered.
-- **Translucent surfaces that give way before the wall does.** The guest's upload screen
-  uses a glass material over the photographs, and it is measured: a phone that stops
-  answering a tap promptly gives up the blur. The projected wall never wears it — its
-  photographs never stop moving, which is exactly what makes a blur expensive — and if
-  the machine driving the projector cannot hold its frame rate, it gives up the slow zoom
-  before the crossfade. A host who prefers the plainer surface turns the glass off per
-  event.
+  accessibility contract server-side — the text on it must read at ten metres, and in a
+  designed ambiance it must not pass for the colours that mean success, warning or error
+  — and one that fails is refused rather than rendered.
+- **Or one you make yourself.** The Custom ambiance lets the host choose a light or dark
+  ground, its tint, the accent and the faces, on a simulation page that shows the
+  guest's phone and the wall live before anything is saved. Every combination it offers
+  is proven legible in advance, so there is no way to make a wall nobody can read.
+- **The wall looks after its own projector.** If the machine driving it cannot hold its
+  frame rate, it gives up the slow zoom before the crossfade, rather than stuttering
+  through an eight-hour evening.
 
 ## Install
 
