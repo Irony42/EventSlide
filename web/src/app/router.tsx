@@ -129,6 +129,9 @@ const SiteAccountsPage = lazy(async () => ({
 const SiteAuditPage = lazy(async () => ({
   default: (await import('../features/site/AuditPage')).AuditPage,
 }))
+const SiteTakedownPage = lazy(async () => ({
+  default: (await import('../features/site/TakedownPage')).TakedownPage,
+}))
 
 const ChangePasswordPage = lazy(async () => ({
   default: (await import('../features/auth/ChangePasswordPage')).ChangePasswordPage,
@@ -478,6 +481,10 @@ export function AppRoutes() {
                     <Route
                       path="/admin/site/accounts"
                       element={titled('siteAccounts', <SiteAccountsPage />)}
+                    />
+                    <Route
+                      path="/admin/site/takedown"
+                      element={titled('siteTakedown', <SiteTakedownPage />)}
                     />
                     <Route
                       path="/admin/site/audit"

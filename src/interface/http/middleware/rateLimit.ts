@@ -295,6 +295,26 @@ export const INVITATIONS_PER_ACCOUNT_PER_HOUR = 30
 export const invitationIssueLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
+// ------------------------------------------------------- operator's lookup --
+
+/**
+ * The operator's lookup of an event (`GET /api/site/events/lookup`, launch review S5) answers
+ * "which event does this slug, join code or name name?", and **a join code is a bearer
+ * credential**: an unlimited lookup from a hijacked operator session would be an oracle for
+ * guessing them, and for confirming which names are events. So it is limited twice, **per
+ * account and per address**, each a few a minute, and neither is configurable (a console that
+ * needs more than ten lookups a minute is a script). Two limiters, built by two calls, because
+ * `express-rate-limit` gives each its own store.
+ */
+export const SITE_LOOKUPS_PER_ACCOUNT_PER_MINUTE = 10
+export const SITE_LOOKUPS_PER_ADDRESS_PER_MINUTE = 30
+
+export const siteLookupAccountLimiter = (perMinute: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60_000, limit: perMinute, code: 'rate.limited', key: accountKey })
+
+export const siteLookupAddressLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited')
+
 // ------------------------------------------------------------ venue photo --
 
 /**

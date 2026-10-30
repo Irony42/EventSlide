@@ -1,5 +1,13 @@
 import { expect, test, type Page } from '@playwright/test'
-import { aClientAccount, createLiveEvent } from '../fixtures/clients'
+import {
+  aClientAccount,
+  aGuestOf,
+  bytesOfFile,
+  createLiveEvent,
+  uploadPhoto,
+  type ClientAccount,
+} from '../fixtures/clients'
+import { aPhoto } from '../fixtures/media'
 import {
   currentStep,
   enrolOperator,
@@ -44,6 +52,8 @@ test.describe('the operator’s console', () => {
   let factor: OperatorFactor
   let clientName: string
   let joinCode: string
+  let host: ClientAccount
+  let photoId: string
 
   /** The server this worker booted: only the desktop project boots one. */
   const box = (): TestApp => {
@@ -73,6 +83,19 @@ test.describe('the operator’s console', () => {
     const client = await aClientAccount(app, { maxEvents: 3 })
     const event = await createLiveEvent(client, { name: EVENT_NAME, slug: EVENT_SLUG })
     joinCode = event.joinCode
+    host = client
+    // One photograph a guest sent, whose id is what a report would quote.
+    const guest = await aGuestOf(app, event.joinCode)
+    const sent = await uploadPhoto(
+      guest,
+      EVENT_SLUG,
+      await bytesOfFile(await aPhoto('retrait', 800, 600)),
+    )
+    const results = sent.body['results']
+    const first = Array.isArray(results) ? (results[0] as Record<string, unknown>) : undefined
+    const id = first?.['photoId'] ?? first?.['id']
+    if (typeof id !== 'string') throw new Error('the photograph was not accepted')
+    photoId = id
     clientName = `Atelier ${client.email}`
 
     factor = await enrolOperator(app)
@@ -207,6 +230,65 @@ test.describe('the operator’s console', () => {
     const log = page.locator('ol')
     await expect(log.getByText(fr.site.actions['client.suspended'])).toBeVisible()
     await expect(log.getByText(fr.site.actions['client.resumed'])).toBeVisible()
+    await noContentOnScreen(page)
+
+    // ---- the takedown screen: an event by its slug, a photograph by its id -----------------
+
+    await page
+      .getByRole('navigation', { name: fr.site.navLabel })
+      .getByRole('link', { name: fr.site.takedownNav })
+      .click()
+    await expect(page.getByRole('heading', { level: 1, name: fr.site.takedownTitle })).toBeVisible()
+
+    // The photograph first: the host sees it, then does not. Its id is typed as a report quotes it.
+    const hostSees = async (): Promise<boolean> =>
+      JSON.stringify((await host.api.get(`/api/events/${EVENT_SLUG}/photos`)).body).includes(
+        photoId,
+      )
+    expect(await hostSees()).toBe(true)
+    await page.getByLabel(fr.site.takedownPhotoLabel).fill(photoId)
+    await page.getByRole('button', { name: fr.site.takedownPhotoAction }).click()
+    await page.getByRole('button', { name: fr.site.takedownPhotoDown }).click()
+    const photoDialog = page.getByRole('dialog', { name: fr.site.takedownOps.photoDown.title })
+    await expect(photoDialog).toContainText(fr.site.takedownOps.photoDown.body)
+    // No reason, no act.
+    await expect(
+      photoDialog.getByRole('button', { name: fr.site.takedownOps.photoDown.confirm }),
+    ).toBeDisabled()
+    await photoDialog.getByLabel(fr.site.takedownReason).fill('Signalement reçu')
+    await photoDialog.getByRole('button', { name: fr.site.takedownOps.photoDown.confirm }).click()
+    await expect(page.getByRole('button', { name: fr.site.takedownPhotoUp })).toBeVisible()
+    expect(await hostSees()).toBe(false)
+
+    // The event, found by its slug and never shown by it.
+    await page.getByLabel(fr.site.takedownEventLabel).fill(EVENT_SLUG)
+    await page.getByRole('button', { name: fr.site.takedownEventAction }).click()
+    await expect(page.getByText(fr.site.takedownStateFree, { exact: true })).toBeVisible()
+    await noContentOnScreen(page)
+    await page.getByRole('button', { name: fr.site.takedownEventDown }).click()
+    const eventDialog = page.getByRole('dialog', { name: fr.site.takedownOps.eventDown.title })
+    await eventDialog.getByLabel(fr.site.takedownReason).fill('Signalement reçu')
+    await eventDialog.getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }).click()
+    await expect(page.getByText(fr.site.takedownStateDown, { exact: true })).toBeVisible()
+
+    // Down: the wall is the same answer as an event that is not there, and so is the host's own view.
+    const downWall = await request.get(box().url(`/api/events/${EVENT_SLUG}/wall`))
+    expect(downWall.status()).toBe(404)
+    expect(await downWall.json()).toEqual(await (await request.get(box().url(UNKNOWN_WALL))).json())
+    expect((await host.api.get(`/api/events/${EVENT_SLUG}`)).status).toBe(404)
+
+    // Held and put back, which are two more acts and two more lines.
+    await page.getByRole('button', { name: fr.site.takedownHold }).click()
+    const holdDialog = page.getByRole('dialog', { name: fr.site.takedownOps.purgeHold.title })
+    await holdDialog.getByLabel(fr.site.takedownReason).fill('Conservation demandée')
+    await holdDialog.getByRole('button', { name: fr.site.takedownOps.purgeHold.confirm }).click()
+    await expect(page.getByText(fr.site.takedownStateHeld, { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: fr.site.takedownEventUp }).click()
+    const upDialog = page.getByRole('dialog', { name: fr.site.takedownOps.eventUp.title })
+    await upDialog.getByLabel(fr.site.takedownReason).fill('Fausse alerte')
+    await upDialog.getByRole('button', { name: fr.site.takedownOps.eventUp.confirm }).click()
+    await expect(page.getByText(fr.site.takedownStateUp, { exact: true })).toBeVisible()
+    expect((await request.get(box().url(`/api/events/${EVENT_SLUG}/wall`))).status()).toBe(200)
     await noContentOnScreen(page)
 
     // ---- and all of it without the console ever asking for what a client made -----------

@@ -562,7 +562,9 @@ migration and because the host of a suspended client now sees less than it did.
    `events.taken_down_at`, `events.purge_held_at`) and two partial indexes. No row changes. A 3.2.x
    build still reads the database, and ignores the columns, which means it would **serve again**
    whatever the operator had taken down: restore the archive you took, rather than running 3.2.x on
-   a migrated database, if you go back.
+   a migrated database, if you go back. It also applies **migration 016**, one nullable column and an
+   index (`events.name_fold`) for the operator's lookup by name; the server fills it for existing events
+   the first time it starts, and nothing else changes.
 2. **Take the steps of [Upgrading with Docker](#upgrading-with-docker)**, or
    [without](#without-docker), with `vX.Y.Z` as `v3.3.0`. The image is
    `ghcr.io/irony42/eventslide:3.3.0`.
@@ -578,6 +580,6 @@ migration and because the host of a suspended client now sees less than it did.
 5. **Nothing changes for a self-hosted box with `SITE_ADMIN=off`**: the routes are not mounted and no
    client is ever suspended.
 
-**How to tell it worked.** The first boot logs migration 015 and `GET /api/health` answers
+**How to tell it worked.** The first boot logs migrations 015 and 016 and `GET /api/health` answers
 `"version": "3.3.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.

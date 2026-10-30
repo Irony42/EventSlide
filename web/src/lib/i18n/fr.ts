@@ -1363,6 +1363,8 @@ export const fr = {
     'clientCeilings.periodStartedAtInvalid': 'Ce début de période n’est pas accepté.',
     'clientCeilings.clipsAllowedInvalid': 'Ce réglage des vidéos n’est pas accepté.',
     'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
+    'siteLookup.queryInvalid':
+      'Saisissez un identifiant, un code, une adresse ou un nom d’évènement (300 caractères au plus).',
     'audit.reasonInvalid':
       'Le motif doit tenir sur une ligne de 200 caractères au plus, sans adresse e-mail.',
     'reset.mailerRequired':
@@ -2141,6 +2143,76 @@ export const fr = {
     offboardingRunning:
       'Cet engagement prend fin : les albums seront purgés au plus tard à la date indiquée plus haut.',
     daysNotWhole: 'Indiquez un nombre entier de jours.',
+    takedownNav: 'Retrait',
+    takedownTitle: 'Retirer sans regarder',
+    takedownIntro:
+      'Retirez une photo ou un évènement signalé à partir de son identifiant, sans jamais l’ouvrir : cette console ne montre ni vignette, ni légende, ni nom d’invité, ni adresse de média. Chaque acte demande un motif, qui est écrit au journal de l’instance et que le client ne lit pas. Retirer n’arrête pas la purge : pour conserver le contenu comme preuve, retirez-le puis gelez sa purge.',
+    takedownEventTitle: 'Un évènement',
+    takedownEventIntro:
+      'Cherchez l’évènement signalé par son adresse, son code d’invitation ou son nom exact. Vous ne voyez de lui que son identifiant et son état.',
+    takedownEventLabel: 'Adresse, code ou nom exact',
+    takedownEventAction: 'Chercher l’évènement',
+    takedownEventNone:
+      'Aucun évènement ne correspond. Le nom doit être exact : une partie de nom ne suffit pas.',
+    takedownEventHeading: (id: string) => `Évènement ${id}`,
+    takedownClient: 'Ouvrir le client',
+    takedownNoClient: 'Sans client',
+    takedownStateDown: 'Retiré',
+    takedownStateUp: 'En ligne',
+    takedownStateHeld: 'Purge gelée',
+    takedownStateFree: 'Purge normale',
+    takedownEventDown: 'Retirer l’évènement',
+    takedownEventUp: 'Remettre en ligne',
+    takedownHold: 'Geler la purge',
+    takedownRelease: 'Reprendre la purge',
+    takedownPhotoTitle: 'Une photo',
+    takedownPhotoIntro:
+      'Collez l’identifiant de la photo tel que le signalement le donne (le dernier élément de son adresse, avant le nom de la variante). Vous ne voyez que l’évènement auquel elle appartient et son état.',
+    takedownPhotoLabel: 'Identifiant de la photo',
+    takedownPhotoAction: 'Chercher la photo',
+    takedownPhotoNone: 'Aucune photo ne porte cet identifiant.',
+    takedownPhotoHeading: (id: string) => `Photo ${id}`,
+    takedownPhotoOf: (id: string) => `Dans l’évènement ${id}`,
+    takedownPhotoDown: 'Retirer la photo',
+    takedownPhotoUp: 'Remettre la photo',
+    takedownReason: 'Motif',
+    takedownReasonHint:
+      'Une phrase sur une seule ligne, de 200 caractères au plus, sans adresse e-mail. Elle est écrite au journal de l’instance.',
+    takedownUnknown:
+      'État inconnu : l’acte est passé ou non, relancez la recherche pour le savoir.',
+    takedownDone: 'C’est fait.',
+    takedownOps: {
+      eventDown: {
+        title: 'Retirer cet évènement ?',
+        body: 'Le mur, le flux des invités, le lien de galerie et la console de l’hôte répondent comme si l’évènement n’existait pas, et les écrans ouverts se ferment. Rien n’est supprimé. La conservation continue : pour garder le contenu comme preuve, gelez aussi sa purge.',
+        confirm: 'Retirer l’évènement',
+      },
+      eventUp: {
+        title: 'Remettre cet évènement en ligne ?',
+        body: 'Le mur, les invités, la galerie et l’hôte le retrouvent tel qu’il était.',
+        confirm: 'Remettre en ligne',
+      },
+      purgeHold: {
+        title: 'Geler la purge de cet évènement ?',
+        body: 'Le balayage de rétention l’ignore, et ni l’hôte ni un invité ne peuvent plus supprimer l’évènement ou une photo. Rien n’est caché : le gel ne se voit pas dans la salle. Les sauvegardes ne sont pas gelées.',
+        confirm: 'Geler la purge',
+      },
+      purgeRelease: {
+        title: 'Reprendre la purge de cet évènement ?',
+        body: 'L’évènement redevient purgeable à son échéance, qui peut être passée : le prochain balayage le purgera alors.',
+        confirm: 'Reprendre la purge',
+      },
+      photoDown: {
+        title: 'Retirer cette photo ?',
+        body: 'Elle disparaît à l’instant du mur, du flux des invités, du lien de galerie et des écrans de l’hôte, et les écrans ouverts l’oublient. Le fichier est conservé. L’hôte ne peut pas la remettre.',
+        confirm: 'Retirer la photo',
+      },
+      photoUp: {
+        title: 'Remettre cette photo ?',
+        body: 'Elle reparaît avec l’état que l’hôte lui avait donné.',
+        confirm: 'Remettre la photo',
+      },
+    },
   },
 
   /**
@@ -2178,6 +2250,7 @@ export const fr = {
     siteClient: 'Client',
     siteAccounts: 'Comptes de l’instance',
     siteAudit: 'Journal de l’instance',
+    siteTakedown: 'Retrait de contenu',
   },
 } as const
 

@@ -29,6 +29,9 @@ import type { DeleteAccount } from '../../application/usecases/site/deleteAccoun
 import type { OffboardClient } from '../../application/usecases/clients/offboardClient'
 import type { SetClientCeilings } from '../../application/usecases/clients/setClientCeilings'
 import type { SuspendClient } from '../../application/usecases/clients/suspendClient'
+import type { GetSiteEventState } from '../../application/usecases/site/getSiteEventState'
+import type { GetSitePhotoState } from '../../application/usecases/site/getSitePhotoState'
+import type { LookupSiteEvents } from '../../application/usecases/site/lookupSiteEvents'
 import type { SetEventPurgeHold } from '../../application/usecases/site/setEventPurgeHold'
 import type { SetEventTakedown } from '../../application/usecases/site/setEventTakedown'
 import type { SetPhotoTakedown } from '../../application/usecases/site/setPhotoTakedown'
@@ -167,6 +170,9 @@ export interface HttpUseCases {
   readonly resumeClient: ResumeClient
   // the operator's "remove without viewing" levers, by id (launch review S5)
   readonly setPhotoTakedown: SetPhotoTakedown
+  readonly lookupSiteEvents: LookupSiteEvents
+  readonly getSiteEventState: GetSiteEventState
+  readonly getSitePhotoState: GetSitePhotoState
   readonly setEventTakedown: SetEventTakedown
   readonly setEventPurgeHold: SetEventPurgeHold
   readonly offboardClient: OffboardClient

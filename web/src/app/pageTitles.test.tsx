@@ -95,6 +95,7 @@ const OPERATOR: readonly (readonly [string, Key])[] = [
   ['/admin/site/clients/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'siteClient'],
   ['/admin/site/accounts', 'siteAccounts'],
   ['/admin/site/audit', 'siteAudit'],
+  ['/admin/site/takedown', 'siteTakedown'],
 ]
 
 /** The addresses that answer with a redirect and so have no page to name. */

@@ -104,6 +104,11 @@ export function SiteLayout() {
       label: t.site.navAccounts,
       current: pathname === '/admin/site/accounts',
     },
+    {
+      to: '/admin/site/takedown',
+      label: t.site.takedownNav,
+      current: pathname === '/admin/site/takedown',
+    },
     { to: '/admin/site/audit', label: t.site.navAudit, current: pathname === '/admin/site/audit' },
   ]
 

@@ -49,7 +49,10 @@ import type {
   SiteAuditPageDto,
   SiteCeilingsPatch,
   SiteClientPageDto,
+  SiteEventLookupDto,
   SiteEventPageDto,
+  SiteEventStateDto,
+  SitePhotoStateDto,
   TopPhotoDto,
   TotpEnrolmentDto,
   UploadResponse,
@@ -520,6 +523,20 @@ export const createApi = (transport: Transport) => ({
       signal,
     ),
 
+  /**
+   * Which event a slug, a join code, an address or an exact name names: ids, a status and two
+   * instants, never the name, the slug or the code (launch review S5).
+   */
+  siteLookupEvents: (query: string, signal?: AbortSignal): Promise<SiteEventLookupDto> =>
+    transport.get('/api/site/events/lookup', { q: query }, signal),
+
+  siteEventState: (eventId: string, signal?: AbortSignal): Promise<SiteEventStateDto> =>
+    transport.get(`/api/site/events/${encode(eventId)}`, undefined, signal),
+
+  /** Where a photograph is and whether it is down, by its id alone. */
+  sitePhotoState: (photoId: string, signal?: AbortSignal): Promise<SitePhotoStateDto> =>
+    transport.get(`/api/site/photos/${encode(photoId)}`, undefined, signal),
+
   /** What a client is given when the form leaves a ceiling alone: the box's `NEW_CLIENT_*`. */
   siteClientDefaults: (signal?: AbortSignal): Promise<ClientDefaultsDto> =>
     transport.get('/api/site/client-defaults', undefined, signal),
@@ -542,6 +559,26 @@ export const createApi = (transport: Transport) => ({
     reason: string,
   ): Promise<ClientCeilingsChangedDto> =>
     transport.put(`/api/site/clients/${encode(clientId)}/ceilings`, { ceilings, reason }),
+
+  // The remove-without-viewing levers (launch review S5): by id, with a **mandatory** reason of at
+  // most 200 characters on one line. Every one is a write, behind a fresh step-up.
+  siteTakeDownPhoto: (photoId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/photos/${encode(photoId)}/take-down`, { reason }),
+
+  siteRestorePhoto: (photoId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/photos/${encode(photoId)}/restore`, { reason }),
+
+  siteTakeDownEvent: (eventId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/events/${encode(eventId)}/take-down`, { reason }),
+
+  siteRestoreEvent: (eventId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/events/${encode(eventId)}/restore`, { reason }),
+
+  siteHoldEventPurge: (eventId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/events/${encode(eventId)}/purge-hold`, { reason }),
+
+  siteReleaseEventPurge: (eventId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/events/${encode(eventId)}/purge-release`, { reason }),
 
   siteSuspendClient: (clientId: string): Promise<void> =>
     transport.post(`/api/site/clients/${encode(clientId)}/suspend`),

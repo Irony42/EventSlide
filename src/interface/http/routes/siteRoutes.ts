@@ -9,6 +9,12 @@ import {
 } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireOperator, requireSecondFactor, requireStepUp } from '../middleware/authz'
+import {
+  SITE_LOOKUPS_PER_ACCOUNT_PER_MINUTE,
+  SITE_LOOKUPS_PER_ADDRESS_PER_MINUTE,
+  siteLookupAccountLimiter,
+  siteLookupAddressLimiter,
+} from '../middleware/rateLimit'
 import { userOf } from '../middleware/scope'
 import { toClientDefaultsDto } from '../presenters/clientDefaultsPresenter'
 import {
@@ -23,6 +29,11 @@ import {
 } from '../presenters/siteOverviewPresenter'
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
+  toSiteEventLookupDto,
+  toSiteEventStateDto,
+  toSitePhotoStateDto,
+} from '../presenters/takedownPresenter'
+import {
   accountIdParams,
   type CeilingsBody,
   clientIdParams,
@@ -33,6 +44,7 @@ import {
   operatorPasswordResetBody,
   photoIdParams,
   provisionClientBody,
+  siteEventLookupQuery,
   renameClientBody,
   setCeilingsBody,
   siteAccountsQuery,
@@ -88,7 +100,7 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  */
 
 /**
- * What the operator's router is handed: the gates' own dependencies, and **the eighteen use cases it
+ * What the operator's router is handed: the gates' own dependencies, and **the twenty-one use cases it
  * calls and no others**. It is not given the whole bag, so a handler that reached for
  * `getEventBySlug`, a moderation queue or a photograph would not compile; `deps` is there for
  * `requireOperator` and its siblings, and no handler here reads `deps.events`.
@@ -106,6 +118,9 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'suspendClient'
     | 'resumeClient'
     | 'setPhotoTakedown'
+    | 'lookupSiteEvents'
+    | 'getSiteEventState'
+    | 'getSitePhotoState'
     | 'setEventTakedown'
     | 'setEventPurgeHold'
     | 'offboardClient'
@@ -349,6 +364,66 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
   )
 
   // ------------------------------------------------- remove without viewing (S5) --
+  //
+  // Reads first: which event is this, and is it down or held. Ids, a status and instants, never a
+  // name, a slug or a join code, so the operator can act on what a report named without being
+  // shown it.
+
+  /**
+   * Which event does a slug, a join code, an address or an exact name name? At most twenty, each
+   * as ids, a status and two instants. Registered before `/events/:eventId` so `lookup` is not read
+   * as an id.
+   */
+  router.get(
+    '/events/lookup',
+    // Before the handler, and so before anything is read: a join code is a bearer credential.
+    siteLookupAddressLimiter(SITE_LOOKUPS_PER_ADDRESS_PER_MINUTE),
+    siteLookupAccountLimiter(SITE_LOOKUPS_PER_ACCOUNT_PER_MINUTE),
+    asyncHandler(async (req, res) => {
+      const query = siteEventLookupQuery.parse(req.query)
+
+      // One line per lookup, **who and how long, never what**: the log is not where a guessed
+      // code or a name belongs. The act is read, not written, so it is not in the audit log.
+      req.context.logger.info('an operator looked up an event', {
+        operator: userOf(req).userId,
+        queryLength: query.q.trim().length,
+      })
+
+      const result = await usecases.lookupSiteEvents({ query: query.q })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, states) =>
+        sendJson(response, toSiteEventLookupDto(states)),
+      )
+    }),
+  )
+
+  /** One event's state by id. */
+  router.get(
+    '/events/:eventId',
+    asyncHandler(async (req, res) => {
+      const params = eventIdParams.parse(req.params)
+
+      const result = await usecases.getSiteEventState({ eventId: asEventId(params.eventId) })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, state) => sendJson(response, toSiteEventStateDto(state)))
+    }),
+  )
+
+  /** Where a photograph is and whether it is down, by its id alone. */
+  router.get(
+    '/photos/:photoId',
+    asyncHandler(async (req, res) => {
+      const params = photoIdParams.parse(req.params)
+
+      const result = await usecases.getSitePhotoState({ photoId: asPhotoId(params.photoId) })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, state) => sendJson(response, toSitePhotoStateDto(state)))
+    }),
+  )
+
   //
   // By id, with a mandatory reason, and **never an answer that holds a row**: `204`, or a refusal.
   // The operator names a photograph or an event and says why; it is not shown one, and it does not

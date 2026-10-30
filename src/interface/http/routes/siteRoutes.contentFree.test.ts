@@ -150,6 +150,27 @@ const CALLS: readonly Call[] = [
     path: `/api/site/clients/${ID.clientK}/ceilings`,
     body: { ceilings: { maxEvents: 3, periodStartedAt: AT.toISOString() }, reason: REASON },
   },
+  {
+    name: 'get /api/site/events/lookup',
+    method: 'get',
+    path: `/api/site/events/lookup?q=${encodeURIComponent(CONTENT.slug)}`,
+  },
+  {
+    name: 'get /api/site/events/lookup',
+    method: 'get',
+    path: `/api/site/events/lookup?q=${CONTENT.joinCode}`,
+  },
+  {
+    name: 'get /api/site/events/lookup',
+    method: 'get',
+    path: `/api/site/events/lookup?q=${encodeURIComponent(CONTENT.eventName)}`,
+  },
+  { name: 'get /api/site/events/:eventId', method: 'get', path: `/api/site/events/${ID.eventK}` },
+  {
+    name: 'get /api/site/photos/:photoId',
+    method: 'get',
+    path: `/api/site/photos/${TAKEDOWN_PHOTO}`,
+  },
   ...(['take-down', 'restore'] as const).map((verb): Call => ({
     name: `post /api/site/photos/:photoId/${verb}`,
     method: 'post',
@@ -368,6 +389,9 @@ const KEYS = new Set([
   'name',
   'createdAt',
   'suspendedAt',
+  'takenDownAt',
+  'purgeHeldAt',
+  'eventId',
   'purgeAfter',
   'ceilings',
   'eventsCreatedInPeriod',
@@ -555,6 +579,42 @@ describe.each(['delivers', 'none'] as const)(
 
       for (const { call, body } of answers) {
         expect(sweepByShape(body, [REASON]), `${call.name} ${call.path}`).toEqual([])
+      }
+    })
+
+    it.each([
+      ['its slug', CONTENT.slug],
+      ['its join code', CONTENT.joinCode],
+      ['its exact name', CONTENT.eventName],
+    ])(
+      'finds exactly the planted event from %s, so the sweep reads a real hit',
+      async (_how, query) => {
+        const { site } = await aBox({ mail })
+        const operator = await site.signInAsOperator()
+
+        const found = await operator.agent.get(
+          `/api/site/events/lookup?q=${encodeURIComponent(query)}`,
+        )
+
+        expect(found.status).toBe(200)
+        expect(found.body.items).toHaveLength(1)
+        expect(found.body.items[0].id).toBe(ID.eventK)
+        expect(sweepByValue(found.text)).toEqual([])
+      },
+    )
+
+    it('answers the three takedown reads with no-store, so a shared cache never holds an id for a name', async () => {
+      const { site } = await aBox({ mail })
+      const operator = await site.signInAsOperator()
+
+      for (const path of [
+        `/api/site/events/lookup?q=${CONTENT.joinCode}`,
+        `/api/site/events/${ID.eventK}`,
+        '/api/site/photos/99999999-9999-4999-8999-999999999999',
+      ]) {
+        const response = await operator.agent.get(path)
+
+        expect(response.headers['cache-control'], path).toBe('no-store')
       }
     })
 

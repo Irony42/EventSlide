@@ -191,6 +191,49 @@ describe('SqliteEventRepository', () => {
     expect(sqliteCodeOf(thrown)).toBe('SQLITE_CONSTRAINT_UNIQUE')
   })
 
+  // ------------------------------------------------ the folded name (migration 016) --
+
+  describe("the name lookup's index column", () => {
+    const foldOf = (id: string): string | null =>
+      (
+        db.prepare('SELECT name_fold FROM events WHERE id = ?').get(id) as {
+          name_fold: string | null
+        }
+      ).name_fold
+
+    it('is written with the event, and follows a rename', async () => {
+      await repo.save(anEvent({ id: 'evt-1', name: 'Fête de Noël' }))
+      expect(foldOf('evt-1')).toBe('fete de noel')
+
+      await repo.save(anEvent({ id: 'evt-1', name: 'Mariage Léa' }))
+
+      expect(foldOf('evt-1')).toBe('mariage lea')
+      expect(await repo.listByName('fete de noel', 5)).toEqual([])
+      expect((await repo.listByName('MARIAGE LÉA', 5)).map((event) => event.id)).toEqual(['evt-1'])
+    })
+
+    it('is filled for a row that predates it, when the repository is constructed', async () => {
+      await repo.save(anEvent({ id: 'evt-1', name: 'Fête de Noël' }))
+      db.prepare('UPDATE events SET name_fold = NULL').run()
+      expect(await repo.listByName('fete de noel', 5)).toEqual([])
+
+      const reopened = new SqliteEventRepository(db)
+
+      expect(foldOf('evt-1')).toBe('fete de noel')
+      expect((await reopened.listByName('FÊTE DE NOËL', 5)).map((event) => event.id)).toEqual([
+        'evt-1',
+      ])
+    })
+
+    it('is looked up by its index, not by scanning the table', () => {
+      const plan = db
+        .prepare("EXPLAIN QUERY PLAN SELECT id FROM events WHERE name_fold = 'x'")
+        .all() as { detail: string }[]
+
+      expect(plan.map((row) => row.detail).join(' ')).toContain('idx_events_name_fold')
+    })
+  })
+
   it('refuses an event whose owner is not an account', async () => {
     const thrown = await rejectionOf(() => repo.save(anEvent({ id: 'evt-1', ownerId: 'ghost' })))
 
