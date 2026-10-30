@@ -150,8 +150,12 @@ interface QueueState {
    * The photos on the wall right now, newest first, when the surface asked for them
    * (`onScreenLimit`). A second, small read beside the filtered one: the phone console
    * has no filters, and "retirer de l'écran" is what a host needs first on a bad night.
+   *
+   * `null` until that read has answered, and for ever if it never does or was not asked for:
+   * an empty list says "nothing is on the wall", which is a claim, and a strip whose read
+   * failed must not make it.
    */
-  readonly onScreen: readonly ModerationPhotoDto[]
+  readonly onScreen: readonly ModerationPhotoDto[] | null
   readonly pendingCount: number
   readonly loading: boolean
   /**
@@ -217,7 +221,7 @@ export const useModerationQueue = (
   const [busy, setBusy] = useState(false)
   const [state, setState] = useState<QueueState>({
     items: [],
-    onScreen: [],
+    onScreen: null,
     pendingCount: 0,
     // A route with no slug never fetches, so it must not sit on a spinner for ever.
     loading: slug !== undefined,
@@ -228,7 +232,7 @@ export const useModerationQueue = (
   const itemsRef = useRef<readonly ModerationPhotoDto[]>(state.items)
   useEffect(() => {
     // The wall strip too: a photo taken off the screen is decided like any other.
-    itemsRef.current = [...state.items, ...state.onScreen]
+    itemsRef.current = [...state.items, ...(state.onScreen ?? [])]
   }, [state.items, state.onScreen])
 
   /**
@@ -354,10 +358,11 @@ export const useModerationQueue = (
         if (status === 'pending') delta += 1
         return withStatus(item, status)
       })
-      const onScreen = previous.onScreen.map((item) => {
-        const status = next.get(item.id)
-        return status === undefined || status === item.status ? item : withStatus(item, status)
-      })
+      const onScreen =
+        previous.onScreen?.map((item) => {
+          const status = next.get(item.id)
+          return status === undefined || status === item.status ? item : withStatus(item, status)
+        }) ?? null
       return {
         ...previous,
         items,

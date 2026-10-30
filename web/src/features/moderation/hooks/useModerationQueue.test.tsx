@@ -454,7 +454,7 @@ describe('useModerationQueue', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(api.moderationQueue).toHaveBeenCalledTimes(1)
-    expect(result.current.onScreen).toEqual([])
+    expect(result.current.onScreen).toBeNull()
   })
 
   it('takes a photo off the wall from the strip, and can put it back (MOD-2)', async () => {
@@ -477,7 +477,7 @@ describe('useModerationQueue', () => {
     })
 
     expect(api.moderate).toHaveBeenCalledWith(SLUG, 'wall-1', 'hide')
-    expect(result.current.onScreen[0]?.status).toBe('hidden')
+    expect(result.current.onScreen?.[0]?.status).toBe('hidden')
     expect(screen.getByText(fr.moderation.removed(1))).toBeInTheDocument()
 
     await act(async () => {
@@ -485,7 +485,7 @@ describe('useModerationQueue', () => {
     })
 
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['wall-1'], 'publish')
-    expect(result.current.onScreen[0]?.status).toBe('published')
+    expect(result.current.onScreen?.[0]?.status).toBe('published')
   })
 
   it('offers no decision on a photo until the server has said what it may take (MOD-4)', async () => {

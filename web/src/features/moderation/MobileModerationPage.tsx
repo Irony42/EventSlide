@@ -255,12 +255,19 @@ export function MobileModerationPage() {
         )}
       </div>
 
-      {/* Filtered here as well as in the query: a photo taken off the wall leaves at once. */}
-      <OnScreenStrip
-        photos={queue.onScreen.filter((photo) => photo.status === 'published')}
-        busy={queue.busy}
-        onRemove={removeFromScreen}
-      />
+      {/*
+        Not shown until its own read has answered, and not at all if that read failed: an
+        empty strip says "nothing is on the wall", and a host who cannot reach the server
+        must not be told so. Filtered here as well as in the query, so a photo taken off the
+        wall leaves it at once.
+      */}
+      {queue.onScreen === null ? null : (
+        <OnScreenStrip
+          photos={queue.onScreen.filter((photo) => photo.status === 'published')}
+          busy={queue.busy}
+          onRemove={removeFromScreen}
+        />
+      )}
 
       {/*
         Everything pressable, together, in the bottom third of the screen — the same

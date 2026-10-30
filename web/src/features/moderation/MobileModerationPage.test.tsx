@@ -824,6 +824,21 @@ describe('a clip on the phone', () => {
       ).toBeInTheDocument()
     })
 
+    it('says nothing about the wall when its read failed, rather than claiming it is empty', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) => {
+          if (query?.status === 'published') throw ApiError.network()
+          return queueOf([lea()])
+        }),
+      })
+
+      renderPhone(api)
+      await screen.findByTestId('mobile-moderation-card')
+
+      expect(screen.queryByText(fr.mobileModeration.onScreenEmpty)).toBeNull()
+      expect(screen.queryByRole('heading', { name: fr.mobileModeration.onScreenTitle })).toBeNull()
+    })
+
     it('says so when nothing is on the wall', async () => {
       renderPhone(withWall([], [lea()]))
 
