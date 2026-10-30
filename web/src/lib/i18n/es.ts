@@ -269,8 +269,8 @@ export const es: UiText = {
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {
-        one: `Se borran automáticamente ${t.number(days)} día después de que el organizador cierre la fiesta.`,
-        other: `Se borran automáticamente ${t.number(days)} días después de que el organizador cierre la fiesta.`,
+        one: `Se borran automáticamente ${t.number(days)} día después de que el organizador finalice la fiesta.`,
+        other: `Se borran automáticamente ${t.number(days)} días después de que el organizador finalice la fiesta.`,
       }),
     noticeRetentionNone:
       'No hay ningún borrado automático previsto: se conservan hasta que el organizador las borre.',
@@ -502,7 +502,7 @@ export const es: UiText = {
     'membership.notFound': 'Esta persona no modera este evento.',
     'guest.notFound': 'Este invitado ya no aparece en la lista. Actualice la página.',
 
-    'event.scheduleOutOfOrder': 'El cierre debe ser posterior a la apertura.',
+    'event.scheduleOutOfOrder': 'El final debe ser posterior a la apertura.',
     'event.scheduleInPast':
       'Esta hora ya ha pasado. Compruebe la fecha: para el final de la fiesta, elija el día siguiente.',
     'event.scheduleInvalid': 'Estas fechas no se pueden leer. Elíjalas de nuevo.',
@@ -787,7 +787,7 @@ export const es: UiText = {
     download: 'Descargar el álbum',
     statusDraft: 'Borrador',
     statusLive: 'En curso',
-    statusClosed: 'Cerrado',
+    statusClosed: 'Finalizado',
     statusArchived: 'Archivado',
     goLive: 'Abrir a los invitados',
     closeEvent: 'Finalizar el evento',
@@ -881,11 +881,11 @@ export const es: UiText = {
 
     retention: 'Eliminación automática',
     retentionNever: 'Nunca',
-    /** «Desde el cierre», because the retention clock starts when the host closes. */
+    /** «Desde el final del evento», because the retention clock starts when the host ends it. */
     retentionDays: (days: number) =>
       t.count(days, {
-        one: `${t.number(days)} día después del cierre`,
-        other: `${t.number(days)} días después del cierre`,
+        one: `${t.number(days)} día después del final del evento`,
+        other: `${t.number(days)} días después del final del evento`,
       }),
     retentionUnlimited: 'Conservación ilimitada',
     moderators: 'Moderadores',
@@ -917,7 +917,7 @@ export const es: UiText = {
     settingsSaved: 'Ajustes guardados.',
     settingsReadOnly: 'Este evento está archivado: sus ajustes ya no se pueden modificar.',
     settingsOwnerOnly: 'Solo el propietario del evento puede modificar sus ajustes.',
-    retentionHint: 'Las fotos se eliminan pasado ese plazo desde el cierre del evento.',
+    retentionHint: 'Las fotos se eliminan pasado ese plazo desde el final del evento.',
     selfDeleteGrace: 'Plazo de eliminación',
     selfDeleteGraceHint: 'Durante ese plazo, un invitado puede retirar su propia foto.',
     graceNone: 'Sin plazo',
@@ -976,18 +976,18 @@ export const es: UiText = {
     purgeConfirmHint: (slug: string) => `Escriba «${slug}» para confirmar la eliminación.`,
     purged: (name: string) => `${name} se ha eliminado.`,
 
-    schedule: 'Apertura y cierre automáticos',
+    schedule: 'Apertura y final automáticos',
     scheduleHint:
-      'Déjelo en blanco para abrir y cerrar usted mismo. Las horas son las de su ordenador, es decir, las del lugar de la fiesta.',
+      'Déjelo en blanco para abrir y finalizar usted mismo. Las horas son las de su ordenador, es decir, las del lugar de la fiesta.',
     scheduleOpenAt: 'Abrir a los invitados el',
     scheduleCloseAt: 'Finalizar el evento el',
     scheduleCloseAtHint: 'Las fotos y el álbum se conservan: finalizar no borra nada.',
     scheduleSaved: 'El horario se ha guardado.',
-    scheduleNone: 'Sin horario: usted abre y cierra el evento.',
+    scheduleNone: 'Sin horario: usted abre y finaliza el evento.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
-      `Apertura el ${opensAt}, cierre el ${closesAt}.`,
-    scheduleOpensOnly: (opensAt: string) => `Apertura el ${opensAt}. Usted cerrará el evento.`,
-    scheduleClosesOnly: (closesAt: string) => `Cierre el ${closesAt}. Usted abrirá el evento.`,
+      `Apertura el ${opensAt}, final el ${closesAt}.`,
+    scheduleOpensOnly: (opensAt: string) => `Apertura el ${opensAt}. Usted finalizará el evento.`,
+    scheduleClosesOnly: (closesAt: string) => `Final el ${closesAt}. Usted abrirá el evento.`,
     scheduleSave: 'Guardar el horario',
     /* ---- Added by the host lifecycle pass (revue UX 30/10). ---- */
     noticeOpened: 'Evento abierto a los invitados.',
@@ -1009,8 +1009,8 @@ export const es: UiText = {
     afterShare: 'Compartir el álbum',
     autoOpenAt: (time: string) => `Apertura automática ${atTime(time)}`,
     autoOpenOn: (dateTime: string) => `Apertura automática el ${dateTime}`,
-    autoCloseAt: (time: string) => `Cierre automático ${atTime(time)}`,
-    autoCloseOn: (dateTime: string) => `Cierre automático el ${dateTime}`,
+    autoCloseAt: (time: string) => `Final automático ${atTime(time)}`,
+    autoCloseOn: (dateTime: string) => `Final automático el ${dateTime}`,
     autoEdit: 'Modificar el horario',
     scheduleDiscardedAction: 'Definir un nuevo horario',
 
@@ -1475,7 +1475,7 @@ export const es: UiText = {
     maxEventsPerPeriod: 'Eventos creados por periodo, como máximo',
     maxTotalGigabytes: 'Almacenamiento total, en GB',
     maxEventQuotaGigabytes: 'Cuota de un evento, en GB',
-    maxRetentionDays: 'Conservación tras el cierre, en días, como máximo',
+    maxRetentionDays: 'Conservación tras el final del evento, en días, como máximo',
     maxLiveDays: 'Duración de un evento en curso, en días, como máximo',
     clipsAllowed: 'Vídeos permitidos',
     liveAllowed: 'Apertura de eventos permitida',
@@ -1534,7 +1534,7 @@ export const es: UiText = {
     eventStatuses: {
       draft: 'Borrador',
       live: 'En curso',
-      closed: 'Cerrado',
+      closed: 'Finalizado',
       archived: 'Archivado',
     },
     photoCount: (count: number) =>
@@ -1642,7 +1642,7 @@ export const es: UiText = {
     accountDeletedDone: 'Cuenta eliminada.',
     offboardTitle: 'Fin de la colaboración',
     offboardIntro:
-      'Los eventos en curso se cierran, los borradores se archivan, el cliente se suspende y sus álbumes se eliminan como muy tarde al terminar el plazo que usted fija: es el tiempo que tiene el cliente para exportar lo que quiere conservar (la retención propia de un evento o los límites del cliente pueden eliminarlos antes). Después se eliminan las cuentas que solo le pertenecían y no tienen nada más, y el cliente con ellas.',
+      'Los eventos en curso se finalizan, los borradores se archivan, el cliente se suspende y sus álbumes se eliminan como muy tarde al terminar el plazo que usted fija: es el tiempo que tiene el cliente para exportar lo que quiere conservar (la retención propia de un evento o los límites del cliente pueden eliminarlos antes). Después se eliminan las cuentas que solo le pertenecían y no tienen nada más, y el cliente con ellas.',
     graceDays: 'Plazo antes de la eliminación, en días',
     graceDaysHint: 'Un número entero de días: los límites son los del servidor.',
     offboardAction: 'Poner fin a la colaboración',

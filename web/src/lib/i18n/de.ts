@@ -1020,8 +1020,8 @@ export const de: UiText = {
     afterShare: 'Album teilen',
     autoOpenAt: (time: string) => `Öffnet automatisch um ${time}`,
     autoOpenOn: (dateTime: string) => `Öffnet automatisch am ${dateTime}`,
-    autoCloseAt: (time: string) => `Schließt automatisch um ${time}`,
-    autoCloseOn: (dateTime: string) => `Schließt automatisch am ${dateTime}`,
+    autoCloseAt: (time: string) => `Endet automatisch um ${time}`,
+    autoCloseOn: (dateTime: string) => `Endet automatisch am ${dateTime}`,
     autoEdit: 'Zeitplan ändern',
     scheduleDiscardedAction: 'Neuen Zeitplan festlegen',
 

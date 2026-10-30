@@ -37,6 +37,7 @@ const RETIRED: Readonly<Record<Locale, readonly [RegExp, string][]>> = {
     [/réouvr/iu, 'Réouvrir: the verb is rouvrir'],
     [/kraft/iu, 'Kraft: the default colour is the ambiance’s own, not a paper'],
     [/\bclore\b|clôtur/iu, 'clore / clôturer: the lifecycle says terminer'],
+    [/fermeture/iu, 'fermeture: the end of the evening is "la fin", as the button says terminer'],
   ],
   en: [
     [/galler/iu, 'gallery: the live event is "the event", and after it comes "the album"'],
@@ -106,8 +107,8 @@ describe('fr, where the button and the badge are one word', () => {
   const { admin } = TRANSLATIONS.fr
 
   it('ends an event with the verb its badge is the participle of', () => {
-    expect(admin.closeEvent).toMatch(/^Terminer /u)
-    expect(admin.statusClosed).toBe('Terminé')
+    expect(admin.closeEvent).toBe('Terminer la soirée')
+    expect(admin.statusClosed).toBe('Terminée')
     expect(admin.scheduleCloseAt).toMatch(/^Terminer /u)
   })
 
@@ -115,8 +116,8 @@ describe('fr, where the button and the badge are one word', () => {
     expect(admin.reopenEvent).toBe('Rouvrir')
   })
 
-  it('counts the retention from the end of the event, and says that nothing goes before it', () => {
-    expect(admin.retentionDays(30)).toContain('fin de l’évènement')
-    expect(admin.retentionHint).toContain('pas terminé')
+  it('counts the retention from the end of the evening, and says that nothing goes before it', () => {
+    expect(admin.retentionDays(30)).toContain('fin de la soirée')
+    expect(admin.retentionHint).toContain('pas terminée')
   })
 })

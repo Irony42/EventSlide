@@ -683,7 +683,7 @@ describe('EventPage, what is armed to happen by itself', () => {
       }),
     )
 
-    expect(await screen.findByText(/Fermeture automatique/)).toBeVisible()
+    expect(await screen.findByText(/Fin automatique/)).toBeVisible()
   })
 
   it('shows nothing when no schedule is armed', async () => {

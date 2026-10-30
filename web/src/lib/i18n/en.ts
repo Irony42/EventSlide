@@ -257,8 +257,8 @@ export const en: UiText = {
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {
-        one: `They are deleted automatically ${t.number(days)} day after the organiser closes the event.`,
-        other: `They are deleted automatically ${t.number(days)} days after the organiser closes the event.`,
+        one: `They are deleted automatically ${t.number(days)} day after the organiser ends the event.`,
+        other: `They are deleted automatically ${t.number(days)} days after the organiser ends the event.`,
       }),
     noticeRetentionNone:
       'No automatic deletion is planned: they stay until the organiser deletes them.',
@@ -482,7 +482,7 @@ export const en: UiText = {
     'membership.notFound': 'This person does not moderate this event.',
     'guest.notFound': 'This guest is no longer in the list. Refresh the page.',
 
-    'event.scheduleOutOfOrder': 'The closing must come after the opening.',
+    'event.scheduleOutOfOrder': 'The end must come after the opening.',
     'event.scheduleInPast':
       'That time has already passed. Check the date: for the end of the evening, choose the next day.',
     'event.scheduleInvalid': 'These dates cannot be read. Choose them again.',
@@ -840,8 +840,8 @@ export const en: UiText = {
     retentionNever: 'Never',
     retentionDays: (days: number) =>
       t.count(days, {
-        one: `${t.number(days)} day after closing`,
-        other: `${t.number(days)} days after closing`,
+        one: `${t.number(days)} day after the event ends`,
+        other: `${t.number(days)} days after the event ends`,
       }),
     retentionUnlimited: 'Kept indefinitely',
     moderators: 'Moderators',
@@ -873,7 +873,8 @@ export const en: UiText = {
     settingsSaved: 'Settings saved.',
     settingsReadOnly: 'This event is archived: its settings can no longer be changed.',
     settingsOwnerOnly: 'Only the event’s owner can change its settings.',
-    retentionHint: 'The photos are deleted this long after the event is closed.',
+    retentionHint:
+      'The photos are deleted this long after the event has ended. Until it ends, nothing is deleted.',
     selfDeleteGrace: 'Deletion window',
     selfDeleteGraceHint: 'During this window, a guest can delete their own photo.',
     graceNone: 'No window',
@@ -932,18 +933,18 @@ export const en: UiText = {
     purgeConfirmHint: (slug: string) => `Type “${slug}” to confirm the deletion.`,
     purged: (name: string) => `${name} has been deleted.`,
 
-    schedule: 'Automatic opening and closing',
+    schedule: 'Automatic opening and end',
     scheduleHint:
-      'Leave this empty to open and close the event yourself. The times are your computer’s, so they are the times where the party is.',
+      'Leave this empty to open and end the event yourself. The times are your computer’s, so they are the times where the party is.',
     scheduleOpenAt: 'Open to guests on',
     scheduleCloseAt: 'End the event on',
     scheduleCloseAtHint: 'The photos and the album are kept: ending the event deletes nothing.',
     scheduleSaved: 'The schedule has been saved.',
-    scheduleNone: 'No schedule: you open and close the event yourself.',
+    scheduleNone: 'No schedule: you open and end the event yourself.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
-      `Opens on ${opensAt}, closes on ${closesAt}.`,
-    scheduleOpensOnly: (opensAt: string) => `Opens on ${opensAt}. You will close it yourself.`,
-    scheduleClosesOnly: (closesAt: string) => `Closes on ${closesAt}. You will open it yourself.`,
+      `Opens on ${opensAt}, ends on ${closesAt}.`,
+    scheduleOpensOnly: (opensAt: string) => `Opens on ${opensAt}. You will end it yourself.`,
+    scheduleClosesOnly: (closesAt: string) => `Ends on ${closesAt}. You will open it yourself.`,
     scheduleSave: 'Save the schedule',
     /* ---- Added by the host lifecycle pass (revue UX 30/10). ---- */
     noticeOpened: 'Event opened to guests.',
@@ -965,8 +966,8 @@ export const en: UiText = {
     afterShare: 'Share the album',
     autoOpenAt: (time: string) => `Opens automatically at ${time}`,
     autoOpenOn: (dateTime: string) => `Opens automatically on ${dateTime}`,
-    autoCloseAt: (time: string) => `Closes automatically at ${time}`,
-    autoCloseOn: (dateTime: string) => `Closes automatically on ${dateTime}`,
+    autoCloseAt: (time: string) => `Ends automatically at ${time}`,
+    autoCloseOn: (dateTime: string) => `Ends automatically on ${dateTime}`,
     autoEdit: 'Edit the schedule',
     scheduleDiscardedAction: 'Set a new schedule',
 
@@ -1422,7 +1423,7 @@ export const en: UiText = {
     maxEventsPerPeriod: 'Events created per period, at most',
     maxTotalGigabytes: 'Total storage, in GB',
     maxEventQuotaGigabytes: 'Quota of one event, in GB',
-    maxRetentionDays: 'Retention after closing, in days, at most',
+    maxRetentionDays: 'Retention after the event ends, in days, at most',
     maxLiveDays: 'Length of an ongoing event, in days, at most',
     clipsAllowed: 'Videos allowed',
     liveAllowed: 'Opening events allowed',
@@ -1481,7 +1482,7 @@ export const en: UiText = {
     eventStatuses: {
       draft: 'Draft',
       live: 'Live',
-      closed: 'Closed',
+      closed: 'Ended',
       archived: 'Archived',
     },
     photoCount: (count: number) =>
@@ -1588,15 +1589,15 @@ export const en: UiText = {
     accountDeletedDone: 'Account deleted.',
     offboardTitle: 'End of engagement',
     offboardIntro:
-      'Live events are closed, drafts are archived, the client is suspended, and its albums are purged at the latest when the grace period you give runs out: it is the time the client has to export what it wants to keep (an event’s own retention or the client’s limits may purge sooner). Then the accounts that belonged only to it and hold nothing else are deleted, and the client with them.',
+      'Live events are ended, drafts are archived, the client is suspended, and its albums are purged at the latest when the grace period you give runs out: it is the time the client has to export what it wants to keep (an event’s own retention or the client’s limits may purge sooner). Then the accounts that belonged only to it and hold nothing else are deleted, and the client with them.',
     graceDays: 'Grace period before the purge, in days',
     graceDaysHint: 'A whole number of days: the limits are the server’s.',
     offboardAction: 'End the engagement',
     offboardConfirmTitle: 'End this client’s engagement?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `In ${t.number(days)} day at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are closed, its drafts archived and the client suspended.`,
-        other: `In ${t.number(days)} days at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are closed, its drafts archived and the client suspended.`,
+        one: `In ${t.number(days)} day at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are ended, its drafts archived and the client suspended.`,
+        other: `In ${t.number(days)} days at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are ended, its drafts archived and the client suspended.`,
       }),
     offboardedDone: 'Engagement ending.',
     offboardingRunning:

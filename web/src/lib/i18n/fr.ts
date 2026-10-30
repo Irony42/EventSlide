@@ -1074,7 +1074,8 @@ export const fr = {
     settingsReadOnly: 'Cet évènement est archivé : ses réglages ne peuvent plus être modifiés.',
     // What a moderator is shown in place of a form every save of which the server would refuse.
     settingsOwnerOnly: 'Seul l’organisateur de l’évènement peut modifier ses réglages.',
-    retentionHint: 'Les photos sont supprimées ce délai après la fin de la soirée.',
+    retentionHint:
+      'Le délai court une fois la soirée terminée. Tant qu’elle n’est pas terminée, rien n’est supprimé.',
     selfDeleteGrace: 'Délai de suppression',
     selfDeleteGraceHint: 'Pendant ce délai, un invité peut retirer lui-même sa photo.',
     graceNone: 'Aucun délai',
@@ -1135,7 +1136,7 @@ export const fr = {
     purged: (name: string) => `${name} a été supprimé.`,
 
     /* ------------------------------------------------------------------------
-     * Scheduled opening and closing (docs/ROADMAP.md §3.4).
+     * Scheduled opening and end (docs/ROADMAP.md §3.4).
      *
      * Times are typed and shown in the browser's timezone — the host's own laptop,
      * which is at the venue — so "18:00" means 18:00 where the party is. Only the
@@ -1151,10 +1152,10 @@ export const fr = {
     scheduleNone: 'Aucun horaire : vous ouvrez et vous terminez la soirée vous-même.',
     /** Rendered as a reminder under the fields once a schedule is armed. */
     scheduleArmed: (opensAt: string, closesAt: string) =>
-      `Ouverture le ${opensAt}, fermeture le ${closesAt}.`,
+      `Ouverture le ${opensAt}, fin le ${closesAt}.`,
     scheduleOpensOnly: (opensAt: string) =>
       `Ouverture le ${opensAt}. Vous terminerez la soirée vous-même.`,
-    scheduleClosesOnly: (closesAt: string) => `Fermeture le ${closesAt}. Vous ouvrirez vous-même.`,
+    scheduleClosesOnly: (closesAt: string) => `Fin le ${closesAt}. Vous ouvrirez vous-même.`,
     scheduleSave: 'Enregistrer l’horaire',
     /**
      * The sweep threw a schedule away because the event could not change state then —
@@ -1194,8 +1195,8 @@ export const fr = {
     /** What is armed, beside the badge (HOT-10). */
     autoOpenAt: (time: string) => `Ouverture automatique à ${time}`,
     autoOpenOn: (dateTime: string) => `Ouverture automatique le ${dateTime}`,
-    autoCloseAt: (time: string) => `Fermeture automatique à ${time}`,
-    autoCloseOn: (dateTime: string) => `Fermeture automatique le ${dateTime}`,
+    autoCloseAt: (time: string) => `Fin automatique à ${time}`,
+    autoCloseOn: (dateTime: string) => `Fin automatique le ${dateTime}`,
     autoEdit: 'Modifier l’horaire',
     /** The link in the warning that the schedule was thrown away: there is none left to edit. */
     scheduleDiscardedAction: 'Définir un nouvel horaire',
@@ -2172,8 +2173,8 @@ export const fr = {
     eventStatuses: {
       draft: 'Brouillon',
       live: 'En cours',
-      closed: 'Terminé',
-      archived: 'Archivé',
+      closed: 'Terminée',
+      archived: 'Archivée',
     } satisfies Record<EventStatus, string>,
     photoCount: (count: number) =>
       t.count(count, {

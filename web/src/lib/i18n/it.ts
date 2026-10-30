@@ -274,8 +274,8 @@ export const it: UiText = {
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {
-        one: `Vengono eliminate automaticamente ${t.number(days)} giorno dopo che l’organizzatore ha chiuso la serata.`,
-        other: `Vengono eliminate automaticamente ${t.number(days)} giorni dopo che l’organizzatore ha chiuso la serata.`,
+        one: `Vengono eliminate automaticamente ${t.number(days)} giorno dopo che l’organizzatore ha terminato la serata.`,
+        other: `Vengono eliminate automaticamente ${t.number(days)} giorni dopo che l’organizzatore ha terminato la serata.`,
       }),
     noticeRetentionNone:
       'Non è prevista alcuna eliminazione automatica: restano finché l’organizzatore non le elimina.',
@@ -513,7 +513,7 @@ export const it: UiText = {
     'membership.notFound': 'Questa persona non modera questo evento.',
     'guest.notFound': 'Questo invitato non è più nell’elenco. Aggiorni la pagina.',
 
-    'event.scheduleOutOfOrder': 'La chiusura deve venire dopo l’apertura.',
+    'event.scheduleOutOfOrder': 'La fine deve venire dopo l’apertura.',
     'event.scheduleInPast':
       'Questo orario è già passato. Controlli la data: per la fine della serata, scelga il giorno successivo.',
     'event.scheduleInvalid': 'Queste date non sono leggibili. Le scelga di nuovo.',
@@ -781,7 +781,7 @@ export const it: UiText = {
     download: 'Scarica l’album',
     statusDraft: 'Bozza',
     statusLive: 'In corso',
-    statusClosed: 'Chiuso',
+    statusClosed: 'Terminato',
     statusArchived: 'Archiviato',
     goLive: 'Apri agli invitati',
     closeEvent: 'Termina l’evento',
@@ -863,8 +863,8 @@ export const it: UiText = {
     retentionNever: 'Mai',
     retentionDays: (days: number) =>
       t.count(days, {
-        one: `${t.number(days)} giorno dopo la chiusura`,
-        other: `${t.number(days)} giorni dopo la chiusura`,
+        one: `${t.number(days)} giorno dopo la fine dell’evento`,
+        other: `${t.number(days)} giorni dopo la fine dell’evento`,
       }),
     retentionUnlimited: 'Conservazione illimitata',
     moderators: 'Moderatori',
@@ -897,7 +897,7 @@ export const it: UiText = {
     settingsReadOnly:
       'Questo evento è archiviato: le sue impostazioni non possono più essere modificate.',
     settingsOwnerOnly: 'Solo il proprietario dell’evento può modificarne le impostazioni.',
-    retentionHint: 'Le foto vengono eliminate dopo questo intervallo dalla chiusura dell’evento.',
+    retentionHint: 'Le foto vengono eliminate dopo questo intervallo dalla fine dell’evento.',
     selfDeleteGrace: 'Tempo per eliminare',
     selfDeleteGraceHint: 'Durante questo tempo un invitato può eliminare da sé la propria foto.',
     graceNone: 'Nessuno',
@@ -955,18 +955,18 @@ export const it: UiText = {
     purgeConfirmHint: (slug: string) => `Inserisca «${slug}» per confermare l’eliminazione.`,
     purged: (name: string) => `${name} è stato eliminato.`,
 
-    schedule: 'Apertura e chiusura automatiche',
+    schedule: 'Apertura e fine automatiche',
     scheduleHint:
-      'Lasci vuoto per aprire e chiudere di persona. Gli orari sono quelli del suo computer, quindi quelli del luogo della festa.',
+      'Lasci vuoto per aprire e terminare di persona. Gli orari sono quelli del suo computer, quindi quelli del luogo della festa.',
     scheduleOpenAt: 'Apri agli invitati il',
     scheduleCloseAt: 'Termina l’evento il',
     scheduleCloseAtHint: 'Le foto e l’album restano: terminare non cancella nulla.',
     scheduleSaved: 'La programmazione è stata salvata.',
-    scheduleNone: 'Nessuna programmazione: apre e chiude di persona.',
+    scheduleNone: 'Nessuna programmazione: apre e termina di persona.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
-      `Apertura il ${opensAt}, chiusura il ${closesAt}.`,
-    scheduleOpensOnly: (opensAt: string) => `Apertura il ${opensAt}. Chiuderà di persona.`,
-    scheduleClosesOnly: (closesAt: string) => `Chiusura il ${closesAt}. Aprirà di persona.`,
+      `Apertura il ${opensAt}, fine il ${closesAt}.`,
+    scheduleOpensOnly: (opensAt: string) => `Apertura il ${opensAt}. Terminerà di persona.`,
+    scheduleClosesOnly: (closesAt: string) => `Fine il ${closesAt}. Aprirà di persona.`,
     scheduleSave: 'Salva la programmazione',
     /* ---- Added by the host lifecycle pass (revue UX 30/10). ---- */
     noticeOpened: 'Evento aperto agli invitati.',
@@ -989,8 +989,8 @@ export const it: UiText = {
     afterShare: 'Condividi l’album',
     autoOpenAt: (time: string) => `Apertura automatica ${atTime(time)}`,
     autoOpenOn: (dateTime: string) => `Apertura automatica il ${dateTime}`,
-    autoCloseAt: (time: string) => `Chiusura automatica ${atTime(time)}`,
-    autoCloseOn: (dateTime: string) => `Chiusura automatica il ${dateTime}`,
+    autoCloseAt: (time: string) => `Fine automatica ${atTime(time)}`,
+    autoCloseOn: (dateTime: string) => `Fine automatica il ${dateTime}`,
     autoEdit: 'Modifica l’orario',
     scheduleDiscardedAction: 'Imposta un nuovo orario',
 
@@ -1447,7 +1447,7 @@ export const it: UiText = {
     maxEventsPerPeriod: 'Eventi creati per periodo, al massimo',
     maxTotalGigabytes: 'Spazio totale, in GB',
     maxEventQuotaGigabytes: 'Quota di un evento, in GB',
-    maxRetentionDays: 'Conservazione dopo la chiusura, in giorni, al massimo',
+    maxRetentionDays: 'Conservazione dopo la fine dell’evento, in giorni, al massimo',
     maxLiveDays: 'Durata di un evento in corso, in giorni, al massimo',
     clipsAllowed: 'Video consentiti',
     liveAllowed: 'Apertura di eventi consentita',
@@ -1506,7 +1506,7 @@ export const it: UiText = {
     eventStatuses: {
       draft: 'Bozza',
       live: 'In corso',
-      closed: 'Chiuso',
+      closed: 'Terminato',
       archived: 'Archiviato',
     },
     photoCount: (count: number) =>
@@ -1614,15 +1614,15 @@ export const it: UiText = {
     accountDeletedDone: 'Account eliminato.',
     offboardTitle: 'Fine dell’incarico',
     offboardIntro:
-      'Gli eventi in corso vengono chiusi, le bozze archiviate, il cliente sospeso e i suoi album eliminati al più tardi allo scadere del termine che lei indica: è il tempo di cui il cliente dispone per esportare ciò che vuole conservare (la conservazione propria di un evento o i limiti del cliente possono eliminarli prima). Poi vengono eliminati gli account che appartenevano solo a lui e non hanno nient’altro, e con essi il cliente.',
+      'Gli eventi in corso vengono terminati, le bozze archiviate, il cliente sospeso e i suoi album eliminati al più tardi allo scadere del termine che lei indica: è il tempo di cui il cliente dispone per esportare ciò che vuole conservare (la conservazione propria di un evento o i limiti del cliente possono eliminarli prima). Poi vengono eliminati gli account che appartenevano solo a lui e non hanno nient’altro, e con essi il cliente.',
     graceDays: 'Termine prima dell’eliminazione, in giorni',
     graceDaysHint: 'Un numero intero di giorni: i limiti sono quelli del server.',
     offboardAction: 'Concludi l’incarico',
     offboardConfirmTitle: 'Concludere l’incarico di questo cliente?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `Tra ${t.number(days)} giorno al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in corso sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
-        other: `Tra ${t.number(days)} giorni al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in corso sono chiusi, le sue bozze archiviate e il cliente sospeso.`,
+        one: `Tra ${t.number(days)} giorno al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in corso sono terminati, le sue bozze archiviate e il cliente sospeso.`,
+        other: `Tra ${t.number(days)} giorni al più tardi gli album di questo cliente verranno eliminati, poi il cliente stesso con gli account che appartenevano solo a lui e non hanno nient’altro. Senza possibilità di recupero: né la data né la sospensione potranno essere modificate. Fino ad allora i suoi eventi in corso sono terminati, le sue bozze archiviate e il cliente sospeso.`,
       }),
     offboardedDone: 'Fine dell’incarico avviata.',
     offboardingRunning:
