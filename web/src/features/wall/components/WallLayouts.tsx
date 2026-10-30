@@ -252,6 +252,18 @@ const newestOf = (items: readonly WallItemDto[]): string | null => {
   return newest === null ? null : newest.id
 }
 
+/**
+ * Whether the line "first photo of …" goes under this photo, now.
+ *
+ * Said the first time the photo comes up, which is the moment the guest and their table are
+ * looking: the photo the wall has just moved to, and only while it is the fresh lane's. Said
+ * again at every lap, it would sit under a photo for the whole evening, and a hundred
+ * guests' first photos would all carry it. In a layout that holds several photos it is the
+ * one the slide clock just brought in, not whichever print happens to be a first photo too.
+ */
+const saysFirstPhoto = (item: WallItemDto, slideshow: Pick<Slideshow, 'current' | 'fresh'>) =>
+  slideshow.fresh && slideshow.current?.id === item.id && item.firstFromGuest === true
+
 /** The crossfade length the room was given, as the custom property the CSS reads. */
 const stageStyleFor = (transitionMs: number | null): CSSProperties | StageStyle =>
   transitionMs === null ? {} : { '--wall-transition': `${transitionMs}ms` }
@@ -278,10 +290,7 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs, plays }:
           <SlideCaption
             caption={current.caption}
             authorName={current.authorName}
-            // Said the first time the photo comes up, which is the moment the guest and their
-            // table are looking. Said again at every lap, it would sit under a photo for the
-            // whole evening, and a hundred guests' first photos would all carry it.
-            firstFromGuest={slideshow.fresh && current.firstFromGuest === true}
+            firstFromGuest={saysFirstPhoto(current, slideshow)}
           />
         )
       }
@@ -389,7 +398,12 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
             </span>
             {/* On the mat, not on the photo: the one caption in the product that is ink
                 on paper rather than light over an image. */}
-            <SlideCaption caption={item.caption} authorName={item.authorName} variant="print" />
+            <SlideCaption
+              caption={item.caption}
+              authorName={item.authorName}
+              firstFromGuest={saysFirstPhoto(item, slideshow)}
+              variant="print"
+            />
           </figure>
         )
       })}
@@ -454,7 +468,12 @@ function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutView
                   className={styles['image']}
                 />
               </span>
-              <SlideCaption caption={item.caption} authorName={item.authorName} variant="print" />
+              <SlideCaption
+                caption={item.caption}
+                authorName={item.authorName}
+                firstFromGuest={saysFirstPhoto(item, slideshow)}
+                variant="print"
+              />
             </figure>
           )
         })}
@@ -636,7 +655,12 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
               className={styles['paneImage']}
             />
           </span>
-          <SlideCaption caption={item.caption} authorName={item.authorName} variant="pane" />
+          <SlideCaption
+            caption={item.caption}
+            authorName={item.authorName}
+            firstFromGuest={saysFirstPhoto(item, slideshow)}
+            variant="pane"
+          />
         </figure>
       ))}
 

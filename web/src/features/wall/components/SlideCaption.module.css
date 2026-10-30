@@ -121,6 +121,12 @@
   color: var(--text-print);
 }
 
+/* The accent is chosen for the dark surfaces; on the mat the kicker is ink like the caption,
+   and its weight is what sets it apart. */
+.print .first {
+  color: var(--text-print);
+}
+
 /**
  * The credit, quieter by ink rather than by opacity.
  *

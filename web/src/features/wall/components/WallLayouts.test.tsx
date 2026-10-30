@@ -1215,3 +1215,58 @@ describe('the first photo of a guest', () => {
     expect(screen.queryByText(fr.wall.firstPhotoOf('Julie'))).not.toBeInTheDocument()
   })
 })
+
+describe('the first photo of a guest, in a layout that holds several photos', () => {
+  const first = aWallItem({
+    id: 'photo-first',
+    caption: 'Les confettis',
+    authorName: 'Julie',
+    firstFromGuest: true,
+  })
+  // Another guest's first photo, up on the wall at the same time but not the one that just
+  // came in: the line is for the photo the slide clock has just brought, and for no other.
+  const alsoFirst = aWallItem({
+    id: 'photo-also-first',
+    caption: 'Le gâteau',
+    authorName: 'Tom',
+    firstFromGuest: true,
+  })
+  const others = somePhotos(4)
+  const items = [first, alsoFirst, ...others]
+
+  const renderCrowd = (layout: WallLayout, fresh: boolean) =>
+    renderWall(layout, items, {
+      index: 0,
+      current: first,
+      fresh,
+      recent: [
+        { item: first, fresh },
+        ...items.slice(1, 6).map((item) => ({ item, fresh: false })),
+      ],
+    })
+
+  const lines = (): readonly HTMLElement[] =>
+    screen
+      .queryAllByText(fr.wall.firstPhotoOf('Julie'))
+      .concat(screen.queryAllByText(fr.wall.firstPhotoOf('Tom')))
+
+  it.each<WallLayout>(['polaroid', 'clothesline', 'split'])(
+    'says it under the photo that has just come up in %s, and under no other',
+    (layout) => {
+      renderCrowd(layout, true)
+
+      const shown = lines()
+      expect(shown.map((line) => line.textContent)).toEqual([fr.wall.firstPhotoOf('Julie')])
+      expect(shown[0]?.closest('figure')?.getAttribute('data-photo-id')).toBe('photo-first')
+    },
+  )
+
+  it.each<WallLayout>(['polaroid', 'clothesline', 'split'])(
+    'does not say it again in %s when the rotation brings the photo round',
+    (layout) => {
+      renderCrowd(layout, false)
+
+      expect(lines()).toHaveLength(0)
+    },
+  )
+})
