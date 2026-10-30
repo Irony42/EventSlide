@@ -58,6 +58,7 @@ import type { AcknowledgePrivacyNotice } from '../../application/usecases/guests
 import type { GetPrivacyNotice } from '../../application/usecases/guests/getPrivacyNotice'
 import type { JoinEvent } from '../../application/usecases/guests/joinEvent'
 import type { ListGuests } from '../../application/usecases/guests/listGuests'
+import type { EraseGuestContribution } from '../../application/usecases/guests/eraseGuestContribution'
 import type { RenameGuest } from '../../application/usecases/guests/renameGuest'
 import type { RevokeGuest } from '../../application/usecases/guests/revokeGuest'
 
@@ -190,6 +191,7 @@ export interface HttpUseCases {
   // guests
   readonly joinEvent: JoinEvent
   readonly renameGuest: RenameGuest
+  readonly eraseGuestContribution: EraseGuestContribution
   readonly revokeGuest: RevokeGuest
   readonly listGuests: ListGuests
   readonly getPrivacyNotice: GetPrivacyNotice

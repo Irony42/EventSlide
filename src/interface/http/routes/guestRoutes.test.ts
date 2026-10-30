@@ -35,6 +35,7 @@ import {
   type ReactionBudgetPolicy,
 } from '../../../application/usecases/reactions/reactToPhoto'
 import { makeWithdrawReaction } from '../../../application/usecases/reactions/withdrawReaction'
+import { makeEraseGuestContribution } from '../../../application/usecases/guests/eraseGuestContribution'
 import { makeRenameGuest } from '../../../application/usecases/guests/renameGuest'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import { DomainError } from '../../../domain/shared/errors'
@@ -227,6 +228,16 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
             }),
             withdrawReaction: makeWithdrawReaction({ reactions }),
             renameGuest: makeRenameGuest({ guests: base.guests, events: deps.events }),
+            eraseGuestContribution: makeEraseGuestContribution({
+              events: deps.events,
+              guests: base.guests,
+              photos,
+              reactions,
+              clips: new FakeClipJobRepository(),
+              media,
+              bus: deps.bus,
+              clock: deps.clock,
+            }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
             getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
           },
@@ -1468,6 +1479,85 @@ describe('GET /api/events/:eventSlug/photos/:photoId/reactions', () => {
   })
 })
 
+// ------------------------------- erasure: DELETE /guests/me --
+
+describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)', () => {
+  const erase = (subject: Subject, token = subject.token, slug = 'mariage') =>
+    request(subject.app).delete(`/api/events/${slug}/guests/me`).set('Cookie', cookie(token))
+
+  const photoIdsOf = async (subject: Subject, eventId: string): Promise<string[]> =>
+    (await subject.photos.list(asEventId(eventId))).items.map((photo) => photo.id).sort()
+
+  it('removes everything the guest sent, whatever its status, and the guest, and clears the cookie', async () => {
+    const subject = buildSubject()
+
+    const response = await erase(subject)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ photos: 3, clips: 0 })
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(String(response.headers['set-cookie'])).toMatch(/es_guest=;/)
+    expect(await photoIdsOf(subject, WEDDING)).toEqual([ANOTHER_GUESTS, OTHERS_PUBLISHED].sort())
+    expect(await subject.harness.guests.findById(asEventId(WEDDING), asGuestId(GUEST))).toBeNull()
+  })
+
+  it('works on a published photo even when the host switched self-delete off', async () => {
+    const subject = buildSubject({ settings: { allowGuestSelfDelete: false } })
+
+    expect((await erase(subject)).status).toBe(200)
+    expect(await photoIdsOf(subject, WEDDING)).not.toContain(PUBLISHED)
+  })
+
+  it('leaves the same guest id at another event untouched (tenant isolation)', async () => {
+    const subject = buildSubject()
+
+    await erase(subject)
+
+    expect(await photoIdsOf(subject, GALA)).toEqual([GALA_PHOTO])
+  })
+
+  it('refuses the wedding path to a token that names the gala, and erases nothing', async () => {
+    const subject = buildSubject()
+
+    const response = await erase(subject, subject.galaToken)
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('event.notFound')
+    expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
+    expect(await photoIdsOf(subject, GALA)).toEqual([GALA_PHOTO])
+  })
+
+  it('erases at the event in the path, with the gala token on the gala path, and not the wedding', async () => {
+    const subject = buildSubject()
+    subject.harness.guests.seed(aGuest({ id: GUEST, eventId: GALA }))
+
+    const response = await erase(subject, subject.galaToken, 'gala')
+
+    expect(response.status).toBe(200)
+    expect(await photoIdsOf(subject, GALA)).toEqual([])
+    expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
+  })
+
+  it('refuses a revoked guest: the host decides about their photos', async () => {
+    const subject = buildSubject({ revoked: true })
+
+    const response = await erase(subject)
+
+    expect(response.status).toBe(403)
+    expect(await photoIdsOf(subject, WEDDING)).toContain(PENDING)
+  })
+
+  it('answers 401 guestToken.malformed to the token it just erased, so the phone drops it', async () => {
+    const subject = buildSubject()
+    await erase(subject)
+
+    const again = await erase(subject)
+
+    expect(again.status).toBe(401)
+    expect(again.body.error.code).toBe('guestToken.malformed')
+  })
+})
+
 // ------------------------------------- rename: PATCH /guests/:guestId --
 
 describe('PATCH /api/events/:eventSlug/guests/:guestId', () => {
@@ -1688,6 +1778,12 @@ const ROUTES = [
         .patch(`${BASE}/guests/${GUEST}`)
         .set('Cookie', cookie(token))
         .send({ displayName: 'Léa' }),
+  },
+  {
+    name: 'DELETE /guests/me',
+    sharedWithHost: false,
+    send: (client: Client, token: string) =>
+      client.delete(`${BASE}/guests/me`).set('Cookie', cookie(token)),
   },
 ]
 

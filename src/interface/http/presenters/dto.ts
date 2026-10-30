@@ -188,6 +188,12 @@ export interface RenamedGuestDto {
   readonly displayName: string | null
 }
 
+/** What `DELETE /api/events/:slug/guests/me` removed, in the words the phone says it in. */
+export interface ErasedContributionDto {
+  readonly photos: number
+  readonly clips: number
+}
+
 export interface JoinResponseDto {
   readonly guestId: string
   readonly displayName: string | null
