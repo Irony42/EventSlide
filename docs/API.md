@@ -188,7 +188,7 @@ days, renewed by every successful sign-in and kept across a sign-out.
 
 A guest token grants: upload to **that one event** while it is `live`, deletion of
 **their own** photo inside the grace window, a caption on their own pending photo, a
-reaction, changing **their own** display name, and reading and acknowledging the event's privacy
+reaction, changing **their own** display name, **erasing everything they sent to that event** (`DELETE …/guests/me`), and reading and acknowledging the event's privacy
 notice for **that device**.
 Nothing else. It is checked against the event in the URL on every request,
 and the named guest row must not be revoked.
@@ -627,8 +627,8 @@ guest the token proves and checked right after it, before the body of an upload 
 on one Wi-Fi each have their own. Both answer the same code with the same `Retry-After`. Through 3.1
 the two variables counted per client address and event.
 
-‡ **One bucket, five routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
-their photo back), `DELETE …/photos/:id/reactions/:kind`, `PATCH …/guests/:guestId` (a guest renaming themself) and
+‡ **One bucket, six routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
+their photo back), `DELETE …/photos/:id/reactions/:kind`, `PATCH …/guests/:guestId` (a guest renaming themself), `DELETE …/guests/me` (a guest erasing what they sent) and
 `POST …/privacy-notice/acknowledgement` all spend the same allowance, `GUEST_WRITE_RATE_LIMIT_PER_MINUTE`.
 The device token costs nothing to get (`POST /api/join` is public), and a caption edit is announced
 to every screen that has the wall or a console open, so a guest token is not by itself a reason to
@@ -1855,6 +1855,49 @@ be used to learn which guest ids exist. `403 guest.revoked`,
 there is no host route that renames a guest), `404 event.notFound`, **`409 event.notAcceptingUploads`**
 once the event is closed or archived (the answer an upload gets), `400 request.invalid`,
 `400 displayName.tooLong`, `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
+
+### `DELETE /api/events/:slug/guests/me`
+
+"Delete everything I sent" (roadmap §5.2): a guest erasing their own contribution to this event, from their own
+phone. **The path names no guest**: it is always the one the `es_guest` token proves, so there is no id to tamper
+with and no other guest this could reach. Nothing is read from the body.
+
+What goes, in one operation: every photograph and clip the guest sent (the files in every rendition, the
+thumbnails and the rows, with the caption and the moderation decision that live on the row), every clip of theirs
+still waiting to be transcoded together with its staged source, every reaction they left on any photograph, and the
+guest row itself, which is where their display name and device identity live. It is **independent of the
+moderation state** (a photograph on the wall goes too), of `allowGuestSelfDelete` and of the grace window
+(`DELETE …/photos/:photoId` above keeps both rules; this does not), and of the event's lifecycle: it works on a
+`closed` or `archived` event, because erasing is not uploading. It is not audited: the audit log is about accounts and
+clients and is content-free, and a guest has no account to attribute it to.
+
+**200**
+
+```json
+{ "photos": 3, "clips": 1 }
+```
+
+The counts of what was removed, `clips` including those that were still in the queue. `Cache-Control: no-store`. The
+response **clears the `es_guest` cookie**: the guest row is gone, so the token would only be answered
+`401 guestToken.malformed` from now on, which the phone already treats as "forget this session". Every open screen is
+told at once: each photograph announces `photo.deleted` and the operation ends with one `guest.erased` signal (the
+wall re-reads on any signal but a reaction, the moderation queue on each `photo.*`), so a slide leaves the projector
+and the host's queue without a reload; the guest list and the guest feed show it on their next read.
+
+**What it cannot reach**, and what the guest is told on the phone: a copy the host already exported (the album archive is
+streamed, never kept), a download from the shared gallery link, a screenshot, and the hourly backup, which holds a deleted
+photograph for the retention the privacy notice states. A photograph that was a **duplicate** of an earlier one in the
+same event (the same bytes sent twice) is one row owned by its first sender, so the second sender's erasure does not
+remove it and the first one's does.
+
+**Retryable.** Photographs go one at a time (bytes, then row), then the queued clips, the reactions and the guest row. A
+process that dies half way leaves the guest row, so the token still verifies and pressing the button again finishes. A
+clip transcoding at that very moment finishes against a row that is gone and is discarded.
+
+**Errors** — `401 auth.required` / `401 guestToken.*` (a lost token is the reason to ask the organiser, who can delete
+any photograph: there is deliberately no identity check here), `403 guest.revoked` (the host's decision about a removed
+guest's photographs stands; they ask the host), `404 event.notFound` (a token for another event, as everywhere in
+this section), `429 rate.limited` with a `Retry-After` (the guest-write bucket of §1).
 
 ## 4. Media
 

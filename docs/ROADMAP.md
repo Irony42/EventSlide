@@ -458,6 +458,15 @@ which is what "the notice reads differently" is supposed to do.
 "Delete everything I sent" from the guest's own page, independent of the moderation grace
 window. Article 17 in practice, and the cascade already makes it a single operation.
 
+**Shipped.** `DELETE /api/events/:slug/guests/me`, a "Supprimer tout ce que j'ai envoyé" button under "Vos envois" and a
+confirmation in plain words (what goes, that it is irreversible, what it cannot reach). It removes photographs, clips (queued
+ones with their staged source), captions, reactions and the display name, ignoring the moderation state, the self-delete switch
+and the grace window, and tells every screen at once (`photo.deleted` per photograph, then `guest.erased`). **Not** done, on
+purpose: an identity check for a lost token (the phone says to ask the organiser, who can delete any photograph), an audit line
+(the log is content-free and a guest has no account), and any reach into a copy the host already exported or a backup (said in
+the dialog). Revoked guests are refused, so the host's decision about them stands. The wording of the privacy notice that
+promises a removal path belongs to §5.1 and is a separate change.
+
 ### 5.3 TOTP for host accounts (P2, effort M, risk: low)
 
 A host account controls every photo of an event. A password and a rate limit are thin for

@@ -629,6 +629,9 @@ string, so a stranger could subscribe to another party's updates.
 | `wall`       | `photo.published`, `photo.hidden`, `photo.rejected`, settings changes | public read of that event while `live` or `closed` |
 | `guest`      | the guest's own photo changing status                                 | `requireGuest()` for that event                    |
 
+`guest.erased` (a guest deleted everything they sent, `DELETE …/guests/me`) is announced after the per-photo `photo.deleted`
+frames and covers what no photograph says (a name, a reaction on someone else's photo): the wall re-reads on it like on any signal but a reaction.
+
 Subscribing to `moderation` without the role is `403`. That is why a `photo.submitted`
 signal never reaches the projector: the wall is not merely uninterested, it is not
 permitted.
