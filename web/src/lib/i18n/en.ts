@@ -86,6 +86,9 @@ export const en: UiText = {
       'Everything you had sent has been deleted from the event. This phone is no longer linked to it.',
     eraseLostAccess:
       'New phone, or lost access? Ask the organiser to delete your photos: they can do it from their own area.',
+    revokedTitle: 'Your access was removed',
+    revokedBody:
+      'The organiser removed your access, so you can no longer send photos. You can still delete everything you sent.',
 
     itemPreparing: 'Preparing…',
     queueLabel: 'Photos to send',

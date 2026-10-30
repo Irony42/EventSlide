@@ -61,6 +61,32 @@ export function GuestUploadPage() {
   )
 }
 
+/**
+ * The host removed this guest. Nothing is offered to send, and the one thing that stays is the
+ * right to take back what they sent (roadmap §5.2): the same button, the same confirmation.
+ */
+function Revoked({
+  eventName,
+  erasure,
+}: {
+  readonly eventName: string
+  readonly erasure: ReturnType<typeof useEraseEverything>
+}) {
+  const t = useTranslations()
+
+  return (
+    <div className={styles['page']}>
+      <header className={styles['header']}>
+        <h1 className={styles['title']}>{eventName}</h1>
+        <Notice tone="warning" variant="boxed" role="status">
+          <strong>{t.upload.revokedTitle}</strong> {t.upload.revokedBody}
+        </Notice>
+      </header>
+      <EraseEverything state={erasure} />
+    </div>
+  )
+}
+
 /** After "delete everything I sent": said once, with the way back in if the guest wants it. */
 function Erased() {
   const t = useTranslations()
@@ -293,6 +319,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   // is not "scan again" but "it is done".
   if (erasure.done) return <Erased />
   if (signedOut) return <NotJoined />
+  if (mine.revoked) return <Revoked eventName={event.name} erasure={erasure} />
 
   const sending = queue.sending || outbox.draining || clip.stage === 'uploading'
   const trimmedCaption = caption.trim()

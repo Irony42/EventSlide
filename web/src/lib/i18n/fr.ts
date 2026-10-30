@@ -134,6 +134,9 @@ export const fr = {
       'Tout ce que vous aviez envoyé a été supprimé de la soirée. Vous n’êtes plus rattaché à cet événement sur ce téléphone.',
     eraseLostAccess:
       'Vous avez changé de téléphone ou perdu l’accès ? Demandez à l’organisateur de supprimer vos photos : il peut le faire depuis son espace.',
+    revokedTitle: 'Votre accès a été retiré',
+    revokedBody:
+      'L’organisateur a retiré votre accès : vous ne pouvez plus envoyer de photos. Vous pouvez encore effacer tout ce que vous avez envoyé.',
 
     /* ---------- guest surface: features/join + features/guest-upload ---------- */
 

@@ -87,6 +87,9 @@ export const es: UiText = {
       'Todo lo que había enviado se ha eliminado de la fiesta. Este teléfono ya no está vinculado a ella.',
     eraseLostAccess:
       '¿Cambió de teléfono o perdió el acceso? Pídale al organizador que elimine sus fotos: puede hacerlo desde su espacio.',
+    revokedTitle: 'Se retiró su acceso',
+    revokedBody:
+      'El organizador retiró su acceso: ya no puede enviar fotos. Todavía puede eliminar todo lo que envió.',
 
     itemPreparing: 'Preparando…',
     queueLabel: 'Fotos por enviar',

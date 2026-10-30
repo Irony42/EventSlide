@@ -49,6 +49,11 @@ export interface MyPhotosState {
    * screen sends them to the code entry rather than on to uploads that cannot succeed.
    */
   readonly signedOut: boolean
+  /**
+   * The host removed this guest (`403 guest.revoked`). Nothing can be sent any more, but the guest
+   * still may erase what they sent, so the screen says so and offers only that.
+   */
+  readonly revoked: boolean
   readonly loading: boolean
   /**
    * A sentence in the guest's current language, ready to render. `null` when nothing
@@ -76,6 +81,7 @@ type Failure =
   | { readonly kind: 'load' }
   | { readonly kind: 'gone' }
   | { readonly kind: 'signedOut' }
+  | { readonly kind: 'revoked' }
   | { readonly kind: 'action'; readonly code: string | null }
 
 /**
@@ -85,6 +91,7 @@ type Failure =
 const classifyRead = (cause: unknown): Failure => {
   if (cause instanceof ApiError) {
     if (cause.status === 401) return { kind: 'signedOut' }
+    if (cause.status === 403 && cause.code === 'guest.revoked') return { kind: 'revoked' }
     if (cause.status === 404 && cause.code === 'event.notFound') return { kind: 'gone' }
   }
   return { kind: 'load' }
@@ -194,7 +201,13 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
   const error = useMemo<string | null>(() => {
     if (state.failure === null) return null
     // Said by the screen as a whole, not as a line above "Vos envois".
-    if (state.failure.kind === 'gone' || state.failure.kind === 'signedOut') return null
+    if (
+      state.failure.kind === 'gone' ||
+      state.failure.kind === 'signedOut' ||
+      state.failure.kind === 'revoked'
+    ) {
+      return null
+    }
     if (state.failure.kind === 'load') return t.upload.mineFailed
     return state.failure.code === null ? t.errors.unknown : messageForCode(state.failure.code, t)
   }, [state.failure, t])
@@ -205,6 +218,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     theme: state.theme,
     unavailable: state.failure?.kind === 'gone',
     signedOut: state.failure?.kind === 'signedOut',
+    revoked: state.failure?.kind === 'revoked',
     loading: state.loading,
     error,
     refresh,

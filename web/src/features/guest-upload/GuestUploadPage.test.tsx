@@ -1632,3 +1632,60 @@ describe('GuestUploadPage: delete everything I sent (roadmap §5.2)', () => {
     ).toBeVisible()
   })
 })
+
+describe('GuestUploadPage: a guest the host removed can still erase what they sent', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    localStorage.clear()
+  })
+
+  const revokedApi = (overrides: Partial<Api> = {}) =>
+    fakeApi({
+      myPhotos: vi.fn(async () => {
+        throw new ApiError(403, 'guest.revoked')
+      }),
+      ...overrides,
+    })
+
+  it('says in plain words that access was removed, offers nothing to send, and offers the erasure', async () => {
+    havingJoined()
+    renderUpload(revokedApi())
+
+    expect(await screen.findByText(fr.upload.revokedTitle)).toBeVisible()
+    expect(screen.getByText(fr.upload.revokedBody, { exact: false })).toBeVisible()
+    expect(screen.queryByTestId('upload-composer')).toBeNull()
+    expect(screen.getByRole('button', { name: fr.upload.eraseOpen })).toBeVisible()
+  })
+
+  it('goes through the same confirmation and ends on the done screen', async () => {
+    havingJoined()
+    const api = revokedApi()
+    renderUpload(api)
+
+    // The revoked screen replaces the ordinary one once the read answers; a click before that
+    // would open a dialog that is then unmounted.
+    await screen.findByText(fr.upload.revokedTitle)
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.eraseOpen }))
+    const dialog = await screen.findByRole('dialog', { name: fr.upload.eraseTitle })
+    expect(api.eraseMyContribution).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: fr.upload.eraseConfirm }))
+
+    expect(await screen.findByRole('heading', { name: fr.upload.eraseDoneTitle })).toBeVisible()
+    expect(api.eraseMyContribution).toHaveBeenCalledWith(SLUG)
+    expect(readGuestSession(SLUG)).toBeNull()
+  })
+
+  it('does not take any other 403 for a removal', async () => {
+    havingJoined()
+    renderUpload(
+      fakeApi({
+        myPhotos: vi.fn(async () => {
+          throw new ApiError(403, 'auth.forbidden')
+        }),
+      }),
+    )
+
+    expect(await screen.findByTestId('upload-composer')).toBeVisible()
+    expect(screen.queryByText(fr.upload.revokedTitle)).toBeNull()
+  })
+})

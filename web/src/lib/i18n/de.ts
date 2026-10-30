@@ -88,6 +88,9 @@ export const de: UiText = {
       'Alles, was Sie gesendet hatten, wurde aus der Feier gelöscht. Dieses Telefon ist dieser Veranstaltung nicht mehr zugeordnet.',
     eraseLostAccess:
       'Neues Telefon oder Zugang verloren? Bitten Sie den Veranstalter, Ihre Fotos zu löschen: Das kann er in seinem Bereich tun.',
+    revokedTitle: 'Ihr Zugang wurde entfernt',
+    revokedBody:
+      'Der Veranstalter hat Ihren Zugang entfernt: Sie können keine Fotos mehr senden. Sie können aber weiterhin alles löschen, was Sie gesendet haben.',
 
     itemPreparing: 'Wird vorbereitet…',
     queueLabel: 'Fotos zum Senden',

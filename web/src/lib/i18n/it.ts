@@ -91,6 +91,9 @@ export const it: UiText = {
       'Tutto quello che aveva inviato è stato eliminato dalla serata. Questo telefono non è più collegato a questa serata.',
     eraseLostAccess:
       'Ha cambiato telefono o perso l’accesso? Chieda all’organizzatore di eliminare le sue foto: può farlo dal suo spazio.',
+    revokedTitle: 'Il suo accesso è stato rimosso',
+    revokedBody:
+      'L’organizzatore ha rimosso il suo accesso: non può più inviare foto. Può ancora eliminare tutto quello che ha inviato.',
 
     itemPreparing: 'Preparazione…',
     queueLabel: 'Foto da inviare',
