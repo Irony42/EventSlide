@@ -52,7 +52,8 @@ the privacy notice again, so read "Behaviour changes to check before upgrading" 
   confirmation, removes their photos and clips (files included), reactions and name from the wall, the feed
   and the host's pages at once. It works after the host revoked the guest, from a screen that says their
   access was withdrawn. The confirmation says it does not reach copies the host kept or downloaded from the
-  shared gallery.
+  shared gallery. A photo the operator took down is kept as evidence, and the guest's record stays
+  without its name until it goes.
 - **The privacy notice names the guests' feed** (#273): the other guests see a published photo, with the
   sender's first name, in « Les photos de la soirée ». It also says a guest can erase what they sent
   (#274).

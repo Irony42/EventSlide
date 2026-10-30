@@ -597,7 +597,8 @@ and the account self-erasure).
    reads as `outdated`. Nothing to set; expect each guest to tap through the notice once.
 9. **A guest can erase their own contribution**: `DELETE /api/events/:slug/guests/me` and a button under
    "Vos envois" remove every photo and clip the guest sent, their reactions and their name, at once and for
-   good, also after the host revoked them. It is refused on an event the operator holds for purge.
+   good, also after the host revoked them. It is refused on an event the operator holds for purge, and it
+   leaves alone a photo the operator took down: that one is kept, with the guest's record stripped of its name.
 10. **The panes' glass material is retired** (ADR 0012). An event's theme no longer carries `material`:
     responses drop the field, and `PATCH /api/events/:slug/settings` still accepts it and ignores it, so a
     script or a tab opened before the upgrade is not refused. Stored themes need no migration. The setting
