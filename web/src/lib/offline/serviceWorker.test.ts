@@ -7,6 +7,7 @@ import {
   registerUploadWorker,
   removeUploadWorker,
   requestBackgroundSync,
+  supportsBackgroundSync,
 } from './serviceWorker'
 
 /**
@@ -158,5 +159,47 @@ describe('requestBackgroundSync', () => {
 
   it('reports no in a browser with no service workers at all', async () => {
     expect(await requestBackgroundSync()).toBe(false)
+  })
+})
+
+describe('supportsBackgroundSync', () => {
+  it('says yes where the registration can sync, so "you can close this page" is true', async () => {
+    const sync = { register: vi.fn(async () => undefined) }
+    install({
+      getRegistration: vi.fn(async () => aRegistration({ sync })),
+    } as unknown as Partial<ServiceWorkerContainer>)
+
+    expect(await supportsBackgroundSync()).toBe(true)
+  })
+
+  it('says no on WebKit, where photos leave only while a page is open', async () => {
+    install({
+      getRegistration: vi.fn(async () => aRegistration()),
+    } as unknown as Partial<ServiceWorkerContainer>)
+
+    expect(await supportsBackgroundSync()).toBe(false)
+  })
+
+  it('says no when no worker was ever registered, without waiting for one', async () => {
+    // `ready` would never resolve here; the answer has to come back all the same.
+    install({
+      getRegistration: vi.fn(async () => undefined),
+    } as unknown as Partial<ServiceWorkerContainer>)
+
+    expect(await supportsBackgroundSync()).toBe(false)
+  })
+
+  it('says no when the lookup itself fails', async () => {
+    install({
+      getRegistration: vi.fn(async () => {
+        throw new Error('locked down')
+      }),
+    } as unknown as Partial<ServiceWorkerContainer>)
+
+    expect(await supportsBackgroundSync()).toBe(false)
+  })
+
+  it('says no in a browser with no service workers at all', async () => {
+    expect(await supportsBackgroundSync()).toBe(false)
   })
 })

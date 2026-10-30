@@ -7,6 +7,7 @@ import { shouldQueue } from '../../../lib/offline/outboxPolicy'
 import { downscaleImage } from './downscaleImage'
 import { summarizeBatch, type BatchSummary } from './queueBatch'
 import type { DrainReport } from '../../../lib/offline/drainOutbox'
+import type { OutboxHandOff } from '../../../lib/offline/outbox'
 
 /**
  * The upload queue: the one piece of state this feature genuinely owns.
@@ -63,6 +64,23 @@ export interface UploadOutbox {
     missionId: string | null,
   ) => Promise<string | null>
   readonly discard: (entryId: string) => Promise<void>
+  /**
+   * Where the queue registers what it still owes the server, for the outbox to keep if the
+   * guest leaves the screen mid-send (INV-1). Optional: an outbox that does not offer it
+   * leaves the queue exactly as it was, cancelling on unmount.
+   */
+  readonly keepOnLeave?: (provider: (() => readonly OutboxHandOff[]) | null) => void
+}
+
+/** What a run of the queue ended with, for the screen to decide what to clear. */
+export interface SettledOutcome {
+  /**
+   * Every row is in the event or safely stored on the phone (`done`, `duplicate` or `queued`),
+   * and there is at least one: nothing failed and nothing is still to send. The one moment the
+   * caption of the batch has done its job. A single failure keeps it `false`, because the retry
+   * sends the same caption again and the guest must still see it.
+   */
+  readonly allSent: boolean
 }
 
 export interface UploadQueueOptions {
@@ -72,8 +90,8 @@ export interface UploadQueueOptions {
    * the only reason this hook can be tested at all; the default is the real thing.
    */
   readonly resize?: (file: File) => Promise<File>
-  /** Called when a batch has finished, whatever the outcome. */
-  readonly onSettled?: () => void
+  /** Called when a batch has finished, whatever the outcome, and says how it went. */
+  readonly onSettled?: (outcome: SettledOutcome) => void
   /**
    * Where a photo goes when the network will not take it. Absent — the kill switch is
    * off, or the store never opened — and the queue reports failures exactly as it did
@@ -107,6 +125,12 @@ export interface UploadQueue {
 
 const SETTLED: readonly UploadItemState[] = ['done', 'duplicate']
 
+/** The rows a photograph is on its way through: the guest leaving now would cancel them. */
+const OWED: readonly UploadItemState[] = ['pending', 'preparing', 'uploading']
+
+/** A row that no longer needs the caption: in the event, or kept on the phone to be sent. */
+const SENT: readonly UploadItemState[] = ['done', 'duplicate', 'queued']
+
 /** The rows still owed something, with the previews of the arrived ones let go of. */
 const withoutSettled = (items: readonly UploadItem[]): readonly UploadItem[] =>
   items.filter((item) => {
@@ -117,6 +141,7 @@ const withoutSettled = (items: readonly UploadItem[]): readonly UploadItem[] =>
 
 export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   const { slug, resize = downscaleImage, onSettled, outbox } = options
+  const keepOnLeave = outbox?.keepOnLeave
   const t = useTranslations()
   const api = useApi()
 
@@ -134,6 +159,22 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   const itemsRef = useRef<readonly UploadItem[]>([])
   const controllers = useRef(new Map<string, AbortController>())
   const running = useRef(false)
+  /**
+   * The photos of the runs in progress that have not finished, by row id.
+   *
+   * What separates a photo the guest pressed "Envoyer" for from one they only picked: both are
+   * `pending`, and only the first is owed to the server. Leaving the screen hands the first kind
+   * to the outbox and drops the second, which the guest never asked to send.
+   */
+  const owed = useRef(new Set<string>())
+  /**
+   * The shrunk bytes of a row, from the moment they exist until its attempt is over.
+   *
+   * What `useOutbox.keepOnLeave` writes if the screen unmounts mid-send. A local variable of
+   * `uploadOne` would be out of reach at that moment, and the abort that the unmount triggers
+   * ends the attempt, so the bytes are copied here before the first await after they are made.
+   */
+  const prepared = useRef(new Map<string, File>())
   const caption = useRef<string | null>(null)
   /**
    * The prompt the batch was sent for, kept for the retries exactly as the caption is
@@ -189,6 +230,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       // Aborted first: a removed row whose request kept running would spend the
       // guest's remaining bandwidth on a photo they just took back.
       controllers.current.get(id)?.abort()
+      owed.current.delete(id)
       const target = itemsRef.current.find((item) => item.id === id)
       if (target !== undefined) {
         URL.revokeObjectURL(target.previewUrl)
@@ -241,13 +283,14 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       patch(id, { state: 'preparing', progress: 0, error: null, retryable: false })
       // `resize` contracts never to lose a photo, but a rejected promise here would
       // leave the row stuck on "Préparation" for the rest of the evening.
-      const prepared = await resize(item.file).catch(() => item.file)
+      const shrunk = await resize(item.file).catch(() => item.file)
       if (!itemsRef.current.some((candidate) => candidate.id === id)) return
+      prepared.current.set(id, shrunk)
 
       // Nothing to gain from an upload the browser already knows cannot leave the
       // device: the photo goes straight to the outbox, and the guest gets an honest
       // "en attente du réseau" instead of watching a progress bar fail.
-      if (!navigator.onLine && (await storeForLater(id, prepared))) return
+      if (!navigator.onLine && (await storeForLater(id, shrunk))) return
 
       const controller = new AbortController()
       controllers.current.set(id, controller)
@@ -255,7 +298,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
 
       try {
         const response = await api.uploadPhotos(slug, {
-          files: [prepared],
+          files: [shrunk],
           caption: caption.current,
           missionId: mission.current,
           onProgress: (progress) => patch(id, { progress: progress.percent }),
@@ -289,7 +332,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         // fault, so it is kept rather than reported. This is the whole feature: the
         // photo now arrives whether or not the guest is still looking at their phone.
         const status = cause instanceof ApiError ? cause.status : 0
-        if (shouldQueue(status) && (await storeForLater(id, prepared))) return
+        if (shouldQueue(status) && (await storeForLater(id, shrunk))) return
 
         patch(id, {
           state: 'failed',
@@ -301,6 +344,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
         })
       } finally {
         controllers.current.delete(id)
+        prepared.current.delete(id)
       }
     },
     [api, patch, resize, slug, storeForLater, t],
@@ -311,15 +355,23 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       if (running.current || ids.length === 0) return
       running.current = true
       setSending(true)
+      for (const id of ids) owed.current.add(id)
       try {
         // One at a time, deliberately. Four parallel uploads on a saturated venue
         // Wi-Fi finish later than four in a row, and they turn every progress bar
         // into a guess rather than a measurement.
-        for (const id of ids) await uploadOne(id)
+        for (const id of ids) {
+          await uploadOne(id)
+          owed.current.delete(id)
+        }
       } finally {
         running.current = false
         setSending(false)
-        onSettled?.()
+        // Read from the mirror: the rendered `items` is a snapshot of the past.
+        const rows = itemsRef.current
+        onSettled?.({
+          allSent: rows.length > 0 && rows.every((item) => SENT.includes(item.state)),
+        })
       }
     },
     [onSettled, uploadOne],
@@ -375,6 +427,38 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
     },
     [commit, t],
   )
+
+  /**
+   * What the outbox keeps if the guest leaves while photos are on their way (INV-1).
+   *
+   * Taken at the moment of leaving and not before: a row that has since arrived is no longer owed.
+   * The bytes and the caption are snapshotted here, because the abort the unmount triggers is
+   * about to end every attempt and clear what they hold. A row whose bytes are not ready yet
+   * (`pending`, or still `preparing`) is shrunk by the hand-over itself, with the same `resize`.
+   * What is *not* handed over: a photo the guest picked and never pressed "Envoyer" for, a row
+   * that already failed (it says so, with its retry, and the guest chose to leave it), and a
+   * `queued` row, which the outbox already holds.
+   */
+  const handOff = useCallback((): readonly OutboxHandOff[] => {
+    const batchCaption = caption.current
+    const batchMission = mission.current
+    return itemsRef.current
+      .filter((item) => owed.current.has(item.id) && OWED.includes(item.state))
+      .map((item): OutboxHandOff => {
+        const ready = prepared.current.get(item.id)
+        return {
+          file: () =>
+            ready === undefined ? resize(item.file).catch(() => item.file) : Promise.resolve(ready),
+          caption: batchCaption,
+          missionId: batchMission,
+        }
+      })
+  }, [resize])
+
+  useEffect(() => {
+    keepOnLeave?.(handOff)
+    return () => keepOnLeave?.(null)
+  }, [keepOnLeave, handOff])
 
   useEffect(() => {
     const inFlight = controllers.current

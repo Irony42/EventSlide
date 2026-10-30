@@ -5,7 +5,7 @@ import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { fakeApi } from '../../../testing/renderWithProviders'
 import { useUploadQueue } from './useUploadQueue'
-import type { UploadOutbox } from './useUploadQueue'
+import type { SettledOutcome, UploadOutbox } from './useUploadQueue'
 import type { ReactNode } from 'react'
 import type { Api, UploadInput } from '../../../lib/api/client'
 import type { UploadResponse } from '../../../lib/api/dto'
@@ -44,7 +44,7 @@ const deferred = () => {
 
 interface MountOptions {
   readonly resize?: (file: File) => Promise<File>
-  readonly onSettled?: () => void
+  readonly onSettled?: (outcome: SettledOutcome) => void
   readonly outbox?: UploadOutbox
 }
 
@@ -324,6 +324,57 @@ describe('useUploadQueue', () => {
     act(() => result.current.send(null, null))
 
     await waitFor(() => expect(onSettled).toHaveBeenCalledTimes(1))
+  })
+
+  describe('what a settled batch says about how it went (INV-5)', () => {
+    it('says every photo is sent when they all arrived', async () => {
+      const onSettled = vi.fn()
+      const api = fakeApi({ uploadPhotos: vi.fn(async () => accepted('photo-1')) })
+      const { result } = mount(api, { onSettled })
+
+      act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('deux.jpg')]))
+      act(() => result.current.send('Légende', null))
+
+      await waitFor(() => expect(onSettled).toHaveBeenCalledWith({ allSent: true }))
+    })
+
+    it('says it is not when one photo failed, so the caption is kept for the retry', async () => {
+      const onSettled = vi.fn()
+      const api = fakeApi({
+        uploadPhotos: vi.fn(async (_slug: string, input: UploadInput) =>
+          input.files[0]?.name === 'film.mov'
+            ? refused('photo.unsupportedType')
+            : accepted('photo-1'),
+        ),
+      })
+      const { result } = mount(api, { onSettled })
+
+      act(() => result.current.add([aPhotoFile('un.jpg'), aPhotoFile('film.mov')]))
+      act(() => result.current.send('Légende', null))
+
+      await waitFor(() => expect(onSettled).toHaveBeenCalledWith({ allSent: false }))
+    })
+
+    it('counts a photo held for the network as sent, since the caption went into its entry', async () => {
+      const onSettled = vi.fn()
+      const outbox: UploadOutbox = {
+        ready: true,
+        enqueue: vi.fn(async () => 'entry-1'),
+        discard: vi.fn(async () => undefined),
+      }
+      const api = fakeApi({
+        uploadPhotos: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      })
+      const { result } = mount(api, { onSettled, outbox })
+
+      act(() => result.current.add([aPhotoFile('un.jpg')]))
+      act(() => result.current.send('Légende', null))
+
+      await waitFor(() => expect(onSettled).toHaveBeenCalledWith({ allSent: true }))
+      expect(outbox.enqueue).toHaveBeenCalledWith(expect.anything(), 'Légende', null)
+    })
   })
 
   it('reports each photo of a batch on its own, so one refusal does not take the rest', async () => {
