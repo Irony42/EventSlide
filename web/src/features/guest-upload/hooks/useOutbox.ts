@@ -270,6 +270,8 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
   useEffect(() => {
     generation.current += 1
     const mine = generation.current
+    // The set itself never changes, only its members: read in the cleanup, it is the one that was here.
+    const inFlightWrites = writes.current
 
     if (!isOfflineQueueEnabled()) {
       // The switch is off. No store is opened, so `enqueue` refuses and the upload
@@ -323,7 +325,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       const closing = store.current
       store.current = null
       // Behind a hand-over or a write that is still going: see `handingOver` and `writes`.
-      const pending: Promise<unknown>[] = [...writes.current]
+      const pending: Promise<unknown>[] = [...inFlightWrites]
       if (handingOver.current !== null) pending.push(handingOver.current)
       handingOver.current = null
       if (pending.length === 0) closing?.close()
