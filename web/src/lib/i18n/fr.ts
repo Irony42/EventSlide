@@ -548,7 +548,7 @@ export const fr = {
     byAnonymous: 'Invité anonyme',
     shortcuts: 'Raccourcis',
     shortcutsHint:
-      'J / K pour naviguer, P pour publier, R pour refuser, Z pour annuler la dernière publication.',
+      'J / K pour naviguer, P pour publier, R pour refuser, Z pour annuler la dernière décision.',
 
     /* ---- Added by features/moderation. Keep additions inside this block. ---- */
     shortcutsMore:
@@ -1754,7 +1754,7 @@ export const fr = {
     undoUnavailable: 'Seule une publication peut être annulée.',
 
     /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
-    onScreenTitle: 'À l’écran maintenant',
+    onScreenTitle: 'Dernières photos à l’écran',
     onScreenHint: 'Touchez une photo pour la retirer de l’écran.',
     onScreenEmpty: 'Rien à l’écran pour l’instant.',
     openOnScreen: (author: string) => `Voir la photo de ${author}, à l’écran`,

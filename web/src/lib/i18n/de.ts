@@ -598,7 +598,7 @@ export const de: UiText = {
     byAnonymous: 'Anonymer Gast',
     shortcuts: 'Tastenkürzel',
     shortcutsHint:
-      'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen der letzten Freigabe.',
+      'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen der letzten Entscheidung.',
 
     shortcutsMore:
       'H zum Entfernen vom Bildschirm, Leertaste zum Auswählen, Esc zum Aufheben der Auswahl.',
@@ -1233,7 +1233,7 @@ export const de: UiText = {
     undoUnavailable: 'Nur eine Freigabe lässt sich rückgängig machen.',
 
     /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
-    onScreenTitle: 'Gerade auf dem Bildschirm',
+    onScreenTitle: 'Neueste Fotos auf dem Bildschirm',
     onScreenHint: 'Tippen Sie auf ein Foto, um es vom Bildschirm zu nehmen.',
     onScreenEmpty: 'Gerade ist nichts auf dem Bildschirm.',
     openOnScreen: (author: string) => `Foto von ${author} ansehen, auf dem Bildschirm`,

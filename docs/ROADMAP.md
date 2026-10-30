@@ -1441,8 +1441,10 @@ photo. What shipped instead is that **a publication is taken back with `hide`**:
   `publish`, on a photo the host has just turned down, which would put it on a screen in
   front of the room with nobody's approval behind it. `src/domain/moderation/
 moderationDecision.ts` refuses the same inference, and this agrees with it. The desktop
-  console says where the photo went instead ("Voir dans Refusées"), and a bulk refusal of
-  waiting photos asks first (from three photos), since it is the one decision with no way back.
+  console says where the photo went instead ("Voir dans Refusées"), and a bulk refusal asks
+  first (from three photos) as soon as one photo is not on the wall, since that batch has no
+  way back. A hidden photo is in that case too: a refused photo may return to the wall and
+  nowhere else, so refusing a hidden one is not offered an undo either.
 
 This was an opt-in option, `useModerationQueue(slug, { undoOfPublish: 'hide' })`, passed by
 the phone console alone, and the desktop console kept the opposite on the argument that the
@@ -1454,8 +1456,10 @@ Restoring a photo to `pending` — a true undo, and the only one that would sati
 written — needs the server to record where a decision came from, which is a use case and a
 migration, so it belongs in its own roadmap item rather than in this one.
 
-The phone console also shows **"À l'écran maintenant"** (MOD-2): the six latest published photos,
-read beside the queue with `status=published&limit=6`. A touch opens one with a single action,
+The phone console also shows **"Dernières photos à l'écran"** (MOD-2): the six latest published
+photos by upload time, read beside the queue with `status=published&limit=6`. It is a strip of the
+latest, not a claim about what the room is looking at: the wall also cycles through older photos,
+and ordering by publication time is a follow-up (MOD-5). A touch opens one with a single action,
 "Retirer de l'écran", and the photo stays in the album.
 
 ### 9.5 Scheduled open and close

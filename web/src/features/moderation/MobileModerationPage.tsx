@@ -36,7 +36,11 @@ import styles from './MobileModerationPage.module.css'
  *   button, because a swipe is invisible to a screen reader and unusable one-handed by
  *   somebody with limited mobility. The gesture is the shortcut, not the interface.
  */
-/** How many photos the "À l'écran maintenant" strip shows: the ones a room is looking at. */
+/**
+ * How many photos the "Dernières photos à l'écran" strip shows: the six latest published,
+ * by upload time. Not "what the room is looking at" — the wall cycles through older photos
+ * too, and the server has no publication time to order by yet (MOD-5).
+ */
 const ON_SCREEN_COUNT = 6
 
 export function MobileModerationPage() {

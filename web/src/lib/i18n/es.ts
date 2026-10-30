@@ -564,7 +564,7 @@ export const es: UiText = {
     byAnonymous: 'Invitado anónimo',
     shortcuts: 'Atajos',
     shortcutsHint:
-      'J / K para navegar, P para publicar, R para rechazar, Z para deshacer la última publicación.',
+      'J / K para navegar, P para publicar, R para rechazar, Z para deshacer la última decisión.',
 
     shortcutsMore:
       'H para retirar de la pantalla, Espacio para seleccionar, Esc para deseleccionar todo.',
@@ -1216,7 +1216,7 @@ export const es: UiText = {
     undoUnavailable: 'Solo se puede deshacer una publicación.',
 
     /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
-    onScreenTitle: 'En pantalla ahora',
+    onScreenTitle: 'Últimas fotos en pantalla',
     onScreenHint: 'Toque una foto para retirarla de la pantalla.',
     onScreenEmpty: 'No hay nada en pantalla por ahora.',
     openOnScreen: (author: string) => `Ver la foto de ${author}, en pantalla`,

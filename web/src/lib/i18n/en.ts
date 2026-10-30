@@ -548,7 +548,7 @@ export const en: UiText = {
     by: (name: string) => `by ${name}`,
     byAnonymous: 'Anonymous guest',
     shortcuts: 'Shortcuts',
-    shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo the last publication.',
+    shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo the last decision.',
 
     shortcutsMore: 'H to take off the screen, Space to select, Esc to clear the selection.',
     queueLabel: 'Photos to moderate',
@@ -1172,7 +1172,7 @@ export const en: UiText = {
     undoUnavailable: 'Only publishing can be undone.',
 
     /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
-    onScreenTitle: 'On the screen now',
+    onScreenTitle: 'Latest photos on the screen',
     onScreenHint: 'Tap a photo to take it off the screen.',
     onScreenEmpty: 'Nothing on the screen right now.',
     openOnScreen: (author: string) => `View the photo by ${author}, on the screen`,

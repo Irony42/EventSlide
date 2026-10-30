@@ -6,7 +6,7 @@ import type { ModerationPhotoDto } from '../../../lib/api/dto'
 import styles from './OnScreenStrip.module.css'
 
 /**
- * "À l'écran maintenant": the last few photos on the wall, one touch from coming off it.
+ * "Dernières photos à l'écran": the latest few published photos, one touch from coming off the wall.
  *
  * The phone console shows one waiting photo at a time and has no filter bar, so until MOD-2
  * a photo already on the wall could be taken down from the phone only if it was the host's

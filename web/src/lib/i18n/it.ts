@@ -577,7 +577,7 @@ export const it: UiText = {
     byAnonymous: 'Invitato anonimo',
     shortcuts: 'Scorciatoie',
     shortcutsHint:
-      'J / K per navigare, P per pubblicare, R per rifiutare, Z per annullare l’ultima pubblicazione.',
+      'J / K per navigare, P per pubblicare, R per rifiutare, Z per annullare l’ultima decisione.',
     shortcutsMore:
       'H per rimuovere dallo schermo, Spazio per selezionare, Esc per deselezionare tutto.',
     queueLabel: 'Foto da moderare',
@@ -1189,7 +1189,7 @@ export const it: UiText = {
     undoUnavailable: 'Si può annullare solo una pubblicazione.',
 
     /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
-    onScreenTitle: 'Sullo schermo adesso',
+    onScreenTitle: 'Ultime foto sullo schermo',
     onScreenHint: 'Toccate una foto per rimuoverla dallo schermo.',
     onScreenEmpty: 'Niente sullo schermo per ora.',
     openOnScreen: (author: string) => `Vedi la foto di ${author}, sullo schermo`,
