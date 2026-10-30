@@ -685,26 +685,35 @@ export const it: UiText = {
   wall: {
     empty: 'Le prime foto stanno per arrivare',
     emptyHint: 'Scansioni il codice QR per inviare le sue foto.',
-    joinPrompt: 'Entri nella galleria',
-    offline: 'Connessione persa — nuovo tentativo in corso',
+    joinPrompt: 'Entri nella serata',
+    offline: 'Nuove foto in attesa della rete',
     paused: 'Presentazione in pausa',
     codeLabel: 'Codice della serata',
-    qrTitle: 'Codice QR per entrare nella galleria',
+    qrTitle: 'Codice QR per entrare nella serata',
     photoBy: (name: string) => `Foto inviata da ${name}`,
     photoByAnonymous: 'Foto inviata da un invitato',
     errorTitle: 'Non è stato possibile caricare le foto',
     errorHint: 'Nuovo tentativo in corso. Controlli la rete della sala se lo schermo resta vuoto.',
-    notServedTitle: 'Questa galleria non viene mostrata',
-    notServedHint:
-      'Non è aperta oppure è stata archiviata. Quando verrà aperta, lo schermo riprenderà da solo.',
+    notServedTitle: 'Questo schermo è in attesa',
+    notServedHint: 'Questo schermo si accenderà da solo non appena la serata verrà aperta.',
     dismissJoinCard: 'Nascondi il promemoria del codice',
     shortcuts: 'Scorciatoie da tastiera',
     shortcutsHint:
-      'Spazio mette in pausa, le frecce cambiano foto, F passa a schermo intero, L cambia la disposizione.',
+      'Spazio mette in pausa, le frecce cambiano foto, F passa a schermo intero, L cambia la disposizione, Q nasconde o mostra il codice QR.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Per uscire: Esc o F escono dallo schermo intero, poi chiuda la scheda.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `Prima foto di ${name}`,
+
+    /* ---- Before and after the evening (UX review 30/10, MUR-2 to MUR-9). Keep additions inside this block. ---- */
+    // The corner card's title: what to do, in a verb a guest reads from ten metres.
+    sendPrompt: 'Invii le sue foto sullo schermo',
+    // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
+    typeCodeAt: (code: string, host: string) => `oppure digiti ${code} su ${host}`,
+    // An empty wall of an event the host has closed: nobody can send a photo any more.
+    emptyClosed: 'Grazie di essere venuti!',
+    // In the shortcuts panel, only when the browser could not keep the screen awake itself.
+    keepAwakeHint: 'Disattivi la sospensione di questo computer.',
     layoutNames: {
       spotlight: 'Schermo intero',
       mosaic: 'Mosaico',
@@ -769,7 +778,7 @@ export const it: UiText = {
     allowGuestSelfDelete: 'Consenti agli invitati di eliminare le proprie foto',
     wallLanguage: 'Lingua dello schermo in sala',
     wallLanguageHint:
-      'Le parole dello schermo in sala: «Entri nella galleria», «Missioni», i messaggi di attesa. Quello che lei e i suoi invitati scrivono — il nome dell’evento, le didascalie, le consegne — appare così com’è e non viene mai tradotto. I suoi invitati scelgono la propria lingua sul telefono; questa impostazione non li riguarda.',
+      'Le parole dello schermo in sala: «Entri nella serata», «Missioni», i messaggi di attesa. Quello che lei e i suoi invitati scrivono — il nome dell’evento, le didascalie, le consegne — appare così com’è e non viene mai tradotto. I suoi invitati scelgono la propria lingua sul telefono; questa impostazione non li riguarda.',
     theme: 'Aspetto',
     themeHint:
       'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',

@@ -26,6 +26,7 @@ function Probe() {
     onCycleLayout: () => record('disposition'),
     onToggleHelp: () => record('aide'),
     onDismiss: () => record('fermer'),
+    onToggleQr: () => record('qr'),
   })
 
   return (
@@ -52,6 +53,8 @@ describe('useWallKeyboard', () => {
     { key: 'F', name: 'shifted F', action: 'plein écran' },
     { key: 'l', name: 'L', action: 'disposition' },
     { key: 'L', name: 'shifted L', action: 'disposition' },
+    { key: 'q', name: 'Q', action: 'qr' },
+    { key: 'Q', name: 'shifted Q', action: 'qr' },
   ])('answers $name with $action', async ({ key, action }) => {
     render(<Probe />)
 

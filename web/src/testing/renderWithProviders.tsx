@@ -275,6 +275,10 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // matched `window.location.origin` would keep passing if the browser went back to
   // inventing the URL itself.
   joinUrl: 'https://photos.example/join/H7K2QM',
+  // An open event, which is what nearly every wall is. Present rather than omitted for the
+  // reason `joinCode` is: an omitted key is invisible to the enumeration in
+  // `useWallPlaylist.settings.test.ts`, which is what guards the comparison of this field.
+  acceptsGuests: true,
   revision: 'rev-1',
   items: [],
   slideIntervalMs: 8_000,

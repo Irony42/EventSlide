@@ -970,6 +970,28 @@ describe('GET /api/events/:eventSlug/wall', () => {
     ])
   })
 
+  it('tells the projector a live event still takes guests, so it keeps its invitation up', async () => {
+    const { subject, photos } = world()
+    seedWall(photos)
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.acceptsGuests).toBe(true)
+  })
+
+  it('tells the projector a closed event takes no more guests, so it stops inviting the room', async () => {
+    // The wall keeps playing after the host closes the evening, and a guest who scans the
+    // QR still on it lands on "not open" (revue UX 30/10, MUR-3). The code and the link
+    // stay on the response — only the answer to "may the room be invited" changes.
+    const { subject, photos } = world()
+    seedWall(photos)
+
+    const response = await request(subject.app).get('/api/events/termine/wall')
+
+    expect(response.status).toBe(200)
+    expect(response.body.acceptsGuests).toBe(false)
+  })
+
   it('still serves a closed event, because the projector is usually still on', async () => {
     const { subject, photos } = world()
     seedWall(photos)

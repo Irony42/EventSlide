@@ -22,6 +22,14 @@ export interface WallPlaylistState {
    */
   readonly offline: boolean
   /**
+   * The last read of the playlist failed, for a reason that is not the server saying the event
+   * is gone. Alone it means little; with `offline` it is the proof that the network really is
+   * down. A stream that is refused for good (a proxy that buffers event streams, a per-client
+   * cap) leaves `offline` true all night while the thirty-second read keeps working, and the
+   * room must not be told its photos are waiting for the network then.
+   */
+  readonly readFailing: boolean
+  /**
    * How many `reaction.added` signals have arrived on this connection. A counter
    * rather than a list because the frame is an invalidation signal and carries no
    * reaction — the wall knows that something was felt, not by whom.
@@ -153,6 +161,10 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   // a corrected public address would otherwise leave the projector drawing yesterday's
   // QR for the rest of the evening, with the right six characters underneath it.
   kept.joinUrl === fresh.joinUrl &&
+  // Whether the room may still be invited (MUR-3). The host closing the evening moves no
+  // photograph, so `revision` stays put — and without this line the projector would go on
+  // printing a QR that leads to "not open" until somebody reloaded it.
+  kept.acceptsGuests === fresh.acceptsGuests &&
   kept.slideIntervalMs === fresh.slideIntervalMs &&
   kept.kenBurnsDurationMs === fresh.kenBurnsDurationMs &&
   kept.layout === fresh.layout &&
@@ -319,6 +331,7 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
     error: state.error,
     notServed,
     offline: !connected && !notServed,
+    readFailing: state.error !== null && !notServed,
     reactionPulse,
     refresh,
   }

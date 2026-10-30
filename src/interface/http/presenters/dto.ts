@@ -280,6 +280,18 @@ export interface WallResponseDto {
    * own answer.
    */
   readonly joinUrl: string
+  /**
+   * Whether the room may still be told to send photos: `acceptsGuests(status)`, which is a
+   * live event and nothing else.
+   *
+   * The wall keeps playing after the host closes the event, and until this field the
+   * projector could not know: it went on printing the QR and the code, and a guest who
+   * scanned them landed on "not open". False means the room draws neither the join card
+   * nor the host's missions, which exist to prompt a photo that can no longer be sent.
+   * The event's status itself is not sent, because a wall never needed more than this
+   * answer and a draft or an archived event is not served at all.
+   */
+  readonly acceptsGuests: boolean
   readonly revision: string
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number

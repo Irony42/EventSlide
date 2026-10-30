@@ -24,7 +24,7 @@ test('a photo from a phone reaches the wall once the host approves it @smoke', a
   await projector.goto(wallUrl(app, event.slug))
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   // Someone arriving late must be able to join from what is on the screen.
-  await expect(projector.getByText(event.joinCode)).toBeVisible()
+  await expect(projector.getByText(event.joinCode, { exact: true })).toBeVisible()
 
   // --- The phone: scans the QR code, lands on the join page, no account.
   await guest.goto(app.url(`/join/${event.joinCode}`))

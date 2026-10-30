@@ -81,3 +81,14 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/* Where to type the code, for the phone that cannot read the QR (MUR-7). `anywhere` so a
+   long host wraps inside the block instead of pushing the invitation off the screen. */
+.address {
+  max-inline-size: 100%;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+  text-align: center;
+  overflow-wrap: anywhere;
+}

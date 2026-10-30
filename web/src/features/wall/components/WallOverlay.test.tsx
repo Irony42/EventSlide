@@ -35,7 +35,8 @@ describe('WallOverlay', () => {
     render(<WallOverlay join={JOIN} onDismiss={vi.fn()} />)
 
     expect(screen.getByText(JOIN.code)).toBeVisible()
-    expect(screen.getByRole('heading', { name: fr.wall.joinPrompt })).toBeVisible()
+    // What to do, in a verb, rather than the name of a place (MUR-7).
+    expect(screen.getByRole('heading', { name: fr.wall.sendPrompt })).toBeVisible()
   })
 
   it('can be put away by the host who walked up to the screen', async () => {
@@ -45,5 +46,18 @@ describe('WallOverlay', () => {
     await userEvent.click(screen.getByRole('button', { name: fr.wall.dismissJoinCard }))
 
     expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it('says where to type the code, from the host of the link it encodes (MUR-7)', () => {
+    render(<WallOverlay join={JOIN} onDismiss={vi.fn()} />)
+
+    expect(screen.getByText(fr.wall.typeCodeAt(JOIN.code, 'photos.example.com'))).toBeVisible()
+  })
+
+  it('draws no address when the link carries none it could name', () => {
+    render(<WallOverlay join={{ code: JOIN.code, url: 'nope' }} onDismiss={vi.fn()} />)
+
+    expect(screen.queryByText(/photos.example/)).toBeNull()
+    expect(screen.getByText(JOIN.code)).toBeVisible()
   })
 })

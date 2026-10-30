@@ -2,6 +2,7 @@ import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
+import { ApiError } from '../../../lib/http'
 import type { WallItemDto, WallResponse } from '../../../lib/api/dto'
 import {
   aWallItem,
@@ -25,7 +26,7 @@ interface ProbeProps {
 }
 
 function Probe({ slug }: ProbeProps) {
-  const { wall, loading, error, refresh } = useWallPlaylist(slug)
+  const { wall, loading, error, readFailing, refresh } = useWallPlaylist(slug)
 
   /**
    * How many distinct `items` arrays this probe has been handed.
@@ -53,6 +54,7 @@ function Probe({ slug }: ProbeProps) {
       <p>listes {playlists}</p>
       <p>lecture {loading ? 'en cours' : 'terminée'}</p>
       <p>échec {error === null ? 'aucun' : error.message}</p>
+      <p>lectures {readFailing ? 'en panne' : 'saines'}</p>
       <button onClick={refresh}>réessayer</button>
     </div>
   )
@@ -217,6 +219,31 @@ describe('useWallPlaylist', () => {
     // behaviour is to carry on showing the photos the projector already holds.
     expect(await screen.findByText('échec Le réseau a lâché')).toBeInTheDocument()
     expect(screen.getByText('évènement Camille & Sacha')).toBeInTheDocument()
+  })
+
+  it('says the reads are failing only while the last read failed, and not for a 404', async () => {
+    const api = fakeApi({
+      wall: reads(
+        aWall('Camille & Sacha', 'rev-1'),
+        rejectsWith(new Error('Le réseau a lâché')),
+        aWall('Camille & Sacha', 'rev-1'),
+        rejectsWith(new ApiError(404, 'event.notFound')),
+      ),
+    })
+    renderWithProviders(<Probe slug="camille-et-sacha" />, { api })
+    await screen.findByText('révision rev-1')
+    expect(screen.getByText('lectures saines')).toBeInTheDocument()
+
+    await retry()
+    expect(await screen.findByText('lectures en panne')).toBeInTheDocument()
+
+    await retry()
+    expect(await screen.findByText('lectures saines')).toBeInTheDocument()
+
+    // The server answering that the event is gone is an answer: the network is fine.
+    await retry()
+    await screen.findByText(/^échec /)
+    expect(screen.getByText('lectures saines')).toBeInTheDocument()
   })
 
   /* ---- What the revision does not fingerprint (roadmap 2.2). ---- */

@@ -2,6 +2,7 @@ import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { ThemeCustom } from '../../../domain/events/eventTheme'
+import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
@@ -735,6 +736,9 @@ export const toWallResponseDto = (
     // The same builder the host's event page uses, so the two cannot disagree about the
     // link the room is being shown.
     joinUrl: joinUrl(context.publicUrl, view.event.joinCode.value),
+    // Read from the domain's own rule, so the wall and the join endpoint cannot disagree
+    // about when an invitation stops being honest.
+    acceptsGuests: acceptsGuests(view.event.status),
     revision: view.playlist.revision,
     items: view.playlist.items.flatMap((id) => {
       const photo = byId.get(id)
