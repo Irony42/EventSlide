@@ -1130,6 +1130,26 @@ describe('a photo that jumps the queue', () => {
     expect(photoIdsOnScreen()[0]).toBe('photo-9')
   })
 
+  it('never shows the same photo in both panes of the split, a fresh one keeping its pane', () => {
+    // Slide 4 is the left pane's turn and the lag of a ten-photo playlist is five, so the
+    // left pane's look back (photo 0 + 5) lands on the photo the right pane took when it
+    // was published (photo 5): the same print in both halves.
+    renderWall('split', items, {
+      index: 0,
+      generation: 4,
+      current: items[0] ?? null,
+      recent: [
+        { item: items[0] ?? null, fresh: false },
+        { item: items[5] ?? null, fresh: true },
+        { item: items[3] ?? null, fresh: false },
+      ],
+    })
+
+    // The published photo stays where the room is looking; the look back moves on to the
+    // next photo of the playlist.
+    expect(photoIdsOnScreen()).toEqual(['photo-6', 'photo-5'])
+  })
+
   it('draws the filmstrip from the photo on screen and the slides planned after it', () => {
     renderWall('filmstrip', withFresh, {
       ...afterAFreshOne,

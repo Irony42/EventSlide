@@ -175,7 +175,11 @@ export function WallPage() {
   const budget = useFrameBudget()
 
   const items = wall?.items ?? NO_ITEMS
-  const slideshow = useSlideshow({ items, intervalMs: wall?.slideIntervalMs ?? 0 })
+  const slideshow = useSlideshow({
+    items,
+    intervalMs: wall?.slideIntervalMs ?? 0,
+    loaded: wall !== null,
+  })
 
   /**
    * The invitation, or nothing — never half of it.
