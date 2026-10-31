@@ -108,17 +108,27 @@ export const startCursor = (items: readonly SlideCandidate[]): SlideCursor => {
 
 /**
  * A wall that was empty and has its first photos: the oldest arrival is on screen, fresh,
- * and the others wait their turn in the fresh lane. This is what puts "first photo of" under
- * the photo that opens an evening, the moment a guest and their table are looking.
+ * which is what puts "first photo of" under the photo that opens an evening, the moment a
+ * guest and their table are looking.
+ *
+ * The others are accounted for, not queued. A host who approves a backlog of forty photos at
+ * once must not have this wall play all of them through the fresh lane while a wall opened
+ * after the publish rotates: the two screens would differ for minutes. So the rest join the
+ * normal rotation, which resumes from the newest photo, as if the newest had just been
+ * shown: the next slide is the one a wall opened on the populated list shows after its own
+ * first, and the two walls are in step from there.
  */
 const openOnArrivals = (items: readonly [SlideCandidate, ...SlideCandidate[]]): SlideCursor => {
+  const [newest] = items
   // The list is newest first, so the last one is the first to have arrived.
   const first = items.reduce((_, item) => item)
+  // A single photo is its own rotation anchor: the rotation has not shown anything yet.
+  const anchor = newest.id === first.id ? null : newest.id
   return {
     shown: [{ id: first.id, fresh: true }],
-    rotationId: null,
-    ahead: [],
-    seen: new Set([first.id]),
+    rotationId: anchor,
+    ahead: anchor === null ? [] : photosAfter(items, anchor),
+    seen: new Set(items.map((item) => item.id)),
     run: 1,
     awaitingFirst: false,
   }
