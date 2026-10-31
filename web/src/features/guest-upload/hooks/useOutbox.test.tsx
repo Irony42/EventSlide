@@ -86,6 +86,64 @@ describe('useOutbox', () => {
     expect(result.current.waiting).toBe(0)
   })
 
+  describe('saying that it is sending', () => {
+    /**
+     * A store whose reads after the first (the opening count) each wait for the test, one at a time,
+     * so what the screen is told while the drain is deciding what to send can be looked at at every
+     * step rather than raced.
+     */
+    class HeldReads extends MemoryOutbox {
+      reads = 0
+      private readonly held: (() => void)[] = []
+
+      releaseNext(): void {
+        this.held.shift()?.()
+      }
+
+      override async list(slug: string) {
+        this.reads += 1
+        if (this.reads > 1) await new Promise<void>((resolve) => this.held.push(resolve))
+        return super.list(slug)
+      }
+    }
+
+    it('does not say it is sending when the outbox is empty, which every visit to the screen is', async () => {
+      // Opening the screen, and coming back to its tab, drain. A guest with nothing waiting was shown
+      // "Patientez, envoi en cours…" and had the feed link held, for as long as the store took to
+      // answer that it was empty.
+      const store = new HeldReads()
+      const { result } = mount(fakeApi(), { store })
+      await waitFor(() => expect(store.reads).toBeGreaterThan(1))
+
+      for (let step = 0; step < 4; step += 1) {
+        await act(async () => {})
+        expect(result.current.draining).toBe(false)
+        store.releaseNext()
+      }
+      await act(async () => {})
+      expect(result.current.draining).toBe(false)
+      expect(result.current.waiting).toBe(0)
+    })
+
+    it('says it is sending while a photo that was left behind goes up', async () => {
+      const store = new MemoryOutbox()
+      await seed(store)
+      let finish: () => void = () => {}
+      const uploadPhotos = vi.fn(
+        () =>
+          new Promise<ReturnType<typeof accepted>>((resolve) => {
+            finish = () => resolve(accepted())
+          }),
+      )
+      const { result } = mount(fakeApi({ uploadPhotos }), { store })
+
+      await waitFor(() => expect(result.current.draining).toBe(true))
+      await act(async () => finish())
+      await waitFor(() => expect(result.current.draining).toBe(false))
+      expect(result.current.waiting).toBe(0)
+    })
+  })
+
   it('keeps a photo, its caption and its name', async () => {
     const { result, store } = mount(fakeApi())
     await waitFor(() => expect(result.current.ready).toBe(true))
