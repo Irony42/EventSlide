@@ -412,8 +412,10 @@ export const useModerationQueue = (
         // Nobody asked for this read, and the rows on screen are the last good ones: a
         // line saying the queue is stale, or worse an error page over an emptied phone
         // queue that was "all done", would be a failure the host cannot act on. The next
-        // decision or signal reads again.
-        if (quiet) return
+        // decision or signal reads again. A refused session or access is not a blip: it
+        // will refuse every read after it, so it is said even then.
+        const refused = cause instanceof ApiError && (cause.status === 401 || cause.status === 403)
+        if (quiet && !refused) return
         // The items already on screen are kept: a refetch that failed while the host
         // was working through a screenful must not empty the grid under them.
         setState((previous) => ({ ...previous, loading: false, error: asError(cause) }))
@@ -443,6 +445,10 @@ export const useModerationQueue = (
 
   const setFilter = useCallback((next: StatusFilter) => {
     setFilterState(next)
+    // The grid is emptied below, so there are no last good rows to keep: the next read
+    // of any tab is a first read again, and its failure must be shown, not swallowed
+    // under a spinner.
+    loadedRef.current = null
     // The previous tab's photos are dropped rather than left on screen under the new
     // label: showing published photos under "en attente" for a frame is how a host
     // publishes something twice.

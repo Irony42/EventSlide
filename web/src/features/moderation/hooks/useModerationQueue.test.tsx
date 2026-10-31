@@ -1071,6 +1071,47 @@ describe('useModerationQueue', () => {
       await waitFor(() => expect(result.current.error).not.toBeNull())
     })
 
+    it('still reports a failure when the host comes back to a tab it had loaded and its read fails', async () => {
+      // The tab change empties the grid, so coming back to "en attente" has nothing left
+      // to keep: a swallowed failure would leave a spinner over an empty grid, no retry.
+      let reads = 0
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => {
+          reads += 1
+          if (reads > 1) throw ApiError.network()
+          return queueOf([aModerationPhoto({ id: 'photo-1' })])
+        }),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+      act(() => result.current.setFilter('published'))
+      await waitFor(() => expect(result.current.error).not.toBeNull())
+      act(() => result.current.setFilter('pending'))
+
+      await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(3))
+      await waitFor(() => expect(result.current.error).not.toBeNull())
+      expect(result.current.loading).toBe(false)
+    })
+
+    it('still reports a refused session on a read nobody asked for, since every read after it will be refused too', async () => {
+      let reads = 0
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => {
+          reads += 1
+          if (reads > 1) throw new ApiError(401, 'auth.required')
+          return queueOf([aModerationPhoto({ id: 'photo-1' })])
+        }),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+      emitSignal('photo.uploaded')
+
+      await waitFor(() => expect(result.current.error).not.toBeNull())
+      expect(result.current.items).toHaveLength(1)
+    })
+
     it('still reports a failure when the host asked for the refresh', async () => {
       let reads = 0
       const api = fakeApi({
