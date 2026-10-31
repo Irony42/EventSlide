@@ -79,8 +79,8 @@ describe('the documents and the promise that a donation unlocks nothing', () => 
     expect(prose).toContain('**never** shown on the projected wall')
   })
 
-  it('the README names both variables in one line, with the same promise', () => {
-    const line = read('README.md')
+  it('docs/LICENCE.md names both variables in one line, with the same promise', () => {
+    const line = read('docs', 'LICENCE.md')
       .split('\n')
       .find((candidate) => candidate.includes('DONATION_URL'))
 

@@ -130,7 +130,7 @@ describe('the licence FAQ for people who run the image', () => {
 describe('where the AGPL starts, said in the places a self-hoster reads', () => {
   it.each([
     ['the FAQ', FAQ],
-    ['the README', 'README.md'],
+    ['the licence page', 'docs/LICENCE.md'],
   ])(
     'says in %s that v3.0.0 is the first release under the AGPL and v2.1.0 the last under the GPL',
     (_name, file) => {
@@ -144,7 +144,7 @@ describe('where the AGPL starts, said in the places a self-hoster reads', () => 
 
   it.each([
     ['the FAQ', FAQ],
-    ['the README', 'README.md'],
+    ['the licence page', 'docs/LICENCE.md'],
   ])(
     'never ties v2.1.0 to the AGPL in %s: each sentence or table row that names it says GPL-3.0',
     (_name, file) => {
