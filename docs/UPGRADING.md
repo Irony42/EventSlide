@@ -609,3 +609,55 @@ and the account self-erasure).
 **How to tell it worked.** The first boot logs migrations 015, 016 and 017 and `GET /api/health` answers
 `"version": "3.3.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.4
+
+3.4.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
+`BREAKING` section and nothing has to change in `.env`. This section is here because it changes what
+guests, the room and hosts see and press, adds three fields to existing responses, and makes a guest's
+phone read the server more often while a photo waits. It applies **no migration** and adds no setting.
+
+**Who is affected.** Everyone who upgrades from 3.3.x. Items 2 and 3 matter to whoever runs a large
+room or reads the wall and moderation responses with a script; items 4 to 6 to a host who briefs the
+people on the night.
+
+1. **Back up with the version you run now**, as always ([above](#upgrading-with-docker)). 3.4.0 applies no
+   migration, so a 3.3.x build still reads the database as it was; going back is the usual restore of
+   the archive you took, with nothing to undo in the schema.
+2. **Take the steps of [Upgrading with Docker](#upgrading-with-docker)**, or
+   [without](#without-docker), with `vX.Y.Z` as `v3.4.0`. The image is
+   `ghcr.io/irony42/eventslide:3.4.0`.
+3. **Three fields are added to existing responses**, all optional for a client and none removed:
+   `firstFromGuest` on each item of `GET /api/events/:slug/wall`, `acceptsGuests` on the same
+   response, and `allowedDecisions` on each row of the moderation queue
+   ([API.md](API.md)). A script that compares these responses to a fixed shape sees extra keys. A wall
+   that does not receive `acceptsGuests` (a tab opened before the upgrade, read by a new server)
+   treats the event as open.
+4. **A guest's phone polls `GET /photos/mine` while one of their photos waits for the host**: about every
+   nine seconds (give or take two, every thirty after five minutes), only while the tab is visible,
+   once on coming back to it, one request at a time, and not at all when no photo waits. The route has
+   **no rate limit** of its own and has not been load-tested at the size of a large room: a hundred
+   guests with a photo waiting is about eleven reads a second.
+   Watch the load at the first big event.
+5. **What the room sees changes.** A photo just published takes the next slide, three in a row at most;
+   a guest's first photo carries « Première photo de Julie » in the layouts that caption one photo; the
+   wall asks the browser to keep the screen awake; and **Escape no longer hides the QR: `Q` does**. On a
+   closed evening the wall drops the join card, the code, the QR and the missions and says « Merci
+   d'être venus ! ». A wall that is not served yet is a calm screen that lights up by itself. Tell the
+   person at the projector about `Q`.
+6. **What the host sees changes.** « Archiver » and « Ouvrir aux invités » ask first, and « Archiver » is
+   no longer offered on a live event (end it first); the toasts are one per move; « Après la soirée »
+   leads the page once the evening is ended; Z undoes a publication on the desktop console and the
+   phone console gets a strip « Dernières photos à l'écran »; « Refuser (N) » on three photos or more
+   asks when one of them is not on the wall.
+7. **The words changed**, in the five languages: « la soirée » where the guest, the wall and the host
+   used to read « galerie », « Code de la soirée » for « Code d'accès », « Lien pour vos invités » for
+   « Lien d'invitation », « Terminer la soirée » for « Clore », « Rouvrir » for « Réouvrir », « Couleur de
+   l'ambiance » for « Kraft ». A printed guide or a screenshot that quotes the old words no longer matches.
+   Nothing in the API, the `.env` file or a stored value changed with them.
+8. **Nothing else changes for a box with `SITE_ADMIN=off`**, and nothing here is specific to
+   `SITE_ADMIN=on`: every item applies to every box.
+
+**How to tell it worked.** The first boot logs no migration and `GET /api/health` answers
+`"version": "3.4.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
+[described above](#going-back): restore the archive you took before the upgrade.

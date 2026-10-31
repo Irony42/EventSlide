@@ -34,7 +34,7 @@ services:
     # To build the image from this checkout instead (a modified copy, an unreleased commit),
     # add compose.build.yaml, which swaps this line for a local build and a local name:
     #   docker compose -f compose.yaml -f compose.build.yaml up -d --build
-    image: ghcr.io/irony42/eventslide:3.3.0 # x-release-please-version
+    image: ghcr.io/irony42/eventslide:3.4.0 # x-release-please-version
     restart: unless-stopped
     # Loopback, because the reverse proxy above is the only thing that should reach this
     # port — docs/SECURITY.md §11 says bind to 127.0.0.1 and this is where that happens.

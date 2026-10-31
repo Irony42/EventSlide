@@ -20,6 +20,145 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.4.0] - 2026-10-31
+
+Everything merged to `main` after the tag `v3.3.0`: pull requests #279, #280, #281, #282, #283 and #284
+(the last five landed together through the merge train #285). This is a minor release, from the UX review
+of 2026-10-30: it breaks nothing that
+[docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to keep, applies no
+migration and adds no setting. It does change what guests, the room and hosts read and press, adds three
+fields to existing responses and makes a guest's phone ask the server more often while a photo waits, so
+read "Behaviour changes to check before upgrading" and
+[Upgrading to 3.4](docs/UPGRADING.md#upgrading-to-34) before you upgrade.
+
+### Guests
+
+- **The phone tells the guest to look up** (#280). While at least one of their photos waits for the host,
+  the upload screen re-reads the guest's list about every nine seconds. When a photo goes live it says
+  « Validée ! Elle passe à l'écran dans un instant : levez les yeux. », develops the photo and, where the
+  browser has one, vibrates briefly. Found on coming back to the tab, it reads « Passée à l'écran. » and
+  does not buzz. This is a poll, not a push notification.
+- **Leaving the upload screen mid-send no longer loses photos** (#279). What is still owed, the Back button
+  included, is handed to the offline queue with the batch's caption and mission instead of being dropped.
+  While photos are sent, the link to the evening's photos stays focusable but inert and a status line says
+  how far the batch is (« Patientez, envoi en cours (3/8) »).
+- **Clearer states on the upload screen** (#279). The badge before sending is « Prête » (« attente » now only
+  means the host's validation); a stored photo says « Partira dès que le réseau revient »; the summary says
+  the photos are ready and nothing has left the phone until « Envoyer » is pressed. On a browser without
+  Background Sync (every iPhone) the offline notice asks to keep the page open instead of saying it can be
+  closed.
+- **A closed evening is a calm card, not a warning** (#279): « C'est fini pour ce soir. Merci pour vos N
+  photos ! Les organisateurs partageront l'album. » (the count leaves out refused photos). An archived feed
+  says to ask the organisers for the album link.
+- **The caption is emptied after a batch that left for good** (#279), and kept after any failure; what the
+  guest typed for the next photos while the batch was on its way is kept too.
+- **No empty « Vos envois » card, and no « Supprimer tout ce que j'ai envoyé », before the first photo**
+  (#279). The erasure stays reachable from the privacy notice.
+
+### The wall
+
+- **A photo that has just been published takes the next slide** (#280), instead of waiting for a lap of the
+  playlist. At most three in a row, then one photo of the rotation; among the waiting photos the oldest goes
+  first and the author on screen gives way to another, so a burst from one table cannot own the screen. The
+  rotation resumes where it was and a short playlist no longer puts the same face on the wall twice. The
+  host's arrows still step through the list. In the mosaic, polaroid, clothesline and collage a fresh photo
+  goes into the next slot to turn and no other slot moves; the filmstrip draws the planned slides.
+- **« Première photo de Julie »** (#280) under the first photograph a named guest has on the wall (« d'Alice »
+  before a vowel in French), the first time that slide comes up. Spotlight, polaroid, clothesline and split
+  only: the mosaic, filmstrip and collage caption no single photo. Never for a clip, an anonymous sender or
+  the host, and not at all when the wall's read of published photos was cut short.
+- **The wall keeps the screen awake** (#281): it asks the browser's Screen Wake Lock at load and again when
+  the tab comes back, and its help (`?`) says to turn off the computer's sleep when the browser refuses. The
+  mouse arrow disappears after three seconds without movement.
+- **The wall before and after the evening** (#281). A wall not served yet (draft or unknown address) is a
+  calm screen, « Cet écran s'allumera tout seul dès l'ouverture de la soirée. », and lights up by itself. On
+  a closed evening the corner card, the code, the QR and the host's missions are gone and the empty wall says
+  « Merci d'être venus ! ». Under the code, « ou tapez K7P2QX sur app.eventslide.fr » says where to type it.
+- **Escape no longer hides the QR; Q does** (#281). Escape closes the help only. `Q` hides the corner QR, as
+  the card's own button does, for at most ten minutes; `Q` does nothing on the empty wall or on a closed
+  evening.
+- **A lost stream is quiet at first** (#281): nothing for 60 seconds, then a small dot with no text, and
+  « Nouvelles photos en attente du réseau » after three minutes.
+
+### Hosts
+
+- **Archiving and opening ask first** (#283). « Archiver » asks for a confirmation (the screen stops, the
+  settings freeze, it is final, the album stays downloadable) and is offered from a draft or an ended
+  evening only, no longer beside « Terminer la soirée ». « Ouvrir aux invités » asks once, lightly. The event
+  page and the dashboard share the behaviour.
+- **One toast per move** (#283): opened, ended, reopened, archived. A new code says that the printed QR codes
+  and the link already sent stop working, and offers « Imprimer le nouveau QR ».
+- **« Ouvrir l'écran » from the draft on** (#283), with the line that it lights up by itself once the evening
+  is open, and a five-step checklist (create, print, plug the screen in, open, test from another phone).
+- **« Après la soirée »** (#283): once the evening is ended or archived, a card leads the page with the way to
+  the album link and the album download (moderators get the download only).
+- **The automatic opening and ending are shown beside the badge** (#283), « Ouverture automatique à 18:00 »,
+  « Fin automatique… », with a warning when a schedule was discarded.
+
+### Moderators
+
+- **Z undoes a publication** (#282), on the desktop console as on the phone: the notice reads « 1 photo
+  publiée · Retirer » and Z takes the photo off the wall. With nothing to undo, Z says « Rien à annuler. ».
+  After refusing from « En attente », the notice offers « Voir dans Refusées ».
+- **Take a photo off the wall from the phone** (#282): a strip « Dernières photos à l'écran » (the six latest
+  published) with one action, « Retirer de l'écran », which says the photo stays in the album.
+- **Buttons that cannot trap or lie** (#282). A photo shows exactly the decisions its status allows, as the
+  server says it, so none ends in `409 photo.illegalTransition`; a key with nothing to do says why instead of
+  a red toast. Decisions are ordered publish, hide, refuse. The publish button is worded for where the photo
+  comes from (« Remettre à l'écran », « Publier quand même »), and what each removal costs a guest is said
+  under the buttons.
+- **« Refuser (N) » on three photos or more asks first** (#282) when at least one is not on the wall, since
+  nothing takes back the refusal of a waiting or hidden photo. A batch of published photos is undone by the
+  notice, as before. A photo another moderator moved meanwhile is skipped.
+
+### Wording
+
+- **One lexicon in the five languages** (#279, #281, #283, #284). The live event is « la soirée », never « la
+  galerie »; « album » is what is left after it. The host page says « Code de la soirée » (it said « Code
+  d'accès ») and « Lien pour vos invités » (it said « Lien d'invitation », which now only means opening an
+  account). The lifecycle pairs are Brouillon / Ouvrir aux invités, En cours / Terminer la soirée, Terminée /
+  Rouvrir, Archivée / Archiver (« Réouvrir » and « Clore » are gone), and the operator's console uses the
+  host's status words. « Kraft » is now « Couleur de l'ambiance ». « Console » means the operator's console
+  only. English, German, Spanish and Italian follow (event, Feier, fiesta, serata). A new test,
+  `vocabulary.test.ts`, fails when a retired word comes back.
+
+### Behaviour changes to check before upgrading
+
+- **No migration and no new setting.** Nothing changes in `.env`. A 3.3.x build still reads the database, so
+  going back is the usual restore of the archive taken before the upgrade, with nothing migrated to undo.
+- **Three fields are added to existing responses** (optional for a client, none removed):
+  `firstFromGuest` on each item of `GET /api/events/:slug/wall` (#280), `acceptsGuests` on the same
+  response (#281) and `allowedDecisions` on each row of the moderation queue (#282). A script that compares
+  these responses to a fixed shape sees extra keys; a client that does not read them keeps working, and a
+  wall that does not receive `acceptsGuests` treats the event as open.
+- **A guest's phone polls `GET /photos/mine` while a photo waits** (#280). About every nine seconds (give or
+  take two, every thirty after five minutes), only while a photo is pending and the tab is visible, once on
+  coming back to the tab, and never more than one at a time. The route has no rate limit of its own and has
+  not been load-tested at the size of a large room: a hundred guests with a photo waiting is about eleven
+  reads a second. If your events are larger, watch the load at the first one.
+- **The wall plays published photos in a new order** (#280): fresh photos first, three at a time. Two
+  projectors on the same list still agree, and the host's arrows are unchanged. Nothing on the wire
+  announces it.
+- **A closed evening takes the join card, the code, the QR and the missions off the wall** (#281). A host who
+  closed an evening and expected the QR to stay up for latecomers will find it gone; reopen the evening for
+  that.
+- **Escape does not hide the QR any more** (#281): a venue that was told to press Escape now needs `Q`.
+- **Archiving asks for a confirmation and is no longer offered on a live event** (#283): end the evening
+  first. This is the console only; the API is unchanged.
+- **The wake lock needs a visible tab and a browser that grants it** (#281). Where it is refused, turn off
+  the computer's sleep, as before.
+- **The words changed** (#279, #281, #283, #284): « soirée », « album », « Code de la soirée », « Terminer
+  la soirée », in five languages. A printed guide, a screenshot or a host's own instructions that quote
+  « Code d'accès », « Réouvrir » or « Clore » no longer match the screens.
+
+### Documentation, tests and dependencies
+
+- `docs/API.md` describes the three new fields, the order of play, the polling of `/photos/mine` and the
+  absence of a rate limit on it; ROADMAP §9.4 is rewritten (Z undoes a publication).
+- New guards: `slideOrderContract.test.ts` (the web copy of the order rule equals the domain's, line for
+  line), `vocabulary.test.ts`, and tests for the hand-over to the outbox, the poll, the wake lock, the outage
+  stages and the allowed decisions. No dependency changes.
+
 ## [3.3.0] - 2026-10-30
 
 Everything merged to `main` after the tag `v3.2.0`: pull requests #271, #272, #273, #275, #277, #274
