@@ -23,16 +23,18 @@ const STATUS_AFTER: Readonly<Record<ModerationDecision, PhotoStatus>> = {
  * decision to its rows and answers the next read with them, `allowedDecisions` included,
  * which is what the real endpoint does.
  *
- * A fixture, not the rule: the queue answers every row whatever the status filter, as the
- * static fakes did, because the console tests stage a "published" photo on the default
- * tab. `filtered` makes it honour the filter instead, as the wall strip needs: a photo taken
- * off the wall leaves it. `skip` names photos a batch refuses, which stay as they were.
+ * The queue honours the status filter, as the real endpoint does: a photo that has just been
+ * decided leaves the "en attente" tab once the next read answers, and a photo taken off the
+ * wall leaves the strip. A test that stages a photo whose status is not the tab's (a
+ * "published" photo on the default tab) passes `filtered: false` to have every row
+ * answered whatever the filter, and says why. `skip` names photos a batch refuses, which
+ * stay as they were.
  */
 export const moderationServer = (
   rows: readonly ModerationPhotoDto[],
   {
     skip = [],
-    filtered = false,
+    filtered = true,
   }: { readonly skip?: readonly string[]; readonly filtered?: boolean } = {},
 ): Pick<Api, 'moderationQueue' | 'moderate' | 'moderateBulk'> => {
   let current = [...rows]
@@ -79,4 +81,53 @@ export const moderationServer = (
       },
     ),
   }
+}
+
+/** A settled-by-hand promise: the test releases an answer when it chooses to. */
+export interface Hold {
+  readonly promise: Promise<void>
+  /** Let the held answer through. */
+  readonly settle: () => void
+}
+
+/**
+ * The same server, whose answers a test releases by hand.
+ *
+ * A read answers with the rows as they were when it was asked, and then waits: that is what
+ * a slow response looks like from the console, a snapshot of a moment that has passed.
+ * `hold('read')` makes the next read wait, `hold('moderate')` the next decision (single or
+ * bulk), whose effect on the rows lands only when it is released. Holds are taken in the
+ * order they were made, one per request.
+ */
+export const heldModerationServer = (
+  rows: readonly ModerationPhotoDto[],
+  options?: Parameters<typeof moderationServer>[1],
+) => {
+  const server = moderationServer(rows, options)
+  const holds: Record<'read' | 'moderate', Hold[]> = { read: [], moderate: [] }
+  const endpoints: Pick<Api, 'moderationQueue' | 'moderate' | 'moderateBulk'> = {
+    moderationQueue: vi.fn(async (...args: Parameters<Api['moderationQueue']>) => {
+      const answer = await server.moderationQueue(...args)
+      await holds.read.shift()?.promise
+      return answer
+    }),
+    moderate: vi.fn(async (...args: Parameters<Api['moderate']>) => {
+      await holds.moderate.shift()?.promise
+      return server.moderate(...args)
+    }),
+    moderateBulk: vi.fn(async (...args: Parameters<Api['moderateBulk']>) => {
+      await holds.moderate.shift()?.promise
+      return server.moderateBulk(...args)
+    }),
+  }
+  const hold = (kind: 'read' | 'moderate'): Hold => {
+    let settle: () => void = () => {}
+    const promise = new Promise<void>((resolve) => {
+      settle = resolve
+    })
+    const next: Hold = { promise, settle }
+    holds[kind].push(next)
+    return next
+  }
+  return { endpoints, hold }
 }

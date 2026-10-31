@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ModerationPage } from './ModerationPage'
-import { moderationServer } from './testing/moderationServer'
+import { heldModerationServer, moderationServer } from './testing/moderationServer'
 import {
   aModerationClip,
   aModerationPhoto,
@@ -75,6 +75,11 @@ const renderConsole = (api: Api) =>
     route: `/admin/events/${SLUG}/moderation`,
     path: '/admin/events/:slug/moderation',
   })
+
+/** The "Publiées" tab: where a photo that is on the wall is listed, and from which it leaves when it is taken off. */
+const showPublished = async (): Promise<void> => {
+  await userEvent.click(await screen.findByRole('button', { name: fr.moderation.filterPublished }))
+}
 
 const cardOf = (author: string): HTMLElement =>
   screen.getByRole('article', { name: fr.moderation.photoOf(author) })
@@ -678,9 +683,11 @@ describe('ModerationPage', () => {
   })
 
   it('shows a decision before the server confirms it', async () => {
-    const api = fakeApi(moderationServer([lea()]))
+    const { endpoints, hold } = heldModerationServer([lea()])
+    const api = fakeApi(endpoints)
     renderConsole(api)
     const card = await screen.findByTestId('moderation-card')
+    const answer = hold('moderate')
 
     await userEvent.click(
       within(card).getByRole('button', { name: fr.moderation.publishPhoto('Léa') }),
@@ -690,6 +697,11 @@ describe('ModerationPage', () => {
     expect(within(card).getByText(fr.moderation.statePublished)).toBeInTheDocument()
     // The count is the number the host glances at; it has to move with the decision.
     expect(screen.getByText(fr.moderation.pending(0))).toBeInTheDocument()
+
+    // Once the server has answered, the queue it reads no longer holds the photo.
+    answer.settle()
+    await waitFor(() => expect(card).not.toBeInTheDocument())
+    expect(await screen.findByText(fr.moderation.empty)).toBeInTheDocument()
   })
 
   it('puts the photo back when the server refuses the decision', async () => {
@@ -722,18 +734,22 @@ describe('ModerationPage', () => {
   it('undoes a decision, putting the photo back where it was', async () => {
     const api = fakeApi(moderationServer([lea({ status: 'published' })]))
     renderConsole(api)
+    await showPublished()
     const card = await screen.findByTestId('moderation-card')
     await userEvent.click(
       within(card).getByRole('button', { name: fr.moderation.hidePhoto('Léa') }),
     )
-    expect(await within(card).findByText(fr.moderation.stateHidden)).toBeInTheDocument()
+    // Taken off the wall, so it leaves the tab that lists what is on it.
+    await waitFor(() => expect(card).not.toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.undo }))
 
     // The previous status is the client's to keep and to supply: the server records
     // what a decision moved a photo to, never where it came from.
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'publish')
-    expect(await within(card).findByText(fr.moderation.statePublished)).toBeInTheDocument()
+    expect(
+      within(await screen.findByTestId('moderation-card')).getByText(fr.moderation.statePublished),
+    ).toBeInTheDocument()
     expect(screen.getByText(fr.moderation.undone)).toBeInTheDocument()
   })
 
@@ -742,11 +758,12 @@ describe('ModerationPage', () => {
       moderationServer([lea({ status: 'published' }), sacha({ status: 'published' })]),
     )
     renderConsole(api)
+    await showPublished()
     await screen.findAllByTestId('moderation-card')
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
 
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.bulkReject(2) }))
-    expect(await within(cardOf('Léa')).findByText(fr.moderation.stateRejected)).toBeInTheDocument()
+    expect(await screen.findByText(fr.moderation.emptyFiltered)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.undo }))
 
@@ -821,6 +838,8 @@ describe('ModerationPage', () => {
       moderationServer([lea({ status: 'published' }), sacha()], { skip: ['photo-2'] }),
     )
     renderConsole(api)
+    // "Toutes", where a published photo and a waiting one sit side by side.
+    await userEvent.click(await screen.findByRole('button', { name: fr.moderation.filterAll }))
     await screen.findAllByTestId('moderation-card')
     await userEvent.click(screen.getByRole('checkbox', { name: fr.moderation.selectPhoto('Léa') }))
     await userEvent.click(
@@ -1076,16 +1095,38 @@ describe('ModerationPage', () => {
   it('undoes the last decision on Z', async () => {
     const api = fakeApi(moderationServer([lea({ status: 'published' })]))
     renderConsole(api)
+    await showPublished()
     const card = await screen.findByTestId('moderation-card')
     await userEvent.click(
       within(card).getByRole('button', { name: fr.moderation.hidePhoto('Léa') }),
     )
-    expect(await within(card).findByText(fr.moderation.stateHidden)).toBeInTheDocument()
+    await waitFor(() => expect(card).not.toBeInTheDocument())
 
     await userEvent.keyboard('z')
 
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'publish')
-    expect(await within(card).findByText(fr.moderation.statePublished)).toBeInTheDocument()
+    expect(
+      within(await screen.findByTestId('moderation-card')).getByText(fr.moderation.statePublished),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the keyboard on the next photo when the one just decided leaves the tab', async () => {
+    // The queue the server answers no longer holds a decided photo, so its tile is removed
+    // a round trip after the key press. The host is already on the next one (the press moved
+    // the focus there), and the removal must not take the focus, or the shortcuts they are
+    // working through the screenful with would stop acting on a photo.
+    const api = fakeApi(moderationServer([lea(), sacha()]))
+    renderConsole(api)
+    await screen.findAllByTestId('moderation-card')
+    await userEvent.keyboard('j')
+    expect(cardOf('Léa')).toHaveFocus()
+
+    await userEvent.keyboard('p')
+    await waitFor(() => expect(screen.getAllByTestId('moderation-card')).toHaveLength(1))
+
+    expect(cardOf('Sacha')).toHaveFocus()
+    await userEvent.keyboard('r')
+    expect(api.moderate).toHaveBeenLastCalledWith(SLUG, 'photo-2', 'reject')
   })
 
   it('does nothing on Z when there is no decision to take back', async () => {
@@ -1112,7 +1153,7 @@ describe('ModerationPage', () => {
     expect(screen.getByText(fr.moderation.shortcutsHint, { exact: false })).toBeInTheDocument()
   })
 
-  it('keeps the queue on screen when a refresh fails under the host', async () => {
+  it('keeps the queue on screen, and says nothing, when a refresh nobody asked for fails', async () => {
     let answered = 0
     const api = fakeApi({
       moderationQueue: vi.fn(async () => {
@@ -1125,11 +1166,36 @@ describe('ModerationPage', () => {
     await screen.findByTestId('moderation-card')
 
     emitSignal('photo.uploaded')
+    await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
 
-    // Replacing a usable queue with an error page mid-event is worse than a line
-    // saying the refresh failed.
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    // The photos on screen are the last good ones, and the host cannot act on a read
+    // that failed in the background: a line saying so, over the tile they are about to
+    // decide, would report a problem with nothing to do about it.
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByTestId('moderation-card')).toBeInTheDocument()
+  })
+
+  it('does not report a failed read after a decision either', async () => {
+    const server = moderationServer([lea()])
+    let reads = 0
+    const api = fakeApi({
+      ...server,
+      moderationQueue: vi.fn(async (...args: Parameters<Api['moderationQueue']>) => {
+        reads += 1
+        if (reads > 1) throw ApiError.network()
+        return server.moderationQueue(...args)
+      }),
+    })
+    renderConsole(api)
+    const card = await screen.findByTestId('moderation-card')
+
+    await userEvent.click(
+      within(card).getByRole('button', { name: fr.moderation.publishPhoto('Léa') }),
+    )
+    await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(within(card).getByText(fr.moderation.statePublished)).toBeInTheDocument()
   })
 
   it('says so when an undo could not put every photo back', async () => {
@@ -1137,11 +1203,12 @@ describe('ModerationPage', () => {
     // here would leave the host believing the accident was fully reversed.
     const api = fakeApi(moderationServer([lea({ status: 'published' })], { skip: ['photo-1'] }))
     renderConsole(api)
+    await showPublished()
     const card = await screen.findByTestId('moderation-card')
     await userEvent.click(
       within(card).getByRole('button', { name: fr.moderation.hidePhoto('Léa') }),
     )
-    expect(await within(card).findByText(fr.moderation.stateHidden)).toBeInTheDocument()
+    await waitFor(() => expect(card).not.toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.undo }))
 
@@ -1156,18 +1223,19 @@ describe('ModerationPage', () => {
       }),
     })
     renderConsole(api)
+    await showPublished()
     const card = await screen.findByTestId('moderation-card')
     await userEvent.click(
       within(card).getByRole('button', { name: fr.moderation.hidePhoto('Léa') }),
     )
-    expect(await within(card).findByText(fr.moderation.stateHidden)).toBeInTheDocument()
+    await waitFor(() => expect(card).not.toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.undo }))
 
-    // The decision stands, because the server still has it. Leaving the tile showing
-    // the old status would tell the host the photo is back on the wall when it is not.
-    expect(await within(card).findByText(fr.moderation.stateHidden)).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(fr.errors.network)
+    // The decision stands, because the server still has it. Showing the photo back on the
+    // wall's tab would tell the host it is back on the wall when it is not.
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    expect(screen.queryByTestId('moderation-card')).toBeNull()
   })
 
   it('puts a whole batch back when the request fails', async () => {

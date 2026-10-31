@@ -117,6 +117,15 @@ const withDecisions = (row: ModerationPhotoDto): ModerationPhotoDto =>
     ? { ...row, allowedDecisions: [] }
     : row
 
+/** Forget a decision, unless a later one on the same photo has taken its place. */
+const forgetDecision = (
+  inFlight: Map<string, InFlightDecision>,
+  id: string,
+  decision: InFlightDecision,
+): void => {
+  if (inFlight.get(id) === decision) inFlight.delete(id)
+}
+
 const restoringDecision = (previousStatus: PhotoStatus, currentStatus: PhotoStatus): Restore => {
   /**
    * A refusal of a hidden photo cannot be taken back: the way back to `hidden` is `hide`,
@@ -167,6 +176,31 @@ interface UndoEntry {
   readonly restoreWith: ModerationDecision | null
   /** Whether that decision is a restoration or a second decision. See `Restore`. */
   readonly exact: boolean
+}
+
+/**
+ * A decision whose request has not come back, as far as a read response is concerned.
+ *
+ * A read can be on the wire while the host decides: it was asked before the decision
+ * existed, so its answer describes the photo as it was. The optimistic status lives in
+ * state, and a response that replaced the rows wholesale would put the old status back
+ * under the host's thumb, with the old buttons - and a second press on a photo that was
+ * already decided. So the console remembers what it is still waiting to hear about and
+ * writes it over every response (`readRows`).
+ *
+ * Over a response that starts after the decision was sent, and not only before, because
+ * the server may answer that read first: two requests in flight are in no order.
+ */
+interface InFlightDecision {
+  readonly status: PhotoStatus
+  /**
+   * `null` while the request is out. Once it has answered, the number of reads that had
+   * started by then: a read that started later asked after the decision landed, so its
+   * answer is the server's own and replaces the optimistic row. Earlier ones are still
+   * stale, even when they arrive after the request did (a response can overtake the
+   * render that would have aborted its read).
+   */
+  settledAfterRead: number | null
 }
 
 interface QueueState {
@@ -278,6 +312,15 @@ export const useModerationQueue = (
     ReadonlyMap<string, { status: PhotoStatus; allowedDecisions: readonly ModerationDecision[] }>
   >(new Map())
 
+  /** Decisions sent and not yet answered, by photo. See `InFlightDecision`. */
+  const inFlightRef = useRef(new Map<string, InFlightDecision>())
+  /** How many queue reads have started, to tell a read that predates an answer from one that follows it. */
+  const readsStartedRef = useRef(0)
+  /** An explicit refresh asked for the next read, which is allowed to show its failure. */
+  const loudRef = useRef(false)
+  /** The queue (event and tab) whose first read has landed, so a later failure has something to keep. */
+  const loadedRef = useRef<string | null>(null)
+
   const undoRef = useRef<readonly UndoEntry[] | null>(null)
   const undoToastRef = useRef<string | null>(null)
   const [canUndo, setCanUndo] = useState(false)
@@ -296,10 +339,41 @@ export const useModerationQueue = (
       serverRef.current = next
     }
 
-    const readRows = (rows: readonly ModerationPhotoDto[]): readonly ModerationPhotoDto[] => {
+    const startedAt = readsStartedRef.current + 1
+    readsStartedRef.current = startedAt
+    const queueKey = `${slug}/${filter}`
+    // Only the first read of a queue, a tab change and an explicit retry may show a
+    // failure. Any other read was nobody's request (a decision landed, a signal came), and
+    // the last good rows are still right.
+    const quiet = !loudRef.current && loadedRef.current === queueKey
+    loudRef.current = false
+
+    /**
+     * The rows as the host should see them: the server's answer, with what is still being
+     * decided written over it. Those rows show no decisions until a read that started
+     * after their decision was answered, which is the server's account of them.
+     */
+    const readRows = (
+      rows: readonly ModerationPhotoDto[],
+    ): { readonly rows: readonly ModerationPhotoDto[]; readonly pendingDelta: number } => {
       const safe = rows.map(withDecisions)
       remember(safe)
-      return safe
+
+      for (const [id, decision] of inFlightRef.current) {
+        if (decision.settledAfterRead !== null && startedAt > decision.settledAfterRead) {
+          inFlightRef.current.delete(id)
+        }
+      }
+
+      let pendingDelta = 0
+      const shown = safe.map((row) => {
+        const decision = inFlightRef.current.get(row.id)
+        if (decision === undefined) return row
+        if (row.status === 'pending' && decision.status !== 'pending') pendingDelta -= 1
+        if (row.status !== 'pending' && decision.status === 'pending') pendingDelta += 1
+        return { ...row, status: decision.status, allowedDecisions: [] }
+      })
+      return { rows: shown, pendingDelta }
     }
 
     if (onScreenLimit !== undefined) {
@@ -308,7 +382,7 @@ export const useModerationQueue = (
         .then(
           (response) => {
             if (!live) return
-            const onScreen = readRows(response.items)
+            const { rows: onScreen } = readRows(response.items)
             setState((previous) => ({ ...previous, onScreen }))
           },
           // A convenience beside the queue: a failed read keeps the last strip and says
@@ -320,11 +394,12 @@ export const useModerationQueue = (
     api.moderationQueue(slug, { status: filter }, controller.signal).then(
       (response) => {
         if (!live) return
-        const items = readRows(response.items)
+        const { rows: items, pendingDelta } = readRows(response.items)
+        loadedRef.current = queueKey
         setState((previous) => ({
           ...previous,
           items,
-          pendingCount: response.pendingCount,
+          pendingCount: Math.max(0, response.pendingCount + pendingDelta),
           loading: false,
           error: null,
         }))
@@ -334,6 +409,11 @@ export const useModerationQueue = (
         // The abort is this effect's own cleanup — StrictMode mounts twice — and is
         // not a failure to put in front of the host.
         if (isAbortError(cause)) return
+        // Nobody asked for this read, and the rows on screen are the last good ones: a
+        // line saying the queue is stale, or worse an error page over an emptied phone
+        // queue that was "all done", would be a failure the host cannot act on. The next
+        // decision or signal reads again.
+        if (quiet) return
         // The items already on screen are kept: a refetch that failed while the host
         // was working through a screenful must not empty the grid under them.
         setState((previous) => ({ ...previous, loading: false, error: asError(cause) }))
@@ -348,6 +428,7 @@ export const useModerationQueue = (
 
   /** A host asked for fresh data and should see that something is happening. */
   const refresh = useCallback(() => {
+    loudRef.current = true
     setState((previous) => ({ ...previous, loading: true, error: null }))
     setAttempt((current) => current + 1)
   }, [])
@@ -408,6 +489,37 @@ export const useModerationQueue = (
     })
   }, [])
 
+  /** Start remembering decisions that are about to be sent. */
+  const sendDecisions = useCallback((statuses: ReadonlyMap<string, PhotoStatus>) => {
+    const sent = new Map<string, InFlightDecision>()
+    for (const [id, status] of statuses) {
+      const decision: InFlightDecision = { status, settledAfterRead: null }
+      inFlightRef.current.set(id, decision)
+      sent.set(id, decision)
+    }
+    return sent
+  }, [])
+
+  /**
+   * The server answered. The decision stays written over the reads that started before
+   * this point, and the photo gets its decisions back from the one that follows (every
+   * caller revalidates). `refused` photos were put back by hand and are forgotten now.
+   */
+  const answerDecisions = useCallback(
+    (sent: ReadonlyMap<string, InFlightDecision>, refused: readonly string[] = []) => {
+      for (const [id, decision] of sent) {
+        if (refused.includes(id)) forgetDecision(inFlightRef.current, id, decision)
+        else decision.settledAfterRead = readsStartedRef.current
+      }
+    },
+    [],
+  )
+
+  /** The request failed and the photos went back to where they were: nothing to write over. */
+  const failDecisions = useCallback((sent: ReadonlyMap<string, InFlightDecision>) => {
+    for (const [id, decision] of sent) forgetDecision(inFlightRef.current, id, decision)
+  }, [])
+
   /**
    * Drop the offer, and take it off the screen with it.
    *
@@ -466,6 +578,7 @@ export const useModerationQueue = (
       else group.push(entry.id)
     }
 
+    const sent = sendDecisions(restored)
     setStatuses(restored)
     setBusy(true)
     try {
@@ -478,6 +591,7 @@ export const useModerationQueue = (
         skipped.push(...response.skipped)
         for (const id of response.applied) applied.add(id)
       }
+      answerDecisions(sent, skipped)
 
       /**
        * What the server refused, put back where the decision left it.
@@ -530,12 +644,24 @@ export const useModerationQueue = (
       // The restored photos hold no decisions until the server says what they allow.
       revalidate()
     } catch (cause) {
+      failDecisions(sent)
       setStatuses(new Map(entries.map((entry) => [entry.id, entry.currentStatus])))
       toast.show(failureMessage(cause, text.moderation.undoFailed, text), { tone: 'danger' })
     } finally {
       setBusy(false)
     }
-  }, [api, slug, text, toast, setStatuses, forgetUndo, revalidate])
+  }, [
+    api,
+    slug,
+    text,
+    toast,
+    setStatuses,
+    forgetUndo,
+    revalidate,
+    sendDecisions,
+    answerDecisions,
+    failDecisions,
+  ])
 
   /**
    * Report the outcome, and offer to take it back.
@@ -623,13 +749,16 @@ export const useModerationQueue = (
         { id: photoId, currentStatus: target, restoreWith: restore.decision, exact: restore.exact },
       ]
 
+      const sent = sendDecisions(new Map([[photoId, target]]))
       setStatuses(new Map([[photoId, target]]))
       setBusy(true)
       try {
         await api.moderate(slug, photoId, decision)
+        answerDecisions(sent)
         announce(decision, entries)
         revalidate()
       } catch (cause) {
+        failDecisions(sent)
         setStatuses(new Map([[photoId, photo.status]]))
         forgetUndo()
         toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
@@ -637,7 +766,19 @@ export const useModerationQueue = (
         setBusy(false)
       }
     },
-    [api, slug, text, toast, setStatuses, announce, forgetUndo, revalidate],
+    [
+      api,
+      slug,
+      text,
+      toast,
+      setStatuses,
+      announce,
+      forgetUndo,
+      revalidate,
+      sendDecisions,
+      answerDecisions,
+      failDecisions,
+    ],
   )
 
   const decideBulk = useCallback(
@@ -649,10 +790,12 @@ export const useModerationQueue = (
       const chosen = photoIds.filter((id) => before.has(id))
       if (chosen.length === 0) return
 
+      const sent = sendDecisions(new Map(chosen.map((id) => [id, target])))
       setStatuses(new Map(chosen.map((id) => [id, target])))
       setBusy(true)
       try {
         const response = await api.moderateBulk(slug, chosen, decision)
+        answerDecisions(sent, response.skipped)
 
         // The batch skips what it cannot legally do rather than failing wholesale, so
         // the optimism was wrong for exactly those: put them back where they were.
@@ -679,6 +822,7 @@ export const useModerationQueue = (
         announce(decision, entries)
         revalidate()
       } catch (cause) {
+        failDecisions(sent)
         setStatuses(
           new Map(
             chosen.flatMap<[string, PhotoStatus]>((id) => {
@@ -693,7 +837,19 @@ export const useModerationQueue = (
         setBusy(false)
       }
     },
-    [api, slug, text, toast, setStatuses, announce, forgetUndo, revalidate],
+    [
+      api,
+      slug,
+      text,
+      toast,
+      setStatuses,
+      announce,
+      forgetUndo,
+      revalidate,
+      sendDecisions,
+      answerDecisions,
+      failDecisions,
+    ],
   )
 
   const onSignal = useCallback(

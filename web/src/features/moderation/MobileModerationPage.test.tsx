@@ -513,7 +513,7 @@ describe('MobileModerationPage', () => {
     expect(within(card()).getByText('Les confettis')).toBeInTheDocument()
   })
 
-  it('keeps the photo on screen when a refresh fails under the host', async () => {
+  it('keeps the photo on screen, and says nothing, when a refresh nobody asked for fails', async () => {
     let answered = 0
     const api = fakeApi({
       moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) => {
@@ -527,9 +527,38 @@ describe('MobileModerationPage', () => {
     await screen.findByTestId('mobile-moderation-card')
 
     emitSignal('photo.uploaded')
+    await waitFor(() => expect(answered).toBe(2))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    // The photo in hand is the last good one, and a host with a thumb on it cannot act
+    // on a read that failed in the background.
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(card()).toBeInTheDocument()
+  })
+
+  it('stays on "all done" when the read after the last decision fails', async () => {
+    // The queue is empty because the host decided everything, and the read that confirms
+    // it failing is not a reason to replace that with an error panel and a retry: there is
+    // nothing the host could have loaded that they have not already dealt with.
+    const server = moderationServer([lea()])
+    let reads = 0
+    const api = fakeApi({
+      ...server,
+      moderationQueue: vi.fn(async (...args: Parameters<Api['moderationQueue']>) => {
+        reads += 1
+        // The first two reads are the queue and the wall strip; every later one fails.
+        if (reads > 2) throw ApiError.network()
+        return server.moderationQueue(...args)
+      }),
+    })
+    renderPhone(api)
+    await screen.findByTestId('mobile-moderation-card')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.rejectPhoto('Léa') }))
+    await waitFor(() => expect(reads).toBeGreaterThan(2))
+
+    expect(await screen.findByRole('heading', { name: fr.moderation.empty })).toBeInTheDocument()
+    expect(screen.queryByText(fr.moderation.loadFailed)).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('names an anonymous guest’s photo on both decisions without inventing a name', async () => {
