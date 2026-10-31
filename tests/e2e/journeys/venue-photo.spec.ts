@@ -24,7 +24,7 @@ const backgroundOf = (page: Page, selector: string, pseudo: string | null): Prom
 
 const chooseAmbiance = async (host: Page, slug: string, ambiance: string): Promise<void> => {
   await host.goto(`/admin/events/${slug}/settings`)
-  await host.getByLabel('Ambiance').selectOption(ambiance)
+  await host.getByLabel('Ambiance', { exact: true }).selectOption(ambiance)
   await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
   await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
 }

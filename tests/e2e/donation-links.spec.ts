@@ -209,7 +209,7 @@ test.describe('the donation and budget links', () => {
     await expect(card).toBeVisible()
     // Not a dialog: the album download beside it is still there to be pressed.
     await expect(host.getByRole('dialog')).toHaveCount(0)
-    await expect(host.getByRole('link', { name: fr.admin.download })).toBeVisible()
+    await expect(host.getByRole('link', { name: fr.admin.download }).first()).toBeVisible()
 
     await host.getByRole('button', { name: fr.about.supportDismiss }).click()
     await expect(card).toHaveCount(0)
