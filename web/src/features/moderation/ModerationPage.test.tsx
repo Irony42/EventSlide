@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ModerationPage } from './ModerationPage'
+import { moderationServer } from './testing/moderationServer'
 import {
   aModerationClip,
   aModerationPhoto,
@@ -677,7 +678,7 @@ describe('ModerationPage', () => {
   })
 
   it('shows a decision before the server confirms it', async () => {
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    const api = fakeApi(moderationServer([lea()]))
     renderConsole(api)
     const card = await screen.findByTestId('moderation-card')
 
@@ -719,10 +720,7 @@ describe('ModerationPage', () => {
   })
 
   it('undoes a decision, putting the photo back where it was', async () => {
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])),
-      moderateBulk: vi.fn(async () => ({ applied: ['photo-1'], skipped: [] })),
-    })
+    const api = fakeApi(moderationServer([lea({ status: 'published' })]))
     renderConsole(api)
     const card = await screen.findByTestId('moderation-card')
     await userEvent.click(
@@ -740,12 +738,9 @@ describe('ModerationPage', () => {
   })
 
   it('undoes a bulk reject fired by accident', async () => {
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () =>
-        queueOf([lea({ status: 'published' }), sacha({ status: 'published' })], 0),
-      ),
-      moderateBulk: vi.fn(async () => ({ applied: ['photo-1', 'photo-2'], skipped: [] })),
-    })
+    const api = fakeApi(
+      moderationServer([lea({ status: 'published' }), sacha({ status: 'published' })]),
+    )
     renderConsole(api)
     await screen.findAllByTestId('moderation-card')
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.selectAll }))
@@ -820,12 +815,11 @@ describe('ModerationPage', () => {
   })
 
   it('reports the photos a batch left alone', async () => {
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' }), sacha()])),
+    const api = fakeApi(
       // `hidden` is unreachable from `pending`, so the batch skips Sacha's photo
       // instead of failing all of it.
-      moderateBulk: vi.fn(async () => ({ applied: ['photo-1'], skipped: ['photo-2'] })),
-    })
+      moderationServer([lea({ status: 'published' }), sacha()], { skip: ['photo-2'] }),
+    )
     renderConsole(api)
     await screen.findAllByTestId('moderation-card')
     await userEvent.click(screen.getByRole('checkbox', { name: fr.moderation.selectPhoto('Léa') }))
@@ -1080,10 +1074,7 @@ describe('ModerationPage', () => {
   })
 
   it('undoes the last decision on Z', async () => {
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])),
-      moderateBulk: vi.fn(async () => ({ applied: ['photo-1'], skipped: [] })),
-    })
+    const api = fakeApi(moderationServer([lea({ status: 'published' })]))
     renderConsole(api)
     const card = await screen.findByTestId('moderation-card')
     await userEvent.click(
@@ -1144,10 +1135,7 @@ describe('ModerationPage', () => {
   it('says so when an undo could not put every photo back', async () => {
     // Another moderator moved the photo in between, so the batch skips it. Silence
     // here would leave the host believing the accident was fully reversed.
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])),
-      moderateBulk: vi.fn(async () => ({ applied: [], skipped: ['photo-1'] })),
-    })
+    const api = fakeApi(moderationServer([lea({ status: 'published' })], { skip: ['photo-1'] }))
     renderConsole(api)
     const card = await screen.findByTestId('moderation-card')
     await userEvent.click(
@@ -1162,7 +1150,7 @@ describe('ModerationPage', () => {
 
   it('re-applies the decision when the undo itself fails', async () => {
     const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([lea({ status: 'published' })])),
+      ...moderationServer([lea({ status: 'published' })]),
       moderateBulk: vi.fn(async () => {
         throw ApiError.network()
       }),
