@@ -8,6 +8,7 @@ import {
   startCursor,
   stepSlide,
   upcomingSlides,
+  waitForFirst,
   type SlideCandidate,
   type SlideCursor,
 } from './slideOrder'
@@ -56,6 +57,86 @@ describe('where a wall starts', () => {
     expect(cursor.shown).toEqual([{ id: 'c', fresh: false }])
     expect([...cursor.seen].sort()).toEqual(['a', 'b', 'c'])
     expect(cursor.rotationId).toBe('c')
+  })
+})
+
+describe('the first photo of an evening', () => {
+  it('opens a wall that was read empty on its first photo, fresh', () => {
+    const cursor = settleCursor(list('a'), waitForFirst(EMPTY_CURSOR))
+
+    expect(cursor.shown).toEqual([{ id: 'a', fresh: true }])
+    expect(cursor.awaitingFirst).toBe(false)
+  })
+
+  it('opens on the oldest arrival, fresh, and accounts for the others when several come at once', () => {
+    const items = list('c', 'b', 'a')
+    const cursor = settleCursor(items, waitForFirst(EMPTY_CURSOR))
+
+    expect(cursor.shown).toEqual([{ id: 'a', fresh: true }])
+    expect([...cursor.seen].sort()).toEqual(['a', 'b', 'c'])
+    expect(nextSlide(items, cursor)?.slide.fresh).toBe(false)
+  })
+
+  it('keeps a single arrival as it always was: fresh, with the rotation not started', () => {
+    const cursor = settleCursor(list('a'), waitForFirst(EMPTY_CURSOR))
+
+    expect(cursor.rotationId).toBeNull()
+    expect(cursor.ahead).toEqual([])
+    expect(cursor.run).toBe(1)
+    expect([...cursor.seen]).toEqual(['a'])
+  })
+
+  it('plays a backlog of forty photos published at once through the rotation, not the fresh lane', () => {
+    const items = list(
+      ...Array.from({ length: 40 }, (_, i) => `p${String(39 - i).padStart(2, '0')}`),
+    )
+    let cursor = settleCursor(items, waitForFirst(EMPTY_CURSOR))
+    expect(cursor.shown).toEqual([{ id: 'p00', fresh: true }])
+
+    const slides: boolean[] = []
+    for (let step = 0; step < 12; step += 1) {
+      const move = nextSlide(items, cursor)
+      if (move === null) throw new Error('expected a slide')
+      slides.push(move.slide.fresh)
+      cursor = move.cursor
+    }
+    expect(slides).toEqual(Array.from({ length: 12 }, () => false))
+  })
+
+  it('shows the same photo as a wall opened on the populated list from the second slide on', () => {
+    const items = list(
+      ...Array.from({ length: 40 }, (_, i) => `p${String(39 - i).padStart(2, '0')}`),
+    )
+    const arrivals = settleCursor(items, waitForFirst(EMPTY_CURSOR))
+    const populated = startCursor(items)
+    // The first slides differ: the evening's first photo against the newest.
+    expect(arrivals.shown[0]?.id).toBe('p00')
+    expect(populated.shown[0]?.id).toBe('p39')
+
+    const seenByArrivals = [arrivals.shown[0]?.id, ...play(items, arrivals, 20)]
+    const seenByPopulated = [populated.shown[0]?.id, ...play(items, populated, 20)]
+    expect(seenByArrivals.slice(1)).toEqual(seenByPopulated.slice(1))
+  })
+
+  it('does not call a photo new on a page load, which has not read an empty list', () => {
+    expect(settleCursor(list('b', 'a'), EMPTY_CURSOR).shown).toEqual([{ id: 'b', fresh: false }])
+  })
+
+  it('leaves a wall that already shows a photo alone, whatever it reads', () => {
+    const cursor = startCursor(list('a'))
+    expect(waitForFirst(cursor)).toBe(cursor)
+  })
+
+  it('waits once: reading the empty list again changes nothing', () => {
+    const waiting = waitForFirst(EMPTY_CURSOR)
+    expect(waitForFirst(waiting)).toBe(waiting)
+  })
+
+  it('is the same answer for two walls that read the same lists', () => {
+    const items = list('b', 'a')
+    expect(settleCursor(items, waitForFirst(EMPTY_CURSOR))).toEqual(
+      settleCursor(items, waitForFirst(EMPTY_CURSOR)),
+    )
   })
 })
 

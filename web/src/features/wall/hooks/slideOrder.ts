@@ -39,6 +39,11 @@ export interface SlideCursor {
   readonly seen: ReadonlySet<string>
   /** How many fresh photos have followed one another. */
   readonly run: number
+  /**
+   * The wall read a list with nothing in it and has shown nothing since: whatever arrives
+   * first is the evening's first photo, not part of a list the wall opened on.
+   */
+  readonly awaitingFirst: boolean
 }
 
 export interface Move {
@@ -70,7 +75,22 @@ export const EMPTY_CURSOR: SlideCursor = {
   ahead: [],
   seen: new Set(),
   run: 0,
+  awaitingFirst: false,
 }
+
+/** A wall that has read an empty list: its first photos are news, however they arrive. */
+export const WAITING_CURSOR: SlideCursor = { ...EMPTY_CURSOR, awaitingFirst: true }
+
+/**
+ * The cursor for a wall that has just read a list with nothing in it.
+ *
+ * Only a wall that has shown nothing waits: one that already has a photo on screen keeps
+ * its cursor, so a list that empties and refills is settled as it always was. The caller
+ * says "read" because `[]` is also what a wall holds while it has not been answered yet,
+ * and a page load on a populated wall must open on its newest photo, not announce it.
+ */
+export const waitForFirst = (cursor: SlideCursor): SlideCursor =>
+  cursor.shown.length === 0 && !cursor.awaitingFirst ? WAITING_CURSOR : cursor
 
 /** A wall that opens on the newest photo, having already accounted for the whole list. */
 export const startCursor = (items: readonly SlideCandidate[]): SlideCursor => {
@@ -82,6 +102,35 @@ export const startCursor = (items: readonly SlideCandidate[]): SlideCursor => {
     ahead: photosAfter(items, newest.id),
     seen: new Set(items.map((item) => item.id)),
     run: 0,
+    awaitingFirst: false,
+  }
+}
+
+/**
+ * A wall that was empty and has its first photos: the oldest arrival is on screen, fresh,
+ * which is what puts "first photo of" under the photo that opens an evening, the moment a
+ * guest and their table are looking.
+ *
+ * The others are accounted for, not queued. A host who approves a backlog of forty photos at
+ * once must not have this wall play all of them through the fresh lane while a wall opened
+ * after the publish rotates: the two screens would differ for minutes. So the rest join the
+ * normal rotation, which resumes from the newest photo, as if the newest had just been
+ * shown: the next slide is the one a wall opened on the populated list shows after its own
+ * first, and the two walls are in step from there.
+ */
+const openOnArrivals = (items: readonly [SlideCandidate, ...SlideCandidate[]]): SlideCursor => {
+  const [newest] = items
+  // The list is newest first, so the last one is the first to have arrived.
+  const first = items.reduce((_, item) => item)
+  // A single photo is its own rotation anchor: the rotation has not shown anything yet.
+  const anchor = newest.id === first.id ? null : newest.id
+  return {
+    shown: [{ id: first.id, fresh: true }],
+    rotationId: anchor,
+    ahead: anchor === null ? [] : photosAfter(items, anchor),
+    seen: new Set(items.map((item) => item.id)),
+    run: 1,
+    awaitingFirst: false,
   }
 }
 
@@ -109,7 +158,9 @@ export const settleCursor = (
 
   const ids = new Set(items.map((item) => item.id))
   const head = cursor.shown[0]
-  if (head === undefined) return startCursor(items)
+  if (head === undefined) {
+    return cursor.awaitingFirst ? openOnArrivals([newest, ...items.slice(1)]) : startCursor(items)
+  }
 
   const stale = [...cursor.seen].some((id) => !ids.has(id))
   const rotationGone = cursor.rotationId !== null && !ids.has(cursor.rotationId)
@@ -152,6 +203,7 @@ const show = (
     ahead: rotation.ahead,
     seen: new Set(cursor.seen).add(slide.id),
     run,
+    awaitingFirst: false,
   },
 })
 

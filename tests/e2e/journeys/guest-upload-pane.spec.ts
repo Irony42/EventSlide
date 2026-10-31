@@ -273,7 +273,9 @@ for (const ambiance of ['eventslide', 'guinguette', 'cabaret'] as const)
 
       // `poll`: until the guest accepts it, the privacy notice is a card inside the pane.
       await expect.poll(async () => (await pinnedShare(pane)).share).toBeLessThanOrEqual(most)
-      expect((await pinnedShare(pane)).sticky).toBe(true)
+      // The pane is measured by an observer, so it is pinned a frame after it is short:
+      // wait for it, as the one-photo check below does, rather than read it the same instant.
+      await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(true)
 
       // Nothing is hidden for the sake of it: the two options are words on the screen, in the
       // pane, without a scroll and without a menu.

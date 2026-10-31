@@ -56,7 +56,9 @@ test('a photo from a phone reaches the wall once the host approves it @smoke', a
   const slide = projector.getByTestId('wall-slide').first()
   await expect(slide).toBeVisible()
   await expect(slide.getByText('Les confettis')).toBeVisible()
-  await expect(slide.getByText('Léa')).toBeVisible()
+  await expect(slide.getByText('Léa', { exact: true })).toBeVisible()
+  // The projector was open on an empty wall, so this photo opens the evening (MUR-1).
+  await expect(slide.getByText('Première photo de Léa')).toBeVisible()
 
   // Upright. If `sharp(...).rotate()` were ever dropped from ingest, the stored image
   // would stay landscape and this is the only ring that would notice — 1.0 projected

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MobileModerationPage } from './MobileModerationPage'
+import { moderationServer } from './testing/moderationServer'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -198,7 +199,7 @@ describe('MobileModerationPage', () => {
   it('publishes the photo in hand from the button, and moves on to the next', async () => {
     // The buttons are not a fallback for the gesture: they are the path that works with
     // a screen reader, and for a host who cannot make a 100 px drag with one thumb.
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -214,7 +215,7 @@ describe('MobileModerationPage', () => {
   })
 
   it('refuses the photo in hand from the button', async () => {
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    const api = fakeApi(moderationServer([lea()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -364,10 +365,7 @@ describe('MobileModerationPage', () => {
      *
      * The offer is per decision, so there is never more than one.
      */
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])),
-      moderateBulk: vi.fn(async () => ({ applied: ['photo-2'], skipped: [] })),
-    })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -389,7 +387,7 @@ describe('MobileModerationPage', () => {
     // notice used to stay on screen carrying the only visible "Annuler" — and pressing
     // it did nothing at all, silently, while the host believed the refusal had been
     // taken back.
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -426,7 +424,7 @@ describe('MobileModerationPage', () => {
     // The card is replaced silently when a decision lands. Without this a host using a
     // screen reader is told what they published and nothing at all about what they are
     // now being asked to decide.
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -443,7 +441,7 @@ describe('MobileModerationPage', () => {
   })
 
   it('announces that the queue is empty once the last photo is decided', async () => {
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    const api = fakeApi(moderationServer([lea()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -515,7 +513,7 @@ describe('MobileModerationPage', () => {
     expect(within(card()).getByText('Les confettis')).toBeInTheDocument()
   })
 
-  it('keeps the photo on screen when a refresh fails under the host', async () => {
+  it('keeps the photo on screen, and says nothing, when a refresh nobody asked for fails', async () => {
     let answered = 0
     const api = fakeApi({
       moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) => {
@@ -529,9 +527,38 @@ describe('MobileModerationPage', () => {
     await screen.findByTestId('mobile-moderation-card')
 
     emitSignal('photo.uploaded')
+    await waitFor(() => expect(answered).toBe(2))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(fr.errors.network)
+    // The photo in hand is the last good one, and a host with a thumb on it cannot act
+    // on a read that failed in the background.
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(card()).toBeInTheDocument()
+  })
+
+  it('stays on "all done" when the read after the last decision fails', async () => {
+    // The queue is empty because the host decided everything, and the read that confirms
+    // it failing is not a reason to replace that with an error panel and a retry: there is
+    // nothing the host could have loaded that they have not already dealt with.
+    const server = moderationServer([lea()])
+    let reads = 0
+    const api = fakeApi({
+      ...server,
+      moderationQueue: vi.fn(async (...args: Parameters<Api['moderationQueue']>) => {
+        reads += 1
+        // The first two reads are the queue and the wall strip; every later one fails.
+        if (reads > 2) throw ApiError.network()
+        return server.moderationQueue(...args)
+      }),
+    })
+    renderPhone(api)
+    await screen.findByTestId('mobile-moderation-card')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.moderation.rejectPhoto('Léa') }))
+    await waitFor(() => expect(reads).toBeGreaterThan(2))
+
+    expect(await screen.findByRole('heading', { name: fr.moderation.empty })).toBeInTheDocument()
+    expect(screen.queryByText(fr.moderation.loadFailed)).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('names an anonymous guest’s photo on both decisions without inventing a name', async () => {
@@ -792,13 +819,7 @@ describe('a clip on the phone', () => {
     const withWall = (
       wall: readonly ModerationPhotoDto[],
       waiting: readonly ModerationPhotoDto[],
-    ) =>
-      fakeApi({
-        moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) =>
-          query?.status === 'published' ? queueOf(wall) : queueOf(waiting),
-        ),
-        moderateBulk: vi.fn(async () => ({ applied: ['wall-1'], skipped: [] })),
-      })
+    ) => fakeApi(moderationServer([...wall, ...waiting], { filtered: true }))
 
     const onWall = (id: string, author: string) =>
       aModerationPhoto({ id, status: 'published', authorName: author })

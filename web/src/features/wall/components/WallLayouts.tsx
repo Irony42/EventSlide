@@ -207,7 +207,7 @@ const splitPanes = (
   const { recent, generation } = slideshow
   const visible = Math.min(SPLIT_PANES, length)
   const lag = splitLag(length)
-  const panes: WallItemDto[] = []
+  const wanted: { readonly position: number; readonly fresh: boolean }[] = []
 
   for (let pane = 0; pane < visible; pane += 1) {
     const sinceItsTurn = (((generation - pane) % SPLIT_PANES) + SPLIT_PANES) % SPLIT_PANES
@@ -221,11 +221,31 @@ const splitPanes = (
     // Only the left pane looks back; the right one stays with the wall, so the newest
     // photo is always on the screen within a slide of arriving.
     const offset = pane === 0 && slide?.fresh !== true ? lag : 0
-    const item = items[(base + offset) % length]
-    if (item !== undefined) panes.push(item)
+    wanted.push({ position: (base + offset) % length, fresh: slide?.fresh === true })
   }
 
-  return panes
+  // Two panes may ask for the same photo: the left pane's look back lands on the very photo
+  // the right pane took on its own turn, typically one that has just been published. The
+  // same face in both halves reads as a fault, so the pane that has the stronger claim
+  // keeps it - a photo that jumped the queue first, then the right pane, which stays with
+  // the wall - and the other takes the next position of the playlist that is not up.
+  const claimed = new Set<number>()
+  const resolved: number[] = []
+  const freshness = (pane: number): number => (wanted[pane]?.fresh === true ? 1 : 0)
+  const byClaim = wanted.map((_, pane) => pane).sort((a, b) => freshness(b) - freshness(a) || b - a)
+  for (const pane of byClaim) {
+    let position = wanted[pane]?.position ?? pane
+    // `visible` never exceeds the playlist, so fewer than `length` positions are claimed
+    // here and the walk ends.
+    while (claimed.has(position)) position = (position + 1) % length
+    claimed.add(position)
+    resolved[pane] = position
+  }
+
+  return resolved.flatMap((position) => {
+    const item = items[position]
+    return item === undefined ? [] : [item]
+  })
 }
 
 /**

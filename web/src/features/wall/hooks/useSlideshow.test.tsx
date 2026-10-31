@@ -32,9 +32,11 @@ const INTERVAL_MS = 8_000
 interface ProbeProps {
   readonly items: readonly WallItemDto[]
   readonly intervalMs?: number
+  /** The wall has had its answer. Absent means it has, as on every wall but a page loading. */
+  readonly loaded?: boolean
 }
 
-function Probe({ items, intervalMs = INTERVAL_MS }: ProbeProps) {
+function Probe({ items, intervalMs = INTERVAL_MS, loaded = true }: ProbeProps) {
   const {
     current,
     next,
@@ -48,7 +50,7 @@ function Probe({ items, intervalMs = INTERVAL_MS }: ProbeProps) {
     // What the slide clock is actually running on, which is what a layout animating
     // across a slide has to time itself from.
     intervalMs: cadenceMs,
-  } = useSlideshow({ items, intervalMs })
+  } = useSlideshow({ items, intervalMs, loaded })
 
   return (
     <div>
@@ -539,6 +541,68 @@ describe('a photo that was just published', () => {
     expect(screen.getByText(/passée devant la file non/)).toBeInTheDocument()
     tick(INTERVAL_MS)
     expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+  })
+
+  it('opens an empty wall on the first photo of the evening, as one that jumped the queue', () => {
+    const { rerender } = renderProbe({ items: [] })
+    expect(screen.getByText(/à l’écran rien/)).toBeInTheDocument()
+
+    rerender(<Probe items={[FRESH]} />)
+
+    expect(screen.getByText(/à l’écran Le bouquet/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file oui/)).toBeInTheDocument()
+  })
+
+  it('keeps a wall that was empty on the second photo as a fresh one too', () => {
+    const { rerender } = renderProbe({ items: [] })
+    rerender(<Probe items={[FRESH]} />)
+    const second = aPhoto('m', 'Le toast', 'Tom')
+    rerender(<Probe items={[second, FRESH]} />)
+
+    tick(INTERVAL_MS)
+
+    expect(screen.getByText(/à l’écran Le toast/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file oui/)).toBeInTheDocument()
+  })
+
+  it('plays a backlog published at once through the rotation, in step with a wall opened after it', () => {
+    // Six photos, newest first, approved in one go on a wall that had been read empty.
+    const backlog = [6, 5, 4, 3, 2, 1].map((id) => aPhoto(`b${id}`, `Photo ${id}`, `Table ${id}`))
+    const onScreen = () => screen.getByText(/^à l’écran /).textContent ?? ''
+    const fresh = () => screen.getByText(/^passée devant la file /).textContent ?? ''
+
+    const waiting = renderProbe({ items: [] })
+    waiting.rerender(<Probe items={backlog} />)
+    expect(onScreen()).toBe('à l’écran Photo 1')
+    expect(fresh()).toBe('passée devant la file oui')
+    const afterBurst: string[] = []
+    for (let slide = 0; slide < 4; slide += 1) {
+      tick(INTERVAL_MS)
+      expect(fresh()).toBe('passée devant la file non')
+      afterBurst.push(onScreen())
+    }
+    waiting.unmount()
+
+    const populated = renderProbe({ items: [], loaded: false })
+    populated.rerender(<Probe items={backlog} loaded />)
+    expect(onScreen()).toBe('à l’écran Photo 6')
+    const afterLoad: string[] = []
+    for (let slide = 0; slide < 4; slide += 1) {
+      tick(INTERVAL_MS)
+      afterLoad.push(onScreen())
+    }
+
+    // The two screens differ on the first slide only, then they show the same photos.
+    expect(afterBurst.slice(0, 3)).toEqual(afterLoad.slice(0, 3))
+  })
+
+  it('does not call a photo new when a page loads on a populated wall', () => {
+    // The page has no answer yet: the list is empty and `loaded` is false, then the list lands.
+    const { rerender } = renderProbe({ items: [], loaded: false })
+    rerender(<Probe items={[FRESH, ...OLD]} loaded />)
+
+    expect(screen.getByText(/à l’écran Le bouquet/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file non/)).toBeInTheDocument()
   })
 
   it('puts two walls on the same photos when they read the same lists', () => {

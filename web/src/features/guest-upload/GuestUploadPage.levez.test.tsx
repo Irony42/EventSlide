@@ -61,6 +61,10 @@ describe('the upload screen when the host publishes a waiting photo', () => {
     })
     await waitFor(() => expect(screen.getByText(fr.upload.statusPending)).toBeInTheDocument())
     expect(screen.queryByText(fr.upload.photoDeveloped)).toBeNull()
+    // The row is on screen before the hook has registered its listener for the tab coming back
+    // (a passive effect keyed on the waiting photo): a visibilitychange dispatched in that gap
+    // reaches nobody, and the test then waited for an answer that was never asked for.
+    await act(async () => {})
 
     // The guest looks away and comes back: one read, and the host has decided meanwhile.
     act(() => {

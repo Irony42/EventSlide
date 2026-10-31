@@ -214,8 +214,14 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       // network.
       if (!navigator.onLine) return
       running.current = true
-      setDraining(true)
       try {
+        // `draining` is what the screen reads to say "Patientez, envoi en cours…" and to hold the
+        // feed link and the way out of the event. It is raised only when there is something to send:
+        // a guest with an empty outbox opens this screen and comes back to its tab all evening, and
+        // each of those drains used to flash the wait line over a store that had nothing in it.
+        const held = await opened.list(slug)
+        if (store.current !== opened) return
+        if (held.length > 0) setDraining(true)
         const report = await drainOutbox({
           store: opened,
           slug,

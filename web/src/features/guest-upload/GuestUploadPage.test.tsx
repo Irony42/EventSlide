@@ -8,6 +8,7 @@ import {
   rememberGuestSession,
 } from '../../lib/guestSession'
 import { ApiError } from '../../lib/http'
+import { MemoryOutbox } from '../../lib/offline/memoryOutbox'
 import { fr } from '../../lib/i18n/fr'
 import {
   aClipJob,
@@ -1571,8 +1572,12 @@ describe('a guest the server does not recognise any more (A1, A2)', () => {
     )
 
     expect(await screen.findByRole('heading', { name: fr.upload.notJoinedTitle })).toBeVisible()
-    expect(readRememberedGuestSession()).toBeNull()
-    expect(readGuestSession(SLUG)).toBeNull()
+    // Forgetting is the screen's passive effect, which runs after the heading is painted and not
+    // with it: asserted at once, it raced the effect.
+    await waitFor(() => {
+      expect(readRememberedGuestSession()).toBeNull()
+      expect(readGuestSession(SLUG)).toBeNull()
+    })
   })
 })
 
@@ -1855,6 +1860,35 @@ describe('leaving for the feed while photos are on their way (INV-1)', () => {
     await act(async () => finish(accepted('photo-1')))
     await waitFor(() => expect(waiting).not.toHaveAttribute('aria-disabled'))
     expect(waiting).toHaveFocus()
+  })
+
+  it('never holds the link nor says it is waiting when the page opens with nothing to send', async () => {
+    // Opening the screen drains the outbox, and used to say so before it had looked: for a moment
+    // on every visit the status line read "Patientez…" and the link and the way out were inert.
+    // The store's reads after the opening count are held and let go one at a time, so the screen
+    // is looked at in the middle of the drain and not after it.
+    const original = MemoryOutbox.prototype.list
+    const waiting: (() => void)[] = []
+    let reads = 0
+    vi.spyOn(MemoryOutbox.prototype, 'list').mockImplementation(async function (
+      this: MemoryOutbox,
+      slug,
+    ) {
+      reads += 1
+      if (reads > 1) await new Promise<void>((resolve) => waiting.push(resolve))
+      return original.call(this, slug)
+    })
+    const api = fakeApi(withPhotos())
+    renderUpload(api)
+    await readAnswered(api)
+
+    for (let step = 0; step < 4; step += 1) {
+      await act(async () => {})
+      expect(screen.queryByText(fr.upload.leaveWait)).toBeNull()
+      expect(screen.getByRole('link', { name: fr.feed.link })).not.toHaveAttribute('aria-disabled')
+      waiting.shift()?.()
+    }
+    expect(reads).toBeGreaterThan(1)
   })
 
   it('is a link when nothing is being sent', () => {
