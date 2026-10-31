@@ -8,6 +8,7 @@ import {
   startCursor,
   stepSlide,
   upcomingSlides,
+  waitForFirst,
   type SlideCandidate,
   type SlideCursor,
 } from './slideOrder'
@@ -56,6 +57,44 @@ describe('where a wall starts', () => {
     expect(cursor.shown).toEqual([{ id: 'c', fresh: false }])
     expect([...cursor.seen].sort()).toEqual(['a', 'b', 'c'])
     expect(cursor.rotationId).toBe('c')
+  })
+})
+
+describe('the first photo of an evening', () => {
+  it('opens a wall that was read empty on its first photo, fresh', () => {
+    const cursor = settleCursor(list('a'), waitForFirst(EMPTY_CURSOR))
+
+    expect(cursor.shown).toEqual([{ id: 'a', fresh: true }])
+    expect(cursor.awaitingFirst).toBe(false)
+  })
+
+  it('opens on the oldest arrival and queues the others as fresh when several come at once', () => {
+    const items = list('c', 'b', 'a')
+    const cursor = settleCursor(items, waitForFirst(EMPTY_CURSOR))
+
+    expect(cursor.shown).toEqual([{ id: 'a', fresh: true }])
+    expect(nextSlide(items, cursor)?.slide).toEqual({ id: 'b', fresh: true })
+  })
+
+  it('does not call a photo new on a page load, which has not read an empty list', () => {
+    expect(settleCursor(list('b', 'a'), EMPTY_CURSOR).shown).toEqual([{ id: 'b', fresh: false }])
+  })
+
+  it('leaves a wall that already shows a photo alone, whatever it reads', () => {
+    const cursor = startCursor(list('a'))
+    expect(waitForFirst(cursor)).toBe(cursor)
+  })
+
+  it('waits once: reading the empty list again changes nothing', () => {
+    const waiting = waitForFirst(EMPTY_CURSOR)
+    expect(waitForFirst(waiting)).toBe(waiting)
+  })
+
+  it('is the same answer for two walls that read the same lists', () => {
+    const items = list('b', 'a')
+    expect(settleCursor(items, waitForFirst(EMPTY_CURSOR))).toEqual(
+      settleCursor(items, waitForFirst(EMPTY_CURSOR)),
+    )
   })
 })
 
