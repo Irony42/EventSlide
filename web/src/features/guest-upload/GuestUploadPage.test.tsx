@@ -1572,8 +1572,12 @@ describe('a guest the server does not recognise any more (A1, A2)', () => {
     )
 
     expect(await screen.findByRole('heading', { name: fr.upload.notJoinedTitle })).toBeVisible()
-    expect(readRememberedGuestSession()).toBeNull()
-    expect(readGuestSession(SLUG)).toBeNull()
+    // Forgetting is the screen's passive effect, which runs after the heading is painted and not
+    // with it: asserted at once, it raced the effect.
+    await waitFor(() => {
+      expect(readRememberedGuestSession()).toBeNull()
+      expect(readGuestSession(SLUG)).toBeNull()
+    })
   })
 })
 
