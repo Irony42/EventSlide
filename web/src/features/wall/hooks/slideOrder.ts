@@ -111,10 +111,9 @@ export const startCursor = (items: readonly SlideCandidate[]): SlideCursor => {
  * and the others wait their turn in the fresh lane. This is what puts "first photo of" under
  * the photo that opens an evening, the moment a guest and their table are looking.
  */
-const openOnArrivals = (items: readonly SlideCandidate[]): SlideCursor => {
+const openOnArrivals = (items: readonly [SlideCandidate, ...SlideCandidate[]]): SlideCursor => {
   // The list is newest first, so the last one is the first to have arrived.
-  const first = items[items.length - 1]
-  if (first === undefined) return EMPTY_CURSOR
+  const first = items.reduce((_, item) => item)
   return {
     shown: [{ id: first.id, fresh: true }],
     rotationId: null,
@@ -149,7 +148,9 @@ export const settleCursor = (
 
   const ids = new Set(items.map((item) => item.id))
   const head = cursor.shown[0]
-  if (head === undefined) return cursor.awaitingFirst ? openOnArrivals(items) : startCursor(items)
+  if (head === undefined) {
+    return cursor.awaitingFirst ? openOnArrivals([newest, ...items.slice(1)]) : startCursor(items)
+  }
 
   const stale = [...cursor.seen].some((id) => !ids.has(id))
   const rotationGone = cursor.rotationId !== null && !ids.has(cursor.rotationId)
