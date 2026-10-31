@@ -767,7 +767,9 @@ describe('ModerationPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: fr.moderation.undo }))
 
-    expect(api.moderateBulk).toHaveBeenLastCalledWith(SLUG, ['photo-1', 'photo-2'], 'publish')
+    await waitFor(() =>
+      expect(api.moderateBulk).toHaveBeenLastCalledWith(SLUG, ['photo-1', 'photo-2'], 'publish'),
+    )
     expect(await within(cardOf('Léa')).findByText(fr.moderation.statePublished)).toBeInTheDocument()
     expect(within(cardOf('Sacha')).getByText(fr.moderation.statePublished)).toBeInTheDocument()
   })
