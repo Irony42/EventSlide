@@ -1,124 +1,32 @@
 # EventSlide
 
-**A live photo wall for your event.** Guests scan a QR code, send photos from their
-phone with no account and no app, you approve them, and they appear on the projector
+**A live photo wall for your event.** Guests scan a QR code and send photos from their
+phone, with no account and no app. You approve them, and they appear on the projector
 within seconds.
 
-Self-hosted. The photos stay on your machine.
-
-**Website: [eventslide.fr](https://eventslide.fr/en/)**: how it works, guides, and the free
-hosted instance.
-
 <p align="center">
-  <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector, one photograph at a time, whole, with the sender's caption and the join code in the corner">
-  <img src="docs/images/wall-mosaic.jpg" width="49%" alt="The same wall in its mosaic layout, several photographs at once">
+  <img src="docs/images/wall-spotlight.jpg" width="49%" alt="The wall on a projector: one photograph at a time, whole, with the sender's name and a QR code in the corner">
+  <img src="docs/images/wall-clothesline.jpg" width="49%" alt="The same wall in its clothesline layout: polaroids pegged along a line, each with its sender's name, in the Guinguette ambiance">
 </p>
 <p align="center">
-  <img src="docs/images/guest-upload.jpg" width="19%" alt="A guest's phone: pick a photo, add a caption, send">
-  <img src="docs/images/moderation-phone.jpg" width="19%" alt="Moderation on a phone: one photograph, swipe right to publish, left to refuse">
-  <img src="docs/images/moderation.jpg" width="58%" alt="The moderation console on a laptop, the queue and the keyboard shortcuts">
+  <img src="docs/images/guest-upload.jpg" width="19%" alt="A guest's phone: one photo ready, buttons to add a caption or a video, and a Send button">
+  <img src="docs/images/guest-feed.jpg" width="19%" alt="The guests' feed, Photos from the evening: the pictures published so far, with the sender's name">
+  <img src="docs/images/moderation-phone.jpg" width="19%" alt="Moderation on a phone: one photograph at a time, with Reject and Publish buttons">
+  <img src="docs/images/ambiances.jpg" width="38%" alt="The event settings: choose an ambiance, an accent colour, a typeface and a frame for the photos">
 </p>
 
----
+Self-hosted, so the photos stay on your machine. Or, if you would rather not run a server,
+use the free hosted instance: see [Try it](#try-it).
 
-## Why
+## Try it
 
-Every event photo-sharing tool asks one of two things: that your guests install an app,
-or that you hand a few hundred family photographs to a company you have never heard of.
+**Hosted.** The maintainer runs one free instance of the same software at
+[app.eventslide.fr](https://app.eventslide.fr), by invitation. Ask for access on
+[eventslide.fr](https://eventslide.fr/en/request-access/), where you will also find how it
+works and some guides.
 
-EventSlide asks for neither. It runs on one machine — a laptop, a mini PC, a Raspberry
-Pi under the projector — and nothing leaves it.
-
-For anyone who cannot host it themselves, the maintainer runs a free instance of the same
-software, by invitation ([request access](https://eventslide.fr/en/request-access/),
-[ADR 0007](docs/adr/0007-agpl-and-hosted-instance.md)) — but self-hosting is what keeps
-the photos on a machine you control, and stays the recommended path.
-
-## What it does
-
-- **Guests join by scanning.** A QR code, a six-character code, a first name if they
-  feel like it. No account, no download, no email.
-- **Nothing reaches the screen without you.** Every photo waits in a moderation queue
-  until you approve it. Two hundred people are watching that screen; that is not a
-  setting to leave to chance.
-- **The wall is meant to be looked at.** One photo at a time, whole and with a slow
-  zoom, or one of six other layouts; captions and the sender's name, a join code in the
-  corner for whoever arrives late.
-- **It survives the venue.** Uploads retry, the wall keeps playing when the network
-  drops, and it runs unattended for an eight-hour evening — true for a box running on
-  site; a wall served by the hosted instance still depends on the venue's own internet
-  connection.
-- **Privacy is handled, not mentioned.** Location data and device identifiers are
-  stripped from every photo on arrival — a guest's camera records the coordinates of
-  wherever they are standing, and that is often somebody's home.
-- **Guests are told what happens to their photos, before the first one.**
-  <img src="docs/images/guest-notice.jpg" width="220" align="right" alt="The notice on a guest's phone before their first photo: what happens to the photos, who sees them, how long they are kept, how to have one removed, and an I understand button">
-  Who sees it, whether you check it before the screen, how long it is kept and how to
-  have it removed — written from your event's own settings, in the guest's language, so
-  it cannot say something your configuration does not do. Read once per phone, and shown
-  again if you change one of those settings mid-evening.
-- **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
-  when you choose one.
-- **And your guests', with one link.** The morning after, make a shared gallery link on
-  the event page and send it to everybody: the photographs that were on the wall, in full
-  resolution and without their location data, to download one by one or as a ZIP. It
-  expires when you say (a month unless you choose otherwise), it can ask for a password,
-  and you can switch it off at any moment — from then on it opens nothing.
-
-And the parts that only show up on the night:
-
-- **Photo missions give guests something to do.** You write a short list of prompts — "a
-  selfie with the couple", "the worst dance move", "someone crying" — and guests see them
-  as a checklist. It changes the question in their head from "should I bother uploading
-  this" to "which one is left".
-- **Short video clips too**, not only photographs. Fifteen seconds, transcoded on the
-  box, played on the wall without sound — because a room already has music.
-- **Moderate from your phone.** One photograph at a time, swipe right to publish, left
-  to refuse. The person deciding is usually standing up with a drink, not sitting at a
-  laptop.
-- **The upload survives the venue Wi-Fi.** A photo picked with no signal is queued on
-  the phone and sent when there is some, even if the guest has closed the page —
-  EventSlide installs as an app if they let it, and keeps working when the network does
-  not.
-- **It speaks everybody's language, not only the guest's.** French, English, Spanish,
-  German and Italian, across the whole interface: the guest's phone, the moderation
-  console, the admin pages and the projected wall. International weddings are the normal
-  case, and so is a moderator who is not the person who installed the box.
-
-  A guest and a host each pick their own from a control in the header, and it is
-  remembered. The wall is the exception and it is the interesting one: there is nobody in
-  front of a projector to ask, so its language is a setting on the **event**, chosen by
-  whoever created it and defaulted to the language they were reading at the time.
-
-  What is never translated is what people write. An event's name, a caption, a guest's
-  display name and a mission prompt are shown exactly as typed — so a German wall over a
-  French wedding prints German labels above French prompts, which is the right way round.
-  A native reader has not yet gone over the German, Spanish and Italian copy on the host
-  and wall surfaces; the French is hand-written and is the source the rest is translated
-  from.
-
-- **It looks like the evening it is running.** Each event wears an ambiance: the
-  product's own violet by default, or one of six designed worlds — Guinguette, Riviera,
-  Golden fields, Bivouac, Cabaret and Wedding, in red and white — each with its own
-  surfaces, inks, display face and background photograph. A venue photograph of your own
-  can replace that background. On top of the ambiance the host picks an accent colour, a
-  font pairing and a frame style; the wall takes all three (the frame in the layouts that
-  draw one), and the guests' phones the colour. The colour is checked against the
-  accessibility contract server-side — the text on it must read at ten metres, and in a
-  designed ambiance it must not pass for the colours that mean success, warning or error
-  — and one that fails is refused rather than rendered.
-- **Or one you make yourself.** The Custom ambiance lets the host choose a light or dark
-  ground, its tint, the accent and the faces, on a simulation page that shows the
-  guest's phone and the wall live before anything is saved. Every combination it offers
-  is proven legible in advance, so there is no way to make a wall nobody can read.
-- **The wall looks after its own projector.** If the machine driving it cannot hold its
-  frame rate, it gives up the slow zoom before the crossfade, rather than stuttering
-  through an eight-hour evening.
-
-## Install
-
-You need Docker, and an https address your guests' phones can reach. The commands come
-first; what the https part asks of you is explained after them.
+**Self-hosted, with Docker.** You need Docker and an https address your guests' phones can
+reach (see [What the install needs](#what-the-install-needs)).
 
 ```bash
 git clone https://github.com/Irony42/EventSlide.git
@@ -128,8 +36,7 @@ cd EventSlide
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
 echo "PUBLIC_URL=https://photos.example.com" >> .env
-# Your own account, created on the first boot. The password is generated too, because
-# one typed into a README is one everybody who read it could sign in with first.
+# Your own account, created on the first boot, with a generated password.
 echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
 node -e "console.log('BOOTSTRAP_OWNER_PASSWORD='+require('crypto').randomBytes(18).toString('base64url'))" >> .env
 
@@ -137,326 +44,99 @@ docker compose up            # the first time, and read what it says
 docker compose up -d         # once it has booted cleanly
 ```
 
-The first `up` pulls the published image, `ghcr.io/irony42/eventslide` at the version you
-checked out, for `linux/amd64` and `linux/arm64`. It is signed and scanned when it is released,
-and [docs/IMAGE-SOURCES.md](docs/IMAGE-SOURCES.md) says what is in it, where the source of
-each part is, and how to check the signature. Nothing is built on your machine. To build it
-from the checkout instead (a modified copy, an unreleased commit):
+The image is `ghcr.io/irony42/eventslide` (`linux/amd64` and `linux/arm64`), signed and
+scanned at each release; [docs/IMAGE-SOURCES.md](docs/IMAGE-SOURCES.md) says what is in it
+and how to verify it. To build it from the checkout instead:
+`docker compose -f compose.yaml -f compose.build.yaml up --build`.
 
-```bash
-docker compose -f compose.yaml -f compose.build.yaml up --build
-```
+Then open `PUBLIC_URL/login` and sign in with that email and the generated password
+(`grep BOOTSTRAP_OWNER .env` shows it). The first sign-in asks you to choose your own.
 
-Once the https proxy described below is in front of it, open `PUBLIC_URL/login` and sign
-in with that email and the generated password (`grep BOOTSTRAP_OWNER .env` shows it). The
-first sign-in asks you to choose your own before it shows you anything else.
+### What the install needs
 
-**Run it in the foreground the first time.** A missing or malformed variable makes the
-server print every problem at once and exit rather than start — which is what you want,
-and what you will not see if the first run is detached, because the container restarts
-on its own and the list scrolls away. Once it boots, `-d` is the right way to leave it.
+- **Run it in the foreground the first time.** A missing or malformed variable makes the
+  server print every problem at once and exit. Once it boots, use `-d`.
+- **`PUBLIC_URL` must be an https address a phone on the venue Wi-Fi can reach**, never
+  `localhost`: it is what the QR code encodes. Scan your own QR code before the guests arrive.
+- **Something in front of it terminates https** (Caddy, nginx or Traefik), because the
+  host's login cookie is `Secure`. `compose.yaml` binds `127.0.0.1:4300` and sets
+  `TRUST_PROXY_HOPS=1` to match. With Caddy, the whole proxy is:
 
-**The two `BOOTSTRAP_OWNER_` lines are how the first account is made.** There is no
-default admin and no setup page: the server creates that owner on its first boot, against
-an empty database, and creates nothing from them once any account exists. It still checks
-them at every boot, so once you have signed in and chosen your own password, delete both
-or keep both — one without the other is refused. A password of your own choosing is held
-to the same rule as every account's, at least 12 characters and not an obvious one, and a
-weak one is refused at boot like any other bad variable. The email is only checked when
-the account is made: a malformed one creates nothing, and the log says so.
+  ```
+  photos.example.com {
+    reverse_proxy 127.0.0.1:4300
+  }
+  ```
 
-**`PUBLIC_URL` must be an https address a phone on the venue Wi-Fi can actually reach**,
-never `localhost`. It is what the QR code encodes, and a QR code pointing at `localhost`
-is the most common way a setup fails on the night. Test it by scanning your own QR code
-from your phone before the guests arrive.
+  nginx also needs `proxy_set_header X-Forwarded-Proto $scheme;` and
+  `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
 
-**https is not optional, and this is the one part of the install that is not one
-command.** EventSlide speaks plain HTTP and never terminates TLS itself, so something in
-front of it does — Caddy, nginx or Traefik, whichever you already run. The reason is not
-ceremony: a host's login cookie is marked `Secure`, so a browser will not send it back
-over plain http, and a server that let you configure that would hand you a login form
-that never logs in. Rather than fail there, it refuses at boot and says so. `compose.yaml`
-binds the port to `127.0.0.1` for the proxy to reach and sets `TRUST_PROXY_HOPS=1` to
-match; if your proxy is a container on the same Docker network, delete the `ports:` block
-and point it at `eventslide:4300`.
+- **There is no default admin and no weak default secret.** The owner above is made on the
+  first boot against an empty database, and a server started without its two secrets
+  refuses to run. [`.env.example`](.env.example) walks through every other setting
+  (upload limits, retention, video clips, the shared gallery).
 
-With Caddy, the whole proxy is one line in a `Caddyfile` next to the compose file:
+Without Docker, behind a venue with no domain name, or to look around with demo data:
+[docs/INSTALL.md](docs/INSTALL.md).
 
-```
-photos.example.com {
-  reverse_proxy 127.0.0.1:4300
-}
-```
+## What it does
 
-Whichever proxy it is has to tell the server that the request arrived over https
-(`X-Forwarded-Proto`) and who sent it (`X-Forwarded-For`). Caddy and Traefik do without
-being asked; nginx needs `proxy_set_header X-Forwarded-Proto $scheme;` and
-`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`. Without the first the
-login cookie is never sent, and without the second every guest shares the proxy's address
-in the rate limiter.
+**For your guests**: scan, type a first name if they like, send. No account, no download,
+no email. Photos and short video clips, a caption, a checklist of photo missions if you set
+some, a reaction under someone else's photo, and a feed of the evening's photos. Uploads
+queue on the phone when the Wi-Fi drops. It speaks French, English, Spanish, German and
+Italian.
 
-**A venue with no domain name is the case this does not cover.** A box on a LAN with no
-DNS and no certificate cannot serve https that a guest's phone will trust, and EventSlide
-will not run over plain http in production. Today the answer is a real domain pointed at
-the machine — which works over the venue's Wi-Fi as long as the phones have any route to
-it — or a `--network host` proxy with a certificate you already own. If you need a purely
-offline wall, say so on the issue tracker; the constraint is deliberate but it is not
-free, and it is written down as an open question rather than as a solved problem.
+**For you, the host**: nothing reaches the screen until you approve it, from a laptop
+(`J`/`K`, `P` to publish, `R` to refuse) or from your phone, one photo at a time.
 
-<details>
-<summary>Without Docker</summary>
+<p align="center">
+  <img src="docs/images/moderation.jpg" width="80%" alt="The moderation console on a laptop: two photos waiting, with Publish and Reject buttons and the keyboard shortcuts above">
+</p>
 
-Node 24 or later.
+Each event wears an ambiance, the violet EventSlide look by default, one of six designed
+worlds, or one you make yourself, with an accent colour, a typeface and a frame for the
+photos. The morning after, one link shares the album with everyone, optionally behind a
+password.
 
-```bash
-npm install
+**For the room**: the wall, fullscreen on a projector, runs unattended for an evening.
+Seven layouts (spotlight, mosaic, polaroid, filmstrip, collage, split and clothesline),
+captions and names, a QR code and a join code in the corner for whoever arrives late. It
+keeps playing if the network drops.
 
-# The same secrets, address and first owner as the Docker install above. `npm start`
-# reads this `.env` if it is there; it never overrides a variable your shell or your
-# service manager already set, so a systemd unit can own them instead.
-node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
-node -e "console.log('GUEST_TOKEN_SECRET='+require('crypto').randomBytes(48).toString('base64url'))" >> .env
-echo "PUBLIC_URL=https://photos.example.com" >> .env
-echo "BOOTSTRAP_OWNER_EMAIL=you@example.com" >> .env
-node -e "console.log('BOOTSTRAP_OWNER_PASSWORD='+require('crypto').randomBytes(18).toString('base64url'))" >> .env
-# The one line `compose.yaml` writes for you: there is one proxy in front of the server.
-echo "TRUST_PROXY_HOPS=1" >> .env
+<p align="center">
+  <img src="docs/images/wall-mosaic.jpg" width="60%" alt="The wall in its mosaic layout: several photographs at once, each with its sender's name">
+</p>
 
-npm run db:migrate
-npm run build
-npm start
-```
+Every feature, in full: [docs/FEATURES.md](docs/FEATURES.md). Running the evening
+(missions, the shared gallery, retention, schedules): [docs/OPERATING.md](docs/OPERATING.md).
 
-**The login needs `TRUST_PROXY_HOPS=1` behind your https proxy.** Without it the server
-does not take the proxy's word (the `X-Forwarded-Proto` above) that the request arrived
-over https, so it never sends the `Secure` login cookie: the sign-in form accepts your
-password and you are still signed out. It also means the server believes the address the
-proxy forwards, and `npm start` listens on port 4300 on every interface — so firewall that
-port and let only the proxy reach it, or anybody on the network can claim an address of
-their choosing and walk past the per-address rate limits.
+## Privacy
 
-**There is no weak default to fall back on, and that is deliberate.** `NODE_ENV` is
-`production` unless something says otherwise, so a server started without those two
-secrets prints both and exits instead of signing cookies with something it made up.
-`.env.example` walks through most of the others — upload limits, quotas, video clips,
-the two sweeps, the shared gallery's rate limits — and is worth reading; copying it
-verbatim stops the boot, because the secrets in it are placeholders and the server knows
-them by sight.
-
-To look around before there is a real event, give the demo a scratch database and run
-the development server on it, with `npm start` stopped — both use port 4300.
-`npm run db:seed:demo` refuses a database that already holds an account, which yours
-does from its first boot:
-
-```bash
-# An event with six photos on the wall and two awaiting moderation, and its login.
-DATABASE_PATH=./data/demo.sqlite MEDIA_ROOT=./data/demo-media npm run db:seed:demo
-# Then sign in at http://localhost:5173/login with what the seed printed.
-DATABASE_PATH=./data/demo.sqlite MEDIA_ROOT=./data/demo-media npm run dev
-```
-
-Set per command rather than exported, so a later `npm start` in the same shell still
-opens your real database; under `data/`, so git ignores it. The demo login asks for a new
-password first, like any first sign-in.
-
-</details>
-
-## Photo missions
-
-<img src="docs/images/missions-checklist.jpg" width="300" align="right" alt="A guest's checklist: four prompts, the first one ticked and marked Done">
-<img src="docs/images/wall-missions.jpg" width="300" align="right" alt="The same four prompts on the wall: a standing panel in the corner, one answered and ticked with a guest count">
-
-The cheapest way to get more photographs is to stop asking guests to decide what is worth
-sending. Write four or five prompts on the event page and they become a checklist on every
-guest's phone.
-
-A guest taps a prompt before sending, which is one tap and no extra screen. The wall shows
-the list with what has been answered so far, in a corner, standing still — it is a
-scoreboard for the room, not a thing that flashes every time somebody uploads.
-
-Two details that matter more than they look:
-
-- **A mission is answered when a _published_ photograph names it**, not when a guest tags
-  one. So a photograph you refuse in moderation never counted, and nothing has to be
-  un-counted. The same holds for one a guest deletes, or one a retention sweep purges.
-- **A prompt can be per guest or once for the evening.** "A selfie with the couple" is
-  something everybody can do; "the first dance" happens once. You choose per prompt, and
-  the default is per guest.
-
-Prompts are content, not interface: you write them in the language of your evening and
-they are shown exactly as typed. There is no leaderboard and no per-guest score — a guest
-sees their own checklist and nothing about anybody else's.
-
-<br clear="right">
-
-## Shared gallery
-
-<img src="docs/images/gallery-album.jpg" width="260" align="right" alt="The shared album on a relative's phone: the event's name, seven photos, the date the link expires, and a button to download everything as a ZIP">
-<img src="docs/images/gallery-panel.jpg" width="260" align="right" alt="The Shared album panel on the event page: open until a date, protected by a password, the new link shown once with a button to copy it, and buttons to replace it or switch it off">
-
-The morning after, the same question arrives from everybody, one at a time: can you send
-me the photos. The **Shared album** panel on the event page answers it with one link.
-
-Choose how long it stays open — 7, 30 or 90 days — and, if you want one, a password of at
-least 12 characters to send separately. The address is shown once, when you make it: the
-server keeps only a fingerprint of it, so copy it then. Making a new link switches the
-old one off, and so does **Switch off the link**. Only the event's owners see the panel;
-a moderator can publish to the wall, not to the internet.
-
-Whoever opens the link needs no account. They type the password if there is one and get
-the album as a grid; each photograph opens larger with **Download the original**, and
-**Download everything (.zip)** takes the lot.
-
-What the link hands out, and what it does not:
-
-- **Full resolution, without location data.** The originals as the box stored them, which
-  means already stripped of coordinates and device details on arrival. A video comes as
-  the box transcoded it, not as the phone filmed it.
-- **Only what was on the wall.** Pending, refused and hidden photographs are not in it,
-  and one you take off the wall after sending the link is gone from it at the next page
-  load.
-- **Switching it off is immediate.** Nothing it has not already shown loads any more, in
-  a tab already open either, and a ZIP halfway through downloading is cut off rather than
-  finished — so nobody is left holding an archive that looks complete and is not.
-
-<br clear="right">
-
-## On the night
-
-1. **Create the event** in `/admin` — a name is enough.
-   Add photo missions here too, if you want them.
-2. **Print the QR code** from the event page and put it on the tables.
-3. **Open it to guests** when the evening starts, with **Open to guests** on the event
-   page, or give it an opening time in its settings. Until then it is a draft: the QR
-   code lets nobody in and there is no wall to show.
-4. **Open the wall** on the projector: the display page, fullscreen. It needs no
-   keyboard after that.
-5. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
-   themselves; `J`/`K` to move, `P` to publish, `R` to refuse, `Z` to undo.
-6. **The morning after**, make the [shared gallery](#shared-gallery) link on the event
-   page and send it to your guests. Your own copy of the album, with the photos you took
-   off the wall, is **Download the album** on the same page.
-
-Three settings worth a thought before you start:
-
-- **Moderation.** Approving every photo yourself is the default, and the right choice for
-  anything with colleagues or extended family in the room. Publishing automatically is
-  for a small party among close friends, and the app will warn you when you choose it.
-- **Retention.** Nothing is deleted unless you ask — and your guests are told so. If you
-  set a retention period, the album is purged that many days after the event closes —
-  export it first, and take a [backup](#backups). The server checks every hour and
-  deletes what is due, so the promise the setting makes to your guests is kept without
-  you remembering.
-  `docker compose exec eventslide node dist/ops/scripts/purge.js --dry-run` lists what
-  the next sweep would remove, and the same command without `--dry-run` does it now —
-  `npm run purge:dry-run` and `npm run purge` from a source checkout. Both are safe with
-  the server running. `RETENTION_SWEEP_INTERVAL_MINUTES=off` hands the schedule to your
-  own cron; with Docker it goes in your `.env`, which `compose.yaml` passes to the
-  container. The audit log of a box run for other people (`SITE_ADMIN=on`) is pruned only by
-  the in-process sweep, so turning it off also stops that.
-- **Opening and closing on their own.** The settings page takes an opening time and a
-  closing time; leave either empty and you do that one yourself. The times are read on
-  your own computer's clock, so 18:00 means 18:00 where the party is. If the server was
-  off at 18:00 the event still opens at the next check — a missed window is honoured,
-  not skipped — and closing an event stops uploads without deleting anything. A time you
-  have already passed is refused when you set it, so check the date before you save "close
-  at 02:00" at half past nine. `SCHEDULE_SWEEP_INTERVAL_MINUTES=off` stops the server
-  applying schedules; it does not stop you setting them, so they pile up while it is off
-  and the first check after you turn it back on applies them all at once — clear them
-  first if any event has one.
+- **Location data and device identifiers are stripped** from every photo on arrival.
+- **Moderation comes first.** Approving each photo is the default.
+- **Guests are told before their first photo** who sees it, how long it is kept and how to
+  have it removed, and a guest can erase everything they sent.
+- **Retention is yours to set**, and the server purges what is due. Nothing is deleted
+  unless you ask.
+- **Open source, AGPL-3.0-only.** The photos stay on a machine you control.
 
 ## Backups
 
-Take one before the event and one the morning after. The server stays up while you do,
-and the step people skip is the one that matters: getting the archive off the box.
-
-With Docker, from the directory holding `compose.yaml`:
+Take one before the event and one the morning after. The server stays up while you do.
 
 ```bash
-# 1. Take it. It prints the name, e.g. /data/backups/eventslide-2026-09-12T08-00-00Z
 docker compose exec eventslide node dist/ops/scripts/backup.js
-
-# 2. Take it off the volume, check the copy, and only then delete it there. Until it is
-#    off the machine it is on the same disk as the photographs, and the command says so.
-A=eventslide-2026-09-12T08-00-00Z
-docker compose cp "eventslide:/data/backups/$A" . &&
-  docker compose run --rm -v "$PWD/$A:/restore:ro" eventslide \
-    node dist/ops/scripts/backup.js --verify /restore &&
-  docker compose exec eventslide rm -r "/data/backups/$A"
 ```
 
-The archive is a directory holding a consistent snapshot of the database, every photo,
-and a manifest of counts and checksums. `backup` re-reads everything it just wrote
-before it says OK, so an archive that exits 0 is one you have a reason to trust.
-
-It lands on the data volume because that is the only writable place in the container
-that survives a restart — which is also why it cannot stay there, since a copy on the
-same disk as the album survives everything except that disk failing. `docker compose cp`
-brings it to the host, and it is a backup once a copy is on another machine or on a
-drive you can unplug. Each archive is as large as the album and sits on the volume the
-uploads fill, so delete it there once the copy has verified; the command refuses to
-start one that would not fit, rather than fill the disk the wall is writing to. To
-write it straight to a mounted drive instead, hand the command one; the directory must
-be writable by uid 1000, the image's user:
-
-```bash
-docker compose run --rm -v /mnt/usb/backups:/backups eventslide \
-  node dist/ops/scripts/backup.js --to /backups/before-the-party
-```
-
-To restore, **stop the server first.** A restore replaces the database file, and doing
-that underneath the running server leaves the wall serving neither the old evening nor
-the restored one — so never restore with `exec`. `run --rm` starts a one-off container
-on the same volume while the service is stopped:
-
-```bash
-docker compose stop eventslide
-A=eventslide-2026-09-12T08-00-00Z   # the copy you brought back
-docker compose run --rm -v "$PWD/$A:/restore:ro" eventslide \
-  node dist/ops/scripts/restore.js /restore --dry-run  # rehearse: verify, show the plan
-docker compose run --rm -v "$PWD/$A:/restore:ro" eventslide \
-  node dist/ops/scripts/restore.js /restore --force    # overwrites what is there now
-docker compose start eventslide
-```
-
-`restore` verifies the whole archive before it touches anything, refuses to overwrite an
-installation unless you say `--force`, and prints exactly what `--force` is about to
-destroy. It runs as the image's own user, so the server can read everything it writes,
-and the media directory keeps its `0700`. That user, uid 1000, also has to be able to
-read the archive: a copy made by `docker compose cp` is readable, and one you have
-locked down since needs `sudo chown -R 1000 "$A"` first. An archive still on the volume
-needs no mount; pass its `/data/backups/...` path instead. To re-check an archive
-without restoring it, `node dist/ops/scripts/backup.js --verify <archive>` runs the
-same way and is safe with the server up.
-
-There is no migration step. The server applies pending migrations when it starts,
-before it answers a request, and `restore` brings the database it wrote up to the
-running version itself.
-
-From a source checkout the same commands are npm scripts, and an archive goes to
-`./backups` unless `--to` says otherwise, or `BACKUP_DIR` is set in the command's own
-environment (`npm run` does not read `.env`):
-
-```bash
-npm run backup                           # -> ./backups/eventslide-<timestamp>/
-npm run backup -- --to /mnt/usb/mariage  # or somewhere that is not this machine
-npm run backup:verify -- <archive>       # re-check one later
-
-npm run restore -- <archive> --dry-run   # rehearse: verify, print the plan
-npm run restore -- <archive> --force     # with the server stopped
-```
-
-Keep your `.env` with the archive — the secrets are not in it, restoring photos with new
-ones signs every host out, and on a replacement box `docker compose` will not run a
-single command, `stop` and `run` included, until the three variables `compose.yaml`
-requires are back. Details, and what the checks do and do not catch, are in
-[docs/SECURITY.md §11](docs/SECURITY.md#11-deployment-posture).
+It prints the archive's name. Copy it off the machine before you delete it from the volume:
+until then it is on the same disk as the photographs. Restoring, the USB-drive variant and
+the npm scripts are in [docs/OPERATING.md](docs/OPERATING.md#backups).
 
 ## Upgrading
 
-Run a tagged release, not the tip of `main` (`git clone` leaves you on it), and take a
-[backup](#backups) first: the migrations a new version applies when it starts only go
-forward, and a backup is the only way back.
+Run a tagged release, not the tip of `main`, and take a backup first: migrations only go
+forward.
 
 ```bash
 git fetch --tags && git checkout vX.Y.Z
@@ -464,16 +144,16 @@ docker compose pull
 docker compose up -d
 ```
 
-What a major version may break, how a break is announced, and how to go back are in
-[docs/UPGRADING.md](docs/UPGRADING.md).
+What a major version may break, and how to go back: [docs/UPGRADING.md](docs/UPGRADING.md).
+What changed: [CHANGELOG.md](CHANGELOG.md).
 
-## For contributors
+## Contributing
 
-The interesting parts are documented rather than left to be inferred:
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). The rest is documented rather than left to
+be inferred:
 
 |                                                |                                                                                      |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [CONTRIBUTING.md](CONTRIBUTING.md)             | The short version: before a pull request, commit style, migration numbers            |
 | [CLAUDE.md](CLAUDE.md)                         | The rules, the layer boundaries, and the traps this codebase has already fallen into |
 | [AGENTS.md](AGENTS.md)                         | The same, for any AI coding agent                                                    |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)   | Layers, a guest upload traced file by file, the ports, the schema                    |
@@ -481,8 +161,6 @@ The interesting parts are documented rather than left to be inferred:
 | [docs/SECURITY.md](docs/SECURITY.md)           | The threat model, written around who is actually in the room                         |
 | [docs/DESIGN-SYSTEM.md](docs/DESIGN-SYSTEM.md) | Tokens, primitives, and the accessibility contract                                   |
 | [docs/API.md](docs/API.md)                     | The HTTP contract                                                                    |
-| [docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) | What the licence asks of someone who runs it, changes it or forks it                 |
-| [docs/IMAGE-SOURCES.md](docs/IMAGE-SOURCES.md) | What the published image is made of, where its source is, how to check its signature |
 | [docs/ROADMAP.md](docs/ROADMAP.md)             | What comes next, and what will never be built                                        |
 | [docs/adr/](docs/adr/)                         | Why the architecture is the way it is, including the alternatives that lost          |
 
@@ -492,51 +170,15 @@ npm run verify         # lint + typecheck + coverage + build — the gate
 npm run verify:full    # the above plus the Playwright journeys
 ```
 
-`npm run lint` enforces the architecture itself: a file in
-`src/domain` that imports Express fails `npm run verify`. `src/domain` and
-`src/application` are held at 100% branch coverage.
-
 ## Licence
 
-GNU Affero General Public License, version 3 only — **AGPL-3.0-only**, no "or later"
-clause. The full text is in [LICENSE](LICENSE), unmodified from the Free Software
-Foundation, and `package.json` declares the same `AGPL-3.0-only`, so the declaration
-and the grant agree. [NOTICE](NOTICE) carries the copyright line and names the main
-third-party components that stay under their own licences.
+**AGPL-3.0-only**, no "or later" clause: the full text is in [LICENSE](LICENSE), and
+[NOTICE](NOTICE) names the third-party components that stay under their own licences. Run
+it, read it, change it and pass it on; if you let others use a modified version over a
+network, ship them its source. What that asks of someone who runs, changes or forks it:
+[docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md). The history of the licence, the settings
+for an instance run for other people, and how dependencies are held to the same standard:
+[docs/LICENCE.md](docs/LICENCE.md).
 
-The AGPL adds one obligation to the GPL, its section 13: if you modify EventSlide and
-let other people interact with your modified version over a network, you must offer
-those users the Corresponding Source of your version. Running an unmodified copy
-triggers nothing beyond what the GPL already asked, and handing a copy to someone
-else still means passing on the licence and the source, exactly as before.
-
-EventSlide makes the offer for you: every guest and host screen carries a "Code source
-(AGPL-3.0)" link, and `GET /api/about` publishes the same address. Unset, it points at the
-upstream tag of the running version, which is the source of exactly that build **only when
-you run an unmodified copy of that tagged release**. For anything else — a modified build, a
-fork, a commit no tag names — set `SOURCE_CODE_URL` to where your source is published
-([`.env.example`](.env.example) says how). You can change where the link points; there is no
-setting that hides it.
-
-An instance that asks for support can set `DONATION_URL` and `BUDGET_URL`, empty by default, and a donation unlocks nothing: same service for everyone.
-
-An instance run for other people can name its operator and link its legal pages with `OPERATOR_NAME`, `OPERATOR_CONTACT_EMAIL`, `LEGAL_TERMS_URL`, `LEGAL_PRIVACY_URL`, `LEGAL_NOTICE_URL`, `SUPPORT_URL` and `REPORT_URL`, all empty by default: a self-hosted box that sets none of them looks and behaves exactly as before. Setting `LEGAL_TERMS_VERSION` beside `LEGAL_TERMS_URL` makes accepting an invitation also accept the terms, with a recorded version.
-
-Dependencies are held to the same standard. `scripts/licenseAudit.test.ts` reads
-`package-lock.json` and fails the build on any licence outside a short permissive
-allow-list (MIT, ISC, BSD, Apache-2.0, 0BSD, MIT-0, BlueOak-1.0.0) unless a named,
-argued exception covers that package: today sharp's LGPL libvips in production, and a few
-development tools that never reach the image. The web build writes the notices the
-bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links.
-
-**Everything published before this change remains under GPL-3.0, permanently** — a
-licence grant cannot be revoked after the fact. `v3.0.0` is the first release under the AGPL;
-`v2.1.0` is the last release under the GPL-3.0, and the tag `gpl-final` is on the last GPL-3.0
-commit. [.github/gpl-boundary](.github/gpl-boundary)
-names the last commit that carries the GPL text, and the `licenseHistory` CI job
-checks that every commit after it on the first-parent line of `main` carries the AGPL one.
-[docs/LICENSING-FAQ.md](docs/LICENSING-FAQ.md) answers what this asks of someone who runs,
-changes or forks it.
-
-In short: run it, read it, change it, and pass it on — and if you let others use a
-modified version over a network, ship them its source under the same licence.
+The screenshots above use the Unsplash photographs credited in
+[web/public/licenses/PHOTOS.txt](web/public/licenses/PHOTOS.txt).

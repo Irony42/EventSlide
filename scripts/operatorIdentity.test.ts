@@ -100,8 +100,8 @@ describe('the documents and the promise that an empty box changes nothing', () =
     expect(prose).toContain('exactly what it answered before')
   })
 
-  it('the README names all the keys in one line, with the same promise', () => {
-    const line = read('README.md')
+  it('docs/LICENCE.md names all the keys in one line, with the same promise', () => {
+    const line = read('docs', 'LICENCE.md')
       .split('\n')
       .find((candidate) => candidate.includes('OPERATOR_NAME'))
 

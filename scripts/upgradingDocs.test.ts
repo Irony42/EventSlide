@@ -390,8 +390,8 @@ describe('the links of docs/UPGRADING.md', () => {
     }
   })
 
-  it('reach the README, the CHANGELOG and the API contract', () => {
-    expect(links).toContain('../README.md#backups')
+  it('reach the backups guide, the CHANGELOG and the API contract', () => {
+    expect(links).toContain('OPERATING.md#backups')
     expect(links).toContain('../CHANGELOG.md')
     expect(links).toContain('API.md')
   })

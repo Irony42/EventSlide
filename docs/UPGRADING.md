@@ -133,7 +133,7 @@ the checkout anyway (a modified copy, a commit no release names), see
    `version` in `GET /api/health`, except on 2.1.0, which reports `2.0.0` (see
    [Upgrading to 3.0](#upgrading-to-30)).
 3. **Back up, verify, and take it off the volume.** The server stays up while you do.
-   [README](../README.md#backups) has the reasoning and the variants. Keep the archive
+   [Running an event](OPERATING.md#backups) has the reasoning and the variants. Keep the archive
    **outside the checkout**: it is the one directory you are about to `git checkout` in, and
    building the image from it ([below](#building-the-image-yourself)) would send an album-sized
    archive to Docker along with the source.

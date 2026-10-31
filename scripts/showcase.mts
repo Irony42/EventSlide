@@ -516,4 +516,170 @@ const main = async (): Promise<void> => {
   }
 }
 
-await main()
+/**
+ * `--readme`: the handful of JPEGs the README and docs/ use, written to `--out`.
+ *
+ * Photographs are the six ambiance backgrounds (Unsplash licence, credited in
+ * `web/public/licenses/PHOTOS.txt`), cropped several ways: no person is in them.
+ */
+const readmeMain = async (): Promise<void> => {
+  const CROPS = [
+    { ground: 'guinguette', caption: 'Fairy lights on the path', by: 'Mia', portrait: false },
+    { ground: 'riviera', caption: 'Sunset from the balcony', by: 'Jack', portrait: false },
+    { ground: 'noces', caption: 'The bouquet', by: 'Ava', portrait: false },
+    { ground: 'bivouac', caption: 'Bonfire under the stars', by: 'Mia', portrait: false },
+    { ground: 'cabaret', caption: 'Curtains, before the show', by: 'Jack', portrait: true },
+    { ground: 'champs', caption: 'The tall grass', by: 'Ava', portrait: false },
+    { ground: 'riviera', caption: 'Golden hour', by: 'Mia', portrait: true },
+    { ground: 'guinguette', caption: 'After dark', by: 'Jack', portrait: true },
+  ]
+  const dir = join(OUT, '.fixtures')
+  await mkdir(dir, { recursive: true })
+  const pictures: { path: string; caption: string; by: string }[] = []
+  for (const [i, c] of CROPS.entries()) {
+    const src = join(process.cwd(), `web/src/design-system/ambiances/${c.ground}-ground-1600.webp`)
+    const meta = await sharp(src).metadata()
+    const w = meta.width!
+    const h = meta.height!
+    const cw = c.portrait ? Math.min(w, Math.round(h * 0.75)) : w
+    const left = c.portrait ? Math.round((w - cw) * (i % 2 === 0 ? 0.2 : 0.8)) : 0
+    const path = join(dir, `p${i}.jpg`)
+    await sharp(src)
+      .extract({ left, top: 0, width: cw, height: h })
+      .jpeg({ quality: 88 })
+      .toFile(path)
+    pictures.push({ path, caption: c.caption, by: c.by })
+  }
+
+  const app = await startTestApp({ worker: 42, env: { PUBLIC_URL: 'https://eventslide.fr' } })
+  let browser: Browser | undefined
+  const jpg = async (png: Buffer, name: string, width: number): Promise<void> => {
+    const out = await sharp(png).resize({ width }).jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+    await writeFile(join(OUT, `${name}.jpg`), out)
+    console.log(`  ok ${name}.jpg ${Math.round(out.length / 1024)} KB`)
+  }
+  try {
+    const event = await app.seedEvent({
+      slug: 'garden-party',
+      name: 'Grace & Noah',
+      wallLanguage: 'en',
+    })
+    const { sessionOn } = await import('../tests/e2e/fixtures/session')
+    const api = await sessionOn(app.baseUrl)
+    await api.post('/api/auth/login', { email: app.owner.email, password: app.owner.password })
+    browser = await chromium.launch()
+    const ctx = (width: number, height: number, dsf: number) =>
+      browser!.newContext({ viewport: { width, height }, deviceScaleFactor: dsf, locale: 'en-GB' })
+
+    const phone = await ctx(390, 844, 2)
+    const mia = await phone.newPage()
+    await mia.goto(`${app.baseUrl}/join/${event.joinCode}`)
+    await mia.getByLabel(/Your first name/i).fill('Mia')
+    await mia.getByRole('button', { name: /Join/i }).click()
+    await mia.waitForURL(/\/e\/[^/]+\/upload/)
+    await passNotice(mia)
+    for (const name of ['Jack', 'Ava']) {
+      const other = await ctx(390, 844, 2)
+      await joinAndSend(
+        await other.newPage(),
+        app.baseUrl,
+        event.joinCode,
+        name,
+        pictures.filter((p) => p.by === name),
+      )
+      await other.close()
+    }
+    for (const p of pictures.filter((x) => x.by === 'Mia')) {
+      await mia.getByTestId('photo-input').setInputFiles(p.path)
+      const f = mia.getByLabel(/Caption/i)
+      if (await f.isVisible().catch(() => false)) await f.fill(p.caption)
+      await mia.getByRole('button', { name: /Send/i }).click()
+      await mia.waitForTimeout(1500)
+    }
+
+    const signIn = async (page: Page): Promise<void> => {
+      await page.goto(`${app.baseUrl}/login`)
+      await page.getByLabel(/Email address/i).fill(app.owner.email)
+      await page.getByLabel(/Password/i).fill(app.owner.password)
+      await page.getByRole('button', { name: /Sign in/i }).click()
+      await page.waitForURL(/\/admin(?!\/password)/)
+    }
+    const laptop = await ctx(1440, 900, 2)
+    const host = await laptop.newPage()
+    await signIn(host)
+    await host.goto(`${app.baseUrl}/admin/events/${event.slug}/moderation`)
+    await host.waitForTimeout(1500)
+    for (let n = 0; n < 6; n += 1) {
+      const card = host.getByTestId('moderation-card').first()
+      if (!(await card.isVisible().catch(() => false))) break
+      await card.getByRole('button', { name: /Publish/i }).click()
+      await host.waitForTimeout(500)
+    }
+    for (const p of pictures
+      .filter((x) => x.by === 'Ava')
+      .slice(0, 1)
+      .concat(pictures.slice(3, 5))) {
+      await mia.getByTestId('photo-input').setInputFiles(p.path)
+      await mia.getByRole('button', { name: /Send/i }).click()
+      await mia.waitForTimeout(1500)
+    }
+    await host.waitForTimeout(6000)
+    await jpg(await host.screenshot(), 'moderation', 1440)
+
+    const pm = await ctx(390, 844, 2)
+    const mh = await pm.newPage()
+    await signIn(mh)
+    await mh.goto(`${app.baseUrl}/admin/events/${event.slug}/moderation/mobile`)
+    await visibleImagesDecoded(mh)
+    await mh.waitForTimeout(1000)
+    await jpg(await mh.screenshot(), 'moderation-phone', 390)
+
+    await mia.goto(`${app.baseUrl}/e/${event.slug}/upload`)
+    await mia.getByTestId('photo-input').setInputFiles(pictures[0]!.path)
+    await mia.waitForTimeout(800)
+    await jpg(await mia.screenshot(), 'guest-upload', 390)
+    await mia.goto(`${app.baseUrl}/e/${event.slug}/photos`)
+    await visibleImagesDecoded(mia)
+    await mia.waitForTimeout(800)
+    await jpg(await mia.screenshot(), 'guest-feed', 390)
+
+    await host.goto(`${app.baseUrl}/admin/events/${event.slug}/settings`)
+    await host.waitForLoadState('networkidle')
+    await host.getByLabel('Ambiance', { exact: true }).selectOption('guinguette')
+    await host.getByLabel('Ambiance', { exact: true }).scrollIntoViewIfNeeded()
+    await host.waitForTimeout(1500)
+    await jpg(
+      await sharp(await host.screenshot({ fullPage: true }))
+        .resize({ width: 1440 })
+        .extract({ left: 100, top: 1300, width: 540, height: 990 })
+        .png()
+        .toBuffer(),
+      'ambiances',
+      540,
+    )
+    await host.getByRole('button', { name: 'Save', exact: true }).click()
+    await host.waitForTimeout(1500)
+
+    const projector = await ctx(1920, 1080, 1)
+    const wall = await projector.newPage()
+    const showWall = async (layout: string, name: string): Promise<void> => {
+      await wall.goto(
+        `${app.baseUrl}/e/${event.slug}/display?layout=${layout}&e2e_interval=350&e2e_transition=0`,
+      )
+      await wall.waitForTimeout(9000)
+      if (layout !== 'spotlight') await wall.keyboard.press('q')
+      await wall.waitForTimeout(600)
+      await jpg(await wall.screenshot(), name, 1600)
+    }
+    await showWall('spotlight', 'wall-spotlight')
+    await showWall('mosaic', 'wall-mosaic')
+    await showWall('clothesline', 'wall-clothesline')
+
+    console.log(`\nscreenshots in ${OUT}`)
+  } finally {
+    await browser?.close()
+    await app.dispose()
+  }
+}
+
+await (process.argv.includes('--readme') ? readmeMain() : main())
