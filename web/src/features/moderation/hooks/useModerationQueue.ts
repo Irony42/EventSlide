@@ -268,6 +268,11 @@ export const useModerationQueue = (
    * half. `allowedDecisions` is the server's reading of its status machine and this
    * console holds no copy of it: while a decision is only local the photo shows no
    * decision at all, and a rollback or an exact undo gets the server's own answer back.
+   *
+   * A decision that landed gets it by a silent refetch once the server has answered
+   * (`revalidate`), not by waiting for a stream signal: the stream is the thing a venue's
+   * network takes away, and a photo just published with no buttons cannot be taken back
+   * off the wall from its tile.
    */
   const serverRef = useRef<
     ReadonlyMap<string, { status: PhotoStatus; allowedDecisions: readonly ModerationDecision[] }>
@@ -522,13 +527,15 @@ export const useModerationQueue = (
       if (skipped.length > 0) {
         toast.show(text.moderation.bulkSkipped(skipped.length), { tone: 'warning' })
       }
+      // The restored photos hold no decisions until the server says what they allow.
+      revalidate()
     } catch (cause) {
       setStatuses(new Map(entries.map((entry) => [entry.id, entry.currentStatus])))
       toast.show(failureMessage(cause, text.moderation.undoFailed, text), { tone: 'danger' })
     } finally {
       setBusy(false)
     }
-  }, [api, slug, text, toast, setStatuses, forgetUndo])
+  }, [api, slug, text, toast, setStatuses, forgetUndo, revalidate])
 
   /**
    * Report the outcome, and offer to take it back.
@@ -621,6 +628,7 @@ export const useModerationQueue = (
       try {
         await api.moderate(slug, photoId, decision)
         announce(decision, entries)
+        revalidate()
       } catch (cause) {
         setStatuses(new Map([[photoId, photo.status]]))
         forgetUndo()
@@ -629,7 +637,7 @@ export const useModerationQueue = (
         setBusy(false)
       }
     },
-    [api, slug, text, toast, setStatuses, announce, forgetUndo],
+    [api, slug, text, toast, setStatuses, announce, forgetUndo, revalidate],
   )
 
   const decideBulk = useCallback(
@@ -669,6 +677,7 @@ export const useModerationQueue = (
           ]
         })
         announce(decision, entries)
+        revalidate()
       } catch (cause) {
         setStatuses(
           new Map(
@@ -684,7 +693,7 @@ export const useModerationQueue = (
         setBusy(false)
       }
     },
-    [api, slug, text, toast, setStatuses, announce, forgetUndo],
+    [api, slug, text, toast, setStatuses, announce, forgetUndo, revalidate],
   )
 
   const onSignal = useCallback(

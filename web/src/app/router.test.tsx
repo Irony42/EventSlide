@@ -108,7 +108,11 @@ describe('AppRoutes', () => {
 
     // Not a heading query: on the wall the h1 is the event *name*, because that is what
     // the room reads from the back. This line is the supporting copy beneath it.
-    expect(await screen.findByText(fr.wall.empty)).toBeVisible()
+    //
+    // An explicit timeout: the route awaits a lazy `WallPage` import, and on a loaded
+    // machine (CI, or several test runs at once) that import alone outlasts the 1 000 ms a
+    // `findBy` allows by default, which is what made this test fail one run in a few.
+    expect(await screen.findByText(fr.wall.empty, undefined, { timeout: 5000 })).toBeVisible()
   })
 
   it('serves the login screen', async () => {

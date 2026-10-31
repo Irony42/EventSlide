@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MobileModerationPage } from './MobileModerationPage'
+import { moderationServer } from './testing/moderationServer'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -198,7 +199,7 @@ describe('MobileModerationPage', () => {
   it('publishes the photo in hand from the button, and moves on to the next', async () => {
     // The buttons are not a fallback for the gesture: they are the path that works with
     // a screen reader, and for a host who cannot make a 100 px drag with one thumb.
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -214,7 +215,7 @@ describe('MobileModerationPage', () => {
   })
 
   it('refuses the photo in hand from the button', async () => {
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    const api = fakeApi(moderationServer([lea()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -364,10 +365,7 @@ describe('MobileModerationPage', () => {
      *
      * The offer is per decision, so there is never more than one.
      */
-    const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])),
-      moderateBulk: vi.fn(async () => ({ applied: ['photo-2'], skipped: [] })),
-    })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -389,7 +387,7 @@ describe('MobileModerationPage', () => {
     // notice used to stay on screen carrying the only visible "Annuler" — and pressing
     // it did nothing at all, silently, while the host believed the refusal had been
     // taken back.
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -426,7 +424,7 @@ describe('MobileModerationPage', () => {
     // The card is replaced silently when a decision lands. Without this a host using a
     // screen reader is told what they published and nothing at all about what they are
     // now being asked to decide.
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea(), sacha()])) })
+    const api = fakeApi(moderationServer([lea(), sacha()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -443,7 +441,7 @@ describe('MobileModerationPage', () => {
   })
 
   it('announces that the queue is empty once the last photo is decided', async () => {
-    const api = fakeApi({ moderationQueue: vi.fn(async () => queueOf([lea()])) })
+    const api = fakeApi(moderationServer([lea()], { filtered: true }))
     renderPhone(api)
     await screen.findByTestId('mobile-moderation-card')
 
@@ -792,13 +790,7 @@ describe('a clip on the phone', () => {
     const withWall = (
       wall: readonly ModerationPhotoDto[],
       waiting: readonly ModerationPhotoDto[],
-    ) =>
-      fakeApi({
-        moderationQueue: vi.fn(async (_slug: string, query?: { status?: string }) =>
-          query?.status === 'published' ? queueOf(wall) : queueOf(waiting),
-        ),
-        moderateBulk: vi.fn(async () => ({ applied: ['wall-1'], skipped: [] })),
-      })
+    ) => fakeApi(moderationServer([...wall, ...waiting], { filtered: true }))
 
     const onWall = (id: string, author: string) =>
       aModerationPhoto({ id, status: 'published', authorName: author })

@@ -5,6 +5,7 @@ import { ToastProvider } from '../../../design-system/components/ToastProvider'
 import { ApiError } from '../../../lib/http'
 import { fr } from '../../../lib/i18n/fr'
 import { aModerationPhoto, fakeApi } from '../../../testing/renderWithProviders'
+import { moderationServer } from '../testing/moderationServer'
 import { useModerationQueue } from './useModerationQueue'
 import type { ModerationQueueOptions } from './useModerationQueue'
 import type { ReactNode } from 'react'
@@ -362,12 +363,15 @@ describe('useModerationQueue', () => {
     // `skipped` is the server's answer, not an echo of the request. An id the console
     // has never seen still has to be counted out loud, and must not be allowed to
     // silently roll back the tile that happens to be on screen.
+    const server = moderationServer([aModerationPhoto({ id: 'photo-1' })])
     const api = fakeApi({
-      moderationQueue: vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })])),
-      moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
-        applied: ['photo-1'],
-        skipped: ['photo-oubliee'],
-      })),
+      ...server,
+      moderateBulk: vi.fn(
+        async (...args: Parameters<Api['moderateBulk']>): Promise<BulkModerationResponse> => {
+          const answer = await server.moderateBulk(...args)
+          return { ...answer, skipped: ['photo-oubliee'] }
+        },
+      ),
     })
     const { result } = mount(api)
     await waitFor(() => expect(result.current.items).toHaveLength(1))
@@ -558,17 +562,11 @@ describe('useModerationQueue', () => {
   })
 
   it('takes a photo off the wall from the strip, and can put it back (MOD-2)', async () => {
-    const api = fakeApi({
-      moderationQueue: vi.fn(async (_slug: string, query: ModerationQuery) =>
-        query?.status === 'published'
-          ? queueOf([aModerationPhoto({ id: 'wall-1', status: 'published' })])
-          : queueOf([]),
-      ),
-      moderateBulk: vi.fn(async (): Promise<BulkModerationResponse> => ({
-        applied: ['wall-1'],
-        skipped: [],
-      })),
-    })
+    const api = fakeApi(
+      moderationServer([aModerationPhoto({ id: 'wall-1', status: 'published' })], {
+        filtered: true,
+      }),
+    )
     const { result } = mountFor(api, SLUG, { onScreenLimit: 6 })
     await waitFor(() => expect(result.current.onScreen).toHaveLength(1))
 
@@ -577,15 +575,16 @@ describe('useModerationQueue', () => {
     })
 
     expect(api.moderate).toHaveBeenCalledWith(SLUG, 'wall-1', 'hide')
-    expect(result.current.onScreen?.[0]?.status).toBe('hidden')
     expect(screen.getByText(fr.moderation.removed(1))).toBeInTheDocument()
+    // The server's own strip answers once the decision has landed: the photo has left it.
+    await waitFor(() => expect(result.current.onScreen).toHaveLength(0))
 
     await act(async () => {
       await result.current.undo()
     })
 
     expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['wall-1'], 'publish')
-    expect(result.current.onScreen?.[0]?.status).toBe('published')
+    await waitFor(() => expect(result.current.onScreen?.[0]?.status).toBe('published'))
   })
 
   it('offers no decision on a photo until the server has said what it may take (MOD-4)', async () => {
@@ -618,5 +617,106 @@ describe('useModerationQueue', () => {
 
     expect(result.current.items[0]?.status).toBe('pending')
     expect(result.current.items[0]?.allowedDecisions).toEqual(['publish', 'reject'])
+  })
+
+  describe('a decided photo gets its buttons back from the server, with no stream signal', () => {
+    /**
+     * A photo decided locally shows no buttons until the server says what it may do next,
+     * and that answer used to arrive only with a stream signal. With the stream down — a
+     * venue network is exactly where it is — a photo the host had just published showed
+     * none, so it could not be taken back off the wall from that tile. The answer is now
+     * fetched after the decision lands, and none of these tests emits a signal.
+     *
+     * The server is a closure over what it last did, as the real one is: the queue answers
+     * with the status the decision produced and the decisions that status allows.
+     */
+    const serverWith = (initial: ModerationPhotoDto) => {
+      let row = initial
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf([row])),
+        moderate: vi.fn(async (_slug: string, _id: string, decision: string) => {
+          row =
+            decision === 'publish'
+              ? aModerationPhoto({ id: row.id, status: 'published' })
+              : aModerationPhoto({ id: row.id, status: 'hidden' })
+        }),
+        moderateBulk: vi.fn(
+          async (
+            _slug: string,
+            _ids: readonly string[],
+            decision: string,
+          ): Promise<BulkModerationResponse> => {
+            row =
+              decision === 'publish'
+                ? aModerationPhoto({ id: row.id, status: 'published' })
+                : aModerationPhoto({ id: row.id, status: 'hidden' })
+            return { applied: [row.id], skipped: [] }
+          },
+        ),
+      })
+      return api
+    }
+
+    it('offers "hide" on a photo just published', async () => {
+      const api = serverWith(aModerationPhoto({ id: 'photo-1' }))
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+      await act(async () => {
+        await result.current.decide('photo-1', 'publish')
+      })
+
+      await waitFor(() =>
+        expect(result.current.items[0]?.allowedDecisions).toEqual(['reject', 'hide']),
+      )
+      expect(result.current.items[0]?.status).toBe('published')
+    })
+
+    it('offers the next decisions on photos just decided in bulk', async () => {
+      const api = serverWith(aModerationPhoto({ id: 'photo-1' }))
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+      await act(async () => {
+        await result.current.decideBulk(['photo-1'], 'publish')
+      })
+
+      await waitFor(() =>
+        expect(result.current.items[0]?.allowedDecisions).toEqual(['reject', 'hide']),
+      )
+    })
+
+    it('offers the next decisions on a photo whose publication was just taken back', async () => {
+      const api = serverWith(aModerationPhoto({ id: 'photo-1' }))
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+      await act(async () => {
+        await result.current.decide('photo-1', 'publish')
+      })
+      await waitFor(() => expect(result.current.items[0]?.allowedDecisions).toHaveLength(2))
+
+      await act(async () => {
+        await result.current.undo()
+      })
+
+      expect(api.moderateBulk).toHaveBeenCalledWith(SLUG, ['photo-1'], 'hide')
+      await waitFor(() =>
+        expect(result.current.items[0]?.allowedDecisions).toEqual(['publish', 'reject']),
+      )
+      expect(result.current.items[0]?.status).toBe('hidden')
+    })
+
+    it('does not blank the grid while it asks', async () => {
+      const api = serverWith(aModerationPhoto({ id: 'photo-1' }))
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+      await act(async () => {
+        await result.current.decide('photo-1', 'publish')
+      })
+
+      expect(result.current.loading).toBe(false)
+      expect(result.current.items).toHaveLength(1)
+    })
   })
 })
