@@ -565,6 +565,37 @@ describe('a photo that was just published', () => {
     expect(screen.getByText(/passée devant la file oui/)).toBeInTheDocument()
   })
 
+  it('plays a backlog published at once through the rotation, in step with a wall opened after it', () => {
+    // Six photos, newest first, approved in one go on a wall that had been read empty.
+    const backlog = [6, 5, 4, 3, 2, 1].map((id) => aPhoto(`b${id}`, `Photo ${id}`, `Table ${id}`))
+    const onScreen = () => screen.getByText(/^à l’écran /).textContent ?? ''
+    const fresh = () => screen.getByText(/^passée devant la file /).textContent ?? ''
+
+    const waiting = renderProbe({ items: [] })
+    waiting.rerender(<Probe items={backlog} />)
+    expect(onScreen()).toBe('à l’écran Photo 1')
+    expect(fresh()).toBe('passée devant la file oui')
+    const afterBurst: string[] = []
+    for (let slide = 0; slide < 4; slide += 1) {
+      tick(INTERVAL_MS)
+      expect(fresh()).toBe('passée devant la file non')
+      afterBurst.push(onScreen())
+    }
+    waiting.unmount()
+
+    const populated = renderProbe({ items: [], loaded: false })
+    populated.rerender(<Probe items={backlog} loaded />)
+    expect(onScreen()).toBe('à l’écran Photo 6')
+    const afterLoad: string[] = []
+    for (let slide = 0; slide < 4; slide += 1) {
+      tick(INTERVAL_MS)
+      afterLoad.push(onScreen())
+    }
+
+    // The two screens differ on the first slide only, then they show the same photos.
+    expect(afterBurst.slice(0, 3)).toEqual(afterLoad.slice(0, 3))
+  })
+
   it('does not call a photo new when a page loads on a populated wall', () => {
     // The page has no answer yet: the list is empty and `loaded` is false, then the list lands.
     const { rerender } = renderProbe({ items: [], loaded: false })
