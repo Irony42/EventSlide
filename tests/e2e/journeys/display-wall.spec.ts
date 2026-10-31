@@ -157,7 +157,7 @@ test('the caption and the sender are legible on the slide', async ({ app, surfac
   await projector.goto(wallUrl(app, event.slug))
   const slide = projector.getByTestId('wall-slide').first()
   await expect(slide.getByText('Les confettis')).toBeVisible()
-  await expect(slide.getByText('Léa')).toBeVisible()
+  await expect(slide.getByText('Léa', { exact: true })).toBeVisible()
 
   // Read from three to ten metres. The token floor is --text-xl; anything under 24px
   // computed is unreadable from the back of a room.
