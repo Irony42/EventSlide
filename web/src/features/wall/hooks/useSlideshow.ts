@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { WallItemDto } from '../../../lib/api/dto'
+import {
+  EMPTY_CURSOR,
+  nextSlide,
+  settleCursor,
+  stepSlide,
+  upcomingSlides,
+  type Move,
+  type SlideCandidate,
+  type SlideCursor,
+  waitForFirst,
+} from './slideOrder'
 import { useTimingOverrides } from './useTimingOverrides'
 
 export interface SlideshowOptions {
@@ -11,6 +22,21 @@ export interface SlideshowOptions {
    * outliving its slide.
    */
   readonly intervalMs: number
+  /**
+   * The wall has had its answer. `items` is empty both while the first read is on its way and
+   * when the evening has no photo yet, and only the second is news: the first photo to arrive
+   * on a wall that was read empty jumps the queue, with its "first photo of" line, where one
+   * that arrives on a page still loading is just the list the wall opened on.
+   */
+  readonly loaded: boolean
+}
+
+/** A photo the wall has put on screen lately, and which lane it came from. */
+export interface RecentSlide {
+  /** `null` when the playlist no longer holds it: it was taken down since. */
+  readonly item: WallItemDto | null
+  /** It jumped the queue because it had just been published. */
+  readonly fresh: boolean
 }
 
 export interface Slideshow {
@@ -42,6 +68,23 @@ export interface Slideshow {
    * photo back to its start scale halfway through the crossfade.
    */
   readonly generation: number
+  /**
+   * What has been on screen, newest first, `recent[0]` being the photo showing now: the
+   * last `generation + 1` slides, up to the dozen the biggest layout holds.
+   *
+   * A layout that holds several photos is made of these, not of positions in the playlist:
+   * a photo that has just been published takes the next slide, so slides no longer follow
+   * each other in list order, and "the slot whose turn it is takes the photo the wall just
+   * moved to" is what keeps one tile changing at a time.
+   */
+  readonly recent: readonly RecentSlide[]
+  /**
+   * The slides after this one if nothing new arrives, in order, at most six. What a layout
+   * that draws a strip ahead of the photo on screen shows, and what `next` is the head of.
+   */
+  readonly upcoming: readonly WallItemDto[]
+  /** The photo on screen jumped the queue: it was published after the wall started. */
+  readonly fresh: boolean
   readonly paused: boolean
   readonly pause: () => void
   readonly resume: () => void
@@ -54,18 +97,24 @@ export interface Slideshow {
  *
  * 1.0 kept the position as an index in `sessionStorage`, so two projectors on the same
  * event disagreed, and every publication shifted the list under the index — the room
- * saw the picture jump. Here the cursor is the id of the photo on screen — from the
- * first frame, not from the first slide change: when the playlist grows the same photo
- * keeps the screen, and when it leaves the playlist the wall falls back to the newest
- * and anchors itself there.
+ * saw the picture jump. Here the cursor names the photos on screen — from the first
+ * frame, not from the first slide change: when the playlist grows the same photo keeps
+ * the screen, and when it leaves the playlist the wall falls back to the newest and
+ * anchors itself there.
+ *
+ * Which photo comes next is `slideOrder.ts`' to say (a copy of
+ * `src/domain/slideshow/slideOrder.ts`): this hook holds the cursor and the clock.
  */
-interface Cursor {
-  readonly currentId: string | null
+interface State {
+  readonly slide: SlideCursor
   readonly previous: WallItemDto | null
   readonly generation: number
 }
 
-const INITIAL: Cursor = { currentId: null, previous: null, generation: 0 }
+const INITIAL: State = { slide: EMPTY_CURSOR, previous: null, generation: 0 }
+
+/** How far ahead a layout that shows a strip may look. The filmstrip draws six frames. */
+const UPCOMING_SLIDES = 6
 
 const subscribeVisibility = (onChange: () => void): (() => void) => {
   document.addEventListener('visibilitychange', onChange)
@@ -76,15 +125,15 @@ const isDocumentHidden = (): boolean => document.hidden
 
 const neverHidden = (): boolean => false
 
-/** Positive modulo, so stepping back from the first photo lands on the last. */
-const wrap = (position: number, length: number): number => ((position % length) + length) % length
+const asCandidate = (item: WallItemDto): SlideCandidate => ({
+  id: item.id,
+  author: item.authorName,
+})
 
-/** Whether the playlist still holds the photo the cursor names. */
-const holds = (items: readonly WallItemDto[], id: string | null): boolean =>
-  id !== null && items.some((item) => item.id === id)
+const present = (item: WallItemDto | undefined): item is WallItemDto => item !== undefined
 
-export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow => {
-  const [cursor, setCursor] = useState<Cursor>(INITIAL)
+export const useSlideshow = ({ items, intervalMs, loaded }: SlideshowOptions): Slideshow => {
+  const [state, setState] = useState<State>(INITIAL)
   const [manuallyPaused, setManuallyPaused] = useState(false)
 
   /**
@@ -100,75 +149,102 @@ export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow
   const { intervalMs: overrideMs } = useTimingOverrides()
   const effectiveIntervalMs = overrideMs ?? intervalMs
 
-  const index = useMemo(() => {
-    if (cursor.currentId === null) return 0
-    const found = items.findIndex((item) => item.id === cursor.currentId)
-    // The photo was rejected, hidden or deleted while it was on screen. The newest
-    // photo is the safest landing place: it is the one a guest just sent.
-    return found === -1 ? 0 : found
-  }, [items, cursor.currentId])
-
-  const current = items[index] ?? null
-  const next = items.length === 0 ? null : (items[wrap(index + 1, items.length)] ?? null)
+  const candidates = useMemo(() => items.map(asCandidate), [items])
+  const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
 
   /**
    * The cursor adopts the photo on screen the moment there is one.
    *
-   * `index` answers 0 whenever the cursor names no photo the playlist still holds — on
-   * the very first frame, and again after the photo it named was taken down — and slot
-   * 0 is the *newest* photo, which moves under the wall every time the host publishes
-   * one. So a wall that had not changed slide yet was still positioned by index after
-   * all, and a guest's upload took the screen away from whatever the room was looking
-   * at: the 1.0 defect, one frame later than 1.0 had it.
+   * On the very first frame, and again after the photo it named was taken down, the
+   * cursor names nothing the playlist holds, and slot 0 is the *newest* photo, which
+   * moves under the wall every time the host publishes one. A wall that had not changed
+   * slide yet was then still positioned by index after all, and a guest's upload took the
+   * screen away from whatever the room was looking at: the 1.0 defect, one frame later
+   * than 1.0 had it. `settleCursor` also marks the whole list as already seen at that
+   * moment, so only photos published afterwards count as new.
    *
    * Adopting is not advancing. The generation is untouched, because nothing moved on
    * screen and bumping it would dissolve a photo into itself across the two layers.
    *
    * Adjusted during render rather than in an effect: React's own guidance for "adjust
    * state when a prop changes" is this comparison, it converges on the next render —
-   * the adopted id is the one `index` just resolved — and `react-hooks/set-state-in-effect`
-   * rejects the effect form.
+   * `settleCursor` answers the very same object once the cursor is consistent — and
+   * `react-hooks/set-state-in-effect` rejects the effect form.
    */
-  if (current !== null && !holds(items, cursor.currentId)) {
-    setCursor({ ...cursor, currentId: current.id })
+  const slide = settleCursor(
+    candidates,
+    loaded && candidates.length === 0 ? waitForFirst(state.slide) : state.slide,
+  )
+  if (slide !== state.slide) {
+    setState({ ...state, slide })
   }
 
-  const advance = useCallback(
-    (step = 1) => {
-      setCursor((previousCursor) => {
-        if (items.length === 0) return previousCursor
-        const from =
-          previousCursor.currentId === null
-            ? 0
-            : items.findIndex((item) => item.id === previousCursor.currentId)
-        const base = from === -1 ? 0 : from
-        const target = items[wrap(base + step, items.length)]
-        if (target === undefined) return previousCursor
+  const head = slide.shown[0]
+  const current = head === undefined ? null : (byId.get(head.id) ?? null)
+  const index =
+    head === undefined
+      ? 0
+      : Math.max(
+          0,
+          items.findIndex((item) => item.id === head.id),
+        )
+
+  const upcoming = useMemo(
+    () =>
+      upcomingSlides(candidates, slide, UPCOMING_SLIDES)
+        .map((ahead) => byId.get(ahead.id))
+        .filter(present),
+    [candidates, byId, slide],
+  )
+  const next = upcoming[0] ?? null
+
+  const recent = useMemo<readonly RecentSlide[]>(
+    () => slide.shown.map((shown) => ({ item: byId.get(shown.id) ?? null, fresh: shown.fresh })),
+    [slide, byId],
+  )
+
+  const move = useCallback(
+    (choose: (list: readonly SlideCandidate[], cursor: SlideCursor) => Move | null) => {
+      setState((previousState) => {
+        const settled = settleCursor(candidates, previousState.slide)
+        const moved = choose(candidates, settled)
+        if (moved === null) return previousState
+        const leaving = settled.shown[0]?.id
         // Standing still is not a change: a one-photo wall must not keep bumping the
         // generation, or the two layers would swap slots with nothing to show.
-        if (target.id === previousCursor.currentId) return previousCursor
+        if (moved.slide.id === leaving) return previousState
         return {
-          currentId: target.id,
-          previous: items[base] ?? previousCursor.previous,
-          generation: previousCursor.generation + 1,
+          slide: moved.cursor,
+          previous:
+            (leaving === undefined ? undefined : byId.get(leaving)) ?? previousState.previous,
+          generation: previousState.generation + 1,
         }
       })
     },
-    [items],
+    [candidates, byId],
   )
 
+  /** The host's arrows: exactly the photo that many places away. */
+  const advance = useCallback(
+    (step = 1) => move((list, cursor) => stepSlide(list, cursor, step)),
+    [move],
+  )
+
+  /** The slide clock: the fresh lane and the rotation, by the rule. */
+  const advanceAutomatically = useCallback(() => move(nextSlide), [move])
+
   /**
-   * The timer calls the latest `advance` through a ref.
+   * The timer calls the latest step through a ref.
    *
-   * `advance` is rebuilt whenever the playlist changes, and a busy cocktail hour
+   * The step is rebuilt whenever the playlist changes, and a busy cocktail hour
    * changes it every few seconds. If the interval depended on it, each publication
    * would restart the slide clock and a photo would keep being granted a fresh eight
    * seconds — on a fast enough event, the wall would never advance at all.
    */
-  const advanceRef = useRef(advance)
+  const advanceRef = useRef(advanceAutomatically)
   useEffect(() => {
-    advanceRef.current = advance
-  }, [advance])
+    advanceRef.current = advanceAutomatically
+  }, [advanceAutomatically])
 
   const paused = manuallyPaused || documentHidden
   const canAdvance = items.length > 1 && effectiveIntervalMs > 0
@@ -177,7 +253,7 @@ export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow
   useEffect(() => {
     if (paused || !canAdvance || currentId === null) return
 
-    const timer = window.setTimeout(() => advanceRef.current(1), effectiveIntervalMs)
+    const timer = window.setTimeout(() => advanceRef.current(), effectiveIntervalMs)
     // Cleared on every re-run and on unmount. An eight-hour run that leaked one timer
     // per slide would end the evening with three thousand of them.
     return () => window.clearTimeout(timer)
@@ -189,14 +265,17 @@ export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow
   return {
     current,
     next,
-    previous: cursor.previous,
+    previous: state.previous,
     index,
     // Exactly the condition the slide timer below arms itself on, and for the same
     // reason: a layout timing itself off the server's number would drift apart from the
     // wall under the e2e hooks, and one that ignored `paused` would go on animating
     // after the host had stopped the show.
     intervalMs: !paused && canAdvance ? effectiveIntervalMs : 0,
-    generation: cursor.generation,
+    generation: state.generation,
+    recent,
+    upcoming,
+    fresh: head?.fresh ?? false,
     paused,
     pause,
     resume,

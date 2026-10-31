@@ -307,7 +307,7 @@ test.describe('the projected wall @visual', () => {
     // use (`data-wall-chrome`). Not because it is unstable — it is not any more: both the
     // code and the QR now come from the server, so the shots that keep the card compare it
     // pixel for pixel.
-    await projector.keyboard.press('Escape')
+    await projector.keyboard.press('q')
     await expect(projector.getByTestId('wall-join')).toHaveCount(0)
 
     await expect(projector).toHaveScreenshot('wall-spotlight-bright.png', {
@@ -634,7 +634,7 @@ test.describe('the projected wall @visual', () => {
     // server's `PUBLIC_URL`, so the eight shots that keep the card compare it pixel for
     // pixel. It goes because the subject here is the frame style on every tile, and the
     // card covers two of them.
-    await projector.keyboard.press('Escape')
+    await projector.keyboard.press('q')
     await expect(projector.getByTestId('wall-join')).toHaveCount(0)
 
     await expect(projector).toHaveScreenshot('wall-mosaic-themed.png', { animations: 'disabled' })

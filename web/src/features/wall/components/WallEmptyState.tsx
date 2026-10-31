@@ -1,4 +1,5 @@
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { joinHost } from '../joinHost'
 import { JoinQr } from './JoinQr'
 import styles from './WallEmptyState.module.css'
 
@@ -14,6 +15,12 @@ export interface WallEmptyStateProps {
    * (§9 trap 1).
    */
   readonly join: { readonly code: string; readonly url: string } | null
+  /**
+   * False once the host has closed the event: nobody can send a photo any more, so the
+   * wall invites nobody and says thank you instead (MUR-3). Defaults to open, which is
+   * what every wall was before the server said otherwise.
+   */
+  readonly acceptsGuests?: boolean
 }
 
 /**
@@ -24,30 +31,36 @@ export interface WallEmptyStateProps {
  * event name and the code are at `--text-display` because they are read from the back
  * of the room, and the QR is drawn inline so it survives a venue's Wi-Fi.
  */
-export function WallEmptyState({ eventName, join }: WallEmptyStateProps) {
+export function WallEmptyState({ eventName, join, acceptsGuests = true }: WallEmptyStateProps) {
   const text = useTranslations()
+  const invites = acceptsGuests
+  const shown = invites ? join : null
+  const host = shown === null ? null : joinHost(shown.url)
 
   return (
     <section className={styles['empty']} data-testid="wall-empty">
       <div className={styles['copy']} data-testid="wall-empty-copy">
-        <p className={styles['prompt']}>{text.wall.joinPrompt}</p>
+        {invites ? <p className={styles['prompt']}>{text.wall.joinPrompt}</p> : null}
         <h1 className={styles['name']}>{eventName}</h1>
-        <p className={styles['title']}>{text.wall.empty}</p>
-        {join === null ? null : <p className={styles['hint']}>{text.wall.emptyHint}</p>}
+        <p className={styles['title']}>{invites ? text.wall.empty : text.wall.emptyClosed}</p>
+        {shown === null ? null : <p className={styles['hint']}>{text.wall.emptyHint}</p>}
       </div>
 
       {/*
         `wall-join` names the block so a test can assert its presence or its absence, and
-        so the host's Escape can be observed to have put it away. It is no longer a mask
+        so a test can observe it gone once the event is closed. It is no longer a mask
         target: both halves of it are the server's answer now, so a baseline can compare
         them pixel for pixel — which is what a QR code, of all the regions on this wall,
         deserves.
       */}
-      {join === null ? null : (
+      {shown === null ? null : (
         <div className={styles['join']} data-testid="wall-join">
-          <JoinQr url={join.url} size="lg" />
+          <JoinQr url={shown.url} size="lg" />
           <p className={styles['codeLabel']}>{text.wall.codeLabel}</p>
-          <p className={styles['code']}>{join.code}</p>
+          <p className={styles['code']}>{shown.code}</p>
+          {host === null ? null : (
+            <p className={styles['address']}>{text.wall.typeCodeAt(shown.code, host)}</p>
+          )}
         </div>
       )}
     </section>

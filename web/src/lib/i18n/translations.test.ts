@@ -466,3 +466,26 @@ describe('the shape of every phrase', () => {
     }
   })
 })
+
+/**
+ * The hour is part of the sentence in Spanish and Italian: "a la 1:00" and "all’1:00" against
+ * "a las 13:00" and "alle 13:00". The time arrives already formatted by the browser, so the
+ * article is chosen from its front, and an hour that merely starts with a one (11, 12, 13, 21)
+ * keeps the plural.
+ */
+describe('the time of an automatic move, in the languages whose article follows the hour', () => {
+  it.each([
+    ['es', '1:00', 'a la 1:00'],
+    ['es', '01:30', 'a la 01:30'],
+    ['es', '13:00', 'a las 13:00'],
+    ['es', '11:45', 'a las 11:45'],
+    ['it', '1:00', 'all’1:00'],
+    ['it', '01:30', 'all’01:30'],
+    ['it', '13:00', 'alle 13:00'],
+    ['it', '11:45', 'alle 11:45'],
+  ] as const)('%s reads %s as "%s"', (locale, time, expected) => {
+    const { autoOpenAt, autoCloseAt } = TRANSLATIONS[locale].admin
+    expect(autoOpenAt(time)).toContain(expected)
+    expect(autoCloseAt(time)).toContain(expected)
+  })
+})

@@ -80,16 +80,19 @@
 }
 
 /**
- * Held back by the delay, not by JavaScript.
+ * What the room sees of a lost connection, for the first minutes of it: a dot.
  *
- * A venue's network drops for a second or two several times an evening and the browser
- * reconnects by itself. Announcing every one of those to a room of two hundred people
- * would make the wall look broken when it is working; a notice that waits is a notice
- * that means something. The delay survives `prefers-reduced-motion`, which collapses
- * duration and iteration count but not `animation-delay`.
+ * No words, no icon, and small — an outage of a minute is the venue's network and not the
+ * product's, and the host cannot fix it from the dance floor (MUR-9). The warning colour
+ * is a token, and the dot has the scrim behind it so it reads on a bright photograph.
  */
-.delayed {
-  animation: notice-in var(--duration-base) var(--ease-out) calc(var(--duration-slow) * 4) both;
+.outageDot {
+  inline-size: var(--space-3);
+  block-size: var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--warning);
+  box-shadow: 0 0 0 var(--space-1) var(--surface-scrim);
+  animation: notice-in var(--duration-base) var(--ease-out) both;
 }
 
 @keyframes notice-in {
@@ -136,18 +139,32 @@
 }
 
 /**
- * The bottom rung, for the offline notice — roadmap 11.3.
- *
- * A collapsed duration rather than `animation: none`, and the difference is the whole
- * reason this rule needs to exist rather than being left out. What makes this animation
- * worth having is its `animation-delay`: a venue's network drops for a second or two
- * several times an evening, and a notice that waits is what stops the wall announcing every
- * blip to two hundred people. `animation: none` would take the delay with it and put the
- * notice on screen instantly — a worse wall, arrived at while trying to make it cheaper.
- *
- * At `0s` the delay and `both` still hold the opening frame until it expires, and then the
- * notice appears at rest instead of rising into place.
+ * A wall that is not on yet is waiting, not failing: the glyph is hollow and quiet, not
+ * the danger red the error state keeps.
  */
-[data-wall-budget='cut'] .delayed {
+.calmIcon {
+  color: var(--text-secondary);
+}
+
+/**
+ * The mouse arrow, taken off the photograph after a few still seconds (MUR-2).
+ *
+ * On every descendant, because a control inside the wall (the join card's close button)
+ * sets its own `cursor: pointer` and would otherwise bring the arrow back over the QR.
+ * The attribute is removed at the first movement, which gives the cursor back to all of it.
+ */
+.wall[data-idle='true'],
+.wall[data-idle='true'] * {
+  cursor: none;
+}
+
+/**
+ * The bottom rung, for the dot — roadmap 11.3.
+ *
+ * Its fade-in is chrome, so a machine that has run out of frames gives it up. A collapsed
+ * duration rather than `animation: none`: the dot then appears at rest instead of rising
+ * into place, and it still appears.
+ */
+[data-wall-budget='cut'] .outageDot {
   animation-duration: 0s;
 }

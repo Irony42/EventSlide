@@ -207,6 +207,12 @@ export interface WallItemDto {
   readonly caption: string | null
   readonly authorName: string | null
   readonly createdAt: string
+  /**
+   * The first photograph this named sender has on the wall: the slide adds "Première photo
+   * de …" the first time it is shown. Optional, like `theme` below: a server build that
+   * predates it leaves the caption as it was.
+   */
+  readonly firstFromGuest?: boolean
   readonly kind: MediaKind
   /** `null` for a photograph. The mp4, which answers `Range` requests. */
   readonly videoUrl: string | null
@@ -254,6 +260,16 @@ export interface WallResponse {
    * cards, and a QR pointing somewhere wrong is a guest's evening lost in silence.
    */
   readonly joinUrl?: string
+  /**
+   * Whether the room may still be invited to send photos — true only while the event is
+   * live. False once the host has closed it: the wall keeps playing, but the QR, the code
+   * and the missions come off it, because every one of them asks for a photo that can no
+   * longer be sent.
+   *
+   * Optional for the reason `joinCode` is: a server build that predates the field must not
+   * crash the projector, and it reads as "still open", which is how that wall behaved.
+   */
+  readonly acceptsGuests?: boolean
   /** Order-sensitive fingerprint of `items`; unchanged means the playlist did not move. */
   readonly revision: string
   readonly items: readonly WallItemDto[]
@@ -391,6 +407,12 @@ export interface ModerationPhotoDto {
   readonly kind: MediaKind
   readonly videoUrl: string | null
   readonly durationMs: number | null
+  /**
+   * The decisions this photo may take now, from the server's status machine. The console
+   * shows exactly these buttons and keeps no copy of the rule: a client table drifts, and
+   * the click then ends in `photo.illegalTransition`.
+   */
+  readonly allowedDecisions: readonly ModerationDecision[]
 }
 
 export interface ModerationQueueResponse {

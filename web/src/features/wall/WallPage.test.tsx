@@ -2,7 +2,13 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
+import { de } from '../../lib/i18n/de'
+import { en } from '../../lib/i18n/en'
+import { es } from '../../lib/i18n/es'
 import { fr } from '../../lib/i18n/fr'
+import { it as italian } from '../../lib/i18n/it'
+import type { Locale } from '../../lib/i18n/locale'
+import type { UiText } from '../../lib/i18n/translations'
 import type { WallItemDto, WallLayout, WallResponse } from '../../lib/api/dto'
 import {
   aWallItem,
@@ -12,7 +18,9 @@ import {
   renderWithProviders,
 } from '../../testing/renderWithProviders'
 import { classesOf, cls } from '../../testing/classesOf'
-import { WallPage } from './WallPage'
+import { CURSOR_IDLE_MS } from './hooks/useIdleCursor'
+import { OUTAGE_DOT_AFTER_MS, OUTAGE_TEXT_AFTER_MS } from './hooks/useOutageStage'
+import { QR_HIDDEN_MS, WallPage } from './WallPage'
 import styles from './WallPage.module.css'
 
 /**
@@ -21,6 +29,15 @@ import styles from './WallPage.module.css'
  * Every state below is one a room actually sees. The two that 1.0 shipped as a black
  * screen — nothing published yet, and a failed load — are the first ones here.
  */
+
+/** Every language the wall speaks: a shortcut missing from one of them is a host who never learns it. */
+const LOCALE_TABLES: readonly (readonly [Locale, UiText])[] = [
+  ['fr', fr],
+  ['en', en],
+  ['de', de],
+  ['es', es],
+  ['it', italian],
+]
 
 const ROUTE = '/e/camille-et-sacha/display'
 const PATH = '/e/:slug/display'
@@ -135,6 +152,16 @@ const wallSequence = (...responses: readonly WallResponse[]) => {
     call += 1
     const response = responses[Math.min(call, responses.length - 1)]
     if (response === undefined) throw new Error('wallSequence needs at least one response')
+    return response
+  })
+}
+
+/** Answers the first read, then fails every one after it: a network that went away. */
+const wallThenNetworkDown = (response: WallResponse) => {
+  let call = 0
+  return vi.fn(async (): Promise<WallResponse> => {
+    call += 1
+    if (call > 1) throw ApiError.network()
     return response
   })
 }
@@ -355,30 +382,115 @@ describe('WallPage', () => {
     expect(slide.style.getPropertyValue('--wall-kenburns-duration')).toBe('')
   })
 
-  it('reports a dropped stream while the loaded photos keep playing', async () => {
-    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
-    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+  describe('a lost connection (MUR-9)', () => {
+    /**
+     * The room never learns about a blip. A venue's network drops for thirty seconds several
+     * times an evening while the photos keep turning, and a "Connexion perdue" pill at the
+     * projector's type scale over two hundred guests made a working product look broken.
+     *
+     * "Lost" means the wall cannot read either: a stream that never opens is not a lost
+     * connection while the thirty-second read keeps answering (a proxy that buffers event
+     * streams leaves it down all night), so the wall below answers once and then fails.
+     */
+    const theDot = (): HTMLElement => screen.getByTestId('wall-outage-dot')
+    const noDot = (): void => {
+      expect(screen.queryByTestId('wall-outage-dot')).not.toBeInTheDocument()
+    }
+    /** The sentence, as opposed to the dot's own text, which is only for assistive technology. */
+    const theSentence = (): HTMLElement | null =>
+      screen.queryByText(fr.wall.offline, { selector: 'p' })
 
-    await screen.findByTestId('wall-slide')
+    /** The wall re-reads every thirty seconds while its stream is down: the first failure lands then. */
+    const FIRST_FAILED_READ_MS = 30_000
 
-    // Never a spinner over the room's photos and never a blank screen: the notice sits
-    // in a corner and the slideshow carries on with what it already has.
-    expect(screen.getByText(fr.wall.offline)).toBeVisible()
-    expect(screen.getByTestId('wall-slide')).toBeVisible()
-  })
+    const afterMs = async (ms: number): Promise<void> => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms)
+      })
+    }
 
-  it('holds the connection notice back with its own class, after the pill and its tone', async () => {
-    // `delayed` is what keeps a two-second network blip from ever reaching the room.
-    const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
-    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+    /**
+     * Past the first failed read, then `ms` more. Two steps, because the outage clock starts
+     * when React commits the failure, and inside one `act` that happens only at the end.
+     */
+    const afterTheFirstFailedRead = async (ms: number): Promise<void> => {
+      await afterMs(FIRST_FAILED_READ_MS)
+      await afterMs(ms)
+    }
 
-    await screen.findByTestId('wall-slide')
+    const aWallWhoseStreamNeverOpens = async (
+      wall: ReturnType<typeof wallSequence> = wallThenNetworkDown(aPopulatedWall()),
+    ): Promise<void> => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const api = fakeApi({ wall })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+    }
 
-    expect(classesOf(screen.getByText(fr.wall.offline))).toEqual([
-      cls(styles, 'notice'),
-      cls(styles, 'warning'),
-      cls(styles, 'delayed'),
-    ])
+    it('shows the room nothing at all for the first minute without a stream', async () => {
+      await aWallWhoseStreamNeverOpens()
+
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS - 1_000)
+
+      noDot()
+      expect(theSentence()).not.toBeInTheDocument()
+      // Never a spinner over the room's photos and never a blank screen.
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+    })
+
+    it('then shows a discreet dot with no words', async () => {
+      await aWallWhoseStreamNeverOpens()
+
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS + 1_000)
+
+      expect(theDot()).toBeVisible()
+      expect(theSentence()).not.toBeInTheDocument()
+    })
+
+    it('names the dot for assistive technology, in a status and not an image', async () => {
+      await aWallWhoseStreamNeverOpens()
+
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS + 1_000)
+
+      // A `role="img"` inside the live region is announced inconsistently and is not a status;
+      // the dot is a status whose words are visually hidden.
+      expect(theDot()).toHaveAttribute('role', 'status')
+      expect(within(theDot()).getByText(fr.wall.offline)).toHaveClass('visually-hidden')
+      expect(screen.queryByRole('img', { name: fr.wall.offline })).not.toBeInTheDocument()
+    })
+
+    it('says what is happening only once the outage has lasted for minutes', async () => {
+      await aWallWhoseStreamNeverOpens()
+
+      await afterTheFirstFailedRead(OUTAGE_TEXT_AFTER_MS + 1_000)
+
+      expect(theSentence()).toBeVisible()
+      noDot()
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+    })
+
+    it('forgets the outage the moment the stream opens', async () => {
+      await aWallWhoseStreamNeverOpens()
+      await afterTheFirstFailedRead(OUTAGE_DOT_AFTER_MS + 1_000)
+      expect(theDot()).toBeVisible()
+
+      await streamOpens()
+
+      noDot()
+      expect(theSentence()).not.toBeInTheDocument()
+    })
+
+    it('does not claim a network outage when the stream is refused but the reads keep working', async () => {
+      // A proxy that buffers event streams, a per-client cap: the stream never opens, and the
+      // thirty-second read answers every time. Nothing is waiting for the network.
+      await aWallWhoseStreamNeverOpens(wallSequence(aPopulatedWall()))
+
+      await afterMs(OUTAGE_TEXT_AFTER_MS * 2)
+
+      noDot()
+      expect(theSentence()).not.toBeInTheDocument()
+      expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
+    })
   })
 
   it('says nothing about the connection once the stream is open', async () => {
@@ -405,6 +517,30 @@ describe('WallPage', () => {
 
     const slide = await screen.findByTestId('wall-slide')
     expect(within(slide).getByText('La première danse')).toBeVisible()
+  })
+
+  it('says the first-photo line under the first photo of the evening, sent to an empty wall', async () => {
+    const first = aWallItem({ caption: 'Les confettis', authorName: 'Julie', firstFromGuest: true })
+    const api = fakeApi({
+      wall: wallSequence(anEmptyWall(), aPopulatedWall({ revision: 'rev-2', items: [first] })),
+    })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    await screen.findByTestId('wall-empty')
+    await streamSignals('photo.moderated')
+
+    const slide = await screen.findByTestId('wall-slide')
+    expect(within(slide).getByText(fr.wall.firstPhotoOf('Julie'))).toBeVisible()
+  })
+
+  it('says nothing about a first photo when the page loads on a populated wall', async () => {
+    const first = aWallItem({ caption: 'Les confettis', authorName: 'Julie', firstFromGuest: true })
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: [first] })) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    const slide = await screen.findByTestId('wall-slide')
+    expect(within(slide).getByText('Les confettis')).toBeVisible()
+    expect(within(slide).queryByText(fr.wall.firstPhotoOf('Julie'))).not.toBeInTheDocument()
   })
 
   it('names the photo on screen, so the slide the room is looking at can be identified', async () => {
@@ -712,7 +848,7 @@ describe('WallPage', () => {
     expect(await screen.findByRole('dialog')).toHaveTextContent(fr.wall.leaveHint)
   })
 
-  it('keeps a join reminder in the corner and puts it away with a key', async () => {
+  it('keeps a join reminder in the corner and puts it away with Q', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
     await screen.findByTestId('wall-slide')
@@ -720,9 +856,99 @@ describe('WallPage', () => {
     // Somebody arriving at 23:00 has only the screen to read.
     expect(screen.getByText('H7K2QM')).toBeVisible()
 
-    await userEvent.keyboard('{Escape}')
+    await userEvent.keyboard('q')
 
     expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+  })
+
+  describe('the join card and the keys (MUR-5)', () => {
+    it('is not taken away by Escape, which is the key a host presses to leave fullscreen', async () => {
+      // The help said Escape leaves fullscreen, and the same key hid the QR for the whole
+      // night with nothing to bring it back: two presses while setting the projector up took
+      // the only door a late guest has off the wall.
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('{Escape}{Escape}')
+
+      expect(screen.getByText('H7K2QM')).toBeVisible()
+      expect(theWall()).toHaveAttribute('data-wall-chrome', 'corner')
+    })
+
+    it('comes back with a second Q', async () => {
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('q')
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+      await userEvent.keyboard('q')
+
+      expect(screen.getByText('H7K2QM')).toBeVisible()
+    })
+
+    it('comes back by itself after ten minutes, because nobody is at the projector', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await userEvent.keyboard('q')
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(QR_HIDDEN_MS - 1_000)
+      })
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000)
+      })
+      expect(screen.getByText('H7K2QM')).toBeVisible()
+    })
+
+    it('comes back by itself after the button hid it, too', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await userEvent.click(screen.getByRole('button', { name: fr.wall.dismissJoinCard }))
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(QR_HIDDEN_MS + 1_000)
+      })
+
+      expect(screen.getByText('H7K2QM')).toBeVisible()
+    })
+
+    it('does nothing on the empty wall, so the first photo still arrives with its card', async () => {
+      // The empty wall's invitation is full-screen and Q does not touch it; a flag flipped
+      // there would hide the corner card for ten minutes once the first photo shows up.
+      const api = fakeApi({
+        wall: wallSequence(anEmptyWall(), aPopulatedWall({ revision: 'rev-2' })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-empty')
+      await streamOpens()
+
+      await userEvent.keyboard('q')
+      await streamSignals('photo.published')
+
+      expect(await screen.findByText('H7K2QM')).toBeVisible()
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+    })
+
+    it.each(LOCALE_TABLES)('lists Q in the shortcuts panel in %s', async (code, dictionary) => {
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH, locale: code })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('?')
+
+      expect(await screen.findByRole('dialog')).toHaveTextContent(dictionary.wall.shortcutsHint)
+      expect(dictionary.wall.shortcutsHint).toMatch(/\bQ\b/)
+    })
   })
 
   /**
@@ -752,7 +978,7 @@ describe('WallPage', () => {
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
     await screen.findByTestId('wall-slide')
 
-    await userEvent.keyboard('{Escape}')
+    await userEvent.keyboard('q')
 
     // A host who wants the full width of a split or a polaroid presses one key for it.
     expect(theWall()).not.toHaveAttribute('data-wall-chrome')
@@ -1263,20 +1489,19 @@ describe('WallPage', () => {
       expect(screen.getByText('un selfie')).toBeVisible()
     })
 
-    it('puts the prompts away with the same key that puts the invitation away', async () => {
-      // One key, one meaning: "put away whatever is covering the photos". A ladder that
-      // dismissed one and then the other would make Escape mean two things depending on
-      // what happened to be on screen.
+    it('keeps the prompts when Escape or Q put the join reminder away', async () => {
+      // Escape closes the help and nothing else now, and Q is the QR's key: neither takes
+      // the mission list with it, and the list has no key of its own (MUR-5).
       const api = fakeApi({
         wall: wallSequence(aPopulatedWall({ missions: [aWallMission({ prompt: 'un selfie' })] })),
       })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
 
-      await userEvent.keyboard('{Escape}')
+      await userEvent.keyboard('{Escape}q')
 
-      expect(screen.queryByText('un selfie')).not.toBeInTheDocument()
       expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+      expect(screen.getByText('un selfie')).toBeVisible()
     })
 
     it('follows the server when a prompt becomes answered, without the playlist moving', async () => {
@@ -1329,7 +1554,7 @@ describe('WallPage', () => {
 
       await streamDrops()
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(await screen.findByRole('status')).toHaveTextContent(fr.wall.notServedTitle)
       expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
       expect(wall).toHaveBeenCalledTimes(2)
     })
@@ -1342,7 +1567,7 @@ describe('WallPage', () => {
 
       await streamSignals('event.statusChanged')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(await screen.findByRole('status')).toHaveTextContent(fr.wall.notServedTitle)
       expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
     })
 
@@ -1357,7 +1582,7 @@ describe('WallPage', () => {
 
       await waitFor(() => expect(wall).toHaveBeenCalledTimes(2))
       expect(screen.getByTestId('wall-slide')).toBeVisible()
-      expect(screen.getByText(fr.wall.offline)).toBeVisible()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
@@ -1406,7 +1631,8 @@ describe('WallPage', () => {
       const api = fakeApi({ wall: vi.fn(() => Promise.reject(theEventIsGone())) })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
 
-      const notice = await screen.findByRole('alert')
+      await screen.findByRole('heading', { name: fr.wall.notServedTitle })
+      const notice = screen.getByRole('status')
 
       expect(notice).toHaveTextContent(fr.wall.notServedTitle)
       expect(notice).toHaveTextContent(fr.wall.notServedHint)
@@ -1415,13 +1641,47 @@ describe('WallPage', () => {
       expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
     })
 
+    it('waits calmly for an event that is not open yet: no danger icon, no button (MUR-4)', async () => {
+      // A host who opens the projector's address the day before is testing. A red icon over
+      // "Réessayer" on a screen with no mouse told them it was broken.
+      const api = fakeApi({ wall: vi.fn(() => Promise.reject(theEventIsGone())) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByRole('heading', { name: fr.wall.notServedTitle })
+      const notice = screen.getByRole('status')
+
+      expect(within(notice).queryByRole('button')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: fr.app.retry })).not.toBeInTheDocument()
+      expect(notice).toHaveTextContent(fr.wall.notServedHint)
+      // The hollow, quiet glyph: not the danger red the error state keeps.
+      expect(classesOf(notice.querySelector('svg'))).toContain(cls(styles, 'calmIcon'))
+    })
+
+    it('does not name the event it is waiting for', async () => {
+      // The server answers 404 to a draft and to a slug that does not exist alike, so the
+      // screen has nothing to say about which one it is (and would reveal a draft's name).
+      const api = fakeApi({ wall: vi.fn(() => Promise.reject(theEventIsGone())) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByRole('heading', { name: fr.wall.notServedTitle })
+
+      expect(screen.queryByText(/camille/i)).not.toBeInTheDocument()
+    })
+
+    it('keeps the retry button for a failure that is not the event being gone', async () => {
+      const api = fakeApi({ wall: vi.fn(() => Promise.reject(ApiError.network())) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      expect(await screen.findByRole('button', { name: fr.app.retry })).toBeVisible()
+    })
+
     it('does not say the connection is lost over an album that is gone', async () => {
       const wall = photosThen(() => Promise.reject(theEventIsGone()))
       renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
       await streamOpens()
       await streamDrops()
-      await screen.findByRole('alert')
+      await screen.findByRole('status')
 
       expect(screen.queryByText(fr.wall.offline)).not.toBeInTheDocument()
     })
@@ -1449,7 +1709,7 @@ describe('WallPage', () => {
         await vi.advanceTimersByTimeAsync(30_000)
       })
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(await screen.findByRole('status')).toHaveTextContent(fr.wall.notServedTitle)
       expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
     })
 
@@ -1481,7 +1741,7 @@ describe('WallPage', () => {
         return aPopulatedWall()
       })
       renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
-      await screen.findByRole('alert')
+      await screen.findByRole('status')
 
       served = true
       await act(async () => {
@@ -1490,6 +1750,192 @@ describe('WallPage', () => {
 
       expect(await screen.findByTestId('wall-slide')).toBeVisible()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('an event the host has closed (MUR-3)', () => {
+    const aClosedWall = (overrides: Partial<WallResponse> = {}): WallResponse =>
+      aPopulatedWall({ acceptsGuests: false, ...overrides })
+
+    it('stops inviting the room: no QR, no code, no reserved corner', async () => {
+      // The wall keeps playing while people say goodbye, but a guest who scans the QR still
+      // on it lands on "not open".
+      const api = fakeApi({ wall: wallSequence(aClosedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+      expect(screen.queryByTitle(fr.wall.qrTitle)).not.toBeInTheDocument()
+      expect(theWall()).not.toHaveAttribute('data-wall-chrome')
+    })
+
+    it('stops asking for photos with the host missions, which exist to prompt them', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aClosedWall({ missions: [aWallMission({ prompt: 'un selfie' })] })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      expect(screen.queryByText('un selfie')).not.toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: fr.wall.missionsTitle })).not.toBeInTheDocument()
+    })
+
+    it('draws no invitation on an empty wall either, and says thank you instead', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aWallResponse({ items: [], acceptsGuests: false })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-empty')
+
+      expect(screen.queryByTestId('wall-join')).not.toBeInTheDocument()
+      expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument()
+      expect(screen.queryByText(fr.wall.joinPrompt)).not.toBeInTheDocument()
+      expect(screen.getByText(fr.wall.emptyClosed)).toBeVisible()
+    })
+
+    it('takes the invitation off a running projector when the host closes the evening', async () => {
+      // Closing moves no photograph, so `revision` is the same on both answers: only the
+      // comparison of the settings can carry the change to a wall that is already playing.
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall(), aClosedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+      expect(screen.getByText('H7K2QM')).toBeVisible()
+
+      await streamSignals('event.statusChanged')
+
+      await waitFor(() => expect(screen.queryByText('H7K2QM')).not.toBeInTheDocument())
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+    })
+
+    it('treats a server that does not send the field as an open event', async () => {
+      const { acceptsGuests: _absent, ...older } = aPopulatedWall()
+      const api = fakeApi({ wall: wallSequence(older) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      expect(screen.getByText('H7K2QM')).toBeVisible()
+    })
+
+    it('does not let a Q pressed on a closed event hide the card of a later one', async () => {
+      // Nothing to put away, so the key does nothing, and flipping a flag anyway would hide
+      // the card for ten minutes once the wall is reopened.
+      const api = fakeApi({ wall: wallSequence(aClosedWall(), aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamOpens()
+
+      await userEvent.keyboard('q')
+      await streamSignals('event.statusChanged')
+
+      expect(await screen.findByText('H7K2QM')).toBeVisible()
+    })
+  })
+
+  describe('where to type the code (MUR-7)', () => {
+    it('names the address under the code in the corner card, from the join link host', async () => {
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      expect(screen.getByText(fr.wall.typeCodeAt('H7K2QM', 'photos.example'))).toBeVisible()
+    })
+
+    it('titles the corner card with what to do', async () => {
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      expect(screen.getByRole('heading', { name: fr.wall.sendPrompt })).toBeVisible()
+    })
+
+    it('names the address on the empty wall too', async () => {
+      const api = fakeApi({ wall: wallSequence(anEmptyWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-empty')
+
+      expect(screen.getByText(fr.wall.typeCodeAt('H7K2QM', 'photos.example'))).toBeVisible()
+    })
+  })
+
+  describe('an asleep projector (MUR-2)', () => {
+    const wakeLockStub = (request: () => Promise<unknown>): void => {
+      Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } })
+    }
+
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'wakeLock')
+    })
+
+    it('asks the browser to keep the screen awake while the wall is open', async () => {
+      const request = vi.fn(async () =>
+        Object.assign(new EventTarget(), { release: async () => undefined }),
+      )
+      wakeLockStub(request)
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await waitFor(() => expect(request).toHaveBeenCalledWith('screen'))
+    })
+
+    it('tells the host to turn the computer own sleep off when the browser cannot', async () => {
+      // jsdom has no `navigator.wakeLock`, which is an older browser or a plain-http LAN.
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('?')
+
+      expect(await screen.findByRole('dialog')).toHaveTextContent(fr.wall.keepAwakeHint)
+    })
+
+    it('tells the host the same when the browser refuses', async () => {
+      wakeLockStub(() => Promise.reject(new Error('NotAllowedError')))
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('?')
+
+      expect(await screen.findByRole('dialog')).toHaveTextContent(fr.wall.keepAwakeHint)
+    })
+
+    it('says nothing about sleep when the screen is being held awake', async () => {
+      const request = vi.fn(async () =>
+        Object.assign(new EventTarget(), { release: async () => undefined }),
+      )
+      wakeLockStub(request)
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await waitFor(() => expect(request).toHaveBeenCalled())
+
+      await userEvent.keyboard('?')
+
+      const dialog = await screen.findByRole('dialog')
+      expect(dialog).toHaveTextContent(fr.wall.shortcutsHint)
+      expect(dialog).not.toHaveTextContent(fr.wall.keepAwakeHint)
+    })
+  })
+
+  describe('the mouse arrow (MUR-2)', () => {
+    it('leaves the photo after three still seconds, and comes back at a movement', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      expect(theWall()).not.toHaveAttribute('data-idle')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CURSOR_IDLE_MS + 100)
+      })
+      expect(theWall()).toHaveAttribute('data-idle', 'true')
+
+      await act(async () => {
+        window.dispatchEvent(new Event('pointermove'))
+      })
+      expect(theWall()).not.toHaveAttribute('data-idle')
     })
   })
 })

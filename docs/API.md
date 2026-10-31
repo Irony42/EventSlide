@@ -1142,6 +1142,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "event": { "slug": "camille-et-sacha", "name": "Camille & Sacha" },
   "joinCode": "H7K2QM",
   "joinUrl": "https://photos.example.com/join/H7K2QM",
+  "acceptsGuests": true,
   "revision": "1f3k9a2",
   "items": [
     {
@@ -1153,6 +1154,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
       "caption": "Les confettis",
       "authorName": "Léa",
       "createdAt": "2026-06-20T21:04:11.031Z",
+      "firstFromGuest": false,
       "kind": "photo",
       "videoUrl": null,
       "durationMs": null
@@ -1248,12 +1250,48 @@ sent. Both cases read correctly on screen — the six characters underneath were
 whole time — which is §9 trap 1 of CLAUDE.md with a different mismatch. A client that
 receives `joinCode` without `joinUrl` shows no QR rather than inventing one.
 
+`acceptsGuests` says whether the room may still be **invited**: `true` while the event is `live`, `false`
+once it is `closed` (a draft or an archived event is not served at all, so the wall never sees those).
+It is the domain's `acceptsGuests(status)`, the rule `POST /api/join` applies, so the screen and the
+join cannot disagree. A closed event keeps its wall, but a QR on it leads to "not open": when this is
+`false` the projector draws **neither the join card and its code, nor the host's missions** (they ask
+for a photograph that can no longer be sent), and `joinCode` and `joinUrl` stay on the response
+unchanged. It is compared like every setting, so a host closing the evening reaches a running projector
+on the `event.statusChanged` refetch without a reload. A client that does not receive the field treats
+the event as open.
+
 `authorName` is the name the guest typed at `POST /api/join` — the one thing they
 supplied for exactly this purpose — and it is `null` whenever there is nobody to name: an
 anonymous guest, or a photo the host uploaded from the venue's own camera. `null` means
 **show no credit**, never a stand-in; "Invité" is French UI copy and belongs to the
 client. Nothing else about the guest crosses: no guest id, no presence, no photo count.
 The name is resolved event-scoped, like every other read here.
+
+`firstFromGuest` is `true` on the one **photograph** that is the first thing its **named** sender
+has published to the wall, and the projector then adds "Première photo de Léa" (before a vowel,
+"Première photo d’Alice") the first time it shows that slide. "First" is the earliest upload of that guest among the published photos (ties
+by id, so two projectors agree), and a guest whose first published item was a clip has none: the
+line is about a photograph. It is `false` for a clip, an anonymous sender and a host's own upload,
+and **`false` on every item when the wall read was cut short** (more published photos than the
+500-photo candidate read holds), because an earlier photo of the same guest may be missing from
+it and the answer would then be a guess. A boolean about the photograph; it carries nothing else
+about the guest. Optional for a client: a build that predates it shows no line.
+
+The line is drawn by the layouts that caption **one** photo: the spotlight, the polaroid, the
+clothesline and the split, under the photo the slide clock has just brought in. The mosaic, the
+filmstrip and the collage show no caption for a single photo by design (a tile carries the credit
+only), so they carry no line. The flag is read with the wall's playlist, whose revision is made of
+the photo ids alone: while the ids do not change, a `firstFromGuest` that would change (a guest's
+earlier photo hidden or published) stays as the client last read it, as `authorName` does.
+
+**The order is the client's to walk.** `items` is newest first and the client rotates through it
+towards older photos, but a photo that appears in `items` after the wall started is shown on the
+**next** slide rather than a lap later (at most three of them in a row, then one photo of the
+rotation, an author on screen giving way to another waiting author), and two projectors that
+read the same list from the same cursor walk it the same way; walls with different histories
+differ at most by the fresh lane, and then re-converge. The rule is `src/domain/slideshow/slideOrder.ts`; the
+client holds a verbatim copy, pinned by `slideOrderContract.test.ts`. Nothing on the wire
+announces it: a photo published late shows up as one more item, wherever the upload time puts it.
 
 **Errors** — `404 event.notFound` when the event does not exist or is `draft` or
 `archived`. A `closed` event still serves its wall: the projector is usually still on
@@ -1513,6 +1551,20 @@ shape and `null`-valued on a photograph rather than absent — so no client test
 missing key. When `kind` is `"clip"`, **`thumbUrl` points at the poster frame**, which is
 what lets a client that has never heard of video render a still rather than a broken
 image; `videoUrl` is the mp4, and it is the URL that answers `Range` requests (§4).
+
+**Re-reading while a photo waits.** There is no stream for a guest: the public event stream is capped
+per IP, and a room behind one address would take the projector's own feed away. The upload screen
+instead re-reads this list about every nine seconds, give or take two so that a room of phones does
+not ask in step (every thirty after five minutes without a new waiting photo; a photo that starts
+waiting brings the nine seconds back), **only while at least one photo is `pending` and the tab is
+visible**, once more each time the tab comes back to the front, and not at all otherwise. A poll
+that has not answered after fifteen seconds is given up in silence, and coming back to the tab
+replaces a poll that has been in the air for three seconds or more. The route has no rate limit of
+its own; the jitter and the slow-down are the whole of the mitigation, and it has not been
+load-tested at the size of a large room. A photo that goes from `pending` to `published` is announced
+("Validée ! Elle passe à l'écran dans un instant : levez les yeux."), with a short vibration where
+the browser has one; found on coming back to the tab, it reads "Passée à l'écran". This is a poll
+of an unchanged route, not a push notification, which ROADMAP §2.1 rules out.
 
 ### `GET /api/events/:slug/missions/mine`
 
@@ -3675,7 +3727,8 @@ for the reason `nextCursor` is always `null` below. The cursor-paged surface is
       "createdAt": "2026-06-20T21:04:11.031Z",
       "kind": "photo",
       "videoUrl": null,
-      "durationMs": null
+      "durationMs": null,
+      "allowedDecisions": ["publish", "reject"]
     }
   ],
   "pendingCount": 12,
@@ -3690,6 +3743,16 @@ one batched read, and `null` for a guest who stayed anonymous or for a host's ow
 upload — the client picks the French for an unattributed photo, and the server never
 invents a name. `width` and `height` are the intrinsic size, so the grid is laid out
 before the thumbnails arrive.
+
+`allowedDecisions` is the list of decisions this photo may take **now**, in the order `publish`,
+`reject`, `hide`, and it is the server's own reading of the photo status machine
+(`allowedDecisionsFrom`, derived from `allowedTransitionsFrom` rather than copied from it): a decision
+is listed when the status it produces is a legal move from the photo's status. A `pending` photo
+lists `publish` and `reject`; a `published` one `reject` and `hide`; a `rejected` one `publish`; a
+`hidden` one `publish` and `reject`. The console offers exactly these buttons and keeps no table of its
+own, so a button never ends in `409 photo.illegalTransition` and a no-op (`publish` on a photo already
+on the wall) is never offered. The gallery rows of `GET /photos` do not carry it: no client consumes that
+read.
 
 A moderation row may say more than a wall item, because a moderator is not the room. It
 still carries no content hash, no storage key, no path — and no byte size, because

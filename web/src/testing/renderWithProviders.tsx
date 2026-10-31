@@ -30,7 +30,9 @@ import type {
   GuestMissionDto,
   JoinResponse,
   MissionDto,
+  ModerationDecision,
   ModerationPhotoDto,
+  PhotoStatus,
   PrivacyNoticeDto,
   PrivacyNoticeState,
   PublicEventDto,
@@ -275,6 +277,10 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // matched `window.location.origin` would keep passing if the browser went back to
   // inventing the URL itself.
   joinUrl: 'https://photos.example/join/H7K2QM',
+  // An open event, which is what nearly every wall is. Present rather than omitted for the
+  // reason `joinCode` is: an omitted key is invisible to the enumeration in
+  // `useWallPlaylist.settings.test.ts`, which is what guards the comparison of this field.
+  acceptsGuests: true,
   revision: 'rev-1',
   items: [],
   slideIntervalMs: 8_000,
@@ -320,11 +326,26 @@ export const aGuestPhoto = (overrides: Partial<GuestPhotoDto> = {}): GuestPhotoD
   ...overrides,
 })
 
+/**
+ * What the server's status machine answers for each status, as it reaches the wire.
+ *
+ * A fixture, not the rule: the rule is `allowedDecisionsFrom` on the server and its own
+ * tests pin it. The console renders what it is told, and a test that wants a photo the
+ * server would not offer a button on overrides `allowedDecisions` explicitly.
+ */
+const DECISIONS_FROM: Readonly<Record<PhotoStatus, readonly ModerationDecision[]>> = {
+  pending: ['publish', 'reject'],
+  published: ['reject', 'hide'],
+  rejected: ['publish'],
+  hidden: ['publish', 'reject'],
+}
+
 export const aModerationPhoto = (
   overrides: Partial<ModerationPhotoDto> = {},
 ): ModerationPhotoDto => ({
   id: 'photo-1',
   status: 'pending',
+  allowedDecisions: DECISIONS_FROM[overrides.status ?? 'pending'],
   thumbUrl: '/api/events/camille-et-sacha/photos/photo-1/thumb',
   displayUrl: '/api/events/camille-et-sacha/photos/photo-1/display',
   width: 2560,

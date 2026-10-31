@@ -1,7 +1,9 @@
+import { allowedDecisionsFrom } from '../../../domain/moderation/moderationDecision'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { ThemeCustom } from '../../../domain/events/eventTheme'
+import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
@@ -480,6 +482,8 @@ export const toModerationQueueItemDto = ({
   // read — the defect that put "par undefined" on a host's screen.
   videoUrl: PLAYABLE_VARIANT[row.kind] === null ? null : mediaUrl(slug, row.id, 'video'),
   durationMs: row.durationMs,
+  // The status machine's answer, not a copy of it: see `allowedDecisionsFrom`.
+  allowedDecisions: allowedDecisionsFrom(row.status),
 })
 
 /**
@@ -682,7 +686,12 @@ export const toReactionsDto = (view: PhotoReactionsView): ReactionsResponseDto =
  * projector is a public client in a room of strangers, and a wall item is the least it
  * needs to render a slide.
  */
-const toWallItemDto = (photo: Photo, slug: string, authorName: string | null): WallItemDto => ({
+const toWallItemDto = (
+  photo: Photo,
+  slug: string,
+  authorName: string | null,
+  firstFromGuest: boolean,
+): WallItemDto => ({
   id: photo.id,
   displayUrl: mediaUrl(slug, photo.id, DISPLAY_VARIANT[photo.kind]),
   thumbUrl: mediaUrl(slug, photo.id, THUMB_VARIANT[photo.kind]),
@@ -691,6 +700,7 @@ const toWallItemDto = (photo: Photo, slug: string, authorName: string | null): W
   caption: photo.caption?.value ?? null,
   authorName,
   createdAt: iso(photo.createdAt),
+  firstFromGuest,
   ...toMediaFacetDto(photo, slug),
 })
 
@@ -729,6 +739,9 @@ export const toWallResponseDto = (
     // The same builder the host's event page uses, so the two cannot disagree about the
     // link the room is being shown.
     joinUrl: joinUrl(context.publicUrl, view.event.joinCode.value),
+    // Read from the domain's own rule, so the wall and the join endpoint cannot disagree
+    // about when an invitation stops being honest.
+    acceptsGuests: acceptsGuests(view.event.status),
     revision: view.playlist.revision,
     items: view.playlist.items.flatMap((id) => {
       const photo = byId.get(id)
@@ -737,7 +750,14 @@ export const toWallResponseDto = (
       // failure mode "one slide short" instead of a hole the projector has to render.
       return photo === undefined
         ? []
-        : [toWallItemDto(photo, slug, view.authorNames.get(id) ?? null)]
+        : [
+            toWallItemDto(
+              photo,
+              slug,
+              view.authorNames.get(id) ?? null,
+              view.firstFromGuest.has(id),
+            ),
+          ]
     }),
     slideIntervalMs: view.slideIntervalMs,
     kenBurnsDurationMs: view.kenBurnsDurationMs,

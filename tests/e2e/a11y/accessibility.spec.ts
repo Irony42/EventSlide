@@ -311,7 +311,7 @@ test.describe('the projected surface', () => {
 
     // The join code is the actionable content on that screen, so it has to be text a
     // reader can reach rather than part of an image.
-    await expect(surfaces.projector.getByText(event.joinCode)).toBeVisible()
+    await expect(surfaces.projector.getByText(event.joinCode, { exact: true })).toBeVisible()
   })
 })
 

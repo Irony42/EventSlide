@@ -13,14 +13,14 @@ import { useSlideshow } from './useSlideshow'
  * about the picture the projector is showing rather than about the hook's internals.
  */
 
-const aPhoto = (id: string, caption: string): WallItemDto => ({
+const aPhoto = (id: string, caption: string, authorName: string | null = 'Léa'): WallItemDto => ({
   id,
   displayUrl: `/api/events/mariage/photos/${id}/display`,
   thumbUrl: `/api/events/mariage/photos/${id}/thumb`,
   width: 2560,
   height: 1707,
   caption,
-  authorName: 'Léa',
+  authorName,
   createdAt: '2026-06-20T21:04:11.031Z',
   kind: 'photo',
   videoUrl: null,
@@ -32,27 +32,33 @@ const INTERVAL_MS = 8_000
 interface ProbeProps {
   readonly items: readonly WallItemDto[]
   readonly intervalMs?: number
+  /** The wall has had its answer. Absent means it has, as on every wall but a page loading. */
+  readonly loaded?: boolean
 }
 
-function Probe({ items, intervalMs = INTERVAL_MS }: ProbeProps) {
+function Probe({ items, intervalMs = INTERVAL_MS, loaded = true }: ProbeProps) {
   const {
     current,
     next,
     paused,
     generation,
+    fresh,
+    upcoming,
     advance,
     pause,
     resume,
     // What the slide clock is actually running on, which is what a layout animating
     // across a slide has to time itself from.
     intervalMs: cadenceMs,
-  } = useSlideshow({ items, intervalMs })
+  } = useSlideshow({ items, intervalMs, loaded })
 
   return (
     <div>
       <p>à l’écran {current?.caption ?? 'rien'}</p>
       <p>ensuite {next?.caption ?? 'rien'}</p>
       <p>génération {generation}</p>
+      <p>passée devant la file {fresh ? 'oui' : 'non'}</p>
+      <p>à suivre {upcoming.map((photo) => photo.caption).join(',')}</p>
       <p>cadence {cadenceMs}</p>
       <p>{paused ? 'en pause' : 'en cours'}</p>
       <button onClick={() => advance(1)}>suivante</button>
@@ -436,5 +442,184 @@ describe('useSlideshow', () => {
     // A render with no browser behind it has no visibility to read, and reporting the
     // wall as paused would put the "en pause" notice into the first frame the room sees.
     expect(html).toContain('en cours')
+  })
+})
+
+describe('a photo that was just published', () => {
+  const OLD = [
+    aPhoto('a', 'Les confettis', 'Léa'),
+    aPhoto('b', 'Le gâteau', 'Tom'),
+    aPhoto('c', 'Le DJ', 'Léa'),
+  ]
+  const FRESH = aPhoto('n', 'Le bouquet', 'Julie')
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    tabHidden = false
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => tabHidden })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    Reflect.deleteProperty(document, 'hidden')
+  })
+
+  it('takes the next slide instead of waiting for a lap, and never cuts the slide on screen', () => {
+    const { rerender } = renderProbe({ items: OLD })
+    tick(INTERVAL_MS)
+    expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+
+    rerender(<Probe items={[FRESH, ...OLD]} />)
+
+    // The photo on screen keeps its eight seconds, however fast the host was.
+    tick(INTERVAL_MS - 1)
+    expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+    expect(screen.getByText(/ensuite Le bouquet/)).toBeInTheDocument()
+
+    tick(1)
+    expect(screen.getByText(/à l’écran Le bouquet/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file oui/)).toBeInTheDocument()
+  })
+
+  it('lets the rotation resume where it had stopped', () => {
+    const { rerender } = renderProbe({ items: OLD })
+    tick(INTERVAL_MS)
+    rerender(<Probe items={[FRESH, ...OLD]} />)
+    tick(INTERVAL_MS)
+    expect(screen.getByText(/à l’écran Le bouquet/)).toBeInTheDocument()
+
+    tick(INTERVAL_MS)
+
+    expect(screen.getByText(/à l’écran Le DJ/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file non/)).toBeInTheDocument()
+  })
+
+  it('lets at most three go by in a row before a photo of the rotation', () => {
+    const burst = ['1', '2', '3', '4', '5'].map((id) =>
+      aPhoto(`f${id}`, `Rafale ${id}`, `Table ${id}`),
+    )
+    const { rerender } = renderProbe({ items: OLD })
+    rerender(<Probe items={[...burst.slice().reverse(), ...OLD]} />)
+
+    const seen: string[] = []
+    for (let slide = 0; slide < 6; slide += 1) {
+      tick(INTERVAL_MS)
+      const line = screen.getByText(/^à l’écran /).textContent ?? ''
+      seen.push(line.replace('à l’écran ', ''))
+    }
+
+    expect(seen).toEqual(['Rafale 1', 'Rafale 2', 'Rafale 3', 'Le gâteau', 'Rafale 4', 'Rafale 5'])
+  })
+
+  it('interleaves a burst from one author with a photo from someone else', () => {
+    const table = [1, 2, 3, 4].map((id) => aPhoto(`t${id}`, `Table ${id}`, 'Table'))
+    const { rerender } = renderProbe({ items: OLD })
+    rerender(<Probe items={[FRESH, ...table.slice().reverse(), ...OLD]} />)
+
+    const captions: string[] = []
+    for (let slide = 0; slide < 3; slide += 1) {
+      tick(INTERVAL_MS)
+      captions.push((screen.getByText(/^à l’écran /).textContent ?? '').replace('à l’écran ', ''))
+    }
+
+    expect(captions).toEqual(['Table 1', 'Le bouquet', 'Table 2'])
+  })
+
+  it('leaves the host’s arrows to walk the list, so back undoes forward', () => {
+    const { rerender } = renderProbe({ items: OLD })
+    rerender(<Probe items={[FRESH, ...OLD]} />)
+
+    step('suivante')
+    expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+    step('précédente')
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+  })
+
+  it('does not call a photo new when the wall started with it', () => {
+    renderProbe({ items: [FRESH, ...OLD] })
+
+    expect(screen.getByText(/passée devant la file non/)).toBeInTheDocument()
+    tick(INTERVAL_MS)
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+  })
+
+  it('opens an empty wall on the first photo of the evening, as one that jumped the queue', () => {
+    const { rerender } = renderProbe({ items: [] })
+    expect(screen.getByText(/à l’écran rien/)).toBeInTheDocument()
+
+    rerender(<Probe items={[FRESH]} />)
+
+    expect(screen.getByText(/à l’écran Le bouquet/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file oui/)).toBeInTheDocument()
+  })
+
+  it('keeps a wall that was empty on the second photo as a fresh one too', () => {
+    const { rerender } = renderProbe({ items: [] })
+    rerender(<Probe items={[FRESH]} />)
+    const second = aPhoto('m', 'Le toast', 'Tom')
+    rerender(<Probe items={[second, FRESH]} />)
+
+    tick(INTERVAL_MS)
+
+    expect(screen.getByText(/à l’écran Le toast/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file oui/)).toBeInTheDocument()
+  })
+
+  it('plays a backlog published at once through the rotation, in step with a wall opened after it', () => {
+    // Six photos, newest first, approved in one go on a wall that had been read empty.
+    const backlog = [6, 5, 4, 3, 2, 1].map((id) => aPhoto(`b${id}`, `Photo ${id}`, `Table ${id}`))
+    const onScreen = () => screen.getByText(/^à l’écran /).textContent ?? ''
+    const fresh = () => screen.getByText(/^passée devant la file /).textContent ?? ''
+
+    const waiting = renderProbe({ items: [] })
+    waiting.rerender(<Probe items={backlog} />)
+    expect(onScreen()).toBe('à l’écran Photo 1')
+    expect(fresh()).toBe('passée devant la file oui')
+    const afterBurst: string[] = []
+    for (let slide = 0; slide < 4; slide += 1) {
+      tick(INTERVAL_MS)
+      expect(fresh()).toBe('passée devant la file non')
+      afterBurst.push(onScreen())
+    }
+    waiting.unmount()
+
+    const populated = renderProbe({ items: [], loaded: false })
+    populated.rerender(<Probe items={backlog} loaded />)
+    expect(onScreen()).toBe('à l’écran Photo 6')
+    const afterLoad: string[] = []
+    for (let slide = 0; slide < 4; slide += 1) {
+      tick(INTERVAL_MS)
+      afterLoad.push(onScreen())
+    }
+
+    // The two screens differ on the first slide only, then they show the same photos.
+    expect(afterBurst.slice(0, 3)).toEqual(afterLoad.slice(0, 3))
+  })
+
+  it('does not call a photo new when a page loads on a populated wall', () => {
+    // The page has no answer yet: the list is empty and `loaded` is false, then the list lands.
+    const { rerender } = renderProbe({ items: [], loaded: false })
+    rerender(<Probe items={[FRESH, ...OLD]} loaded />)
+
+    expect(screen.getByText(/à l’écran Le bouquet/)).toBeInTheDocument()
+    expect(screen.getByText(/passée devant la file non/)).toBeInTheDocument()
+  })
+
+  it('puts two walls on the same photos when they read the same lists', () => {
+    const left = renderProbe({ items: OLD })
+    const right = renderProbe({ items: OLD })
+    left.rerender(<Probe items={[FRESH, ...OLD]} />)
+    right.rerender(<Probe items={[FRESH, ...OLD]} />)
+
+    tick(INTERVAL_MS)
+
+    expect(screen.getAllByText(/à l’écran Le bouquet/)).toHaveLength(2)
+  })
+
+  it('announces what is next so a layout can preload the photo that is coming', () => {
+    const { rerender } = renderProbe({ items: OLD })
+    rerender(<Probe items={[FRESH, ...OLD]} />)
+
+    expect(screen.getByText(/à suivre Le bouquet,Le gâteau,Le DJ/)).toBeInTheDocument()
   })
 })

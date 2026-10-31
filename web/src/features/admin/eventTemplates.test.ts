@@ -108,8 +108,8 @@ describe('the template summary', () => {
   })
 
   it('says that a retention deletes, rather than printing a bare duration', () => {
-    // The assertion that would have caught it. "30 jours après la clôture" on its own is
-    // five words with no verb, and the most natural reading of them is that the gallery
+    // The assertion that would have caught it. "30 jours après la fin de l’évènement" on
+    // its own has no verb, and the most natural reading of it is that the album
     // *stays up* for thirty days. What happens is `purgeExpiredEvents` removing the media
     // tree and the event row, and nothing anywhere in this product warns a host that an
     // expiry is due — so this card is the only place it is ever said, and it has to say
@@ -122,12 +122,13 @@ describe('the template summary', () => {
     expect(line).toContain(fr.admin.retentionDays(30))
   })
 
-  it('names the act that starts the clock, which is the closing and not "la fin"', () => {
-    // `Event.expiresAt` reads `closedAt` and answers `null` until the host closes the
-    // event, so "après la fin" named something the server does not measure: the same
+  it('names the act that starts the clock, which is ending the evening and not a bare "la fin"', () => {
+    // `Event.expiresAt` reads `closedAt` and answers `null` until the host ends the
+    // evening, so a bare "après la fin" named something the server does not measure: the same
     // words meant "never" to a host who leaves the wall open and a real countdown to one
-    // who closes it that night.
-    expect(fr.admin.retentionDays(30)).toContain('clôture')
+    // who ends it that night. It says "la fin de la soirée", the act the button
+    // ("Terminer la soirée") and the badge ("Terminée") name.
+    expect(fr.admin.retentionDays(30)).toContain('la fin de la soirée')
   })
 
   it('says what keeping everything is, rather than answering "Jamais" to no question', () => {

@@ -2,6 +2,7 @@ import { Card } from '../../../design-system/components/Card'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { joinHost } from '../joinHost'
 import { JoinQr } from './JoinQr'
 import styles from './WallOverlay.module.css'
 
@@ -19,15 +20,21 @@ export interface WallOverlayProps {
  * on a separate page nobody projected, so late arrivals simply did not join.
  *
  * It sits in the opposite corner from the caption, inside the projector safe area, and
- * a host who walks up can put it away with Escape or with the button.
+ * a host who walks up can put it away with `Q` or with the button — and it comes back by
+ * itself, because the projector is unattended.
+ *
+ * Its title says what to do ("send your photos to the screen") rather than naming a place,
+ * since from ten metres a guest needs the verb. Under the code, the address to type it at
+ * is for the phone that cannot read the QR (MUR-7).
  */
 export function WallOverlay({ join, onDismiss }: WallOverlayProps) {
   const text = useTranslations()
+  const host = joinHost(join.url)
 
   return (
     <Card className={styles['overlay']}>
       <div className={styles['header']}>
-        <h2 className={styles['prompt']}>{text.wall.joinPrompt}</h2>
+        <h2 className={styles['prompt']}>{text.wall.sendPrompt}</h2>
         <IconButton
           aria-label={text.wall.dismissJoinCard}
           icon={<CloseIcon />}
@@ -37,6 +44,9 @@ export function WallOverlay({ join, onDismiss }: WallOverlayProps) {
       </div>
       <JoinQr url={join.url} />
       <p className={styles['code']}>{join.code}</p>
+      {host === null ? null : (
+        <p className={styles['address']}>{text.wall.typeCodeAt(join.code, host)}</p>
+      )}
     </Card>
   )
 }

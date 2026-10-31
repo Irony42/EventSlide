@@ -58,3 +58,18 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+
+/**
+ * Where to type the code, for the phone that cannot read the QR (MUR-7).
+ *
+ * A step below the code and a tone softer, so the six characters stay what the eye lands
+ * on. The card is a fixed width, so a long host wraps instead of widening it past the
+ * footprint the layouts reserve around it (`--wall-join-card`).
+ */
+.address {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  color: var(--wall-card-ink-2);
+  text-align: center;
+  overflow-wrap: anywhere;
+}

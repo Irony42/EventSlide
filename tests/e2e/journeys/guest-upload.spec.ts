@@ -24,7 +24,7 @@ test('a photo from a phone reaches the wall once the host approves it @smoke', a
   await projector.goto(wallUrl(app, event.slug))
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   // Someone arriving late must be able to join from what is on the screen.
-  await expect(projector.getByText(event.joinCode)).toBeVisible()
+  await expect(projector.getByText(event.joinCode, { exact: true })).toBeVisible()
 
   // --- The phone: scans the QR code, lands on the join page, no account.
   await guest.goto(app.url(`/join/${event.joinCode}`))
@@ -56,7 +56,9 @@ test('a photo from a phone reaches the wall once the host approves it @smoke', a
   const slide = projector.getByTestId('wall-slide').first()
   await expect(slide).toBeVisible()
   await expect(slide.getByText('Les confettis')).toBeVisible()
-  await expect(slide.getByText('Léa')).toBeVisible()
+  await expect(slide.getByText('Léa', { exact: true })).toBeVisible()
+  // The projector was open on an empty wall, so this photo opens the evening (MUR-1).
+  await expect(slide.getByText('Première photo de Léa')).toBeVisible()
 
   // Upright. If `sharp(...).rotate()` were ever dropped from ingest, the stored image
   // would stay landscape and this is the only ring that would notice — 1.0 projected

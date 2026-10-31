@@ -117,11 +117,28 @@ describe('EventActionLinks', () => {
     }
   })
 
-  it('offers no wall before the event is live, but the moderation queue is already there', () => {
+  // The projector is plugged in before the doors open: a tile that only appeared after
+  // "Open to guests" would ask the host to test the screen with guests already in (HOT-1).
+  it('offers the wall from the draft on, saying it will light up by itself', () => {
     render('draft')
 
-    expect(screen.queryByRole('link', { name: fr.admin.openWall })).toBeNull()
+    const wall = screen.getByRole('link', { name: fr.admin.openWall })
+    expect(wall).toHaveAttribute('href', '/e/camille-et-sacha/display')
+    expect(wall).toHaveAccessibleDescription(
+      new RegExp(fr.admin.wallDraftHint.replace(/[’]/g, '.')),
+    )
+    // Seen under the label, and not part of the link's name.
+    expect(within(wall).getByText(fr.admin.wallDraftHint)).toBeVisible()
     expect(priorityOf(fr.admin.openModeration)).toBe('primary')
+  })
+
+  it('says nothing about waiting once the event is live: the wall is already on', () => {
+    render('live')
+
+    expect(screen.queryByText(fr.admin.wallDraftHint)).toBeNull()
+    expect(screen.getByRole('link', { name: fr.admin.openWall })).toHaveAccessibleDescription(
+      fr.about.opensInNewTab,
+    )
   })
 
   it('keeps the wall on once the event is closed, because the projector is usually still on', () => {

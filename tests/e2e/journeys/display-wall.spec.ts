@@ -74,7 +74,7 @@ test('the empty state tells the room how to join', async ({ app, surfaces }) => 
   const empty = projector.getByTestId('wall-empty')
   await expect(empty).toBeVisible()
   await expect(empty.getByText('Camille & Sacha')).toBeVisible()
-  await expect(empty.getByText(event.joinCode)).toBeVisible()
+  await expect(empty.getByText(event.joinCode, { exact: true })).toBeVisible()
   // Rendered as inline SVG, never a remote image: the CSP forbids one and venue Wi-Fi
   // would drop it.
   await expect(empty.locator('svg')).toBeVisible()
@@ -157,7 +157,7 @@ test('the caption and the sender are legible on the slide', async ({ app, surfac
   await projector.goto(wallUrl(app, event.slug))
   const slide = projector.getByTestId('wall-slide').first()
   await expect(slide.getByText('Les confettis')).toBeVisible()
-  await expect(slide.getByText('Léa')).toBeVisible()
+  await expect(slide.getByText('Léa', { exact: true })).toBeVisible()
 
   // Read from three to ten metres. The token floor is --text-xl; anything under 24px
   // computed is unreadable from the back of a room.

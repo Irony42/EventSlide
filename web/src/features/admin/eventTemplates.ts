@@ -167,8 +167,8 @@ export const templateSummary = (
   if (patch.retentionDays !== undefined) {
     // Labelled, unlike on the settings page where the same string is an option inside a
     // select already headed "Suppression automatique". Bare on a card it read "30 jours
-    // après la clôture" with no verb — five words that a host can reasonably take to mean
-    // the gallery *stays up* that long. What actually happens is `purgeExpiredEvents`
+    // après la fin de l’évènement" with no verb — words that a host can reasonably take to
+    // mean the album *stays up* that long. What actually happens is `purgeExpiredEvents`
     // deleting the media tree and the event row, and nothing in this product warns anyone
     // it is coming, so the card is the only place it is ever said.
     lines.push(

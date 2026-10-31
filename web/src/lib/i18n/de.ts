@@ -35,7 +35,7 @@ export const de: UiText = {
   },
 
   join: {
-    title: 'Der Galerie beitreten',
+    title: 'Der Feier beitreten',
     codeLabel: 'Code der Feier',
     codeHint: 'Sechs Zeichen, sie stehen auf der Karte oder beim QR-Code.',
     nameLabel: 'Ihr Vorname',
@@ -47,7 +47,7 @@ export const de: UiText = {
     /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
     notYourEvening: 'Das ist nicht Ihre Feier?',
     notOpenHint:
-      'Falls Sie einen QR-Code gescannt haben: Die Galerie ist vielleicht noch nicht geöffnet, oder die Feier ist vorbei. Versuchen Sie es gleich noch einmal oder fragen Sie die Veranstalter.',
+      'Falls Sie einen QR-Code gescannt haben: Die Feier ist vielleicht noch nicht geöffnet oder schon vorbei. Versuchen Sie es gleich noch einmal oder fragen Sie die Veranstalter.',
     organiserLink: 'Bereich für Veranstalter',
   },
 
@@ -76,7 +76,7 @@ export const de: UiText = {
     eraseOpen: 'Alles löschen, was ich gesendet habe',
     eraseTitle: 'Alles löschen?',
     eraseBody:
-      'Ihre Fotos, Videos, Bildunterschriften, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus der Galerie und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
+      'Ihre Fotos, Videos, Bildunterschriften, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus dem Album und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
     eraseLimits:
       'Eine Kopie, die der Veranstalter bereits gespeichert hat oder die jemand per Screenshot gesichert hat, lässt sich nicht zurückholen.',
     eraseConfirm: 'Ja, alles löschen',
@@ -147,13 +147,15 @@ export const de: UiText = {
     mineFailed:
       'Die Liste Ihrer Beiträge konnte nicht aktualisiert werden. Versuchen Sie es erneut.',
     mineAlt: 'Ihr Foto',
+    /* "Levez les yeux" (UX review 2026-10-30): a photo of the guest's goes from waiting to on the wall. */
+    photoDeveloped: 'Freigegeben! Es erscheint gleich auf der Leinwand: Blick nach oben.',
+    photoDevelopedAway: 'Es war auf der Leinwand zu sehen.',
     deleteOwnNumbered: (position: number) => `Foto ${t.number(position)} löschen`,
-    notJoinedTitle: 'Treten Sie der Galerie bei, um Ihre Fotos zu senden',
+    notJoinedTitle: 'Treten Sie der Feier bei, um Ihre Fotos zu senden',
     notJoinedHint: 'Scannen Sie den QR-Code erneut oder geben Sie den Code der Feier ein.',
     notJoinedAction: 'Code eingeben',
     /* Navigation pass, batch A: a gallery the server no longer serves. */
-    galleryUnavailable:
-      'Diese Galerie ist nicht mehr verfügbar. Sie können keine Fotos mehr senden.',
+    galleryUnavailable: 'Diese Feier ist nicht mehr verfügbar. Sie können keine Fotos mehr senden.',
     galleryUnavailableAction: 'Code erneut eingeben',
 
     missionsTitle: 'Missionen',
@@ -195,9 +197,9 @@ export const de: UiText = {
     endedThanksNone: 'Danke, dass Sie dabei waren!',
     endedAlbum: 'Die Veranstalter teilen das Album.',
 
-    installTitle: 'Die Galerie immer griffbereit',
+    installTitle: 'Die Feier immer griffbereit',
     installHint:
-      'Fügen Sie sie zu Ihrem Startbildschirm hinzu, um die Galerie später wiederzufinden, ohne den QR-Code zu suchen.',
+      'Fügen Sie sie zu Ihrem Startbildschirm hinzu, um die Feier später wiederzufinden, ohne den QR-Code zu suchen.',
     installIosHint: 'Öffnen Sie das Teilen-Menü und wählen Sie „Zum Home-Bildschirm“.',
     installAction: 'Zum Startbildschirm hinzufügen',
     installDismiss: 'Diesen Vorschlag ausblenden',
@@ -266,8 +268,8 @@ export const de: UiText = {
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {
-        one: `Die Fotos werden ${t.number(days)} Tag nach dem Schließen der Galerie automatisch gelöscht.`,
-        other: `Die Fotos werden ${t.number(days)} Tage nach dem Schließen der Galerie automatisch gelöscht.`,
+        one: `Die Fotos werden ${t.number(days)} Tag, nachdem der Veranstalter die Feier beendet hat, automatisch gelöscht.`,
+        other: `Die Fotos werden ${t.number(days)} Tage, nachdem der Veranstalter die Feier beendet hat, automatisch gelöscht.`,
       }),
     noticeRetentionNone:
       'Eine automatische Löschung ist nicht vorgesehen: Die Fotos bleiben, bis der Veranstalter sie löscht.',
@@ -344,7 +346,7 @@ export const de: UiText = {
     'clientCeilings.maxRetentionDaysInvalid':
       'Diese Aufbewahrungsdauer wird nicht akzeptiert: von 1 bis 3.650 Tagen.',
     'clientCeilings.maxLiveDaysInvalid':
-      'Diese Live-Dauer wird nicht akzeptiert: von 1 bis 365 Tagen.',
+      'Diese Dauer einer laufenden Veranstaltung wird nicht akzeptiert: von 1 bis 365 Tagen.',
     'clientCeilings.periodStartedAtInvalid': 'Dieser Zeitraumbeginn wird nicht akzeptiert.',
     'clientCeilings.clipsAllowedInvalid': 'Diese Videoeinstellung wird nicht akzeptiert.',
     'clientCeilings.liveAllowedInvalid': 'Diese Öffnungseinstellung wird nicht akzeptiert.',
@@ -403,9 +405,10 @@ export const de: UiText = {
       'Die Bestätigung in zwei Schritten ist für dieses Konto nicht aktiv.',
     'feature.unavailable': 'Diese Funktion ist auf diesem Server nicht verfügbar.',
 
-    'event.notFound': 'Zu diesem Code gehört keine offene Galerie.',
-    'event.notAcceptingUploads': 'Diese Galerie nimmt keine Fotos mehr an.',
-    'event.quotaExceeded': 'Die Galerie ist voll. Sagen Sie dem Veranstalter Bescheid.',
+    'event.notFound': 'Zu diesem Code gehört keine offene Feier.',
+    'event.notAcceptingUploads': 'Diese Feier nimmt keine Fotos mehr an.',
+    'event.quotaExceeded':
+      'Der Speicher dieser Feier ist voll. Sagen Sie dem Veranstalter Bescheid.',
     'event.slugUnavailable': 'Diese Adresse ist bereits vergeben.',
     'event.customSlugNotAllowed': 'Diese Instanz erlaubt keine eigene Adresswahl.',
     'event.creationRateLimited':
@@ -417,12 +420,13 @@ export const de: UiText = {
     'client.notFound': 'Dieses Kundenkonto wurde nicht gefunden.',
     'client.ownerRequired': 'Nur ein Inhaber des Kontos kann das einsehen.',
     'client.ceilingReached': 'Ihr Konto hat die zulässige Anzahl an Veranstaltungen erreicht.',
-    'client.storageFull': 'Die Galerie ist voll. Sagen Sie dem Veranstalter Bescheid.',
+    'client.storageFull':
+      'Der Speicher dieser Feier ist voll. Sagen Sie dem Veranstalter Bescheid.',
     'client.liveNotAllowed': 'Ihr Konto kann derzeit keine Veranstaltung öffnen.',
     'client.liveWindowOver':
       'Der Öffnungszeitraum dieser Veranstaltung ist abgelaufen: Sie kann nicht mehr erneut geöffnet werden.',
     'client.retentionAboveCeiling': 'Diese Aufbewahrungsdauer ist länger, als Ihr Konto erlaubt.',
-    'client.clipsNotAllowed': 'Videos sind für diese Galerie nicht verfügbar.',
+    'client.clipsNotAllowed': 'Videos sind für diese Feier nicht verfügbar.',
     'event.immutable': 'Diese Veranstaltung ist archiviert und kann nicht mehr geändert werden.',
     'event.illegalTransition': 'Dieser Statuswechsel ist nicht möglich.',
 
@@ -493,8 +497,8 @@ export const de: UiText = {
       'Nicht so schnell — warten Sie einen Moment, bevor Sie wieder reagieren.',
     'rate.limited': 'Zu viele Versuche. Warten Sie einen Moment.',
 
-    'event.captionsNotAllowed': 'Bildunterschriften sind für diese Galerie nicht aktiviert.',
-    'event.reactionsDisabled': 'Reaktionen sind für diese Galerie nicht aktiviert.',
+    'event.captionsNotAllowed': 'Bildunterschriften sind für diese Feier nicht aktiviert.',
+    'event.reactionsDisabled': 'Reaktionen sind für diese Feier nicht aktiviert.',
     'event.guestSelfDeleteDisabled':
       'Der Veranstalter erlaubt Gästen nicht, ihre Fotos zu löschen.',
     'photo.captionEditForbidden': 'Diese Bildunterschrift kann nicht mehr geändert werden.',
@@ -520,12 +524,12 @@ export const de: UiText = {
     'membership.notFound': 'Diese Person moderiert diese Veranstaltung nicht.',
     'guest.notFound': 'Dieser Gast steht nicht mehr in der Liste. Aktualisieren Sie die Seite.',
 
-    'event.scheduleOutOfOrder': 'Das Ende muss nach dem Beginn liegen.',
+    'event.scheduleOutOfOrder': 'Das Ende muss nach der Öffnung liegen.',
     'event.scheduleInPast':
       'Dieser Zeitpunkt ist bereits vorbei. Prüfen Sie das Datum: Für das Ende des Abends wählen Sie den nächsten Tag.',
     'event.scheduleInvalid': 'Diese Datumsangaben sind nicht lesbar. Wählen Sie sie erneut.',
 
-    'event.clipsNotAllowed': 'Videos sind für diese Galerie nicht aktiviert.',
+    'event.clipsNotAllowed': 'Videos sind für diese Feier nicht aktiviert.',
     'clip.queueFull':
       'Es werden gerade viele Videos verarbeitet. Versuchen Sie es in einer Minute erneut.',
     'clip.transcoderUnavailable':
@@ -617,7 +621,8 @@ export const de: UiText = {
     by: (name: string) => `von ${name}`,
     byAnonymous: 'Anonymer Gast',
     shortcuts: 'Tastenkürzel',
-    shortcutsHint: 'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen.',
+    shortcutsHint:
+      'J / K zum Blättern, P zum Freigeben, R zum Ablehnen, Z zum Rückgängigmachen der letzten Entscheidung.',
 
     shortcutsMore:
       'H zum Entfernen vom Bildschirm, Leertaste zum Auswählen, Esc zum Aufheben der Auswahl.',
@@ -629,7 +634,7 @@ export const de: UiText = {
     live: 'Live-Aktualisierung',
     liveLost: 'Verbindung unterbrochen — es wird erneut versucht.',
     statePending: 'Wartet',
-    statePublished: 'Freigegeben',
+    statePublished: 'Auf dem Bildschirm',
     stateRejected: 'Abgelehnt',
     stateHidden: 'Vom Bildschirm genommen',
     selected: (count: number) =>
@@ -662,13 +667,33 @@ export const de: UiText = {
       }),
     removed: (count: number) =>
       t.count(count, {
-        one: `${t.number(count)} Foto vom Bildschirm genommen.`,
-        other: `${t.number(count)} Fotos vom Bildschirm genommen.`,
+        one: `${t.number(count)} Foto vom Bildschirm genommen. Es bleibt in Ihrem Album.`,
+        other: `${t.number(count)} Fotos vom Bildschirm genommen. Sie bleiben in Ihrem Album.`,
       }),
     decisionFailed: 'Die Entscheidung konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     undoFailed: 'Das Rückgängigmachen konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     dimensions: (width: number, height: number) => `${width} × ${height} Pixel`,
     noCaption: 'Ohne Bildunterschrift',
+
+    /* ---- Moderation traps pass (MOD-1, MOD-4, MOD-9, MOD-13). Keep additions inside this block. ---- */
+    nothingToUndo: 'Nichts rückgängig zu machen.',
+    undoPublish: 'Entfernen',
+    seeRejected: 'In „Abgelehnt“ ansehen',
+    republish: 'Wieder auf den Bildschirm',
+    republishPhoto: (author: string) => `Foto von ${author} wieder auf den Bildschirm bringen`,
+    publishAnyway: 'Trotzdem freigeben',
+    publishAnywayPhoto: (author: string) => `Foto von ${author} trotzdem freigeben`,
+    alreadyOnScreen: 'Dieses Foto ist schon auf dem Bildschirm.',
+    alreadyRefused: 'Dieses Foto ist schon abgelehnt.',
+    notOnScreen: 'Dieses Foto ist nicht auf dem Bildschirm.',
+    decisionsExplained:
+      'Vom Bildschirm nehmen: Das Foto bleibt in Ihrem Album. Ablehnen: Es verlässt das Album, und der Gast sieht „Nicht ausgewählt“.',
+    filterRejectedHint: 'Nicht mehr im Album. Der Gast sieht „Nicht ausgewählt“.',
+    filterHiddenHint: 'Vom Bildschirm genommen. Sie bleiben in Ihrem Album.',
+    confirmRejectTitle: (count: number) => `${t.number(count)} Fotos ablehnen?`,
+    confirmRejectBody:
+      'Die Gäste sehen „Nicht ausgewählt“, und die Fotos verlassen das Album. Das lässt sich nicht rückgängig machen.',
+    confirmRejectLabel: (count: number) => `${t.number(count)} Fotos ablehnen`,
 
     videoBadge: 'Video',
     videoLength: (seconds: number) => `Video · ${seconds} s`,
@@ -696,7 +721,7 @@ export const de: UiText = {
     failed: 'Die Fotos konnten nicht geladen werden. Versuchen Sie es erneut.',
     own: 'Ihr Foto',
     /* Navigation pass, batch A: a gallery the server no longer serves. */
-    unavailable: 'Diese Galerie wird nicht mehr angezeigt.',
+    unavailable: 'Diese Feier wird nicht mehr angezeigt.',
     unavailableHint:
       'Die Feier ist vorbei, hier gibt es keine Fotos mehr zu sehen. Fragen Sie die Veranstalter nach dem Link zum Album.',
   },
@@ -704,26 +729,37 @@ export const de: UiText = {
   wall: {
     empty: 'Die ersten Fotos kommen gleich',
     emptyHint: 'Scannen Sie den QR-Code und senden Sie Ihre eigenen Fotos.',
-    joinPrompt: 'Treten Sie der Galerie bei',
-    offline: 'Verbindung unterbrochen — es wird erneut versucht',
+    joinPrompt: 'Treten Sie der Feier bei',
+    offline: 'Neue Fotos warten auf das Netzwerk',
     paused: 'Diashow angehalten',
 
     codeLabel: 'Code der Feier',
-    qrTitle: 'QR-Code für den Beitritt zur Galerie',
+    qrTitle: 'QR-Code für den Beitritt zur Feier',
     photoBy: (name: string) => `Foto, gesendet von ${name}`,
     photoByAnonymous: 'Foto, gesendet von einem Gast',
     errorTitle: 'Die Fotos konnten nicht geladen werden',
     errorHint:
       'Es wird erneut versucht. Prüfen Sie das Netz vor Ort, wenn der Bildschirm leer bleibt.',
-    notServedTitle: 'Diese Galerie wird nicht angezeigt',
-    notServedHint:
-      'Sie ist nicht geöffnet oder wurde archiviert. Wird sie geöffnet, zeigt der Bildschirm die Fotos von selbst wieder an.',
+    notServedTitle: 'Diese Anzeige wartet',
+    notServedHint: 'Diese Anzeige schaltet sich von selbst ein, sobald die Feier geöffnet wird.',
     dismissJoinCard: 'Code-Hinweis ausblenden',
     shortcuts: 'Tastenkürzel',
     shortcutsHint:
-      'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung.',
+      'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung, Q blendet den QR-Code aus oder ein.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Zum Verlassen: Esc oder F beenden den Vollbildmodus, danach den Tab schließen.',
+    /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
+    firstPhotoOf: (name: string) => `Erstes Foto von ${name}`,
+
+    /* ---- Before and after the evening (UX review 30/10, MUR-2 to MUR-9). Keep additions inside this block. ---- */
+    // The corner card's title: what to do, in a verb a guest reads from ten metres.
+    sendPrompt: 'Senden Sie Ihre Fotos auf die Leinwand',
+    // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
+    typeCodeAt: (code: string, host: string) => `oder geben Sie ${code} auf ${host} ein`,
+    // An empty wall of an event the host has closed: nobody can send a photo any more.
+    emptyClosed: 'Danke fürs Kommen!',
+    // In the shortcuts panel, only when the browser could not keep the screen awake itself.
+    keepAwakeHint: 'Deaktivieren Sie den Ruhezustand dieses Computers.',
 
     layoutNames: {
       spotlight: 'Vollbild',
@@ -756,10 +792,10 @@ export const de: UiText = {
     eventName: 'Name der Veranstaltung',
     eventNameHint: 'Für Ihre Gäste sichtbar, zum Beispiel „Camille & Sacha“.',
     slug: 'Adresse',
-    joinCode: 'Zugangscode',
+    joinCode: 'Code der Feier',
     rotateJoinCode: 'Code ändern',
     rotateJoinCodeHint:
-      'Bereits verbundene Gäste bleiben verbunden. Der neue Code ersetzt den alten sofort.',
+      'Bereits gedruckte QR-Codes und der bereits verschickte Link funktionieren nicht mehr: Sie müssen sie neu drucken und den Link erneut senden. Bereits verbundene Gäste bleiben verbunden.',
     qrCode: 'QR-Code',
     qrCodeHint: 'Zum Ausdrucken und Aufstellen auf den Tischen.',
     openWall: 'Bildschirm öffnen',
@@ -788,19 +824,19 @@ export const de: UiText = {
     allowReactions: 'Reaktionen erlauben',
     allowClips: 'Videos erlauben',
     allowClipsHint:
-      'Gäste können zusätzlich zu Fotos kurze Videos senden. Ohne Haken werden Videos abgelehnt: weil Sie den Haken entfernt haben, weil die bei der Erstellung gewählte Vorlage es so eingestellt hat, oder weil die Galerie älter ist als diese Funktion. Setzen Sie den Haken, um Videos zu erlauben.',
+      'Gäste können zusätzlich zu Fotos kurze Videos senden. Ohne Haken werden Videos abgelehnt: weil Sie den Haken entfernt haben, weil die bei der Erstellung gewählte Vorlage es so eingestellt hat, oder weil die Veranstaltung älter ist als diese Funktion. Setzen Sie den Haken, um Videos zu erlauben.',
     allowGuestSelfDelete: 'Gästen erlauben, ihre Fotos zu löschen',
 
     wallLanguage: 'Sprache der Leinwand im Saal',
     wallLanguageHint:
-      'Die Wörter auf der Leinwand im Saal: „Treten Sie der Galerie bei“, „Missionen“, die Wartemeldungen. Was Sie und Ihre Gäste schreiben — der Name der Veranstaltung, die Bildunterschriften, die Aufgaben — erscheint unverändert und wird nie übersetzt. Ihre Gäste wählen ihre eigene Sprache auf ihrem Telefon; diese Einstellung betrifft sie nicht.',
+      'Die Wörter auf der Leinwand im Saal: „Treten Sie der Feier bei“, „Missionen“, die Wartemeldungen. Was Sie und Ihre Gäste schreiben — der Name der Veranstaltung, die Bildunterschriften, die Aufgaben — erscheint unverändert und wird nie übersetzt. Ihre Gäste wählen ihre eigene Sprache auf ihrem Telefon; diese Einstellung betrifft sie nicht.',
 
     theme: 'Erscheinungsbild',
     themeHint:
       'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',
     themeAccent: 'Farbe',
     themeAccentNames: {
-      violet: 'Kraftpapier (Standard)',
+      violet: 'Ambiente-Farbe (Standard)',
       rose: 'Rosa',
       azure: 'Blau',
       teal: 'Türkis',
@@ -819,7 +855,7 @@ export const de: UiText = {
     },
     themeAmbiance: 'Ambiente',
     themeAmbianceHint:
-      'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrer Konsole tragen.',
+      'Die Welt, die die Handys Ihrer Gäste, die Leinwand im Saal und die Seiten dieser Veranstaltung in Ihrem Bereich tragen.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -861,28 +897,30 @@ export const de: UiText = {
     loading: 'Ihre Veranstaltungen werden geladen…',
     eventLoading: 'Die Veranstaltung wird geladen…',
     eventsEmpty: 'Noch keine Veranstaltungen.',
-    eventsEmptyHint: 'Drei Schritte, damit am Tag selbst alles bereit ist.',
+    eventsEmptyHint: 'Fünf Schritte, damit am Tag selbst alles bereit ist.',
     emptyStepCreate: 'Legen Sie die Veranstaltung an.',
-    emptyStepTest:
-      'Testen Sie den Bildschirm im Netzwerk des Veranstaltungsorts, mit einem Telefon, das nicht Ihres ist.',
     emptyStepPrint: 'Drucken Sie den QR-Code aus und legen Sie ihn auf die Tische.',
+    emptyStepScreen:
+      'Schließen Sie den Bildschirm des Veranstaltungsorts an und öffnen Sie ihn: Er wartet auf die Öffnung.',
+    emptyStepOpen: 'Öffnen Sie die Veranstaltung für Gäste.',
+    emptyStepTest:
+      'Testen Sie mit einem Telefon, das nicht Ihres ist, im Netzwerk des Veranstaltungsorts.',
     create: 'Veranstaltung anlegen',
     slugHint: 'Optional. Leer lassen, dann wird sie aus dem Namen abgeleitet.',
-    slugPreviewLabel: 'Adresse der Galerie',
+    slugPreviewLabel: 'Adresse für Ihre Gäste',
     slugPreviewEmpty: 'Geben Sie einen Namen ein, um die Adresse zu sehen.',
     eventCreated: (name: string) =>
       `${name} ist bereit. Drucken Sie den QR-Code, wann immer Sie wollen.`,
     joinCodeHint: 'Für Gäste, die den QR-Code nicht scannen können.',
     eventControls: 'Steuerung der Veranstaltung',
-    joinLink: 'Einladungslink',
+    joinLink: 'Link für Ihre Gäste',
     printQr: 'QR-Code drucken',
     qrScanPrompt: 'Scannen Sie, um Ihre Fotos zu senden.',
-    qrAlt: (eventName: string) => `QR-Code für den Zugang zu ${eventName}`,
+    qrAlt: (eventName: string) => `QR-Code zum Beitritt zu ${eventName}`,
     storageLabel: 'Belegter Speicher für Fotos',
     storage: (used: string) => `${used} belegt`,
-    statusSaved: 'Der neue Status ist gespeichert.',
-    rotateJoinCodeTitle: 'Zugangscode ändern?',
-    codeRotated: 'Der Zugangscode wurde geändert. Der alte funktioniert nicht mehr.',
+    rotateJoinCodeTitle: 'Code der Feier ändern?',
+    codeRotated: 'Neuer Code aktiv. Der alte funktioniert nicht mehr.',
     settingsSaved: 'Einstellungen gespeichert.',
     settingsReadOnly:
       'Diese Veranstaltung ist archiviert: Die Einstellungen können nicht mehr geändert werden.',
@@ -906,7 +944,7 @@ export const de: UiText = {
     maxPhotosPerGuest: 'Fotos pro Gast',
     maxPhotosUnlimited: 'Ohne Limit',
     guestList: 'Gäste',
-    guestsEmpty: 'Noch niemand ist der Galerie beigetreten.',
+    guestsEmpty: 'Noch niemand ist der Feier beigetreten.',
     guestsEmptyHint: 'Gäste erscheinen hier, sobald sie den QR-Code scannen.',
     lastSeen: (when: string) => `Letzte Aktivität: ${when}`,
     dateUnknown: 'Datum unbekannt',
@@ -961,6 +999,32 @@ export const de: UiText = {
     scheduleOpensOnly: (opensAt: string) => `Öffnung am ${opensAt}. Sie beenden selbst.`,
     scheduleClosesOnly: (closesAt: string) => `Ende am ${closesAt}. Sie öffnen selbst.`,
     scheduleSave: 'Zeitplanung speichern',
+    /* ---- Added by the host lifecycle pass (revue UX 30/10). ---- */
+    noticeOpened: 'Veranstaltung für Gäste geöffnet.',
+    noticeClosed: 'Veranstaltung beendet. Gäste können keine Fotos mehr senden.',
+    noticeReopened: 'Veranstaltung wieder geöffnet: Gäste können wieder Fotos senden.',
+    noticeArchived: 'Veranstaltung archiviert. Das Album bleibt herunterladbar.',
+    noticeArchivedDraft: 'Veranstaltung archiviert.',
+    archiveTitle: (eventName: string) => `${eventName} archivieren?`,
+    archiveHint:
+      'Der Bildschirm stoppt, die Einstellungen werden eingefroren, und das ist endgültig. Das Album bleibt herunterladbar.',
+    archiveDraftHint:
+      'Die Einstellungen werden eingefroren, und die Veranstaltung kann nie mehr geöffnet werden: Das ist endgültig.',
+    openTitle: (eventName: string) => `${eventName} für Gäste öffnen?`,
+    openHint:
+      'Alle mit dem QR-Code können dann Fotos senden. Eine Rückkehr zum Entwurf ist nicht mehr möglich.',
+    wallDraftHint: 'Schaltet sich von selbst ein, sobald die Veranstaltung für Gäste öffnet',
+    codeRotatedAction: 'Neuen QR-Code drucken',
+    afterTitle: 'Nach der Veranstaltung',
+    afterHint: 'Schicken Sie das Album an Ihre Gäste oder behalten Sie es für sich.',
+    afterShare: 'Album teilen',
+    autoOpenAt: (time: string) => `Öffnet automatisch um ${time}`,
+    autoOpenOn: (dateTime: string) => `Öffnet automatisch am ${dateTime}`,
+    autoCloseAt: (time: string) => `Endet automatisch um ${time}`,
+    autoCloseOn: (dateTime: string) => `Endet automatisch am ${dateTime}`,
+    autoEdit: 'Zeitplan ändern',
+    scheduleDiscardedAction: 'Neuen Zeitplan festlegen',
+
     scheduleDiscarded: (when: string) =>
       `Die automatische Zeitplanung konnte am ${when} nicht greifen: Die Veranstaltung konnte zu diesem Zeitpunkt den Status nicht wechseln. Sie wurde gelöscht. Speichern Sie eine neue, wenn Sie eine wollen.`,
 
@@ -1206,7 +1270,7 @@ export const de: UiText = {
     changePasswordForced:
       'Ihr Passwort wurde für Sie festgelegt: Ersetzen Sie es, bevor Sie weitermachen. Danach geht es dort weiter, wohin Sie wollten.',
     menuMustChange:
-      'Ändern Sie zuerst Ihr Passwort: Der Rest der Konsole bleibt bis dahin geschlossen.',
+      'Ändern Sie zuerst Ihr Passwort: Der Rest Ihres Bereichs bleibt bis dahin geschlossen.',
     securityBack: 'Zurück',
     secondFactorEnabled: 'Bestätigung in zwei Schritten aktiviert.',
     recoveryCodesLeaveTitle: 'Verlassen, ohne die Codes notiert zu haben?',
@@ -1223,13 +1287,19 @@ export const de: UiText = {
   mobileModeration: {
     title: 'Moderation am Telefon',
     // Navigation pass, batch C: the way to the other console.
-    openConsole: 'Vollständige Konsole für den Computer',
+    openConsole: 'Vollständige Ansicht für den Computer',
     intro: 'Wischen Sie das Foto nach rechts zum Freigeben, nach links zum Ablehnen.',
     releaseToPublish: 'Loslassen zum Freigeben',
     releaseToReject: 'Loslassen zum Ablehnen',
     nowDeciding: (photo: string) => `Foto zur Moderation. ${photo}`,
     undoLast: 'Letzte Entscheidung rückgängig machen',
     undoUnavailable: 'Nur eine Freigabe lässt sich rückgängig machen.',
+
+    /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
+    onScreenTitle: 'Neueste Fotos auf dem Bildschirm',
+    onScreenHint: 'Tippen Sie auf ein Foto, um es vom Bildschirm zu nehmen.',
+    onScreenEmpty: 'Gerade ist nichts auf dem Bildschirm.',
+    openOnScreen: (author: string) => `Foto von ${author} ansehen, auf dem Bildschirm`,
   },
   gallery: {
     title: 'Geteiltes Album',
@@ -1345,7 +1415,7 @@ export const de: UiText = {
     actionTermsAccepted:
       'Eine Person hat die Nutzungsbedingungen akzeptiert, indem sie eine Einladung angenommen hat.',
     actionOther: 'Eine Aktion wurde aufgezeichnet.',
-    liveWindowEnd: (date: string) => `Das Live-Fenster endet am ${date}.`,
+    liveWindowEnd: (date: string) => `Die Veranstaltung endet am ${date}.`,
   },
 
   site: {
@@ -1386,7 +1456,7 @@ export const de: UiText = {
     statusActive: 'Aktiv',
     statusSuspended: 'Gesperrt',
     statusOffboarding: 'Wird beendet',
-    eventsCell: (total: number, live: number) => `${t.number(total)} (${t.number(live)} live)`,
+    eventsCell: (total: number, live: number) => `${t.number(total)} (${t.number(live)} laufend)`,
     storageOf: (used: string, max: string) => `${used} von ${max}`,
     noCeiling: 'Keine Grenze',
 
@@ -1418,7 +1488,7 @@ export const de: UiText = {
     maxTotalGigabytes: 'Gesamtspeicher in GB',
     maxEventQuotaGigabytes: 'Kontingent einer Veranstaltung in GB',
     maxRetentionDays: 'Aufbewahrung nach dem Ende, in Tagen, höchstens',
-    maxLiveDays: 'Dauer einer Live-Veranstaltung, in Tagen, höchstens',
+    maxLiveDays: 'Dauer einer laufenden Veranstaltung, in Tagen, höchstens',
     clipsAllowed: 'Videos erlaubt',
     liveAllowed: 'Öffnen von Veranstaltungen erlaubt',
     renewPeriod: 'Zeitraum jetzt erneuern',
@@ -1438,12 +1508,12 @@ export const de: UiText = {
     suspend: 'Sperren',
     suspendTitle: 'Diesen Kunden sperren?',
     suspendBody:
-      'Gäste können seinen Veranstaltungen nicht mehr beitreten und keine Fotos mehr senden, die Öffentlichkeit sieht seine Bildschirme und Galerien nicht mehr, und seine Mitglieder können nichts mehr ändern. Nichts wird gelöscht, und kein Konto wird deaktiviert.',
+      'Gäste können seinen Veranstaltungen nicht mehr beitreten und keine Fotos mehr senden, die Öffentlichkeit sieht seine Bildschirme und Alben nicht mehr, und seine Mitglieder können nichts mehr ändern. Nichts wird gelöscht, und kein Konto wird deaktiviert.',
     suspended: 'Kunde gesperrt.',
     resume: 'Sperre aufheben',
     resumeTitle: 'Sperre aufheben?',
     resumeBody:
-      'Die Bildschirme und Galerien des Kunden sind sofort wieder sichtbar, und seine Gäste können wieder beitreten und Fotos senden.',
+      'Die Bildschirme und Alben des Kunden sind sofort wieder sichtbar, und seine Gäste können wieder beitreten und Fotos senden.',
     resumed: 'Sperre aufgehoben.',
     rename: 'Umbenennen',
     renameTitle: 'Name des Kunden',
@@ -1475,7 +1545,7 @@ export const de: UiText = {
     eventLabel: (short: string) => `Veranstaltung ${short}`,
     eventStatuses: {
       draft: 'Entwurf',
-      live: 'Live',
+      live: 'Läuft',
       closed: 'Beendet',
       archived: 'Archiviert',
     },
@@ -1585,15 +1655,15 @@ export const de: UiText = {
     accountDeletedDone: 'Konto gelöscht.',
     offboardTitle: 'Ende der Zusammenarbeit',
     offboardIntro:
-      'Live-Veranstaltungen werden beendet, Entwürfe archiviert, der Kunde wird gesperrt, und seine Alben werden spätestens nach der von Ihnen gesetzten Frist gelöscht: So lange hat der Kunde Zeit, zu exportieren, was er behalten will (die Aufbewahrung einer Veranstaltung oder die Grenzen des Kunden können früher löschen). Danach werden die Konten, die nur ihm gehörten und sonst nichts halten, gelöscht, und mit ihnen der Kunde.',
+      'Laufende Veranstaltungen werden beendet, Entwürfe archiviert, der Kunde wird gesperrt, und seine Alben werden spätestens nach der von Ihnen gesetzten Frist gelöscht: So lange hat der Kunde Zeit, zu exportieren, was er behalten will (die Aufbewahrung einer Veranstaltung oder die Grenzen des Kunden können früher löschen). Danach werden die Konten, die nur ihm gehörten und sonst nichts halten, gelöscht, und mit ihnen der Kunde.',
     graceDays: 'Frist bis zur Löschung, in Tagen',
     graceDaysHint: 'Eine ganze Zahl von Tagen: Die Grenzen setzt der Server.',
     offboardAction: 'Zusammenarbeit beenden',
     offboardConfirmTitle: 'Die Zusammenarbeit mit diesem Kunden beenden?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `Spätestens in ${t.number(days)} Tag werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
-        other: `Spätestens in ${t.number(days)} Tagen werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine Live-Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
+        one: `Spätestens in ${t.number(days)} Tag werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine laufenden Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
+        other: `Spätestens in ${t.number(days)} Tagen werden die Alben dieses Kunden gelöscht, danach der Kunde mit den Konten, die nur ihm gehörten und sonst nichts halten. Unwiderruflich: Weder das Datum noch die Sperre lassen sich ändern. Bis dahin werden seine laufenden Veranstaltungen beendet, seine Entwürfe archiviert und der Kunde gesperrt.`,
       }),
     offboardedDone: 'Ende der Zusammenarbeit eingeleitet.',
     offboardingRunning:
@@ -1605,7 +1675,7 @@ export const de: UiText = {
       'Nehmen Sie ein gemeldetes Foto oder eine Veranstaltung anhand ihrer ID offline, ohne sie je zu öffnen: Diese Konsole zeigt weder Vorschaubild noch Bildunterschrift, Gästenamen oder Medienadresse. Jede Handlung verlangt einen Grund, der im Protokoll der Instanz steht und den der Kunde nicht liest. Das Entfernen stoppt die Löschung nicht: Um den Inhalt als Beweis zu behalten, entfernen Sie ihn und sperren dann seine Löschung.',
     takedownEventTitle: 'Eine Veranstaltung',
     takedownEventIntro:
-      'Suchen Sie die gemeldete Veranstaltung über ihre Adresse, ihren Beitrittscode oder ihren genauen Namen. Sie sehen von ihr nur die ID und den Zustand.',
+      'Suchen Sie die gemeldete Veranstaltung über ihre Adresse, den Code der Feier oder ihren genauen Namen. Sie sehen von ihr nur die ID und den Zustand.',
     takedownEventLabel: 'Adresse, Code oder genauer Name',
     takedownEventAction: 'Veranstaltung suchen',
     takedownEventNone:
@@ -1640,12 +1710,12 @@ export const de: UiText = {
     takedownOps: {
       eventDown: {
         title: 'Diese Veranstaltung entfernen?',
-        body: 'Die Wand, der Gästefeed, der Galerielink und die Konsole des Gastgebers antworten, als gäbe es die Veranstaltung nicht, und offene Bildschirme schließen sich. Nichts wird gelöscht. Die Aufbewahrung läuft weiter: Um den Inhalt als Beweis zu behalten, sperren Sie auch seine Löschung.',
+        body: 'Die Wand, der Gästefeed, der Albumlink und der Bereich des Gastgebers antworten, als gäbe es die Veranstaltung nicht, und offene Bildschirme schließen sich. Nichts wird gelöscht. Die Aufbewahrung läuft weiter: Um den Inhalt als Beweis zu behalten, sperren Sie auch seine Löschung.',
         confirm: 'Veranstaltung entfernen',
       },
       eventUp: {
         title: 'Diese Veranstaltung wieder online stellen?',
-        body: 'Wand, Gäste, Galerie und Gastgeber bekommen sie so zurück, wie sie war.',
+        body: 'Wand, Gäste, Album und Gastgeber bekommen sie so zurück, wie sie war.',
         confirm: 'Wieder online stellen',
       },
       purgeHold: {
@@ -1660,7 +1730,7 @@ export const de: UiText = {
       },
       photoDown: {
         title: 'Dieses Foto entfernen?',
-        body: 'Es verschwindet sofort von der Wand, aus dem Gästefeed, vom Galerielink und von den Bildschirmen des Gastgebers, und offene Bildschirme vergessen es. Die Datei bleibt erhalten. Der Gastgeber kann es nicht zurückholen.',
+        body: 'Es verschwindet sofort von der Wand, aus dem Gästefeed, vom Albumlink und von den Bildschirmen des Gastgebers, und offene Bildschirme vergessen es. Die Datei bleibt erhalten. Der Gastgeber kann es nicht zurückholen.',
         confirm: 'Foto entfernen',
       },
       photoUp: {
@@ -1672,7 +1742,7 @@ export const de: UiText = {
   },
 
   titles: {
-    join: 'Der Galerie beitreten',
+    join: 'Der Feier beitreten',
     upload: 'Fotos senden',
     feed: 'Fotos des Abends',
     wall: 'Bildschirm der Veranstaltung',

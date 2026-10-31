@@ -34,7 +34,7 @@ export const en: UiText = {
   },
 
   join: {
-    title: 'Join the gallery',
+    title: 'Join the event',
     codeLabel: 'Event code',
     codeHint: 'Six characters, printed on the card or the QR code.',
     nameLabel: 'Your first name',
@@ -46,7 +46,7 @@ export const en: UiText = {
     /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
     notYourEvening: 'Not your event?',
     notOpenHint:
-      'If you scanned a QR code, the gallery may not be open yet, or the event may be over. Try again in a moment, or ask the organiser.',
+      'If you scanned a QR code, the event may not be open yet, or it may be over. Try again in a moment, or ask the organiser.',
     organiserLink: 'Organiser area',
   },
 
@@ -75,7 +75,7 @@ export const en: UiText = {
     eraseOpen: 'Delete everything I sent',
     eraseTitle: 'Delete everything?',
     eraseBody:
-      'Your photos, videos, captions, reactions and first name will be erased from the event: from the screen, the gallery and the organiser’s list. This cannot be undone.',
+      'Your photos, videos, captions, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
     eraseLimits:
       'A copy the organiser has already saved, or that someone captured with a screenshot, cannot be taken back.',
     eraseConfirm: 'Yes, delete everything',
@@ -138,12 +138,15 @@ export const en: UiText = {
     mineEmpty: 'You have not sent any photos yet.',
     mineFailed: 'The list of your uploads could not be updated. Try again.',
     mineAlt: 'Your photo',
+    /* "Levez les yeux" (UX review 2026-10-30): a photo of the guest's goes from waiting to on the wall. */
+    photoDeveloped: 'Approved! It is about to appear on the screen: look up.',
+    photoDevelopedAway: 'It has been on the screen.',
     deleteOwnNumbered: (position: number) => `Delete photo ${t.number(position)}`,
-    notJoinedTitle: 'Join the gallery to send your photos',
+    notJoinedTitle: 'Join the event to send your photos',
     notJoinedHint: 'Scan the QR code again, or type the event code.',
     notJoinedAction: 'Enter the code',
     /* Navigation pass, batch A: a gallery the server no longer serves. */
-    galleryUnavailable: 'This gallery is no longer available. You can no longer send photos to it.',
+    galleryUnavailable: 'This event is no longer available. You can no longer send photos to it.',
     galleryUnavailableAction: 'Enter the code again',
 
     missionsTitle: 'Missions',
@@ -184,9 +187,9 @@ export const en: UiText = {
     endedThanksNone: 'Thank you for being with us!',
     endedAlbum: 'The organisers will share the album.',
 
-    installTitle: 'Keep the gallery within reach',
+    installTitle: 'Keep the event within reach',
     installHint:
-      'Add it to your home screen to find the gallery again later, without looking for the QR code.',
+      'Add it to your home screen to find the event again later, without looking for the QR code.',
     installIosHint: 'Open the Share menu, then choose “Add to Home Screen”.',
     installAction: 'Add to home screen',
     installDismiss: 'Hide this suggestion',
@@ -254,8 +257,8 @@ export const en: UiText = {
     },
     noticeRetentionDays: (days: number) =>
       t.count(days, {
-        one: `They are deleted automatically ${t.number(days)} day after the gallery closes.`,
-        other: `They are deleted automatically ${t.number(days)} days after the gallery closes.`,
+        one: `They are deleted automatically ${t.number(days)} day after the organiser ends the event.`,
+        other: `They are deleted automatically ${t.number(days)} days after the organiser ends the event.`,
       }),
     noticeRetentionNone:
       'No automatic deletion is planned: they stay until the organiser deletes them.',
@@ -326,7 +329,8 @@ export const en: UiText = {
     'clientCeilings.maxEventQuotaBytesInvalid': 'This event quota is not accepted.',
     'clientCeilings.maxRetentionDaysInvalid':
       'This retention is not accepted: from 1 to 3,650 days.',
-    'clientCeilings.maxLiveDaysInvalid': 'This live length is not accepted: from 1 to 365 days.',
+    'clientCeilings.maxLiveDaysInvalid':
+      'This length of an ongoing event is not accepted: from 1 to 365 days.',
     'clientCeilings.periodStartedAtInvalid': 'This start of period is not accepted.',
     'clientCeilings.clipsAllowedInvalid': 'This video setting is not accepted.',
     'clientCeilings.liveAllowedInvalid': 'This opening setting is not accepted.',
@@ -373,9 +377,9 @@ export const en: UiText = {
     'auth.secondFactorNotEnrolled': 'Two-step verification is not on for this account.',
     'feature.unavailable': 'This feature is not available on this server.',
 
-    'event.notFound': 'This code does not match any open gallery.',
-    'event.notAcceptingUploads': 'This gallery is no longer accepting photos.',
-    'event.quotaExceeded': 'The gallery is full. Let the organiser know.',
+    'event.notFound': 'This code does not match any open event.',
+    'event.notAcceptingUploads': 'This event is no longer accepting photos.',
+    'event.quotaExceeded': 'The event is full. Let the organiser know.',
     'event.slugUnavailable': 'This address is already in use.',
     'event.customSlugNotAllowed': 'This instance does not allow choosing your own address.',
     'event.creationRateLimited': 'You created too many events recently. Try again later.',
@@ -384,12 +388,12 @@ export const en: UiText = {
     'client.notFound': 'This client account could not be found.',
     'client.ownerRequired': 'Only an owner of the account can read this.',
     'client.ceilingReached': 'Your account has reached the number of events it is allowed.',
-    'client.storageFull': 'The gallery is full. Let the organiser know.',
+    'client.storageFull': 'The event is full. Let the organiser know.',
     'client.liveNotAllowed': 'Your account cannot open an event right now.',
     'client.liveWindowOver':
       'The opening period of this event is over: it can no longer be reopened.',
     'client.retentionAboveCeiling': 'This retention period is longer than your account allows.',
-    'client.clipsNotAllowed': 'Videos are not available for this gallery.',
+    'client.clipsNotAllowed': 'Videos are not available for this event.',
     'event.immutable': 'This event is archived and can no longer be changed.',
     'event.illegalTransition': 'This change of state is not possible.',
 
@@ -456,8 +460,8 @@ export const en: UiText = {
     'reaction.rateLimited': 'Gently — wait a moment before reacting again.',
     'rate.limited': 'Too many attempts. Wait a moment.',
 
-    'event.captionsNotAllowed': 'Captions are not enabled for this gallery.',
-    'event.reactionsDisabled': 'Reactions are not enabled for this gallery.',
+    'event.captionsNotAllowed': 'Captions are not enabled for this event.',
+    'event.reactionsDisabled': 'Reactions are not enabled for this event.',
     'event.guestSelfDeleteDisabled': 'The organiser does not let guests delete their photos.',
     'photo.captionEditForbidden': 'This caption can no longer be changed.',
     'photo.deleteForbidden': 'You can no longer delete this photo yourself.',
@@ -478,12 +482,12 @@ export const en: UiText = {
     'membership.notFound': 'This person does not moderate this event.',
     'guest.notFound': 'This guest is no longer in the list. Refresh the page.',
 
-    'event.scheduleOutOfOrder': 'The closing must come after the opening.',
+    'event.scheduleOutOfOrder': 'The end must come after the opening.',
     'event.scheduleInPast':
       'That time has already passed. Check the date: for the end of the evening, choose the next day.',
     'event.scheduleInvalid': 'These dates cannot be read. Choose them again.',
 
-    'event.clipsNotAllowed': 'Videos are not enabled for this gallery.',
+    'event.clipsNotAllowed': 'Videos are not enabled for this event.',
     'clip.queueFull': 'A lot of videos are being processed. Try again in a minute.',
     'clip.transcoderUnavailable': 'This server cannot process videos. Let the organiser know.',
     'clip.unsupportedFormat': 'This file is not a video. Accepted formats: MP4, MOV, WebM.',
@@ -568,7 +572,7 @@ export const en: UiText = {
     by: (name: string) => `by ${name}`,
     byAnonymous: 'Anonymous guest',
     shortcuts: 'Shortcuts',
-    shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo.',
+    shortcutsHint: 'J / K to move, P to publish, R to reject, Z to undo the last decision.',
 
     shortcutsMore: 'H to take off the screen, Space to select, Esc to clear the selection.',
     queueLabel: 'Photos to moderate',
@@ -581,7 +585,7 @@ export const en: UiText = {
     // The word beside the border colour and the icon, so the status survives stage
     // lighting and a red-green colourblind host.
     statePending: 'Waiting',
-    statePublished: 'Published',
+    statePublished: 'On the screen',
     stateRejected: 'Rejected',
     stateHidden: 'Taken off the screen',
     selected: (count: number) =>
@@ -614,13 +618,33 @@ export const en: UiText = {
       }),
     removed: (count: number) =>
       t.count(count, {
-        one: `${t.number(count)} photo taken off the screen.`,
-        other: `${t.number(count)} photos taken off the screen.`,
+        one: `${t.number(count)} photo taken off the screen. It stays in your album.`,
+        other: `${t.number(count)} photos taken off the screen. They stay in your album.`,
       }),
     decisionFailed: 'The decision could not be saved. Try again.',
     undoFailed: 'The decision could not be undone. Try again.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
     noCaption: 'No caption',
+
+    /* ---- Moderation traps pass (MOD-1, MOD-4, MOD-9, MOD-13). Keep additions inside this block. ---- */
+    nothingToUndo: 'Nothing to undo.',
+    undoPublish: 'Take off',
+    seeRejected: 'See Rejected',
+    republish: 'Put back on the screen',
+    republishPhoto: (author: string) => `Put the photo by ${author} back on the screen`,
+    publishAnyway: 'Publish anyway',
+    publishAnywayPhoto: (author: string) => `Publish the photo by ${author} anyway`,
+    alreadyOnScreen: 'This photo is already on the screen.',
+    alreadyRefused: 'This photo is already rejected.',
+    notOnScreen: 'This photo is not on the screen.',
+    decisionsExplained:
+      'Take off the screen: the photo stays in your album. Reject: it leaves the album and its guest sees “Not selected”.',
+    filterRejectedHint: 'Out of the album. The guest sees “Not selected”.',
+    filterHiddenHint: 'Taken off the screen. They stay in your album.',
+    confirmRejectTitle: (count: number) => `Reject ${t.number(count)} photos?`,
+    confirmRejectBody:
+      'Their guests will see “Not selected” and the photos will leave the album. This cannot be undone.',
+    confirmRejectLabel: (count: number) => `Reject ${t.number(count)} photos`,
 
     videoBadge: 'Video',
     videoLength: (seconds: number) => `Video · ${seconds} s`,
@@ -647,7 +671,7 @@ export const en: UiText = {
     failed: 'The photos could not be loaded. Try again.',
     own: 'Your photo',
     /* Navigation pass, batch A: a gallery the server no longer serves. */
-    unavailable: 'This gallery is no longer on display.',
+    unavailable: 'This event is no longer on display.',
     unavailableHint:
       'The evening is over, so there are no photos to see here. Ask the organisers for the album link.',
   },
@@ -655,28 +679,39 @@ export const en: UiText = {
   wall: {
     empty: 'The first photos will arrive soon',
     emptyHint: 'Scan the QR code to send yours.',
-    joinPrompt: 'Join the gallery',
-    offline: 'Connection lost — reconnecting',
+    joinPrompt: 'Join the event',
+    offline: 'New photos waiting for the network',
     paused: 'Slideshow paused',
 
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
     // is also opened on a laptop while a host sets the projector up.
-    qrTitle: 'QR code to join the gallery',
+    qrTitle: 'QR code to join the event',
     // The alt text of a photo. 1.0 used the filename, which reads aloud as IMG_4821.jpg.
     photoBy: (name: string) => `Photo sent by ${name}`,
     photoByAnonymous: 'Photo sent by a guest',
     errorTitle: 'The photos could not be loaded',
     errorHint: 'Trying again. Check the venue network if the screen stays empty.',
-    notServedTitle: 'This gallery is not on display',
-    notServedHint:
-      'It is not open, or it has been archived. If it opens, the screen will resume by itself.',
+    notServedTitle: 'This screen is waiting',
+    notServedHint: 'This screen will switch on by itself as soon as the event opens.',
     dismissJoinCard: 'Hide the code reminder',
     shortcuts: 'Keyboard shortcuts',
     shortcutsHint:
-      'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout.',
+      'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout, Q hides or shows the QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
+    /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
+    firstPhotoOf: (name: string) => `First photo from ${name}`,
+
+    /* ---- Before and after the evening (UX review 30/10, MUR-2 to MUR-9). Keep additions inside this block. ---- */
+    // The corner card's title: what to do, in a verb a guest reads from ten metres.
+    sendPrompt: 'Send your photos to the screen',
+    // Under the code, for the phone that cannot read the QR. Both holes are interpolated as given.
+    typeCodeAt: (code: string, host: string) => `or type ${code} at ${host}`,
+    // An empty wall of an event the host has closed: nobody can send a photo any more.
+    emptyClosed: 'Thank you for coming!',
+    // In the shortcuts panel, only when the browser could not keep the screen awake itself.
+    keepAwakeHint: 'Turn off sleep mode on this computer.',
 
     layoutNames: {
       spotlight: 'Full screen',
@@ -708,10 +743,10 @@ export const en: UiText = {
     eventName: 'Event name',
     eventNameHint: 'Visible to your guests, for example “Camille & Sacha”.',
     slug: 'Address',
-    joinCode: 'Access code',
+    joinCode: 'Event code',
     rotateJoinCode: 'Change the code',
     rotateJoinCodeHint:
-      'Guests who have already joined stay joined. The new code replaces the old one immediately.',
+      'The QR codes already printed and the link already sent will stop working: you will need to reprint them and send the link again. Guests who have already joined stay joined.',
     qrCode: 'QR code',
     qrCodeHint: 'To print and put on the tables.',
     openWall: 'Open the screen',
@@ -719,10 +754,10 @@ export const en: UiText = {
     download: 'Download the album',
     statusDraft: 'Draft',
     statusLive: 'Live',
-    statusClosed: 'Closed',
+    statusClosed: 'Ended',
     statusArchived: 'Archived',
     goLive: 'Open to guests',
-    closeEvent: 'Close the event',
+    closeEvent: 'End the event',
     reopenEvent: 'Reopen',
     archiveEvent: 'Archive',
     photos: (count: number) =>
@@ -740,19 +775,19 @@ export const en: UiText = {
     allowReactions: 'Allow reactions',
     allowClips: 'Allow videos',
     allowClipsHint:
-      'Guests can send short videos as well as photos. When the box is unticked, videos are refused: because you unticked it, because the template chosen when the event was created set it that way, or because the gallery is older than this feature. Tick it to allow them.',
+      'Guests can send short videos as well as photos. When the box is unticked, videos are refused: because you unticked it, because the template chosen when the event was created set it that way, or because the event is older than this feature. Tick it to allow them.',
     allowGuestSelfDelete: 'Allow guests to delete their photos',
 
     wallLanguage: 'Language of the screen in the room',
     wallLanguageHint:
-      'The words on the screen in the room: “Join the gallery”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
+      'The words on the screen in the room: “Join the event”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
 
     theme: 'Appearance',
     themeHint:
       'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',
     themeAccent: 'Colour',
     themeAccentNames: {
-      violet: 'Kraft (default)',
+      violet: 'Ambiance colour (default)',
       rose: 'Pink',
       azure: 'Blue',
       teal: 'Teal',
@@ -772,7 +807,7 @@ export const en: UiText = {
     },
     themeAmbiance: 'Ambiance',
     themeAmbianceHint:
-      'The world your guests’ phones, the room’s screen and this event’s pages in your console wear.',
+      'The world your guests’ phones, the room’s screen and this event’s pages in your space wear.',
     themeAmbianceNames: {
       eventslide: 'EventSlide',
       guinguette: 'Guinguette',
@@ -805,8 +840,8 @@ export const en: UiText = {
     retentionNever: 'Never',
     retentionDays: (days: number) =>
       t.count(days, {
-        one: `${t.number(days)} day after closing`,
-        other: `${t.number(days)} days after closing`,
+        one: `${t.number(days)} day after the event ends`,
+        other: `${t.number(days)} days after the event ends`,
       }),
     retentionUnlimited: 'Kept indefinitely',
     moderators: 'Moderators',
@@ -814,30 +849,32 @@ export const en: UiText = {
     loading: 'Loading your events…',
     eventLoading: 'Loading the event…',
     eventsEmpty: 'No events yet.',
-    eventsEmptyHint: 'Three steps to be ready on the day.',
+    eventsEmptyHint: 'Five steps to be ready on the day.',
     emptyStepCreate: 'Create the event.',
-    emptyStepTest: 'Test the screen on the venue’s network, from a phone that is not yours.',
     emptyStepPrint: 'Print the QR code and put it on the tables.',
+    emptyStepScreen: 'Plug in the venue’s screen and open it: it waits for the opening.',
+    emptyStepOpen: 'Open the event to guests.',
+    emptyStepTest: 'Test from a phone that is not yours, on the venue’s network.',
     create: 'Create the event',
     slugHint: 'Optional. Leave it empty to derive it from the name.',
-    slugPreviewLabel: 'Gallery address',
+    slugPreviewLabel: 'Address for your guests',
     slugPreviewEmpty: 'Type a name to see the address.',
     eventCreated: (name: string) => `${name} is ready. Print the QR code whenever you like.`,
     joinCodeHint: 'To give to guests who cannot scan the QR code.',
     eventControls: 'Event controls',
-    joinLink: 'Invitation link',
+    joinLink: 'Link for your guests',
     printQr: 'Print the QR code',
     qrScanPrompt: 'Scan to send your photos.',
     qrAlt: (eventName: string) => `QR code to join ${eventName}`,
     storageLabel: 'Photo storage used',
     storage: (used: string) => `${used} used`,
-    statusSaved: 'The new state is saved.',
-    rotateJoinCodeTitle: 'Change the access code?',
-    codeRotated: 'The access code has been changed. The old one no longer works.',
+    rotateJoinCodeTitle: 'Change the event code?',
+    codeRotated: 'New code active. The old one no longer works.',
     settingsSaved: 'Settings saved.',
     settingsReadOnly: 'This event is archived: its settings can no longer be changed.',
     settingsOwnerOnly: 'Only the event’s owner can change its settings.',
-    retentionHint: 'The photos are deleted this long after the event is closed.',
+    retentionHint:
+      'The photos are deleted this long after the event has ended. Until it ends, nothing is deleted.',
     selfDeleteGrace: 'Deletion window',
     selfDeleteGraceHint: 'During this window, a guest can delete their own photo.',
     graceNone: 'No window',
@@ -856,7 +893,7 @@ export const en: UiText = {
     maxPhotosPerGuest: 'Photos per guest',
     maxPhotosUnlimited: 'No limit',
     guestList: 'Guests',
-    guestsEmpty: 'Nobody has joined the gallery yet.',
+    guestsEmpty: 'Nobody has joined the event yet.',
     guestsEmptyHint: 'Guests appear here as soon as they scan the QR code.',
     lastSeen: (when: string) => `Last active: ${when}`,
     dateUnknown: 'Date unknown',
@@ -896,19 +933,44 @@ export const en: UiText = {
     purgeConfirmHint: (slug: string) => `Type “${slug}” to confirm the deletion.`,
     purged: (name: string) => `${name} has been deleted.`,
 
-    schedule: 'Automatic opening and closing',
+    schedule: 'Automatic opening and end',
     scheduleHint:
-      'Leave this empty to open and close the event yourself. The times are your computer’s, so they are the times where the party is.',
+      'Leave this empty to open and end the event yourself. The times are your computer’s, so they are the times where the party is.',
     scheduleOpenAt: 'Open to guests on',
-    scheduleCloseAt: 'Close the event on',
-    scheduleCloseAtHint: 'The photos and the album are kept: closing deletes nothing.',
+    scheduleCloseAt: 'End the event on',
+    scheduleCloseAtHint: 'The photos and the album are kept: ending the event deletes nothing.',
     scheduleSaved: 'The schedule has been saved.',
-    scheduleNone: 'No schedule: you open and close the event yourself.',
+    scheduleNone: 'No schedule: you open and end the event yourself.',
     scheduleArmed: (opensAt: string, closesAt: string) =>
-      `Opens on ${opensAt}, closes on ${closesAt}.`,
-    scheduleOpensOnly: (opensAt: string) => `Opens on ${opensAt}. You will close it yourself.`,
-    scheduleClosesOnly: (closesAt: string) => `Closes on ${closesAt}. You will open it yourself.`,
+      `Opens on ${opensAt}, ends on ${closesAt}.`,
+    scheduleOpensOnly: (opensAt: string) => `Opens on ${opensAt}. You will end it yourself.`,
+    scheduleClosesOnly: (closesAt: string) => `Ends on ${closesAt}. You will open it yourself.`,
     scheduleSave: 'Save the schedule',
+    /* ---- Added by the host lifecycle pass (revue UX 30/10). ---- */
+    noticeOpened: 'Event opened to guests.',
+    noticeClosed: 'Event ended. Guests can no longer send photos.',
+    noticeReopened: 'Event reopened: guests can send photos again.',
+    noticeArchived: 'Event archived. The album can still be downloaded.',
+    noticeArchivedDraft: 'Event archived.',
+    archiveTitle: (eventName: string) => `Archive ${eventName}?`,
+    archiveHint:
+      'The screen stops, the settings freeze, and it cannot be undone. The album can still be downloaded.',
+    archiveDraftHint: 'The settings freeze and the event can never be opened: it cannot be undone.',
+    openTitle: (eventName: string) => `Open ${eventName} to guests?`,
+    openHint:
+      'Everyone who has the QR code will be able to send photos. You will not be able to go back to draft.',
+    wallDraftHint: 'Will light up by itself as soon as the event opens to guests',
+    codeRotatedAction: 'Print the new QR',
+    afterTitle: 'After the event',
+    afterHint: 'Send the album to your guests, or keep it for yourself.',
+    afterShare: 'Share the album',
+    autoOpenAt: (time: string) => `Opens automatically at ${time}`,
+    autoOpenOn: (dateTime: string) => `Opens automatically on ${dateTime}`,
+    autoCloseAt: (time: string) => `Ends automatically at ${time}`,
+    autoCloseOn: (dateTime: string) => `Ends automatically on ${dateTime}`,
+    autoEdit: 'Edit the schedule',
+    scheduleDiscardedAction: 'Set a new schedule',
+
     scheduleDiscarded: (when: string) =>
       `The automatic schedule could not be applied on ${when}: the event could not change state at that moment. It has been cleared. Save a new one if you still want one.`,
 
@@ -1147,7 +1209,7 @@ export const en: UiText = {
       'Forgotten your password? This server sends no e-mail: ask whoever runs it to reset it for you.',
     changePasswordForced:
       'Your password was chosen for you: replace it before going further. You will then return to where you were going.',
-    menuMustChange: 'Change your password first: the rest of the console stays closed until then.',
+    menuMustChange: 'Change your password first: the rest of your space stays closed until then.',
     securityBack: 'Back',
     secondFactorEnabled: 'Two-step verification turned on.',
     recoveryCodesLeaveTitle: 'Leave without writing down your codes?',
@@ -1163,13 +1225,19 @@ export const en: UiText = {
   mobileModeration: {
     title: 'Moderation on a phone',
     // Navigation pass, batch C: the way to the other console.
-    openConsole: 'Full console, for a computer',
+    openConsole: 'Full version, for a computer',
     intro: 'Swipe the photo right to publish, left to reject.',
     releaseToPublish: 'Release to publish',
     releaseToReject: 'Release to reject',
     nowDeciding: (photo: string) => `Photo to moderate. ${photo}`,
     undoLast: 'Undo the last decision',
     undoUnavailable: 'Only publishing can be undone.',
+
+    /* ---- Moderation traps pass (MOD-2). Keep additions inside this block. ---- */
+    onScreenTitle: 'Latest photos on the screen',
+    onScreenHint: 'Tap a photo to take it off the screen.',
+    onScreenEmpty: 'Nothing on the screen right now.',
+    openOnScreen: (author: string) => `View the photo by ${author}, on the screen`,
   },
   gallery: {
     title: 'Shared album',
@@ -1283,7 +1351,7 @@ export const en: UiText = {
     actionResetShown: 'A reset link was handed to the operator.',
     actionTermsAccepted: 'A person accepted the terms of use by accepting an invitation.',
     actionOther: 'An action was recorded.',
-    liveWindowEnd: (date: string) => `The live window ends on ${date}.`,
+    liveWindowEnd: (date: string) => `The event ends on ${date}.`,
   },
 
   site: {
@@ -1355,8 +1423,8 @@ export const en: UiText = {
     maxEventsPerPeriod: 'Events created per period, at most',
     maxTotalGigabytes: 'Total storage, in GB',
     maxEventQuotaGigabytes: 'Quota of one event, in GB',
-    maxRetentionDays: 'Retention after closing, in days, at most',
-    maxLiveDays: 'Length of a live event, in days, at most',
+    maxRetentionDays: 'Retention after the event ends, in days, at most',
+    maxLiveDays: 'Length of an ongoing event, in days, at most',
     clipsAllowed: 'Videos allowed',
     liveAllowed: 'Opening events allowed',
     renewPeriod: 'Renew the period now',
@@ -1376,12 +1444,12 @@ export const en: UiText = {
     suspend: 'Suspend',
     suspendTitle: 'Suspend this client?',
     suspendBody:
-      'Guests can no longer join its events or send photos, the public no longer sees its screens or its galleries, and its members can no longer change anything. Nothing is deleted and no account is switched off.',
+      'Guests can no longer join its events or send photos, the public no longer sees its screens or its albums, and its members can no longer change anything. Nothing is deleted and no account is switched off.',
     suspended: 'Client suspended.',
     resume: 'Lift the suspension',
     resumeTitle: 'Lift the suspension?',
     resumeBody:
-      'The client’s screens and galleries become visible again at once, and its guests can join and send photos again.',
+      'The client’s screens and albums become visible again at once, and its guests can join and send photos again.',
     resumed: 'Suspension lifted.',
     rename: 'Rename',
     renameTitle: 'Client name',
@@ -1414,7 +1482,7 @@ export const en: UiText = {
     eventStatuses: {
       draft: 'Draft',
       live: 'Live',
-      closed: 'Closed',
+      closed: 'Ended',
       archived: 'Archived',
     },
     photoCount: (count: number) =>
@@ -1521,15 +1589,15 @@ export const en: UiText = {
     accountDeletedDone: 'Account deleted.',
     offboardTitle: 'End of engagement',
     offboardIntro:
-      'Live events are closed, drafts are archived, the client is suspended, and its albums are purged at the latest when the grace period you give runs out: it is the time the client has to export what it wants to keep (an event’s own retention or the client’s limits may purge sooner). Then the accounts that belonged only to it and hold nothing else are deleted, and the client with them.',
+      'Live events are ended, drafts are archived, the client is suspended, and its albums are purged at the latest when the grace period you give runs out: it is the time the client has to export what it wants to keep (an event’s own retention or the client’s limits may purge sooner). Then the accounts that belonged only to it and hold nothing else are deleted, and the client with them.',
     graceDays: 'Grace period before the purge, in days',
     graceDaysHint: 'A whole number of days: the limits are the server’s.',
     offboardAction: 'End the engagement',
     offboardConfirmTitle: 'End this client’s engagement?',
     offboardConfirmBody: (days: number) =>
       t.count(days, {
-        one: `In ${t.number(days)} day at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are closed, its drafts archived and the client suspended.`,
-        other: `In ${t.number(days)} days at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are closed, its drafts archived and the client suspended.`,
+        one: `In ${t.number(days)} day at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are ended, its drafts archived and the client suspended.`,
+        other: `In ${t.number(days)} days at the latest, this client’s albums will be purged, then the client will be deleted along with the accounts that belonged only to it and hold nothing else. There is no way back: neither the date nor the suspension can be changed. Until then its live events are ended, its drafts archived and the client suspended.`,
       }),
     offboardedDone: 'Engagement ending.',
     offboardingRunning:
@@ -1541,7 +1609,7 @@ export const en: UiText = {
       'Take down a reported photograph or event from its id, without ever opening it: this console shows no thumbnail, no caption, no guest name and no media address. Every act asks for a reason, which is written to the instance log and which the client does not read. Taking down does not stop the purge: to keep the content as evidence, take it down and then hold its purge.',
     takedownEventTitle: 'An event',
     takedownEventIntro:
-      'Find the reported event by its address, its join code or its exact name. All you see of it is its id and its state.',
+      'Find the reported event by its address, its event code or its exact name. All you see of it is its id and its state.',
     takedownEventLabel: 'Address, code or exact name',
     takedownEventAction: 'Search for the event',
     takedownEventNone: 'No event matches. The name must be exact: part of a name is not enough.',
@@ -1575,12 +1643,12 @@ export const en: UiText = {
     takedownOps: {
       eventDown: {
         title: 'Take this event down?',
-        body: 'The wall, the guest feed, the gallery link and the host console answer as if the event did not exist, and open screens close. Nothing is deleted. Retention carries on: to keep the content as evidence, hold its purge as well.',
+        body: 'The wall, the guest feed, the album link and the host’s space answer as if the event did not exist, and open screens close. Nothing is deleted. Retention carries on: to keep the content as evidence, hold its purge as well.',
         confirm: 'Take the event down',
       },
       eventUp: {
         title: 'Put this event back online?',
-        body: 'The wall, the guests, the gallery and the host get it back as it was.',
+        body: 'The wall, the guests, the album and the host get it back as it was.',
         confirm: 'Put back online',
       },
       purgeHold: {
@@ -1595,7 +1663,7 @@ export const en: UiText = {
       },
       photoDown: {
         title: 'Take this photograph down?',
-        body: 'It leaves the wall, the guest feed, the gallery link and the host screens at once, and open screens forget it. The file is kept. The host cannot put it back.',
+        body: 'It leaves the wall, the guest feed, the album link and the host screens at once, and open screens forget it. The file is kept. The host cannot put it back.',
         confirm: 'Take the photograph down',
       },
       photoUp: {
@@ -1607,7 +1675,7 @@ export const en: UiText = {
   },
 
   titles: {
-    join: 'Join the gallery',
+    join: 'Join the event',
     upload: 'Send photos',
     feed: 'Photos from the evening',
     wall: 'Event screen',

@@ -3,7 +3,9 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ConfirmDialog } from './ConfirmDialog'
 import { installDialogStub } from '../../testing/dialogStub'
+import buttonStyles from './Button.module.css'
 import { fr } from '../../lib/i18n/fr'
+import { classesOf, cls } from '../../testing/classesOf'
 
 installDialogStub()
 
@@ -81,10 +83,35 @@ describe('ConfirmDialog', () => {
 
   it('falls back to the shared confirm and cancel wording', () => {
     render(
-      <ConfirmDialog open title="Clore l’évènement ?" onConfirm={vi.fn()} onCancel={vi.fn()} />,
+      <ConfirmDialog open title="Terminer l’évènement ?" onConfirm={vi.fn()} onCancel={vi.fn()} />,
     )
 
     expect(screen.getByRole('button', { name: fr.app.confirm })).toBeVisible()
     expect(screen.getByRole('button', { name: fr.app.cancel })).toBeVisible()
+  })
+
+  it('confirms in the danger colour by default, because it exists for destructive acts', () => {
+    renderConfirm()
+
+    expect(classesOf(screen.getByRole('button', { name: 'Supprimer' }))).toContain(
+      cls(buttonStyles, 'danger'),
+    )
+  })
+
+  it('confirms in the primary colour for a commitment that is not a loss', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Ouvrir aux invités ?"
+        confirmLabel="Ouvrir"
+        confirmVariant="primary"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    const confirm = screen.getByRole('button', { name: 'Ouvrir' })
+    expect(classesOf(confirm)).toContain(cls(buttonStyles, 'primary'))
+    expect(classesOf(confirm)).not.toContain(cls(buttonStyles, 'danger'))
   })
 })

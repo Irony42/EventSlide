@@ -3,6 +3,7 @@ import type { Mission } from '../../../domain/missions/mission'
 import { isAchieved, type MissionProgress } from '../../../domain/missions/missionProgress'
 import type { Photo } from '../../../domain/photos/photo'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
+import { firstStillsOfGuests } from '../../../domain/slideshow/firstPhotos'
 import { kenBurnsDurationMs } from '../../../domain/slideshow/kenBurns'
 import { buildPlaylist, type Playlist } from '../../../domain/slideshow/playlist'
 import { SlideInterval } from '../../../domain/slideshow/slideInterval'
@@ -115,6 +116,16 @@ export interface WallPlaylistView {
    * would credit slides the room will never see.
    */
   readonly authorNames: ReadonlyMap<PhotoId, string>
+  /**
+   * The photos of the playlist that are the first photograph their named sender has on the
+   * wall ("Première photo de Julie"). See `firstStillsOfGuests` for what "first" means.
+   *
+   * **Empty when the candidate read was cut short.** The read is capped at
+   * {@link MAX_CANDIDATES}, newest first, so on a very big evening a guest's earlier photos
+   * may simply not be in it, and their oldest photo *in the list* would be called their first
+   * on no evidence. Saying nothing is the only answer that is never false.
+   */
+  readonly firstFromGuest: ReadonlySet<PhotoId>
   readonly slideIntervalMs: number
   /**
    * Derived from the interval, never configured beside it. 1.0 shipped a 20s zoom
@@ -208,6 +219,24 @@ export const makeGetWallPlaylist =
       page.items.filter((photo) => inPlaylist.has(photo.id)),
     )
 
+    // A moment for the guest and a cue for their table, so only for a sender the room can
+    // name — an anonymous photograph gets no line — and only on a complete read.
+    const firstFromGuest =
+      page.nextCursor !== null
+        ? new Set<PhotoId>()
+        : new Set(
+            [
+              ...firstStillsOfGuests(
+                page.items.map((photo) => ({
+                  id: photo.id,
+                  guestId: photo.author.kind === 'guest' ? photo.author.guestId : null,
+                  createdAt: photo.createdAt,
+                  kind: photo.facet.kind,
+                })),
+              ),
+            ].filter((id) => authorNames.has(id)),
+          )
+
     // Beside the credits and for the same reason: only once the request is known to be
     // answerable. The whole list, with its counts, in one read — the wall re-reads this
     // response on every signal for eight hours, so a query per prompt would be a query
@@ -219,6 +248,7 @@ export const makeGetWallPlaylist =
       playlist: playlist.value,
       photos: page.items,
       authorNames,
+      firstFromGuest,
       slideIntervalMs: interval.value.ms,
       kenBurnsDurationMs: kenBurnsDurationMs(interval.value),
       layout: chosenLayout,

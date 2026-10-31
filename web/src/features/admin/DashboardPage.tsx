@@ -4,20 +4,19 @@ import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
-import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { Async } from '../../design-system/components/Async'
 import { EventStatusBadge } from './components/EventStatusBadge'
 import { CeilingBanner } from './components/CeilingBanner'
+import { LifecycleConfirmDialog } from './components/LifecycleConfirmDialog'
 import { StorageMeter } from './components/StorageMeter'
 import { SuspensionScreen } from './components/SuspensionScreen'
-import { allowsModeration, canManageEvent, lifecycleActions, servesWall } from './eventLifecycle'
+import { allowsModeration, canManageEvent, lifecycleActions, linksToWall } from './eventLifecycle'
 import { useEvent, useEventList } from './hooks/useEventData'
 import { AmbianceMarker } from '../../design-system/components/AmbianceMarker'
-import { useStatusChange } from './hooks/useEventActions'
+import { useLifecycleTransition } from './hooks/useLifecycleTransition'
 import { useClientLimits } from './hooks/useClientLimits'
 import styles from './DashboardPage.module.css'
-import type { EventStatus, EventSummaryDto } from '../../lib/api/dto'
 
 const NEW_EVENT_PATH = '/admin/events/new'
 const CLIENT_SPACE_PATH = '/admin/client'
@@ -26,26 +25,15 @@ const CLIENT_SPACE_PATH = '/admin/client'
 export function DashboardPage() {
   const t = useTranslations()
   const events = useEventList()
-  const statusChange = useStatusChange()
-  const toast = useToast()
   // The caller's own clients and their ceilings; empty on a box with no client space, in which
   // case nothing below renders and the page is what it always was.
   const { clients, contact } = useClientLimits()
   const suspended = clients.some((client) => client.suspended)
 
-  const changeStatus = (event: EventSummaryDto, to: EventStatus) => {
-    void statusChange.run(`${event.slug}:${to}`, event.slug, to).then((result) => {
-      if (!result.ok) {
-        toast.show(result.message, { tone: 'danger' })
-        return
-      }
-      toast.show(t.admin.statusSaved, { tone: 'success' })
-      // Refetched rather than patched in place: closing an event changes counts the
-      // summary carries, and a card showing stale figures next to a fresh status is
-      // worse than a second request on a list this size.
-      events.reload()
-    })
-  }
+  // Refetched rather than patched in place: closing an event changes counts the summary
+  // carries, and a card showing stale figures next to a fresh status is worse than a second
+  // request on a list this size.
+  const transition = useLifecycleTransition(events.reload)
 
   return (
     <div className={styles['page']}>
@@ -90,8 +78,10 @@ export function DashboardPage() {
               step that is skipped and regretted. */}
             <ol className={styles['steps']}>
               <li>{t.admin.emptyStepCreate}</li>
-              <li>{t.admin.emptyStepTest}</li>
               <li>{t.admin.emptyStepPrint}</li>
+              <li>{t.admin.emptyStepScreen}</li>
+              <li>{t.admin.emptyStepOpen}</li>
+              <li>{t.admin.emptyStepTest}</li>
             </ol>
           </EmptyState>
         }
@@ -116,22 +106,6 @@ export function DashboardPage() {
                     }
                     footer={
                       <>
-                        {/* The owner's: a moderator's request to change the lifecycle is answered 403, so
-                          the buttons are not offered to them. The server still decides. */}
-                        {(canManageEvent(event.role) ? lifecycleActions(event.status, t) : []).map(
-                          (action) => (
-                            <Button
-                              key={action.to}
-                              variant={action.primary ? 'primary' : 'secondary'}
-                              size="sm"
-                              loading={statusChange.pending === `${event.slug}:${action.to}`}
-                              disabled={statusChange.busy}
-                              onClick={() => changeStatus(event, action.to)}
-                            >
-                              {action.label}
-                            </Button>
-                          ),
-                        )}
                         {allowsModeration(event.status) ? (
                           <Link
                             className={styles['actionLink']}
@@ -140,7 +114,7 @@ export function DashboardPage() {
                             {t.admin.openModeration}
                           </Link>
                         ) : null}
-                        {servesWall(event.status) ? (
+                        {linksToWall(event.status) ? (
                           <>
                             {/* A tab of its own, like the event page's tile: the wall has no way back to
                               the console. The hint describes the link without joining its name. */}
@@ -154,10 +128,37 @@ export function DashboardPage() {
                               {t.admin.openWall}
                             </Link>
                             <VisuallyHidden id={`wall-hint-${event.id}`}>
-                              {t.about.opensInNewTab}
+                              {event.status === 'draft'
+                                ? `${t.about.opensInNewTab}. ${t.admin.wallDraftHint}`
+                                : t.about.opensInNewTab}
                             </VisuallyHidden>
                           </>
                         ) : null}
+                        {/* Last, and after the ways in: the thumb that aims at "Moderate" must not land on
+                          a button that closes the evening (revue UX 30/10, NAV-1). The owner's: a
+                          moderator's request to change the lifecycle is answered 403, so the buttons
+                          are not offered to them. The server still decides. */}
+                        {(canManageEvent(event.role) ? lifecycleActions(event.status, t) : []).map(
+                          (action) => (
+                            <Button
+                              key={action.to}
+                              variant={action.primary ? 'primary' : 'secondary'}
+                              size="sm"
+                              loading={transition.pending === `${event.slug}:${action.to}`}
+                              disabled={transition.busy}
+                              onClick={() =>
+                                transition.request({
+                                  slug: event.slug,
+                                  eventName: event.name,
+                                  from: event.status,
+                                  to: action.to,
+                                })
+                              }
+                            >
+                              {action.label}
+                            </Button>
+                          ),
+                        )}
                       </>
                     }
                   >
@@ -179,6 +180,12 @@ export function DashboardPage() {
                 </li>
               ))}
             </ul>
+            <LifecycleConfirmDialog
+              request={transition.asking}
+              busy={transition.busy}
+              onConfirm={transition.confirm}
+              onCancel={transition.cancel}
+            />
           </>
         )}
       </Async>

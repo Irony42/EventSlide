@@ -13,6 +13,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
 import type { StatusTone } from '../../../design-system/components/StatusIcon'
 import type { GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
+import type { Arrival } from '../hooks/useMyPhotos'
 import styles from './MyPhotos.module.css'
 
 /**
@@ -58,6 +59,11 @@ export interface MyPhotosProps {
    */
   readonly highlighted?: readonly string[]
   readonly onHighlightEnd?: () => void
+  /**
+   * The host has just published one of these (`useMyPhotos`). Said politely in a live region,
+   * because the negative developing into a print is a picture and a screen reader gets none.
+   */
+  readonly arrival?: Arrival | null
 }
 
 export function MyPhotos({
@@ -69,6 +75,7 @@ export function MyPhotos({
   headingRef,
   highlighted = [],
   onHighlightEnd,
+  arrival = null,
 }: MyPhotosProps) {
   const t = useTranslations()
   const labels = labelsFor(t)
@@ -97,6 +104,13 @@ export function MyPhotos({
             {t.app.retry}
           </Button>
         </div>
+      )}
+
+      {/* Mounted only while there is something to say: a live region announces on insertion. */}
+      {arrival === null ? null : (
+        <Notice tone="success" role="status" variant="boxed">
+          {arrival.whileAway ? t.upload.photoDevelopedAway : t.upload.photoDeveloped}
+        </Notice>
       )}
 
       {loading ? (

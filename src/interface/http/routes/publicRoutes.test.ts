@@ -677,6 +677,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
         caption: null,
         authorName: null,
         createdAt: atPlus(2_000).toISOString(),
+        firstFromGuest: false,
         // The clip facet on a photograph: `null` rather than absent, so a client never
         // tests for a missing key before deciding what to render.
         kind: 'photo',
@@ -692,6 +693,7 @@ describe('GET /api/events/:eventSlug/wall', () => {
         caption: 'Les confettis',
         authorName: null,
         createdAt: atPlus(1_000).toISOString(),
+        firstFromGuest: false,
         kind: 'photo',
         videoUrl: null,
         durationMs: null,
@@ -880,6 +882,39 @@ describe('GET /api/events/:eventSlug/wall', () => {
     expect(response.body.items[0].authorName).toBeNull()
   })
 
+  it('marks the first photo a named guest has on the wall and no other', async () => {
+    const { subject, photos } = world()
+    subject.guests.seed(aGuest({ id: 'guest-lea', eventId: WEDDING, displayName: 'Léa' }))
+    photos.seed(
+      aPhoto({
+        id: 'photo-1',
+        eventId: WEDDING,
+        status: 'published',
+        createdAt: atPlus(1_000),
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+      aPhoto({
+        id: 'photo-2',
+        eventId: WEDDING,
+        status: 'published',
+        createdAt: atPlus(2_000),
+        author: { kind: 'guest', id: 'guest-lea' },
+      }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(
+      response.body.items.map((item: { id: string; firstFromGuest: boolean }) => [
+        item.id,
+        item.firstFromGuest,
+      ]),
+    ).toEqual([
+      ['photo-2', false],
+      ['photo-1', true],
+    ])
+  })
+
   it('never puts another event guest name on this wall', async () => {
     // The wall is public and unauthenticated. A name lookup that was not event-scoped
     // would read one party's guest list onto another party's projector.
@@ -924,6 +959,8 @@ describe('GET /api/events/:eventSlug/wall', () => {
       // projector has to decide between an `<img>` and a `<video>` before it renders —
       // and a key that is sometimes absent is a key every client tests for.
       'durationMs',
+      // "Première photo de Léa": a boolean about the photograph, never the guest's id.
+      'firstFromGuest',
       'height',
       'id',
       'kind',
@@ -931,6 +968,28 @@ describe('GET /api/events/:eventSlug/wall', () => {
       'videoUrl',
       'width',
     ])
+  })
+
+  it('tells the projector a live event still takes guests, so it keeps its invitation up', async () => {
+    const { subject, photos } = world()
+    seedWall(photos)
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.acceptsGuests).toBe(true)
+  })
+
+  it('tells the projector a closed event takes no more guests, so it stops inviting the room', async () => {
+    // The wall keeps playing after the host closes the evening, and a guest who scans the
+    // QR still on it lands on "not open" (revue UX 30/10, MUR-3). The code and the link
+    // stay on the response — only the answer to "may the room be invited" changes.
+    const { subject, photos } = world()
+    seedWall(photos)
+
+    const response = await request(subject.app).get('/api/events/termine/wall')
+
+    expect(response.status).toBe(200)
+    expect(response.body.acceptsGuests).toBe(false)
   })
 
   it('still serves a closed event, because the projector is usually still on', async () => {
@@ -1049,6 +1108,7 @@ describe('toWallResponseDto', () => {
       playlist: playlistOf([shown, vanished]),
       photos: [shown],
       authorNames: new Map(),
+      firstFromGuest: new Set(),
       slideIntervalMs: 8_000,
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
@@ -1073,6 +1133,7 @@ describe('toWallResponseDto', () => {
       playlist: playlistOf([shown]),
       photos: [shown],
       authorNames: new Map(),
+      firstFromGuest: new Set(),
       slideIntervalMs: 8_000,
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',

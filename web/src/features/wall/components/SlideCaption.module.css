@@ -83,6 +83,19 @@
   overflow: hidden;
 }
 
+/* The moment a guest's first photograph comes up: a small kicker above the caption, in the
+   accent, so the table knows whose it is. Same size as the credit — nothing on the wall
+   is readable from the back of the room below --text-xl. */
+.first {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 600;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Quieter than the caption by colour and weight, not by size: shrinking the credit
    below --text-xl would make it unreadable from the back of the room. */
 .author {
@@ -105,6 +118,12 @@
 /* Ink on paper. The mat is the one light ground on the wall, so the dark-surface text
    tokens would be invisible on it — hence tokens of its own (DESIGN-SYSTEM.md §2). */
 .print .text {
+  color: var(--text-print);
+}
+
+/* The accent is chosen for the dark surfaces; on the mat the kicker is ink like the caption,
+   and its weight is what sets it apart. */
+.print .first {
   color: var(--text-print);
 }
 

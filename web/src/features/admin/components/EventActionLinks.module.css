@@ -100,3 +100,19 @@
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
 }
+
+/* The label and the line under it, one block beside the glyph. */
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* What the tile will do that its name does not say: quieter than the label, at the page's weight. */
+.hint {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}

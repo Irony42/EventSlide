@@ -108,7 +108,11 @@ describe('AppRoutes', () => {
 
     // Not a heading query: on the wall the h1 is the event *name*, because that is what
     // the room reads from the back. This line is the supporting copy beneath it.
-    expect(await screen.findByText(fr.wall.empty)).toBeVisible()
+    //
+    // An explicit timeout: the route awaits a lazy `WallPage` import, and on a loaded
+    // machine (CI, or several test runs at once) that import alone outlasts the 1 000 ms a
+    // `findBy` allows by default, which is what made this test fail one run in a few.
+    expect(await screen.findByText(fr.wall.empty, undefined, { timeout: 5000 })).toBeVisible()
   })
 
   it('serves the login screen', async () => {
@@ -348,8 +352,9 @@ describe('the toast region', () => {
     id: 'event-1',
     slug: 'camille-et-sacha',
     name: 'Camille & Sacha',
-    // `draft` is the one status whose primary action is a single click away.
-    status: 'draft',
+    // `live`: ending the evening is the one lifecycle move that is a single click away (opening
+    // and archiving ask first).
+    status: 'live',
     photoCount: 0,
     pendingCount: 0,
     guestCount: 0,
@@ -371,7 +376,7 @@ describe('the toast region', () => {
     })
     renderWithProviders(<AppRoutes />, { api, route: '/admin', locale: 'de' })
 
-    await userEvent.click(await screen.findByRole('button', { name: de.admin.goLive }))
+    await userEvent.click(await screen.findByRole('button', { name: de.admin.closeEvent }))
 
     // The toast itself, and the control on it. Both German, because the host is reading
     // German — the console and the chrome over it are one screen.

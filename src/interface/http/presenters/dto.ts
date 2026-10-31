@@ -20,6 +20,7 @@ import type {
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { MissionScope } from '../../../domain/missions/missionScope'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
+import type { ModerationDecision } from '../../../domain/moderation/moderationDecision'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type {
   NoticeAcknowledgementStatus,
@@ -219,6 +220,13 @@ export interface WallItemDto {
   readonly caption: string | null
   readonly authorName: string | null
   readonly createdAt: string
+  /**
+   * This photograph is the first its named sender has on the wall: the projector adds
+   * "Première photo de Julie" the first time it shows it. `false` for a clip, for an
+   * anonymous sender, for a host's own upload, and on any evening large enough that the
+   * wall read was cut short (see `WallPlaylistView.firstFromGuest`).
+   */
+  readonly firstFromGuest: boolean
   readonly kind: MediaKind
   /** `null` for a photograph. The mp4, which answers `Range` requests. */
   readonly videoUrl: string | null
@@ -273,6 +281,18 @@ export interface WallResponseDto {
    * own answer.
    */
   readonly joinUrl: string
+  /**
+   * Whether the room may still be told to send photos: `acceptsGuests(status)`, which is a
+   * live event and nothing else.
+   *
+   * The wall keeps playing after the host closes the event, and until this field the
+   * projector could not know: it went on printing the QR and the code, and a guest who
+   * scanned them landed on "not open". False means the room draws neither the join card
+   * nor the host's missions, which exist to prompt a photo that can no longer be sent.
+   * The event's status itself is not sent, because a wall never needed more than this
+   * answer and a draft or an archived event is not served at all.
+   */
+  readonly acceptsGuests: boolean
   readonly revision: string
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number
@@ -640,6 +660,13 @@ export interface ModerationQueueItemDto {
   readonly kind: MediaKind
   readonly videoUrl: string | null
   readonly durationMs: number | null
+  /**
+   * The decisions this photo may take **now**, derived server-side from the status machine
+   * (`allowedDecisionsFrom`). The console offers exactly these buttons: a client that kept
+   * its own copy of the machine would offer "retirer de l'écran" on a photo that is not on
+   * the screen and answer `photo.illegalTransition` to the click.
+   */
+  readonly allowedDecisions: readonly ModerationDecision[]
 }
 
 export interface ModerationQueuePageDto {

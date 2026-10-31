@@ -158,6 +158,9 @@ test('no undo is offered for a photo refused while it was still pending', async 
     timeout: 1_000,
   })
 
+  // What it offers instead (MOD-1): where the refused photo went, since nothing takes it back.
+  await expect(host.getByRole('button', { name: fr.moderation.seeRejected })).toBeVisible()
+
   // And the announcement was still on screen for all of it, so the absence above was
   // observed against a rendered toast rather than against one that had come and gone.
   await expect(notice).toBeVisible()
