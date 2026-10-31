@@ -9,6 +9,7 @@ import {
   type Move,
   type SlideCandidate,
   type SlideCursor,
+  waitForFirst,
 } from './slideOrder'
 import { useTimingOverrides } from './useTimingOverrides'
 
@@ -21,6 +22,13 @@ export interface SlideshowOptions {
    * outliving its slide.
    */
   readonly intervalMs: number
+  /**
+   * The wall has had its answer. `items` is empty both while the first read is on its way and
+   * when the evening has no photo yet, and only the second is news: the first photo to arrive
+   * on a wall that was read empty jumps the queue, with its "first photo of" line, where one
+   * that arrives on a page still loading is just the list the wall opened on.
+   */
+  readonly loaded: boolean
 }
 
 /** A photo the wall has put on screen lately, and which lane it came from. */
@@ -124,7 +132,7 @@ const asCandidate = (item: WallItemDto): SlideCandidate => ({
 
 const present = (item: WallItemDto | undefined): item is WallItemDto => item !== undefined
 
-export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow => {
+export const useSlideshow = ({ items, intervalMs, loaded }: SlideshowOptions): Slideshow => {
   const [state, setState] = useState<State>(INITIAL)
   const [manuallyPaused, setManuallyPaused] = useState(false)
 
@@ -163,7 +171,10 @@ export const useSlideshow = ({ items, intervalMs }: SlideshowOptions): Slideshow
    * `settleCursor` answers the very same object once the cursor is consistent — and
    * `react-hooks/set-state-in-effect` rejects the effect form.
    */
-  const slide = settleCursor(candidates, state.slide)
+  const slide = settleCursor(
+    candidates,
+    loaded && candidates.length === 0 ? waitForFirst(state.slide) : state.slide,
+  )
   if (slide !== state.slide) {
     setState({ ...state, slide })
   }

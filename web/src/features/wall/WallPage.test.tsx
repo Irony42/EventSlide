@@ -519,6 +519,30 @@ describe('WallPage', () => {
     expect(within(slide).getByText('La première danse')).toBeVisible()
   })
 
+  it('says the first-photo line under the first photo of the evening, sent to an empty wall', async () => {
+    const first = aWallItem({ caption: 'Les confettis', authorName: 'Julie', firstFromGuest: true })
+    const api = fakeApi({
+      wall: wallSequence(anEmptyWall(), aPopulatedWall({ revision: 'rev-2', items: [first] })),
+    })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    await screen.findByTestId('wall-empty')
+    await streamSignals('photo.moderated')
+
+    const slide = await screen.findByTestId('wall-slide')
+    expect(within(slide).getByText(fr.wall.firstPhotoOf('Julie'))).toBeVisible()
+  })
+
+  it('says nothing about a first photo when the page loads on a populated wall', async () => {
+    const first = aWallItem({ caption: 'Les confettis', authorName: 'Julie', firstFromGuest: true })
+    const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: [first] })) })
+    renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+    const slide = await screen.findByTestId('wall-slide')
+    expect(within(slide).getByText('Les confettis')).toBeVisible()
+    expect(within(slide).queryByText(fr.wall.firstPhotoOf('Julie'))).not.toBeInTheDocument()
+  })
+
   it('names the photo on screen, so the slide the room is looking at can be identified', async () => {
     const api = fakeApi({ wall: wallSequence(aPopulatedWall()) })
     renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
