@@ -12,7 +12,9 @@ within seconds.
   <img src="docs/images/guest-upload.jpg" width="19%" alt="A guest's phone: one photo ready, buttons to add a caption or a video, and a Send button">
   <img src="docs/images/guest-feed.jpg" width="19%" alt="The guests' feed, Photos from the evening: the pictures published so far, with the sender's name">
   <img src="docs/images/moderation-phone.jpg" width="19%" alt="Moderation on a phone: one photograph at a time, with Reject and Publish buttons">
-  <img src="docs/images/ambiances.jpg" width="38%" alt="The event settings: choose an ambiance, an accent colour, a typeface and a frame for the photos">
+</p>
+<p align="center">
+  <img src="docs/images/ambiances.jpg" width="70%" alt="The same guest screen in three ambiances: the violet EventSlide look, Guinguette with its string lights, and Wedding in red and white">
 </p>
 
 Self-hosted, so the photos stay on your machine. Or, if you would rather not run a server,
