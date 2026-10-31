@@ -192,17 +192,24 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
 
   /**
    * A read nobody asked for with a button: no spinner, no cleared error, and nothing when one
-   * is already on its way — unless the caller says a quiet read in flight for `replaceAfterMs`
-   * is dead. A read the guest asked for (the first, a refresh) is never replaced here.
+   * is already on its way — unless that one is dead. A quiet read is dead once it has been in
+   * the air for `replaceAfterMs` (the guest's return) or, failing that, for the poll's own
+   * timeout. A read the guest asked for (the first, a refresh, a deletion's re-read) has no
+   * timeout of its own, so it is only presumed dead after `POLL_TIMEOUT_MS`, and it is then
+   * replaced by a read that keeps its standing: the spinner stays until it answers and a
+   * failure is still shown. Without that a request the network swallowed would hold the flight
+   * for ever, and the poll that tells the guest their photo is on the wall would never run.
    */
   const readQuietly = useCallback((replaceAfterMs?: number) => {
     const flight = inFlightRef.current
+    let quiet = true
     if (flight !== null) {
-      const dead =
-        replaceAfterMs !== undefined && flight.quiet && Date.now() - flight.since >= replaceAfterMs
-      if (!dead) return
+      const age = Date.now() - flight.since
+      const after = flight.quiet ? (replaceAfterMs ?? POLL_TIMEOUT_MS) : POLL_TIMEOUT_MS
+      if (age < after) return
+      quiet = flight.quiet
     }
-    quietRef.current = true
+    quietRef.current = quiet
     setAttempt((current) => current + 1)
   }, [])
 

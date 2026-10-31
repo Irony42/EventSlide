@@ -232,6 +232,83 @@ describe('re-reading the list while a photo waits', () => {
     expect(myPhotos).toHaveBeenCalledTimes(1)
   })
 
+  it('does not let a refresh the network swallowed stop the poll from announcing the arrival', async () => {
+    // The guest pressed "Réessayer" (or a batch ended and the screen re-read): that read has a
+    // spinner and no timeout of its own, and it never answers. It is the read in flight, so
+    // without a rule for it every later poll waits behind it and the photo's arrival is never told.
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      () => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {}),
+      async () => ({ items: [photo('p1', 'published')] }),
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+
+    act(() => result.current.refresh())
+    await elapse(0)
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+    expect(result.current.loading).toBe(true)
+
+    // The poll's ticks at 9 s find it slow, not dead: it is not stacked on.
+    await elapse(POLL_MS)
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+    // The tick at 18 s finds it older than the poll's timeout.
+    await elapse(POLL_MS)
+
+    expect(myPhotos).toHaveBeenCalledTimes(3)
+    expect(result.current.arrival).toEqual({ whileAway: false })
+    expect(result.current.loading).toBe(false)
+  })
+
+  it('keeps the spinner and the error of a swallowed refresh when the poll replaces it and fails too', async () => {
+    // The replacement stands in for a read the guest asked for: it does not turn it into one
+    // that fails in silence, which would leave "loading" up for ever.
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      () => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {}),
+      async () => {
+        throw new ApiError(503, 'unavailable')
+      },
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+    act(() => result.current.refresh())
+    await elapse(0)
+
+    await elapse(2 * POLL_MS)
+
+    expect(myPhotos).toHaveBeenCalledTimes(3)
+    expect(result.current.loading).toBe(false)
+    expect(result.current.error).not.toBeNull()
+  })
+
+  it('replaces a swallowed refresh when the guest comes back to the tab, once it is older than the poll timeout', async () => {
+    const answers = [
+      async () => ({ items: [photo('p1', 'pending')] }),
+      () => new Promise<{ items: readonly GuestPhotoDto[] }>(() => {}),
+      async () => ({ items: [photo('p1', 'published')] }),
+    ]
+    const myPhotos = vi.fn(() => (answers.shift() ?? (async () => ({ items: [] })))())
+    const { result } = await mounted(fakeApi({ myPhotos }))
+    act(() => result.current.refresh())
+    await elapse(0)
+
+    act(() => setVisibility('hidden'))
+    await elapse(5_000)
+    // Young: a refresh the guest is watching is not replaced by a glance away and back.
+    act(() => setVisibility('visible'))
+    await elapse(0)
+    expect(myPhotos).toHaveBeenCalledTimes(2)
+
+    act(() => setVisibility('hidden'))
+    await elapse(12_000)
+    act(() => setVisibility('visible'))
+    await elapse(0)
+
+    expect(myPhotos).toHaveBeenCalledTimes(3)
+    expect(result.current.arrival).toEqual({ whileAway: true })
+  })
+
   it('replaces a read that has been in the air for a while when the guest comes back to the tab', async () => {
     const answers = [
       async () => ({ items: [photo('p1', 'pending')] }),
