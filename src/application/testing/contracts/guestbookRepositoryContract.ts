@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { MAX_ENTRIES_PER_EVENT, MAX_ENTRIES_PER_GUEST } from '../../../domain/guestbook/guestbookLimits'
+import {
+  MAX_ENTRIES_PER_EVENT,
+  MAX_ENTRIES_PER_GUEST,
+} from '../../../domain/guestbook/guestbookLimits'
 import {
   asEventId,
   asGuestId,
@@ -116,7 +119,11 @@ export const guestbookRepositoryContract = (
       await repo.admit(entry({ id: 'b', text: 'b', createdAt: at(2) }))
       await repo.admit(entry({ id: 'c', text: 'c', createdAt: at(3) }))
 
-      expect((await repo.listByGuest(WEDDING, LEA, 10)).map((row) => row.id)).toEqual(['c', 'b', 'a'])
+      expect((await repo.listByGuest(WEDDING, LEA, 10)).map((row) => row.id)).toEqual([
+        'c',
+        'b',
+        'a',
+      ])
       expect((await repo.listByGuest(WEDDING, LEA, 2)).map((row) => row.id)).toEqual(['c', 'b'])
     })
 
@@ -160,7 +167,9 @@ export const guestbookRepositoryContract = (
         await repo.admit(entry({ id: `e${n}`, text: `m${n}`, createdAt: at(n) }))
       }
 
-      const again = await repo.admit(entry({ id: 'x', text: `m${MAX_ENTRIES_PER_GUEST - 1}`, createdAt: at(10) }))
+      const again = await repo.admit(
+        entry({ id: 'x', text: `m${MAX_ENTRIES_PER_GUEST - 1}`, createdAt: at(10) }),
+      )
 
       expect(again.kind).toBe('duplicate')
     })
@@ -168,7 +177,9 @@ export const guestbookRepositoryContract = (
     it('accepts the third message of a guest and refuses the fourth', async () => {
       const results = []
       for (let n = 0; n < MAX_ENTRIES_PER_GUEST + 1; n += 1) {
-        results.push(await repo.admit(entry({ id: `e${n}`, text: `m${n}`, createdAt: at(n * 100) })))
+        results.push(
+          await repo.admit(entry({ id: `e${n}`, text: `m${n}`, createdAt: at(n * 100) })),
+        )
       }
 
       expect(results.map((result) => result.kind)).toEqual(['added', 'added', 'added', 'refused'])
