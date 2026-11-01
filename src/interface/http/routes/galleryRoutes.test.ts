@@ -86,6 +86,26 @@ describe('the shared gallery over HTTP', () => {
       expect(response.body.theme).not.toHaveProperty('material')
     })
 
+    it('counts one open per valid open, and none for a dead or revoked link', async () => {
+      const revoked = subject.seedLink({ revokedAt: AT })
+      await request(subject.app).get(`/api/gallery/${revoked.token}`).expect(404)
+      await request(subject.app).get(`/api/gallery/${UNKNOWN_TOKEN}`).expect(404)
+      const open = subject.seedLink()
+      await request(subject.app).get(`/api/gallery/${open.token}`).expect(200)
+      await request(subject.app).get(`/api/gallery/${open.token}`).expect(200)
+
+      const counters = await subject.stats.readCounters(WEDDING)
+      expect(counters.map(({ metric, value }) => [metric, value])).toEqual([['galleryViews', 2]])
+    })
+
+    it('counts nothing for a locked link asked for its password', async () => {
+      const locked = subject.seedLink({ passwordHash: `hash:${PASSWORD}` })
+
+      await request(subject.app).get(`/api/gallery/${locked.token}`).expect(401)
+
+      expect(await subject.stats.readCounters(WEDDING)).toEqual([])
+    })
+
     it('tells no referrer, no crawler and no cache about the page', async () => {
       const { token } = subject.seedLink()
 
@@ -626,6 +646,12 @@ describe('the shared gallery over HTTP', () => {
       expectGalleryHeaders(response)
       // The recording archive writes one byte per entry: the published photograph only.
       expect(subject.archive.names).toHaveLength(1)
+      // One launch, counted as a number for the day and nothing else.
+      const counters = await subject.stats.readCounters(WEDDING)
+      expect(counters.map(({ metric, value }) => [metric, value])).toEqual([
+        ['galleryArchiveDownloads', 1],
+        ['galleryViews', 1],
+      ])
     })
 
     describe('how many archives may stream at once', () => {

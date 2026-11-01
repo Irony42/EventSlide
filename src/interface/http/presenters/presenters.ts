@@ -1061,5 +1061,5 @@ export const toEventStatsDto = (stats: EventStats): EventStatsResponseDto => ({
   },
   topContributors: stats.contributors.top.map((line): StatsContributorDto => ({ ...line })),
   anonymousContributors: { ...stats.contributors.anonymous },
-  engagement: null,
+  engagement: stats.engagement === null ? null : { ...stats.engagement },
 })

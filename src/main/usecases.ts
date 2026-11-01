@@ -83,6 +83,7 @@ import { makeAcknowledgePrivacyNotice } from '../application/usecases/guests/ack
 import { makeAuthenticateGuest } from '../application/usecases/guests/authenticateGuest'
 import { makeGetPrivacyNotice } from '../application/usecases/guests/getPrivacyNotice'
 import { makeJoinEvent } from '../application/usecases/guests/joinEvent'
+import { makeRecordEngagement } from '../application/usecases/stats/recordEngagement'
 import { makeGetEventStats } from '../application/usecases/stats/getEventStats'
 import { makeListGuests } from '../application/usecases/guests/listGuests'
 import { makeEraseGuestContribution } from '../application/usecases/guests/eraseGuestContribution'
@@ -369,6 +370,13 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
    * inviting an address at the moment the operator opens a client for it would race past both.
    */
   const issueInvitation = invitationIssuer(adapters, policy)
+
+  /** The after-party counters (spec 05): one writer, shared by the two gallery use cases. */
+  const engagement = makeRecordEngagement({
+    stats: adapters.eventStats,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  })
 
   return {
     // ------------------------------------------------------------------- auth --
@@ -892,7 +900,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       memberships: adapters.memberships,
       clock: adapters.clock,
     }),
-    openGallery: makeOpenGallery({ ...galleryAccess(adapters), photos: adapters.photos }),
+    openGallery: makeOpenGallery({
+      ...galleryAccess(adapters),
+      photos: adapters.photos,
+      engagement,
+    }),
     unlockGallery: makeUnlockGallery({
       ...galleryAccess(adapters),
       hasher: adapters.passwordHasher,
@@ -912,6 +924,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       media: adapters.media,
       archive: adapters.archive,
       logger: adapters.logger,
+      engagement,
     }),
 
     // ---------------------------------------------------------------- clients --

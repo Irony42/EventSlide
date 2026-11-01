@@ -93,6 +93,28 @@ describe('getEventStats', () => {
     expect(!result.ok && result.error.code).toBe('event.notFound')
   })
 
+  it('says nothing was measured while no counter exists, then sums the days with the first one', async () => {
+    const stats = new FakeEventStatsRepository(photos, guests, new FakeReactionRepository())
+    const read = () =>
+      makeGetEventStats({ events, memberships, guests, stats, clock })({
+        eventId: EVENT,
+        actorId: HOST,
+      })
+    const before = await read()
+    expect(before.ok && before.value.engagement).toBeNull()
+
+    await stats.bump(EVENT, 'galleryViews', '2026-11-15', 4)
+    await stats.bump(EVENT, 'galleryViews', '2026-11-14', 1)
+    await stats.bump(EVENT, 'galleryArchiveDownloads', '2026-11-16', 2)
+
+    const after = await read()
+    expect(after.ok && after.value.engagement).toEqual({
+      since: '2026-11-14',
+      galleryViews: 5,
+      galleryArchiveDownloads: 2,
+    })
+  })
+
   it('sums the four statuses into the sends, ranks the sharers, and counts who is here now', async () => {
     guests.seed(
       aGuest({ id: 'g-lea', eventId: 'event-1', displayName: 'Léa', lastSeenAt: clock.now() }),
