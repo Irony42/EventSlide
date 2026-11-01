@@ -91,6 +91,7 @@ describe('the scope', () => {
         'join',
         'mobileModeration',
         'moderation',
+        'printKit',
         'shell',
         'site',
         'titles',

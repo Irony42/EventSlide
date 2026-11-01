@@ -1,0 +1,161 @@
+/*
+ * One A4 sheet. Every length is a token in millimetres, multiplied by --u: a screen
+ * millimetre in the preview (the stage's width over 210), a real one on paper. No transform,
+ * so the preview stays sharp at 320 px. Paper is white and drawn on screen only; the QR is
+ * an SVG fill and needs no `print-color-adjust`. The `@page` rule is in `printPage.css`, which
+ * the page links only while it is mounted (an `@page` rule cannot be scoped any other way).
+ */
+.stage {
+  container-type: inline-size;
+  inline-size: 100%;
+  color-scheme: light;
+}
+
+.sheet {
+  --u: calc(100cqw / var(--print-a4-w));
+  --cell-w: var(--print-a4-w);
+  --cell-h: var(--print-a4-h);
+  --k: var(--print-scale-a4);
+  --qr: var(--print-qr-a4);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, calc(var(--cell-w) * var(--u)));
+  inline-size: calc(var(--print-a4-w) * var(--u));
+  block-size: calc(var(--print-a4-h) * var(--u));
+  overflow: hidden;
+  color: var(--text-print);
+  font-family: system-ui, sans-serif;
+}
+
+.sheet[data-format='a5'] {
+  --cell-h: var(--print-card-h);
+  --k: var(--print-scale-a5);
+  --qr: var(--print-qr-a5);
+}
+
+.sheet[data-format='card'] {
+  --cell-w: var(--print-card-w);
+  --cell-h: var(--print-card-h);
+  --k: var(--print-scale-card);
+  --qr: var(--print-qr-card);
+}
+
+@media screen {
+  .sheet {
+    background: var(--print-paper);
+  }
+}
+
+@media print {
+  .stage {
+    container-type: normal;
+  }
+
+  .sheet {
+    --u: 1mm;
+  }
+}
+
+.cell {
+  box-sizing: border-box;
+  inline-size: calc(var(--cell-w) * var(--u));
+  block-size: calc(var(--cell-h) * var(--u));
+  padding: calc(var(--print-safe) * var(--u));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(2 * var(--k) * var(--u));
+  text-align: center;
+  overflow: hidden;
+  border: 0 dashed var(--text-print-secondary);
+}
+
+/* The cut lines: dashed, between neighbours only. */
+.sheet[data-format='card'] .cell:nth-child(odd) {
+  border-inline-end-width: calc(var(--print-cut-line) * var(--u));
+}
+
+.sheet[data-format='card'] .cell:nth-child(-n + 2),
+.sheet[data-format='a5'] .cell:first-child {
+  border-block-end-width: calc(var(--print-cut-line) * var(--u));
+}
+
+.name {
+  font-size: calc(var(--print-type-name) * var(--k) * var(--u));
+  font-weight: 650;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.title {
+  font-size: calc(var(--print-type-title) * var(--k) * var(--u));
+  line-height: 1.2;
+}
+
+.qr {
+  inline-size: calc(var(--qr) * var(--u));
+  block-size: calc(var(--qr) * var(--u));
+  flex: none;
+}
+
+.qr svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--k) * var(--u));
+  font-size: calc(var(--print-type-step) * var(--k) * var(--u));
+  line-height: 1.3;
+}
+
+.steps {
+  margin: 0;
+  padding-inline-start: 1.4em;
+  text-align: start;
+}
+
+.fallback {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* An A5 poster is wide: the code on the left, the words beside it. */
+.sheet[data-format='a5'] .cell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'qr name'
+    'qr title'
+    'qr text';
+  grid-template-rows: auto auto 1fr;
+  align-items: center;
+  column-gap: calc(6 * var(--u));
+  text-align: start;
+}
+
+.sheet[data-format='a5'] .qr {
+  grid-area: qr;
+}
+
+.sheet[data-format='a5'] .name {
+  grid-area: name;
+  align-self: end;
+}
+
+.sheet[data-format='a5'] .title {
+  grid-area: title;
+}
+
+.sheet[data-format='a5'] .text {
+  grid-area: text;
+  align-self: start;
+}

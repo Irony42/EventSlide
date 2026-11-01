@@ -61,6 +61,24 @@ token exactly.
   --surface-print: oklch(95% 0.012 85); /* polaroid mat, warm white */
   --text-print: oklch(30% 0.02 85); /* the caption written on the mat */
   --text-print-secondary: oklch(40% 0.02 85); /* the credit under it */
+  /* ---- Print sheet (spec 02). Lengths are millimetres, unitless: the preview multiplies them by a
+         screen millimetre, paper by a real one. Paper is white and drawn on screen only. ---- */
+  --print-paper: oklch(100% 0 0);
+  --print-a4-w: 210;
+  --print-a4-h: 297;
+  --print-card-w: 105; /* A6 */
+  --print-card-h: 148.5;
+  --print-safe: 8;
+  --print-qr-card: 40; /* sides of the QR, quiet zone included: card 4 cm, A5 7 cm, A4 12 cm */
+  --print-qr-a5: 70;
+  --print-qr-a4: 120;
+  --print-cut-line: 0.3;
+  --print-scale-card: 1;
+  --print-scale-a5: 1.3;
+  --print-scale-a4: 2;
+  --print-type-name: 4.5;
+  --print-type-title: 5.5;
+  --print-type-step: 3.6;
   /* ---- Borders ---- */
   --border-subtle: oklch(30% 0.02 265); /* default hairline */
   --border-strong: oklch(54% 0.02 265); /* input rest state, focused card */
