@@ -252,6 +252,8 @@ export const eventRoutes = ({
                 },
               }),
           ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),
+          // Absent leaves the message alone, `null` clears it: never defaulted here.
+          ...(body.welcomeMessage === undefined ? {} : { welcomeMessage: body.welcomeMessage }),
         },
       })
 
