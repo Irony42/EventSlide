@@ -39,7 +39,15 @@ export const bookWindowStart = (now: Date): Date => new Date(now.getTime() - BOO
 export const checkBookDailyLimit = (
   requestsInWindow: number,
   maxPerDay: number,
+  retryAfterSeconds: number,
 ): Result<void, DomainError> =>
   requestsInWindow >= maxPerDay
-    ? err(DomainError.rateLimited('book.dailyLimitReached', { max: maxPerDay }))
+    ? err(DomainError.rateLimited('book.dailyLimitReached', { max: maxPerDay, retryAfterSeconds }))
     : ok(undefined)
+
+/**
+ * Seconds until the oldest request of the window leaves it, which is when a slot frees up:
+ * what a refused host is told to wait. Never less than one.
+ */
+export const bookRetryAfterSeconds = (oldestInWindow: Date, now: Date): number =>
+  Math.max(1, Math.ceil((oldestInWindow.getTime() + BOOK_WINDOW_MS - now.getTime()) / 1000))

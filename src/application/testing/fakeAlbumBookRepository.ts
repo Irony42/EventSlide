@@ -67,6 +67,13 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
     ).length
   }
 
+  async firstRequestSince(eventId: EventId, since: Date): Promise<Date | null> {
+    const times = this.requests
+      .filter((request) => request.eventId === eventId && request.at.getTime() >= since.getTime())
+      .map((request) => request.at.getTime())
+    return times.length === 0 ? null : new Date(Math.min(...times))
+  }
+
   async listExpired(now: Date): Promise<readonly EventId[]> {
     return [...this.books.values()]
       .filter((book) => book.expiresAt !== null && book.expiresAt.getTime() <= now.getTime())

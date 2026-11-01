@@ -40,6 +40,9 @@ export interface AlbumBookRepository {
   /** Requests made for this event at or after `since`, a deleted book's included. */
   countRequestsSince(eventId: EventId, since: Date): Promise<number>
 
+  /** The earliest request of this event at or after `since`, or `null`: when a slot frees up. */
+  firstRequestSince(eventId: EventId, since: Date): Promise<Date | null>
+
   /** Events whose book has an expiry at or before `now`. */
   listExpired(now: Date): Promise<readonly EventId[]>
 

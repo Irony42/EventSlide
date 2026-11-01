@@ -137,6 +137,16 @@ export const albumBookRepositoryContract = (
       expect(await repo.countRequestsSince(GALA, at(-5))).toBe(1)
     })
 
+    it('names the earliest request of the window, or none', async () => {
+      await request(WEDDING, 20)
+      await request(WEDDING, 10)
+      await request(GALA, 1)
+
+      expect(await repo.firstRequestSince(WEDDING, at(0))).toEqual(at(10))
+      expect(await repo.firstRequestSince(WEDDING, at(11))).toEqual(at(20))
+      expect(await repo.firstRequestSince(WEDDING, at(21))).toBeNull()
+    })
+
     it('keeps counting a request after its book was deleted, so deleting cannot reset the ceiling', async () => {
       await request(WEDDING, 0)
       await repo.delete(WEDDING)

@@ -218,6 +218,16 @@ export class SqliteAlbumBookRepository implements AlbumBookRepository {
     return row?.n ?? 0
   }
 
+  async firstRequestSince(eventId: EventId, since: Date): Promise<Date | null> {
+    const row = this.db
+      .prepare<[string, string], { readonly first: string | null }>(
+        `SELECT MIN(requested_at) AS first FROM album_book_requests
+          WHERE event_id = ? AND requested_at >= ?`,
+      )
+      .get(eventId, toIsoText(since))
+    return row?.first === undefined || row.first === null ? null : fromIsoText(row.first)
+  }
+
   async listExpired(now: Date): Promise<readonly EventId[]> {
     return this.db
       .prepare<[string], { readonly event_id: string }>(
