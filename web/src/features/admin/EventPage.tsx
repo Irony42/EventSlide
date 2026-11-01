@@ -257,6 +257,11 @@ export function EventPage() {
             joinCode={event.joinCode}
             joinUrl={event.joinUrl}
             titleRef={qrHeading}
+            extraAction={
+              event.status === 'archived' ? undefined : (
+                <Link to={`/admin/events/${event.slug}/print`}>{t.admin.printKitTitle}</Link>
+              )
+            }
           />
         </div>
       </div>
