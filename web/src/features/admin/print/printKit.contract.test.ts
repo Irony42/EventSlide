@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import TOKENS from '../../../design-system/tokens.css?raw'
-import { MIN_MODULE_MM, PRINT_FORMAT_SPECS, QUIET_ZONE_MODULES } from './printKit'
+import {
+  INK_CHROMA,
+  INK_LIGHTNESS,
+  MIN_MODULE_MM,
+  PRINT_FORMAT_SPECS,
+  QUIET_ZONE_MODULES,
+} from './printKit'
 
 /**
  * `printKit.ts` judges the printed module against the QR sides the stylesheet draws. The two
@@ -33,6 +39,18 @@ describe('printKit against tokens.css', () => {
     expect(PRINT_FORMAT_SPECS.card.qrMm + 2 * token('--print-safe')).toBeLessThanOrEqual(
       token('--print-card-w'),
     )
+  })
+
+  it('inks the event colour at the lightness and chroma printKit measures', () => {
+    const found = /--print-ink-accent:\s*oklch\(([\d.]+)%\s+([\d.]+)\s+var\(--accent-hue\)\)/.exec(
+      TOKENS,
+    )
+    if (found?.[1] === undefined || found[2] === undefined) {
+      throw new Error('--print-ink-accent is not an oklch of the accent hue in tokens.css')
+    }
+
+    expect(Number(found[1]) / 100).toBe(INK_LIGHTNESS)
+    expect(Number(found[2])).toBe(INK_CHROMA)
   })
 
   it('has constants worth contracting', () => {

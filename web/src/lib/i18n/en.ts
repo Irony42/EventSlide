@@ -868,8 +868,12 @@ export const en: UiText = {
     qrAlt: (eventName: string) => `QR code to join ${eventName}`,
     printKitTitle: 'Table cards and poster',
     printKitCrumb: 'Cards and poster',
-    printKitIntro: 'Print something to put on the tables: the QR code, the backup code and three lines of instructions.',
+    printKitIntro:
+      'Print something to put on the tables: the QR code, the backup code and three lines of instructions.',
     printKitFormat: 'Format',
+    printKitInk: 'QR colour',
+    printInkBlack: 'Black (the safest)',
+    printInkEvent: 'Colour of the event',
     printFormatA4: 'A4 poster (1 per sheet)',
     printFormatA5: 'A5 poster (2 per sheet)',
     printFormatCard: 'A6 table cards (4 per sheet)',
@@ -877,9 +881,12 @@ export const en: UiText = {
     printKitLanguageHint: 'This is the language of the evening, not of your screen.',
     printKitPrint: 'Print',
     printKitPrinting: 'Updating the code…',
-    printKitHelp: 'In the print window, choose A4, scale 100%, no headers or footers. Your browser also offers “Save as PDF” there. Use the Print button: Ctrl+P does not check the code.',
-    printKitCodeChanged: 'The code for the evening has changed: the sheet below is up to date. Throw the old ones away.',
-    printKitClosed: 'This evening is closed: guests who scan can no longer join. If you reopen it, the same code works again.',
+    printKitHelp:
+      'In the print window, choose A4, scale 100%, no headers or footers. Your browser also offers “Save as PDF” there. Use the Print button: Ctrl+P does not check the code.',
+    printKitCodeChanged:
+      'The code for the evening has changed: the sheet below is up to date. Throw the old ones away.',
+    printKitClosed:
+      'This evening is closed: guests who scan can no longer join. If you reopen it, the same code works again.',
     printKitDraft: 'Guests will only be able to join once the evening opens.',
     printKitArchived: 'This event is archived: its QR code no longer leads anywhere.',
     printKitBack: 'Back to the event',

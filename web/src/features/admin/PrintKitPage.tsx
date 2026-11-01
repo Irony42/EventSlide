@@ -13,10 +13,13 @@ import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import { PrintSheet } from './print/PrintSheet'
 import {
   DEFAULT_PRINT_FORMAT,
+  DEFAULT_PRINT_INK,
   PRINT_FORMATS,
+  PRINT_INKS,
   availabilityOf,
   isQrTooSmall,
   type PrintFormat,
+  type PrintInk,
 } from './print/printKit'
 import { readPrintPreferences, writePrintPreferences } from './print/printPreferences'
 import styles from './PrintKitPage.module.css'
@@ -27,6 +30,11 @@ const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale)
   value: locale,
   label: LOCALE_NAMES[locale],
 }))
+
+const INK_LABELS: Readonly<Record<PrintInk, (text: UiText) => string>> = {
+  black: (text) => text.admin.printInkBlack,
+  event: (text) => text.admin.printInkEvent,
+}
 
 const FORMAT_LABELS: Readonly<Record<PrintFormat, (text: UiText) => string>> = {
   a4: (text) => text.admin.printFormatA4,
@@ -80,7 +88,7 @@ export function PrintKitPage() {
   }
 
   const update = useCallback(
-    (patch: { format?: PrintFormat; language?: Locale }) => {
+    (patch: { format?: PrintFormat; language?: Locale; ink?: PrintInk }) => {
       const next = { ...preferences, ...patch }
       setPreferences(next)
       writePrintPreferences(slug, next)
@@ -105,6 +113,7 @@ export function PrintKitPage() {
 
   const availability = availabilityOf(event.status)
   const format = preferences.format ?? DEFAULT_PRINT_FORMAT
+  const ink = preferences.ink ?? DEFAULT_PRINT_INK
   const language = preferences.language ?? parseLocale(event.settings.wallLanguage) ?? 'fr'
 
   return (
@@ -178,6 +187,22 @@ export function PrintKitPage() {
               }}
             />
 
+            <fieldset className={styles['group']}>
+              <legend className={styles['legend']}>{t.admin.printKitInk}</legend>
+              {PRINT_INKS.map((choice) => (
+                <label key={choice} className={styles['radio']}>
+                  <input
+                    type="radio"
+                    name="print-ink"
+                    value={choice}
+                    checked={ink === choice}
+                    onChange={() => update({ ink: choice })}
+                  />
+                  {INK_LABELS[choice](t)}
+                </label>
+              ))}
+            </fieldset>
+
             {totalModules !== null && isQrTooSmall(format, totalModules) ? (
               <Notice tone="warning" role="status" variant="boxed">
                 {t.admin.printKitLongLink}
@@ -197,6 +222,8 @@ export function PrintKitPage() {
               joinCode={event.joinCode}
               format={format}
               locale={language}
+              ink={ink}
+              accentHue={event.settings.theme.accentHue}
               onQrModules={setTotalModules}
             />
           </section>

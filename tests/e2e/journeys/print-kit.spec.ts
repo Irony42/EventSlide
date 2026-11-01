@@ -32,7 +32,9 @@ const pathOf = (qr: Locator): Promise<string> =>
     .getAttribute('d')
     .then((d) => d ?? '')
 
-test.beforeEach((_fixtures, testInfo) => {
+// Playwright insists on a destructured first argument.
+// eslint-disable-next-line no-empty-pattern
+test.beforeEach(({}, testInfo) => {
   test.skip(
     testInfo.project.name !== 'chromium-desktop',
     'print rendering is a Chromium behaviour; the other engines would assert the same',
@@ -72,4 +74,24 @@ test('the sheet carries the wall’s QR, fits one page, and the console stays of
     await expect(host.getByRole('button', { name: 'Imprimer' })).toBeHidden()
     await expect(sheet).toBeVisible()
   }
+})
+
+test('the event colour reaches the QR ink as a dark colour, the black ink stays the paper’s', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const event = await app.seedEvent({ slug: 'impression-couleur', name: 'Camille & Sacha' })
+  await host.goto(app.url(`/admin/events/${event.slug}/print`))
+  await host.getByRole('radio', { name: 'Affiche A4 (1 par feuille)' }).check()
+  const qr = host.locator('[data-format]').getByRole('img', { name: /QR/ }).first()
+  const inkOf = () => qr.evaluate((element) => getComputedStyle(element).color)
+  const black = await inkOf()
+
+  await host.getByRole('radio', { name: 'Couleur de l’évènement' }).check()
+  const coloured = await inkOf()
+
+  expect(coloured).not.toBe(black)
+  // Chromium keeps an oklch() colour as written: lightness 0.3, the event's own hue.
+  expect(coloured).toMatch(/^oklch\(0\.3 0\.1 305(deg)?\)$/)
 })

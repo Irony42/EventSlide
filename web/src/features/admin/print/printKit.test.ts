@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import TOKENS from '../../../design-system/tokens.css?raw'
+import { parseOklchTokens, ratioOf, srgb, WHITE } from '../../../design-system/testing/srgb'
 import {
+  INK_CHROMA,
+  INK_LIGHTNESS,
+  MIN_INK_CONTRAST,
   MIN_MODULE_MM,
   PRINT_FORMATS,
   PRINT_FORMAT_SPECS,
@@ -89,5 +94,23 @@ describe('availability by status', () => {
 
   it('prints nothing for an archived event', () => {
     expect(availabilityOf('archived')).toBe('unavailable')
+  })
+})
+
+describe('the ink of the QR on white paper', () => {
+  it('keeps the event colour at a contrast of 7 or more for each of the 360 hues', () => {
+    // The colour is clipped channel by channel, as the design system's own contrast sweeps do.
+    const ratios = Array.from({ length: 360 }, (_unused, h) =>
+      ratioOf(srgb({ l: INK_LIGHTNESS, c: INK_CHROMA, h, alpha: 1 }), WHITE),
+    )
+
+    expect(Math.min(...ratios)).toBeGreaterThanOrEqual(MIN_INK_CONTRAST)
+  })
+
+  it('keeps the black ink (--text-print) at a contrast of 7 or more', () => {
+    const ink = parseOklchTokens(TOKENS).get('--text-print')
+    if (ink === undefined) throw new Error('--text-print is not an oklch token')
+
+    expect(ratioOf(srgb(ink), WHITE)).toBeGreaterThanOrEqual(MIN_INK_CONTRAST)
   })
 })
