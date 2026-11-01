@@ -262,6 +262,20 @@ describe('sweepOrphanedMedia', () => {
       expect(calls.sequenceOf('photos.findIdsReferencing')).toEqual([])
     })
 
+    it('does not so much as ask about a logo the settings name, which the bulk pass settles', async () => {
+      // The confirmation would also save it, so only the count of questions can tell that the bulk
+      // set names the logo (the mutant that drops it from the set survives every other test).
+      events.seed(anEvent({ id: 'event-1', settings: { logo: hashOf('9b1') } }))
+      await media.put(EVENT, hashOf('9b1'), 'logo', Uint8Array.of(1))
+      const calls = new CallLog()
+      photos = calls.watch('photos', photos)
+      build()
+
+      await sweep()
+
+      expect(calls.sequenceOf('photos.findIdsReferencing')).toEqual([])
+    })
+
     it('keeps a clip’s poster, which no row names as its content hash', async () => {
       // The poster is addressed by a second digest, and `findIdsReferencing` is what
       // knows that. A sweep asking only about `content_hash` would collect every poster

@@ -264,6 +264,22 @@ describe('the host logo routes', () => {
       expect(world.media.objectCount).toBe(0)
     })
 
+    it('refuses a moderator before the body is read: never a 413 from the parser, even for a file above the size limit', async () => {
+      // The use case would refuse a moderator too, so the route's own guard is only visible in what
+      // comes first: a body that is too large is a 413 from the parser if the parser ran at all.
+      // A server that answers before it has read a 2 MiB body may also reset the connection under the
+      // client's write, which is the same refusal seen from the socket.
+      const outcome = await upload(
+        await signedIn(world, 'moderator'),
+        Buffer.alloc(2 * 1024 * 1024 + 1, 0xff),
+      ).then(
+        (response) => response.status,
+        (cause: { code?: string }) => cause.code,
+      )
+
+      expect([403, 'ECONNRESET', 'EPIPE']).toContain(outcome)
+    })
+
     it('answers 404, not 403, to the owner of another event', async () => {
       const response = await upload(await signedIn(world, 'gala-owner'), await aLogo())
 

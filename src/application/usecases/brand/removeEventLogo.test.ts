@@ -174,4 +174,59 @@ describe('removeEventLogo', () => {
 
     expect(media.variantsOf(OTHER, PHOTO)).toEqual([EVENT_LOGO])
   })
+
+  describe('while the request is in flight', () => {
+    /** Runs `act` between the first read of the event and the second, which is the save's. */
+    const afterTheFirstRead = (act: () => Promise<void>): void => {
+      const read = events.findById.bind(events)
+      let reads = 0
+      events.findById = async (id) => {
+        const found = await read(id)
+        reads += 1
+        if (reads === 1) await act()
+        return found
+      }
+    }
+
+    it('answers not found when the event is gone by the time it saves', async () => {
+      afterTheFirstRead(async () => {
+        await events.delete(WEDDING)
+      })
+
+      const result = await removeEventLogo({ eventId: WEDDING, actorId: OWNER })
+
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+      expect(media.objectCount).toBe(1)
+    })
+
+    it('refuses when the event was archived by the time it saves, and deletes nothing', async () => {
+      afterTheFirstRead(async () => {
+        events.seed(
+          anEvent({ id: WEDDING, ownerId: OWNER, status: 'archived', settings: { logo: PHOTO } }),
+        )
+      })
+
+      const result = await removeEventLogo({ eventId: WEDDING, actorId: OWNER })
+
+      expect(!result.ok && result.error.code).toBe('event.immutable')
+      expect(media.objectCount).toBe(1)
+    })
+
+    it('keeps a settings change made meanwhile, since it saves the fresh copy', async () => {
+      afterTheFirstRead(async () => {
+        const current = await events.findById(WEDDING)
+        if (current === null) throw new Error('fixture')
+        const next = current.settings.with({ moderation: 'auto' })
+        if (!next.ok) throw new Error('fixture')
+        const changed = current.withSettings(next.value)
+        if (!changed.ok) throw new Error('fixture')
+        await events.save(changed.value)
+      })
+
+      const result = await removeEventLogo({ eventId: WEDDING, actorId: OWNER })
+
+      expect(result.ok && result.value.settings.moderation).toBe('auto')
+      expect(result.ok && result.value.settings.logo).toBeNull()
+    })
+  })
 })
