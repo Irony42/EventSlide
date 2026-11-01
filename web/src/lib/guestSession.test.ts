@@ -672,3 +672,24 @@ describe('guestSession: a theme the server has since changed', () => {
     expect(readRememberedGuestSession(37 * HOUR)).toBeNull()
   })
 })
+
+describe('guestSession, the guestbook flag of the notice (spec 01)', () => {
+  const roundTrip = (notice: ReturnType<typeof aPrivacyNotice>) => {
+    sessionStorage.clear()
+    localStorage.clear()
+    rememberGuestSession({
+      event: aPublicEvent(),
+      displayName: 'Léa',
+      privacyNotice: { notice, acknowledgement: 'none' },
+    })
+    return readGuestSession('camille-et-sacha')?.privacyNotice?.notice
+  }
+
+  it('keeps the flag a stored notice carries, so a reload still words it for messages', () => {
+    expect(roundTrip(aPrivacyNotice({ guestbook: true }))?.guestbook).toBe(true)
+  })
+
+  it('adds no key to a notice without a guestbook', () => {
+    expect(roundTrip(aPrivacyNotice())).not.toHaveProperty('guestbook')
+  })
+})

@@ -72,6 +72,21 @@ export interface EventSettingsProps {
    * is the kind of promise the privacy notice (roadmap §5.1) exists to stop being made.
    */
   readonly allowClips: boolean
+  /**
+   * Whether guests may leave a written message in the guestbook (spec 01).
+   *
+   * The host's switch over the feature. **Off for an event that exists**: an absent key reads as
+   * `false` (`sqliteEventRepository.settingsOf`), because opening a free-text channel onto a room
+   * its host never agreed to is not a change an upgrade may make. A message meets the same
+   * moderation as a photograph and follows the event's `moderation` mode.
+   */
+  readonly allowGuestbook: boolean
+  /**
+   * Whether published messages are shown on the projected wall. The reverse concession: an event
+   * that predates the field reads `true`, because the host who turns the guestbook on has not
+   * been asked to turn the wall on as well. It only matters once `allowGuestbook` has been on.
+   */
+  readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   /** `null` keeps the album forever. */
@@ -134,6 +149,10 @@ const DEFAULTS: EventSettingsProps = {
   allowCaptions: true,
   allowReactions: true,
   allowClips: true,
+  // Off until the host panel exists (spec 01, PR 3 flips it for a new event): a book nobody can
+  // moderate must not collect messages.
+  allowGuestbook: false,
+  guestbookOnWall: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 900,
   retentionDays: null,
@@ -255,6 +274,8 @@ export class EventSettings {
       allowCaptions: pick(patch.allowCaptions, base.allowCaptions),
       allowReactions: pick(patch.allowReactions, base.allowReactions),
       allowClips: pick(patch.allowClips, base.allowClips),
+      allowGuestbook: pick(patch.allowGuestbook, base.allowGuestbook),
+      guestbookOnWall: pick(patch.guestbookOnWall, base.guestbookOnWall),
       allowGuestSelfDelete: pick(patch.allowGuestSelfDelete, base.allowGuestSelfDelete),
       guestSelfDeleteGraceSeconds: pick(
         patch.guestSelfDeleteGraceSeconds,
@@ -313,6 +334,14 @@ export class EventSettings {
 
   get allowClips(): boolean {
     return this.props.allowClips
+  }
+
+  get allowGuestbook(): boolean {
+    return this.props.allowGuestbook
+  }
+
+  get guestbookOnWall(): boolean {
+    return this.props.guestbookOnWall
   }
 
   get allowGuestSelfDelete(): boolean {

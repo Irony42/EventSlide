@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toParagraphs, toSingleLine } from './plainText'
-
+import { toMultiLine, toParagraphs, toSingleLine } from './plainText'
 /**
  * Every awkward code point is built rather than typed, so this file stays plain ASCII
  * text that survives a copy, a diff and a Windows editor unchanged — the same
@@ -57,6 +56,40 @@ describe('toSingleLine', () => {
 
   it('returns an empty string when nothing visible survives', () => {
     expect(toSingleLine(ZERO_WIDTH_SPACE.repeat(3))).toBe('')
+  })
+})
+
+describe('toMultiLine', () => {
+  const CARRIAGE_RETURN = String.fromCodePoint(0x0d)
+  const LINE_SEPARATOR = String.fromCodePoint(0x2028)
+
+  it('keeps a line feed, which toSingleLine would fold to a space', () => {
+    expect(toMultiLine(`un${NEWLINE}deux`)).toBe(`un${NEWLINE}deux`)
+  })
+
+  it('folds every other kind of line break to a line feed rather than deleting it', () => {
+    expect(toMultiLine(`a${CARRIAGE_RETURN}${NEWLINE}b${CARRIAGE_RETURN}c${LINE_SEPARATOR}d`)).toBe(
+      `a${NEWLINE}b${NEWLINE}c${NEWLINE}d`,
+    )
+  })
+
+  it('removes invisible characters and a bidirectional override', () => {
+    expect(toMultiLine(`a${ZERO_WIDTH_SPACE}b${RIGHT_TO_LEFT_OVERRIDE}c${BEL}`)).toBe('abc')
+  })
+
+  it('folds tabs and runs of spaces, and drops spaces around a line break', () => {
+    expect(toMultiLine(`un${TAB}  ${NO_BREAK_SPACE}deux ${NEWLINE} trois`)).toBe(
+      `un deux${NEWLINE}trois`,
+    )
+  })
+
+  it('keeps at most one blank line in a row', () => {
+    expect(toMultiLine(`a${NEWLINE}${NEWLINE}${NEWLINE}${NEWLINE}b`)).toBe(`a${NEWLINE}${NEWLINE}b`)
+  })
+
+  it('trims both ends and may come out empty', () => {
+    expect(toMultiLine(`${NEWLINE} a ${NEWLINE}`)).toBe('a')
+    expect(toMultiLine(`${NEWLINE}${ZERO_WIDTH_SPACE} `)).toBe('')
   })
 })
 

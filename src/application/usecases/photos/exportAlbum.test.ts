@@ -1,15 +1,26 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { DomainError } from '../../../domain/shared/errors'
-import { asEventId } from '../../../domain/shared/ids'
+import { asEventId, asGuestbookEntryId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import {
   MEDIA_VARIANTS,
   type PhotoVariant,
 } from '../../ports/mediaStore'
 import { Event } from '../../../domain/events/event'
-import { AT, aClip, anEvent, aPhoto, atPlus, type PhotoInput } from '../../testing/builders'
+import {
+  AT,
+  aClip,
+  aGuest,
+  aGuestbookEntry,
+  anEvent,
+  aPhoto,
+  atPlus,
+  type PhotoInput,
+} from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
+import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { makeExportAlbum, type ExportAlbum } from './exportAlbum'
@@ -31,6 +42,8 @@ const EVENT = asEventId('event-1')
 describe('exportAlbum', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
+  let guestbook: FakeGuestbookRepository
+  let guests: FakeGuestRepository
   let media: InMemoryMediaStore
   let archive: FakeArchiveWriter
   let logger: CapturingLogger
@@ -39,6 +52,8 @@ describe('exportAlbum', () => {
   beforeEach(() => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
+    guestbook = new FakeGuestbookRepository()
+    guests = new FakeGuestRepository(photos)
     media = new InMemoryMediaStore().forbidEnumeration('an album export')
     archive = new FakeArchiveWriter()
     logger = new CapturingLogger()
@@ -46,7 +61,7 @@ describe('exportAlbum', () => {
       anEvent({ id: 'event-1', slug: 'camille-et-sacha' }),
       anEvent({ id: 'event-2', slug: 'gala-acme', joinCode: '2AB3CD' }),
     )
-    exportAlbum = makeExportAlbum({ events, photos, media, archive, logger })
+    exportAlbum = makeExportAlbum({ events, photos, guestbook, guests, media, archive, logger })
   })
 
   /** A row with every variant on the disk, which is what ingest guarantees. */
@@ -293,6 +308,8 @@ describe('exportAlbum', () => {
         Event.restore({ ...anEvent({ id: 'event-1' }).toProps(), clientSuspendedAt: AT }),
       ),
       photos,
+      guestbook,
+      guests,
       media,
       archive,
       logger,
@@ -300,5 +317,77 @@ describe('exportAlbum', () => {
 
     expect(!down.ok && down.error.code).toBe('event.notFound')
     expect(!frozen.ok && frozen.error.code).toBe('client.suspended')
+  })
+})
+
+describe('exportAlbum: the guestbook', () => {
+  const GUEST_EVENT = asEventId('event-1')
+
+  const build = () => {
+    const events = new FakeEventRepository().seed(
+      anEvent({ id: 'event-1', slug: 'camille-et-sacha', name: 'Camille et Sacha' }),
+      anEvent({ id: 'event-2', slug: 'gala-acme', joinCode: '2AB3CD' }),
+    )
+    const photos = new FakePhotoRepository()
+    const guestbook = new FakeGuestbookRepository()
+    const guests = new FakeGuestRepository(photos)
+    guests.seed(
+      aGuest({ id: 'guest-lea', eventId: 'event-1', displayName: 'Léa' }),
+      aGuest({ id: 'guest-sam', eventId: 'event-1', displayName: null }),
+    )
+    const archive = new FakeArchiveWriter({ emits: 'content' })
+    const run = makeExportAlbum({
+      events,
+      photos,
+      guestbook,
+      guests,
+      media: new InMemoryMediaStore().forbidEnumeration('an album export'),
+      archive,
+      logger: new CapturingLogger(),
+    })
+    const text = async (): Promise<string> => {
+      const result = await run({ eventId: GUEST_EVENT })
+      if (!result.ok) throw new Error(result.error.code)
+      const chunks: Uint8Array[] = []
+      for await (const chunk of result.value) chunks.push(chunk)
+      return new TextDecoder().decode(Buffer.concat(chunks))
+    }
+    return { guestbook, archive, text }
+  }
+
+  const entry = (id: string, guest: string, moderation: 'manual' | 'auto', eventId = 'event-1') =>
+    aGuestbookEntry({ id, guestId: guest, eventId, text: `texte ${id}`, moderation })
+
+  it('adds one guestbook.txt with the published and hidden messages, signed, and nothing else', async () => {
+    const { guestbook, archive, text } = build()
+    const moved = entry('m-hidden', 'guest-sam', 'auto').hide({ kind: 'automatic' }, AT)
+    if (!moved.ok) throw new Error('setup')
+    guestbook.seed(
+      entry('m-pub', 'guest-lea', 'auto'),
+      moved.value,
+      entry('m-pending', 'guest-lea', 'manual'),
+      entry('m-other', 'guest-lea', 'auto', 'event-2'),
+    )
+
+    const written = await text()
+
+    expect(archive.names).toEqual(['camille-et-sacha/guestbook.txt'])
+    expect(written).toContain('Camille et Sacha\n\n')
+    expect(written).toContain('Léa, ')
+    expect(written).toContain('texte m-pub')
+    expect(written).toContain('Un invité, ')
+    expect(written).toContain('texte m-hidden')
+    expect(written).not.toContain('m-pending')
+    expect(written).not.toContain('m-other')
+  })
+
+  it('leaves out a message the operator took down, and writes no file for an empty book', async () => {
+    const { guestbook, archive, text } = build()
+    guestbook.seed(entry('m1', 'guest-lea', 'auto'))
+    guestbook.takeDown(GUEST_EVENT, asGuestbookEntryId('m1'), AT)
+
+    await text()
+
+    expect(archive.names).toEqual([])
   })
 })

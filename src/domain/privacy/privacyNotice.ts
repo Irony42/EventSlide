@@ -100,6 +100,8 @@ export interface NoticePolicy {
   readonly retentionDays: number | null
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
+  /** The guestbook switch (spec 01): when on, a message is one more thing the notice covers. */
+  readonly allowGuestbook: boolean
 }
 
 /**
@@ -156,6 +158,15 @@ export interface PrivacyNotice {
    * one has not read one naming an operator.
    */
   readonly operator: string | null
+  /**
+   * Whether guests may also leave written messages (spec 01), which then follow the same rules
+   * as a photograph: the notice says so, and its sentences read for a message too.
+   *
+   * It is part of the revision **only when true**, so an event without a guestbook produces the
+   * revision it always produced and asks nobody to read anything again. An event that turns it on
+   * mid-evening shows the notice once more to every guest before their next photo or message.
+   */
+  readonly guestbook: boolean
   /**
    * The notice's identity: two notices with the same revision say the same thing.
    *
@@ -236,6 +247,8 @@ const revisionOf = (notice: Omit<PrivacyNotice, 'revision'>): string =>
     // their own phone (roadmap §5.2). It is in the revision so that the notice that first says so is
     // read by every guest who acknowledged the one that did not.
     'selfErase=phone',
+    // Before the operator: the free-text name stays the last clause, as above.
+    ...(notice.guestbook ? ['guestbook=on'] : []),
     ...(notice.operator === null ? [] : [`operator=${notice.operator}`]),
   ].join(';')
 
@@ -256,6 +269,7 @@ export const privacyNoticeFor = (
     retentionDays: policy.retentionDays,
     selfRemovalSeconds: selfRemovalFor(policy),
     operator,
+    guestbook: policy.allowGuestbook,
   }
   return { ...clauses, revision: revisionOf(clauses) }
 }
