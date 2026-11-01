@@ -22,6 +22,7 @@ import type {
   ClientLimitsDto,
   ClipJobDto,
   CurrentUserDto,
+  EventStatsResponse,
   EventDto,
   EventSettingsDto,
   GalleryDto,
@@ -449,6 +450,18 @@ export const anInvitationAccepted = (
   ...overrides,
 })
 
+/** The statistics of an event nobody has joined: every figure at zero. */
+export const anEventStats = (overrides: Partial<EventStatsResponse> = {}): EventStatsResponse => ({
+  uploads: { total: 0, byQuarter: [] },
+  photos: { pending: 0, published: 0, rejected: 0, hidden: 0 },
+  guests: { joined: 0, contributors: 0, revoked: 0, activeNow: 0 },
+  reactions: { total: 0, byKind: { love: 0, laugh: 0, wow: 0, cheers: 0, clap: 0 } },
+  topContributors: [],
+  anonymousContributors: { guests: 0, photos: 0 },
+  engagement: null,
+  ...overrides,
+})
+
 export const aSessionUser = (overrides: Partial<CurrentUserDto> = {}): CurrentUserDto => ({
   userId: 'user-1',
   email: 'organisation@example.com',
@@ -592,6 +605,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   topPhotos: vi.fn(async () => ({ items: [] })),
 
   listGuests: vi.fn(async () => ({ items: [], activeCount: 0 })),
+  getEventStats: vi.fn(async () => anEventStats()),
   revokeGuest: vi.fn(async () => undefined),
 
   listModerators: vi.fn(async () => ({ items: [] })),

@@ -1,7 +1,7 @@
 import { cx } from '../../../design-system/classNames'
 import styles from './EventActionIcon.module.css'
 
-export type EventActionGlyph = 'wall' | 'moderate' | 'phone' | 'settings' | 'album'
+export type EventActionGlyph = 'wall' | 'moderate' | 'phone' | 'settings' | 'album' | 'stats'
 
 export interface EventActionIconProps {
   readonly glyph: EventActionGlyph
@@ -31,6 +31,8 @@ const SHAPES: Record<EventActionGlyph, string> = {
   // Two sliders
   settings:
     'M2.5 5h2.65M8.25 5h5.25M2.5 11h5.15M10.75 11h2.75M8.25 5a1.55 1.55 0 1 1-3.1 0 1.55 1.55 0 0 1 3.1 0zM10.75 11a1.55 1.55 0 1 1-3.1 0 1.55 1.55 0 0 1 3.1 0z',
+  // Three bars on a baseline
+  stats: 'M2.5 13.5h11M4.5 13.5V8.5M8 13.5V3.5M11.5 13.5v-3.5',
   // An arrow into a tray
   album: 'M8 2v7.5M5 6.8l3 3 3-3M2.8 11v1.7a.8.8 0 0 0 .8.8h8.8a.8.8 0 0 0 .8-.8V11',
 }

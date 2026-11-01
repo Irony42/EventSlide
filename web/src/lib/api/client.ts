@@ -18,6 +18,7 @@ import type {
   EventTemplateKey,
   GalleryDto,
   GalleryPage,
+  EventStatsResponse,
   GuestListResponse,
   GuestMissionListResponse,
   CreatedGuestbookEntryDto,
@@ -737,6 +738,10 @@ export const createApi = (transport: Transport) => ({
 
   listGuests: (slug: string, signal?: AbortSignal): Promise<GuestListResponse> =>
     transport.get(`/api/events/${encode(slug)}/guests`, undefined, signal),
+
+  /** The host statistics page: derived figures, read again as the evening goes on (spec 05). */
+  getEventStats: (slug: string, signal?: AbortSignal): Promise<EventStatsResponse> =>
+    transport.get(`/api/events/${encode(slug)}/stats`, undefined, signal),
 
   revokeGuest: (slug: string, guestId: string): Promise<void> =>
     transport.post(`/api/events/${encode(slug)}/guests/${encode(guestId)}/revoke`),
