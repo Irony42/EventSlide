@@ -101,6 +101,7 @@ describe('EventSettings.create', () => {
       }),
     )
 
+    expect([settings.allowGuestbook, settings.guestbookOnWall]).toEqual([true, false])
     expect(settings.toProps()).toEqual({
       moderation: 'auto',
       allowCaptions: false,
