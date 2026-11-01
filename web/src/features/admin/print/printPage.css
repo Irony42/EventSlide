@@ -1,0 +1,6 @@
+/* Linked by PrintKitPage while it is mounted, and removed with it: `@page` is global, and this
+   margin would otherwise leak onto the event page's own QR card. */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}

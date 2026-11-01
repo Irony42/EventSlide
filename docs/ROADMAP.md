@@ -239,6 +239,13 @@ text of at most 280 characters on the join page, the upload page and the empty w
 surfaces. No fixed ornament over photographs on the wall; a recurring welcome card in the loop is
 left to be specified once with 2.4 and 2.8.
 
+### 2.10 Printable table cards and poster (P3, effort M, risk: low)
+
+Spec 02. `/admin/events/:slug/print` draws A6 cards (4 per sheet), an A5 or an A4 poster from the
+server's join link, in the language of the evening, and hands it to the browser's own print
+dialog ("Save as PDF" included): no server PDF, no new route. Numbered 2.10 because spec 03's
+host brand took 2.9.
+
 ---
 
 ## 3. Host control
