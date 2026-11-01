@@ -875,6 +875,9 @@ export const en: UiText = {
     printKitIntro:
       'Print something to put on the tables: the QR code, the backup code and three lines of instructions.',
     printKitFormat: 'Format',
+    printKitInk: 'QR colour',
+    printInkBlack: 'Black (the safest)',
+    printInkEvent: 'Colour of the event',
     printFormatA4: 'A4 poster (1 per sheet)',
     printFormatA5: 'A5 poster (2 per sheet)',
     printFormatCard: 'A6 table cards (4 per sheet)',

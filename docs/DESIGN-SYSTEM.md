@@ -64,6 +64,9 @@ token exactly.
   /* ---- Print sheet (spec 02). Lengths are millimetres, unitless: the preview multiplies them by a
          screen millimetre, paper by a real one. Paper is white and drawn on screen only. ---- */
   --print-paper: oklch(100% 0 0);
+  --print-ink-accent: oklch(
+    30% 0.1 var(--accent-hue)
+  ); /* the event's hue, darkened: the QR ink */
   --print-a4-w: 210;
   --print-a4-h: 297;
   --print-card-w: 105; /* A6 */

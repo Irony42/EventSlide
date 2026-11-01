@@ -919,6 +919,9 @@ export const es: UiText = {
     printKitIntro:
       'Imprima algo para poner en las mesas: el código QR, el código de respaldo y tres líneas de instrucciones.',
     printKitFormat: 'Formato',
+    printKitInk: 'Color del código QR',
+    printInkBlack: 'Negro (el más seguro)',
+    printInkEvent: 'Color del evento',
     printFormatA4: 'Cartel A4 (1 por hoja)',
     printFormatA5: 'Cartel A5 (2 por hoja)',
     printFormatCard: 'Tarjetas de mesa A6 (4 por hoja)',

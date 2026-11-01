@@ -159,3 +159,8 @@
   grid-area: text;
   align-self: start;
 }
+
+/* The event's colour, darkened: the QR only. The words and the cut lines stay in the paper's ink. */
+.sheet[data-ink='event'] .qr {
+  color: var(--print-ink-accent);
+}

@@ -97,3 +97,27 @@ test('the sheet carries the wall’s QR, fits one page, and the console stays of
     expect(await decodeQr(sheet.getByRole('img', { name: /QR/ }).first())).toBe(joinUrl)
   }
 })
+
+test('the event colour reaches the QR ink as a dark colour, the black ink stays the paper’s', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const event = await app.seedEvent({ slug: 'impression-couleur', name: 'Camille & Sacha' })
+  await host.goto(app.url(`/admin/events/${event.slug}/print`))
+  await host.getByRole('radio', { name: 'Affiche A4 (1 par feuille)' }).check()
+  const qr = host.locator('[data-format]').getByRole('img', { name: /QR/ }).first()
+  const inkOf = () => qr.evaluate((element) => getComputedStyle(element).color)
+  const black = await inkOf()
+
+  await host.getByRole('radio', { name: 'Couleur de l’évènement' }).check()
+  const coloured = await inkOf()
+
+  expect(coloured).not.toBe(black)
+  // The colour does not cost the scan: the reader still finds the server's link.
+  const read = await host.request.get(app.url(`/api/events/${event.slug}`))
+  const { joinUrl } = (await read.json()) as { joinUrl: string }
+  expect(await decodeQr(qr)).toBe(joinUrl)
+  // Chromium keeps an oklch() colour as written: lightness 0.3, the event's own hue.
+  expect(coloured).toMatch(/^oklch\(0\.3 0\.1 305(deg)?\)$/)
+})
