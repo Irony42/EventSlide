@@ -18,6 +18,8 @@ import type {
   GalleryPage,
   GuestListResponse,
   GuestMissionListResponse,
+  CreatedGuestbookEntryDto,
+  MyGuestbookDto,
   MyPhotosDto,
   InvitationAcceptedDto,
   InvitationPreviewDto,
@@ -337,6 +339,16 @@ export const createApi = (transport: Transport) => ({
 
   deleteMyPhoto: (slug: string, photoId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}`),
+
+  /** The guest's own guestbook messages and whether a new one would be taken (spec 01). */
+  myGuestbook: (slug: string, signal?: AbortSignal): Promise<MyGuestbookDto> =>
+    transport.get(`/api/events/${encode(slug)}/guestbook/mine`, undefined, signal),
+
+  writeGuestbookEntry: (slug: string, text: string): Promise<CreatedGuestbookEntryDto> =>
+    transport.post(`/api/events/${encode(slug)}/guestbook`, { text }),
+
+  deleteMyGuestbookEntry: (slug: string, entryId: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/guestbook/${encode(entryId)}`),
 
   /** `DELETE …/guests/me`: everything this device's guest sent to the event, and the guest. */
   eraseMyContribution: (slug: string): Promise<ErasedContributionDto> =>

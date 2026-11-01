@@ -210,6 +210,7 @@ export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
   const retentionDays = field(notice, 'retentionDays')
   const selfRemovalSeconds = field(notice, 'selfRemovalSeconds')
   const operator = field(notice, 'operator')
+  const guestbook = field(notice, 'guestbook')
 
   if (typeof revision !== 'string' || !isOneOf(PUBLICATIONS, publication)) return null
   if (!Array.isArray(audiences)) return null
@@ -233,6 +234,8 @@ export const readNoticeState = (value: unknown): PrivacyNoticeState | null => {
       retentionDays,
       selfRemovalSeconds,
       ...(operator === undefined ? {} : { operator }),
+      // Spec 01: kept, or the notice a reopened tab shows would not mention the messages.
+      ...(guestbook === true ? { guestbook: true as const } : {}),
     },
     acknowledgement,
   }

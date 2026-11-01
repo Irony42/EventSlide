@@ -115,6 +115,7 @@ export const guestbookRoutes = ({
         const dto: MyGuestbookDto = {
           items: mine.items.map((item) => toGuestbookEntryDto(item.entry, item.canDelete)),
           accepting: mine.accepting,
+          onWall: mine.onWall,
         }
         sendJson(response, dto)
       })

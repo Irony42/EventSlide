@@ -12,6 +12,8 @@ import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { MissionChecklist } from './components/MissionChecklist'
 import { EraseEverything } from './components/EraseEverything'
+import { GuestbookCard } from './components/GuestbookCard'
+import { MyMessages } from './components/MyMessages'
 import { MyPhotos } from './components/MyPhotos'
 import { Notice } from '../../design-system/components/Notice'
 import { OfflineNotice } from './components/OfflineNotice'
@@ -21,6 +23,8 @@ import { UploadQueue } from './components/UploadQueue'
 import { useBackgroundSync } from './hooks/useBackgroundSync'
 import { useClipUpload } from './hooks/useClipUpload'
 import { useEraseEverything } from './hooks/useEraseEverything'
+import { useGuestbook } from './hooks/useGuestbook'
+import { useMyMessages } from './hooks/useMyMessages'
 import { useInstallPrompt } from './hooks/useInstallPrompt'
 import { useMissions } from './hooks/useMissions'
 import { useMyPhotos } from './hooks/useMyPhotos'
@@ -139,6 +143,12 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   const t = useTranslations()
   const navigate = useNavigate()
   const mine = useMyPhotos(slug)
+  /**
+   * The guestbook (spec 01): the guest's own messages and whether a new one would be taken. Read
+   * only when the join said the host switched it on, and hidden on any refusal to answer.
+   */
+  const messages = useMyMessages(slug, event.allowGuestbook === true)
+  const writer = useGuestbook(slug, messages.refresh)
   /** "Delete everything I sent" (roadmap §5.2): its request, and what the device forgets after. */
   const erasure = useEraseEverything(slug)
   /**
@@ -359,6 +369,9 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   /** What the closed evening thanks the guest for: not the photos the host refused. */
   const thanked = mine.photos.filter((photo) => photo.status !== 'rejected').length
   const showMine = !mine.unavailable && (hasPhotos || mine.error !== null)
+  const hasMessages = !messages.unavailable && messages.items.length > 0
+  /** Where a guest who may write is offered the card (spec 01): never behind the notice. */
+  const bookOpen = !messages.unavailable && messages.accepting && !mine.unavailable
 
   /** The words of the chosen prompt, for the line under the send button. */
   const selectedPrompt =
@@ -470,7 +483,9 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               // The way to take everything back for a guest whose list is not on the page yet
               // (INV-12): the notice promises it, so it is offered where the notice is read.
               extra={
-                mine.unavailable || hasPhotos ? undefined : <EraseEverything state={erasure} />
+                mine.unavailable || hasPhotos || hasMessages ? undefined : (
+                  <EraseEverything state={erasure} guestbook={event.allowGuestbook === true} />
+                )
               }
             />
           </>
@@ -490,7 +505,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           onHighlightEnd={endHighlight}
         />
       ) : null}
-      {showMine && hasPhotos ? <EraseEverything state={erasure} /> : null}
+      {hasMessages ? (
+        <MyMessages
+          items={messages.items}
+          onWall={messages.onWall}
+          error={messages.error}
+          onDelete={messages.remove}
+        />
+      ) : null}
+      {(showMine && hasPhotos) || hasMessages ? (
+        <EraseEverything state={erasure} guestbook={event.allowGuestbook === true} />
+      ) : null}
 
       {/* Below the proof that it worked, above the controls: a reward for having sent
           something, never a gate in front of sending it.
@@ -564,13 +589,35 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           // warning (INV-4): nothing went wrong, the evening ended, and the guest's next question is
           // where the photos will be. The count is the list already on screen, so no request is added.
           // What the guest sent stays listed above.
-          <section className={styles['ended']} role="status" data-testid="evening-ended">
-            <h2 className={styles['endedTitle']}>{t.upload.endedTitle}</h2>
-            <p className={styles['endedBody']}>
-              {thanked > 0 ? t.upload.endedThanks(thanked) : t.upload.endedThanksNone}
-            </p>
-            <p className={styles['endedBody']}>{t.upload.endedAlbum}</p>
-          </section>
+          <>
+            <section className={styles['ended']} role="status" data-testid="evening-ended">
+              <h2 className={styles['endedTitle']}>{t.upload.endedTitle}</h2>
+              <p className={styles['endedBody']}>
+                {thanked > 0 ? t.upload.endedThanks(thanked) : t.upload.endedThanksNone}
+              </p>
+              <p className={styles['endedBody']}>{t.upload.endedAlbum}</p>
+            </section>
+            {/* A closed evening still takes a written word for a while (spec 01, Q4): the server's
+              `accepting` says so, and the notice still comes first. */}
+            {bookOpen ? (
+              gated && notice.state !== null ? (
+                <PrivacyNoticeCard
+                  ref={noticeCard}
+                  state={notice.state}
+                  onAcknowledge={() => {
+                    setNoticeOpen(false)
+                    notice.acknowledge()
+                  }}
+                />
+              ) : (
+                <GuestbookCard
+                  writer={writer}
+                  maxLength={event.guestbookMaxLength}
+                  publication={publication ?? 'afterReview'}
+                />
+              )
+            ) : null}
+          </>
         ) : notice.state !== null && gated ? (
           <PrivacyNoticeCard
             ref={noticeCard}
@@ -599,6 +646,13 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               selected={missions.selected}
               onToggle={missions.toggle}
             />
+            {bookOpen ? (
+              <GuestbookCard
+                writer={writer}
+                maxLength={event.guestbookMaxLength}
+                publication={publication ?? 'afterReview'}
+              />
+            ) : null}
             <PhotoPicker onPick={queue.add} libraryRef={libraryInput} />
             {/* The caption and the video, as labelled buttons that unfold in place: shown in full
                 they took half of a phone before a photo was chosen. The host's settings, from the

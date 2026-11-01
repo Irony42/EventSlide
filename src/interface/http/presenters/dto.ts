@@ -208,6 +208,8 @@ export interface MyGuestbookDto {
   readonly items: readonly GuestbookEntryDto[]
   /** Whether a new message would be taken now: the switch, the event's state and the window. */
   readonly accepting: boolean
+  /** Whether published messages appear on the wall: said to their authors in the status. */
+  readonly onWall: boolean
 }
 
 /** What a message just written answers (`POST /api/events/:slug/guestbook`). */

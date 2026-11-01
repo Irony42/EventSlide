@@ -168,6 +168,24 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.myPhotos(SLUG),
   },
   {
+    name: 'myGuestbook',
+    verb: 'get',
+    path: `/api/events/${SLUG}/guestbook/mine`,
+    invoke: (client) => client.myGuestbook(SLUG),
+  },
+  {
+    name: 'writeGuestbookEntry',
+    verb: 'post',
+    path: `/api/events/${SLUG}/guestbook`,
+    invoke: (client) => client.writeGuestbookEntry(SLUG, 'Bravo'),
+  },
+  {
+    name: 'deleteMyGuestbookEntry',
+    verb: 'del',
+    path: `/api/events/${SLUG}/guestbook/entry-1`,
+    invoke: (client) => client.deleteMyGuestbookEntry(SLUG, 'entry-1'),
+  },
+  {
     name: 'privacyNotice',
     verb: 'get',
     path: `/api/events/${SLUG}/privacy-notice`,

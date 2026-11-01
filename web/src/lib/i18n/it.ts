@@ -572,6 +572,74 @@ export const it: UiText = {
     'venuePhoto.saveFailed': 'Non è stato possibile salvare la foto. Riprovate.',
   },
 
+  /** The guestbook, guest side (spec 01). What guests and hosts write is never translated. */
+  guestbook: {
+    title: 'Libro degli ospiti',
+    helpManual: 'Qualche parola per la serata. L’organizzatore la legge prima di mostrarla.',
+    helpAuto: 'Il suo messaggio compare nel libro degli ospiti.',
+    open: 'Lasciare un messaggio',
+    label: 'Il suo messaggio',
+    placeholder: 'Il suo messaggio…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: 'Resta 1 carattere.',
+        other: `Restano ${t.number(left)} caratteri.`,
+      }),
+    counterFull: 'Limite raggiunto.',
+    send: 'Invia il mio messaggio',
+    cancel: 'Annulla',
+    thanksManual: 'Grazie! Il suo messaggio comparirà quando l’organizzatore l’avrà approvato.',
+    thanksAuto: 'Grazie! Il suo messaggio è nel libro degli ospiti.',
+    mine: 'I miei messaggi',
+    statusPending: 'In attesa di approvazione',
+    statusPublished: 'Sullo schermo',
+    statusPublishedNotOnWall: 'Pubblicato, non mostrato sullo schermo',
+    statusRejected: 'Non selezionato',
+    statusHidden: 'Rimosso dallo schermo',
+    remove: 'Rimuovi questo messaggio',
+    removeTitle: 'Rimuovere questo messaggio in modo definitivo?',
+    removeConfirm: 'Rimuovi',
+    removeCancel: 'Tieni',
+    removed: 'Messaggio rimosso.',
+    tooLong: (max: number) => `Messaggio troppo lungo (al massimo ${t.number(max)} caratteri).`,
+    errors: {
+      'guestbook.empty': 'Scriva almeno una parola.',
+      'guestbook.invalid': 'Questo messaggio non può essere inviato così com’è.',
+      'guestbook.tooManyLines': 'Messaggio troppo alto: lo accorci.',
+      'guestbook.limitReached':
+        'Ha già lasciato 3 messaggi. Ne rimuova uno per scriverne un altro.',
+      'guestbook.eventFull': 'Il libro degli ospiti è pieno.',
+      'guestbook.disabled': 'Il libro degli ospiti non è aperto al momento.',
+      'event.notAcceptingUploads': 'Il libro degli ospiti non è aperto al momento.',
+      'guestbook.deleteForbidden':
+        'Questo messaggio non può più essere rimosso. Lo chieda all’organizzatore: può eliminarlo.',
+      'event.guestSelfDeleteDisabled':
+        'L’organizzatore non ha attivato la rimozione. Glielo chieda: può eliminare un messaggio.',
+      'guestbook.notFound': 'Questo messaggio non esiste più.',
+      'guestbook.deleteFailed':
+        'La rimozione non è andata a buon fine. Riprovi, o lo chieda all’organizzatore.',
+      'rate.limited': 'Troppi messaggi in una volta, riprovi tra un minuto.',
+    },
+    eraseBody:
+      'Le sue foto, i video, le didascalie, i messaggi del libro degli ospiti, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
+    noticeWhatHappens: 'Cosa succede alle sue foto e ai suoi messaggi',
+    noticeWhoSees: 'Chi vede le sue foto e i suoi messaggi',
+    noticeHowLong: 'Per quanto tempo vengono conservati',
+    noticeRemoval: 'Come farne rimuovere uno',
+    noticeMessagePublication: {
+      afterReview:
+        'Un messaggio del libro degli ospiti è letto dall’organizzatore prima di poter andare sullo schermo.',
+      immediate:
+        'Un messaggio del libro degli ospiti può andare sullo schermo appena inviato. L’organizzatore può rimuoverlo in qualsiasi momento.',
+    },
+    noticeMessageAudience:
+      'I suoi messaggi sono letti dall’organizzatore e dal suo team e possono comparire sullo schermo della serata. Non sono in «Foto della serata».',
+    noticeMessageRetention: 'I suoi messaggi sono conservati quanto le foto e cancellati con esse.',
+    noticeMessageRemoval:
+      'Un messaggio si rimuove come una foto, da «I miei messaggi» e alle stesse condizioni.',
+  },
+
   moderation: {
     title: 'Moderazione',
     // Navigation pass, batch C: the way to the other console.
