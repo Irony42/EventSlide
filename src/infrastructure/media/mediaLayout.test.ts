@@ -17,6 +17,7 @@ describe('mediaObjectPath', () => {
     ['poster', `${EVENT}/poster/ab/${HASH}.jpg`],
     ['source', `${EVENT}/source/ab/${HASH}.bin`],
     ['ground', `${EVENT}/ground/ab/${HASH}.webp`],
+    ['logo', `${EVENT}/logo/ab/${HASH}.webp`],
   ] as const)('lays a %s down at %s', (variant, path) => {
     expect(mediaObjectPath(EVENT, HASH, variant)).toBe(path)
   })
@@ -38,6 +39,7 @@ describe('mediaObjectPath', () => {
       poster: 'image/jpeg',
       source: 'application/octet-stream',
       ground: 'image/webp',
+      logo: 'image/webp',
     })
   })
 
