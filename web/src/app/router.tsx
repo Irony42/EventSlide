@@ -85,6 +85,10 @@ const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
 }))
 
+const PrintKitPage = lazy(async () => ({
+  default: (await import('../features/admin/PrintKitPage')).PrintKitPage,
+}))
+
 const CustomAmbiancePage = lazy(async () => ({
   default: (await import('../features/admin/CustomAmbiancePage')).CustomAmbiancePage,
 }))
@@ -472,6 +476,7 @@ export function AppRoutes() {
                 path="/admin/events/:slug/settings/ambiance"
                 element={titled('customAmbiance', <CustomAmbiancePage />)}
               />
+              <Route path="/admin/events/:slug/print" element={titled('print', <PrintKitPage />)} />
               {siteAdmin ? (
                 <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />
               ) : null}
