@@ -16,6 +16,7 @@ import { SqliteReactionRepository } from '../infrastructure/db/sqliteReactionRep
 import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
 import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
+import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
@@ -402,6 +403,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reactions: new SqliteReactionRepository(db),
     eventStats: new SqliteEventStatsRepository(db),
     missions: new SqliteMissionRepository(db),
+    guestbook: new SqliteGuestbookRepository(db),
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     media: createFsMediaStore({ root: mediaRoot }),

@@ -111,6 +111,7 @@ src/
     guests/        Guest identity, display names
     photos/        Photo entity, status machine, captions, quotas
     moderation/    Queue ordering and decisions (pure)
+    guestbook/     Written guest messages: text, entry, ceilings, the closed-event window (spec 01)
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
     clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5)

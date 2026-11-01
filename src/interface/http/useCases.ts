@@ -93,6 +93,9 @@ import type { WithdrawReaction } from '../../application/usecases/reactions/with
 
 import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWallPlaylist'
 
+import type { CreateGuestbookEntry } from '../../application/usecases/guestbook/createGuestbookEntry'
+import type { DeleteGuestbookEntry } from '../../application/usecases/guestbook/deleteGuestbookEntry'
+import type { ListMyGuestbookEntries } from '../../application/usecases/guestbook/listMyGuestbookEntries'
 import type { CreateMission } from '../../application/usecases/missions/createMission'
 import type { DeleteMission } from '../../application/usecases/missions/deleteMission'
 import type { GetGuestChecklist } from '../../application/usecases/missions/getGuestChecklist'
@@ -237,6 +240,10 @@ export interface HttpUseCases {
   // the wall
   readonly getWallPlaylist: GetWallPlaylist
 
+  // guestbook (spec 01)
+  readonly createGuestbookEntry: CreateGuestbookEntry
+  readonly listMyGuestbookEntries: ListMyGuestbookEntries
+  readonly deleteGuestbookEntry: DeleteGuestbookEntry
   // missions
   readonly listMissions: ListMissions
   readonly createMission: CreateMission

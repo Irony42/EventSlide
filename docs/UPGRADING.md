@@ -672,3 +672,18 @@ people on the night.
   and how many times its ZIP was launched. They hold **no address, no browser, no link or guest identifier**,
   go with the event (purge and retention deadline), and appear only on the host's new statistics page.
 - **`GET /api/events/:slug/stats`** is new. A script that lists the routes sees one more.
+
+### The guestbook (spec 01)
+
+- **One migration, `019_guestbook_entries`**, applied at boot: a new table, no existing row changes. It only goes
+  forward, so take the usual backup first ([above](#upgrading-with-docker)); going back is the restore of that
+  archive.
+- **Two new event settings, `allowGuestbook` and `guestbookOnWall`.** An event created before this version reads
+  the first as **off** and the second as **on**: an upgrade opens no free-text channel onto a room whose host was
+  never asked. Nothing changes for an existing event until its host switches the guestbook on.
+- **Additions to existing responses** (all optional for a client, none removed): `allowGuestbook` and
+  `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
+  settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`. A new `guestbook.changed` signal
+  appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
+- **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
+  are fixed.
