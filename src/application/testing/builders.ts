@@ -15,6 +15,8 @@ import { retentionApplies, type EventStatus } from '../../domain/events/eventSta
 import { ShareLink } from '../../domain/gallery/shareLink'
 import { ShareLinkLifetime } from '../../domain/gallery/shareLinkLifetime'
 import { DisplayName } from '../../domain/guests/displayName'
+import { GuestbookEntry } from '../../domain/guestbook/guestbookEntry'
+import { GuestbookText } from '../../domain/guestbook/guestbookText'
 import { Mission } from '../../domain/missions/mission'
 import { MissionPrompt } from '../../domain/missions/missionPrompt'
 import { DEFAULT_MISSION_SCOPE, type MissionScope } from '../../domain/missions/missionScope'
@@ -37,6 +39,7 @@ import {
   asClipJobId,
   asEventId,
   asGuestId,
+  asGuestbookEntryId,
   asMissionId,
   asPhotoId,
   asReactionId,
@@ -370,6 +373,33 @@ export const aMission = (input: MissionInput = {}): Mission => {
     },
     asMissionId(id),
     pick(input.createdAt, AT),
+  )
+}
+
+// ------------------------------------------------------------------ guestbook --
+
+export interface GuestbookEntryInput {
+  readonly id?: string
+  readonly eventId?: string
+  readonly guestId?: string
+  readonly text?: string
+  /** `manual` (the default) starts `pending`; `auto` starts `published`. */
+  readonly moderation?: 'manual' | 'auto'
+  readonly createdAt?: Date
+}
+
+/** A message of the default guest at the default event, unless the test says otherwise. */
+export const aGuestbookEntry = (input: GuestbookEntryInput = {}): GuestbookEntry => {
+  const id = pick(input.id, 'entry-1')
+  return GuestbookEntry.create(
+    {
+      eventId: asEventId(pick(input.eventId, 'event-1')),
+      guestId: asGuestId(pick(input.guestId, 'guest-1')),
+      text: must(GuestbookText.create(pick(input.text, id)), 'aGuestbookEntry.text'),
+    },
+    asGuestbookEntryId(id),
+    pick(input.createdAt, AT),
+    pick(input.moderation, 'manual'),
   )
 }
 

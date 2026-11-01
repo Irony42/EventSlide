@@ -215,6 +215,8 @@ export const eventRoutes = ({
           ...(body.allowCaptions === undefined ? {} : { allowCaptions: body.allowCaptions }),
           ...(body.allowReactions === undefined ? {} : { allowReactions: body.allowReactions }),
           ...(body.allowClips === undefined ? {} : { allowClips: body.allowClips }),
+          ...(body.allowGuestbook === undefined ? {} : { allowGuestbook: body.allowGuestbook }),
+          ...(body.guestbookOnWall === undefined ? {} : { guestbookOnWall: body.guestbookOnWall }),
           ...(body.allowGuestSelfDelete === undefined
             ? {}
             : { allowGuestSelfDelete: body.allowGuestSelfDelete }),

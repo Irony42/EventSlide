@@ -400,6 +400,8 @@ export const updateSettingsBody = z.strictObject({
   allowCaptions: z.boolean().optional(),
   allowReactions: z.boolean().optional(),
   allowClips: z.boolean().optional(),
+  allowGuestbook: z.boolean().optional(),
+  guestbookOnWall: z.boolean().optional(),
   allowGuestSelfDelete: z.boolean().optional(),
   guestSelfDeleteGraceSeconds: z.number().int().min(0).max(86_400).optional(),
   retentionDays: z.number().int().min(1).max(3_650).nullable().optional(),

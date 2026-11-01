@@ -58,3 +58,30 @@ export const toSingleLine = (raw: string): string =>
     .replace(INVISIBLE, '')
     .replace(/\s{2,}/gu, ' ')
     .trim()
+
+/** Everything invisible except the line feed, which a paragraph of text legitimately keeps. */
+const INVISIBLE_KEEPING_NEWLINE = /(?!\n)[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu
+
+/**
+ * A short paragraph of untrusted text, fit to be rendered with its line breaks (the guestbook).
+ *
+ * The sibling of {@link toSingleLine}, with the same invisible characters removed and one
+ * difference: a line feed is kept, because a message of three lines is three lines. The order is
+ * load-bearing for the same reasons. NFC comes first, so one visible character is one code point
+ * and a length bound counts what a reader sees. Every kind of line break (`\r\n`, a lone `\r`,
+ * `U+2028`, `U+2029`) is folded to `\n` **before** the invisible pass, so a separator does not
+ * vanish and join two words. A tab becomes a space, runs of spaces fold to one, spaces around a
+ * line break are dropped, and at most one blank line stays in a row.
+ *
+ * The result may be empty; what that means belongs to the value object.
+ */
+export const toMultiLine = (raw: string): string =>
+  raw
+    .normalize('NFC')
+    .replace(/\r\n|[\r\u2028\u2029]/gu, '\n')
+    .replace(/[\t\v\f]/gu, ' ')
+    .replace(INVISIBLE_KEEPING_NEWLINE, '')
+    .replace(/[^\S\n]+/gu, ' ')
+    .replace(/ ?\n ?/gu, '\n')
+    .replace(/\n{3,}/gu, '\n\n')
+    .trim()

@@ -686,6 +686,36 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.allowClips).toBe(true)
     })
 
+    it('reads an event written before the guestbook as closed to messages, and shown on the wall', async () => {
+      // The 3.4.0 -> 3.5.0 upgrade (spec 01). `settingsOf` throws `Corrupt events.settings` on an
+      // absent key unless the field goes through `settingsBooleanAddedLater`, so without it the
+      // first read of every existing event 500s. The two answers are opposite on purpose: no
+      // messages for a host never asked, and the wall shows them once the host has said yes.
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowGuestbook: undefined, guestbookOnWall: undefined }),
+        'evt-1',
+      )
+
+      const settings = (await repo.findById(asEventId('evt-1')))?.settings
+
+      expect(settings?.allowGuestbook).toBe(false)
+      expect(settings?.guestbookOnWall).toBe(true)
+    })
+
+    it('keeps the guestbook choices of a host who made them', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(
+        json({ allowGuestbook: true, guestbookOnWall: false }),
+        'evt-1',
+      )
+
+      const settings = (await repo.findById(asEventId('evt-1')))?.settings
+
+      expect(settings?.allowGuestbook).toBe(true)
+      expect(settings?.guestbookOnWall).toBe(false)
+    })
+
     it('reads an event written before the wall had a language as French', async () => {
       // The upgrade path for roadmap 1.5, and the **opposite** answer to `allowClips`
       // above: French is what such an event's projector has been rendering since the day

@@ -163,6 +163,9 @@ export const eventRepositoryContract = (
             allowCaptions: false,
             allowReactions: false,
             allowClips: false,
+            // Both off their defaults (false and true), so a store that dropped one is caught.
+            allowGuestbook: true,
+            guestbookOnWall: false,
             allowGuestSelfDelete: false,
             guestSelfDeleteGraceSeconds: 60,
             retentionDays: 30,
@@ -195,6 +198,8 @@ export const eventRepositoryContract = (
         allowCaptions: false,
         allowReactions: false,
         allowClips: false,
+        allowGuestbook: true,
+        guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
