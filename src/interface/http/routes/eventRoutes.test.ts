@@ -1104,6 +1104,47 @@ describe('the host event routes', () => {
       expect(response.status).toBe(200)
       expect(response.body.role).toBe('moderator')
     })
+
+    // The print page (spec 02) reads these two fields as a moderator and as a suspended client's
+    // member, and must be answered 404 once the operator takes the event down.
+    it('a moderator reads the code and the link', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.body.joinCode).toBe('H7K2QM')
+      expect(response.body.joinUrl).toBe('http://localhost:4300/join/H7K2QM')
+    })
+
+    it('an event taken down by the operator answers 404 to its owner', async () => {
+      await world.events.setTakenDown(asEventId(WEDDING), AT)
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('event.notFound')
+    })
+
+    it('a suspended client still reads its event, code and link included (200)', async () => {
+      world.clients.seed(aClient({ id: CLIENT_ONE, name: 'Atelier Camille' }))
+      const member = await signedIn(world, 'client-member')
+      const created = await member.post('/api/events').send({ name: 'Un soir de juin' })
+      expect(created.status).toBe(201)
+      world.clients.seed(aClient({ id: CLIENT_ONE, name: 'Atelier Camille', suspendedAt: AT }))
+
+      // Proof that the suspension took: the same member can no longer write.
+      const refused = await member.post('/api/events').send({ name: 'Un autre soir' })
+      expect(refused.status).toBeGreaterThanOrEqual(400)
+
+      const response = await member.get(`/api/events/${String(created.body.slug)}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.joinCode).toBe(created.body.joinCode)
+      expect(response.body.joinUrl).toBe(
+        `http://localhost:4300/join/${String(created.body.joinCode)}`,
+      )
+    })
   })
 
   describe('PATCH /api/events/:slug', () => {
@@ -1194,7 +1235,87 @@ describe('the host event routes', () => {
           groundUrl: null,
         },
         wallLanguage: 'en',
+        brand: { welcomeMessage: null },
       })
+    })
+
+    /* ---- The host's welcome message (spec 03). ---- */
+
+    it('stores a welcome message and answers it in the settings brand', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: '  Bienvenue !\n\nUne photo du gâteau ?  ' })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.brand).toEqual({
+        welcomeMessage: 'Bienvenue !\nUne photo du gâteau ?',
+      })
+    })
+
+    it('leaves the message alone when an older tab saves settings without it', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ welcomeMessage: 'Bienvenue' })
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowCaptions: false })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.brand.welcomeMessage).toBe('Bienvenue')
+    })
+
+    it('clears the message on null', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ welcomeMessage: 'Bienvenue' })
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: null })
+
+      expect(response.body.settings.brand.welcomeMessage).toBeNull()
+    })
+
+    it('answers the domain code for a message that is too long or has too many lines', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const long = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'x'.repeat(281) })
+      const lines = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'a\nb\nc\nd\ne' })
+
+      expect(long.status).toBe(400)
+      expect(long.body.error.code).toBe('eventSettings.welcomeTooLong')
+      expect(lines.body.error.code).toBe('eventSettings.welcomeTooManyLines')
+    })
+
+    it('reads and ignores a read-only brand key, and refuses a logo key', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const ignored = await agent.patch(`/api/events/${SLUG}/settings`).send({
+        brand: { welcomeMessage: 'Piraté', logoUrl: null },
+        allowCaptions: false,
+      })
+      const refused = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ logo: 'ab'.repeat(32) })
+
+      expect(ignored.status).toBe(200)
+      expect(ignored.body.settings.brand.welcomeMessage).toBeNull()
+      expect(refused.status).toBe(400)
+    })
+
+    it('refuses the owner role only: a moderator cannot write the message', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'x' })
+
+      expect(response.status).toBe(403)
     })
 
     /* ---- Per-event theming (roadmap 2.2). ---- */

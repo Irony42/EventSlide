@@ -463,6 +463,10 @@ export const it: UiText = {
     'slug.tooLong': 'Questo indirizzo è troppo lungo.',
     'slug.malformed': 'L’indirizzo accetta solo lettere senza accento, cifre e trattini.',
     'slug.reserved': 'Questo indirizzo è riservato. Ne scelga un altro.',
+    'eventSettings.welcomeInvalid': 'Questo messaggio non è valido.',
+    'eventSettings.welcomeTooLong': 'Questo messaggio è troppo lungo.',
+    'eventSettings.welcomeTooManyLines': 'Questo messaggio ha troppe righe.',
+    'eventSettings.saveFailed': 'Non è stato possibile salvare le impostazioni. Riprovate.',
     'eventSettings.graceSecondsInvalid': 'Questo tempo di eliminazione non è accettato.',
     'eventSettings.retentionDaysInvalid': 'Questo periodo di conservazione non è accettato.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Questo numero di foto per invitato non è accettato.',
@@ -891,6 +895,33 @@ export const it: UiText = {
     printQr: 'Stampa il codice QR',
     qrScanPrompt: 'Scansioni per inviare le sue foto.',
     qrAlt: (eventName: string) => `Codice QR per entrare in ${eventName}`,
+    printKitTitle: 'Segnaposto e locandina',
+    printKitCrumb: 'Segnaposto e locandina',
+    printKitIntro:
+      'Stampi qualcosa da mettere sui tavoli: il codice QR, il codice di riserva e tre righe di istruzioni.',
+    printKitFormat: 'Formato',
+    printKitInk: 'Colore del codice QR',
+    printInkBlack: 'Nero (il più sicuro)',
+    printInkEvent: 'Colore dell’evento',
+    printFormatA4: 'Locandina A4 (1 per foglio)',
+    printFormatA5: 'Locandina A5 (2 per foglio)',
+    printFormatCard: 'Segnaposto A6 (4 per foglio)',
+    printKitLanguage: 'Lingua del supporto',
+    printKitLanguageHint: 'È la lingua della serata, non quella del suo schermo.',
+    printKitPrint: 'Stampa',
+    printKitPrinting: 'Aggiornamento del codice…',
+    printKitHelp:
+      'Nella finestra di stampa scelga A4, scala 100 %, senza intestazioni né piè di pagina. Il browser offre lì anche «Salva come PDF». Usi il pulsante Stampa: Ctrl+P non verifica il codice.',
+    printKitCodeChanged:
+      'Il codice della serata è cambiato: il foglio qui sotto è aggiornato. Getti via i vecchi.',
+    printKitClosed:
+      'Questa serata è chiusa: gli ospiti che scansionano non possono più entrare. Se la riapre, lo stesso codice torna valido.',
+    printKitDraft: 'Gli ospiti potranno entrare solo all’apertura della serata.',
+    printKitArchived:
+      'Questo evento è archiviato: il suo codice QR non porta più da nessuna parte.',
+    printKitBack: 'Torna all’evento',
+    printKitLongLink: 'Il link è lungo e il codice QR sarà piccolo. Preferisca la locandina.',
+    printKitPreview: 'Anteprima del foglio',
     storageLabel: 'Spazio foto utilizzato',
     storage: (used: string) => `${used} utilizzati`,
     rotateJoinCodeTitle: 'Cambiare il codice della serata?',
@@ -1082,6 +1113,12 @@ export const it: UiText = {
     venuePhotoBusy: 'Invio della foto…',
     venuePhotoSaved: 'La foto del vostro locale è salvata.',
     venuePhotoRemoved: 'La foto predefinita è stata ripristinata.',
+    welcomeMessage: 'Messaggio di benvenuto',
+    welcomeMessageHint:
+      'Poche parole mostrate ai vostri invitati quando si uniscono alla festa. Scrivete nella lingua dei vostri invitati: questo testo non viene tradotto. Chiunque abbia il codice QR può leggerlo, quindi non inseriteci nulla di privato.',
+    welcomeMessagePlaceholder: 'Benvenuti! Fate delle foto, le vedremo sullo schermo in sala.',
+    welcomeMessageClear: 'Cancella il messaggio',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
     customAmbianceEdit: 'Modifica la mia atmosfera',
     customAmbianceEntryHint:
@@ -1703,7 +1740,17 @@ export const it: UiText = {
     },
   },
 
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Condividi le tue foto della serata',
+    step1: 'Inquadra il codice QR con la fotocamera del telefono.',
+    step2: 'Invia le tue foto.',
+    step3: 'Compaiono sullo schermo della serata.',
+    fallback: (code: string, address: string) =>
+      `Niente codice QR? Digita il codice ${code} su ${address}.`,
+  },
   titles: {
+    print: 'Segnaposto e locandina',
     join: 'Entri nella serata',
     upload: 'Invio di foto',
     feed: 'Foto della serata',
