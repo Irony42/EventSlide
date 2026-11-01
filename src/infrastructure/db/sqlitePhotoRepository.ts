@@ -542,18 +542,22 @@ export class SqlitePhotoRepository implements PhotoRepository {
       filters.push('author_guest_id = ?')
       params.push(query.authoredBy)
     }
+    if (query.until !== undefined) {
+      filters.push('created_at <= ?')
+      params.push(toIsoText(query.until))
+    }
     if (query.highlightedOnly === true) {
       // Starred and published: a star cannot outlive `published`, but the status is asked
       // anyway, so a favourites page is never one a stale row could widen.
       filters.push("highlighted_at IS NOT NULL AND status = 'published'")
     }
-    const oldestFirst = query.oldestFirst === true
+    // `oldestFirst` (the best-of) and `order: 'asc'` (the photo book) ask for the same order.
+    const direction = query.order === 'asc' || query.oldestFirst === true ? 'ASC' : 'DESC'
     if (cursor !== null) {
-      // The keyset predicate, matching `ORDER BY created_at DESC, id DESC` (or ASC for
-      // `oldestFirst`). An OFFSET here would skip or repeat a photo every time a guest uploads
-      // mid-scroll.
+      // The keyset predicate, matching `ORDER BY created_at DESC, id DESC` (or ASC, ASC).
+      // An OFFSET here would skip or repeat a photo every time a guest uploads mid-scroll.
       filters.push(
-        oldestFirst
+        direction === 'ASC'
           ? '(created_at > ? OR (created_at = ? AND id > ?))'
           : '(created_at < ? OR (created_at = ? AND id < ?))',
       )
@@ -569,9 +573,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
         `SELECT ${PHOTO_COLUMNS}
            FROM photos
           WHERE ${filters.join(' AND ')}
-          ORDER BY ${oldestFirst ? 'created_at ASC, id ASC' : 'created_at DESC, id DESC'}${
-            limit === undefined ? '' : ' LIMIT ?'
-          }`,
+          ORDER BY created_at ${direction}, id ${direction}${limit === undefined ? '' : ' LIMIT ?'}`,
       )
       .all(...params)
 

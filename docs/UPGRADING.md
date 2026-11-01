@@ -696,7 +696,7 @@ changes. A host can now star a published photo (`F` on the moderation console) a
 stars as a ZIP from the event page. A star disappears when the photo leaves the wall (hidden or
 refused). An old admin tab keeps working, it simply cannot star.
 
-**Best-of, the montage engine (migration 021, no button yet).** The first boot also applies migration 019,
+**Best-of, the montage engine (migration 021, no button yet).** The first boot also applies migration 021,
 which adds the `highlight_reels` table (one row per event). The queue worker now also renders
 the montage of an event's favourites when one is asked for, **after** any clip is transcoded and
 one at a time; nothing asks for one until the montage surface ships. Five optional settings, all
@@ -704,3 +704,13 @@ with defaults that need no action: `REEL_ENABLED` (true), `REEL_MAX_PHOTOS` (60,
 `REEL_SECONDS_PER_PHOTO` (4, 2 to 8), `REEL_MAX_OUTPUT_BYTES` (150 MB) and `MAX_QUEUED_REELS` (2).
 A finished montage counts against the event's quota and its client's, and is **not** in the backup:
 it is made again on request.
+
+<!-- photo book -->
+
+**The photo book (PDF of the published album).** A host can ask for a PDF of the album. It adds
+a migration (`022_album_books`: two tables and `clients.books_allowed`, nothing is rewritten)
+and seven settings, all optional: `BOOK_ENABLED` (`true`; `false` turns the function off for the
+box, read at boot), `BOOK_MAX_PHOTOS` (300), `BOOK_MAX_BYTES` (300 MB), `BOOK_TTL_DAYS` (7),
+`BOOK_MAX_TOTAL_BYTES` (2 GB of finished books kept at once), `BOOK_MAX_WAIT_MINUTES` (10) and
+`BOOK_MAX_PER_EVENT_PER_DAY` (3). Finished books live in `<MEDIA_ROOT>/.books/`, outside the event
+folders and outside the backups: budget the disk for them.

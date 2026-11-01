@@ -58,6 +58,8 @@ interface Cursor {
  * `(createdAt DESC, id DESC)` scan without an offset. Offset paging would skip or
  * repeat a photo as guests keep uploading during a scroll.
  */
+const oldestFirst = (left: Photo, right: Photo): number => newestFirst(right, left)
+
 const encodeCursor = (photo: Photo): string => `${photo.createdAt.getTime()}:${photo.id}`
 
 const decodeCursor = (raw: string): Cursor | null => {
@@ -80,8 +82,8 @@ const isAfterCursor = (photo: Photo, cursor: Cursor): boolean => {
   return compareIds(photo.id, cursor.id) < 0
 }
 
-/** The mirror of {@link isAfterCursor} for an oldest-first scan. */
-const isBeforeCursor = (photo: Photo, cursor: Cursor): boolean => {
+/** Strictly after the cursor in `createdAt ASC, id ASC` order. */
+const isAfterCursorAscending = (photo: Photo, cursor: Cursor): boolean => {
   const createdAt = photo.createdAt.getTime()
   if (createdAt !== cursor.createdAt) return createdAt > cursor.createdAt
   return compareIds(photo.id, cursor.id) > 0
@@ -236,21 +238,21 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     }
     if (query.limit !== undefined) requirePositive(query.limit, 'list')
 
+    const ascending = query.order === 'asc' || query.oldestFirst === true
     const matching = this.visibleOf(eventId)
       .filter((photo) => query.statuses === undefined || query.statuses.includes(photo.status))
       .filter((photo) => this.matchesAuthor(photo, query.authoredBy))
+      .filter((photo) => query.until === undefined || photo.createdAt <= query.until)
       .filter(
         (photo) =>
           query.highlightedOnly !== true || (photo.isHighlighted && photo.status === 'published'),
       )
-      .sort(newestFirst)
-    if (query.oldestFirst === true) matching.reverse()
-    const paged = matching.filter(
-      (photo) =>
-        cursor === null ||
-        (query.oldestFirst === true ? isBeforeCursor(photo, cursor) : isAfterCursor(photo, cursor)),
-    )
-    matching.splice(0, matching.length, ...paged)
+      .filter(
+        (photo) =>
+          cursor === null ||
+          (ascending ? isAfterCursorAscending(photo, cursor) : isAfterCursor(photo, cursor)),
+      )
+      .sort(ascending ? oldestFirst : newestFirst)
 
     if (query.limit === undefined) return { items: matching, nextCursor: null }
 

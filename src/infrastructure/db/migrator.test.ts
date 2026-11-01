@@ -216,6 +216,8 @@ describe('the real schema', () => {
 
     expect(tableNames(db)).toEqual([
       'account_tokens',
+      'album_book_requests',
+      'album_books',
       'audit_log',
       'audit_prune_gate',
       'client_members',
@@ -1376,6 +1378,7 @@ describe('migration 008, clients', () => {
       'period_started_at',
       'events_created_in_period',
       'locale',
+      'books_allowed',
     ])
     closeDatabase(db)
   })
