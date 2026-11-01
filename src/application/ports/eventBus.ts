@@ -67,6 +67,13 @@ export type DomainEvent =
    * never anything on it.
    */
   | { readonly type: 'clip.failed'; readonly eventId: EventId; readonly clipJobId: ClipJobId }
+  /**
+   * The photo book of the event moved: asked for, started, finished, failed or voided. An
+   * invalidation signal with no data, like `mission.changed`: the console refetches. **For the
+   * host's console only**: `signalAudience.ts` keeps it off the public wall's stream, live and on
+   * replay. The book worker also wakes on it, to pick up a request without waiting for its tick.
+   */
+  | { readonly type: 'book.changed'; readonly eventId: EventId }
 
 export type Unsubscribe = () => void
 

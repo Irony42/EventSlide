@@ -292,6 +292,56 @@ describe('streamRoutes', () => {
     expect(text).not.toContain('id: 1\n')
   })
 
+  describe('the photo book signal (host console only)', () => {
+    const consoleCookie = (): Promise<string> =>
+      new Promise<string>((resolve, reject) => {
+        const request = http.request({ port, path: '/sign-in', method: 'POST' }, (response) => {
+          const cookie = response.headers['set-cookie']?.[0]?.split(';')[0]
+          if (cookie === undefined) reject(new Error('no session cookie'))
+          else resolve(cookie)
+          response.resume()
+        })
+        request.on('error', reject)
+        request.end()
+      })
+
+    it('never reaches a listener of the public wall channel, live', async () => {
+      const wall = await open('/api/events/mariage/stream')
+      await wall.waitFor((text) => text.includes(': connected'), 'connection')
+
+      subject.deps.bus.publish({ type: 'book.changed', eventId: asEventId(WEDDING) })
+      subject.deps.bus.publish(photoPublished(WEDDING))
+      await wall.waitFor((text) => text.includes('photo.moderated'), 'the signal after it')
+
+      expect(wall.frames.join('')).not.toContain('book.changed')
+    })
+
+    it('is not replayed to a public listener that reconnects with Last-Event-ID', async () => {
+      const cookie = await consoleCookie()
+      const host = await open('/api/events/mariage/moderation/stream', { cookie })
+      await host.waitFor((text) => text.includes(': connected'), 'the console')
+
+      subject.deps.bus.publish({ type: 'book.changed', eventId: asEventId(WEDDING) })
+      subject.deps.bus.publish(photoPublished(WEDDING))
+      await host.waitFor((text) => text.includes('id: 2'), 'both signals on the console')
+
+      const wall = await open('/api/events/mariage/stream', { 'last-event-id': '0' })
+      await wall.waitFor((text) => text.includes('photo.moderated'), 'the replay')
+
+      expect(wall.frames.join('')).not.toContain('book.changed')
+    })
+
+    it('reaches the moderation channel', async () => {
+      const cookie = await consoleCookie()
+      const host = await open('/api/events/mariage/moderation/stream', { cookie })
+      await host.waitFor((text) => text.includes(': connected'), 'the console')
+
+      subject.deps.bus.publish({ type: 'book.changed', eventId: asEventId(WEDDING) })
+
+      await host.waitFor((text) => text.includes('"type":"book.changed"'), 'the book signal')
+    })
+  })
+
   it('keeps no replay buffer for an event whose last client has left', async () => {
     // The buffer belongs to the event's live channel and goes when the last connection
     // does. It used to be a module-level map held for the lifetime of the process, so a
