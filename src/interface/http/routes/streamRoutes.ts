@@ -1,6 +1,7 @@
 import { Router, type RequestHandler, type Response } from 'express'
 import type { DomainEvent, Unsubscribe } from '../../../application/ports/eventBus'
 import type { Logger } from '../../../application/ports/logger'
+import { canReceiveSignal, type SignalAudience } from '../../../domain/shared/signalAudience'
 import type { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventId, UserId } from '../../../domain/shared/ids'
@@ -191,6 +192,12 @@ export interface StreamOptions {
    * open does not outlive the account behind it. Absent for the public wall, which has no account.
    */
   readonly member?: UserId
+  /**
+   * Who is listening: the public wall (the default, so a caller that says nothing never leaks) or
+   * the moderation console. A signal reserved to the console (`signalAudience.ts`) is neither
+   * written live nor replayed on `Last-Event-ID` to a public listener.
+   */
+  readonly audience?: SignalAudience
 }
 
 /**
@@ -212,13 +219,15 @@ export const openStream = ({
   res,
   suspension = 'ends',
   member,
+  audience = 'public',
 }: StreamOptions): Result<Unsubscribe, DomainError> => {
   let closed = false
   const channel = acquireChannel(eventId)
 
   const subscription = deps.bus.subscribe(eventId, (domainEvent, delivery) => {
     if (closed || res.writableEnded) return
-    writeSignal(res, channel.log.record(delivery.sequence, domainEvent.type))
+    const signal = channel.log.record(delivery.sequence, domainEvent.type)
+    if (canReceiveSignal(signal.type, audience)) writeSignal(res, signal)
   })
 
   if (!subscription.ok) {
@@ -242,7 +251,9 @@ export const openStream = ({
   // what `drainStreams` has to find and end at shutdown.
   openConnections.add(res)
 
-  for (const missed of channel.log.since(parseLastEventId(lastEventId))) writeSignal(res, missed)
+  for (const missed of channel.log.since(parseLastEventId(lastEventId))) {
+    if (canReceiveSignal(missed.type, audience)) writeSignal(res, missed)
+  }
 
   // A comment frame straight away, so a client behind a buffering proxy learns
   // immediately that bytes flow.
@@ -387,6 +398,7 @@ export const streamHandler =
       lastEventId: req.get('last-event-id'),
       res,
       suspension: channel === 'moderation' ? 'serves' : 'ends',
+      audience: channel === 'moderation' ? 'moderation' : 'public',
       ...(channel === 'moderation' && req.context.user !== undefined
         ? { member: req.context.user.userId }
         : {}),

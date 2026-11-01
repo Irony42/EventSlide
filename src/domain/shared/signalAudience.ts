@@ -13,4 +13,4 @@ export type SignalAudience = 'public' | 'moderation'
 export const MODERATION_ONLY_SIGNALS: readonly string[] = ['book.changed']
 
 export const canReceiveSignal = (type: string, audience: SignalAudience): boolean =>
-  !MODERATION_ONLY_SIGNALS.includes(type)
+  audience === 'moderation' || !MODERATION_ONLY_SIGNALS.includes(type)
