@@ -601,6 +601,9 @@ export const moderationQueueQuery = z.strictObject({
  */
 export const guestListQuery = z.strictObject({})
 
+/** The statistics page takes no parameter; sending one is a 400, as for the guest list. */
+export const eventStatsQuery = z.strictObject({})
+
 /**
  * The display timing overrides the Playwright suite drives, so a visual test does not
  * wait ten real seconds per slide.

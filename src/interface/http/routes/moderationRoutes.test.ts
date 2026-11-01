@@ -209,6 +209,9 @@ const usecasesFor = (
       archive: new FakeArchiveWriter({ emits: 'content' }),
       logger: new CapturingLogger(),
     }),
+    getEventStats: async () => {
+      throw new Error('getEventStats is not wired in this suite')
+    },
   }
 }
 

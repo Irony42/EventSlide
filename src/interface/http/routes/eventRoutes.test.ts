@@ -21,6 +21,9 @@ import { makeRevokeModerator } from '../../../application/usecases/events/revoke
 import { makeRotateJoinCode } from '../../../application/usecases/events/rotateJoinCode'
 import { makeScheduleEvent } from '../../../application/usecases/events/scheduleEvent'
 import { makeUpdateEventSettings } from '../../../application/usecases/events/updateEventSettings'
+import { makeGetEventStats } from '../../../application/usecases/stats/getEventStats'
+import { FakeEventStatsRepository } from '../../../application/testing/fakeEventStatsRepository'
+import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { makeListGuests } from '../../../application/usecases/guests/listGuests'
 import { makeRevokeGuest } from '../../../application/usecases/guests/revokeGuest'
 import {
@@ -156,6 +159,8 @@ interface World {
   readonly events: FakeEventRepository
   readonly clients: FakeClientRepository
   readonly guests: FakeGuestRepository
+  readonly photos: FakePhotoRepository
+  readonly reactions: FakeReactionRepository
   readonly memberships: FakeMembershipRepository
   readonly users: FakeUserRepository
   readonly tokens: FakeAccountTokenRepository
@@ -180,6 +185,7 @@ const buildWorld = ({
   const users = new FakeUserRepository()
   const photos = new FakePhotoRepository()
   const guests = new FakeGuestRepository()
+  const reactions = new FakeReactionRepository()
   const memberships = new FakeMembershipRepository({ users })
   // Linked, so a dashboard row carries the counts the SQLite join would really produce
   // and a membership carries the address of a real account.
@@ -359,6 +365,13 @@ const buildWorld = ({
         preselectHighlights: absent('preselectHighlights'),
         getHighlights: absent('getHighlights'),
         exportHighlights: absent('exportHighlights'),
+        getEventStats: makeGetEventStats({
+          events,
+          memberships,
+          guests,
+          stats: new FakeEventStatsRepository(photos, guests, reactions),
+          clock: deps.clock,
+        }),
       }
 
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))
@@ -471,7 +484,19 @@ const buildWorld = ({
     aGuest({ id: GALA_GUEST, eventId: GALA, displayName: 'Sacha', lastSeenAt: AT }),
   )
 
-  return { app: harness.app, events, clients, guests, memberships, users, tokens, mailer, media }
+  return {
+    app: harness.app,
+    events,
+    clients,
+    guests,
+    photos,
+    reactions,
+    memberships,
+    users,
+    tokens,
+    mailer,
+    media,
+  }
 }
 
 type Who =
@@ -555,6 +580,11 @@ const ROUTES: readonly RouteCase[] = [
     name: 'GET /events/:slug/guests',
     requires: 'moderator',
     call: (client, slug) => client.get(`/api/events/${slug}/guests`),
+  },
+  {
+    name: 'GET /events/:slug/stats',
+    requires: 'moderator',
+    call: (client, slug) => client.get(`/api/events/${slug}/stats`),
   },
   {
     name: 'POST /events/:slug/guests/:guestId/revoke',
@@ -2108,6 +2138,71 @@ describe('the host event routes', () => {
       await agent.delete(`/api/events/${SLUG}`)
 
       expect(await world.events.findById(GALA)).not.toBeNull()
+    })
+  })
+
+  describe('GET /api/events/:slug/stats', () => {
+    it('answers the page figures, derived, with no-store and the wire field list', async () => {
+      const agent = await signedIn(world, 'moderator')
+      const before = (await agent.get(`/api/events/${SLUG}/stats`)).body.uploads.total
+      world.guests.seed(aGuest({ id: WEDDING_GUEST, eventId: 'evt-wedding', displayName: 'Léa' }))
+      world.photos.seed(
+        aPhoto({
+          id: 'sp1',
+          eventId: 'evt-wedding',
+          author: { kind: 'guest', id: WEDDING_GUEST },
+          status: 'published',
+        }),
+        aPhoto({
+          id: 'sp2',
+          eventId: 'evt-wedding',
+          author: { kind: 'guest', id: WEDDING_GUEST },
+          status: 'rejected',
+        }),
+      )
+
+      const response = await agent.get(`/api/events/${SLUG}/stats`)
+
+      expect(response.status).toBe(200)
+      expect(response.headers['cache-control']).toBe('no-store')
+      expect(Object.keys(response.body).sort()).toEqual([
+        'anonymousContributors',
+        'engagement',
+        'guests',
+        'photos',
+        'reactions',
+        'topContributors',
+        'uploads',
+      ])
+      expect(response.body.uploads.total).toBe(before + 2)
+      expect(response.body.topContributors).toEqual([
+        { displayName: 'Léa', photos: 1, reactions: 0 },
+      ])
+      expect(response.body.engagement).toBeNull()
+    })
+
+    it("does not show another event's figures to this event's moderator", async () => {
+      world.photos.seed(
+        aPhoto({
+          id: 'gala-photo',
+          eventId: 'evt-gala',
+          author: { kind: 'host', id: GALA_OWNER },
+          status: 'published',
+        }),
+      )
+      const agent = await signedIn(world, 'moderator')
+
+      const own = await agent.get(`/api/events/${SLUG}/stats`)
+
+      expect(own.body.uploads.total).toBe(world.photos.ofEvent(WEDDING).length)
+    })
+
+    it('refuses a parameter with a 400', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent.get(`/api/events/${SLUG}/stats?since=today`)
+
+      expect(response.status).toBe(400)
     })
   })
 
