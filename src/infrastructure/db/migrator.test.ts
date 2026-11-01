@@ -223,6 +223,7 @@ describe('the real schema', () => {
       'clip_jobs',
       'event_memberships',
       'event_missions',
+      'event_stats_counters',
       'events',
       'guests',
       'photos',
