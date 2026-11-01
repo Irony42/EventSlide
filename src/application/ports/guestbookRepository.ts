@@ -48,11 +48,7 @@ export interface GuestbookRepository {
   save(entry: GuestbookEntry): Promise<void>
 
   /** The guest's own messages, newest first, at most `limit`. */
-  listByGuest(
-    eventId: EventId,
-    guestId: GuestId,
-    limit: number,
-  ): Promise<readonly GuestbookEntry[]>
+  listByGuest(eventId: EventId, guestId: GuestId, limit: number): Promise<readonly GuestbookEntry[]>
 
   /**
    * Every message this guest wrote that still exists, **taken-down ones included**: the per-guest
