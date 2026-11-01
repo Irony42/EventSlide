@@ -60,6 +60,7 @@ import type {
   SessionUserDto,
   ShareLinkCreatedDto,
   ShareLinkDto,
+  EngagementDto,
   EventStatsResponseDto,
   StatsContributorDto,
   StatsQuarterDto,
@@ -1061,5 +1062,5 @@ export const toEventStatsDto = (stats: EventStats): EventStatsResponseDto => ({
   },
   topContributors: stats.contributors.top.map((line): StatsContributorDto => ({ ...line })),
   anonymousContributors: { ...stats.contributors.anonymous },
-  engagement: stats.engagement === null ? null : { ...stats.engagement },
+  engagement: stats.engagement === null ? null : ({ ...stats.engagement } satisfies EngagementDto),
 })
