@@ -2,13 +2,9 @@
  * One A4 sheet. Every length is a token in millimetres, multiplied by --u: a screen
  * millimetre in the preview (the stage's width over 210), a real one on paper. No transform,
  * so the preview stays sharp at 320 px. Paper is white and drawn on screen only; the QR is
- * an SVG fill and needs no `print-color-adjust`.
+ * an SVG fill and needs no `print-color-adjust`. The `@page` rule is in `printPage.css`, which
+ * the page links only while it is mounted (an `@page` rule cannot be scoped any other way).
  */
-@page {
-  size: A4 portrait;
-  margin: 0;
-}
-
 .stage {
   container-type: inline-size;
   inline-size: 100%;
