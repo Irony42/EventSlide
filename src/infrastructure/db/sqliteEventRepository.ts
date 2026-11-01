@@ -10,6 +10,7 @@ import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName, foldName } from '../../domain/events/eventName'
+import { restoreWelcomeMessage } from '../../domain/events/welcomeMessage'
 import {
   EventSettings,
   isModerationMode,
@@ -470,6 +471,8 @@ const settingsOf = (raw: string): EventSettings => {
     wallLanguage: settingsLanguageAddedLater(decoded['wallLanguage']),
     /** Added by the host's venue photograph (ADR 0010); absent and malformed both read as none. */
     venuePhoto: settingsVenuePhotoAddedLater(decoded['venuePhoto']),
+    /** Added by spec 03; absent and malformed both read as none, and a cosmetic field never fails the read. */
+    welcomeMessage: restoreWelcomeMessage(decoded['welcomeMessage']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the

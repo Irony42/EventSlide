@@ -21,6 +21,7 @@ import {
   toGuestMissionDto,
   toGuestPhotoDto,
   toReactionsDto,
+  toEventBrandDto,
   toEventThemeDto,
   toRenamedGuestDto,
   toUploadResponseDto,
@@ -416,6 +417,7 @@ export const guestRoutes = ({
           // Read per request, through the presenter the join uses. The join's copy is a snapshot,
           // and this is the one read the upload screen makes that can learn the host changed it.
           theme: toEventThemeDto(event.settings, event.slug.value),
+          brand: toEventBrandDto(event.settings),
         }
         sendJson(response, body)
       })
