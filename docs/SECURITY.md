@@ -3577,6 +3577,27 @@ decoration refuse a guest's photograph. The disk guard still applies to the uplo
 - A restored backup whose archive lacks a named ground file leaves the settings naming bytes that are
   gone: the route answers 404 and the page shows the grade over no photograph until the host removes it.
 
+### 24.2 The host's logo (spec 03, a second upload surface)
+
+The venue photograph's pipeline for a smaller file, on `PUT /events/:slug/logo`: owner only, then a
+per-account budget of its own (10 an hour), then the disk guard, then the multipart parser with a
+**2 MiB** limit (not `MAX_UPLOAD_BYTES`). **PNG, JPEG or WebP only**, identified from the bytes; an SVG is
+code and is never identified, so it is `image.unsupportedFormat`. The header's pixel count is judged
+before any decode (the pixel budget, not the 2 MiB, bounds the CPU on the 4 GB box). The stored file is
+re-encoded WebP (transparency kept), every metadata block stripped, at most 640 by 320 and **256 KiB**,
+named by its digest under its own variant (`logo`). It is **not** counted against the byte quota (one file
+per event, replaced in place).
+
+| Rule                                                                                                                                                                                                                           | Where it is held                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Serving: the URL's digest must be the one _this_ event's settings name; every refusal (unknown slug, bad digest, another event's digest, masked event, suspended client, draft for the public) is the same `404 logo.notFound` | `getEventLogoMedia.test.ts`, `logoRoutes.test.ts`, `suspension.container.test.ts`             |
+| Purge hold and operator take-down: a held event refuses `PUT` and `DELETE` with `logo.saveFailed`; a masked event does not serve the file                                                                                      | `takedownSurfaces.test.ts`, `takedown.container.test.ts`                                      |
+| Client side: `brand.logoUrl` is an `<img src>` only if it matches `/api/events/<slug>/logo/<64 hex>`                                                                                                                           | `brand.test.ts`, `LogoField.test.tsx`                                                         |
+| Sweep, backup and purge know the settings name a second file                                                                                                                                                                   | `sweepOrphanedMedia.test.ts`, `backupArchive.test.ts`; `media.deleteEvent` removes the folder |
+
+A settings save in flight cannot erase a logo: `updateEventSettings` reads the event again just before it
+saves (`updateEventSettings.test.ts`, the race cases).
+
 ### 24.1 The host's welcome message (spec 03)
 
 A free text the host writes (280 code points, 4 lines), shown to every holder of the join code

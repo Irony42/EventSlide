@@ -2614,6 +2614,8 @@ event_, never "is logged in".
 | `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event                |
 | `PUT`    | `/api/events/:slug/venue-photo`            | owner     | 200 | Own venue photograph; answers the full event    |
 | `DELETE` | `/api/events/:slug/venue-photo`            | owner     | 200 | Back to the bundled one; answers the full event |
+| `PUT`    | `/api/events/:slug/logo`                   | owner     | 200 | Own logo; answers the full event                |
+| `DELETE` | `/api/events/:slug/logo`                   | owner     | 200 | Take the logo down; answers the full event      |
 | `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event  |
 | `PATCH`  | `/api/events/:slug/schedule`               | owner     | 200 | Scheduled open/close; answers the full event    |
 | `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code        |
@@ -3006,6 +3008,45 @@ and `Range` is honoured (`206`, `416`) by the same code as a photograph's. **Eve
 same `404 venuePhoto.notFound`**: an unknown slug, a malformed digest, another event's digest and a
 draft are indistinguishable, so the route is not an oracle for which events or digests exist.
 
+### `PUT /api/events/:slug/logo` and `DELETE`
+
+The host's logo (spec 03), shown on the guests' join page and on the empty wall. **Owner only**, with
+the venue photograph's answers: `401 auth.required`, `404 event.notFound`, `403 auth.forbidden` for a
+moderator, `403 client.suspended`, `409 event.immutable` on an archived event. All of it is decided
+before a byte is buffered.
+
+`PUT` takes `multipart/form-data` with **one** file part named `file` and no text part. **PNG, JPEG
+or WebP only**, identified from the bytes (the filename and `Content-Type` are never read): an SVG,
+an AVIF, a HEIF or a GIF is `400 image.unsupportedFormat`. It answers the full event, whose
+`brand.logoUrl` is now the logo's URL.
+
+| Status | `error.code`                | When                                                           |
+| ------ | --------------------------- | -------------------------------------------------------------- |
+| 400    | `upload.noFiles`            | no `file` part                                                 |
+| 400    | `image.unsupportedFormat`   | `image.corrupt`                                                | `image.animated`                                                  | not one still PNG, JPEG or WebP |
+| 413    | `upload.tooLarge`           | above **2 MiB** on the wire (not `MAX_UPLOAD_BYTES`)           |
+| 413    | `photo.pixelBudgetExceeded` | `logo.tooLarge`                                                | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 256 KiB |
+| 413    | `storage.boxFull`           | the disk guard                                                 |
+| 429    | `rate.limited`              | more than ten logos an hour from one account (its own counter) |
+| 500    | `logo.saveFailed`           | `photo.mediaWriteFailed`                                       | a failed save; **also** `PUT` and `DELETE` under a purge hold     |
+
+The stored file is the pipeline's output: rotated upright, **every metadata block stripped**, at most
+640 by 320 (never enlarged) and re-encoded as WebP at quality 85 **with its transparency kept**, named
+by the SHA-256 of those bytes under the event. Not counted against the byte quota (one file per
+event, at most 256 KiB). `event.settingsChanged` is published. `DELETE` answers the full event with
+`logoUrl: null` and is **idempotent**.
+
+`logo` is **not** a settings key: `PATCH /settings` answers `400` for it, and a `brand` key in its body
+is read and ignored.
+
+### `GET /api/events/:slug/logo/:hash`
+
+The venue photograph's route, for the logo: the bytes, through the application, readable by the
+projector and a guest while the event serves its wall and by a moderator at any time, only for the
+digest the event's settings name right now. `Content-Type: image/webp`, `nosniff`, `inline`, ETag
+`"<hash>-logo"`, `Cache-Control: private, max-age=31536000, immutable`, `Range` honoured. **Every
+refusal is the same `404 logo.notFound`**, including a masked event and a suspended client.
+
 ### `PATCH /api/events/:slug/settings`
 
 A **partial** update. Every field is optional, and an absent key means "leave it alone" —
@@ -3076,7 +3117,7 @@ rather than behind one of its own.
 
 #### `brand` — the host's words to their guests (spec 03)
 
-`brand: { welcomeMessage: string | null }` is on `PublicEventDto` (the join response), on the wall response, on `GET /events/:slug/photos/mine` (read per request, so a guest sees a message changed after they joined on their next open) and, for the host, inside `settings`. It is **content**: shown as written and never translated. It is absent from the shared gallery. A client may send it back inside `settings`; the server ignores it, and the message is written only by the top-level `welcomeMessage` key.
+`brand: { welcomeMessage: string | null, logoUrl: string | null }` is on `PublicEventDto` (the join response), on the wall response, on `GET /events/:slug/photos/mine` (read per request, so a guest sees a message changed after they joined on their next open) and, for the host, inside `settings`. It is **content**: shown as written and never translated. It is absent from the shared gallery. A client may send it back inside `settings`; the server ignores it, and the message is written only by the top-level `welcomeMessage` key.
 
 #### `wallLanguage` — what language the room's screen speaks
 
