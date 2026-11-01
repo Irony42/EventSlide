@@ -15,3 +15,4 @@
 
 package-lock.json -diff linguist-generated
 tests/e2e/__screenshots__/** binary -diff
+*.ttf binary
