@@ -412,6 +412,7 @@ const KEYS = new Set([
   'maxEventQuotaBytes',
   'maxRetentionDays',
   'clipsAllowed',
+  'booksAllowed',
   'liveAllowed',
   'maxLiveDays',
   'maxEventsPerPeriod',

@@ -99,6 +99,7 @@ describe('POST /api/site/clients', () => {
         maxRetentionDays: 30,
         maxLiveDays: null,
         clipsAllowed: false,
+        booksAllowed: false,
       },
     })
 
@@ -217,13 +218,14 @@ describe('each of the nine ceilings, on its own, reaches the use case', () => {
     ['maxEventQuotaBytes', 4_000],
     ['maxRetentionDays', 60],
     ['clipsAllowed', false],
+    ['booksAllowed', false],
     ['liveAllowed', false],
     ['maxLiveDays', 4],
     ['maxEventsPerPeriod', 6],
     ['periodStartedAt', AT.toISOString()],
   ]
 
-  it('names exactly the nine ceilings of the catalogue, so a tenth cannot go untested', () => {
+  it('names exactly the ten ceilings of the catalogue, so an eleventh cannot go untested', () => {
     expect(EACH.map(([key]) => key).sort()).toEqual(
       Object.keys(ClientCeilings.unlimited().toProps()).sort(),
     )
@@ -339,6 +341,7 @@ describe('PUT /api/site/clients/:clientId/ceilings', () => {
         maxEventQuotaBytes: null,
         maxRetentionDays: 60,
         clipsAllowed: true,
+        booksAllowed: true,
         liveAllowed: true,
         maxLiveDays: null,
         maxEventsPerPeriod: null,

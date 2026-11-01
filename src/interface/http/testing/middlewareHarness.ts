@@ -59,6 +59,7 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     maxRetentionDays: null,
     maxLiveDays: null,
     clipsAllowed: true,
+    booksAllowed: true,
   },
   // Off, as on a box that never set a key: no enrolment is offered and nothing is required of an
   // operator. A test about the second factor passes `secondFactor` through `config`.

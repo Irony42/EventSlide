@@ -43,6 +43,7 @@ import {
   mfaEncryptionKey,
   newClientCeiling,
   newClientClipsAllowed,
+  newClientBooksAllowed,
   operatorResetLinks,
   requireOperator2fa,
   siteAdmin,
@@ -567,6 +568,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         CLIENT_MAX_LIVE_DAYS,
       ),
       NEW_CLIENT_CLIPS_ALLOWED: newClientClipsAllowed,
+      NEW_CLIENT_BOOKS_ALLOWED: newClientBooksAllowed,
 
       /** See {@link smtpUrl}. Absent means no mail: the composition root wires `NullMailer`. */
       SMTP_URL: smtpUrl,

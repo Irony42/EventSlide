@@ -17,5 +17,6 @@ export const toClientDefaultsDto = (defaults: NewClientDefaults): ClientDefaults
     maxRetentionDays: defaults.maxRetentionDays,
     maxLiveDays: defaults.maxLiveDays,
     clipsAllowed: defaults.clipsAllowed,
+    booksAllowed: defaults.booksAllowed,
   },
 })

@@ -448,6 +448,7 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
         NEW_CLIENT_MAX_EVENTS: '2',
         NEW_CLIENT_MAX_LIVE_DAYS: '3',
         NEW_CLIENT_CLIPS_ALLOWED: 'false',
+        NEW_CLIENT_BOOKS_ALLOWED: 'false',
       })
       // A bootstrapped owner must choose a new password before anything else; not what is under test.
       booted.db.prepare('UPDATE users SET must_change_password = 0').run()
@@ -475,6 +476,7 @@ describe('createContainer: the audit log is wired end to end (roadmap 10.8)', ()
           maxRetentionDays: null,
           maxLiveDays: 3,
           clipsAllowed: false,
+          booksAllowed: false,
         },
       })
     })

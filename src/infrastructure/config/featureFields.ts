@@ -343,3 +343,10 @@ export const bootstrapOwnerPassword = z.string().superRefine((value, ctx) => {
     message: `BOOTSTRAP_OWNER_PASSWORD must satisfy the same policy as any other account password: at least ${Password.minLength} characters, and not a guessable one (${parsed.error.code})`,
   })
 })
+
+/**
+ * `NEW_CLIENT_BOOKS_ALLOWED`: whether a client created on this box may make photo books (PDF of
+ * the album), as {@link newClientClipsAllowed} reads its sibling: `true`, `false`, `1` or `0`,
+ * absent or blank meaning "allowed".
+ */
+export const newClientBooksAllowed = z.preprocess(blankAsAbsent, boolish.optional())

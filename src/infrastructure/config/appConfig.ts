@@ -352,5 +352,6 @@ export interface AppConfig {
     readonly maxRetentionDays: number | null
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
+    readonly booksAllowed: boolean
   }
 }

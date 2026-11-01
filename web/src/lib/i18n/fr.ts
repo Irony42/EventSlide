@@ -1505,6 +1505,7 @@ export const fr = {
       'Cette durée d’évènement en cours n’est pas acceptée : de 1 à 365 jours.',
     'clientCeilings.periodStartedAtInvalid': 'Ce début de période n’est pas accepté.',
     'clientCeilings.clipsAllowedInvalid': 'Ce réglage des vidéos n’est pas accepté.',
+    'clientCeilings.booksAllowedInvalid': 'Ce réglage des livres photo n’est pas accepté.',
     'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
     'siteLookup.queryInvalid':
       'Saisissez un identifiant, un code, une adresse ou un nom d’évènement (300 caractères au plus).',
@@ -2117,6 +2118,7 @@ export const fr = {
     maxRetentionDays: 'Conservation après la fin de l’évènement, en jours, au plus',
     maxLiveDays: 'Durée d’un évènement en cours, en jours, au plus',
     clipsAllowed: 'Vidéos autorisées',
+    booksAllowed: 'Livres photo (PDF) autorisés',
     liveAllowed: 'Ouverture d’évènements autorisée',
     renewPeriod: 'Renouveler la période maintenant',
     renewPeriodHint: 'Remet à zéro le compteur d’évènements créés sur la période.',

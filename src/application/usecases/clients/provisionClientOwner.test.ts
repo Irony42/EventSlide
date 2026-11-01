@@ -41,6 +41,7 @@ const NO_DEFAULTS: NewClientDefaults = {
   maxRetentionDays: null,
   maxLiveDays: null,
   clipsAllowed: true,
+  booksAllowed: true,
 }
 
 /** A tier a hosted box might configure: every ceiling set, the two byte counts told apart. */
@@ -52,6 +53,7 @@ const A_TIER: NewClientDefaults = {
   maxRetentionDays: 30,
   maxLiveDays: 3,
   clipsAllowed: true,
+  booksAllowed: true,
 }
 
 const nullMailer: Mailer = {
