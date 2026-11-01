@@ -116,6 +116,16 @@ describe('PrintKitPage', () => {
     expect(stored).not.toContain('H7K2QM')
   })
 
+  it('links the @page rule only while the page is mounted', async () => {
+    const { unmount } = renderPage(apiFor())
+    await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+    expect(document.head.querySelectorAll('link[data-print-page]')).toHaveLength(1)
+
+    unmount()
+
+    expect(document.head.querySelectorAll('link[data-print-page]')).toHaveLength(0)
+  })
+
   it('shows 4, 2 or 1 copies for the three formats', async () => {
     const user = userEvent.setup()
     renderPage(apiFor())

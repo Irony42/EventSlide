@@ -11,6 +11,7 @@ import { SelectField, type SelectOption } from './components/SelectField'
 import { useEvent } from './hooks/useEventData'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import { PrintSheet } from './print/PrintSheet'
+import { usePrintPageRule } from './print/usePrintPageRule'
 import {
   DEFAULT_PRINT_FORMAT,
   PRINT_FORMATS,
@@ -62,6 +63,7 @@ export function PrintKitPage() {
     setSeenCode(event.joinCode)
   }
 
+  usePrintPageRule()
   useRevalidateWhenVisible(reload)
 
   // The print waits for the reload it asked for, and never happens when that reload failed.

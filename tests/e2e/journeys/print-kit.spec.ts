@@ -32,7 +32,9 @@ const pathOf = (qr: Locator): Promise<string> =>
     .getAttribute('d')
     .then((d) => d ?? '')
 
-test.beforeEach((_fixtures, testInfo) => {
+// Playwright insists on a destructured first argument.
+// eslint-disable-next-line no-empty-pattern
+test.beforeEach(({}, testInfo) => {
   test.skip(
     testInfo.project.name !== 'chromium-desktop',
     'print rendering is a Chromium behaviour; the other engines would assert the same',
