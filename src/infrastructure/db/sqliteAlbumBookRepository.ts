@@ -167,6 +167,16 @@ export class SqliteAlbumBookRepository implements AlbumBookRepository {
     }
   }
 
+  async findNextQueued(): Promise<AlbumBook | null> {
+    const row = this.db
+      .prepare<[], BookRow>(
+        `SELECT ${COLUMNS} FROM album_books WHERE status = 'queued'
+          ORDER BY requested_at ASC, event_id ASC LIMIT 1`,
+      )
+      .get()
+    return row === undefined ? null : toBook(row)
+  }
+
   async claimNext(now: Date): Promise<AlbumBook | null> {
     return this.db
       .transaction((): AlbumBook | null => {

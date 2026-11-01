@@ -51,3 +51,14 @@ export const checkBookDailyLimit = (
  */
 export const bookRetryAfterSeconds = (oldestInWindow: Date, now: Date): number =>
   Math.max(1, Math.ceil((oldestInWindow.getTime() + BOOK_WINDOW_MS - now.getTime()) / 1000))
+
+/**
+ * A `display` rendition (2560 px, q82) is reduced to at most 1600 px before it is placed in the
+ * PDF; what the book weighs is a fraction of what the renditions weigh. Half is the estimate
+ * the spike's measurement supports with a margin, and it is only used to refuse a book that
+ * cannot fit **before** rendering; the writer still stops at the real ceiling.
+ */
+export const BOOK_REDUCTION_RATIO = 0.5
+
+export const estimateBookBytes = (displayBytes: number): number =>
+  Math.ceil(displayBytes * BOOK_REDUCTION_RATIO)

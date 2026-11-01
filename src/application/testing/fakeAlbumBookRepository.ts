@@ -27,12 +27,17 @@ export class FakeAlbumBookRepository implements AlbumBookRepository {
     this.books.set(book.eventId, book)
   }
 
+  async findNextQueued(): Promise<AlbumBook | null> {
+    return (
+      [...this.books.values()]
+        .filter((book) => book.status === 'queued')
+        .sort((left, right) => left.requestedAt.getTime() - right.requestedAt.getTime())[0] ?? null
+    )
+  }
+
   async claimNext(now: Date): Promise<AlbumBook | null> {
-    const queued = [...this.books.values()]
-      .filter((book) => book.status === 'queued')
-      .sort((left, right) => left.requestedAt.getTime() - right.requestedAt.getTime())
-    const next = queued[0]
-    if (next === undefined) return null
+    const next = await this.findNextQueued()
+    if (next === null) return null
     const started = startBook(next, now)
     if (!started.ok) return null
     this.books.set(next.eventId, started.value)

@@ -171,6 +171,15 @@ export const albumBookRepositoryContract = (
       expect((await repo.find(GALA))?.status).toBe('queued')
     })
 
+    it('shows the oldest queued book without claiming it', async () => {
+      expect(await repo.findNextQueued()).toBeNull()
+      await request(GALA, 5)
+      const oldest = await request(WEDDING, 0)
+
+      expect(await repo.findNextQueued()).toEqual(oldest)
+      expect((await repo.find(WEDDING))?.status).toBe('queued')
+    })
+
     it('claims nothing when no book is queued, and never claims a running book twice', async () => {
       expect(await repo.claimNext(at(1))).toBeNull()
       await request(WEDDING)
