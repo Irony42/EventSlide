@@ -1049,7 +1049,10 @@ export const toPendingInvitationsDto = (
 ): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })
 
 /** A guest's own message: no author (it is theirs), and `canDelete` is the server's verdict. */
-export const toGuestbookEntryDto = (entry: GuestbookEntry, canDelete: boolean): GuestbookEntryDto => ({
+export const toGuestbookEntryDto = (
+  entry: GuestbookEntry,
+  canDelete: boolean,
+): GuestbookEntryDto => ({
   id: entry.id,
   text: entry.text.value,
   status: entry.status,

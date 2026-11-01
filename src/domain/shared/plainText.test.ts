@@ -85,9 +85,7 @@ describe('toMultiLine', () => {
   })
 
   it('keeps at most one blank line in a row', () => {
-    expect(toMultiLine(`a${NEWLINE}${NEWLINE}${NEWLINE}${NEWLINE}b`)).toBe(
-      `a${NEWLINE}${NEWLINE}b`,
-    )
+    expect(toMultiLine(`a${NEWLINE}${NEWLINE}${NEWLINE}${NEWLINE}b`)).toBe(`a${NEWLINE}${NEWLINE}b`)
   })
 
   it('trims both ends and may come out empty', () => {
