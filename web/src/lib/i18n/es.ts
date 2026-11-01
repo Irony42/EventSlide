@@ -912,7 +912,8 @@ export const es: UiText = {
     qrAlt: (eventName: string) => `Código QR para unirse a ${eventName}`,
     printKitTitle: 'Tarjetas de mesa y cartel',
     printKitCrumb: 'Tarjetas y cartel',
-    printKitIntro: 'Imprima algo para poner en las mesas: el código QR, el código de respaldo y tres líneas de instrucciones.',
+    printKitIntro:
+      'Imprima algo para poner en las mesas: el código QR, el código de respaldo y tres líneas de instrucciones.',
     printKitFormat: 'Formato',
     printFormatA4: 'Cartel A4 (1 por hoja)',
     printFormatA5: 'Cartel A5 (2 por hoja)',
@@ -921,9 +922,12 @@ export const es: UiText = {
     printKitLanguageHint: 'Es el idioma de la velada, no el de su pantalla.',
     printKitPrint: 'Imprimir',
     printKitPrinting: 'Actualizando el código…',
-    printKitHelp: 'En la ventana de impresión, elija A4, escala 100 %, sin encabezados ni pies de página. Su navegador también ofrece allí «Guardar como PDF». Use el botón Imprimir: Ctrl+P no comprueba el código.',
-    printKitCodeChanged: 'El código de la velada ha cambiado: la hoja de abajo está al día. Tire las anteriores.',
-    printKitClosed: 'Esta velada está cerrada: los invitados que escaneen ya no pueden unirse. Si la reabre, el mismo código vuelve a valer.',
+    printKitHelp:
+      'En la ventana de impresión, elija A4, escala 100 %, sin encabezados ni pies de página. Su navegador también ofrece allí «Guardar como PDF». Use el botón Imprimir: Ctrl+P no comprueba el código.',
+    printKitCodeChanged:
+      'El código de la velada ha cambiado: la hoja de abajo está al día. Tire las anteriores.',
+    printKitClosed:
+      'Esta velada está cerrada: los invitados que escaneen ya no pueden unirse. Si la reabre, el mismo código vuelve a valer.',
     printKitDraft: 'Los invitados solo podrán unirse cuando se abra la velada.',
     printKitArchived: 'Este evento está archivado: su código QR ya no lleva a ninguna parte.',
     printKitBack: 'Volver al evento',
@@ -1753,7 +1757,8 @@ export const es: UiText = {
     step1: 'Escanee el código QR con la cámara de su teléfono.',
     step2: 'Envíe sus fotos.',
     step3: 'Se unen a la pantalla de la velada.',
-    fallback: (code: string, address: string) => `¿Sin código QR? Escriba el código ${code} en ${address}.`,
+    fallback: (code: string, address: string) =>
+      `¿Sin código QR? Escriba el código ${code} en ${address}.`,
   },
   titles: {
     print: 'Tarjetas de mesa y cartel',

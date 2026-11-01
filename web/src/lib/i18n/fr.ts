@@ -1068,7 +1068,8 @@ export const fr = {
     qrAlt: (eventName: string) => `QR code pour rejoindre ${eventName}`,
     printKitTitle: 'Cartes de table et affiche',
     printKitCrumb: 'Cartes et affiche',
-    printKitIntro: 'Imprimez de quoi poser sur les tables : le QR code, le code de secours et trois lignes d’explication.',
+    printKitIntro:
+      'Imprimez de quoi poser sur les tables : le QR code, le code de secours et trois lignes d’explication.',
     printKitFormat: 'Format',
     printFormatA4: 'Affiche A4 (1 par feuille)',
     printFormatA5: 'Affiche A5 (2 par feuille)',
@@ -1077,9 +1078,12 @@ export const fr = {
     printKitLanguageHint: 'C’est la langue de la soirée, pas celle de votre écran.',
     printKitPrint: 'Imprimer',
     printKitPrinting: 'Mise à jour du code…',
-    printKitHelp: 'Dans la fenêtre d’impression, choisissez A4, échelle 100 %, sans en-têtes ni pieds de page. Votre navigateur y propose aussi « Enregistrer au format PDF ». Utilisez le bouton Imprimer : Ctrl+P ne vérifie pas le code.',
-    printKitCodeChanged: 'Le code de la soirée a changé : le support ci-dessous est à jour. Jetez les anciens.',
-    printKitClosed: 'Cette soirée est fermée : les invités qui scannent ne peuvent plus rejoindre. Si vous la rouvrez, le même code redevient valable.',
+    printKitHelp:
+      'Dans la fenêtre d’impression, choisissez A4, échelle 100 %, sans en-têtes ni pieds de page. Votre navigateur y propose aussi « Enregistrer au format PDF ». Utilisez le bouton Imprimer : Ctrl+P ne vérifie pas le code.',
+    printKitCodeChanged:
+      'Le code de la soirée a changé : le support ci-dessous est à jour. Jetez les anciens.',
+    printKitClosed:
+      'Cette soirée est fermée : les invités qui scannent ne peuvent plus rejoindre. Si vous la rouvrez, le même code redevient valable.',
     printKitDraft: 'Les invités ne pourront rejoindre qu’à l’ouverture de la soirée.',
     printKitArchived: 'Cet évènement est archivé : son QR code ne mène plus nulle part.',
     printKitBack: 'Retour à l’évènement',
@@ -2401,7 +2405,8 @@ export const fr = {
     step1: 'Scannez le QR code avec l’appareil photo de votre téléphone.',
     step2: 'Envoyez vos photos.',
     step3: 'Elles rejoignent l’écran de la soirée.',
-    fallback: (code: string, address: string) => `Pas de QR code ? Tapez le code ${code} sur ${address}.`,
+    fallback: (code: string, address: string) =>
+      `Pas de QR code ? Tapez le code ${code} sur ${address}.`,
   },
   titles: {
     print: 'Cartes de table et affiche',

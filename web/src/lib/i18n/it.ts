@@ -891,7 +891,8 @@ export const it: UiText = {
     qrAlt: (eventName: string) => `Codice QR per entrare in ${eventName}`,
     printKitTitle: 'Segnaposto e locandina',
     printKitCrumb: 'Segnaposto e locandina',
-    printKitIntro: 'Stampi qualcosa da mettere sui tavoli: il codice QR, il codice di riserva e tre righe di istruzioni.',
+    printKitIntro:
+      'Stampi qualcosa da mettere sui tavoli: il codice QR, il codice di riserva e tre righe di istruzioni.',
     printKitFormat: 'Formato',
     printFormatA4: 'Locandina A4 (1 per foglio)',
     printFormatA5: 'Locandina A5 (2 per foglio)',
@@ -900,11 +901,15 @@ export const it: UiText = {
     printKitLanguageHint: 'È la lingua della serata, non quella del suo schermo.',
     printKitPrint: 'Stampa',
     printKitPrinting: 'Aggiornamento del codice…',
-    printKitHelp: 'Nella finestra di stampa scelga A4, scala 100 %, senza intestazioni né piè di pagina. Il browser offre lì anche «Salva come PDF». Usi il pulsante Stampa: Ctrl+P non verifica il codice.',
-    printKitCodeChanged: 'Il codice della serata è cambiato: il foglio qui sotto è aggiornato. Getti via i vecchi.',
-    printKitClosed: 'Questa serata è chiusa: gli ospiti che scansionano non possono più entrare. Se la riapre, lo stesso codice torna valido.',
+    printKitHelp:
+      'Nella finestra di stampa scelga A4, scala 100 %, senza intestazioni né piè di pagina. Il browser offre lì anche «Salva come PDF». Usi il pulsante Stampa: Ctrl+P non verifica il codice.',
+    printKitCodeChanged:
+      'Il codice della serata è cambiato: il foglio qui sotto è aggiornato. Getti via i vecchi.',
+    printKitClosed:
+      'Questa serata è chiusa: gli ospiti che scansionano non possono più entrare. Se la riapre, lo stesso codice torna valido.',
     printKitDraft: 'Gli ospiti potranno entrare solo all’apertura della serata.',
-    printKitArchived: 'Questo evento è archiviato: il suo codice QR non porta più da nessuna parte.',
+    printKitArchived:
+      'Questo evento è archiviato: il suo codice QR non porta più da nessuna parte.',
     printKitBack: 'Torna all’evento',
     printKitLongLink: 'Il link è lungo e il codice QR sarà piccolo. Preferisca la locandina.',
     printKitPreview: 'Anteprima del foglio',
@@ -1725,7 +1730,8 @@ export const it: UiText = {
     step1: 'Inquadra il codice QR con la fotocamera del telefono.',
     step2: 'Invia le tue foto.',
     step3: 'Compaiono sullo schermo della serata.',
-    fallback: (code: string, address: string) => `Niente codice QR? Digita il codice ${code} su ${address}.`,
+    fallback: (code: string, address: string) =>
+      `Niente codice QR? Digita il codice ${code} su ${address}.`,
   },
   titles: {
     print: 'Segnaposto e locandina',
