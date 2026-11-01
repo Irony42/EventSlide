@@ -4,6 +4,7 @@ import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
+import { MAX_PRESELECT_LIMIT } from '../../../domain/highlights/highlightEligibility'
 import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
 import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
 import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
@@ -647,6 +648,10 @@ export const wallQuery = z.strictObject({
  * of forty photos is not a podium. The default is what the client asks for when it
  * sends no query at all.
  */
+export const preselectHighlightsBody = z.strictObject({
+  limit: z.number().int().min(1).max(MAX_PRESELECT_LIMIT),
+})
+
 export const topPhotosQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 })

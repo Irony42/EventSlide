@@ -404,6 +404,8 @@ export const en: UiText = {
 
     'photo.notFound': 'This photo no longer exists.',
     'photo.illegalTransition': 'This action is not possible on this photo.',
+    'highlight.notPublished': 'Only a published photo can be a favourite.',
+    'highlight.empty': 'No favourites yet.',
 
     'image.unsupportedFormat': 'This file is not a photo. Accepted formats: JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'This photo looks damaged. Try another one.',
@@ -690,6 +692,10 @@ export const en: UiText = {
         one: `${t.number(count)} photo taken off the screen. It stays in your album.`,
         other: `${t.number(count)} photos taken off the screen. They stay in your album.`,
       }),
+    highlight: 'Favourite',
+    highlightAddHint: 'Add to favourites',
+    highlightRemoveHint: 'Remove from favourites',
+    shortcutsFavourite: 'F to add to favourites.',
     decisionFailed: 'The decision could not be saved. Try again.',
     undoFailed: 'The decision could not be undone. Try again.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
@@ -1192,6 +1198,20 @@ export const en: UiText = {
     shareLinkReplace: 'Replace with a new link',
     shareLinkReplaceHint: 'The current link will stop working at once.',
     shareLinkCreated: 'Here is the link. Copy it now: it will not be shown again.',
+    bestOf: 'Best-of',
+    bestOfHint: 'Your favourite photos, to take home after the party.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} favourite`,
+        other: `${t.number(count)} favourites`,
+      }),
+    bestOfNone: 'No favourites yet. Star your favourite photos in moderation.',
+    bestOfPreselect: 'Pre-select the most liked',
+    bestOfPreselected: (limit: number) =>
+      `The ${t.number(limit)} most liked photos are now favourites. You can remove some or add more.`,
+    bestOfPreselectNothing:
+      'Nothing to add: the most liked photos are already favourites, or nobody has reacted yet.',
+    bestOfDownload: 'Download favourites (ZIP)',
     shareLinkUrl: 'Link address',
     shareLinkCopy: 'Copy the link',
     shareLinkCopied: 'Link copied.',

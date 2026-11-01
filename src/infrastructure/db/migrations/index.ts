@@ -18,6 +18,7 @@ import { migration016 } from './016_event_name_fold'
 import { migration017 } from './017_user_terms_acceptance'
 import { migration018 } from './018_event_stats_counters'
 import { migration019 } from './019_guestbook_entries'
+import { migration020 } from './020_photo_highlights'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -46,4 +47,5 @@ export const migrations: readonly Migration[] = [
   migration017,
   migration018,
   migration019,
+  migration020,
 ]

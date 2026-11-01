@@ -437,6 +437,8 @@ export const de: UiText = {
 
     'photo.notFound': 'Dieses Foto gibt es nicht mehr.',
     'photo.illegalTransition': 'Diese Aktion ist bei diesem Foto nicht möglich.',
+    'highlight.notPublished': 'Nur ein veröffentlichtes Foto kann ein Favorit sein.',
+    'highlight.empty': 'Noch keine Favoriten.',
 
     'image.unsupportedFormat':
       'Diese Datei ist kein Foto. Zulässige Formate: JPEG, PNG, HEIC, WebP.',
@@ -744,6 +746,10 @@ export const de: UiText = {
         one: `${t.number(count)} Foto vom Bildschirm genommen. Es bleibt in Ihrem Album.`,
         other: `${t.number(count)} Fotos vom Bildschirm genommen. Sie bleiben in Ihrem Album.`,
       }),
+    highlight: 'Favorit',
+    highlightAddHint: 'Als Favorit markieren',
+    highlightRemoveHint: 'Aus den Favoriten entfernen',
+    shortcutsFavourite: 'F, um als Favorit zu markieren.',
     decisionFailed: 'Die Entscheidung konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     undoFailed: 'Das Rückgängigmachen konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     dimensions: (width: number, height: number) => `${width} × ${height} Pixel`,
@@ -1253,6 +1259,21 @@ export const de: UiText = {
     shareLinkReplaceHint: 'Der aktuelle Link funktioniert dann sofort nicht mehr.',
     shareLinkCreated:
       'Hier ist der Link. Kopieren Sie ihn jetzt: Er wird nicht noch einmal angezeigt.',
+    bestOf: 'Best-of',
+    bestOfHint: 'Ihre Lieblingsfotos zum Mitnehmen nach dem Fest.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Favorit`,
+        other: `${t.number(count)} Favoriten`,
+      }),
+    bestOfNone:
+      'Noch keine Favoriten. Markieren Sie Ihre Lieblingsfotos in der Moderation mit einem Stern.',
+    bestOfPreselect: 'Beliebteste Fotos vorauswählen',
+    bestOfPreselected: (limit: number) =>
+      `Die ${t.number(limit)} beliebtesten Fotos sind jetzt Favoriten. Sie können welche entfernen oder hinzufügen.`,
+    bestOfPreselectNothing:
+      'Nichts hinzuzufügen: Die beliebtesten Fotos sind bereits Favoriten, oder noch niemand hat reagiert.',
+    bestOfDownload: 'Favoriten herunterladen (ZIP)',
     shareLinkUrl: 'Adresse des Links',
     shareLinkCopy: 'Link kopieren',
     shareLinkCopied: 'Link kopiert.',

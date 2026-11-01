@@ -439,6 +439,8 @@ export interface ModerationPhotoDto {
   readonly kind: MediaKind
   readonly videoUrl: string | null
   readonly durationMs: number | null
+  /** The host's star (spec 08): on the moderation DTOs only, never a guest's, the wall's or the gallery's. */
+  readonly highlighted: boolean
 }
 
 export interface BulkModerationResponseDto {
@@ -726,6 +728,8 @@ export interface ModerationQueueItemDto {
    * the screen and answer `photo.illegalTransition` to the click.
    */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /** The host's star (spec 08). */
+  readonly highlighted: boolean
 }
 
 export interface ModerationQueuePageDto {
@@ -1264,6 +1268,18 @@ export interface OperatorPasswordResetByLinkDto {
 /** A union: the link exists in the type only on the variant that is allowed to carry one. */
 export type OperatorPasswordResetDto =
   OperatorPasswordResetByMailDto | OperatorPasswordResetPendingDto | OperatorPasswordResetByLinkDto
+
+// ---------------------------------------------------------------- best-of (spec 08) --
+
+/** `GET /events/:eventSlug/highlights`: how many favourites can be exported. */
+export interface HighlightsDto {
+  readonly count: number
+}
+
+/** `POST /events/:eventSlug/highlights/preselect`: how many stars it put. */
+export interface PreselectHighlightsResponseDto {
+  readonly added: number
+}
 
 // ------------------------------------------------------------------- statistics --
 

@@ -687,3 +687,11 @@ people on the night.
   appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
 - **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
   are fixed.
+
+<!-- Best-of (spec 08): keep this block together; other changes of 3.5 add their own. -->
+
+**Best-of, favourites (migration 020).** The first boot applies migration 020, which adds one
+nullable column, `photos.highlighted_at`, and a partial index. Nothing is rewritten and no photo
+changes. A host can now star a published photo (`F` on the moderation console) and download the
+stars as a ZIP from the event page. A star disappears when the photo leaves the wall (hidden or
+refused). An old admin tab keeps working, it simply cannot star.

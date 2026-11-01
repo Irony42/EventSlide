@@ -364,6 +364,10 @@ const buildWorld = ({
         withdrawReaction: absent('withdrawReaction'),
         getPhotoReactions: absent('getPhotoReactions'),
         getTopPhotos: absent('getTopPhotos'),
+        setPhotoHighlight: absent('setPhotoHighlight'),
+        preselectHighlights: absent('preselectHighlights'),
+        getHighlights: absent('getHighlights'),
+        exportHighlights: absent('exportHighlights'),
         getEventStats: makeGetEventStats({
           events,
           memberships,

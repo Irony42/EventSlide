@@ -725,6 +725,11 @@ export const fr = {
         one: `${t.number(count)} photo retirée de l’écran. Elle reste dans votre album.`,
         other: `${t.number(count)} photos retirées de l’écran. Elles restent dans votre album.`,
       }),
+    // Spec 08: the host's favourites, starred in the moderation console.
+    highlight: 'Favori',
+    highlightAddHint: 'Mettre en favori',
+    highlightRemoveHint: 'Retirer des favoris',
+    shortcutsFavourite: 'F pour mettre en favori.',
     decisionFailed: 'La décision n’a pas pu être enregistrée. Réessayez.',
     undoFailed: 'L’annulation n’a pas pu être enregistrée. Réessayez.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
@@ -1449,6 +1454,21 @@ export const fr = {
     shareLinkReplaceHint: 'Le lien actuel cessera immédiatement de fonctionner.',
     /** Only its digest is stored, so this is the one moment the address exists. */
     shareLinkCreated: 'Voici le lien. Copiez-le maintenant : il ne sera plus affiché.',
+    // Spec 08: the best-of panel on the event page.
+    bestOf: 'Best-of',
+    bestOfHint: 'Vos photos favorites, à emporter après la soirée.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} favori`,
+        other: `${t.number(count)} favoris`,
+      }),
+    bestOfNone: 'Aucun favori pour l’instant. Étoilez vos photos préférées dans la modération.',
+    bestOfPreselect: 'Pré-sélectionner les plus aimées',
+    bestOfPreselected: (limit: number) =>
+      `Les ${t.number(limit)} photos les plus aimées sont maintenant en favori. Vous pouvez en retirer ou en ajouter.`,
+    bestOfPreselectNothing:
+      'Aucune photo à ajouter : les plus aimées sont déjà en favori, ou personne n’a encore réagi.',
+    bestOfDownload: 'Télécharger les favoris (ZIP)',
     shareLinkUrl: 'Adresse du lien',
     shareLinkCopy: 'Copier le lien',
     shareLinkCopied: 'Lien copié.',
@@ -1761,6 +1781,8 @@ export const fr = {
 
     'photo.notFound': 'Cette photo n’existe plus.',
     'photo.illegalTransition': 'Cette action n’est pas possible sur cette photo.',
+    'highlight.notPublished': 'Seule une photo publiée peut être mise en favori.',
+    'highlight.empty': 'Aucun favori pour l’instant.',
 
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',

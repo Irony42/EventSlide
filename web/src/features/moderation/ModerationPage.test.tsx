@@ -266,6 +266,8 @@ describe('ModerationPage', () => {
       expect(buttonNames(card)).toEqual([
         fr.moderation.hidePhoto('Léa'),
         fr.moderation.rejectPhoto('Léa'),
+        // The host's star, offered on a photo that is on the wall (spec 08).
+        fr.moderation.highlight,
       ])
     })
 
@@ -1457,5 +1459,95 @@ describe('a clip in the queue', () => {
 
     expect(screen.queryByText(fr.moderation.videoBadge)).toBeNull()
     expect(screen.getByRole('button', { name: fr.moderation.enlargePhoto('Léa') })).toBeVisible()
+  })
+})
+
+describe('the console favourites (spec 08)', () => {
+  beforeEach(() => {
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const renderPublished = (api: Api) => {
+    renderConsole(api)
+    return showPublished()
+  }
+
+  it('offers the star on a published photo only, as a pressed-state toggle named Favori', async () => {
+    const api = fakeApi(
+      moderationServer([lea({ status: 'published' }), sacha({ status: 'pending' })], {
+        filtered: false,
+      }),
+    )
+    renderConsole(api)
+
+    const published = await screen.findByRole('article', { name: fr.moderation.photoOf('Léa') })
+
+    expect(
+      within(published).getByRole('button', { name: fr.moderation.highlight }),
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(
+      within(cardOf('Sacha')).queryByRole('button', { name: fr.moderation.highlight }),
+    ).toBeNull()
+  })
+
+  it('stars the photo at once, tells the server, and unstars it on the second press', async () => {
+    const api = fakeApi(moderationServer([lea({ status: 'published' })]))
+    await renderPublished(api)
+    const star = await within(await screen.findByTestId('moderation-card')).findByRole('button', {
+      name: fr.moderation.highlight,
+    })
+
+    await userEvent.click(star)
+    expect(star).toHaveAttribute('aria-pressed', 'true')
+    expect(api.highlightPhoto).toHaveBeenCalledWith(SLUG, 'photo-1')
+
+    await userEvent.click(star)
+    expect(star).toHaveAttribute('aria-pressed', 'false')
+    expect(api.unhighlightPhoto).toHaveBeenCalledWith(SLUG, 'photo-1')
+  })
+
+  it('puts the star back and says why when the server refuses it', async () => {
+    const api = fakeApi({
+      ...moderationServer([lea({ status: 'published' })]),
+      highlightPhoto: vi.fn(async () => {
+        throw new ApiError(409, 'highlight.notPublished')
+      }),
+    })
+    await renderPublished(api)
+    const star = await within(await screen.findByTestId('moderation-card')).findByRole('button', {
+      name: fr.moderation.highlight,
+    })
+
+    await userEvent.click(star)
+
+    await waitFor(() => expect(star).toHaveAttribute('aria-pressed', 'false'))
+    expect(screen.getByRole('alert')).toHaveTextContent(fr.errors['highlight.notPublished'])
+  })
+
+  it('shows a photo the server says is starred as pressed', async () => {
+    const api = fakeApi(moderationServer([lea({ status: 'published', highlighted: true })]))
+    await renderPublished(api)
+
+    expect(
+      await within(await screen.findByTestId('moderation-card')).findByRole('button', {
+        name: fr.moderation.highlight,
+      }),
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('stars the photo under the keyboard with F', async () => {
+    const api = fakeApi(moderationServer([lea({ status: 'published' })]))
+    await renderPublished(api)
+    await screen.findByTestId('moderation-card')
+    await userEvent.keyboard('j')
+
+    await userEvent.keyboard('f')
+
+    await waitFor(() => expect(api.highlightPhoto).toHaveBeenCalledWith(SLUG, 'photo-1'))
   })
 })

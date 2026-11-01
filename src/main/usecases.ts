@@ -96,6 +96,10 @@ import { makeModeratePhoto } from '../application/usecases/moderation/moderatePh
 import { makeModeratePhotosBulk } from '../application/usecases/moderation/moderatePhotosBulk'
 
 import { makeDeletePhoto } from '../application/usecases/photos/deletePhoto'
+import { makeExportHighlights } from '../application/usecases/highlights/exportHighlights'
+import { makeGetHighlights } from '../application/usecases/highlights/getHighlights'
+import { makePreselectHighlights } from '../application/usecases/highlights/preselectHighlights'
+import { makeSetPhotoHighlight } from '../application/usecases/highlights/setPhotoHighlight'
 import { makeExportAlbum } from '../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../application/usecases/photos/identifyMediaViewer'
@@ -743,6 +747,27 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       guestbook: adapters.guestbook,
       guests: adapters.guests,
+      media: adapters.media,
+      archive: adapters.archive,
+      logger: adapters.logger,
+    }),
+
+    // ------------------------------------------------- favourites (spec 08) --
+    setPhotoHighlight: makeSetPhotoHighlight({
+      events: adapters.events,
+      photos: adapters.photos,
+      clock: adapters.clock,
+    }),
+    preselectHighlights: makePreselectHighlights({
+      events: adapters.events,
+      photos: adapters.photos,
+      reactions: adapters.reactions,
+      clock: adapters.clock,
+    }),
+    getHighlights: makeGetHighlights({ events: adapters.events, photos: adapters.photos }),
+    exportHighlights: makeExportHighlights({
+      events: adapters.events,
+      photos: adapters.photos,
       media: adapters.media,
       archive: adapters.archive,
       logger: adapters.logger,

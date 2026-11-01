@@ -26,6 +26,8 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
   have it removed — written from your event's own settings, in the guest's language, so
   it cannot say something your configuration does not do. Read once per phone, and shown
   again if you change one of those settings mid-evening.
+- **Your favourites, in one ZIP.** Star the best photos in the moderation console (or pre-select the
+  most liked), then download just those from the event page.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.
 - **And your guests', with one link.** The morning after, make a shared gallery link on

@@ -176,6 +176,8 @@ const DOCUMENTED_CODES: readonly string[] = [
 
   'photo.notFound',
   'photo.illegalTransition',
+  'highlight.notPublished',
+  'highlight.empty',
   'photo.captionEditForbidden',
   'photo.deleteForbidden',
 
