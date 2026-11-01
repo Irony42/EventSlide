@@ -18,7 +18,7 @@ import styles from './GuestbookCard.module.css'
  * checked locally is that the box is not empty, so the button is not pressed on nothing. The
  * counter is a courtesy and states the limit the server owns (`maxLength`, from the event).
  *
- * The text is kept when a send fails, and is only ever a text node: never `dangerouslySetInnerHTML`.
+ * The text is kept when a send fails, and is only ever a text node: never injected as markup.
  */
 
 /** Said aloud once the guest is at four fifths of the limit, and again at the limit. */
