@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { groupByLocalHour } from './uploadsByHour'
 import { uploadPeak } from './uploadPeak'
 
@@ -43,7 +43,21 @@ describe('groupByLocalHour', () => {
   })
 
   it('reads the browser’s own zone by default', () => {
-    expect(groupByLocalHour([quarter('2026-06-20T19:00:00.000Z', 1)])).toHaveLength(1)
+    // `getTimezoneOffset` is minus the offset: India, +5 h 30, answers -330.
+    const zone = vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(-330)
+    try {
+      const hours = groupByLocalHour([
+        quarter('2026-06-20T18:15:00.000Z', 4),
+        quarter('2026-06-20T18:30:00.000Z', 6),
+      ])
+
+      expect(hours.map((hour) => [hour.hour, hour.count])).toEqual([
+        [23, 4],
+        [0, 6],
+      ])
+    } finally {
+      zone.mockRestore()
+    }
   })
 
   it('answers nothing for no quarter', () => {

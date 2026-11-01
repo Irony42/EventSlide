@@ -164,27 +164,35 @@ describe('EventStatsPage', () => {
     expect(getEventStats).toHaveBeenCalledTimes(1)
   })
 
-  it('turns five signals in five seconds into one read, and ignores reactions', async () => {
+  it('turns a burst of signals into one read, and ignores reactions', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const getEventStats = vi.fn(async () => busy())
     renderPage(fakeApi({ getEventStats }))
     await waitFor(() => expect(getEventStats).toHaveBeenCalledTimes(1))
 
+    // One signal a second: apart enough that each would get a read of its own without the window.
     for (const type of [
       'photo.uploaded',
       'photo.moderated',
       'guest.joined',
       'photo.deleted',
       'guest.erased',
+      'reaction.added',
     ]) {
       emitSignal(type)
+      await act(async () => {
+        vi.advanceTimersByTime(800)
+      })
     }
-    emitSignal('reaction.added')
-    await act(async () => {
-      vi.advanceTimersByTime(SIGNAL_DEBOUNCE_MS)
-    })
+    // Let every timer there is run out, a step at a time so each one's read can render.
+    for (let step = 0; step < 14; step += 1) {
+      await act(async () => {
+        vi.advanceTimersByTime(800)
+      })
+    }
 
     await waitFor(() => expect(getEventStats).toHaveBeenCalledTimes(2))
+    expect(getEventStats).toHaveBeenCalledTimes(2)
   })
 
   it('does not read again for reactions alone', async () => {
