@@ -11,6 +11,7 @@ import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makePurgeEvent } from '../events/purgeEvent'
 import { makeDeletePhoto } from '../photos/deletePhoto'
+import { makeRemoveEventLogo } from '../brand/removeEventLogo'
 import { makeRemoveVenuePhoto } from '../venue/removeVenuePhoto'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { requireReadable, requireWritable } from '../shared/eventRole'
@@ -186,6 +187,23 @@ describe('a purge hold', () => {
     expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
       'unexpected',
       'venuePhoto.saveFailed',
+    ])
+  })
+
+  it('stops the host removing the logo, whose bytes it would delete', async () => {
+    const remove = makeRemoveEventLogo({
+      events,
+      memberships,
+      media,
+      bus: new RecordingEventBus(),
+      logger: new CapturingLogger(),
+    })
+
+    const result = await remove({ eventId: EVENT, actorId: OWNER })
+
+    expect(!result.ok && [result.error.kind, result.error.code]).toEqual([
+      'unexpected',
+      'logo.saveFailed',
     ])
   })
 })

@@ -59,8 +59,8 @@ const aBrowser = async (booted: Container) => {
     patch: async (path: string, body: object = {}) =>
       note(await agent.patch(path).set(CSRF_HEADER, csrf).send(body)),
     delete: async (path: string) => note(await agent.delete(path).set(CSRF_HEADER, csrf)),
-    putFile: async (path: string, bytes: Buffer) =>
-      note(await agent.put(path).set(CSRF_HEADER, csrf).attach('photo', bytes, 'lieu.jpg')),
+    putFile: async (path: string, bytes: Buffer, field = 'photo') =>
+      note(await agent.put(path).set(CSRF_HEADER, csrf).attach(field, bytes, 'lieu.jpg')),
     upload: async (path: string, bytes: Buffer) =>
       note(await agent.post(path).set(CSRF_HEADER, csrf).attach('photos', bytes, 'photo.jpg')),
   }
@@ -376,6 +376,11 @@ describe('a purge hold', () => {
       .toBuffer()
     const replaced = await s.host.putFile(`/api/events/${SLUG}/venue-photo`, jpeg)
     expect([replaced.status, replaced.body.error.code]).toEqual([500, 'venuePhoto.saveFailed'])
+    // The logo (spec 03) is a file too: under a hold it is neither replaced nor taken down.
+    const logoGone = await s.host.delete(`/api/events/${SLUG}/logo`)
+    expect([logoGone.status, logoGone.body.error.code]).toEqual([500, 'logo.saveFailed'])
+    const logoReplaced = await s.host.putFile(`/api/events/${SLUG}/logo`, jpeg, 'file')
+    expect([logoReplaced.status, logoReplaced.body.error.code]).toEqual([500, 'logo.saveFailed'])
     expect([purged.status, purged.body.error.code]).toEqual([500, 'event.mediaPurgeFailed'])
     expect([deleted.status, deleted.body.error.code]).toEqual([500, 'photo.deleteFailed'])
   })

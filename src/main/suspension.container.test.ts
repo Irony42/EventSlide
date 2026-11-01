@@ -383,10 +383,15 @@ describe('a suspended client, through the real composition root', () => {
     { method: 'delete', path: '/api/events/:eventSlug/share-link', body: {} },
     // The host's own photograph of the venue (ADR 0010): the removal here, the upload below.
     { method: 'delete', path: '/api/events/:eventSlug/venue-photo', body: {} },
+    // The host's logo (spec 03): the removal here, the upload below.
+    { method: 'delete', path: '/api/events/:eventSlug/logo', body: {} },
   ]
 
   /** The one host write that is a file, so it needs a body this loop cannot send. */
-  const HOST_FILE_WRITES: readonly string[] = ['PUT /api/events/:eventSlug/venue-photo']
+  const HOST_FILE_WRITES: readonly string[] = [
+    'PUT /api/events/:eventSlug/venue-photo',
+    'PUT /api/events/:eventSlug/logo',
+  ]
 
   /** The guest's own writes: a guest's device token, never a host's session, and a suspended client's guests are the 404 above. */
   const GUEST_WRITES: readonly string[] = [
@@ -457,6 +462,28 @@ describe('a suspended client, through the real composition root', () => {
 
     const refused = await s.stranger.get(url)
     expect([refused.status, refused.body.error?.code]).toEqual([404, 'venuePhoto.notFound'])
+    expect((await s.guest.get(url)).status).toBe(404)
+    expect((await s.operator.get(url)).status).toBe(404)
+  })
+
+  it('refuses a host’s logo on a frozen event, and stops serving it to the public and to its host', async () => {
+    const s = await scene()
+    const logo = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } },
+    })
+      .png()
+      .toBuffer()
+    const put = await s.operator.putFile(`/api/events/${SLUG}/logo`, 'file', logo)
+    expect(put.status, JSON.stringify(put.body)).toBe(200)
+    const url = put.body.settings.brand.logoUrl as string
+    expect((await s.stranger.get(url)).status).toBe(200)
+
+    await suspend(s)
+
+    const again = await s.operator.putFile(`/api/events/${SLUG}/logo`, 'file', logo)
+    expect([again.status, again.body.error?.code]).toEqual([403, 'client.suspended'])
+    const refused = await s.stranger.get(url)
+    expect([refused.status, refused.body.error?.code]).toEqual([404, 'logo.notFound'])
     expect((await s.guest.get(url)).status).toBe(404)
     expect((await s.operator.get(url)).status).toBe(404)
   })

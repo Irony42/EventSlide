@@ -913,7 +913,7 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
       .set('Cookie', cookie(ended.harness.issueGuestToken('ended-id', GUEST)))
 
     expect(response.status).toBe(200)
-    expect(response.body.brand).toEqual({ welcomeMessage: 'Merci d’être venus' })
+    expect(response.body.brand).toMatchObject({ welcomeMessage: 'Merci d’être venus' })
   })
 
   it('carries the event’s look as it is now, so a guest who joined before a change learns of it', async () => {

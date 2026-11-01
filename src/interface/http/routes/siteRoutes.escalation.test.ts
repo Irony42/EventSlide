@@ -107,6 +107,7 @@ const PUBLIC_AND_UNWIRED: ReadonlySet<string> = new Set([
   'get /api/events/:eventSlug/wall',
   'get /api/events/:eventSlug/photos/:photoId/:variant',
   'get /api/events/:eventSlug/venue-photo/:hash',
+  'get /api/events/:eventSlug/logo/:hash',
 ])
 
 const isLeftOut = (route: Route): boolean =>
