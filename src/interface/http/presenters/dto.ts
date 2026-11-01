@@ -107,6 +107,10 @@ export interface PublicEventDto {
   readonly maxFilesPerUpload: number
   /** The host's switch over video. `false` means: do not offer the control at all. */
   readonly allowClips: boolean
+  /** The host's switch over written messages (spec 01). `false` means: do not offer the card. */
+  readonly allowGuestbook: boolean
+  /** The longest message, in characters, so the phone states a limit the server owns. */
+  readonly guestbookMaxLength: number
   /** `MAX_CLIP_BYTES`. Separate from `maxUploadBytes`, which is the photo path's. */
   readonly maxClipBytes: number
   /** `MAX_CLIP_SECONDS`. Seconds, because that is the unit a guest is told about. */
@@ -157,6 +161,11 @@ export interface PrivacyNoticeDto {
    * operator is asked to read this one.
    */
   readonly operator?: string
+  /**
+   * Present (and `true`) only when guests may leave guestbook messages (spec 01): the notice then
+   * reads for a message too. Part of `revision` only in that case.
+   */
+  readonly guestbook?: true
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */
@@ -191,6 +200,36 @@ export interface RenamedGuestDto {
 export interface ErasedContributionDto {
   readonly photos: number
   readonly clips: number
+  /** Guestbook messages removed with them (spec 01). */
+  readonly messages: number
+}
+
+/** One of a guest's own guestbook messages (`GET /api/events/:slug/guestbook/mine`). */
+export interface GuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The server's verdict (`GuestbookEntry.deletionVerdict`): the phone never recomputes it. */
+  readonly canDelete: boolean
+}
+
+export interface MyGuestbookDto {
+  readonly items: readonly GuestbookEntryDto[]
+  /** Whether a new message would be taken now: the switch, the event's state and the window. */
+  readonly accepting: boolean
+  /** Whether published messages appear on the wall: said to their authors in the status. */
+  readonly onWall: boolean
+}
+
+/** What a message just written answers (`POST /api/events/:slug/guestbook`). */
+export interface CreatedGuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** True when this was the same message sent a moment ago: nothing new was stored. */
+  readonly duplicate: boolean
 }
 
 export interface JoinResponseDto {
@@ -400,6 +439,8 @@ export interface ModerationPhotoDto {
   readonly kind: MediaKind
   readonly videoUrl: string | null
   readonly durationMs: number | null
+  /** The host's star (spec 08): on the moderation DTOs only, never a guest's, the wall's or the gallery's. */
+  readonly highlighted: boolean
 }
 
 export interface BulkModerationResponseDto {
@@ -417,6 +458,10 @@ export interface EventSettingsDto {
    * is an apology, while this is a decision.
    */
   readonly allowClips: boolean
+  /** The host's switch over written guestbook messages (spec 01). */
+  readonly allowGuestbook: boolean
+  /** Whether published messages appear on the projected wall (spec 01). */
+  readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null
@@ -683,6 +728,8 @@ export interface ModerationQueueItemDto {
    * the screen and answer `photo.illegalTransition` to the click.
    */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /** The host's star (spec 08). */
+  readonly highlighted: boolean
 }
 
 export interface ModerationQueuePageDto {
@@ -1221,6 +1268,18 @@ export interface OperatorPasswordResetByLinkDto {
 /** A union: the link exists in the type only on the variant that is allowed to carry one. */
 export type OperatorPasswordResetDto =
   OperatorPasswordResetByMailDto | OperatorPasswordResetPendingDto | OperatorPasswordResetByLinkDto
+
+// ---------------------------------------------------------------- best-of (spec 08) --
+
+/** `GET /events/:eventSlug/highlights`: how many favourites can be exported. */
+export interface HighlightsDto {
+  readonly count: number
+}
+
+/** `POST /events/:eventSlug/highlights/preselect`: how many stars it put. */
+export interface PreselectHighlightsResponseDto {
+  readonly added: number
+}
 
 // ------------------------------------------------------------------- statistics --
 

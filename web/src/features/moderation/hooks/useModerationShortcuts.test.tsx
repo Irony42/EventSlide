@@ -17,6 +17,7 @@ const makeHandlers = (): Handlers => ({
   onPublish: vi.fn<() => void>(),
   onReject: vi.fn<() => void>(),
   onHide: vi.fn<() => void>(),
+  onHighlight: vi.fn<() => void>(),
   onUndo: vi.fn<() => void>(),
   onToggleSelect: vi.fn<() => void>(),
   onClear: vi.fn<() => void>(),
@@ -51,6 +52,7 @@ describe('useModerationShortcuts', () => {
     ['p', 'onPublish'],
     ['r', 'onReject'],
     ['h', 'onHide'],
+    ['f', 'onHighlight'],
     ['z', 'onUndo'],
   ] as const)('runs %s as %s', async (key, handler) => {
     const handlers = makeHandlers()

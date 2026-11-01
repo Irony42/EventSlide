@@ -10,6 +10,8 @@ import { asEventId } from '../../domain/shared/ids'
 import { closeDatabase, openDatabase, type Db } from '../db/connection'
 import { migrate } from '../db/migrator'
 import { migrations } from '../db/migrations'
+import { SqliteGuestRepository } from '../db/sqliteGuestRepository'
+import { SqliteGuestbookRepository } from '../db/sqliteGuestbookRepository'
 import { SqlitePhotoRepository } from '../db/sqlitePhotoRepository'
 import { archiverWriter } from './archiverWriter'
 import { createFsMediaStore } from './fsMediaStore'
@@ -79,6 +81,8 @@ describe('the host’s album with the real archiver, filesystem and database', (
       exportAlbum: makeExportAlbum({
         events,
         photos,
+        guestbook: new SqliteGuestbookRepository(db),
+        guests: new SqliteGuestRepository(db),
         media,
         archive: archiverWriter,
         logger: new CapturingLogger(),

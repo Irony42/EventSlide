@@ -152,7 +152,7 @@ export function ModerationToolbar({
 
       <p className={styles['shortcuts']}>
         <span className={styles['shortcutsLabel']}>{t.moderation.shortcuts}</span>{' '}
-        {t.moderation.shortcutsHint} {t.moderation.shortcutsMore}
+        {t.moderation.shortcutsHint} {t.moderation.shortcutsMore} {t.moderation.shortcutsFavourite}
       </p>
     </div>
   )

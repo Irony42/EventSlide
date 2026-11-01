@@ -88,6 +88,7 @@ describe('the scope', () => {
         'errors',
         'feed',
         'gallery',
+        'guestbook',
         'join',
         'mobileModeration',
         'moderation',

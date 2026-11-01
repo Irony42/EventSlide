@@ -5,6 +5,8 @@ import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { ThemeCustom } from '../../../domain/events/eventTheme'
 import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
+import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import { GUESTBOOK_TEXT_MAX_LENGTH } from '../../../domain/guestbook/guestbookText'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
 import type { User } from '../../../domain/users/user'
@@ -18,6 +20,8 @@ import type { PendingInvitation } from '../../../application/usecases/clients/li
 import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
+  CreatedGuestbookEntryDto,
+  GuestbookEntryDto,
   CeilingMeterDto,
   CeilingsDto,
   ClientAuditEntryDto,
@@ -266,6 +270,8 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   allowCaptions: settings.allowCaptions,
   allowReactions: settings.allowReactions,
   allowClips: settings.allowClips,
+  allowGuestbook: settings.allowGuestbook,
+  guestbookOnWall: settings.guestbookOnWall,
   allowGuestSelfDelete: settings.allowGuestSelfDelete,
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
   retentionDays: settings.retentionDays,
@@ -305,6 +311,8 @@ export const toPublicEventDto = (
   // `EventSettingsDto.allowClips` answers for the host — that one is their own switch, and it
   // stays exactly as they set it whatever this deployment or their plan can do.
   allowClips: clipsAccepted && context.clipLimits.supported,
+  allowGuestbook: event.settings.allowGuestbook,
+  guestbookMaxLength: GUESTBOOK_TEXT_MAX_LENGTH,
   maxClipBytes: context.clipLimits.maxBytes,
   maxClipSeconds: context.clipLimits.maxSeconds,
   // Unlike the switches above, this is not a permission: it is what the host's event
@@ -328,6 +336,8 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   selfRemovalSeconds: notice.selfRemovalSeconds,
   // Absent, not `null`, on a box that named nobody: the answer stays what it always was.
   ...(notice.operator === null ? {} : { operator: notice.operator }),
+  // Present only when true, like the operator: a box without a guestbook answers what it always did.
+  ...(notice.guestbook ? { guestbook: true as const } : {}),
 })
 
 export const toPrivacyNoticeStateDto = ({
@@ -425,6 +435,7 @@ export const toModerationPhotoDto = ({
   byteSize: photo.byteSize,
   createdAt: iso(photo.createdAt),
   ...toMediaFacetDto(photo, slug),
+  highlighted: photo.isHighlighted,
 })
 
 export const toGuestDto = (guest: Guest): GuestDto => ({
@@ -500,6 +511,7 @@ export const toModerationQueueItemDto = ({
   durationMs: row.durationMs,
   // The status machine's answer, not a copy of it: see `allowedDecisionsFrom`.
   allowedDecisions: allowedDecisionsFrom(row.status),
+  highlighted: row.highlighted,
 })
 
 /**
@@ -1056,6 +1068,30 @@ const toPendingInvitationDto = (invitation: PendingInvitation): PendingInvitatio
 export const toPendingInvitationsDto = (
   invitations: readonly PendingInvitation[],
 ): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })
+
+/** A guest's own message: no author (it is theirs), and `canDelete` is the server's verdict. */
+export const toGuestbookEntryDto = (
+  entry: GuestbookEntry,
+  canDelete: boolean,
+): GuestbookEntryDto => ({
+  id: entry.id,
+  text: entry.text.value,
+  status: entry.status,
+  createdAt: entry.createdAt.toISOString(),
+  canDelete,
+})
+
+/** The answer to writing one: what was stored and whether it was the same message again. */
+export const toCreatedGuestbookEntryDto = (
+  entry: GuestbookEntry,
+  duplicate: boolean,
+): CreatedGuestbookEntryDto => ({
+  id: entry.id,
+  text: entry.text.value,
+  status: entry.status,
+  createdAt: entry.createdAt.toISOString(),
+  duplicate,
+})
 
 /** The one field list of the statistics page, so a field cannot reach the wire by accident. */
 export const toEventStatsDto = (stats: EventStats): EventStatsResponseDto => ({

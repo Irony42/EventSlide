@@ -86,6 +86,8 @@ const aBrowser = async (container: Container) => {
       note(await agent.patch(path).set(CSRF_HEADER, csrf).send(body)),
     delete: async (path: string, body: object = {}) =>
       note(await agent.delete(path).set(CSRF_HEADER, csrf).send(body)),
+    put: async (path: string, body: object = {}) =>
+      note(await agent.put(path).set(CSRF_HEADER, csrf).send(body)),
     /** One multipart part, for the one write that is a file. */
     putFile: async (path: string, field: string, bytes: Buffer) =>
       note(await agent.put(path).set(CSRF_HEADER, csrf).attach(field, bytes, 'lieu.jpg')),
@@ -255,6 +257,23 @@ const SURFACES: readonly Surface[] = [
     unknown: (s) => ({ browser: s.guest, path: `/api/events/${NO_SUCH}/missions/mine` }),
   },
   {
+    name: 'a guest’s guestbook messages',
+    method: 'get',
+    asks: async (s) => ({ real: s.guest, path: `/api/events/${SLUG}/guestbook/mine` }),
+    unknown: (s) => ({ browser: s.guest, path: `/api/events/${NO_SUCH}/guestbook/mine` }),
+  },
+  {
+    name: 'writing a guestbook message',
+    method: 'post',
+    body: () => ({ text: 'Bravo' }),
+    asks: async (s) => ({ real: s.guest, path: `/api/events/${SLUG}/guestbook` }),
+    unknown: (s) => ({
+      browser: s.guest,
+      path: `/api/events/${NO_SUCH}/guestbook`,
+      body: { text: 'Bravo' },
+    }),
+  },
+  {
     name: 'the privacy notice a guest reads',
     method: 'get',
     asks: async (s) => ({ real: s.guest, path: `/api/events/${SLUG}/privacy-notice` }),
@@ -286,7 +305,7 @@ const send = (browser: Browser, method: 'get' | 'post', path: string, body?: obj
 
 describe('a suspended client, through the real composition root', () => {
   it('names every surface of the plan that has to be a 404: the wall, the feed, the media, the join, a guest, a link', () => {
-    expect(SURFACES.map((surface) => surface.name)).toHaveLength(12)
+    expect(SURFACES.map((surface) => surface.name)).toHaveLength(14)
   })
 
   it.each(SURFACES.map((surface) => [surface.name, surface] as const))(
@@ -344,7 +363,7 @@ describe('a suspended client, through the real composition root', () => {
   const SOME_MISSION = { prompt: 'Le gâteau', scope: 'event' }
 
   const HOST_WRITES: readonly {
-    readonly method: 'patch' | 'post' | 'delete'
+    readonly method: 'patch' | 'post' | 'delete' | 'put'
     readonly path: string
     readonly body: object
   }[] = [
@@ -379,6 +398,10 @@ describe('a suspended client, through the real composition root', () => {
       body: { photoIds: [ANY], decision: 'publish' },
     },
     { method: 'delete', path: '/api/events/:eventSlug/photos/:photoId', body: {} },
+    // The host's favourites (spec 08): a suspended client's event is frozen for them too.
+    { method: 'put', path: '/api/events/:eventSlug/photos/:photoId/highlight', body: {} },
+    { method: 'delete', path: '/api/events/:eventSlug/photos/:photoId/highlight', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/highlights/preselect', body: { limit: 5 } },
     { method: 'post', path: '/api/events/:eventSlug/share-link', body: {} },
     { method: 'delete', path: '/api/events/:eventSlug/share-link', body: {} },
     // The host's own photograph of the venue (ADR 0010): the removal here, the upload below.
@@ -398,6 +421,8 @@ describe('a suspended client, through the real composition root', () => {
     'POST /api/events/:eventSlug/photos/:photoId/reactions',
     'DELETE /api/events/:eventSlug/photos/:photoId/reactions/:kind',
     'POST /api/events/:eventSlug/privacy-notice/acknowledgement',
+    'POST /api/events/:eventSlug/guestbook',
+    'DELETE /api/events/:eventSlug/guestbook/:entryId',
   ]
 
   it('refuses every write of a host on a frozen event with 403 client.suspended', async () => {

@@ -1,3 +1,5 @@
+import { renderGuestbookText } from '../../../domain/guestbook/guestbookExport'
+import { MAX_ENTRIES_PER_EVENT } from '../../../domain/guestbook/guestbookLimits'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { ServedVariant } from '../../../domain/photos/mediaVariant'
 import type { Photo } from '../../../domain/photos/photo'
@@ -5,8 +7,10 @@ import { isInAlbum, PHOTO_STATUSES, type PhotoStatus } from '../../../domain/pho
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { ArchiveWriter } from '../../ports/archiveWriter'
+import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { GuestRepository } from '../../ports/guestRepository'
+import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import { requireReadable } from '../shared/eventRole'
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
@@ -30,6 +34,11 @@ import { albumEntries } from '../shared/albumEntries'
  * (`albumEntries`). The host's ZIP used to ask every row for an `original`, which a clip
  * does not have, and skipped every one of them with a warning.
  *
+ * **The guestbook is in it** (spec 01): one `guestbook.txt` of the messages `isInAlbum` accepts,
+ * published and hidden, signed with the guest's first name. It is the host's archive only: the shared
+ * gallery shows photographs and stays as it is. A book holds at most 500 short messages, so it is
+ * read in one go and written as one entry after the photographs.
+ *
  * **Nothing is materialised.** Rows arrive a page at a time from the repository, bytes one
  * chunk at a time from the media store, and the archive is emitted as chunks. A
  * four-thousand-photo wedding is several gigabytes; buffering it is how a self-hosted
@@ -39,6 +48,13 @@ import { albumEntries } from '../shared/albumEntries'
 /** Asked of the domain once, rather than restated as a list of statuses. */
 const ALBUM_STATUSES: readonly PhotoStatus[] = PHOTO_STATUSES.filter(isInAlbum)
 
+/** Asked of the domain once, like the photographs' statuses: the same rule, the same predicate. */
+const GUESTBOOK_ALBUM_STATUSES = ALBUM_STATUSES
+
+async function* oneChunk(bytes: Uint8Array): AsyncIterable<Uint8Array> {
+  yield bytes
+}
+
 export interface ExportAlbumInput {
   readonly eventId: EventId
 }
@@ -46,6 +62,8 @@ export interface ExportAlbumInput {
 export interface ExportAlbumDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
+  readonly guestbook: GuestbookRepository
+  readonly guests: GuestRepository
   readonly media: MediaStore
   readonly archive: ArchiveWriter
   readonly logger: Logger
@@ -58,6 +76,8 @@ export type ExportAlbum = (
 export const makeExportAlbum = ({
   events,
   photos,
+  guestbook,
+  guests,
   media,
   archive,
   logger,
@@ -80,22 +100,52 @@ export const makeExportAlbum = ({
     const open = (_photo: Photo, hash: ContentHash, variant: ServedVariant) =>
       media.openRead(eventId, hash, variant)
 
-    return ok(
-      archive.stream(
-        albumEntries({
-          photos,
+    const photoEntries = albumEntries({
+      photos,
+      eventId,
+      slug: event.slug.value,
+      statuses: ALBUM_STATUSES,
+      open,
+      skipped: (photo) => {
+        logger.warn('album export skipped a photo with no stored file', {
           eventId,
-          slug: event.slug.value,
-          statuses: ALBUM_STATUSES,
-          open,
-          skipped: (photo) => {
-            logger.warn('album export skipped a photo with no stored file', {
-              eventId,
-              photoId: photo.id,
-            })
-          },
-        }),
-      ),
-    )
+          photoId: photo.id,
+        })
+      },
+    })
+
+    /** The book, as one entry, or nothing when no message is in the album. */
+    const guestbookEntry = async (): Promise<ArchiveEntry | null> => {
+      const entries = await guestbook.listByStatuses(
+        eventId,
+        GUESTBOOK_ALBUM_STATUSES,
+        MAX_ENTRIES_PER_EVENT,
+      )
+      if (entries.length === 0) return null
+      const names = await guests.findNamesByIds(eventId, [
+        ...new Set(entries.map((entry) => entry.guestId)),
+      ])
+      const text = renderGuestbookText(
+        event.name.value,
+        entries.map((entry) => ({
+          author: names.get(entry.guestId) ?? null,
+          at: entry.createdAt,
+          text: entry.text.value,
+        })),
+      )
+      return {
+        name: `${event.slug.value}/guestbook.txt`,
+        bytes: oneChunk(new TextEncoder().encode(text)),
+        modifiedAt: new Date(Math.max(...entries.map((entry) => entry.createdAt.getTime()))),
+      }
+    }
+
+    const everything = async function* (): AsyncIterable<ArchiveEntry> {
+      yield* photoEntries
+      const book = await guestbookEntry()
+      if (book !== null) yield book
+    }
+
+    return ok(archive.stream(everything()))
   }
 }

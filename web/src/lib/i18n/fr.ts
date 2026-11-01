@@ -560,6 +560,81 @@ export const fr = {
     /* -------------------------- end guest surface --------------------------- */
   },
 
+  /**
+   * The guestbook, guest side (spec 01). What guests and hosts write is never translated: these
+   * are only the words around it.
+   */
+  guestbook: {
+    title: 'Livre d’or',
+    helpManual: 'Un petit mot pour la soirée. L’organisateur le lit avant de l’afficher.',
+    helpAuto: 'Votre mot apparaît dans le livre d’or.',
+    open: 'Laisser un mot',
+    label: 'Votre message',
+    placeholder: 'Votre message…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: 'Il reste 1 caractère.',
+        other: `Il reste ${t.number(left)} caractères.`,
+      }),
+    counterFull: 'Limite atteinte.',
+    send: 'Envoyer mon message',
+    cancel: 'Annuler',
+    thanksManual: 'Merci ! Votre message s’affichera une fois validé par l’organisateur.',
+    thanksAuto: 'Merci ! Votre message est dans le livre d’or.',
+    mine: 'Mes messages',
+    statusPending: 'En attente de validation',
+    statusPublished: 'À l’écran',
+    statusPublishedNotOnWall: 'Publié, pas affiché à l’écran',
+    statusRejected: 'Non retenu',
+    statusHidden: 'Retiré de l’écran',
+    remove: 'Retirer ce message',
+    removeTitle: 'Retirer ce message pour de bon ?',
+    removeConfirm: 'Retirer',
+    removeCancel: 'Garder',
+    removed: 'Message retiré.',
+    tooLong: (max: number) => `Message trop long (${t.number(max)} caractères au plus).`,
+    /** By the server's code, for what a message can be refused for. */
+    errors: {
+      'guestbook.empty': 'Écrivez au moins un mot.',
+      'guestbook.invalid': 'Ce message ne peut pas être envoyé tel quel.',
+      'guestbook.tooManyLines': 'Message trop haut : gardez-le plus court.',
+      'guestbook.limitReached':
+        'Vous avez déjà laissé 3 messages. Retirez-en un pour en écrire un autre.',
+      'guestbook.eventFull': 'Le livre d’or est complet.',
+      'guestbook.disabled': 'Le livre d’or n’est pas ouvert pour le moment.',
+      'event.notAcceptingUploads': 'Le livre d’or n’est pas ouvert pour le moment.',
+      'guestbook.deleteForbidden':
+        'Ce message ne peut plus être retiré. Demandez à l’organisateur : il peut le supprimer.',
+      'event.guestSelfDeleteDisabled':
+        'L’organisateur n’a pas activé le retrait. Demandez-lui : il peut supprimer un message.',
+      'guestbook.notFound': 'Ce message n’existe plus.',
+      'guestbook.deleteFailed':
+        'Le retrait n’a pas abouti. Réessayez, ou demandez à l’organisateur.',
+      'rate.limited': 'Trop de messages d’un coup, réessayez dans une minute.',
+    },
+    /** `upload.eraseBody` for an event with a guestbook. */
+    eraseBody:
+      'Vos photos, vos vidéos, vos légendes, vos messages du livre d’or, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
+    /** The notice's four titles, and one added sentence each, for an event with a guestbook. */
+    noticeWhatHappens: 'Ce que deviennent vos photos et vos messages',
+    noticeWhoSees: 'Qui voit vos photos et vos messages',
+    noticeHowLong: 'Combien de temps ils sont gardés',
+    noticeRemoval: 'Pour en faire retirer un',
+    noticeMessagePublication: {
+      afterReview:
+        'Un message du livre d’or est lu par l’organisateur avant de pouvoir passer à l’écran.',
+      immediate:
+        'Un message du livre d’or peut passer à l’écran dès son envoi. L’organisateur peut le retirer à tout moment.',
+    } satisfies Record<NoticePublication, string>,
+    noticeMessageAudience:
+      'Vos messages sont lus par l’organisateur et son équipe, et peuvent s’afficher sur l’écran de la soirée. Ils ne figurent pas dans « Les photos de la soirée ».',
+    noticeMessageRetention:
+      'Vos messages sont gardés aussi longtemps que les photos, et effacés avec elles.',
+    noticeMessageRemoval:
+      'Un message se retire comme une photo, depuis « Mes messages » et dans les mêmes conditions.',
+  },
+
   moderation: {
     title: 'Modération',
     // Navigation pass, batch C: the way to the other console.
@@ -650,6 +725,11 @@ export const fr = {
         one: `${t.number(count)} photo retirée de l’écran. Elle reste dans votre album.`,
         other: `${t.number(count)} photos retirées de l’écran. Elles restent dans votre album.`,
       }),
+    // Spec 08: the host's favourites, starred in the moderation console.
+    highlight: 'Favori',
+    highlightAddHint: 'Mettre en favori',
+    highlightRemoveHint: 'Retirer des favoris',
+    shortcutsFavourite: 'F pour mettre en favori.',
     decisionFailed: 'La décision n’a pas pu être enregistrée. Réessayez.',
     undoFailed: 'L’annulation n’a pas pu être enregistrée. Réessayez.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
@@ -1374,6 +1454,21 @@ export const fr = {
     shareLinkReplaceHint: 'Le lien actuel cessera immédiatement de fonctionner.',
     /** Only its digest is stored, so this is the one moment the address exists. */
     shareLinkCreated: 'Voici le lien. Copiez-le maintenant : il ne sera plus affiché.',
+    // Spec 08: the best-of panel on the event page.
+    bestOf: 'Best-of',
+    bestOfHint: 'Vos photos favorites, à emporter après la soirée.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} favori`,
+        other: `${t.number(count)} favoris`,
+      }),
+    bestOfNone: 'Aucun favori pour l’instant. Étoilez vos photos préférées dans la modération.',
+    bestOfPreselect: 'Pré-sélectionner les plus aimées',
+    bestOfPreselected: (limit: number) =>
+      `Les ${t.number(limit)} photos les plus aimées sont maintenant en favori. Vous pouvez en retirer ou en ajouter.`,
+    bestOfPreselectNothing:
+      'Aucune photo à ajouter : les plus aimées sont déjà en favori, ou personne n’a encore réagi.',
+    bestOfDownload: 'Télécharger les favoris (ZIP)',
     shareLinkUrl: 'Adresse du lien',
     shareLinkCopy: 'Copier le lien',
     shareLinkCopied: 'Lien copié.',
@@ -1686,6 +1781,8 @@ export const fr = {
 
     'photo.notFound': 'Cette photo n’existe plus.',
     'photo.illegalTransition': 'Cette action n’est pas possible sur cette photo.',
+    'highlight.notPublished': 'Seule une photo publiée peut être mise en favori.',
+    'highlight.empty': 'Aucun favori pour l’instant.',
 
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',

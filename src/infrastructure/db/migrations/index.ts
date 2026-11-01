@@ -17,6 +17,8 @@ import { migration015 } from './015_operator_takedown'
 import { migration016 } from './016_event_name_fold'
 import { migration017 } from './017_user_terms_acceptance'
 import { migration018 } from './018_event_stats_counters'
+import { migration019 } from './019_guestbook_entries'
+import { migration020 } from './020_photo_highlights'
 import { migration022 } from './022_album_books'
 
 /**
@@ -45,5 +47,7 @@ export const migrations: readonly Migration[] = [
   migration016,
   migration017,
   migration018,
+  migration019,
+  migration020,
   migration022,
 ]

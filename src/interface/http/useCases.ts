@@ -78,6 +78,10 @@ import type { GetClipJob } from '../../application/usecases/clips/getClipJob'
 import type { UploadClip } from '../../application/usecases/clips/uploadClip'
 
 import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
+import type { ExportHighlights } from '../../application/usecases/highlights/exportHighlights'
+import type { GetHighlights } from '../../application/usecases/highlights/getHighlights'
+import type { PreselectHighlights } from '../../application/usecases/highlights/preselectHighlights'
+import type { SetPhotoHighlight } from '../../application/usecases/highlights/setPhotoHighlight'
 import type { ExportAlbum } from '../../application/usecases/photos/exportAlbum'
 import type { GetPhotoMedia } from '../../application/usecases/photos/getPhotoMedia'
 import type { IdentifyMediaViewer } from '../../application/usecases/photos/identifyMediaViewer'
@@ -93,6 +97,9 @@ import type { WithdrawReaction } from '../../application/usecases/reactions/with
 
 import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWallPlaylist'
 
+import type { CreateGuestbookEntry } from '../../application/usecases/guestbook/createGuestbookEntry'
+import type { DeleteGuestbookEntry } from '../../application/usecases/guestbook/deleteGuestbookEntry'
+import type { ListMyGuestbookEntries } from '../../application/usecases/guestbook/listMyGuestbookEntries'
 import type { CreateMission } from '../../application/usecases/missions/createMission'
 import type { DeleteMission } from '../../application/usecases/missions/deleteMission'
 import type { GetGuestChecklist } from '../../application/usecases/missions/getGuestChecklist'
@@ -225,6 +232,12 @@ export interface HttpUseCases {
   readonly identifyMediaViewer: IdentifyMediaViewer
   readonly exportAlbum: ExportAlbum
 
+  // the host's favourites and best-of (spec 08)
+  readonly setPhotoHighlight: SetPhotoHighlight
+  readonly preselectHighlights: PreselectHighlights
+  readonly getHighlights: GetHighlights
+  readonly exportHighlights: ExportHighlights
+
   // clips
   readonly uploadClip: UploadClip
   readonly getClipJob: GetClipJob
@@ -237,6 +250,10 @@ export interface HttpUseCases {
   // the wall
   readonly getWallPlaylist: GetWallPlaylist
 
+  // guestbook (spec 01)
+  readonly createGuestbookEntry: CreateGuestbookEntry
+  readonly listMyGuestbookEntries: ListMyGuestbookEntries
+  readonly deleteGuestbookEntry: DeleteGuestbookEntry
   // missions
   readonly listMissions: ListMissions
   readonly createMission: CreateMission

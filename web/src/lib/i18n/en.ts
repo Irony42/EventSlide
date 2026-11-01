@@ -404,6 +404,8 @@ export const en: UiText = {
 
     'photo.notFound': 'This photo no longer exists.',
     'photo.illegalTransition': 'This action is not possible on this photo.',
+    'highlight.notPublished': 'Only a published photo can be a favourite.',
+    'highlight.empty': 'No favourites yet.',
 
     'image.unsupportedFormat': 'This file is not a photo. Accepted formats: JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'This photo looks damaged. Try another one.',
@@ -542,6 +544,71 @@ export const en: UiText = {
     'venuePhoto.saveFailed': 'The photo could not be saved. Try again.',
   },
 
+  /** The guestbook, guest side (spec 01). What guests and hosts write is never translated. */
+  guestbook: {
+    title: 'Guestbook',
+    helpManual: 'A few words for the evening. The organiser reads it before showing it.',
+    helpAuto: 'Your note appears in the guestbook.',
+    open: 'Leave a note',
+    label: 'Your message',
+    placeholder: 'Your message…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: '1 character left.',
+        other: `${t.number(left)} characters left.`,
+      }),
+    counterFull: 'Limit reached.',
+    send: 'Send my message',
+    cancel: 'Cancel',
+    thanksManual: 'Thank you! Your message will appear once the organiser approves it.',
+    thanksAuto: 'Thank you! Your message is in the guestbook.',
+    mine: 'My messages',
+    statusPending: 'Waiting for approval',
+    statusPublished: 'On the screen',
+    statusPublishedNotOnWall: 'Published, not shown on the screen',
+    statusRejected: 'Not selected',
+    statusHidden: 'Taken off the screen',
+    remove: 'Remove this message',
+    removeTitle: 'Remove this message for good?',
+    removeConfirm: 'Remove',
+    removeCancel: 'Keep',
+    removed: 'Message removed.',
+    tooLong: (max: number) => `Message too long (${t.number(max)} characters at most).`,
+    errors: {
+      'guestbook.empty': 'Write at least one word.',
+      'guestbook.invalid': 'This message cannot be sent as it is.',
+      'guestbook.tooManyLines': 'Message too tall: please keep it shorter.',
+      'guestbook.limitReached': 'You have already left 3 messages. Remove one to write another.',
+      'guestbook.eventFull': 'The guestbook is full.',
+      'guestbook.disabled': 'The guestbook is not open right now.',
+      'event.notAcceptingUploads': 'The guestbook is not open right now.',
+      'guestbook.deleteForbidden':
+        'This message can no longer be removed. Ask the organiser: they can delete it.',
+      'event.guestSelfDeleteDisabled':
+        'The organiser has not turned removal on. Ask them: they can delete a message.',
+      'guestbook.notFound': 'This message no longer exists.',
+      'guestbook.deleteFailed': 'The removal did not go through. Try again, or ask the organiser.',
+      'rate.limited': 'Too many messages at once, try again in a minute.',
+    },
+    eraseBody:
+      'Your photos, videos, captions, guestbook messages, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
+    noticeWhatHappens: 'What happens to your photos and messages',
+    noticeWhoSees: 'Who sees your photos and messages',
+    noticeHowLong: 'How long they are kept',
+    noticeRemoval: 'Having one removed',
+    noticeMessagePublication: {
+      afterReview: 'A guestbook message is read by the organiser before it can go on the screen.',
+      immediate:
+        'A guestbook message can go on the screen as soon as it is sent. The organiser can remove it at any time.',
+    },
+    noticeMessageAudience:
+      'Your messages are read by the organiser and their team, and may be shown on the event screen. They are not in “Photos from the evening”.',
+    noticeMessageRetention: 'Your messages are kept as long as the photos, and erased with them.',
+    noticeMessageRemoval:
+      'A message is removed like a photo, from “My messages” and under the same conditions.',
+  },
+
   moderation: {
     title: 'Moderation',
     // Navigation pass, batch C: the way to the other console.
@@ -625,6 +692,10 @@ export const en: UiText = {
         one: `${t.number(count)} photo taken off the screen. It stays in your album.`,
         other: `${t.number(count)} photos taken off the screen. They stay in your album.`,
       }),
+    highlight: 'Favourite',
+    highlightAddHint: 'Add to favourites',
+    highlightRemoveHint: 'Remove from favourites',
+    shortcutsFavourite: 'F to add to favourites.',
     decisionFailed: 'The decision could not be saved. Try again.',
     undoFailed: 'The decision could not be undone. Try again.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
@@ -1127,6 +1198,20 @@ export const en: UiText = {
     shareLinkReplace: 'Replace with a new link',
     shareLinkReplaceHint: 'The current link will stop working at once.',
     shareLinkCreated: 'Here is the link. Copy it now: it will not be shown again.',
+    bestOf: 'Best-of',
+    bestOfHint: 'Your favourite photos, to take home after the party.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} favourite`,
+        other: `${t.number(count)} favourites`,
+      }),
+    bestOfNone: 'No favourites yet. Star your favourite photos in moderation.',
+    bestOfPreselect: 'Pre-select the most liked',
+    bestOfPreselected: (limit: number) =>
+      `The ${t.number(limit)} most liked photos are now favourites. You can remove some or add more.`,
+    bestOfPreselectNothing:
+      'Nothing to add: the most liked photos are already favourites, or nobody has reacted yet.',
+    bestOfDownload: 'Download favourites (ZIP)',
     shareLinkUrl: 'Link address',
     shareLinkCopy: 'Copy the link',
     shareLinkCopied: 'Link copied.',
