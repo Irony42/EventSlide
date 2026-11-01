@@ -61,6 +61,14 @@ import type { WallLayout } from '../../../domain/slideshow/wallLayout'
  * phone from the join it already performed, the host's console from the event it is
  * editing.
  */
+/**
+ * What the host says to their guests (spec 03). Content, shown as written and never translated.
+ * Beside the theme, and absent from the shared gallery on purpose.
+ */
+export interface EventBrandDto {
+  readonly welcomeMessage: string | null
+}
+
 export interface EventThemeDto {
   /** Degrees on the oklch hue circle, 0-359. Validated for legibility server-side. */
   readonly accentHue: number
@@ -115,6 +123,8 @@ export interface PublicEventDto {
    * arrived a network round trip later would repaint the screen under a guest's thumb.
    */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
 }
 
 /**
@@ -352,6 +362,8 @@ export interface WallResponseDto {
    * theme and the photos it themes are rendered together.
    */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
   /**
    * The language this screen renders its own words in (roadmap 1.5). On this response for
    * the theme's reason — the projector must not paint one language and repaint in another
@@ -383,6 +395,8 @@ export interface MyPhotosDto {
    * readable "event by slug"), so this is the read it already makes that can carry the news.
    */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
 }
 
 export interface GuestPhotoDto {
@@ -445,6 +459,8 @@ export interface EventSettingsDto {
   readonly maxPhotosPerGuest: number | null
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
   /**
    * The language the projected wall speaks (roadmap 1.5). On the host's settings response
    * and **not** on `PublicEventDto`: putting it on the join response would invite a client
