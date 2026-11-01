@@ -741,6 +741,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     exportAlbum: makeExportAlbum({
       events: adapters.events,
       photos: adapters.photos,
+      guestbook: adapters.guestbook,
+      guests: adapters.guests,
       media: adapters.media,
       archive: adapters.archive,
       logger: adapters.logger,
