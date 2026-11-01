@@ -114,6 +114,10 @@ test('the event colour reaches the QR ink as a dark colour, the black ink stays 
   const coloured = await inkOf()
 
   expect(coloured).not.toBe(black)
+  // The colour does not cost the scan: the reader still finds the server's link.
+  const read = await host.request.get(app.url(`/api/events/${event.slug}`))
+  const { joinUrl } = (await read.json()) as { joinUrl: string }
+  expect(await decodeQr(qr)).toBe(joinUrl)
   // Chromium keeps an oklch() colour as written: lightness 0.3, the event's own hue.
   expect(coloured).toMatch(/^oklch\(0\.3 0\.1 305(deg)?\)$/)
 })
