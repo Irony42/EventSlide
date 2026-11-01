@@ -92,6 +92,12 @@ import { makeModeratePhoto } from '../application/usecases/moderation/moderatePh
 import { makeModeratePhotosBulk } from '../application/usecases/moderation/moderatePhotosBulk'
 
 import { makeDeletePhoto } from '../application/usecases/photos/deletePhoto'
+import { makeInvalidateReel } from '../application/usecases/highlights/invalidateReel'
+import { makeRecoverReels } from '../application/usecases/highlights/recoverReels'
+import { makeRequestReel } from '../application/usecases/highlights/requestReel'
+import { makeTranscodeNextReel } from '../application/usecases/highlights/transcodeNextReel'
+import type { ReelRenderer } from '../application/ports/reelRenderer'
+import type { ReelRepository } from '../application/ports/reelRepository'
 import { makeExportHighlights } from '../application/usecases/highlights/exportHighlights'
 import { makeGetHighlights } from '../application/usecases/highlights/getHighlights'
 import { makePreselectHighlights } from '../application/usecases/highlights/preselectHighlights'
@@ -176,6 +182,10 @@ export interface Adapters {
   readonly events: EventRepository
   readonly photos: PhotoRepository
   readonly clips: ClipJobRepository
+  /** The event's highlight reel (spec 08). */
+  readonly reels: ReelRepository
+  /** The reel's encoder, or the Null Object when this box has no ffmpeg. */
+  readonly reelRenderer: ReelRenderer
   readonly guests: GuestRepository
   readonly reactions: ReactionRepository
   readonly missions: MissionRepository
@@ -272,6 +282,14 @@ export interface UseCasePolicy {
    * it does not fail open: the test that boots the real container holds it to the config.
    */
   readonly termsOfUse: TermsOfUse | null
+  /** `REEL_*` and `MAX_QUEUED_REELS` (spec 08). */
+  readonly reel: {
+    readonly enabled: boolean
+    readonly maxPhotos: number
+    readonly secondsPerPhoto: number
+    readonly maxOutputBytes: number
+    readonly maxQueued: number
+  }
   readonly clips: {
     readonly maxQueuedClips: number
     /** The same backpressure, scoped to one event. */
@@ -369,6 +387,18 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
    * inviting an address at the moment the operator opens a client for it would race past both.
    */
   const issueInvitation = invitationIssuer(adapters, policy)
+
+  /**
+   * **One hook for every way a photograph leaves the evening** (spec 08): the five use cases that
+   * remove or un-publish one call it first, so a highlight reel never shows what was taken out.
+   * `reelInvalidation.guard.test.ts` fails the build when a new path forgets it.
+   */
+  const invalidateReel = makeInvalidateReel({
+    reels: adapters.reels,
+    media: adapters.media,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  })
 
   return {
     // ------------------------------------------------------------------- auth --
@@ -603,6 +633,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       events: adapters.events,
       photos: adapters.photos,
       clips: adapters.clips,
+      reels: adapters.reels,
       media: adapters.media,
       clock: adapters.clock,
       logger: adapters.logger,
@@ -645,6 +676,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     renameGuest: makeRenameGuest({ guests: adapters.guests, events: adapters.events }),
     eraseGuestContribution: makeEraseGuestContribution({
+      invalidateReel,
       events: adapters.events,
       guests: adapters.guests,
       photos: adapters.photos,
@@ -697,6 +729,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     listEventPhotos: makeListEventPhotos({ events: adapters.events, photos: adapters.photos }),
     listGuestPhotos: makeListGuestPhotos({ events: adapters.events, photos: adapters.photos }),
     deletePhoto: makeDeletePhoto({
+      invalidateReel,
       events: adapters.events,
       photos: adapters.photos,
       clips: adapters.clips,
@@ -722,6 +755,43 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       media: adapters.media,
       archive: adapters.archive,
+      logger: adapters.logger,
+    }),
+
+    // -------------------------------------------- highlight reel (spec 08) --
+    invalidateReel,
+    requestReel: makeRequestReel({
+      events: adapters.events,
+      clients: adapters.clients,
+      photos: adapters.photos,
+      reels: adapters.reels,
+      renderer: adapters.reelRenderer,
+      media: adapters.media,
+      bus: adapters.bus,
+      clock: adapters.clock,
+      logger: adapters.logger,
+      policy: policy.reel,
+    }),
+    transcodeNextReel: makeTranscodeNextReel({
+      events: adapters.events,
+      clients: adapters.clients,
+      photos: adapters.photos,
+      reels: adapters.reels,
+      media: adapters.media,
+      renderer: adapters.reelRenderer,
+      hasher: adapters.contentHasher,
+      bus: adapters.bus,
+      clock: adapters.clock,
+      logger: adapters.logger,
+      policy: {
+        secondsPerPhoto: policy.reel.secondsPerPhoto,
+        maxOutputBytes: policy.reel.maxOutputBytes,
+      },
+    }),
+    recoverReels: makeRecoverReels({
+      reels: adapters.reels,
+      media: adapters.media,
+      clock: adapters.clock,
       logger: adapters.logger,
     }),
 
@@ -826,6 +896,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       memberships: adapters.memberships,
     }),
     moderatePhoto: makeModeratePhoto({
+      invalidateReel,
       events: adapters.events,
       photos: adapters.photos,
       memberships: adapters.memberships,
@@ -833,6 +904,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clock: adapters.clock,
     }),
     moderatePhotosBulk: makeModeratePhotosBulk({
+      invalidateReel,
       events: adapters.events,
       photos: adapters.photos,
       memberships: adapters.memberships,
@@ -1040,6 +1112,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     getSiteEventState: makeGetSiteEventState({ events: adapters.events }),
     getSitePhotoState: makeGetSitePhotoState({ photos: adapters.photos }),
     setPhotoTakedown: makeSetPhotoTakedown({
+      invalidateReel,
       photos: adapters.photos,
       audit: adapters.audit,
       bus: adapters.bus,

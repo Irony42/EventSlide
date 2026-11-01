@@ -235,6 +235,14 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       bodyTimeoutMs: raw.UPLOAD_BODY_TIMEOUT_SECONDS * 1000,
     },
 
+    reel: {
+      enabled: raw.REEL_ENABLED,
+      maxPhotos: raw.REEL_MAX_PHOTOS,
+      secondsPerPhoto: raw.REEL_SECONDS_PER_PHOTO,
+      maxOutputBytes: raw.REEL_MAX_OUTPUT_BYTES,
+      maxQueued: raw.MAX_QUEUED_REELS,
+    },
+
     clips: {
       maxBytes: raw.MAX_CLIP_BYTES,
       maxDurationMs: raw.MAX_CLIP_SECONDS * 1000,
