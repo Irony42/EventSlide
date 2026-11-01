@@ -879,6 +879,62 @@ export const fr = {
       t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} invité`, other: `${t.number(count)} invités` }),
+    stats: {
+      title: 'Statistiques de la soirée',
+      tile: 'Statistiques',
+      loading: 'Chargement des statistiques…',
+      empty:
+        'Rien à compter pour l’instant. Les chiffres apparaissent dès que des invités rejoignent l’évènement.',
+      emptyAction: 'Voir le QR code',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} envoi reçu`,
+          other: `${t.number(count)} envois reçus`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, { one: `${t.number(count)} invité`, other: `${t.number(count)} invités` }),
+      figureHere: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ici maintenant`,
+          other: `${t.number(count)} ici maintenant`,
+        }),
+      figurePending: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} en attente`,
+          other: `${t.number(count)} en attente`,
+        }),
+      timelineTitle: 'Envois dans le temps',
+      timelineCaption: 'Envois par heure',
+      hourColumn: 'Heure',
+      uploadsColumn: 'Envois',
+      timelineEmpty: 'Aucun envoi pour l’instant.',
+      peak: (hour: string, count: number) =>
+        `Pic : ${hour}, ${t.count(count, { one: `${t.number(count)} envoi`, other: `${t.number(count)} envois` })}`,
+      statusTitle: 'Envois par statut',
+      statusPublished: 'Publiés',
+      statusPending: 'En attente',
+      statusRejected: 'Refusés',
+      statusHidden: 'Masqués',
+      publishedShare: 'Part des envois publiés',
+      guestsTitle: 'Invités',
+      guestsJoined: 'Arrivés',
+      guestsContributors: 'Ayant envoyé au moins un fichier',
+      guestsRevoked: 'Retirés par vous',
+      reactionsTitle: 'Réactions',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} réaction`,
+          other: `${t.number(count)} réactions`,
+        }),
+      topTitle: 'Ceux qui ont le plus partagé',
+      topEmpty: 'Personne n’a encore publié d’envoi.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} envoi publié`, other: `${t.number(photos)} envois publiés` })} · ${t.count(reactions, { one: `${t.number(reactions)} réaction reçue`, other: `${t.number(reactions)} réactions reçues` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Les invités sans prénom sont regroupés : ${t.count(guests, { one: `${t.number(guests)} invité`, other: `${t.number(guests)} invités` })}, ${t.count(photos, { one: `${t.number(photos)} envoi`, other: `${t.number(photos)} envois` })}.`,
+      retention:
+        'Ces chiffres disparaissent avec l’évènement, à sa suppression ou à l’échéance de conservation.',
+    },
     storageUsed: (used: string, total: string) => `${used} sur ${total}`,
     settings: 'Réglages',
     moderationMode: 'Modération',
@@ -2396,6 +2452,7 @@ export const fr = {
     event: 'Évènement',
     moderation: 'Modération',
     mobileModeration: 'Modération sur téléphone',
+    stats: 'Statistiques de la soirée',
     settings: 'Réglages de l’évènement',
     customAmbiance: 'Ambiance Sur mesure',
     clientSpace: 'Espace client',

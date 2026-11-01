@@ -78,6 +78,9 @@ const MobileModerationPage = lazy(async () => ({
   default: (await import('../features/moderation/MobileModerationPage')).MobileModerationPage,
 }))
 
+const EventStatsPage = lazy(async () => ({
+  default: (await import('../features/admin/EventStatsPage')).EventStatsPage,
+}))
 const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
 }))
@@ -456,6 +459,10 @@ export function AppRoutes() {
               <Route
                 path="/admin/events/:slug/moderation/mobile"
                 element={titled('mobileModeration', <MobileModerationPage />)}
+              />
+              <Route
+                path="/admin/events/:slug/stats"
+                element={titled('stats', <EventStatsPage />)}
               />
               <Route
                 path="/admin/events/:slug/settings"

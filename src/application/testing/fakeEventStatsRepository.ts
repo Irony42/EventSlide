@@ -1,6 +1,6 @@
 import type { Photo } from '../../domain/photos/photo'
 import { emptyCounts } from '../../domain/reactions/reactionTally'
-import { REACTION_KINDS } from '../../domain/reactions/reactionKind'
+import type { REACTION_KINDS } from '../../domain/reactions/reactionKind'
 import type { EventId, GuestId } from '../../domain/shared/ids'
 import { compareIds } from './ordering'
 import type { ContributorEntry } from '../../domain/stats/contributorRanking'
