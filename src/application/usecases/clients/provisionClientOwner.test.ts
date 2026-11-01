@@ -177,6 +177,7 @@ describe('provisionClientOwner', () => {
         maxEventQuotaBytes: null,
         maxRetentionDays: null,
         clipsAllowed: true,
+        booksAllowed: true,
         liveAllowed: true,
         maxLiveDays: null,
         maxEventsPerPeriod: null,
