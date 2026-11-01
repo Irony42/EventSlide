@@ -21,6 +21,8 @@ export interface WallEmptyStateProps {
    * what every wall was before the server said otherwise.
    */
   readonly acceptsGuests?: boolean
+  /** The host's own words (spec 03), shown under the event name. Content, never translated. */
+  readonly welcomeMessage?: string | null
 }
 
 /**
@@ -31,7 +33,12 @@ export interface WallEmptyStateProps {
  * event name and the code are at `--text-display` because they are read from the back
  * of the room, and the QR is drawn inline so it survives a venue's Wi-Fi.
  */
-export function WallEmptyState({ eventName, join, acceptsGuests = true }: WallEmptyStateProps) {
+export function WallEmptyState({
+  eventName,
+  join,
+  acceptsGuests = true,
+  welcomeMessage = null,
+}: WallEmptyStateProps) {
   const text = useTranslations()
   const invites = acceptsGuests
   const shown = invites ? join : null
@@ -42,6 +49,11 @@ export function WallEmptyState({ eventName, join, acceptsGuests = true }: WallEm
       <div className={styles['copy']} data-testid="wall-empty-copy">
         {invites ? <p className={styles['prompt']}>{text.wall.joinPrompt}</p> : null}
         <h1 className={styles['name']}>{eventName}</h1>
+        {welcomeMessage === null ? null : (
+          <p className={styles['welcome']} dir="auto" data-testid="wall-welcome">
+            {welcomeMessage}
+          </p>
+        )}
         <p className={styles['title']}>{invites ? text.wall.empty : text.wall.emptyClosed}</p>
         {shown === null ? null : <p className={styles['hint']}>{text.wall.emptyHint}</p>}
       </div>

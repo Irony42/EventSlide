@@ -451,6 +451,10 @@ export const es: UiText = {
     'slug.tooLong': 'Esta dirección es demasiado larga.',
     'slug.malformed': 'La dirección solo admite letras sin acento, números y guiones.',
     'slug.reserved': 'Esta dirección está reservada. Elija otra.',
+    'eventSettings.welcomeInvalid': 'Este mensaje no es válido.',
+    'eventSettings.welcomeTooLong': 'Este mensaje es demasiado largo.',
+    'eventSettings.welcomeTooManyLines': 'Este mensaje tiene demasiadas líneas.',
+    'eventSettings.saveFailed': 'No se han podido guardar los ajustes. Inténtelo de nuevo.',
     'eventSettings.graceSecondsInvalid': 'Este plazo de eliminación no se admite.',
     'eventSettings.retentionDaysInvalid': 'Este plazo de conservación no se admite.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Este número de fotos por invitado no se admite.',
@@ -910,6 +914,32 @@ export const es: UiText = {
     printQr: 'Imprimir el código QR',
     qrScanPrompt: 'Escanee para enviar sus fotos.',
     qrAlt: (eventName: string) => `Código QR para unirse a ${eventName}`,
+    printKitTitle: 'Tarjetas de mesa y cartel',
+    printKitCrumb: 'Tarjetas y cartel',
+    printKitIntro:
+      'Imprima algo para poner en las mesas: el código QR, el código de respaldo y tres líneas de instrucciones.',
+    printKitFormat: 'Formato',
+    printKitInk: 'Color del código QR',
+    printInkBlack: 'Negro (el más seguro)',
+    printInkEvent: 'Color del evento',
+    printFormatA4: 'Cartel A4 (1 por hoja)',
+    printFormatA5: 'Cartel A5 (2 por hoja)',
+    printFormatCard: 'Tarjetas de mesa A6 (4 por hoja)',
+    printKitLanguage: 'Idioma del soporte',
+    printKitLanguageHint: 'Es el idioma de la velada, no el de su pantalla.',
+    printKitPrint: 'Imprimir',
+    printKitPrinting: 'Actualizando el código…',
+    printKitHelp:
+      'En la ventana de impresión, elija A4, escala 100 %, sin encabezados ni pies de página. Su navegador también ofrece allí «Guardar como PDF». Use el botón Imprimir: Ctrl+P no comprueba el código.',
+    printKitCodeChanged:
+      'El código de la velada ha cambiado: la hoja de abajo está al día. Tire las anteriores.',
+    printKitClosed:
+      'Esta velada está cerrada: los invitados que escaneen ya no pueden unirse. Si la reabre, el mismo código vuelve a valer.',
+    printKitDraft: 'Los invitados solo podrán unirse cuando se abra la velada.',
+    printKitArchived: 'Este evento está archivado: su código QR ya no lleva a ninguna parte.',
+    printKitBack: 'Volver al evento',
+    printKitLongLink: 'El enlace es largo y el código QR será pequeño. Prefiera el cartel.',
+    printKitPreview: 'Vista previa de la hoja',
     storageLabel: 'Espacio de fotos utilizado',
     storage: (used: string) => `${used} utilizados`,
     rotateJoinCodeTitle: '¿Cambiar el código de la fiesta?',
@@ -1101,6 +1131,12 @@ export const es: UiText = {
     venuePhotoBusy: 'Enviando la foto…',
     venuePhotoSaved: 'La foto de su local está guardada.',
     venuePhotoRemoved: 'Se ha restablecido la foto por defecto.',
+    welcomeMessage: 'Mensaje de bienvenida',
+    welcomeMessageHint:
+      'Unas palabras que verán sus invitados al unirse a la fiesta. Escriba en el idioma de sus invitados: este texto no se traduce. Cualquiera que tenga el código QR puede leerlo, así que no ponga nada privado.',
+    welcomeMessagePlaceholder: '¡Bienvenidos! Hagan fotos, las veremos en la pantalla de la sala.',
+    welcomeMessageClear: 'Borrar el mensaje',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Crear mi ambiente (A medida)',
     customAmbianceEdit: 'Modificar mi ambiente',
     customAmbianceEntryHint:
@@ -1728,7 +1764,17 @@ export const es: UiText = {
     },
   },
 
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Comparta sus fotos de la velada',
+    step1: 'Escanee el código QR con la cámara de su teléfono.',
+    step2: 'Envíe sus fotos.',
+    step3: 'Se unen a la pantalla de la velada.',
+    fallback: (code: string, address: string) =>
+      `¿Sin código QR? Escriba el código ${code} en ${address}.`,
+  },
   titles: {
+    print: 'Tarjetas de mesa y cartel',
     join: 'Únase a la fiesta',
     upload: 'Envío de fotos',
     feed: 'Fotos de la velada',
