@@ -221,6 +221,7 @@ describe('loadConfig', () => {
           maxRetentionDays: null,
           maxLiveDays: null,
           clipsAllowed: true,
+          booksAllowed: true,
         },
         // Nobody has set a key, and nobody is required to hold a second factor.
         mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
@@ -1032,7 +1033,11 @@ describe('loadConfig', () => {
     ] as const
 
     /** Every variable of the family, which is what `SITE_ADMIN=off` refuses. */
-    const ALL = [...NUMERIC.map(([name]) => name), 'NEW_CLIENT_CLIPS_ALLOWED'] as const
+    const ALL = [
+      ...NUMERIC.map(([name]) => name),
+      'NEW_CLIENT_CLIPS_ALLOWED',
+      'NEW_CLIENT_BOOKS_ALLOWED',
+    ] as const
 
     /** A box that has an operator, which is the only kind that may set any of them. */
     const hosted = (overrides: Source = {}): Source =>
@@ -1046,6 +1051,7 @@ describe('loadConfig', () => {
       maxRetentionDays: null,
       maxLiveDays: null,
       clipsAllowed: true,
+      booksAllowed: true,
     }
 
     it('is no ceiling at all on a box that never mentions them, so a self-hosted box is unchanged', () => {
@@ -1128,6 +1134,30 @@ describe('loadConfig', () => {
         const issues = refusalIssues(hosted({ NEW_CLIENT_CLIPS_ALLOWED: given }))
 
         expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_CLIPS_ALLOWED: '))).toBe(true)
+      },
+    )
+
+    it.each([
+      ['0', false],
+      ['false', false],
+      ['1', true],
+      ['true', true],
+    ])('reads NEW_CLIENT_BOOKS_ALLOWED=%s as booksAllowed %s', (given, expected) => {
+      const config = loadConfig(hosted({ NEW_CLIENT_BOOKS_ALLOWED: given }))
+
+      expect(config.newClientCeilings.booksAllowed).toBe(expected)
+    })
+
+    it('allows photo books on a box that named nothing, as it allows clips', () => {
+      expect(loadConfig(hosted({})).newClientCeilings.booksAllowed).toBe(true)
+    })
+
+    it.each(['yes', 'no', 'on', 'TRUE', '2', ' true'])(
+      'refuses NEW_CLIENT_BOOKS_ALLOWED=%j rather than guess which way it was meant',
+      (given) => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_BOOKS_ALLOWED: given }))
+
+        expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_BOOKS_ALLOWED: '))).toBe(true)
       },
     )
 

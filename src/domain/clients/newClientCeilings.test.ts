@@ -14,6 +14,7 @@ const NONE: NewClientDefaults = {
   maxRetentionDays: null,
   maxLiveDays: null,
   clipsAllowed: true,
+  booksAllowed: true,
 }
 
 /** A box with a tier: every ceiling set, clips off. */
@@ -25,6 +26,7 @@ const TIER: NewClientDefaults = {
   maxRetentionDays: 30,
   maxLiveDays: 3,
   clipsAllowed: false,
+  booksAllowed: false,
 }
 
 /** What the use case would store: the ceilings, after the domain has had its say. */
@@ -74,6 +76,7 @@ describe('startingCeilings', () => {
       ['maxRetentionDays', 60],
       ['maxLiveDays', 7],
       ['clipsAllowed', true],
+      ['booksAllowed', true],
     ] as const)('lets a named %s win over its default', (key, value) => {
       expect(stored(TIER, { [key]: value })[key]).toBe(value)
     })

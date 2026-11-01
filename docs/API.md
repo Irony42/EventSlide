@@ -307,6 +307,7 @@ query does not have is `400 request.invalid`.
         "maxEventQuotaBytes": null,
         "maxRetentionDays": null,
         "clipsAllowed": true,
+        "booksAllowed": true,
         "liveAllowed": true,
         "maxLiveDays": null,
         "maxEventsPerPeriod": null,
@@ -616,15 +617,17 @@ box, and `403 auth.secondFactorRequired` where a second factor is required and n
     "maxEventQuotaBytes": 5000000000,
     "maxRetentionDays": 30,
     "maxLiveDays": 3,
-    "clipsAllowed": true
+    "clipsAllowed": true,
+    "booksAllowed": true
   }
 }
 ```
 
 A number is a ceiling and `null` is none; `clipsAllowed` is `true` unless `NEW_CLIENT_CLIPS_ALLOWED`
-says otherwise. A box that set no `NEW_CLIENT_*` answers `null` for the six numbers and `"clipsAllowed": true`,
-which is what every client of such a box has. These are seven of
-a client's nine ceilings: `liveAllowed` has no default (a new client may open), and the period's
+says otherwise, and `booksAllowed` (the photo book) unless `NEW_CLIENT_BOOKS_ALLOWED` does. A box that set
+no `NEW_CLIENT_*` answers `null` for the six numbers and `true` for both switches,
+which is what every client of such a box has. These are eight of
+a client's ten ceilings: `liveAllowed` has no default (a new client may open), and the period's
 start is the day the client is provisioned.
 
 ### CSRF
@@ -4063,6 +4066,7 @@ nobody wrote.
         "maxEventQuotaBytes": null,
         "maxRetentionDays": 30,
         "clipsAllowed": true,
+        "booksAllowed": true,
         "liveAllowed": true,
         "maxLiveDays": 3,
         "maxEventsPerPeriod": 6,

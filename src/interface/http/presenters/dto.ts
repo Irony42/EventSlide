@@ -988,6 +988,7 @@ export interface ClientDefaultsDto {
     readonly maxRetentionDays: number | null
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
+    readonly booksAllowed: boolean
   }
 }
 
@@ -1005,6 +1006,7 @@ export interface CeilingsDto {
   readonly maxEventQuotaBytes: number | null
   readonly maxRetentionDays: number | null
   readonly clipsAllowed: boolean
+  readonly booksAllowed: boolean
   readonly liveAllowed: boolean
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null

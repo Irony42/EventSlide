@@ -714,3 +714,9 @@ box, read at boot), `BOOK_MAX_PHOTOS` (300), `BOOK_MAX_BYTES` (300 MB), `BOOK_TT
 `BOOK_MAX_TOTAL_BYTES` (2 GB of finished books kept at once), `BOOK_MAX_WAIT_MINUTES` (10) and
 `BOOK_MAX_PER_EVENT_PER_DAY` (3). Finished books live in `<MEDIA_ROOT>/.books/`, outside the event
 folders and outside the backups: budget the disk for them.
+
+**Per-client switch for the photo book.** `NEW_CLIENT_BOOKS_ALLOWED` (`true`, `false`, `1` or `0`;
+absent means allowed) is the default a client created on a hosted box starts with, like
+`NEW_CLIENT_CLIPS_ALLOWED`; the operator console shows it per client (« Livres photo (PDF)
+autorisés »). Existing clients keep the function on. On top of it, one event gets at most
+`BOOK_MAX_PER_EVENT_PER_DAY` books in a rolling day.

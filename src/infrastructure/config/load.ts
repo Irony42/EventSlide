@@ -386,6 +386,7 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       maxRetentionDays: raw.NEW_CLIENT_MAX_RETENTION_DAYS ?? null,
       maxLiveDays: raw.NEW_CLIENT_MAX_LIVE_DAYS ?? null,
       clipsAllowed: raw.NEW_CLIENT_CLIPS_ALLOWED ?? true,
+      booksAllowed: raw.NEW_CLIENT_BOOKS_ALLOWED ?? true,
     },
 
     mfa: {

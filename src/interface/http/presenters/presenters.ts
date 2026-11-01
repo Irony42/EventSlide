@@ -977,6 +977,7 @@ export const toCeilingsDto = (ceilings: ClientLimits['ceilings']): CeilingsDto =
   maxEventQuotaBytes: ceilings.maxEventQuotaBytes,
   maxRetentionDays: ceilings.maxRetentionDays,
   clipsAllowed: ceilings.clipsAllowed,
+  booksAllowed: ceilings.booksAllowed,
   liveAllowed: ceilings.liveAllowed,
   maxLiveDays: ceilings.maxLiveDays,
   maxEventsPerPeriod: ceilings.maxEventsPerPeriod,
