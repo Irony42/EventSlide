@@ -1,4 +1,4 @@
-import { GuestbookEntry } from '../../domain/guestbook/guestbookEntry'
+import { GuestbookEntry, type EntryStatus } from '../../domain/guestbook/guestbookEntry'
 import { DUPLICATE_WINDOW_MS, guestbookRefusalFor } from '../../domain/guestbook/guestbookLimits'
 import { GuestbookText } from '../../domain/guestbook/guestbookText'
 import { isPhotoStatus } from '../../domain/photos/photoStatus'
@@ -168,6 +168,24 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
         reviewed_at: props.review === null ? null : toIsoText(props.review.at),
         reviewed_by_user_id: props.review?.kind === 'host' ? props.review.userId : null,
       })
+  }
+
+  async listByStatuses(
+    eventId: EventId,
+    statuses: readonly EntryStatus[],
+    limit: number,
+  ): Promise<readonly GuestbookEntry[]> {
+    if (statuses.length === 0) return []
+    const marks = statuses.map(() => '?').join(', ')
+    return this.db
+      .prepare<(string | number)[], EntryRow>(
+        `SELECT ${COLUMNS} FROM guestbook_entries
+          WHERE event_id = ? AND status IN (${marks}) AND taken_down_at IS NULL
+          ORDER BY created_at ASC, id ASC
+          LIMIT ?`,
+      )
+      .all(eventId, ...statuses, limit)
+      .map(toEntry)
   }
 
   async listByGuest(

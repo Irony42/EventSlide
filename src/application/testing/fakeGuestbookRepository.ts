@@ -1,4 +1,4 @@
-import { GuestbookEntry } from '../../domain/guestbook/guestbookEntry'
+import { GuestbookEntry, type EntryStatus } from '../../domain/guestbook/guestbookEntry'
 import { DUPLICATE_WINDOW_MS, guestbookRefusalFor } from '../../domain/guestbook/guestbookLimits'
 import type { EventId, GuestId, GuestbookEntryId } from '../../domain/shared/ids'
 import type { GuestbookAdmission, GuestbookRepository } from '../ports/guestbookRepository'
@@ -80,6 +80,17 @@ export class FakeGuestbookRepository implements GuestbookRepository {
     const current = await this.findById(entry.eventId, entry.id)
     if (current === null) return
     this.rows.set(key(entry.eventId, entry.id), entry)
+  }
+
+  async listByStatuses(
+    eventId: EventId,
+    statuses: readonly EntryStatus[],
+    limit: number,
+  ): Promise<readonly GuestbookEntry[]> {
+    return this.visibleOf(eventId)
+      .filter((row) => statuses.includes(row.status))
+      .sort((left, right) => -newestFirst(left, right))
+      .slice(0, limit)
   }
 
   async listByGuest(

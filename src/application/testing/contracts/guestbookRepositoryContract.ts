@@ -134,6 +134,25 @@ export const guestbookRepositoryContract = (
       expect((await repo.listByGuest(WEDDING, SAM, 10)).map((row) => row.id)).toEqual(['e2'])
     })
 
+    it('lists an event messages in the asked statuses, oldest first, and never a taken-down one', async () => {
+      await repo.admit(entry({ id: 'b', text: 'b', createdAt: at(2), moderation: 'auto' }))
+      await repo.admit(entry({ id: 'a', text: 'a', createdAt: at(1), moderation: 'auto' }))
+      await repo.admit(entry({ id: 'p', text: 'p', createdAt: at(3) }))
+      await repo.admit(
+        entry({ id: 'd', guestId: 'guest-sam', text: 'd', createdAt: at(4), moderation: 'auto' }),
+      )
+      subject.takeDown('evt-wedding', 'd', at(9))
+      await repo.admit(entry({ id: 'g', eventId: 'evt-gala', text: 'g', moderation: 'auto' }))
+
+      const listed = await repo.listByStatuses(WEDDING, ['published', 'hidden'], 10)
+
+      expect(listed.map((row) => row.id)).toEqual(['a', 'b'])
+      expect(await repo.listByStatuses(WEDDING, [], 10)).toEqual([])
+      expect((await repo.listByStatuses(WEDDING, ['published'], 1)).map((row) => row.id)).toEqual([
+        'a',
+      ])
+    })
+
     // ---------------------------------------------------------------- admission --
 
     it('treats the same text from the same guest within a minute as one message', async () => {
