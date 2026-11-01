@@ -71,7 +71,11 @@ export interface ReelRepository extends ReelByteSource {
   /** The oldest due queued row, claimed in one atomic step (`ReelJob.claim`). */
   claimNext(now: Date): Promise<ReelJob | null>
 
-  /** Plain write of a job this process holds (a failure, a retry). `false` when the row is gone. */
+  /**
+   * Plain write of a job this process holds (a failure, a retry, a stale judgement). Applies only
+   * to a row still `running`: `false` when the row is gone or an invalidation already made it
+   * stale, so a late failure never brings a spoiled montage back to the queue.
+   */
   save(job: ReelJob): Promise<boolean>
 
   /**

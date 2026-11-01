@@ -246,7 +246,12 @@ export class SqliteReelRepository implements ReelRepository {
   }
 
   async save(job: ReelJob): Promise<boolean> {
-    return this.db.prepare<Bindings>(UPDATE_REEL).run(toBindings(job)).changes > 0
+    // Only a row still `running`: an invalidation may have made it stale while the worker held
+    // it, and a late failure must not put a spoiled montage back in the queue.
+    return (
+      this.db.prepare<Bindings>(`${UPDATE_REEL} AND status = 'running'`).run(toBindings(job))
+        .changes > 0
+    )
   }
 
   async finish(

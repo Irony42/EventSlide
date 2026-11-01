@@ -98,7 +98,7 @@ export class FakeReelRepository implements ReelRepository {
 
   async save(job: ReelJob): Promise<boolean> {
     const held = this.rows.get(job.eventId)
-    if (held === undefined || held.id !== job.id) return false
+    if (held === undefined || held.id !== job.id || held.status !== 'running') return false
     this.rows.set(job.eventId, job)
     return true
   }

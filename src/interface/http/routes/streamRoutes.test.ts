@@ -205,6 +205,24 @@ describe('streamRoutes', () => {
     expect(stream.frames.join('')).not.toContain('photo-1')
   })
 
+  it('never relays the highlight reel to a browser: the guests share this channel (spec 08)', async () => {
+    const stream = await open('/api/events/mariage/stream')
+    await stream.waitFor((text) => text.includes(': connected'), 'connection')
+
+    subject.deps.bus.publish({ type: 'reel.queued', eventId: asEventId(WEDDING) })
+    subject.deps.bus.publish({
+      type: 'reel.failed',
+      eventId: asEventId(WEDDING),
+      code: 'reel.renderFailed',
+    })
+    subject.deps.bus.publish(photoPublished(WEDDING))
+    await stream.waitFor((text) => text.includes('event: change'), 'a change signal')
+
+    const frames = stream.frames.join('')
+    expect(frames).not.toContain('reel')
+    expect(frames).toContain('"type":"photo.moderated"')
+  })
+
   it('carries an id on every frame, so a reconnect can resume', async () => {
     const stream = await open('/api/events/mariage/stream')
     await stream.waitFor((text) => text.includes(': connected'), 'connection')

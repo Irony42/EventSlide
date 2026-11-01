@@ -318,6 +318,18 @@ export const reelRepositoryContract = (
       expect(await repo.save(reelOf(GALA, 'nobody'))).toBe(false)
     })
 
+    it('does not let a late failure bring a stale montage back to the queue', async () => {
+      await seedPhotos()
+      const job = await running()
+      await repo.invalidate(WEDDING, [asPhotoId('p-a')], atPlus(1))
+      const failed = job.fail('reel.renderFailed', atPlus(2))
+      if (!failed.ok) throw new Error('fixture')
+
+      expect(await repo.save(failed.value)).toBe(false)
+
+      expect((await repo.findByEvent(WEDDING))?.status).toBe('stale')
+    })
+
     // -------------------------------------------------------------- invalidate --
 
     it('makes a done montage stale when one of its photographs is named, and names the file to delete', async () => {
