@@ -1107,6 +1107,47 @@ describe('the host event routes', () => {
       expect(response.status).toBe(200)
       expect(response.body.role).toBe('moderator')
     })
+
+    // The print page (spec 02) reads these two fields as a moderator and as a suspended client's
+    // member, and must be answered 404 once the operator takes the event down.
+    it('a moderator reads the code and the link', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.body.joinCode).toBe('H7K2QM')
+      expect(response.body.joinUrl).toBe('http://localhost:4300/join/H7K2QM')
+    })
+
+    it('an event taken down by the operator answers 404 to its owner', async () => {
+      await world.events.setTakenDown(asEventId(WEDDING), AT)
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('event.notFound')
+    })
+
+    it('a suspended client still reads its event, code and link included (200)', async () => {
+      world.clients.seed(aClient({ id: CLIENT_ONE, name: 'Atelier Camille' }))
+      const member = await signedIn(world, 'client-member')
+      const created = await member.post('/api/events').send({ name: 'Un soir de juin' })
+      expect(created.status).toBe(201)
+      world.clients.seed(aClient({ id: CLIENT_ONE, name: 'Atelier Camille', suspendedAt: AT }))
+
+      // Proof that the suspension took: the same member can no longer write.
+      const refused = await member.post('/api/events').send({ name: 'Un autre soir' })
+      expect(refused.status).toBeGreaterThanOrEqual(400)
+
+      const response = await member.get(`/api/events/${String(created.body.slug)}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.joinCode).toBe(created.body.joinCode)
+      expect(response.body.joinUrl).toBe(
+        `http://localhost:4300/join/${String(created.body.joinCode)}`,
+      )
+    })
   })
 
   describe('PATCH /api/events/:slug', () => {

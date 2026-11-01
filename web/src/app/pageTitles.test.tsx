@@ -84,6 +84,7 @@ const HOST_SIGNED_IN: readonly (readonly [string, Key])[] = [
   ['/admin/events/mariage/moderation/mobile', 'mobileModeration'],
   ['/admin/events/mariage/settings', 'settings'],
   ['/admin/events/mariage/settings/ambiance', 'customAmbiance'],
+  ['/admin/events/mariage/print', 'print'],
   ['/admin/client', 'clientSpace'],
   ['/admin/password', 'changePassword'],
   ['/admin/security', 'security'],
