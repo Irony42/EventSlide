@@ -47,6 +47,37 @@ describe('JoinPage', () => {
     expect(api.join).toHaveBeenCalledWith('H7K2QM', null)
   })
 
+  it('shows the host welcome message as plain text, keeping its line breaks', async () => {
+    const api = fakeApi({
+      join: vi.fn(async () =>
+        aJoinResponse({
+          event: aPublicEvent({
+            name: 'Kermesse',
+            brand: { welcomeMessage: '<b>Bienvenue</b>\nUne photo du gâteau ?' },
+          }),
+        }),
+      ),
+    })
+
+    renderJoin('/join/H7K2QM', api)
+
+    const greeting = await screen.findByTestId('host-greeting')
+    expect(greeting.textContent).toBe('<b>Bienvenue</b>\nUne photo du gâteau ?')
+    expect(greeting.querySelector('b')).toBeNull()
+    expect(greeting).toHaveAttribute('dir', 'auto')
+  })
+
+  it('draws no greeting when the host wrote none', async () => {
+    const api = fakeApi({
+      join: vi.fn(async () => aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })),
+    })
+
+    renderJoin('/join/H7K2QM', api)
+
+    await screen.findByRole('heading', { name: fr.join.welcome('Kermesse') })
+    expect(screen.queryByTestId('host-greeting')).toBeNull()
+  })
+
   it('says it is working while a scanned code is being resolved', async () => {
     // A guest who scanned a QR code pressed nothing, so an unexplained blank screen
     // reads as a broken link and they put the phone away.

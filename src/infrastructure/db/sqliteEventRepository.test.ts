@@ -761,6 +761,42 @@ describe('SqliteEventRepository', () => {
       },
     )
 
+    it('round-trips a welcome message, and reads an absent key as none', async () => {
+      await repo.save(anEvent({ id: 'evt-1', settings: { welcomeMessage: 'Bienvenue !' } }))
+      expect((await repo.findById(asEventId('evt-1')))?.settings.welcomeMessage).toBe('Bienvenue !')
+
+      db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
+        json({ welcomeMessage: undefined }),
+        'evt-1',
+      )
+      expect((await repo.findById(asEventId('evt-1')))?.settings.welcomeMessage).toBeNull()
+    })
+
+    it.each([[42], [{ a: 1 }], ['y'.repeat(2_001)]])(
+      'reads a welcome message that is not usable (%o) as none, and does not take the event down',
+      async (stored) => {
+        await repo.save(anEvent({ id: 'evt-1' }))
+        db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
+          json({ welcomeMessage: stored }),
+          'evt-1',
+        )
+
+        expect((await repo.findById(asEventId('evt-1')))?.settings.welcomeMessage).toBeNull()
+      },
+    )
+
+    it('keeps a stored welcome message above today ceiling instead of dropping it', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
+        json({ welcomeMessage: 'z'.repeat(500) }),
+        'evt-1',
+      )
+
+      expect((await repo.findById(asEventId('evt-1')))?.settings.welcomeMessage).toBe(
+        'z'.repeat(500),
+      )
+    })
+
     it('keeps a wall language the host did choose', async () => {
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(

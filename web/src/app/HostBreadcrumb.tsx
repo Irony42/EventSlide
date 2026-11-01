@@ -12,7 +12,8 @@ import styles from './HostBreadcrumb.module.css'
 const EVENTS_PATH = '/admin'
 
 /** The host pages under one event. The page names itself, so a caller never writes a label. */
-export type HostEventPage = 'event' | 'moderation' | 'mobileModeration' | 'settings' | 'ambiance'
+export type HostEventPage =
+  'event' | 'moderation' | 'mobileModeration' | 'settings' | 'ambiance' | 'print'
 
 export interface HostBreadcrumbProps {
   readonly slug: string
@@ -147,6 +148,7 @@ function Trail({
     mobileModeration: t.mobileModeration.title,
     settings: t.admin.settings,
     ambiance: t.admin.customAmbianceCrumb,
+    print: t.admin.printKitCrumb,
   }
 
   return (

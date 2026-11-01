@@ -666,7 +666,7 @@ people on the night.
 
 ### The guestbook (spec 01)
 
-- **One migration, `018_guestbook_entries`**, applied at boot: a new table, no existing row changes. It only goes
+- **One migration, `019_guestbook_entries`**, applied at boot: a new table, no existing row changes. It only goes
   forward, so take the usual backup first ([above](#upgrading-with-docker)); going back is the restore of that
   archive.
 - **Two new event settings, `allowGuestbook` and `guestbookOnWall`.** An event created before this version reads

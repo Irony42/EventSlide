@@ -187,6 +187,9 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   // while they fix it, nothing else ever will either. Without this line the correction
   // would land on the projector at the next upload, or never.
   kept.wallLanguage === fresh.wallLanguage &&
+  // The host's welcome message, shown on the empty wall they are looking at while they write
+  // it: changing it moves no photograph, so without this line it would never appear (spec 03).
+  kept.brand?.welcomeMessage === fresh.brand?.welcomeMessage &&
   sameMissions(kept, fresh)
 
 /**
