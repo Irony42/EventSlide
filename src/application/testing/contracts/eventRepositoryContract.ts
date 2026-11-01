@@ -19,6 +19,13 @@ const venueDigest = ((): ContentHash => {
   return made.value
 })()
 
+/** A second, different digest: the host's logo (spec 03), so a store that swapped the two fails. */
+const logoDigest = ((): ContentHash => {
+  const made = ContentHash.create('cd'.repeat(32))
+  if (!made.ok) throw new Error('fixture digest')
+  return made.value
+})()
+
 /**
  * The shared `EventRepository` contract.
  *
@@ -186,6 +193,7 @@ export const eventRepositoryContract = (
             venuePhoto: venueDigest,
             // Off the default (null) for the same reason.
             welcomeMessage: 'Bienvenue !',
+            logo: logoDigest,
           },
         }),
       )
@@ -210,6 +218,7 @@ export const eventRepositoryContract = (
         wallLanguage: 'de',
         venuePhoto: venueDigest,
         welcomeMessage: 'Bienvenue !',
+        logo: logoDigest,
       })
     })
 

@@ -62,10 +62,27 @@ export type ServedVariant = PhotoVariant | ClipVariant
  */
 export const VENUE_GROUND = 'ground'
 
-export type MediaVariant = ServedVariant | typeof STAGED_SOURCE | typeof VENUE_GROUND
+/**
+ * A host's logo (spec 03): one per event, named by the event's settings like {@link VENUE_GROUND}
+ * and outside {@link SERVED_VARIANTS} for the same reason. Its own variant, so that the file a
+ * logo's digest names can never be the file some other rendition of the same digest names, and
+ * nobody "shares" a file between the two later.
+ */
+export const EVENT_LOGO = 'logo'
+
+export type MediaVariant =
+  | ServedVariant
+  | typeof STAGED_SOURCE
+  | typeof VENUE_GROUND
+  | typeof EVENT_LOGO
 
 /** Everything the store can hold, for the operations that must cover all of it. */
-export const ALL_MEDIA_VARIANTS = [...SERVED_VARIANTS, STAGED_SOURCE, VENUE_GROUND] as const
+export const ALL_MEDIA_VARIANTS = [
+  ...SERVED_VARIANTS,
+  STAGED_SOURCE,
+  VENUE_GROUND,
+  EVENT_LOGO,
+] as const
 
 /**
  * Which renditions a row of each kind actually has.

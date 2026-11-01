@@ -4,6 +4,7 @@ import { ok, type Result } from '../../domain/shared/result'
 import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../ports/imageProcessor'
 import { MEDIA_VARIANTS, type PhotoVariant } from '../ports/mediaStore'
 import { VARIANT_SPECS } from '../usecases/photos/uploadPhotos'
+import { LOGO_SPEC } from '../usecases/brand/setEventLogo'
 import { VENUE_GROUND_SPEC } from '../usecases/venue/setVenuePhoto'
 
 /** A file's bytes are its tag, so every double can answer deterministically for it. */
@@ -30,9 +31,14 @@ export interface ImageScript {
   readonly groundByteSize?: number
   /** Fail the venue ground's render, which is not one of the three photo variants. */
   readonly groundRenderFails?: boolean
+  /** What the host's logo renders to; defaults to a plausible 30 kB. */
+  readonly logoByteSize?: number
+  /** Fail the logo's render. */
+  readonly logoRenderFails?: boolean
 }
 
 export const DEFAULT_GROUND_BYTES = 200_000
+export const DEFAULT_LOGO_BYTES = 30_000
 
 /** Matched on the longest edge, so the double does not depend on object identity. */
 const variantFor = (spec: RenderSpec): PhotoVariant => {
@@ -71,7 +77,7 @@ export class FakeImageProcessor implements ImageProcessor {
   }
 
   /** The exact bytes `render` will produce, so a test can pre-compute a content hash. */
-  renderedBytes(tag: string, variant: PhotoVariant | 'ground'): Uint8Array {
+  renderedBytes(tag: string, variant: PhotoVariant | 'ground' | 'logo'): Uint8Array {
     return tagBytes(`${tag}/${variant}`)
   }
 
@@ -95,6 +101,22 @@ export class FakeImageProcessor implements ImageProcessor {
   async render(bytes: Uint8Array, spec: RenderSpec): Promise<Result<RenderedImage, DomainError>> {
     const tag = readTag(bytes)
     const script = this.scripts.get(tag) ?? {}
+
+    // The host's logo: a fifth thing to render, small, in WebP.
+    if (spec.maxWidth === LOGO_SPEC.maxWidth) {
+      this.calls.push(`render:${tag}:logo`)
+      if (script.logoRenderFails === true) {
+        return { ok: false, error: DomainError.invalid('image.renderFailed') }
+      }
+      return ok({
+        bytes: this.renderedBytes(tag, 'logo'),
+        dimensions: this.dimensionsOf(script).scaleToFit(
+          dimensionsFrom(spec.maxWidth, spec.maxHeight),
+        ),
+        byteSize: script.logoByteSize ?? DEFAULT_LOGO_BYTES,
+        format: spec.format,
+      })
+    }
 
     // The host's venue ground is a fourth thing to render, in a different format and box.
     if (spec.maxWidth === VENUE_GROUND_SPEC.maxWidth) {

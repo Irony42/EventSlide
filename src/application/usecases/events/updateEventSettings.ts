@@ -41,6 +41,27 @@ export type UpdateEventSettings = (
   input: UpdateEventSettingsInput,
 ) => Promise<Result<Event, DomainError>>
 
+/**
+ * The patch applied to one reading of the event: validated as a whole (so one field cannot be
+ * persisted out of range while its neighbour is refused), the purge hold on the welcome message,
+ * and the archived rule, which lives in the entity.
+ */
+const judge = (event: Event, patch: EventSettingsPatch): Result<Event, DomainError> => {
+  const settings = event.settings.with(patch)
+  if (!settings.ok) return settings
+
+  // A purge hold keeps evidence: changing or clearing the welcome message destroys the previous
+  // text, so it is refused while the value changes (the same text sent back, as a full form does,
+  // passes). Code `saveFailed`, never one that names the hold, like `venuePhoto.saveFailed`.
+  if (event.isPurgeHeld() && settings.value.welcomeMessage !== event.settings.welcomeMessage) {
+    return err(DomainError.unexpected('eventSettings.saveFailed'))
+  }
+
+  // The archived rule lives in the entity: an archived event is a record whose media may have
+  // been tiered off, and it says so once for every kind of edit.
+  return event.withSettings(settings.value)
+}
+
 export const makeUpdateEventSettings =
   ({ events, clients, memberships, bus }: UpdateEventSettingsDeps): UpdateEventSettings =>
   async ({ eventId, actorId, patch }) => {
@@ -53,28 +74,25 @@ export const makeUpdateEventSettings =
     const writable = requireWritable(event)
     if (!writable.ok) return writable
 
-    // Validated as a whole, so one field cannot be persisted out of range while its
-    // neighbour is refused.
-    const settings = event.settings.with(patch)
-    if (!settings.ok) return settings
-
-    // A purge hold keeps evidence: changing or clearing the message destroys the previous text, so
-    // it is refused while the value changes (the same text sent back, as a full form does, passes).
-    // Code `saveFailed`, never one that names the hold, like `venuePhoto.saveFailed`.
-    if (event.isPurgeHeld() && settings.value.welcomeMessage !== event.settings.welcomeMessage) {
-      return err(DomainError.unexpected('eventSettings.saveFailed'))
-    }
-
-    // The archived rule lives in the entity: an archived event is a record whose media
-    // may have been tiered off, and it says so once for every kind of edit.
-    const updated = event.withSettings(settings.value)
-    if (!updated.ok) return updated
+    // Judged on the entity read at the top, so the answers to a bad request come before the
+    // awaits below, in the order they always did.
+    const judged = judge(event, patch)
+    if (!judged.ok) return judged
 
     // The client's ceilings (roadmap §10.5 / G2-05): the rule, and why it asks only of what this
     // save changes, are `ClientCeilings.settingsRefusal`'s.
     const ceilings = (await clientContextOf(clients, event))?.ceilings ?? null
     const refusal = ceilings?.settingsRefusal(event.settings, patch) ?? null
     if (refusal !== null) return err(refusal)
+
+    // **Read again, and saved with no await between.** The copy read at the top is older than the
+    // awaits above (the role, the client's ceilings), and `events.save` rewrites the whole row: saving
+    // that copy would erase a logo a `setEventLogo` wrote in between. The patch is applied to the
+    // fresh entity instead (the ceilings were judged on what this save changes, which is the same).
+    const current = await events.findById(eventId)
+    if (current === null) return err(DomainError.notFound('event.notFound'))
+    const updated = judge(current, patch)
+    if (!updated.ok) return updated
 
     await events.save(updated.value)
     bus.publish({ type: 'event.settingsChanged', eventId: updated.value.id })

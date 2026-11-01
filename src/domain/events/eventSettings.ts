@@ -120,6 +120,13 @@ export interface EventSettingsProps {
    * `welcomeMessage.ts`; content, never translated.
    */
   readonly welcomeMessage: string | null
+  /**
+   * The digest of the host's logo (spec 03), or `null` for none. **Beside the theme and not in it,
+   * exactly as `venuePhoto` is**: the file arrives by its own route, and a settings save must not
+   * be able to drop or name it. Only `setEventLogo` and `removeEventLogo` write it
+   * (`withLogo`); the settings route never forwards it.
+   */
+  readonly logo: ContentHash | null
 }
 
 /**
@@ -142,6 +149,7 @@ const DEFAULTS: EventSettingsProps = {
   wallLanguage: DEFAULT_EVENT_LANGUAGE,
   venuePhoto: null,
   welcomeMessage: null,
+  logo: null,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -268,6 +276,7 @@ export class EventSettings {
       wallLanguage: pick(patch.wallLanguage, base.wallLanguage),
       venuePhoto: pick(patch.venuePhoto, base.venuePhoto),
       welcomeMessage: pick(patch.welcomeMessage, base.welcomeMessage),
+      logo: pick(patch.logo, base.logo),
     }
 
     const failure =
@@ -350,6 +359,15 @@ export class EventSettings {
 
   get welcomeMessage(): string | null {
     return this.props.welcomeMessage
+  }
+
+  get logo(): ContentHash | null {
+    return this.props.logo
+  }
+
+  /** The same settings with the host's logo named, or cleared with `null`: `withVenuePhoto`'s reasoning. */
+  withLogo(logo: ContentHash | null): EventSettings {
+    return new EventSettings({ ...this.props, logo })
   }
 
   /**

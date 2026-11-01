@@ -473,6 +473,8 @@ const settingsOf = (raw: string): EventSettings => {
     venuePhoto: settingsVenuePhotoAddedLater(decoded['venuePhoto']),
     /** Added by spec 03; absent and malformed both read as none, and a cosmetic field never fails the read. */
     welcomeMessage: restoreWelcomeMessage(decoded['welcomeMessage']),
+    /** Added by spec 03, read like the venue photograph: anything that is not a digest is none. */
+    logo: settingsVenuePhotoAddedLater(decoded['logo']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the
@@ -547,7 +549,11 @@ const COUNT_COLUMNS = `(SELECT COUNT(*) FROM photos p
  * `JSON.stringify` would write it as `{"value":"…"}`, which the read path would not recognise.
  */
 const settingsJson = (props: EventSettingsProps): string =>
-  JSON.stringify({ ...props, venuePhoto: props.venuePhoto?.value ?? null })
+  JSON.stringify({
+    ...props,
+    venuePhoto: props.venuePhoto?.value ?? null,
+    logo: props.logo?.value ?? null,
+  })
 
 const toParams = (event: Event): EventParams => {
   const props = event.toProps()
