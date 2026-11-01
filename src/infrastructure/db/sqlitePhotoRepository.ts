@@ -539,10 +539,19 @@ export class SqlitePhotoRepository implements PhotoRepository {
       filters.push('author_guest_id = ?')
       params.push(query.authoredBy)
     }
+    if (query.until !== undefined) {
+      filters.push('created_at <= ?')
+      params.push(toIsoText(query.until))
+    }
+    const direction = query.order === 'asc' ? 'ASC' : 'DESC'
     if (cursor !== null) {
-      // The keyset predicate, matching `ORDER BY created_at DESC, id DESC`. An OFFSET
-      // here would skip or repeat a photo every time a guest uploads mid-scroll.
-      filters.push('(created_at < ? OR (created_at = ? AND id < ?))')
+      // The keyset predicate, matching `ORDER BY created_at DESC, id DESC` (or ASC, ASC).
+      // An OFFSET here would skip or repeat a photo every time a guest uploads mid-scroll.
+      filters.push(
+        direction === 'ASC'
+          ? '(created_at > ? OR (created_at = ? AND id > ?))'
+          : '(created_at < ? OR (created_at = ? AND id < ?))',
+      )
       params.push(cursor.createdAt, cursor.createdAt, cursor.id)
     }
 
@@ -555,7 +564,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
         `SELECT ${PHOTO_COLUMNS}
            FROM photos
           WHERE ${filters.join(' AND ')}
-          ORDER BY created_at DESC, id DESC${limit === undefined ? '' : ' LIMIT ?'}`,
+          ORDER BY created_at ${direction}, id ${direction}${limit === undefined ? '' : ' LIMIT ?'}`,
       )
       .all(...params)
 

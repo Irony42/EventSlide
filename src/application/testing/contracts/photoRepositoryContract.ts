@@ -552,6 +552,79 @@ export const photoRepositoryContract = (
       })
     })
 
+    describe('chronological order and a frozen instant (photo book)', () => {
+      const MIXED_ASC = [
+        aPhoto({ id: 'p-1', eventId: WEDDING, createdAt: atPlus(0) }),
+        aPhoto({ id: 'p-b', eventId: WEDDING, createdAt: atPlus(1_000) }),
+        aPhoto({ id: 'p-a', eventId: WEDDING, createdAt: atPlus(1_000) }),
+        aPhoto({ id: 'p-c', eventId: WEDDING, createdAt: atPlus(1_000) }),
+        aPhoto({ id: 'p-2', eventId: WEDDING, createdAt: atPlus(2_000) }),
+      ]
+
+      it('lists oldest first, ties by ascending id, when asked for ascending order', async () => {
+        await saveAll(MIXED_ASC)
+
+        const page = await repo.list(WEDDING, { order: 'asc' })
+
+        expect(page.items.map((photo) => photo.id)).toEqual(['p-1', 'p-a', 'p-b', 'p-c', 'p-2'])
+      })
+
+      it('still lists newest first when the order is named descending', async () => {
+        await saveAll(MIXED_ASC)
+
+        const page = await repo.list(WEDDING, { order: 'desc' })
+
+        expect(page.items.map((photo) => photo.id)).toEqual(['p-2', 'p-c', 'p-b', 'p-a', 'p-1'])
+      })
+
+      it.each([1, 2, 3])(
+        'pages an ascending listing once each, through ties, with a page of %i',
+        async (limit) => {
+          await saveAll(MIXED_ASC)
+
+          expect(await pageThrough(repo, WEDDING, limit, { order: 'asc' })).toEqual([
+            'p-1',
+            'p-a',
+            'p-b',
+            'p-c',
+            'p-2',
+          ])
+        },
+      )
+
+      it('keeps only photographs created at or before the instant, the instant included', async () => {
+        await saveAll(MIXED_ASC)
+
+        const page = await repo.list(WEDDING, { order: 'asc', until: atPlus(1_000) })
+
+        expect(page.items.map((photo) => photo.id)).toEqual(['p-1', 'p-a', 'p-b', 'p-c'])
+      })
+
+      it('carries the instant across a page boundary', async () => {
+        await saveAll(MIXED_ASC)
+
+        expect(await pageThrough(repo, WEDDING, 2, { order: 'asc', until: atPlus(1_000) })).toEqual(
+          ['p-1', 'p-a', 'p-b', 'p-c'],
+        )
+      })
+
+      it('never lists a photograph of another event in an ascending listing', async () => {
+        await saveAll([
+          aPhoto({ id: 'mine', eventId: WEDDING, createdAt: atPlus(0) }),
+          aPhoto({
+            id: 'theirs',
+            eventId: GALA,
+            author: { kind: 'guest', id: SAM },
+            createdAt: atPlus(1_000),
+          }),
+        ])
+
+        const page = await repo.list(WEDDING, { order: 'asc' })
+
+        expect(page.items.map((photo) => photo.id)).toEqual(['mine'])
+      })
+    })
+
     it('reports no cursor on the last page', async () => {
       await saveAll([
         aPhoto({ id: 'p1', eventId: WEDDING, createdAt: atPlus(0) }),

@@ -18,6 +18,18 @@ import type { ClientByteLimit } from './clientRepository'
 export interface PhotoQuery {
   readonly statuses?: readonly PhotoStatus[]
   readonly authoredBy?: GuestId
+  /**
+   * `'desc'` (the default) is newest first; `'asc'` is the album's chronological order,
+   * oldest first, ties broken by **ascending** id (the photo book reads it that way). A
+   * cursor is only valid for the order that issued it.
+   */
+  readonly order?: 'asc' | 'desc'
+  /**
+   * Only photographs created at or before this instant, inclusive. It freezes a listing of
+   * an event that is still receiving uploads: an ascending read otherwise walks into a tail
+   * that keeps growing.
+   */
+  readonly until?: Date
   readonly limit?: number
   /** Opaque cursor from a previous page. Encoding is the adapter's business. */
   readonly cursor?: string
@@ -164,6 +176,9 @@ export interface PhotoRepository {
    * upload stamps every file of the batch with one `createdAt`. An implementation pages
    * through such a run without repeating or skipping a photo, at any limit; the contract
    * suite holds the SQLite adapter and the fake to it.
+   *
+   * `order: 'asc'` reverses both keys (oldest first, ascending id) and `until` bounds the
+   * listing by `createdAt`.
    */
   list(eventId: EventId, query?: PhotoQuery): Promise<PhotoPage>
 
