@@ -53,7 +53,7 @@ describe('JoinPage', () => {
         aJoinResponse({
           event: aPublicEvent({
             name: 'Kermesse',
-            brand: { welcomeMessage: '<b>Bienvenue</b>\nUne photo du gâteau ?' },
+            brand: { logoUrl: null, welcomeMessage: '<b>Bienvenue</b>\nUne photo du gâteau ?' },
           }),
         }),
       ),

@@ -55,7 +55,7 @@ describe('every field of the wall response is accounted for', () => {
     // changed on the empty wall the host is looking at moves no photograph and so no `revision`.
     const withMessage = (welcomeMessage: string | null) => ({
       ...aWallResponse(),
-      brand: { welcomeMessage },
+      brand: { welcomeMessage, logoUrl: null },
     })
 
     expect(sameSettings(withMessage(null), withMessage('Bienvenue'))).toBe(false)

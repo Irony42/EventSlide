@@ -162,6 +162,16 @@ export const useUploadVenuePhoto = (): ActionState<[string, File], EventDto> => 
   return useAction(useCallback((slug: string, file: File) => api.putVenuePhoto(slug, file), [api]))
 }
 
+export const useUploadEventLogo = (): ActionState<[string, File], EventDto> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string, file: File) => api.putEventLogo(slug, file), [api]))
+}
+
+export const useRemoveEventLogo = (): ActionState<[string], EventDto> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string) => api.removeEventLogo(slug), [api]))
+}
+
 export const useRemoveVenuePhoto = (): ActionState<[string], EventDto> => {
   const api = useApi()
   return useAction(useCallback((slug: string) => api.removeVenuePhoto(slug), [api]))

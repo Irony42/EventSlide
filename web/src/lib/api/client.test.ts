@@ -301,6 +301,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.removeVenuePhoto(SLUG),
   },
   {
+    name: 'putEventLogo',
+    verb: 'put',
+    path: `/api/events/${SLUG}/logo`,
+    invoke: (client) => client.putEventLogo(SLUG, new File(['x'], 'logo.png')),
+  },
+  {
+    name: 'removeEventLogo',
+    verb: 'del',
+    path: `/api/events/${SLUG}/logo`,
+    invoke: (client) => client.removeEventLogo(SLUG),
+  },
+  {
     name: 'setEventStatus',
     verb: 'post',
     path: `/api/events/${SLUG}/status`,
@@ -782,6 +794,17 @@ describe('request bodies', () => {
     expect(body).toBeInstanceOf(FormData)
     expect((body as FormData).get('photo')).toBe(file)
     expect([...(body as FormData).keys()]).toEqual(['photo'])
+  })
+
+  it('sends the logo as one multipart part named file', async () => {
+    const file = new File(['bytes'], 'logo.png', { type: 'image/png' })
+
+    await subject().putEventLogo(SLUG, file)
+
+    const body = only().body
+    expect(body).toBeInstanceOf(FormData)
+    expect((body as FormData).get('file')).toBe(file)
+    expect([...(body as FormData).keys()]).toEqual(['file'])
   })
 
   it('sends the address and the page language with an invitation, and no password', async () => {

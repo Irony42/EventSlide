@@ -675,6 +675,21 @@ export const createApi = (transport: Transport) => ({
   removeVenuePhoto: (slug: string): Promise<EventDto> =>
     transport.del(`/api/events/${encode(slug)}/venue-photo`),
 
+  /**
+   * Sends, or replaces, the event's logo (spec 03): a multipart `PUT` with one part, `file`, that
+   * answers the event, whose `brand.logoUrl` is then the stored file. The name and type the browser
+   * attaches are the server's to ignore; the format is identified from the bytes.
+   */
+  putEventLogo: (slug: string, file: File): Promise<EventDto> => {
+    const form = new FormData()
+    form.append('file', file)
+    return transport.put(`/api/events/${encode(slug)}/logo`, form)
+  },
+
+  /** Takes the logo down. Idempotent. */
+  removeEventLogo: (slug: string): Promise<EventDto> =>
+    transport.del(`/api/events/${encode(slug)}/logo`),
+
   setEventStatus: (slug: string, status: EventStatus): Promise<EventDto> =>
     transport.post(`/api/events/${encode(slug)}/status`, { status }),
 

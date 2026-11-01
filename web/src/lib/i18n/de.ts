@@ -467,6 +467,9 @@ export const de: UiText = {
     'slug.malformed':
       'Für die Adresse sind nur Buchstaben ohne Umlaute, Ziffern und Bindestriche erlaubt.',
     'slug.reserved': 'Diese Adresse ist reserviert. Wählen Sie eine andere.',
+    'logo.tooLarge': 'Dieses Logo ist auch verkleinert zu schwer. Versuchen Sie ein anderes.',
+    'logo.notFound': 'Dieses Logo gibt es nicht mehr.',
+    'logo.saveFailed': 'Das Logo konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     'eventSettings.welcomeInvalid': 'Diese Nachricht ist nicht gültig.',
     'eventSettings.welcomeTooLong': 'Diese Nachricht ist zu lang.',
     'eventSettings.welcomeTooManyLines': 'Diese Nachricht hat zu viele Zeilen.',
@@ -1123,6 +1126,17 @@ export const de: UiText = {
       'Willkommen! Machen Sie Fotos, wir sehen sie auf dem Bildschirm im Saal.',
     welcomeMessageClear: 'Nachricht löschen',
     welcomeMessageCount: (count, max) => `${count} / ${max}`,
+    logo: 'Logo der Veranstaltung',
+    logoHint:
+      'Ein Logo oder Monogramm, am besten als PNG mit transparentem Hintergrund (PNG, JPEG oder WebP). Es erscheint auf der Seite Ihrer Gäste und auf dem Bildschirm, nie auf den Fotos.',
+    logoPreviewAlt: 'Vorschau des Veranstaltungslogos',
+    logoNone: 'Noch kein Logo.',
+    logoChoose: 'Logo auswählen',
+    logoReplace: 'Logo ersetzen',
+    logoRemove: 'Logo entfernen',
+    logoBusy: 'Logo wird hochgeladen…',
+    logoSaved: 'Das Logo ist gespeichert.',
+    logoRemoved: 'Das Logo ist entfernt.',
     customAmbianceCreate: 'Meine eigene Stimmung erstellen',
     customAmbianceEdit: 'Meine Stimmung bearbeiten',
     customAmbianceEntryHint:
