@@ -58,3 +58,28 @@ export const toSingleLine = (raw: string): string =>
     .replace(INVISIBLE, '')
     .replace(/\s{2,}/gu, ' ')
     .trim()
+
+/**
+ * Every separator a client may send for "a new line", read as `\n`: CRLF, a lone CR, and
+ * the Unicode line (`U+2028`), paragraph (`U+2029`) and next-line (`U+0085`) separators.
+ */
+const LINE_SEPARATORS = /\r\n|[\r\u2028\u2029\u0085]/gu
+
+/**
+ * Several short lines of untrusted text: the host's welcome message.
+ *
+ * **The order is load-bearing, as in {@link toSingleLine}.** Separators become `\n`
+ * first: `INVISIBLE` contains `Zl`, `Zp` and `Cc`, so stripping before converting would
+ * glue two words that a client had separated with `U+2028`. Each line then gets the
+ * single-line treatment, and blank lines are dropped (a decorative empty line would
+ * spend one of the few lines the surface allows).
+ *
+ * The result may be empty; what that means is the caller's decision.
+ */
+export const toParagraphs = (raw: string): string =>
+  raw
+    .replace(LINE_SEPARATORS, '\n')
+    .split('\n')
+    .map(toSingleLine)
+    .filter((line) => line.length > 0)
+    .join('\n')
