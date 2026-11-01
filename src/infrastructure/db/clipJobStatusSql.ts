@@ -64,7 +64,7 @@ export const eventHoldingBytesSum = (eventIdExpr: string, creditedClipJobExpr?: 
            WHERE event_id = ${eventIdExpr} AND status IN (${HOLDING_BYTES_SQL})${credited})
        + (SELECT COALESCE(SUM(byte_size), 0)
             FROM highlight_reels
-           WHERE event_id = ${eventIdExpr} AND output_hash IS NOT NULL))`
+           WHERE event_id = ${eventIdExpr}))`
 }
 
 /**
