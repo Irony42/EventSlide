@@ -255,5 +255,50 @@ export const eventStatsRepositoryContract = (
 
       expect(names.sort()).toEqual(['Léa', null])
     })
+
+    it('adds to the counter of that day instead of replacing it', async () => {
+      await repo.bump(A, 'galleryViews', '2026-11-14', 1)
+      await repo.bump(A, 'galleryViews', '2026-11-14', 2)
+
+      expect(await repo.readCounters(A)).toEqual([
+        { metric: 'galleryViews', day: '2026-11-14', value: 3 },
+      ])
+    })
+
+    it('keeps a counter per metric and per day, oldest day first', async () => {
+      await repo.bump(A, 'galleryArchiveDownloads', '2026-11-15', 1)
+      await repo.bump(A, 'galleryViews', '2026-11-15', 5)
+      await repo.bump(A, 'galleryViews', '2026-11-14', 2)
+
+      expect(await repo.readCounters(A)).toEqual([
+        { metric: 'galleryViews', day: '2026-11-14', value: 2 },
+        { metric: 'galleryArchiveDownloads', day: '2026-11-15', value: 1 },
+        { metric: 'galleryViews', day: '2026-11-15', value: 5 },
+      ])
+    })
+
+    it("never reads another event's counters", async () => {
+      await repo.bump(A, 'galleryViews', '2026-11-14', 4)
+      await repo.bump(B, 'galleryViews', '2026-11-14', 9)
+
+      expect(await repo.readCounters(A)).toEqual([
+        { metric: 'galleryViews', day: '2026-11-14', value: 4 },
+      ])
+      expect(await repo.readCounters(B)).toEqual([
+        { metric: 'galleryViews', day: '2026-11-14', value: 9 },
+      ])
+    })
+
+    it('reads no counter for an event that was never opened', async () => {
+      expect(await repo.readCounters(A)).toEqual([])
+    })
+
+    it('refuses a delta that is not a positive integer, and writes nothing', async () => {
+      for (const delta of [0, -1, 1.5, Number.NaN]) {
+        await expect(repo.bump(A, 'galleryViews', '2026-11-14', delta)).rejects.toThrow(RangeError)
+      }
+
+      expect(await repo.readCounters(A)).toEqual([])
+    })
   })
 }

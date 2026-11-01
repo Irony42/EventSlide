@@ -1,6 +1,7 @@
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import { DomainError } from '../../../domain/shared/errors'
+import { engagementSince } from '../../../domain/stats/engagementWindow'
 import { rankContributors, type ContributorRanking } from '../../../domain/stats/contributorRanking'
 import type { Clock } from '../../ports/clock'
 import type { DerivedStats } from '../../ports/eventStatsRepository'
@@ -30,12 +31,23 @@ export interface GetEventStatsInput {
   readonly actorId: UserId
 }
 
+/**
+ * The after-party counters, summed over the days. `since` is the first day anything was counted,
+ * so the page can say that nothing was measured before it. `null` when no day was ever counted.
+ */
+export interface Engagement {
+  readonly since: string
+  readonly galleryViews: number
+  readonly galleryArchiveDownloads: number
+}
+
 export interface EventStats {
   readonly derived: DerivedStats
   /** Sends: the sum of the four statuses (photos and videos alike). */
   readonly uploadsTotal: number
   readonly activeNow: number
   readonly contributors: ContributorRanking
+  readonly engagement: Engagement | null
 }
 
 export interface GetEventStatsDeps {
@@ -63,8 +75,21 @@ export const makeGetEventStats =
     const since = new Date(clock.now().getTime() - PRESENCE_WINDOW_MS)
     const { byStatus } = derived
 
+    const counters = await stats.readCounters(eventId)
+    const first = engagementSince(counters.map((counter) => counter.day))
+    const total = (metric: 'galleryViews' | 'galleryArchiveDownloads'): number =>
+      counters.filter((counter) => counter.metric === metric).reduce((sum, c) => sum + c.value, 0)
+
     return ok({
       derived,
+      engagement:
+        first === null
+          ? null
+          : {
+              since: first,
+              galleryViews: total('galleryViews'),
+              galleryArchiveDownloads: total('galleryArchiveDownloads'),
+            },
       uploadsTotal: byStatus.pending + byStatus.published + byStatus.rejected + byStatus.hidden,
       activeNow: await guests.countActive(eventId, since),
       contributors: rankContributors(derived.contributors),

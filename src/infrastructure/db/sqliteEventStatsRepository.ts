@@ -3,8 +3,10 @@ import { fromIsoText } from './rowMapping'
 import type {
   DerivedStats,
   EventStatsRepository,
+  StatsCounter,
 } from '../../application/ports/eventStatsRepository'
 import type { PhotoStatusCounts } from '../../application/ports/photoRepository'
+import type { StatsMetric } from '../../domain/stats/statsMetric'
 import type { PhotoStatus } from '../../domain/photos/photoStatus'
 import { emptyCounts } from '../../domain/reactions/reactionTally'
 import type { ReactionKind } from '../../domain/reactions/reactionKind'
@@ -60,10 +62,29 @@ export const STATS_SQL = {
                                  AND p.taken_down_at IS NULL AND p.author_guest_id IS NOT NULL
                                GROUP BY p.author_guest_id) got ON got.author_guest_id = g.id
                   WHERE g.event_id = ?`,
+  bump: `INSERT INTO event_stats_counters (event_id, metric, day, value) VALUES (?, ?, ?, ?)
+          ON CONFLICT (event_id, metric, day) DO UPDATE SET value = value + excluded.value`,
+  counters: `SELECT metric, day, value FROM event_stats_counters
+               WHERE event_id = ? ORDER BY day, metric`,
 } as const
 
 export class SqliteEventStatsRepository implements EventStatsRepository {
   constructor(private readonly db: Db) {}
+
+  async bump(eventId: EventId, metric: StatsMetric, day: string, delta: number): Promise<void> {
+    if (!Number.isSafeInteger(delta) || delta < 1) {
+      throw new RangeError(`bump requires a positive integer delta, got ${delta}`)
+    }
+    this.db
+      .prepare<[string, string, string, number]>(STATS_SQL.bump)
+      .run(eventId, metric, day, delta)
+  }
+
+  async readCounters(eventId: EventId): Promise<readonly StatsCounter[]> {
+    return this.db
+      .prepare<[string], { metric: StatsMetric; day: string; value: number }>(STATS_SQL.counters)
+      .all(eventId)
+  }
 
   async readDerived(eventId: EventId): Promise<DerivedStats> {
     const byStatus: Record<keyof PhotoStatusCounts, number> = {

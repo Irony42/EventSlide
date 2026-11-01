@@ -1237,10 +1237,17 @@ export interface StatsContributorDto {
   readonly reactions: number
 }
 
+/** What the after-party counters hold, summed over the days; `since` is the first day counted. */
+export interface EngagementDto {
+  readonly since: string
+  readonly galleryViews: number
+  readonly galleryArchiveDownloads: number
+}
+
 /**
  * The host statistics page (spec 05). Everything is derived from the album at read time.
- * `photos` means sends, photographs and videos alike. `engagement` is `null` until the
- * after-party counters exist.
+ * `photos` means sends, photographs and videos alike. `engagement` is `null` until a first
+ * open of the album link or ZIP was counted.
  */
 export interface EventStatsResponseDto {
   readonly uploads: {
@@ -1268,5 +1275,5 @@ export interface EventStatsResponseDto {
     readonly guests: number
     readonly photos: number
   }
-  readonly engagement: null
+  readonly engagement: EngagementDto | null
 }

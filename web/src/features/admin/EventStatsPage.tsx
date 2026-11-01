@@ -102,6 +102,38 @@ function Figures({ stats }: { readonly stats: EventStatsResponse }) {
   )
 }
 
+/** The first day measured, as the reader's calendar writes it. The day is a UTC date, shown as that date. */
+const dayLabel = (day: string, locale: string): string =>
+  new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+    new Date(`${day}T00:00:00.000Z`),
+  )
+
+function AfterTheParty({ stats }: { readonly stats: EventStatsResponse }) {
+  const t = useTranslations()
+  const { locale } = useLocale()
+  const text = t.admin.stats
+  const { engagement } = stats
+
+  return (
+    <Card as="h2" title={text.engagementTitle}>
+      {engagement === null ? (
+        <p className={styles['muted']}>{text.engagementNone}</p>
+      ) : (
+        <>
+          <ul className={styles['rows']}>
+            <li>{text.albumOpens(engagement.galleryViews)}</li>
+            <li>{text.zipLaunches(engagement.galleryArchiveDownloads)}</li>
+          </ul>
+          <p className={styles['muted']}>
+            {text.measuredSince(dayLabel(engagement.since, locale))}
+          </p>
+        </>
+      )}
+      <p className={styles['muted']}>{text.engagementNote}</p>
+    </Card>
+  )
+}
+
 function Content({ stats }: { readonly stats: EventStatsResponse }) {
   const t = useTranslations()
   const { photos, guests, reactions } = stats
@@ -186,6 +218,8 @@ function Content({ stats }: { readonly stats: EventStatsResponse }) {
           </>
         )}
       </Card>
+
+      <AfterTheParty stats={stats} />
 
       <p className={styles['muted']}>{text.retention}</p>
     </>
