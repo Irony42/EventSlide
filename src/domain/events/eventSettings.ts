@@ -8,6 +8,7 @@ import {
   restoreEventTheme,
   type EventThemeProps,
 } from './eventTheme'
+import { normalizeWelcomeMessage, restoreWelcomeMessage } from './welcomeMessage'
 
 /**
  * The per-event policy a host can change without touching code.
@@ -128,6 +129,12 @@ export interface EventSettingsProps {
    * theirs to remove, not a side effect of trying another look.
    */
   readonly venuePhoto: ContentHash | null
+  /**
+   * The host's free welcome message (spec 03), shown on the join page, the guest upload
+   * page and the empty wall. `null` is "no message". Held already normalised by
+   * `welcomeMessage.ts`; content, never translated.
+   */
+  readonly welcomeMessage: string | null
 }
 
 /**
@@ -153,6 +160,7 @@ const DEFAULTS: EventSettingsProps = {
   theme: DEFAULT_EVENT_THEME,
   wallLanguage: DEFAULT_EVENT_LANGUAGE,
   venuePhoto: null,
+  welcomeMessage: null,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -184,6 +192,11 @@ const languageViolation = (value: EventLanguage): DomainError | null =>
  */
 type ThemeCheck = (theme: EventThemeProps) => Result<EventThemeProps, DomainError>
 
+/** The welcome message is judged as a choice only when the patch makes one. */
+type WelcomeCheck = (raw: string | null) => Result<string | null, DomainError>
+
+const restoreWelcome: WelcomeCheck = (raw) => ok(restoreWelcomeMessage(raw))
+
 /**
  * The checked theme, or the error that refused it.
  *
@@ -212,7 +225,7 @@ export class EventSettings {
   }
 
   static create(patch: EventSettingsPatch): Result<EventSettings, DomainError> {
-    return EventSettings.build(DEFAULTS, patch, createEventTheme)
+    return EventSettings.build(DEFAULTS, patch, createEventTheme, normalizeWelcomeMessage)
   }
 
   /**
@@ -233,7 +246,8 @@ export class EventSettings {
    */
   with(patch: EventSettingsPatch): Result<EventSettings, DomainError> {
     const check = patch.theme === undefined ? restoreEventTheme : createEventTheme
-    return EventSettings.build(this.props, patch, check)
+    const welcome = patch.welcomeMessage === undefined ? restoreWelcome : normalizeWelcomeMessage
+    return EventSettings.build(this.props, patch, check, welcome)
   }
 
   /**
@@ -246,13 +260,14 @@ export class EventSettings {
    * next choice, not take a wedding that is live right now off the screen.
    */
   static restore(props: EventSettingsProps): Result<EventSettings, DomainError> {
-    return EventSettings.build(DEFAULTS, props, restoreEventTheme)
+    return EventSettings.build(DEFAULTS, props, restoreEventTheme, restoreWelcome)
   }
 
   private static build(
     base: EventSettingsProps,
     patch: EventSettingsPatch,
     checkTheme: ThemeCheck,
+    checkWelcome: WelcomeCheck,
   ): Result<EventSettings, DomainError> {
     const merged: EventSettingsProps = {
       moderation: pick(patch.moderation, base.moderation),
@@ -273,6 +288,7 @@ export class EventSettings {
       theme: pick(patch.theme, base.theme),
       wallLanguage: pick(patch.wallLanguage, base.wallLanguage),
       venuePhoto: pick(patch.venuePhoto, base.venuePhoto),
+      welcomeMessage: pick(patch.welcomeMessage, base.welcomeMessage),
     }
 
     const failure =
@@ -298,7 +314,10 @@ export class EventSettings {
     const theme = checkedTheme(merged.theme, checkTheme)
     if (theme.failure !== null) return err(theme.failure)
 
-    return ok(new EventSettings({ ...merged, theme: theme.theme }))
+    const welcome = checkWelcome(merged.welcomeMessage)
+    if (!welcome.ok) return err(welcome.error)
+
+    return ok(new EventSettings({ ...merged, theme: theme.theme, welcomeMessage: welcome.value }))
   }
 
   get moderation(): ModerationMode {
@@ -356,6 +375,10 @@ export class EventSettings {
 
   get venuePhoto(): ContentHash | null {
     return this.props.venuePhoto
+  }
+
+  get welcomeMessage(): string | null {
+    return this.props.welcomeMessage
   }
 
   /**

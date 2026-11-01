@@ -467,6 +467,11 @@ export const de: UiText = {
     'slug.malformed':
       'Für die Adresse sind nur Buchstaben ohne Umlaute, Ziffern und Bindestriche erlaubt.',
     'slug.reserved': 'Diese Adresse ist reserviert. Wählen Sie eine andere.',
+    'eventSettings.welcomeInvalid': 'Diese Nachricht ist nicht gültig.',
+    'eventSettings.welcomeTooLong': 'Diese Nachricht ist zu lang.',
+    'eventSettings.welcomeTooManyLines': 'Diese Nachricht hat zu viele Zeilen.',
+    'eventSettings.saveFailed':
+      'Die Einstellungen konnten nicht gespeichert werden. Versuchen Sie es erneut.',
     'eventSettings.graceSecondsInvalid': 'Diese Löschfrist ist nicht zulässig.',
     'eventSettings.retentionDaysInvalid': 'Diese Aufbewahrungsdauer ist nicht zulässig.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Diese Anzahl an Fotos pro Gast ist nicht zulässig.',
@@ -991,6 +996,9 @@ export const de: UiText = {
     printKitIntro:
       'Drucken Sie etwas für die Tische aus: den QR-Code, den Ersatzcode und drei Zeilen Anleitung.',
     printKitFormat: 'Format',
+    printKitInk: 'Farbe des QR-Codes',
+    printInkBlack: 'Schwarz (am sichersten)',
+    printInkEvent: 'Farbe der Veranstaltung',
     printFormatA4: 'A4-Plakat (1 pro Blatt)',
     printFormatA5: 'A5-Plakat (2 pro Blatt)',
     printFormatCard: 'A6-Tischkarten (4 pro Blatt)',
@@ -1203,6 +1211,13 @@ export const de: UiText = {
     venuePhotoBusy: 'Foto wird gesendet…',
     venuePhotoSaved: 'Das Foto Ihrer Location ist gespeichert.',
     venuePhotoRemoved: 'Das Standardfoto ist wieder da.',
+    welcomeMessage: 'Willkommensnachricht',
+    welcomeMessageHint:
+      'Ein paar Worte, die Ihre Gäste sehen, wenn sie der Feier beitreten. Schreiben Sie in der Sprache Ihrer Gäste: Dieser Text wird nicht übersetzt. Jeder mit dem QR-Code kann ihn lesen, schreiben Sie also nichts Privates hinein.',
+    welcomeMessagePlaceholder:
+      'Willkommen! Machen Sie Fotos, wir sehen sie auf dem Bildschirm im Saal.',
+    welcomeMessageClear: 'Nachricht löschen',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Meine eigene Stimmung erstellen',
     customAmbianceEdit: 'Meine Stimmung bearbeiten',
     customAmbianceEntryHint:

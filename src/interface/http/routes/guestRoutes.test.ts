@@ -896,6 +896,28 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
     expect(endedResponse.body.acceptingUploads).toBe(false)
   })
 
+  it('carries the host’s welcome message, also on an evening that has been closed', async () => {
+    // The message stays on the page a guest already has open: only "can I send more" changes.
+    const ended = buildSubject()
+    ended.harness.events.seed(
+      anEvent({
+        id: 'ended-id',
+        slug: 'termine',
+        joinCode: 'C10SED',
+        status: 'closed',
+        settings: { welcomeMessage: 'Merci d’être venus' },
+      }),
+    )
+    ended.harness.guests.seed(aGuest({ id: GUEST, eventId: 'ended-id', displayName: 'Léa' }))
+
+    const response = await request(ended.app)
+      .get('/api/events/termine/photos/mine')
+      .set('Cookie', cookie(ended.harness.issueGuestToken('ended-id', GUEST)))
+
+    expect(response.status).toBe(200)
+    expect(response.body.brand).toEqual({ welcomeMessage: 'Merci d’être venus' })
+  })
+
   it('carries the event’s look as it is now, so a guest who joined before a change learns of it', async () => {
     // Populated, not merely declared: `dtoContract.test.ts` cannot see a presenter that declares
     // the field and never fills it. The join's copy of the theme is a snapshot and the upload

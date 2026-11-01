@@ -14,6 +14,7 @@ import { MissionChecklist } from './components/MissionChecklist'
 import { EraseEverything } from './components/EraseEverything'
 import { GuestbookCard } from './components/GuestbookCard'
 import { MyMessages } from './components/MyMessages'
+import { HostGreeting } from './components/HostGreeting'
 import { MyPhotos } from './components/MyPhotos'
 import { Notice } from '../../design-system/components/Notice'
 import { OfflineNotice } from './components/OfflineNotice'
@@ -412,6 +413,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         <p className={styles['intro']}>
           {publication === 'immediate' ? t.upload.introImmediate : t.upload.intro}
         </p>
+        {/* The host's own words, from the fresh read when there is one: a message changed after the guest joined shows on the next open. */}
+        <HostGreeting message={(mine.brand ?? event.brand)?.welcomeMessage} variant="compact" />
         <p className={styles['signature']}>
           {displayName === null ? t.upload.signedAnonymous : t.upload.signedAs(displayName)}
         </p>

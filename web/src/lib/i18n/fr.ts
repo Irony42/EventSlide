@@ -1146,6 +1146,9 @@ export const fr = {
     printKitIntro:
       'Imprimez de quoi poser sur les tables : le QR code, le code de secours et trois lignes d’explication.',
     printKitFormat: 'Format',
+    printKitInk: 'Couleur du QR',
+    printInkBlack: 'Noir (le plus sûr)',
+    printInkEvent: 'Couleur de l’évènement',
     printFormatA4: 'Affiche A4 (1 par feuille)',
     printFormatA5: 'Affiche A5 (2 par feuille)',
     printFormatCard: 'Cartes de table A6 (4 par feuille)',
@@ -1401,6 +1404,13 @@ export const fr = {
     venuePhotoBusy: 'Envoi de la photo…',
     venuePhotoSaved: 'La photo de votre lieu est enregistrée.',
     venuePhotoRemoved: 'La photo par défaut est rétablie.',
+    welcomeMessage: 'Message d’accueil',
+    welcomeMessageHint:
+      'Quelques mots affichés à vos invités quand ils rejoignent la soirée. Écrivez dans la langue de vos invités : ce texte n’est pas traduit. Il est visible par toute personne qui a le QR code : n’y mettez rien de privé.',
+    welcomeMessagePlaceholder:
+      'Bienvenue ! Prenez des photos, on les verra sur l’écran dans la salle.',
+    welcomeMessageClear: 'Effacer le message',
+    welcomeMessageCount: (count: number, max: number): string => `${count} / ${max}`,
     customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
     customAmbianceEdit: 'Modifier mon ambiance',
     customAmbianceEntryHint:
@@ -1710,6 +1720,10 @@ export const fr = {
     'slug.malformed':
       'L’adresse n’accepte que des lettres sans accent, des chiffres et des tirets.',
     'slug.reserved': 'Cette adresse est réservée. Choisissez-en une autre.',
+    'eventSettings.welcomeInvalid': 'Ce message n’est pas valide.',
+    'eventSettings.welcomeTooLong': 'Ce message est trop long.',
+    'eventSettings.welcomeTooManyLines': 'Ce message compte trop de lignes.',
+    'eventSettings.saveFailed': 'Les réglages n’ont pas pu être enregistrés. Réessayez.',
     'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
     'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
