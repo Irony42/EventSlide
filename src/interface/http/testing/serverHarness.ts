@@ -128,6 +128,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   preselectHighlights: notWired('preselectHighlights'),
   getHighlights: notWired('getHighlights'),
   exportHighlights: notWired('exportHighlights'),
+  requestReel: notWired('requestReel'),
+  getReelMedia: notWired('getReelMedia'),
 
   getModerationQueue: notWired('getModerationQueue'),
   moderatePhoto: notWired('moderatePhoto'),

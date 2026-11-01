@@ -26,6 +26,7 @@ import type {
   ClientUsageDto,
   ClipJobDto,
   CurrentUserDto,
+  ReelDto,
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
@@ -84,6 +85,7 @@ import type {
   WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
 import type { PhotoId } from '../../../domain/shared/ids'
+import type { ReelView } from '../../../application/usecases/highlights/reelView'
 import type { MembershipWithUser } from '../../../application/ports/userRepository'
 import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
 import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
@@ -140,6 +142,19 @@ export interface PresenterContext {
     readonly supported: boolean
   }
 }
+
+/**
+ * The montage as the host's panel reads it (spec 08). Optional fields are left out rather than
+ * sent as `null`, and nothing here can carry an id: the view has none.
+ */
+export const toReelDto = (view: ReelView): ReelDto => ({
+  status: view.status,
+  photoCount: view.photoCount,
+  ...(view.durationMs === null ? {} : { durationMs: view.durationMs }),
+  ...(view.byteSize === null ? {} : { byteSize: view.byteSize }),
+  ...(view.failureCode === null ? {} : { failureCode: view.failureCode }),
+  updatedAt: view.updatedAt.toISOString(),
+})
 
 const iso = (date: Date): string => date.toISOString()
 const isoOrNull = (date: Date | null): string | null => (date === null ? null : date.toISOString())

@@ -359,6 +359,8 @@ const buildWorld = ({
         preselectHighlights: absent('preselectHighlights'),
         getHighlights: absent('getHighlights'),
         exportHighlights: absent('exportHighlights'),
+        requestReel: absent('requestReel'),
+        getReelMedia: absent('getReelMedia'),
       }
 
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))

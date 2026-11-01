@@ -23,6 +23,7 @@ import { FakeReelRenderer } from '../../testing/fakeReelRenderer'
 import { FakeReelRepository } from '../../testing/fakeReelRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
+import { makeGetReelMedia } from './getReelMedia'
 import { makeInvalidateReel, type InvalidateReel } from './invalidateReel'
 import { makeRecoverReels } from './recoverReels'
 import { makeRequestReel, type ReelRequestPolicy } from './requestReel'
@@ -724,6 +725,109 @@ describe('the highlight reel use cases (spec 08)', () => {
       const row = await reels.findByEvent(EVENT)
       expect([row?.status, row?.output?.hash.value]).toEqual(['stale', hash.value])
       expect(logger.lines.some((line) => line.level === 'warn')).toBe(true)
+    })
+  })
+
+  // ------------------------------------------------------------------------- serving --
+
+  describe('getReelMedia', () => {
+    const serve = (eventId: EventId = EVENT, source = events) =>
+      makeGetReelMedia({
+        events: source,
+        photos,
+        reels,
+        media,
+        invalidateReel: invalidate(),
+      })({ eventId })
+
+    const made = async () => {
+      await starThree()
+      await asked()
+      await makeTranscode()()
+      const row = await reels.findByEvent(EVENT)
+      if (row?.output === null || row === null) throw new Error('fixture')
+      return row.output
+    }
+
+    const bytesOf = async (stream: AsyncIterable<Uint8Array> | null): Promise<number> => {
+      let total = 0
+      for await (const chunk of stream ?? []) total += chunk.length
+      return total
+    }
+
+    it('serves a finished montage: its size, its type, and its bytes by range', async () => {
+      const output = await made()
+
+      const result = await serve()
+
+      expect(result.ok && result.value.byteSize).toBe(output.byteSize)
+      expect(result.ok && result.value.contentType).toBe('video/mp4')
+      if (!result.ok) throw new Error('fixture')
+      expect(await bytesOf(await result.value.open())).toBe(output.byteSize)
+      expect(await bytesOf(await result.value.open({ start: 0, end: 3 }))).toBe(4)
+    })
+
+    it('answers reel.notReady with no reason for none, a queued one, and a failed one', async () => {
+      expect(code(await serve())).toBe('reel.notReady')
+
+      await starThree()
+      await asked()
+      expect(code(await serve())).toBe('reel.notReady')
+
+      const claimed = await reels.claimNext(AT)
+      const failed = claimed?.fail('reel.notEnoughPhotos', AT)
+      if (failed === undefined || !failed.ok) throw new Error('fixture')
+      await reels.save(failed.value)
+      expect(code(await serve())).toBe('reel.notReady')
+    })
+
+    it('retires the montage and answers reel.notReady when a photograph left without the hook (the net)', async () => {
+      const output = await made()
+      // No invalidateReel call: the removal path forgot it, or a crash came between the two steps.
+      await photos.updateStatuses(EVENT, [asPhotoId('b')], 'hidden', { kind: 'automatic', at: AT })
+
+      const result = await serve()
+
+      expect(code(result)).toBe('reel.notReady')
+      expect((await reels.findByEvent(EVENT))?.status).toBe('stale')
+      expect(await media.exists(EVENT, output.hash, 'reel')).toBe(false)
+      expect(code(await serve())).toBe('reel.notReady')
+    })
+
+    it('does the same when a photograph was deleted or taken down without the hook', async () => {
+      await made()
+      await photos.setTakenDown(EVENT, asPhotoId('c'), AT)
+
+      expect(code(await serve())).toBe('reel.notReady')
+      expect((await reels.findByEvent(EVENT))?.status).toBe('stale')
+    })
+
+    it('answers reel.notReady for a finished montage whose file is gone', async () => {
+      const output = await made()
+      await media.delete(EVENT, output.hash)
+
+      expect(code(await serve())).toBe('reel.notReady')
+    })
+
+    it('refuses an unknown event, a taken-down one and a suspended client', async () => {
+      await made()
+      expect(code(await serve(asEventId('ghost')))).toBe('event.notFound')
+
+      await events.setTakenDown(EVENT, AT)
+      expect(code(await serve())).toBe('event.notFound')
+      await events.setTakenDown(EVENT, null)
+
+      const frozen = new FakeEventRepository().seed(
+        anEvent({ id: 'event-1', clientSuspendedAt: AT }),
+      )
+      expect(code(await serve(EVENT, frozen))).toBe('client.suspended')
+    })
+
+    it('still plays an archived event, which is readable', async () => {
+      await made()
+      events.seed(anEvent({ id: 'event-1', status: 'archived' }))
+
+      expect((await serve()).ok).toBe(true)
     })
   })
 

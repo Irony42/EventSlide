@@ -24,6 +24,13 @@ import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobR
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListEventPhotos } from '../../../application/usecases/photos/listEventPhotos'
 import { makeExportHighlights } from '../../../application/usecases/highlights/exportHighlights'
+import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
+import { FakeReelRenderer } from '../../../application/testing/fakeReelRenderer'
+import { FakeReelRepository } from '../../../application/testing/fakeReelRepository'
+import { makeGetReelMedia } from '../../../application/usecases/highlights/getReelMedia'
+import { makeInvalidateReel } from '../../../application/usecases/highlights/invalidateReel'
+import { makeRequestReel } from '../../../application/usecases/highlights/requestReel'
+import { ContentHash } from '../../../domain/photos/contentHash'
 import { makeGetHighlights } from '../../../application/usecases/highlights/getHighlights'
 import { makePreselectHighlights } from '../../../application/usecases/highlights/preselectHighlights'
 import { makeSetPhotoHighlight } from '../../../application/usecases/highlights/setPhotoHighlight'
@@ -72,6 +79,7 @@ const PRESENTER: PresenterContext = {
 
 interface Adapters {
   readonly photos: FakePhotoRepository
+  readonly reels: FakeReelRepository
   readonly reactions: FakeReactionRepository
   readonly media: InMemoryMediaStore
 }
@@ -92,7 +100,7 @@ const notWired = async () => err(DomainError.unexpected('test.useCaseNotWired'))
  */
 const usecasesFor = (
   deps: HttpDeps,
-  { photos, reactions, media }: Adapters,
+  { photos, reels, reactions, media }: Adapters,
   guests: Harness['guests'],
 ): HttpUseCases => {
   const { events, memberships, bus, clock } = deps
@@ -201,7 +209,32 @@ const usecasesFor = (
     getTopPhotos: makeGetTopPhotos({ events, photos, reactions }),
     setPhotoHighlight: makeSetPhotoHighlight({ events, photos, clock }),
     preselectHighlights: makePreselectHighlights({ events, photos, reactions, clock }),
-    getHighlights: makeGetHighlights({ events, photos }),
+    getHighlights: makeGetHighlights({ events, photos, reels, media, secondsPerPhoto: 4 }),
+    requestReel: makeRequestReel({
+      events,
+      clients: new FakeClientRepository(),
+      photos,
+      reels,
+      renderer: new FakeReelRenderer(),
+      media,
+      bus,
+      clock,
+      logger: new CapturingLogger(),
+      policy: {
+        enabled: true,
+        maxPhotos: 5,
+        secondsPerPhoto: 4,
+        maxOutputBytes: 1_000,
+        maxQueued: 2,
+      },
+    }),
+    getReelMedia: makeGetReelMedia({
+      events,
+      photos,
+      reels,
+      media,
+      invalidateReel: makeInvalidateReel({ reels, media, clock, logger: new CapturingLogger() }),
+    }),
     exportHighlights: makeExportHighlights({
       events,
       photos,
@@ -224,7 +257,8 @@ const world = (): World => {
   const photos = new FakePhotoRepository()
   const reactions = new FakeReactionRepository()
   const media = new InMemoryMediaStore().forbidEnumeration('the moderation routes')
-  const adapters: Adapters = { photos, reactions, media }
+  const reels = new FakeReelRepository(photos)
+  const adapters: Adapters = { photos, reels, reactions, media }
 
   const harness = buildHarness({
     routes: (app, deps, base) => {
@@ -273,7 +307,7 @@ const world = (): World => {
     aPhoto({ id: P.gala, eventId: GALA, status: 'pending', createdAt: AT }),
   )
 
-  return { ...harness, photos, reactions, media }
+  return { ...harness, photos, reels, reactions, media }
 }
 
 /** A supertest agent holding the session cookie across requests. */
@@ -1036,6 +1070,8 @@ describe('the host favourites routes (spec 08)', () => {
     ['post', '/api/events/mariage/highlights/preselect'],
     ['get', '/api/events/mariage/highlights'],
     ['get', '/api/events/mariage/best-of.zip'],
+    ['post', '/api/events/mariage/highlights/reel'],
+    ['get', '/api/events/mariage/highlights/reel.mp4'],
   ] as const
 
   it('stars and unstars a published photograph, idempotently, and shows it on the gallery rows', async () => {
@@ -1055,7 +1091,10 @@ describe('the host favourites routes (spec 08)', () => {
     ])
 
     await agent.delete(starUrl(P.published)).expect(204)
-    expect((await agent.get('/api/events/mariage/highlights')).body).toEqual({ count: 0 })
+    expect((await agent.get('/api/events/mariage/highlights')).body).toEqual({
+      count: 0,
+      reel: null,
+    })
   })
 
   it('shows the star on the queue rows too', async () => {
@@ -1167,7 +1206,10 @@ describe('the host favourites routes (spec 08)', () => {
     const agent = await signedIn(subject, 'moderator')
 
     expect((await agent.put(starUrl(P.publishedTwo))).status).toBe(409)
-    expect((await agent.get('/api/events/mariage/highlights')).body).toEqual({ count: 1 })
+    expect((await agent.get('/api/events/mariage/highlights')).body).toEqual({
+      count: 1,
+      reel: null,
+    })
     expect((await agent.get('/api/events/mariage/best-of.zip')).status).toBe(200)
   })
 
@@ -1196,5 +1238,194 @@ describe('the host favourites routes (spec 08)', () => {
       expect(response.headers['cache-control']).toBe('no-store')
       expect(response.headers['x-content-type-options']).toBe('nosniff')
     })
+  })
+})
+
+describe('the highlight reel routes (spec 08)', () => {
+  const THIRD = '88888888-8888-4888-8888-888888888888'
+  const MONTAGE = new Uint8Array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
+
+  const seedThreeFavourites = async (): Promise<void> => {
+    subject.photos.seed(
+      aPhoto({ id: THIRD, eventId: WEDDING, status: 'published', createdAt: atPlus(6_000) }),
+    )
+    for (const id of [P.published, P.publishedTwo, THIRD]) {
+      await subject.photos.setHighlighted(asEventId(WEDDING), asPhotoId(id), AT)
+    }
+  }
+
+  const hashOf = (seed: string): ContentHash => {
+    const made = ContentHash.create(seed.padEnd(64, '0').slice(0, 64))
+    if (!made.ok) throw new Error('fixture')
+    return made.value
+  }
+
+  /** The worker's part, done by hand: claim the row and finish it with a file on the disk. */
+  const finishTheMontage = async (): Promise<ContentHash> => {
+    const job = await subject.reels.claimNext(AT)
+    if (job === null) throw new Error('fixture: nothing queued')
+    const hash = hashOf('c0ffee')
+    await subject.media.put(asEventId(WEDDING), hash, 'reel', MONTAGE)
+    const verdict = await subject.reels.finish(
+      job,
+      { hash, byteSize: MONTAGE.length, durationMs: 12_000 },
+      { quotaBytes: 1e9, clientBytes: null },
+      AT,
+    )
+    expect(verdict.kind).toBe('done')
+    return hash
+  }
+
+  const ask = async () => {
+    const agent = await signedIn(subject, 'moderator')
+    return { agent, response: await agent.post('/api/events/mariage/highlights/reel') }
+  }
+
+  it('answers 202 with the state, and no photograph id or hash, when the montage is asked for', async () => {
+    await seedThreeFavourites()
+
+    const { agent, response } = await ask()
+
+    expect(response.status).toBe(202)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.body).toEqual({
+      status: 'queued',
+      photoCount: 3,
+      updatedAt: expect.any(String),
+    })
+    const read = await agent.get('/api/events/mariage/highlights')
+    expect(read.body).toEqual({
+      count: 3,
+      reel: { status: 'queued', photoCount: 3, updatedAt: expect.any(String) },
+    })
+    expect(JSON.stringify(read.body)).not.toContain(P.published)
+    expect(JSON.stringify(read.body)).not.toMatch(/[0-9a-f]{64}/)
+  })
+
+  it('answers 409 reel.notEnoughPhotos below three, and 409 reel.alreadyRunning on a second click', async () => {
+    const few = await ask()
+    expect(few.response.status).toBe(409)
+    expect(few.response.body.error.code).toBe('reel.notEnoughPhotos')
+
+    await seedThreeFavourites()
+    expect((await ask()).response.status).toBe(202)
+
+    const twice = await ask()
+    expect(twice.response.status).toBe(409)
+    expect(twice.response.body.error.code).toBe('reel.alreadyRunning')
+  })
+
+  it('answers 404 reel.notReady for the file until the montage is done, with no reason', async () => {
+    await seedThreeFavourites()
+    const { agent } = await ask()
+
+    const queued = await agent.get('/api/events/mariage/highlights/reel.mp4')
+
+    expect(queued.status).toBe(404)
+    expect(queued.body.error.code).toBe('reel.notReady')
+    expect(queued.headers['cache-control']).toBe('no-store')
+  })
+
+  it('serves a finished montage as video/mp4, with ranges, never stored', async () => {
+    await seedThreeFavourites()
+    const { agent } = await ask()
+    await finishTheMontage()
+
+    const whole = await agent.get('/api/events/mariage/highlights/reel.mp4').buffer(true)
+    expect(whole.status).toBe(200)
+    expect(whole.headers['content-type']).toBe('video/mp4')
+    expect(whole.headers['content-length']).toBe('10')
+    expect(whole.headers['accept-ranges']).toBe('bytes')
+    expect(whole.headers['cache-control']).toBe('private, no-store')
+    expect(whole.headers['x-content-type-options']).toBe('nosniff')
+    expect(whole.headers['content-disposition']).toBe('inline; filename="mariage-souvenir.mp4"')
+
+    const part = await agent
+      .get('/api/events/mariage/highlights/reel.mp4')
+      .set('Range', 'bytes=2-5')
+      .buffer(true)
+    expect(part.status).toBe(206)
+    expect(part.headers['content-range']).toBe('bytes 2-5/10')
+    expect(part.headers['content-length']).toBe('4')
+
+    const outside = await agent
+      .get('/api/events/mariage/highlights/reel.mp4')
+      .set('Range', 'bytes=50-60')
+    expect(outside.status).toBe(416)
+    expect(outside.headers['content-range']).toBe('bytes */10')
+  })
+
+  it('reports a finished montage in the panel read, with its length and size', async () => {
+    await seedThreeFavourites()
+    const { agent } = await ask()
+    await finishTheMontage()
+
+    const read = await agent.get('/api/events/mariage/highlights')
+
+    expect(read.body.reel).toEqual({
+      status: 'done',
+      photoCount: 3,
+      durationMs: 12_000,
+      byteSize: 10,
+      updatedAt: expect.any(String),
+    })
+  })
+
+  it('retires the montage and answers 404 when a photograph left without anybody saying so (the net)', async () => {
+    await seedThreeFavourites()
+    const { agent } = await ask()
+    await finishTheMontage()
+    // Straight to the repository: no use case, so no hook. The next request is the net.
+    await subject.photos.updateStatuses(asEventId(WEDDING), [asPhotoId(THIRD)], 'hidden', {
+      kind: 'automatic',
+      at: AT,
+    })
+
+    const served = await agent.get('/api/events/mariage/highlights/reel.mp4')
+
+    expect(served.status).toBe(404)
+    expect(served.body.error.code).toBe('reel.notReady')
+    const read = await agent.get('/api/events/mariage/highlights')
+    expect(read.body.reel.status).toBe('stale')
+    expect(read.body.reel.byteSize).toBeUndefined()
+  })
+
+  it('answers reel.transcoderUnavailable before writing anything on a box with no encoder', async () => {
+    await seedThreeFavourites()
+    const noEncoder = makeRequestReel({
+      events: subject.events,
+      clients: new FakeClientRepository(),
+      photos: subject.photos,
+      reels: subject.reels,
+      renderer: new FakeReelRenderer({ available: false }),
+      media: subject.media,
+      bus: subject.bus,
+      clock: subject.clock,
+      logger: new CapturingLogger(),
+      policy: {
+        enabled: true,
+        maxPhotos: 5,
+        secondsPerPhoto: 4,
+        maxOutputBytes: 1_000,
+        maxQueued: 2,
+      },
+    })
+
+    const result = await noEncoder({ eventId: asEventId(WEDDING) })
+
+    expect(!result.ok && result.error.code).toBe('reel.transcoderUnavailable')
+    expect(await subject.reels.findByEvent(asEventId(WEDDING))).toBeNull()
+  })
+
+  it('refuses to make a montage of an archived event, but still plays the finished one', async () => {
+    await seedThreeFavourites()
+    const { agent } = await ask()
+    await finishTheMontage()
+    subject.events.seed(
+      anEvent({ id: WEDDING, slug: 'mariage', ownerId: OWNER, status: 'archived' }),
+    )
+
+    expect((await agent.post('/api/events/mariage/highlights/reel')).status).toBe(409)
+    expect((await agent.get('/api/events/mariage/highlights/reel.mp4')).status).toBe(200)
   })
 })

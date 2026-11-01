@@ -92,6 +92,7 @@ import { makeModeratePhoto } from '../application/usecases/moderation/moderatePh
 import { makeModeratePhotosBulk } from '../application/usecases/moderation/moderatePhotosBulk'
 
 import { makeDeletePhoto } from '../application/usecases/photos/deletePhoto'
+import { makeGetReelMedia } from '../application/usecases/highlights/getReelMedia'
 import { makeInvalidateReel } from '../application/usecases/highlights/invalidateReel'
 import { makeRecoverReels } from '../application/usecases/highlights/recoverReels'
 import { makeRequestReel } from '../application/usecases/highlights/requestReel'
@@ -807,7 +808,20 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       reactions: adapters.reactions,
       clock: adapters.clock,
     }),
-    getHighlights: makeGetHighlights({ events: adapters.events, photos: adapters.photos }),
+    getHighlights: makeGetHighlights({
+      events: adapters.events,
+      photos: adapters.photos,
+      reels: adapters.reels,
+      media: adapters.media,
+      secondsPerPhoto: policy.reel.secondsPerPhoto,
+    }),
+    getReelMedia: makeGetReelMedia({
+      events: adapters.events,
+      photos: adapters.photos,
+      reels: adapters.reels,
+      media: adapters.media,
+      invalidateReel,
+    }),
     exportHighlights: makeExportHighlights({
       events: adapters.events,
       photos: adapters.photos,

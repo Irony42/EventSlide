@@ -77,6 +77,8 @@ import type { GetClipJob } from '../../application/usecases/clips/getClipJob'
 import type { UploadClip } from '../../application/usecases/clips/uploadClip'
 
 import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
+import type { GetReelMedia } from '../../application/usecases/highlights/getReelMedia'
+import type { RequestReel } from '../../application/usecases/highlights/requestReel'
 import type { ExportHighlights } from '../../application/usecases/highlights/exportHighlights'
 import type { GetHighlights } from '../../application/usecases/highlights/getHighlights'
 import type { PreselectHighlights } from '../../application/usecases/highlights/preselectHighlights'
@@ -232,6 +234,8 @@ export interface HttpUseCases {
   readonly preselectHighlights: PreselectHighlights
   readonly getHighlights: GetHighlights
   readonly exportHighlights: ExportHighlights
+  readonly requestReel: RequestReel
+  readonly getReelMedia: GetReelMedia
 
   // clips
   readonly uploadClip: UploadClip

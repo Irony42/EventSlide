@@ -114,20 +114,22 @@ export const streamOrAbandon = async (
  * So: headers, then the freshness check, then the range verdict, and only then `open`.
  * A `304` and a `416` leave this function having opened nothing at all.
  */
-const sendMedia = async (
+export const sendMedia = async (
   req: Request,
   res: Response,
   media: ServedObject,
   etag: string,
   range: ByteRange | null,
+  cacheControl: string = IMMUTABLE_CACHE,
+  contentDisposition = 'inline',
 ): Promise<void> => {
   // Set before the freshness check: a 304 must still carry the validator and the caching
   // policy, or a projector revalidates every slide for the rest of the night.
   res.setHeader('ETag', etag)
-  res.setHeader('Cache-Control', IMMUTABLE_CACHE)
+  res.setHeader('Cache-Control', cacheControl)
   // Never `attachment`: the wall, the moderation grid and the guest's own view all
   // render these in an `<img>` or a `<video>`.
-  res.setHeader('Content-Disposition', 'inline')
+  res.setHeader('Content-Disposition', contentDisposition)
   // **Advertised on every response, not only on a clip.** A media element decides whether
   // it can seek from this header, and it asks about the object before it plays it — so a
   // response that omits it is one a player treats as unseekable.
