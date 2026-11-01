@@ -627,6 +627,41 @@ describe('the highlight reel use cases (spec 08)', () => {
       expect((await reels.findByEvent(EVENT))?.status).toBe('stale')
     })
 
+    it('says so, and goes on, when the file of a refused montage will not go', async () => {
+      await ready()
+      const during = makeTranscode({
+        renderer: new FakeReelRenderer({
+          whileRendering: async () => {
+            await events.setTakenDown(EVENT, AT)
+            media.failDeletes()
+          },
+        }),
+      })
+
+      const result = await during()
+
+      expect(result.ok && result.value).toMatchObject({ code: 'reel.eventUnavailable' })
+      expect(logger.lines.some((line) => line.message.includes('could not remove'))).toBe(true)
+    })
+
+    it('refuses a job the queue handed over in a state it cannot be failed from', async () => {
+      await ready()
+      const claimed = await reels.claimNext(AT)
+      if (claimed === null) throw new Error('fixture')
+      const finished = claimed.fail('reel.notEnoughPhotos', AT)
+      if (!finished.ok) throw new Error('fixture')
+      // A failed job is not one the worker can fail again, nor spoil.
+      const handedOver = Object.create(reels, {
+        claimNext: { value: async () => finished.value },
+      }) as FakeReelRepository
+
+      const noEvent = makeTranscode({ reels: handedOver, events: { findById: async () => null } })
+      expect(code(await noEvent())).toBe('reel.illegalTransition')
+
+      await photos.delete(EVENT, asPhotoId('a'))
+      expect(code(await makeTranscode({ reels: handedOver })())).toBe('reel.illegalTransition')
+    })
+
     const bytesOfDisplays = async (): Promise<number> => {
       let total = 0
       for (const id of ['a', 'b', 'c', 'd']) total += DISPLAY(id).length * (await has(id))
