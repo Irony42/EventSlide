@@ -7,6 +7,7 @@ import type { ContentHash } from './contentHash'
 import type { Dimensions } from './dimensions'
 import type { MediaKind } from './mediaKind'
 import { VARIANTS_BY_KIND, type MediaVariant, type ServedVariant } from './mediaVariant'
+import { isHighlightable } from '../highlights/highlightEligibility'
 import { canTransition, type PhotoStatus } from './photoStatus'
 
 /** Who sent the photo. Hosts can upload too — the venue's own camera roll. */
@@ -89,6 +90,12 @@ export interface PhotoProps {
    * on a read that runs on every wall refresh.
    */
   readonly missionId: MissionId | null
+  /**
+   * When the host starred it as a favourite (spec 08), or `null`/absent. Read-only on the
+   * entity: the repository's `save` never writes it (a stale read of a moderation could
+   * otherwise erase a star set in between), a dedicated setter does.
+   */
+  readonly highlightedAt?: Date | null
 }
 
 export interface NewPhoto {
@@ -206,6 +213,14 @@ export class Photo {
     return this.props.missionId
   }
 
+  get highlightedAt(): Date | null {
+    return this.props.highlightedAt ?? null
+  }
+
+  get isHighlighted(): boolean {
+    return this.highlightedAt !== null
+  }
+
   get kind(): MediaKind {
     return this.props.facet.kind
   }
@@ -279,7 +294,9 @@ export class Photo {
         }),
       )
     }
-    return ok(this.with({ status: next, review: { ...by, at } }))
+    // Leaving `published` takes the star with it: a favourite is a published photograph.
+    const star = isHighlightable(next) ? {} : { highlightedAt: null }
+    return ok(this.with({ status: next, review: { ...by, at }, ...star }))
   }
 
   // ------------------------------------------------------------------ captions --

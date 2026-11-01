@@ -18,6 +18,10 @@ import type { ClientByteLimit } from './clientRepository'
 export interface PhotoQuery {
   readonly statuses?: readonly PhotoStatus[]
   readonly authoredBy?: GuestId
+  /** Only the host's favourites (spec 08): starred **and** published, never a hidden one. */
+  readonly highlightedOnly?: boolean
+  /** Oldest first, for a best-of in the order the photographs were taken. Default: newest first. */
+  readonly oldestFirst?: boolean
   readonly limit?: number
   /** Opaque cursor from a previous page. Encoding is the adapter's business. */
   readonly cursor?: string
@@ -258,6 +262,21 @@ export interface PhotoRepository {
    * `listReferencedDigests`, so no sweep collects its files: it is kept, not deleted.
    */
   setTakenDown(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<void>
+
+  /**
+   * Stars a photograph (`at`) or takes the star off (`null`), for the host's best-of (spec 08).
+   *
+   * Scoped by event and idempotent. Setting answers `false`, and writes nothing, for a photograph
+   * that is not found or not `published` (decided in the write itself, so a moderation landing
+   * between a read and this call cannot leave a star on a hidden photograph); clearing answers
+   * `false` only for a photograph that is not found. `save` and `updateStatuses` never write the
+   * star (a stale read cannot erase one set in between), except to clear it when a row leaves
+   * `published`. A taken-down row keeps its star but is not found here, as everywhere else.
+   */
+  setHighlighted(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<boolean>
+
+  /** How many favourites the event has: starred, published, not taken down. */
+  countHighlighted(eventId: EventId): Promise<number>
 
   /** Idempotent: deleting an already-deleted photo is not an error. */
   delete(eventId: EventId, photoId: PhotoId): Promise<void>

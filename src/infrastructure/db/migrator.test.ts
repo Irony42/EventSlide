@@ -3052,3 +3052,36 @@ describe('migration 017, the proof that an account accepted the terms', () => {
     closeDatabase(db)
   })
 })
+
+describe('migration 018, the favourites column', () => {
+  it('adds an empty highlighted_at to a photograph that already exists, and rewrites no row', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 18),
+    )
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'hote@example.test', 'hash:x', '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings,
+                           quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Camille & Sacha', 'camille-et-sacha', 'H7K2QM', 'closed',
+                    '{"moderation":"manual"}', 1000, '2026-06-20T09:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO photos (id, event_id, author_user_id, status, content_hash, width, height,
+                           byte_size, created_at)
+            VALUES ('p1', 'e1', 'u1', 'published', '${'a'.repeat(64)}', 1200, 800, 90000,
+                    '2026-06-20T21:05:00.000Z')`,
+    ).run()
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT id, status, highlighted_at FROM photos`).all()).toEqual([
+      { id: 'p1', status: 'published', highlighted_at: null },
+    ])
+    closeDatabase(db)
+  })
+})
