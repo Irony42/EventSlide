@@ -3044,6 +3044,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                                                                         |
 | `theme`                       | object — all five keys required, plus `custom` when the ambiance is `custom`, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`) |
 | `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                                                                 |
+| `welcomeMessage`              | string up to 280 code points and 4 lines, or `null` to clear; absent leaves it alone. Cleaned by the server; **400** `eventSettings.welcomeInvalid`                                                                                              | `welcomeTooLong` | `welcomeTooManyLines`. Changing it under a purge hold is **500** `eventSettings.saveFailed`. `brand` (what `GET` answers) is **read and ignored**. |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
 **refused** where creation reduces — shortening what a host just typed would tell them they got
@@ -3073,6 +3074,10 @@ the feature exists for. Note also that the first save of **any** setting on such
 writes `allowClips: false` into its blob, after which it is indistinguishable from a host
 who chose no — which is why the checkbox ships in the same form as every other setting
 rather than behind one of its own.
+
+#### `brand` — the host's words to their guests (spec 03)
+
+`brand: { welcomeMessage: string | null }` is on `PublicEventDto` (the join response), on the wall response, on `GET /events/:slug/photos/mine` (read per request, so a guest sees a message changed after they joined on their next open) and, for the host, inside `settings`. It is **content**: shown as written and never translated. It is absent from the shared gallery. A client may send it back inside `settings`; the server ignores it, and the message is written only by the top-level `welcomeMessage` key.
 
 #### `wallLanguage` — what language the room's screen speaks
 

@@ -248,6 +248,7 @@
          against; `printKit.contract.test.ts` fails if the two diverge. The paper is white by
          construction (the contrast of the ink is measured against it) and is drawn on screen only. ---- */
   --print-paper: oklch(100% 0 0);
+  --print-ink-accent: oklch(30% 0.1 var(--accent-hue)); /* the event's hue, darkened: the QR ink */
   --print-a4-w: 210;
   --print-a4-h: 297;
   --print-card-w: 105; /* A6, and half an A4 wide */

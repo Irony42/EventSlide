@@ -461,6 +461,10 @@ export const it: UiText = {
     'slug.tooLong': 'Questo indirizzo è troppo lungo.',
     'slug.malformed': 'L’indirizzo accetta solo lettere senza accento, cifre e trattini.',
     'slug.reserved': 'Questo indirizzo è riservato. Ne scelga un altro.',
+    'eventSettings.welcomeInvalid': 'Questo messaggio non è valido.',
+    'eventSettings.welcomeTooLong': 'Questo messaggio è troppo lungo.',
+    'eventSettings.welcomeTooManyLines': 'Questo messaggio ha troppe righe.',
+    'eventSettings.saveFailed': 'Non è stato possibile salvare le impostazioni. Riprovate.',
     'eventSettings.graceSecondsInvalid': 'Questo tempo di eliminazione non è accettato.',
     'eventSettings.retentionDaysInvalid': 'Questo periodo di conservazione non è accettato.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Questo numero di foto per invitato non è accettato.',
@@ -965,6 +969,9 @@ export const it: UiText = {
     printKitIntro:
       'Stampi qualcosa da mettere sui tavoli: il codice QR, il codice di riserva e tre righe di istruzioni.',
     printKitFormat: 'Formato',
+    printKitInk: 'Colore del codice QR',
+    printInkBlack: 'Nero (il più sicuro)',
+    printInkEvent: 'Colore dell’evento',
     printFormatA4: 'Locandina A4 (1 per foglio)',
     printFormatA5: 'Locandina A5 (2 per foglio)',
     printFormatCard: 'Segnaposto A6 (4 per foglio)',
@@ -1175,6 +1182,12 @@ export const it: UiText = {
     venuePhotoBusy: 'Invio della foto…',
     venuePhotoSaved: 'La foto del vostro locale è salvata.',
     venuePhotoRemoved: 'La foto predefinita è stata ripristinata.',
+    welcomeMessage: 'Messaggio di benvenuto',
+    welcomeMessageHint:
+      'Poche parole mostrate ai vostri invitati quando si uniscono alla festa. Scrivete nella lingua dei vostri invitati: questo testo non viene tradotto. Chiunque abbia il codice QR può leggerlo, quindi non inseriteci nulla di privato.',
+    welcomeMessagePlaceholder: 'Benvenuti! Fate delle foto, le vedremo sullo schermo in sala.',
+    welcomeMessageClear: 'Cancella il messaggio',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
     customAmbianceEdit: 'Modifica la mia atmosfera',
     customAmbianceEntryHint:
