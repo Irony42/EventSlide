@@ -1,6 +1,7 @@
 import type { ContributorEntry } from '../../domain/stats/contributorRanking'
 import type { ReactionCounts } from '../../domain/reactions/reactionTally'
 import type { EventId } from '../../domain/shared/ids'
+import type { StatsMetric } from '../../domain/stats/statsMetric'
 import type { PhotoStatusCounts } from './photoRepository'
 
 /**
@@ -46,7 +47,24 @@ export interface DerivedStats {
   readonly contributors: readonly ContributorEntry[]
 }
 
+/** One stored counter: how many times `metric` happened on `day` (UTC, `YYYY-MM-DD`). */
+export interface StatsCounter {
+  readonly metric: StatsMetric
+  readonly day: string
+  readonly value: number
+}
+
 export interface EventStatsRepository {
   /** Scoped by event like every read: another event's rows never enter a figure. */
   readDerived(eventId: EventId): Promise<DerivedStats>
+
+  /**
+   * Adds `delta` to the counter of that event, metric and day, creating it at `delta`. The only
+   * write, and an addition rather than a read-modify-write: two opens at once are two.
+   * `delta` is a positive integer; anything else is a `RangeError`, and nothing is written.
+   */
+  bump(eventId: EventId, metric: StatsMetric, day: string, delta: number): Promise<void>
+
+  /** Every counter of the event, oldest day first (ties by metric). Another event's never. */
+  readCounters(eventId: EventId): Promise<readonly StatsCounter[]>
 }

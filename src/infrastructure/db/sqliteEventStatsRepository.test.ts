@@ -100,8 +100,12 @@ describe('SqliteEventStatsRepository query plans', () => {
       senders: [A],
       reactions: [A, A],
       contributors: [A, A, A, A],
+      counters: [A],
+      // An INSERT has no scan to speak of; the primary key is its index.
+      bump: [],
     }
     for (const [name, sql] of Object.entries(STATS_SQL)) {
+      if (name === 'bump') continue
       const plan = db
         .prepare<string[], { detail: string }>(`EXPLAIN QUERY PLAN ${sql}`)
         .all(...params[name as keyof typeof STATS_SQL])
@@ -109,6 +113,54 @@ describe('SqliteEventStatsRepository query plans', () => {
       const scans = plan.filter((detail) => /^SCAN (photos|reactions)\b/.test(detail))
       expect(scans, `${name}: ${plan.join(' | ')}`).toEqual([])
     }
+    closeDatabase(db)
+  })
+})
+
+describe('event_stats_counters', () => {
+  it('goes with the event when it is purged', async () => {
+    const db = migratedDatabase()
+    const repo = new SqliteEventStatsRepository(db)
+    await repo.bump(asEventId('evt-a'), 'galleryViews', '2026-11-14', 3)
+    await repo.bump(asEventId('evt-b'), 'galleryViews', '2026-11-14', 1)
+
+    db.prepare("DELETE FROM events WHERE id = 'evt-a'").run()
+
+    expect(await repo.readCounters(asEventId('evt-a'))).toEqual([])
+    expect(await repo.readCounters(asEventId('evt-b'))).toHaveLength(1)
+    closeDatabase(db)
+  })
+
+  it('stores nothing but the event, the metric, the day and the number', () => {
+    const db = migratedDatabase()
+
+    const columns = db
+      .prepare<[], { name: string }>("SELECT name FROM pragma_table_info('event_stats_counters')")
+      .all()
+      .map((column) => column.name)
+
+    expect(columns).toEqual(['event_id', 'metric', 'day', 'value'])
+    closeDatabase(db)
+  })
+
+  it('arrives on a database that already holds an event, a photograph and a guest, and keeps them', () => {
+    const db = openDatabase({ path: ':memory:' })
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id <= 17),
+    )
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('user-host', 'h@example.test', 'hash:x', ?)`,
+    ).run(ISO_AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+       VALUES ('evt-a', 'user-host', 'a', 'a', 'a', 'live', '{}', 1000000000, ?)`,
+    ).run(ISO_AT)
+
+    migrate(db, migrations)
+
+    expect(db.prepare('SELECT COUNT(*) AS n FROM events').get()).toEqual({ n: 1 })
+    expect(db.prepare('SELECT COUNT(*) AS n FROM event_stats_counters').get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })

@@ -4,7 +4,12 @@ import type { REACTION_KINDS } from '../../domain/reactions/reactionKind'
 import type { EventId, GuestId } from '../../domain/shared/ids'
 import { compareIds } from './ordering'
 import type { ContributorEntry } from '../../domain/stats/contributorRanking'
-import type { DerivedStats, EventStatsRepository } from '../ports/eventStatsRepository'
+import type { StatsMetric } from '../../domain/stats/statsMetric'
+import type {
+  DerivedStats,
+  EventStatsRepository,
+  StatsCounter,
+} from '../ports/eventStatsRepository'
 import type { PhotoStatusCounts } from '../ports/photoRepository'
 import type { FakeGuestRepository } from './fakeGuestRepository'
 import type { FakePhotoRepository } from './fakePhotoRepository'
@@ -25,6 +30,26 @@ export class FakeEventStatsRepository implements EventStatsRepository {
     private readonly guests: FakeGuestRepository,
     private readonly reactions: FakeReactionRepository,
   ) {}
+
+  private readonly counters = new Map<string, StatsCounter & { readonly eventId: EventId }>()
+
+  async bump(eventId: EventId, metric: StatsMetric, day: string, delta: number): Promise<void> {
+    if (!Number.isSafeInteger(delta) || delta < 1) {
+      throw new RangeError(`bump requires a positive integer delta, got ${delta}`)
+    }
+    const key = `${eventId}|${metric}|${day}`
+    const current = this.counters.get(key)
+    this.counters.set(key, { eventId, metric, day, value: (current?.value ?? 0) + delta })
+  }
+
+  async readCounters(eventId: EventId): Promise<readonly StatsCounter[]> {
+    return [...this.counters.values()]
+      .filter((counter) => counter.eventId === eventId)
+      .map(({ metric, day, value }) => ({ metric, day, value }))
+      .sort(
+        (left, right) => compareIds(left.day, right.day) || compareIds(left.metric, right.metric),
+      )
+  }
 
   async readDerived(eventId: EventId): Promise<DerivedStats> {
     const photos = this.photos.ofEvent(eventId)
