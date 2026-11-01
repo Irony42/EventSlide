@@ -922,6 +922,9 @@ export const de: UiText = {
     printKitIntro:
       'Drucken Sie etwas für die Tische aus: den QR-Code, den Ersatzcode und drei Zeilen Anleitung.',
     printKitFormat: 'Format',
+    printKitInk: 'Farbe des QR-Codes',
+    printInkBlack: 'Schwarz (am sichersten)',
+    printInkEvent: 'Farbe der Veranstaltung',
     printFormatA4: 'A4-Plakat (1 pro Blatt)',
     printFormatA5: 'A5-Plakat (2 pro Blatt)',
     printFormatCard: 'A6-Tischkarten (4 pro Blatt)',
