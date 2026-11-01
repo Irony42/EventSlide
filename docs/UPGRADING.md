@@ -673,6 +673,29 @@ people on the night.
   go with the event (purge and retention deadline), and appear only on the host's new statistics page.
 - **`GET /api/events/:slug/stats`** is new. A script that lists the routes sees one more.
 
+### The guestbook (spec 01)
+
+- **One migration, `019_guestbook_entries`**, applied at boot: a new table, no existing row changes. It only goes
+  forward, so take the usual backup first ([above](#upgrading-with-docker)); going back is the restore of that
+  archive.
+- **Two new event settings, `allowGuestbook` and `guestbookOnWall`.** An event created before this version reads
+  the first as **off** and the second as **on**: an upgrade opens no free-text channel onto a room whose host was
+  never asked. Nothing changes for an existing event until its host switches the guestbook on.
+- **Additions to existing responses** (all optional for a client, none removed): `allowGuestbook` and
+  `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
+  settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`. A new `guestbook.changed` signal
+  appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
+- **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
+  are fixed.
+
+<!-- Best-of (spec 08): keep this block together; other changes of 3.5 add their own. -->
+
+**Best-of, favourites (migration 020).** The first boot applies migration 020, which adds one
+nullable column, `photos.highlighted_at`, and a partial index. Nothing is rewritten and no photo
+changes. A host can now star a published photo (`F` on the moderation console) and download the
+stars as a ZIP from the event page. A star disappears when the photo leaves the wall (hidden or
+refused). An old admin tab keeps working, it simply cannot star.
+
 <!-- photo book -->
 
 **The photo book (PDF of the published album).** A host can ask for a PDF of the album. It adds

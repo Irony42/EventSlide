@@ -4,6 +4,7 @@ import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto } from '../../../lib/api/dto'
 import { decisionWording, inDisplayOrder } from './decisionWording'
+import { HighlightToggle } from './HighlightToggle'
 import styles from './PhotoLightbox.module.css'
 
 /**
@@ -31,6 +32,7 @@ export interface PhotoLightboxProps {
   readonly onPrevious: () => void
   readonly onNext: () => void
   readonly onDecide: (photoId: string, decision: ModerationDecision) => void
+  readonly onToggleHighlight?: (photoId: string) => void
 }
 
 export function PhotoLightbox({
@@ -40,6 +42,7 @@ export function PhotoLightbox({
   onPrevious,
   onNext,
   onDecide,
+  onToggleHighlight,
 }: PhotoLightboxProps) {
   const t = useTranslations()
   const showing = open && photo !== null
@@ -113,6 +116,13 @@ export function PhotoLightbox({
               </Button>
             )
           })}
+          {photo.status === 'published' && onToggleHighlight !== undefined ? (
+            <HighlightToggle
+              size="md"
+              highlighted={photo.highlighted === true}
+              onToggle={() => onToggleHighlight(photo.id)}
+            />
+          ) : null}
         </>
       }
     >

@@ -124,6 +124,13 @@ export interface PublicEventDto {
   /** The host's switch over video. `false` means: do not offer the control at all. */
   readonly allowClips: boolean
   /**
+   * The host's switch over written guestbook messages (spec 01). Optional on the client because a
+   * session stored before the upgrade, and an older server, do not send it: absent reads as off.
+   */
+  readonly allowGuestbook?: boolean
+  /** The longest message the server accepts, so the phone states a limit the server owns. */
+  readonly guestbookMaxLength?: number
+  /**
    * The limits the clip route enforces, so the picker can refuse **before** the bytes
    * go up a venue's Wi-Fi rather than after. Deployment configuration, which is exactly
    * why they travel instead of being compiled in here.
@@ -178,6 +185,8 @@ export interface PrivacyNoticeDto {
    * to read this one.
    */
   readonly operator?: string
+  /** Present only when guests may leave guestbook messages (spec 01): the notice reads for a message too. */
+  readonly guestbook?: true
 }
 
 /** A notice and where this device stands with it: the answer of every notice route. */
@@ -368,6 +377,36 @@ export interface MyPhotosDto {
 export interface ErasedContributionDto {
   readonly photos: number
   readonly clips: number
+  /** Guestbook messages removed with them; absent from an older server. */
+  readonly messages?: number
+}
+
+/** One of the guest's own guestbook messages (spec 01). */
+export interface GuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The server's verdict: the phone never recomputes it. */
+  readonly canDelete: boolean
+}
+
+export interface MyGuestbookDto {
+  readonly items: readonly GuestbookEntryDto[]
+  /** Whether a new message would be taken now: the switch, the event's state and the window. */
+  readonly accepting: boolean
+  /** Whether published messages appear on the wall: said to their authors in the status. */
+  readonly onWall: boolean
+}
+
+/** What a message just written answers. */
+export interface CreatedGuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** True when this was the same message sent a moment ago: nothing new was stored. */
+  readonly duplicate: boolean
 }
 
 export interface GuestPhotoDto {
@@ -424,6 +463,20 @@ export interface ModerationPhotoDto {
    * the click then ends in `photo.illegalTransition`.
    */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /**
+   * The host's star (spec 08). Optional: a server older than this field omits it, and the
+   * console then shows every photo as not starred rather than failing.
+   */
+  readonly highlighted?: boolean
+}
+
+/** The best-of panel's read: how many favourites can be exported (spec 08). */
+export interface HighlightsDto {
+  readonly count: number
+}
+
+export interface PreselectHighlightsResponse {
+  readonly added: number
 }
 
 export interface ModerationQueueResponse {
@@ -452,6 +505,9 @@ export interface EventSettingsDto {
    * exactly the events it exists for.
    */
   readonly allowClips: boolean
+  /** Optional until the host panel reads it (spec 01): an older server does not send it. */
+  readonly allowGuestbook?: boolean
+  readonly guestbookOnWall?: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

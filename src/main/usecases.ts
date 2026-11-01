@@ -13,6 +13,7 @@ import type { MediaStore } from '../application/ports/mediaStore'
 import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
 import type { MissionRepository } from '../application/ports/missionRepository'
+import type { GuestbookRepository } from '../application/ports/guestbookRepository'
 import type { VideoTranscoder } from '../application/ports/videoTranscoder'
 import type { ContentHasher } from '../application/ports/contentHasher'
 import type { ArchiveWriter } from '../application/ports/archiveWriter'
@@ -95,6 +96,10 @@ import { makeModeratePhoto } from '../application/usecases/moderation/moderatePh
 import { makeModeratePhotosBulk } from '../application/usecases/moderation/moderatePhotosBulk'
 
 import { makeDeletePhoto } from '../application/usecases/photos/deletePhoto'
+import { makeExportHighlights } from '../application/usecases/highlights/exportHighlights'
+import { makeGetHighlights } from '../application/usecases/highlights/getHighlights'
+import { makePreselectHighlights } from '../application/usecases/highlights/preselectHighlights'
+import { makeSetPhotoHighlight } from '../application/usecases/highlights/setPhotoHighlight'
 import { makeExportAlbum } from '../application/usecases/photos/exportAlbum'
 import { makeGetPhotoMedia } from '../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../application/usecases/photos/identifyMediaViewer'
@@ -116,6 +121,9 @@ import { makeUploadClip } from '../application/usecases/clips/uploadClip'
 
 import { makeGetWallPlaylist } from '../application/usecases/slideshow/getWallPlaylist'
 
+import { makeCreateGuestbookEntry } from '../application/usecases/guestbook/createGuestbookEntry'
+import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/deleteGuestbookEntry'
+import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
 import { makeCreateMission } from '../application/usecases/missions/createMission'
 import { makeDeleteMission } from '../application/usecases/missions/deleteMission'
 import { makeGetGuestChecklist } from '../application/usecases/missions/getGuestChecklist'
@@ -180,6 +188,7 @@ export interface Adapters {
   /** The host statistics page: aggregates derived from photos, guests and reactions (spec 05). */
   readonly eventStats: EventStatsRepository
   readonly missions: MissionRepository
+  readonly guestbook: GuestbookRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository
   readonly media: MediaStore
@@ -658,6 +667,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       reactions: adapters.reactions,
       clips: adapters.clips,
+      guestbook: adapters.guestbook,
       media: adapters.media,
       bus: adapters.bus,
       clock: adapters.clock,
@@ -733,6 +743,29 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       clock: adapters.clock,
     }),
     exportAlbum: makeExportAlbum({
+      events: adapters.events,
+      photos: adapters.photos,
+      guestbook: adapters.guestbook,
+      guests: adapters.guests,
+      media: adapters.media,
+      archive: adapters.archive,
+      logger: adapters.logger,
+    }),
+
+    // ------------------------------------------------- favourites (spec 08) --
+    setPhotoHighlight: makeSetPhotoHighlight({
+      events: adapters.events,
+      photos: adapters.photos,
+      clock: adapters.clock,
+    }),
+    preselectHighlights: makePreselectHighlights({
+      events: adapters.events,
+      photos: adapters.photos,
+      reactions: adapters.reactions,
+      clock: adapters.clock,
+    }),
+    getHighlights: makeGetHighlights({ events: adapters.events, photos: adapters.photos }),
+    exportHighlights: makeExportHighlights({
       events: adapters.events,
       photos: adapters.photos,
       media: adapters.media,
@@ -840,6 +873,26 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       guests: adapters.guests,
       missions: adapters.missions,
+    }),
+
+    // -------------------------------------------------------------- guestbook --
+    createGuestbookEntry: makeCreateGuestbookEntry({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      ids: adapters.ids,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    listMyGuestbookEntries: makeListMyGuestbookEntries({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      clock: adapters.clock,
+    }),
+    deleteGuestbookEntry: makeDeleteGuestbookEntry({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      bus: adapters.bus,
+      clock: adapters.clock,
     }),
 
     // --------------------------------------------------------------- missions --

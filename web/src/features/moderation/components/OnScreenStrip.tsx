@@ -3,6 +3,7 @@ import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationPhotoDto } from '../../../lib/api/dto'
+import { HighlightToggle } from './HighlightToggle'
 import styles from './OnScreenStrip.module.css'
 
 /**
@@ -25,9 +26,11 @@ export interface OnScreenStripProps {
   /** A decision is in flight: the one action waits, as the console's other buttons do. */
   readonly busy: boolean
   readonly onRemove: (photoId: string) => void
+  /** Stars or unstars the opened photo (spec 08). */
+  readonly onToggleHighlight?: (photoId: string) => void
 }
 
-export function OnScreenStrip({ photos, busy, onRemove }: OnScreenStripProps) {
+export function OnScreenStrip({ photos, busy, onRemove, onToggleHighlight }: OnScreenStripProps) {
   const t = useTranslations()
   /**
    * By id, so a photo that leaves the wall while its viewer is open (another moderator
@@ -78,19 +81,28 @@ export function OnScreenStrip({ photos, busy, onRemove }: OnScreenStripProps) {
         onClose={() => setOpenId(null)}
         footer={
           open === null ? null : (
-            <Button
-              variant="danger"
-              size="lg"
-              block
-              loading={busy}
-              aria-label={t.moderation.hidePhoto(authorOf(open))}
-              onClick={() => {
-                onRemove(open.id)
-                setOpenId(null)
-              }}
-            >
-              {t.moderation.hide}
-            </Button>
+            <>
+              {onToggleHighlight === undefined ? null : (
+                <HighlightToggle
+                  size="lg"
+                  highlighted={open.highlighted === true}
+                  onToggle={() => onToggleHighlight(open.id)}
+                />
+              )}
+              <Button
+                variant="danger"
+                size="lg"
+                block
+                loading={busy}
+                aria-label={t.moderation.hidePhoto(authorOf(open))}
+                onClick={() => {
+                  onRemove(open.id)
+                  setOpenId(null)
+                }}
+              >
+                {t.moderation.hide}
+              </Button>
+            </>
           )
         }
       >

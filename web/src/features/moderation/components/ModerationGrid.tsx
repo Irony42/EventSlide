@@ -26,6 +26,7 @@ export interface ModerationGridProps {
   readonly onSelectToggle: (photoId: string) => void
   readonly onFocusCard: (photoId: string) => void
   readonly onDecide: (photoId: string, decision: ModerationDecision) => void
+  readonly onToggleHighlight?: (photoId: string) => void
   readonly onOpen: (photoId: string) => void
   readonly registerCard: (photoId: string, element: HTMLElement | null) => void
 }
@@ -38,6 +39,7 @@ export function ModerationGrid({
   onSelectToggle,
   onFocusCard,
   onDecide,
+  onToggleHighlight,
   onOpen,
   registerCard,
 }: ModerationGridProps) {
@@ -67,6 +69,7 @@ export function ModerationGrid({
             onSelectToggle={onSelectToggle}
             onFocusCard={onFocusCard}
             onDecide={onDecide}
+            {...(onToggleHighlight === undefined ? {} : { onToggleHighlight })}
             onOpen={onOpen}
             cardRef={(element) => registerCard(photo.id, element)}
           />

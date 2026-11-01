@@ -438,6 +438,8 @@ export const de: UiText = {
 
     'photo.notFound': 'Dieses Foto gibt es nicht mehr.',
     'photo.illegalTransition': 'Diese Aktion ist bei diesem Foto nicht möglich.',
+    'highlight.notPublished': 'Nur ein veröffentlichtes Foto kann ein Favorit sein.',
+    'highlight.empty': 'Noch keine Favoriten.',
 
     'image.unsupportedFormat':
       'Diese Datei ist kein Foto. Zulässige Formate: JPEG, PNG, HEIC, WebP.',
@@ -593,6 +595,75 @@ export const de: UiText = {
     'venuePhoto.saveFailed': 'Das Foto konnte nicht gespeichert werden. Versuchen Sie es erneut.',
   },
 
+  /** The guestbook, guest side (spec 01). What guests and hosts write is never translated. */
+  guestbook: {
+    title: 'Gästebuch',
+    helpManual: 'Ein paar Worte zum Abend. Der Veranstalter liest sie, bevor er sie zeigt.',
+    helpAuto: 'Ihre Nachricht erscheint im Gästebuch.',
+    open: 'Eine Nachricht hinterlassen',
+    label: 'Ihre Nachricht',
+    placeholder: 'Ihre Nachricht…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: 'Noch 1 Zeichen.',
+        other: `Noch ${t.number(left)} Zeichen.`,
+      }),
+    counterFull: 'Grenze erreicht.',
+    send: 'Meine Nachricht senden',
+    cancel: 'Abbrechen',
+    thanksManual: 'Danke! Ihre Nachricht erscheint, sobald der Veranstalter sie freigegeben hat.',
+    thanksAuto: 'Danke! Ihre Nachricht steht im Gästebuch.',
+    mine: 'Meine Nachrichten',
+    statusPending: 'Wartet auf Freigabe',
+    statusPublished: 'Auf dem Bildschirm',
+    statusPublishedNotOnWall: 'Veröffentlicht, nicht auf dem Bildschirm',
+    statusRejected: 'Nicht ausgewählt',
+    statusHidden: 'Vom Bildschirm genommen',
+    remove: 'Diese Nachricht entfernen',
+    removeTitle: 'Diese Nachricht endgültig entfernen?',
+    removeConfirm: 'Entfernen',
+    removeCancel: 'Behalten',
+    removed: 'Nachricht entfernt.',
+    tooLong: (max: number) => `Nachricht zu lang (höchstens ${t.number(max)} Zeichen).`,
+    errors: {
+      'guestbook.empty': 'Schreiben Sie mindestens ein Wort.',
+      'guestbook.invalid': 'Diese Nachricht kann so nicht gesendet werden.',
+      'guestbook.tooManyLines': 'Nachricht zu hoch: Bitte fassen Sie sich kürzer.',
+      'guestbook.limitReached':
+        'Sie haben bereits 3 Nachrichten hinterlassen. Entfernen Sie eine, um eine neue zu schreiben.',
+      'guestbook.eventFull': 'Das Gästebuch ist voll.',
+      'guestbook.disabled': 'Das Gästebuch ist im Moment nicht geöffnet.',
+      'event.notAcceptingUploads': 'Das Gästebuch ist im Moment nicht geöffnet.',
+      'guestbook.deleteForbidden':
+        'Diese Nachricht kann nicht mehr entfernt werden. Wenden Sie sich an den Veranstalter: Er kann sie löschen.',
+      'event.guestSelfDeleteDisabled':
+        'Der Veranstalter hat das Entfernen nicht aktiviert. Fragen Sie ihn: Er kann eine Nachricht löschen.',
+      'guestbook.notFound': 'Diese Nachricht gibt es nicht mehr.',
+      'guestbook.deleteFailed':
+        'Das Entfernen hat nicht geklappt. Versuchen Sie es erneut oder fragen Sie den Veranstalter.',
+      'rate.limited': 'Zu viele Nachrichten auf einmal, versuchen Sie es in einer Minute erneut.',
+    },
+    eraseBody:
+      'Ihre Fotos, Videos, Bildunterschriften, Gästebuch-Nachrichten, Reaktionen und Ihr Vorname werden aus der Feier gelöscht: von der Leinwand, aus dem Album und aus der Liste des Veranstalters. Das lässt sich nicht rückgängig machen.',
+    noticeWhatHappens: 'Was mit Ihren Fotos und Nachrichten geschieht',
+    noticeWhoSees: 'Wer Ihre Fotos und Nachrichten sieht',
+    noticeHowLong: 'Wie lange sie aufbewahrt werden',
+    noticeRemoval: 'Etwas entfernen lassen',
+    noticeMessagePublication: {
+      afterReview:
+        'Eine Gästebuch-Nachricht wird vom Veranstalter gelesen, bevor sie auf den Bildschirm kommen kann.',
+      immediate:
+        'Eine Gästebuch-Nachricht kann sofort nach dem Senden auf den Bildschirm kommen. Der Veranstalter kann sie jederzeit entfernen.',
+    },
+    noticeMessageAudience:
+      'Ihre Nachrichten werden vom Veranstalter und seinem Team gelesen und können auf dem Bildschirm des Abends gezeigt werden. Sie erscheinen nicht unter „Fotos des Abends“.',
+    noticeMessageRetention:
+      'Ihre Nachrichten werden so lange aufbewahrt wie die Fotos und mit ihnen gelöscht.',
+    noticeMessageRemoval:
+      'Eine Nachricht wird wie ein Foto entfernt, unter „Meine Nachrichten“ und unter denselben Bedingungen.',
+  },
+
   moderation: {
     title: 'Moderation',
     // Navigation pass, batch C: the way to the other console.
@@ -676,6 +747,10 @@ export const de: UiText = {
         one: `${t.number(count)} Foto vom Bildschirm genommen. Es bleibt in Ihrem Album.`,
         other: `${t.number(count)} Fotos vom Bildschirm genommen. Sie bleiben in Ihrem Album.`,
       }),
+    highlight: 'Favorit',
+    highlightAddHint: 'Als Favorit markieren',
+    highlightRemoveHint: 'Aus den Favoriten entfernen',
+    shortcutsFavourite: 'F, um als Favorit zu markieren.',
     decisionFailed: 'Die Entscheidung konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     undoFailed: 'Das Rückgängigmachen konnte nicht gespeichert werden. Versuchen Sie es erneut.',
     dimensions: (width: number, height: number) => `${width} × ${height} Pixel`,
@@ -1185,6 +1260,21 @@ export const de: UiText = {
     shareLinkReplaceHint: 'Der aktuelle Link funktioniert dann sofort nicht mehr.',
     shareLinkCreated:
       'Hier ist der Link. Kopieren Sie ihn jetzt: Er wird nicht noch einmal angezeigt.',
+    bestOf: 'Best-of',
+    bestOfHint: 'Ihre Lieblingsfotos zum Mitnehmen nach dem Fest.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Favorit`,
+        other: `${t.number(count)} Favoriten`,
+      }),
+    bestOfNone:
+      'Noch keine Favoriten. Markieren Sie Ihre Lieblingsfotos in der Moderation mit einem Stern.',
+    bestOfPreselect: 'Beliebteste Fotos vorauswählen',
+    bestOfPreselected: (limit: number) =>
+      `Die ${t.number(limit)} beliebtesten Fotos sind jetzt Favoriten. Sie können welche entfernen oder hinzufügen.`,
+    bestOfPreselectNothing:
+      'Nichts hinzuzufügen: Die beliebtesten Fotos sind bereits Favoriten, oder noch niemand hat reagiert.',
+    bestOfDownload: 'Favoriten herunterladen (ZIP)',
     shareLinkUrl: 'Adresse des Links',
     shareLinkCopy: 'Link kopieren',
     shareLinkCopied: 'Link kopiert.',

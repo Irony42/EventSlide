@@ -4,6 +4,7 @@ import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
+import { MAX_PRESELECT_LIMIT } from '../../../domain/highlights/highlightEligibility'
 import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
 import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
 import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
@@ -164,6 +165,8 @@ export const joinCodeParams = z.object({ code: joinCode })
 
 export const missionParams = z.object({ eventSlug: slug, missionId: uuid })
 
+export const guestbookEntryParams = z.object({ eventSlug: slug, entryId: uuid })
+
 // ------------------------------------------------------------------- public --
 
 export const joinBody = z.strictObject({
@@ -204,6 +207,15 @@ export const uploadFields = z.strictObject({
  */
 export const clipUploadFields = z.strictObject({
   caption: z.string().max(1_000).nullish(),
+})
+
+/**
+ * A guestbook message. The 500-character rule is the domain's (`GuestbookText`), which answers
+ * `guestbook.tooLong`; the bound here is only a sanity ceiling against a body that is not a
+ * message at all, answered `request.invalid`.
+ */
+export const guestbookBody = z.strictObject({
+  text: z.string().max(4_000),
 })
 
 export const captionBody = z.strictObject({
@@ -400,6 +412,8 @@ export const updateSettingsBody = z.strictObject({
   allowCaptions: z.boolean().optional(),
   allowReactions: z.boolean().optional(),
   allowClips: z.boolean().optional(),
+  allowGuestbook: z.boolean().optional(),
+  guestbookOnWall: z.boolean().optional(),
   allowGuestSelfDelete: z.boolean().optional(),
   guestSelfDeleteGraceSeconds: z.number().int().min(0).max(86_400).optional(),
   retentionDays: z.number().int().min(1).max(3_650).nullable().optional(),
@@ -634,6 +648,10 @@ export const wallQuery = z.strictObject({
  * of forty photos is not a podium. The default is what the client asks for when it
  * sends no query at all.
  */
+export const preselectHighlightsBody = z.strictObject({
+  limit: z.number().int().min(1).max(MAX_PRESELECT_LIMIT),
+})
+
 export const topPhotosQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 })

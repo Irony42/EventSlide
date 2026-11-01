@@ -8,6 +8,7 @@ import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
+import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { ReactionRepository } from '../../ports/reactionRepository'
@@ -17,7 +18,8 @@ import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
  * "Delete everything I sent": a guest erasing their own contribution to one event
  * (roadmap §5.2, GDPR art. 17 in practice).
  *
- * **What goes**: every photograph and clip they sent (the files in every rendition, the
+ * **What goes**: every guestbook message they wrote (whatever its moderation state), every
+ * photograph and clip they sent (the files in every rendition, the
  * thumbnails, the rows, the caption and the moderation decision that live on the row), every
  * clip still waiting to be transcoded together with its staged source, every reaction they
  * left on anybody's photograph, and finally the guest row itself, which is where their
@@ -61,6 +63,8 @@ export interface EraseGuestContributionInput {
 export interface ErasedContribution {
   readonly photos: number
   readonly clips: number
+  /** Guestbook messages written by the guest and removed with them (spec 01). */
+  readonly messages: number
 }
 
 export interface EraseGuestContributionDeps {
@@ -69,6 +73,7 @@ export interface EraseGuestContributionDeps {
   readonly photos: PhotoRepository
   readonly reactions: ReactionRepository
   readonly clips: ClipJobRepository
+  readonly guestbook: GuestbookRepository
   readonly media: MediaStore
   readonly bus: EventBus
   readonly clock: Clock
@@ -87,6 +92,7 @@ export const makeEraseGuestContribution = ({
   photos,
   reactions,
   clips,
+  guestbook,
   media,
   bus,
   clock,
@@ -148,6 +154,9 @@ export const makeEraseGuestContribution = ({
     await clips.deleteForAuthor(eventId, guestId)
 
     await reactions.deleteByGuest(eventId, guestId)
+    // The guest's written messages, whatever their moderation state: erasure is not the host's to
+    // switch off. Skips (and does not count) a message the operator took down, which is evidence.
+    const erasedMessages = await guestbook.deleteByGuest(eventId, guestId)
 
     // **Again, immediately before the guest row goes.** The first pass is a snapshot, and a transcode
     // or upload of this guest's that was in flight inserts its row while the guest row still exists;
@@ -159,7 +168,12 @@ export const makeEraseGuestContribution = ({
     // A photograph the operator took down is evidence: every read above skipped it, so it was neither
     // deleted nor counted. Its row hangs from the guest row by a cascading foreign key, so the guest
     // row stays, without its name, until the operator puts the photograph back or the event is purged.
-    if ((await photos.countTakenDownBy(eventId, guestId)) > 0) {
+    // A message the operator took down holds the guest row for the same reason, and for the same
+    // cascade: deleting the row would carry the evidence away with it.
+    if (
+      (await photos.countTakenDownBy(eventId, guestId)) > 0 ||
+      (await guestbook.countTakenDownBy(eventId, guestId)) > 0
+    ) {
       await guests.save(guest.withoutName())
     } else {
       await guests.delete(eventId, guestId)
@@ -168,7 +182,9 @@ export const makeEraseGuestContribution = ({
     // One signal for what no `photo.deleted` says: the name on the wall, a heart on someone
     // else's photograph, a guest on the host's list. Every open screen re-reads on it.
     bus.publish({ type: 'guest.erased', eventId, guestId })
+    // `guest.erased` says nothing about messages: the host's panel and the wall re-read on this one.
+    if (erasedMessages > 0) bus.publish({ type: 'guestbook.changed', eventId })
 
-    return ok({ photos: erasedPhotos, clips: erasedClips })
+    return ok({ photos: erasedPhotos, clips: erasedClips, messages: erasedMessages })
   }
 }

@@ -237,11 +237,15 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     }
     if (query.limit !== undefined) requirePositive(query.limit, 'list')
 
-    const ascending = query.order === 'asc'
+    const ascending = query.order === 'asc' || query.oldestFirst === true
     const matching = this.visibleOf(eventId)
       .filter((photo) => query.statuses === undefined || query.statuses.includes(photo.status))
       .filter((photo) => this.matchesAuthor(photo, query.authoredBy))
       .filter((photo) => query.until === undefined || photo.createdAt <= query.until)
+      .filter(
+        (photo) =>
+          query.highlightedOnly !== true || (photo.isHighlighted && photo.status === 'published'),
+      )
       .filter(
         (photo) =>
           cursor === null ||
@@ -395,7 +399,32 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
   }
 
   async save(photo: Photo): Promise<void> {
-    insertInto(this.rows, photo)
+    // The star is the stored row's, never the aggregate's (a stale read must not erase one),
+    // and it does not outlive `published`.
+    const stored = this.rows.get(key(photo.eventId, photo.id))
+    const star = photo.status === 'published' ? (stored?.highlightedAt ?? null) : null
+    insertInto(this.rows, Photo.restore({ ...photo.toProps(), highlightedAt: star }))
+  }
+
+  async setHighlighted(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<boolean> {
+    const rowKey = key(eventId, photoId)
+    const photo = this.rows.get(rowKey)
+    if (photo === undefined || this.takenDown.has(rowKey)) return false
+    if (at !== null && photo.status !== 'published') return false
+    this.rows.set(
+      rowKey,
+      Photo.restore({
+        ...photo.toProps(),
+        highlightedAt: at === null ? null : (photo.highlightedAt ?? at),
+      }),
+    )
+    return true
+  }
+
+  async countHighlighted(eventId: EventId): Promise<number> {
+    return this.visibleOf(eventId).filter(
+      (photo) => photo.isHighlighted && photo.status === 'published',
+    ).length
   }
 
   /**

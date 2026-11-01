@@ -24,6 +24,7 @@ import { GuestListPanel } from './GuestListPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
+import { BestOfPanel } from './BestOfPanel'
 import { ShareLinkPanel } from './ShareLinkPanel'
 import {
   allowsModeration,
@@ -267,6 +268,8 @@ export function EventPage() {
 
       <div className={cx(styles['column'], styles['screenOnly'])}>
         <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
+        {/* Any moderator: starring and the ZIP are moderation, and the routes allow it (spec 08). */}
+        <BestOfPanel slug={event.slug} canStar={allowsModeration(event.status)} />
         {/* Owner-only for the reason below, and mounted above the moderators because a
             host sets the prompts up before the evening rather than during it (roadmap
             §2.1). A moderator may read the list — `GET` allows it — but a panel whose

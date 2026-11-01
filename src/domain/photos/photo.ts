@@ -7,7 +7,9 @@ import type { ContentHash } from './contentHash'
 import type { Dimensions } from './dimensions'
 import type { MediaKind } from './mediaKind'
 import { VARIANTS_BY_KIND, type MediaVariant, type ServedVariant } from './mediaVariant'
+import { isHighlightable } from '../highlights/highlightEligibility'
 import { canTransition, type PhotoStatus } from './photoStatus'
+import { authorMayTakeBack, removalVerdict, type DeletionVerdict } from './selfRemoval'
 
 /** Who sent the photo. Hosts can upload too — the venue's own camera roll. */
 export type PhotoAuthor =
@@ -26,7 +28,7 @@ export type Reviewer =
 export type PhotoReview = Reviewer & { readonly at: Date }
 
 /** What {@link Photo.deletionVerdict} answers. */
-export type DeletionVerdict = 'allowed' | 'selfDeleteDisabled' | 'forbidden'
+export type { DeletionVerdict }
 
 /** Anyone who might act on a photo. Used by the permission predicates below. */
 export type PhotoActor =
@@ -89,6 +91,12 @@ export interface PhotoProps {
    * on a read that runs on every wall refresh.
    */
   readonly missionId: MissionId | null
+  /**
+   * When the host starred it as a favourite (spec 08), or `null`/absent. Read-only on the
+   * entity: the repository's `save` never writes it (a stale read of a moderation could
+   * otherwise erase a star set in between), a dedicated setter does.
+   */
+  readonly highlightedAt?: Date | null
 }
 
 export interface NewPhoto {
@@ -206,6 +214,14 @@ export class Photo {
     return this.props.missionId
   }
 
+  get highlightedAt(): Date | null {
+    return this.props.highlightedAt ?? null
+  }
+
+  get isHighlighted(): boolean {
+    return this.highlightedAt !== null
+  }
+
   get kind(): MediaKind {
     return this.props.facet.kind
   }
@@ -279,7 +295,9 @@ export class Photo {
         }),
       )
     }
-    return ok(this.with({ status: next, review: { ...by, at } }))
+    // Leaving `published` takes the star with it: a favourite is a published photograph.
+    const star = isHighlightable(next) ? {} : { highlightedAt: null }
+    return ok(this.with({ status: next, review: { ...by, at }, ...star }))
   }
 
   // ------------------------------------------------------------------ captions --
@@ -321,9 +339,13 @@ export class Photo {
    */
   canBeDeletedBy(actor: PhotoActor, now: Date, graceMs: number): boolean {
     if (actor.kind === 'host') return true
-    if (!this.isAuthoredBy(actor)) return false
-    if (!this.isWithinAuthorGrace(now, graceMs)) return false
-    return this.props.status === 'pending' || this.props.status === 'rejected'
+    return authorMayTakeBack({
+      isAuthor: this.isAuthoredBy(actor),
+      createdAt: this.props.createdAt,
+      now,
+      graceMs,
+      status: this.props.status,
+    })
   }
 
   /**
@@ -340,8 +362,11 @@ export class Photo {
     now: Date,
     settings: { readonly allowGuestSelfDelete: boolean; readonly guestSelfDeleteGraceMs: number },
   ): DeletionVerdict {
-    if (actor.kind === 'guest' && !settings.allowGuestSelfDelete) return 'selfDeleteDisabled'
-    return this.canBeDeletedBy(actor, now, settings.guestSelfDeleteGraceMs) ? 'allowed' : 'forbidden'
+    return removalVerdict(
+      actor.kind === 'guest',
+      this.canBeDeletedBy(actor, now, settings.guestSelfDeleteGraceMs),
+      settings.allowGuestSelfDelete,
+    )
   }
 
   /** Same shape as deletion, plus: a published caption is the host's to change. */

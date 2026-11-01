@@ -251,6 +251,8 @@ export interface ModerationQueue extends QueueState {
   decide: (photoId: string, decision: ModerationDecision) => Promise<void>
   decideBulk: (photoIds: readonly string[], decision: ModerationDecision) => Promise<void>
   undo: () => Promise<void>
+  /** Stars or unstars a published photo as a favourite (spec 08); optimistic, put back on failure. */
+  toggleHighlight: (photoId: string) => Promise<void>
 }
 
 /**
@@ -858,6 +860,36 @@ export const useModerationQueue = (
     ],
   )
 
+  const toggleHighlight = useCallback(
+    async (photoId: string) => {
+      if (slug === undefined) return
+      const photo = itemsRef.current.find((item) => item.id === photoId)
+      // Only a published photograph can be a favourite: the tile offers nothing else, and
+      // the server would answer `highlight.notPublished`.
+      if (photo === undefined || photo.status !== 'published') return
+
+      const next = photo.highlighted !== true
+      const apply = (value: boolean): void => {
+        const mark = (item: ModerationPhotoDto): ModerationPhotoDto =>
+          item.id === photoId ? { ...item, highlighted: value } : item
+        setState((current) => ({
+          ...current,
+          items: current.items.map(mark),
+          onScreen: current.onScreen === null ? null : current.onScreen.map(mark),
+        }))
+      }
+
+      apply(next)
+      try {
+        await (next ? api.highlightPhoto(slug, photoId) : api.unhighlightPhoto(slug, photoId))
+      } catch (cause) {
+        apply(!next)
+        toast.show(failureMessage(cause, text.moderation.decisionFailed, text), { tone: 'danger' })
+      }
+    },
+    [api, slug, text, toast],
+  )
+
   const onSignal = useCallback(
     (signal: StreamSignal) => {
       // Only photo activity can change this queue. A room full of guests tapping
@@ -895,5 +927,6 @@ export const useModerationQueue = (
     decide,
     decideBulk,
     undo,
+    toggleHighlight,
   }
 }
