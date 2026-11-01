@@ -518,6 +518,9 @@ describe('every setting the configuration declares that 2.1.0 did not (docs/UPGR
     changelog.search(/^## \[/m),
     changelog.search(/^## \[3\.0\.0\]/m),
   )
+  // A release that is not tagged has no CHANGELOG entry yet (its pull request writes it), so a
+  // setting it adds is announced in the "Upgrading to 3.x" sections of the upgrade page instead.
+  const laterUpgrading = page.slice(page.indexOf('\n## Upgrading to 3.1\n'))
 
   /** `name` as a whole word: `NEW_CLIENT_MAX_EVENTS` is not found inside `..._PER_PERIOD`. */
   const names = (text: string, name: string): boolean =>
@@ -536,7 +539,7 @@ describe('every setting the configuration declares that 2.1.0 did not (docs/UPGR
   it.each(added)(
     '%s is named in the 3.0.0 entry and in "Upgrading to 3.0", or by a later one',
     (name) => {
-      if (names(laterEntries, name)) return
+      if (names(laterEntries, name) || names(laterUpgrading, name)) return
 
       expect(names(entry, name), `${name} in the 3.0.0 entry`).toBe(true)
       expect(names(section, name), `${name} in the "Upgrading to 3.0" section`).toBe(true)
