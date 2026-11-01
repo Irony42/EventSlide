@@ -564,6 +564,73 @@ export const es: UiText = {
     'venuePhoto.saveFailed': 'No se ha podido guardar la foto. Inténtelo de nuevo.',
   },
 
+  /** The guestbook, guest side (spec 01). What guests and hosts write is never translated. */
+  guestbook: {
+    title: 'Libro de honor',
+    helpManual: 'Unas palabras para la fiesta. El organizador las lee antes de mostrarlas.',
+    helpAuto: 'Su mensaje aparece en el libro de honor.',
+    open: 'Dejar un mensaje',
+    label: 'Su mensaje',
+    placeholder: 'Su mensaje…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: 'Queda 1 carácter.',
+        other: `Quedan ${t.number(left)} caracteres.`,
+      }),
+    counterFull: 'Límite alcanzado.',
+    send: 'Enviar mi mensaje',
+    cancel: 'Cancelar',
+    thanksManual: '¡Gracias! Su mensaje se mostrará cuando el organizador lo apruebe.',
+    thanksAuto: '¡Gracias! Su mensaje está en el libro de honor.',
+    mine: 'Mis mensajes',
+    statusPending: 'Pendiente de aprobación',
+    statusPublished: 'En la pantalla',
+    statusPublishedNotOnWall: 'Publicado, no se muestra en la pantalla',
+    statusRejected: 'No seleccionado',
+    statusHidden: 'Retirado de la pantalla',
+    remove: 'Retirar este mensaje',
+    removeTitle: '¿Retirar este mensaje definitivamente?',
+    removeConfirm: 'Retirar',
+    removeCancel: 'Conservar',
+    removed: 'Mensaje retirado.',
+    tooLong: (max: number) => `Mensaje demasiado largo (${t.number(max)} caracteres como máximo).`,
+    errors: {
+      'guestbook.empty': 'Escriba al menos una palabra.',
+      'guestbook.invalid': 'Este mensaje no se puede enviar tal cual.',
+      'guestbook.tooManyLines': 'Mensaje demasiado alto: hágalo más corto.',
+      'guestbook.limitReached': 'Ya ha dejado 3 mensajes. Retire uno para escribir otro.',
+      'guestbook.eventFull': 'El libro de honor está completo.',
+      'guestbook.disabled': 'El libro de honor no está abierto por el momento.',
+      'event.notAcceptingUploads': 'El libro de honor no está abierto por el momento.',
+      'guestbook.deleteForbidden':
+        'Este mensaje ya no se puede retirar. Pídaselo al organizador: puede eliminarlo.',
+      'event.guestSelfDeleteDisabled':
+        'El organizador no ha activado la retirada. Pídaselo: puede eliminar un mensaje.',
+      'guestbook.notFound': 'Este mensaje ya no existe.',
+      'guestbook.deleteFailed': 'No se pudo retirar. Inténtelo de nuevo o pídaselo al organizador.',
+      'rate.limited': 'Demasiados mensajes a la vez, inténtelo de nuevo en un minuto.',
+    },
+    eraseBody:
+      'Sus fotos, vídeos, leyendas, mensajes del libro de honor, reacciones y su nombre se borrarán de la fiesta: de la pantalla, del álbum y de la lista del organizador. Es definitivo.',
+    noticeWhatHappens: 'Qué pasa con sus fotos y sus mensajes',
+    noticeWhoSees: 'Quién ve sus fotos y sus mensajes',
+    noticeHowLong: 'Cuánto tiempo se guardan',
+    noticeRemoval: 'Cómo retirar uno',
+    noticeMessagePublication: {
+      afterReview:
+        'Un mensaje del libro de honor lo lee el organizador antes de que pueda pasar a la pantalla.',
+      immediate:
+        'Un mensaje del libro de honor puede pasar a la pantalla en cuanto se envía. El organizador puede retirarlo en cualquier momento.',
+    },
+    noticeMessageAudience:
+      'Sus mensajes los leen el organizador y su equipo, y pueden mostrarse en la pantalla de la fiesta. No aparecen en «Fotos de la velada».',
+    noticeMessageRetention:
+      'Sus mensajes se guardan tanto tiempo como las fotos y se borran con ellas.',
+    noticeMessageRemoval:
+      'Un mensaje se retira como una foto, desde «Mis mensajes» y en las mismas condiciones.',
+  },
+
   moderation: {
     title: 'Moderación',
     // Navigation pass, batch C: the way to the other console.

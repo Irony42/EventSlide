@@ -1681,7 +1681,8 @@ The guest's own messages, newest first, at most three, every status but what the
       "canDelete": true
     }
   ],
-  "accepting": true
+  "accepting": true,
+  "onWall": true
 }
 ```
 
@@ -1689,7 +1690,8 @@ The guest's own messages, newest first, at most three, every status but what the
 the photograph's rule, not one of its own — the host's `allowGuestSelfDelete` switch, then the author, inside
 `guestSelfDeleteGraceSeconds`, while the message is `pending` or `rejected`. `accepting` is the rule the
 write route applies (`allowGuestbook`, the event's state, the seven-day window), so the card can disappear
-instead of offering a form the server will refuse.
+instead of offering a form the server will refuse. `onWall` is `guestbookOnWall`: when false the author is
+told a published message is "published, not shown on the screen".
 
 **Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`; `404 event.notFound`.
 
@@ -1743,6 +1745,7 @@ guest's language, so the notice cannot promise something the configuration contr
 | `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                                                                                                                                        |
 | `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                                                                                                                                               |
 | `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                                                                                                                                             |
+| `guestbook`          | `allowGuestbook`                                                          | **Present (`true`) only when guests may leave guestbook messages** (spec 01): the notice then reads for a message too, and `revision` gains `guestbook=on`. Absent otherwise, so a box without a guestbook asks nobody to read the notice again                                                                                                                                                                                                                         |
 | `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`

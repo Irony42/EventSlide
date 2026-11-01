@@ -89,6 +89,15 @@ describe('listMyGuestbookEntries', () => {
     expect(result.ok && result.value.items).toEqual([])
   })
 
+  it('says whether published messages are shown on the wall, for the status the author reads', async () => {
+    const shown = await list({ eventId: EVENT, guestId: LEA })
+    expect(shown.ok && shown.value.onWall).toBe(true)
+
+    events.seed(anEvent({ id: 'event-1', settings: { guestbookOnWall: false } }))
+    const hidden = await list({ eventId: EVENT, guestId: LEA })
+    expect(hidden.ok && hidden.value.onWall).toBe(false)
+  })
+
   it('says a new message would be taken only when the switch is on and the event takes messages', async () => {
     const on = await list({ eventId: EVENT, guestId: LEA })
     expect(on.ok && on.value.accepting).toBe(true)

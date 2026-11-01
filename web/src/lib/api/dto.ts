@@ -185,6 +185,8 @@ export interface PrivacyNoticeDto {
    * to read this one.
    */
   readonly operator?: string
+  /** Present only when guests may leave guestbook messages (spec 01): the notice reads for a message too. */
+  readonly guestbook?: true
 }
 
 /** A notice and where this device stands with it: the answer of every notice route. */
@@ -377,6 +379,34 @@ export interface ErasedContributionDto {
   readonly clips: number
   /** Guestbook messages removed with them; absent from an older server. */
   readonly messages?: number
+}
+
+/** One of the guest's own guestbook messages (spec 01). */
+export interface GuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The server's verdict: the phone never recomputes it. */
+  readonly canDelete: boolean
+}
+
+export interface MyGuestbookDto {
+  readonly items: readonly GuestbookEntryDto[]
+  /** Whether a new message would be taken now: the switch, the event's state and the window. */
+  readonly accepting: boolean
+  /** Whether published messages appear on the wall: said to their authors in the status. */
+  readonly onWall: boolean
+}
+
+/** What a message just written answers. */
+export interface CreatedGuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** True when this was the same message sent a moment ago: nothing new was stored. */
+  readonly duplicate: boolean
 }
 
 export interface GuestPhotoDto {

@@ -336,6 +336,8 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   selfRemovalSeconds: notice.selfRemovalSeconds,
   // Absent, not `null`, on a box that named nobody: the answer stays what it always was.
   ...(notice.operator === null ? {} : { operator: notice.operator }),
+  // Present only when true, like the operator: a box without a guestbook answers what it always did.
+  ...(notice.guestbook ? { guestbook: true as const } : {}),
 })
 
 export const toPrivacyNoticeStateDto = ({
