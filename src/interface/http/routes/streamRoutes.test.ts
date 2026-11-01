@@ -604,6 +604,16 @@ describe('openStream', () => {
     expect(sink.text).toContain(': keep-alive')
   })
 
+  it('is the public wall unless it is told otherwise, so a caller that says nothing never leaks the book signal', () => {
+    const sink = open()
+
+    world.deps.bus.publish({ type: 'book.changed', eventId: asEventId(WEDDING) })
+    world.deps.bus.publish({ type: 'mission.changed', eventId: asEventId(WEDDING) })
+
+    expect(sink.text).toContain('mission.changed')
+    expect(sink.text).not.toContain('book.changed')
+  })
+
   it('names the heartbeat too, so a client can tell quiet from dead', async () => {
     // A comment reaches no client handler, which is what makes it safe for a proxy and
     // useless as a sign of life. The named half is what the client's watchdog listens
