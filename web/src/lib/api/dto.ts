@@ -119,6 +119,13 @@ export interface PublicEventDto {
   /** The host's switch over video. `false` means: do not offer the control at all. */
   readonly allowClips: boolean
   /**
+   * The host's switch over written guestbook messages (spec 01). Optional on the client because a
+   * session stored before the upgrade, and an older server, do not send it: absent reads as off.
+   */
+  readonly allowGuestbook?: boolean
+  /** The longest message the server accepts, so the phone states a limit the server owns. */
+  readonly guestbookMaxLength?: number
+  /**
    * The limits the clip route enforces, so the picker can refuse **before** the bytes
    * go up a venue's Wi-Fi rather than after. Deployment configuration, which is exactly
    * why they travel instead of being compiled in here.
@@ -357,6 +364,8 @@ export interface MyPhotosDto {
 export interface ErasedContributionDto {
   readonly photos: number
   readonly clips: number
+  /** Guestbook messages removed with them; absent from an older server. */
+  readonly messages?: number
 }
 
 export interface GuestPhotoDto {
@@ -441,6 +450,9 @@ export interface EventSettingsDto {
    * exactly the events it exists for.
    */
   readonly allowClips: boolean
+  /** Optional until the host panel reads it (spec 01): an older server does not send it. */
+  readonly allowGuestbook?: boolean
+  readonly guestbookOnWall?: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

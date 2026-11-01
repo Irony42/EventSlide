@@ -664,6 +664,8 @@ const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
   // deleted for having no caller (`web/src/lib/api/apiCallers.guard.test.ts` keeps it that way); a
   // screen that needs one writes it back and takes its entry out of this list.
   renameEventBody: 'PATCH /api/events/:eventSlug: no screen renames an event',
+  guestbookBody:
+    'POST /api/events/:eventSlug/guestbook: the guest card (spec 01, PR 2) is not built yet',
   captionBody:
     'PATCH /api/events/:eventSlug/photos/:photoId/caption: no screen edits a caption after upload',
   // `PATCH /api/events/:slug/guests/:guestId` (`renameGuest`): the route exists and is held at ring

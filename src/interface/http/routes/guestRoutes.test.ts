@@ -18,6 +18,7 @@ import { FakeMissionRepository } from '../../../application/testing/fakeMissionR
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListGuestPhotos } from '../../../application/usecases/photos/listGuestPhotos'
@@ -234,6 +235,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               photos,
               reactions,
               clips: new FakeClipJobRepository(),
+              guestbook: new FakeGuestbookRepository(),
               media,
               bus: deps.bus,
               clock: deps.clock,
@@ -1491,7 +1493,7 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     const response = await erase(subject)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ photos: 3, clips: 0 })
+    expect(response.body).toEqual({ photos: 3, clips: 0, messages: 0 })
     expect(response.headers['cache-control']).toBe('no-store')
     expect(String(response.headers['set-cookie'])).toMatch(/es_guest=;/)
     expect(await photoIdsOf(subject, WEDDING)).toEqual([ANOTHER_GUESTS, OTHERS_PUBLISHED].sort())
@@ -1541,7 +1543,7 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     const response = await erase(subject)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ photos: 3, clips: 0 })
+    expect(response.body).toEqual({ photos: 3, clips: 0, messages: 0 })
     expect(await photoIdsOf(subject, WEDDING)).not.toContain(PENDING)
     expect(await photoIdsOf(subject, WEDDING)).toContain(ANOTHER_GUESTS)
   })
@@ -1599,7 +1601,7 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     const response = await erase(subject)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ photos: 2, clips: 0 })
+    expect(response.body).toEqual({ photos: 2, clips: 0, messages: 0 })
     expect((await subject.photos.locate(asPhotoId(PUBLISHED)))?.takenDownAt).not.toBeNull()
     const kept = await subject.harness.guests.findById(asEventId(WEDDING), asGuestId(GUEST))
     expect(kept?.label()).toBeNull()
