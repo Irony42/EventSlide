@@ -231,6 +231,14 @@ Reaction tallies and `rankedPhotos` already exist.
 wall is the only screen everyone is already looking at, so it is the right place to
 announce something, and hosts currently do it by shouting.
 
+### 2.9 Host brand (P2, effort S then M, risk: low)
+
+The host's own words and logo on what guests and the room see (spec 03). **Message first**: a free
+text of at most 280 characters on the join page, the upload page and the empty wall (shipped with
+`welcomeMessage`). Then the logo (PNG, JPEG or WebP, re-encoded; SVG refused), on the same three
+surfaces. No fixed ornament over photographs on the wall; a recurring welcome card in the loop is
+left to be specified once with 2.4 and 2.8.
+
 ---
 
 ## 3. Host control
