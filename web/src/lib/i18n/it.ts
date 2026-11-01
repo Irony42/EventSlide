@@ -795,6 +795,62 @@ export const it: UiText = {
       t.count(count, { one: `${t.number(count)} foto`, other: `${t.number(count)} foto` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} invitato`, other: `${t.number(count)} invitati` }),
+    stats: {
+      title: 'Statistiche della serata',
+      tile: 'Statistiche',
+      loading: 'Caricamento delle statistiche…',
+      empty:
+        'Ancora niente da contare. I numeri compaiono appena gli invitati si uniscono all’evento.',
+      emptyAction: 'Mostra il codice QR',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} invio ricevuto`,
+          other: `${t.number(count)} invii ricevuti`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} invitato`,
+          other: `${t.number(count)} invitati`,
+        }),
+      figureHere: (count: number) =>
+        t.count(count, { one: `${t.number(count)} qui ora`, other: `${t.number(count)} qui ora` }),
+      figurePending: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} in attesa`,
+          other: `${t.number(count)} in attesa`,
+        }),
+      timelineTitle: 'Invii nel tempo',
+      timelineCaption: 'Invii per ora',
+      hourColumn: 'Ora',
+      uploadsColumn: 'Invii',
+      timelineEmpty: 'Ancora nessun invio.',
+      peak: (hour: string, count: number) =>
+        `Picco: ${hour}, ${t.count(count, { one: `${t.number(count)} invio`, other: `${t.number(count)} invii` })}`,
+      statusTitle: 'Invii per stato',
+      statusPublished: 'Pubblicati',
+      statusPending: 'In attesa',
+      statusRejected: 'Rifiutati',
+      statusHidden: 'Nascosti',
+      publishedShare: 'Quota di invii pubblicati',
+      guestsTitle: 'Invitati',
+      guestsJoined: 'Arrivati',
+      guestsContributors: 'Hanno inviato almeno un file',
+      guestsRevoked: 'Rimossi da lei',
+      reactionsTitle: 'Reazioni',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} reazione`,
+          other: `${t.number(count)} reazioni`,
+        }),
+      topTitle: 'Chi ha condiviso di più',
+      topEmpty: 'Nessuno ha ancora pubblicato un invio.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} invio pubblicato`, other: `${t.number(photos)} invii pubblicati` })} · ${t.count(reactions, { one: `${t.number(reactions)} reazione ricevuta`, other: `${t.number(reactions)} reazioni ricevute` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Gli invitati senza nome sono raggruppati: ${t.count(guests, { one: `${t.number(guests)} invitato`, other: `${t.number(guests)} invitati` })}, ${t.count(photos, { one: `${t.number(photos)} invio`, other: `${t.number(photos)} invii` })}.`,
+      retention:
+        'Questi numeri scompaiono con l’evento, alla sua eliminazione o alla scadenza del periodo di conservazione.',
+    },
     storageUsed: (used: string, total: string) => `${used} su ${total}`,
     settings: 'Impostazioni',
     moderationMode: 'Moderazione',
@@ -1767,6 +1823,7 @@ export const it: UiText = {
     event: 'Evento',
     moderation: 'Moderazione',
     mobileModeration: 'Moderazione da telefono',
+    stats: 'Statistiche della serata',
     settings: 'Impostazioni dell’evento',
     customAmbiance: 'Atmosfera su misura',
     clientSpace: 'Area cliente',

@@ -801,6 +801,65 @@ export const es: UiText = {
       t.count(count, { one: `${t.number(count)} foto`, other: `${t.number(count)} fotos` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} invitado`, other: `${t.number(count)} invitados` }),
+    stats: {
+      title: 'Estadísticas de la fiesta',
+      tile: 'Estadísticas',
+      loading: 'Cargando las estadísticas…',
+      empty:
+        'Todavía no hay nada que contar. Las cifras aparecen en cuanto los invitados se unen al evento.',
+      emptyAction: 'Ver el código QR',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} envío recibido`,
+          other: `${t.number(count)} envíos recibidos`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} invitado`,
+          other: `${t.number(count)} invitados`,
+        }),
+      figureHere: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} aquí ahora`,
+          other: `${t.number(count)} aquí ahora`,
+        }),
+      figurePending: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} en espera`,
+          other: `${t.number(count)} en espera`,
+        }),
+      timelineTitle: 'Envíos a lo largo del tiempo',
+      timelineCaption: 'Envíos por hora',
+      hourColumn: 'Hora',
+      uploadsColumn: 'Envíos',
+      timelineEmpty: 'Todavía no hay envíos.',
+      peak: (hour: string, count: number) =>
+        `Pico: ${hour}, ${t.count(count, { one: `${t.number(count)} envío`, other: `${t.number(count)} envíos` })}`,
+      statusTitle: 'Envíos por estado',
+      statusPublished: 'Publicados',
+      statusPending: 'En espera',
+      statusRejected: 'Rechazados',
+      statusHidden: 'Ocultos',
+      publishedShare: 'Proporción de envíos publicados',
+      guestsTitle: 'Invitados',
+      guestsJoined: 'Llegados',
+      guestsContributors: 'Han enviado al menos un archivo',
+      guestsRevoked: 'Retirados por usted',
+      reactionsTitle: 'Reacciones',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} reacción`,
+          other: `${t.number(count)} reacciones`,
+        }),
+      topTitle: 'Quienes más han compartido',
+      topEmpty: 'Nadie ha publicado todavía un envío.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} envío publicado`, other: `${t.number(photos)} envíos publicados` })} · ${t.count(reactions, { one: `${t.number(reactions)} reacción recibida`, other: `${t.number(reactions)} reacciones recibidas` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Los invitados sin nombre se agrupan: ${t.count(guests, { one: `${t.number(guests)} invitado`, other: `${t.number(guests)} invitados` })}, ${t.count(photos, { one: `${t.number(photos)} envío`, other: `${t.number(photos)} envíos` })}.`,
+      retention:
+        'Estas cifras desaparecen con el evento, al borrarlo o al terminar el plazo de conservación.',
+    },
     storageUsed: (used: string, total: string) => `${used} de ${total}`,
     settings: 'Ajustes',
     moderationMode: 'Moderación',
@@ -1794,6 +1853,7 @@ export const es: UiText = {
     event: 'Evento',
     moderation: 'Moderación',
     mobileModeration: 'Moderación en el teléfono',
+    stats: 'Estadísticas de la fiesta',
     settings: 'Ajustes del evento',
     customAmbiance: 'Ambiente a medida',
     clientSpace: 'Espacio de cliente',
