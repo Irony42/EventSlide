@@ -61,6 +61,10 @@ import type {
   SessionUserDto,
   ShareLinkCreatedDto,
   ShareLinkDto,
+  EngagementDto,
+  EventStatsResponseDto,
+  StatsContributorDto,
+  StatsQuarterDto,
   TopPhotoDto,
   TotpEnrolmentDto,
   UploadOutcomeDto,
@@ -99,6 +103,7 @@ import type {
   GalleryPage,
 } from '../../../application/usecases/gallery/listGalleryPhotos'
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
+import type { EventStats } from '../../../application/usecases/stats/getEventStats'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
@@ -1051,3 +1056,23 @@ const toPendingInvitationDto = (invitation: PendingInvitation): PendingInvitatio
 export const toPendingInvitationsDto = (
   invitations: readonly PendingInvitation[],
 ): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })
+
+/** The one field list of the statistics page, so a field cannot reach the wire by accident. */
+export const toEventStatsDto = (stats: EventStats): EventStatsResponseDto => ({
+  uploads: {
+    total: stats.uploadsTotal,
+    byQuarter: stats.derived.byQuarter.map((slot): StatsQuarterDto => ({
+      start: iso(slot.start),
+      count: slot.count,
+    })),
+  },
+  photos: { ...stats.derived.byStatus },
+  guests: { ...stats.derived.guests, activeNow: stats.activeNow },
+  reactions: {
+    total: stats.derived.reactions.total,
+    byKind: { ...stats.derived.reactions.byKind },
+  },
+  topContributors: stats.contributors.top.map((line): StatsContributorDto => ({ ...line })),
+  anonymousContributors: { ...stats.contributors.anonymous },
+  engagement: stats.engagement === null ? null : ({ ...stats.engagement } satisfies EngagementDto),
+})

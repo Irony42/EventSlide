@@ -2629,6 +2629,7 @@ event_, never "is logged in".
 | `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite **by link**; `{ "email" }`, no password  |
 | `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                    |
 | `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                              |
+| `GET`    | `/api/events/:slug/stats`                  | moderator | 200 | Statistics of the evening, derived              |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and
@@ -3692,6 +3693,57 @@ asked for three answers the three best photos on the wall (fewer when fewer have
 Only the thumb is offered: the panel is a podium of small tiles beside the wall, and a
 second full-size URL per entry would have the projector fetch megabytes it never renders.
 `Cache-Control: no-store`.
+
+### `GET /api/events/:slug/stats`
+
+The host's statistics page ("how did the evening go?"). Moderator or owner, any event status.
+Takes no parameter: a query string is `400 request.invalid`.
+
+Everything is **derived** from the photographs, guests and reactions as they are when you ask, never
+from a counter, so an erased guest or a deleted photograph is gone on the next read. A photograph the
+operator took down is in no figure, reactions included. "Photos" here means **sends**, photographs and
+videos alike.
+
+**200**
+
+```json
+{
+  "uploads": {
+    "total": 412,
+    "byQuarter": [{ "start": "2026-06-20T19:15:00.000Z", "count": 12 }]
+  },
+  "photos": { "pending": 0, "published": 380, "rejected": 18, "hidden": 14 },
+  "guests": { "joined": 86, "contributors": 51, "revoked": 1, "activeNow": 74 },
+  "reactions": {
+    "total": 940,
+    "byKind": { "love": 400, "laugh": 210, "wow": 120, "cheers": 130, "clap": 80 }
+  },
+  "topContributors": [{ "displayName": "Léa", "photos": 22, "reactions": 71 }],
+  "anonymousContributors": { "guests": 9, "photos": 31 },
+  "engagement": {
+    "since": "2026-11-14",
+    "galleryViews": 57,
+    "galleryArchiveDownloads": 12
+  }
+}
+```
+
+- `byQuarter`: sends per **15-minute UTC slot**, sparse (empty slots are absent), in time order. The
+  client regroups into the reader's local hours; every real time zone is a whole number of quarters
+  from UTC, so that is exact where UTC hours would shift a half-hour zone's bars.
+- Invariant: `uploads.total` = the four statuses = the sum of `byQuarter`.
+- `guests.joined` counts every guest row, the ones the host removed included; `activeNow` is the same
+  five-minute window as the guest list and excludes removed guests. A guest the operator's takedown
+  left nameless stays counted in `joined` (and never appears below).
+- `topContributors`: at most ten guests with a first name and at least one **published** send, most
+  sends first, then most reactions received **on those sends**, then guest id. Removed guests are left
+  out. Guests without a first name are folded into `anonymousContributors`, never listed.
+- `engagement`: `null` until a first open of the album link or launch of its ZIP was counted, then `{ "since": "2026-11-14", "galleryViews": 57, "galleryArchiveDownloads": 12 }`: the sums over the days, `since` being the first day counted (nothing was measured before it). A view is a **served** load of the album page (a revoked, expired or locked link, or a wrong password, counts nothing); a ZIP is counted at launch, finished or not. Integers per event and UTC day: no identity is stored.
+
+`Cache-Control: no-store`.
+
+**Errors** — `401` without a session, `404 event.notFound` (not a member, or the operator took the event
+down), `403 client.suspended` (the page shows first names), `400 request.invalid` on any parameter.
 
 ### `PATCH /api/events/:slug/photos/:photoId/status`
 
