@@ -35,8 +35,8 @@ describe('normalizeWelcomeMessage', () => {
     expect(code('a'.repeat(WELCOME_MAX_CHARS + 1))).toBe('eventSettings.welcomeTooLong')
   })
 
-  it('counts code points, so 140 double-width emoji fit', () => {
-    expect(value(emoji.repeat(140))).toBe(emoji.repeat(140))
+  it('counts code points, so 200 double-width emoji fit', () => {
+    expect(value(emoji.repeat(200))).toBe(emoji.repeat(200))
     expect(code(emoji.repeat(WELCOME_MAX_CHARS + 1))).toBe('eventSettings.welcomeTooLong')
   })
 
