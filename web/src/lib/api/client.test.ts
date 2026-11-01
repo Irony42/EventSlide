@@ -363,6 +363,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.listGuests(SLUG),
   },
   {
+    name: 'getEventStats',
+    verb: 'get',
+    path: `/api/events/${SLUG}/stats`,
+    invoke: (client) => client.getEventStats(SLUG),
+  },
+  {
     name: 'revokeGuest',
     verb: 'post',
     path: `/api/events/${SLUG}/guests/guest-1/revoke`,

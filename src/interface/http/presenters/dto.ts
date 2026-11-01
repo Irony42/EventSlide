@@ -1205,3 +1205,52 @@ export interface OperatorPasswordResetByLinkDto {
 /** A union: the link exists in the type only on the variant that is allowed to carry one. */
 export type OperatorPasswordResetDto =
   OperatorPasswordResetByMailDto | OperatorPasswordResetPendingDto | OperatorPasswordResetByLinkDto
+
+// ------------------------------------------------------------------- statistics --
+
+/** A non-empty 15-minute slot, `start` an ISO instant in UTC. The browser regroups into local hours. */
+export interface StatsQuarterDto {
+  readonly start: string
+  readonly count: number
+}
+
+/** One of the ten guests the page names. A first name is content: shown as written. */
+export interface StatsContributorDto {
+  readonly displayName: string
+  readonly photos: number
+  readonly reactions: number
+}
+
+/**
+ * The host statistics page (spec 05). Everything is derived from the album at read time.
+ * `photos` means sends, photographs and videos alike. `engagement` is `null` until the
+ * after-party counters exist.
+ */
+export interface EventStatsResponseDto {
+  readonly uploads: {
+    readonly total: number
+    readonly byQuarter: readonly StatsQuarterDto[]
+  }
+  readonly photos: {
+    readonly pending: number
+    readonly published: number
+    readonly rejected: number
+    readonly hidden: number
+  }
+  readonly guests: {
+    readonly joined: number
+    readonly contributors: number
+    readonly revoked: number
+    readonly activeNow: number
+  }
+  readonly reactions: {
+    readonly total: number
+    readonly byKind: ReactionCounts
+  }
+  readonly topContributors: readonly StatsContributorDto[]
+  readonly anonymousContributors: {
+    readonly guests: number
+    readonly photos: number
+  }
+  readonly engagement: null
+}

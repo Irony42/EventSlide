@@ -3,6 +3,7 @@ import type { Clock } from '../application/ports/clock'
 import type { IdGenerator } from '../application/ports/idGenerator'
 import type { Logger } from '../application/ports/logger'
 import type { EventBus } from '../application/ports/eventBus'
+import type { EventStatsRepository } from '../application/ports/eventStatsRepository'
 import type { EventRepository } from '../application/ports/eventRepository'
 import type { PhotoRepository } from '../application/ports/photoRepository'
 import type { GuestRepository } from '../application/ports/guestRepository'
@@ -82,6 +83,7 @@ import { makeAcknowledgePrivacyNotice } from '../application/usecases/guests/ack
 import { makeAuthenticateGuest } from '../application/usecases/guests/authenticateGuest'
 import { makeGetPrivacyNotice } from '../application/usecases/guests/getPrivacyNotice'
 import { makeJoinEvent } from '../application/usecases/guests/joinEvent'
+import { makeGetEventStats } from '../application/usecases/stats/getEventStats'
 import { makeListGuests } from '../application/usecases/guests/listGuests'
 import { makeEraseGuestContribution } from '../application/usecases/guests/eraseGuestContribution'
 import { makeRenameGuest } from '../application/usecases/guests/renameGuest'
@@ -174,6 +176,8 @@ export interface Adapters {
   readonly clips: ClipJobRepository
   readonly guests: GuestRepository
   readonly reactions: ReactionRepository
+  /** The host statistics page: aggregates derived from photos, guests and reactions (spec 05). */
+  readonly eventStats: EventStatsRepository
   readonly missions: MissionRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository
@@ -659,6 +663,13 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     listGuests: makeListGuests({
       guests: adapters.guests,
       memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
+    getEventStats: makeGetEventStats({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      guests: adapters.guests,
+      stats: adapters.eventStats,
       clock: adapters.clock,
     }),
     getPrivacyNotice: makeGetPrivacyNotice({
