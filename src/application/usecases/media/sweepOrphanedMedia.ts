@@ -139,8 +139,12 @@ export const makeSweepOrphanedMedia = ({
     for (const job of await clips.listStagedSources(eventId)) named.add(job)
     // The host's venue photograph is named by the event's settings and by no row of either
     // kind (ADR 0010), so without this the sweep would collect it an hour after it was set.
-    const venue = (await events.findById(eventId))?.settings.venuePhoto ?? null
+    // The logo (spec 03) is named the same way, by the settings and by no row.
+    const settings = (await events.findById(eventId))?.settings
+    const venue = settings?.venuePhoto ?? null
     if (venue !== null) named.add(venue.value)
+    const logo = settings?.logo ?? null
+    if (logo !== null) named.add(logo.value)
     return named
   }
 
@@ -172,7 +176,9 @@ export const makeSweepOrphanedMedia = ({
 
     // And the settings, asked again for the same reason: a host replacing their photograph
     // between the snapshot and the unlink has just made this digest the one in use.
-    if ((await events.findById(eventId))?.settings.venuePhoto?.equals(hash) === true) return false
+    const settings = (await events.findById(eventId))?.settings
+    if (settings?.venuePhoto?.equals(hash) === true) return false
+    if (settings?.logo?.equals(hash) === true) return false
 
     // **The disk is asked last, so that it is asked with nothing after it.** Each of
     // these is an `await`, and a re-upload landing between the stat and the unlink is
