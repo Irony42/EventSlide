@@ -77,6 +77,15 @@ export interface AppConfig {
     readonly bodyTimeoutMs: number
   }
 
+  /** The highlight reel (spec 08): `REEL_*` and `MAX_QUEUED_REELS`. */
+  readonly reel: {
+    readonly enabled: boolean
+    readonly maxPhotos: number
+    readonly secondsPerPhoto: number
+    readonly maxOutputBytes: number
+    readonly maxQueued: number
+  }
+
   /** The photo book (PDF of the published album); every figure from a `BOOK_*` variable. */
   readonly books: {
     readonly enabled: boolean

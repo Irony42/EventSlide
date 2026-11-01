@@ -268,6 +268,7 @@ const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   poster: 'image/jpeg',
   source: 'application/octet-stream',
   ground: 'image/webp',
+  reel: 'video/mp4',
 }
 
 const once = (bytes: Uint8Array): AsyncIterable<Uint8Array> =>

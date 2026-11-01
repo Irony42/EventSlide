@@ -32,6 +32,12 @@ import { createFsMediaStore } from '../infrastructure/media/fsMediaStore'
 import { createSharpImageProcessor } from '../infrastructure/media/sharpImageProcessor'
 import { probeFfmpegCapability } from '../infrastructure/media/ffmpegBinaries'
 import {
+  createFfmpegReelRenderer,
+  type FfmpegReelRenderer,
+} from '../infrastructure/media/ffmpegReelRenderer'
+import { nullReelRenderer } from '../infrastructure/media/nullReelRenderer'
+import { SqliteReelRepository } from '../infrastructure/db/sqliteReelRepository'
+import {
   createFfmpegVideoTranscoder,
   type FfmpegVideoTranscoder,
 } from '../infrastructure/media/ffmpegVideoTranscoder'
@@ -381,6 +387,17 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
 
   const videoTranscoder = ffmpeg ?? nullVideoTranscoder(detectVideoContainer)
 
+  // The highlight reel's encoder (spec 08): the same binary, its own scratch directories, and the
+  // Null Object when the box has none.
+  const reelFfmpeg: FfmpegReelRenderer | null = capability.available
+    ? createFfmpegReelRenderer({
+        paths: capability.paths,
+        scratchRoot: resolve(mediaRoot, '.scratch'),
+        env: ffmpegChildEnv,
+      })
+    : null
+  const reelRenderer = reelFfmpeg ?? nullReelRenderer()
+
   const adapters: Adapters = {
     clock: systemClock,
     /**
@@ -399,6 +416,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     events: new SqliteEventRepository(db),
     photos: new SqlitePhotoRepository(db),
     clips: new SqliteClipJobRepository(db),
+    reels: new SqliteReelRepository(db),
+    reelRenderer,
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
     eventStats: new SqliteEventStatsRepository(db),
@@ -451,6 +470,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     mediaSweepMaxDigestsPerPass: MEDIA_SWEEP_MAX_DIGESTS,
     auditRetentionDays: config.audit.retentionDays,
     newClientDefaults: config.newClientCeilings,
+    reel: config.reel,
     operatorName: config.operator.name,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
@@ -602,6 +622,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   const clipWorker = createClipWorker({
     transcodeNext: usecases.transcodeNextClip,
     recover: usecases.recoverClipJobs,
+    transcodeNextReel: usecases.transcodeNextReel,
+    recoverReels: usecases.recoverReels,
     bus,
     logger,
     clock: adapters.clock,
@@ -795,6 +817,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       // stopping it, so a new container would start the same job while the old encoder
       // holds a core for the rest of the evening.
       ffmpeg?.close()
+      reelFfmpeg?.close()
       sessionStore.close()
       bus.close()
       // Last, and synchronous: it checkpoints the WAL so the `.sqlite` file is

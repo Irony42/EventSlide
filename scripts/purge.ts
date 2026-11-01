@@ -35,6 +35,7 @@ import type { LogContext, Logger } from '../src/application/ports/logger'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
 import { SqliteClipJobRepository } from '../src/infrastructure/db/sqliteClipJobRepository'
+import { SqliteReelRepository } from '../src/infrastructure/db/sqliteReelRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
 import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
 import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
@@ -118,6 +119,8 @@ const main = async (): Promise<number> => {
         events,
         photos: new SqlitePhotoRepository(db),
         clips: new SqliteClipJobRepository(db),
+        // The montage's file is named by its row: without this the script would collect it.
+        reels: new SqliteReelRepository(db),
         media,
         clock: systemClock,
         logger: consoleLogger,
