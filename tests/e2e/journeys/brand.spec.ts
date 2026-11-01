@@ -1,4 +1,5 @@
 import { expect, test } from '../fixtures/app'
+import { jpegWithLocation } from '../fixtures/media'
 
 /**
  * Spec 03, PR 1, end to end: the host writes a welcome message on a laptop, and the guest's
@@ -44,4 +45,33 @@ test('a host writes a welcome message and the guest and the empty wall show it',
   await expect(host.getByText('Réglages enregistrés.').last()).toBeVisible()
 
   await expect(projector.getByTestId('wall-welcome')).toHaveCount(0)
+})
+
+test('a host sends a logo: the preview is the stored file, location-free, and removal makes it a 404', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const event = await app.seedEvent({ slug: 'logo-de-camille', name: 'Camille & Sacha' })
+
+  await host.goto(app.url(`/admin/events/${event.slug}/settings`))
+  // A phone picture with a device name and a GPS block: what the served bytes must not carry.
+  await host.getByTestId('logo-input').setInputFiles(await jpegWithLocation('logo'))
+
+  const preview = host.getByRole('img', { name: 'Aperçu du logo de l’évènement' })
+  await expect(preview).toBeVisible()
+  const url = (await preview.getAttribute('src')) ?? ''
+  expect(url).toMatch(new RegExp(`^/api/events/${event.slug}/logo/[0-9a-f]{64}$`))
+
+  const served = await host.request.get(app.url(url))
+  expect(served.status()).toBe(200)
+  expect(served.headers()['content-type']).toBe('image/webp')
+  const bytes = await served.body()
+  expect(bytes.subarray(0, 4).toString('latin1')).toBe('RIFF')
+  expect(bytes.includes(Buffer.from('Exif'))).toBe(false)
+  expect(bytes.includes(Buffer.from('GPS'))).toBe(false)
+
+  await host.getByRole('button', { name: 'Retirer le logo' }).click()
+  await expect(preview).toBeHidden()
+  expect((await host.request.get(app.url(url))).status()).toBe(404)
 })
