@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ContentHash } from '../../../domain/photos/contentHash'
-import { asEventId } from '../../../domain/shared/ids'
+import { asEventId, asPhotoId, asReelId } from '../../../domain/shared/ids'
 import { AT, aClip, aClipJob, anEvent, aPhoto, atPlus } from '../../testing/builders'
 import type { ContentHasher } from '../../ports/contentHasher'
 import { CallLog } from '../../testing/callLog'
@@ -13,6 +13,8 @@ import { makeTranscodeNextClip } from '../clips/transcodeNextClip'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { FakeReelRepository } from '../../testing/fakeReelRepository'
+import { ReelJob } from '../../../domain/highlights/reelJob'
 import { makeSweepOrphanedMedia, type SweepOrphanedMedia } from './sweepOrphanedMedia'
 import { CapturingLogger } from '../../testing/capturingLogger'
 
@@ -53,6 +55,7 @@ describe('sweepOrphanedMedia', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
   let clips: FakeClipJobRepository
+  let reels: FakeReelRepository
   let media: InMemoryMediaStore
   /** The store's own clock, so `modifiedAt` is a fact a test sets rather than wall time. */
   let written: FakeClock
@@ -65,6 +68,7 @@ describe('sweepOrphanedMedia', () => {
       events,
       photos,
       clips,
+      reels,
       media,
       clock: now,
       logger,
@@ -76,6 +80,7 @@ describe('sweepOrphanedMedia', () => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     clips = new FakeClipJobRepository()
+    reels = new FakeReelRepository(photos)
     written = new FakeClock(AT)
     media = new InMemoryMediaStore(written)
     // An hour after everything the tests write, so the freshness guard is off unless a
@@ -174,6 +179,59 @@ describe('sweepOrphanedMedia', () => {
 
       expect(report).toMatchObject({ scanned: 1, collected: 0 })
       expect(await media.exists(EVENT, hashOf('9a1'), 'ground')).toBe(true)
+    })
+
+    it('keeps a finished montage older than the minimum age, which only its row names (spec 08)', async () => {
+      // The file was written an hour before the pass, so freshness cannot be what protects it.
+      const output = { hash: hashOf('7e1'), byteSize: 9, durationMs: 12_000 }
+      const job = ReelJob.restore({
+        ...ReelJob.request(
+          { id: asReelId('reel-1'), eventId: EVENT, photoIds: [asPhotoId('p1')] },
+          AT,
+        ).toProps(),
+        status: 'done',
+        output,
+      })
+      reels.seed(job)
+      await media.put(EVENT, output.hash, 'reel', Uint8Array.of(1, 2, 3))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ scanned: 1, collected: 0 })
+      expect(await media.exists(EVENT, output.hash, 'reel')).toBe(true)
+    })
+
+    it('collects a montage file no row names any more, once it is old enough', async () => {
+      await media.put(EVENT, hashOf('7e2'), 'reel', Uint8Array.of(1, 2, 3))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ collected: 1, bytes: 3 })
+      expect(await media.exists(EVENT, hashOf('7e2'), 'reel')).toBe(false)
+    })
+
+    it('asks again just before the unlink: a montage named in between survives', async () => {
+      await media.put(EVENT, hashOf('7e3'), 'reel', Uint8Array.of(1))
+      const names = [new Set<string>(), new Set<string>([hashOf('7e3').value])]
+      let asked = 0
+      const racing = {
+        listReferencedDigests: async () => names[Math.min(asked++, names.length - 1)] ?? new Set<string>(),
+      }
+      sweep = makeSweepOrphanedMedia({
+        events,
+        photos,
+        clips,
+        reels: racing,
+        media,
+        clock: now,
+        logger,
+        policy: { minimumAgeMs: FIFTEEN_MINUTES, maxDigestsPerPass: 50_000 },
+      })
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ collected: 0 })
+      expect(await media.exists(EVENT, hashOf('7e3'), 'reel')).toBe(true)
     })
 
     it('collects the photograph a host replaced, which the settings no longer name', async () => {

@@ -15,7 +15,12 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { z } from 'zod'
-import { MEDIA_VARIANTS, STAGED_SOURCE, VENUE_GROUND } from '../../application/ports/mediaStore'
+import {
+  MEDIA_VARIANTS,
+  REEL_VARIANT,
+  STAGED_SOURCE,
+  VENUE_GROUND,
+} from '../../application/ports/mediaStore'
 import { mediaObjectPath } from '../media/mediaLayout'
 import { HOLDING_BYTES_SQL } from './clipJobStatusSql'
 import { closeDatabase, openDatabase, type Db } from './connection'
@@ -386,6 +391,14 @@ const walkFiles = async (
         // a file that is not a regular file, a name that cannot be written as an archive
         // path. These two directories are there on every healthy boot, so listing them
         // would put two permanent lines of noise in front of the real problems.
+        continue
+      }
+      /**
+       * **An event's highlight reel is not backed up** (spec 08): it is made from the photographs
+       * and the host can ask for it again. Its row is saved with the database, and a row that
+       * names a file the restored media root lacks is read as `stale`, never served.
+       */
+      if (prefix !== '' && !/[\\/]/.test(prefix) && entry.name === REEL_VARIANT) {
         continue
       }
       found.push(...(await walkFiles(root, skipped, relative)))
