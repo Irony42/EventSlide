@@ -1,4 +1,5 @@
-import type { EventSettingsDto, EventSettingsPatch } from '../../lib/api/dto'
+import type { EventSettingsPatch } from '../../lib/api/client'
+import type { EventSettingsDto } from '../../lib/api/dto'
 
 /**
  * The settings form's draft, as `PATCH /settings` reads it: the theme without the

@@ -8,9 +8,11 @@ import type {
   ClientDefaultsDto,
   ClipJobDto,
   ErasedContributionDto,
+  EventBrandDto,
   EventDto,
+  EventSettingsDto,
+  EventThemeDto,
   EventLanguage,
-  EventSettingsPatch,
   EventStatus,
   EventSummaryDto,
   EventTemplateKey,
@@ -98,6 +100,25 @@ export interface SiteInvitationInput {
 export interface SiteResetInput {
   readonly locale: Locale
   readonly approvalId?: string
+}
+
+/**
+ * What `PATCH /settings` takes: the settings as read, plus the welcome message at the top level
+ * (the `brand` block of the read side is read-only and ignored by the server).
+ */
+export interface EventSettingsPatch {
+  readonly moderation?: EventSettingsDto['moderation']
+  readonly allowCaptions?: boolean
+  readonly allowReactions?: boolean
+  readonly allowClips?: boolean
+  readonly allowGuestSelfDelete?: boolean
+  readonly guestSelfDeleteGraceSeconds?: number
+  readonly retentionDays?: number | null
+  readonly maxPhotosPerGuest?: number | null
+  readonly theme?: EventThemeDto
+  readonly brand?: EventBrandDto
+  readonly wallLanguage?: EventSettingsDto['wallLanguage']
+  readonly welcomeMessage?: string | null
 }
 
 export interface CreateEventInput {

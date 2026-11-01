@@ -5,12 +5,12 @@ import type {
   CreateEventInput,
   EventScheduleInput,
   MissionInput,
+  EventSettingsPatch,
   ModeratorInvitationInput,
   ShareLinkInput,
 } from '../../../lib/api/client'
 import type {
   EventDto,
-  EventSettingsPatch,
   EventStatus,
   MissionDto,
   ModeratorInviteResponse,
