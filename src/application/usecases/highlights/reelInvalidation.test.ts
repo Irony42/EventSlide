@@ -5,6 +5,7 @@ import { AT, aGuest, aPhoto, anEvent, atPlus } from '../../testing/builders'
 import { CapturingLogger } from '../../testing/capturingLogger'
 import { FakeAuditLog } from '../../testing/fakeAuditLog'
 import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeContentHasher } from '../../testing/fakeContentHasher'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
@@ -228,6 +229,7 @@ describe('the highlight reel and the five ways out of the evening', () => {
       photos,
       reactions: new FakeReactionRepository(),
       clips: new FakeClipJobRepository(),
+      guestbook: new FakeGuestbookRepository(),
       media,
       bus,
       clock,
@@ -249,6 +251,7 @@ describe('the highlight reel and the five ways out of the evening', () => {
       photos,
       reactions: new FakeReactionRepository(),
       clips: new FakeClipJobRepository(),
+      guestbook: new FakeGuestbookRepository(),
       media,
       bus,
       clock,
