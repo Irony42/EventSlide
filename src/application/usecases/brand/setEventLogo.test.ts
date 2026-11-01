@@ -244,6 +244,35 @@ describe('setEventLogo', () => {
       expect(media.objectCount).toBe(0)
     })
 
+    it.each(['avif', 'heif', 'gif'] as const)(
+      'refuses a %s, which the pipeline reads but a logo may not be, before decoding anything',
+      async (format) => {
+        images.script('other', { format })
+
+        const result = await setEventLogo({
+          eventId: WEDDING,
+          actorId: OWNER,
+          bytes: tagBytes('other'),
+        })
+
+        expect(!result.ok && result.error.code).toBe('image.unsupportedFormat')
+        expect(images.calls).toEqual(['probe:other'])
+        expect(media.objectCount).toBe(0)
+      },
+    )
+
+    it.each(['png', 'jpeg', 'webp'] as const)('accepts a %s', async (format) => {
+      images.script('fine', { format })
+
+      const result = await setEventLogo({
+        eventId: WEDDING,
+        actorId: OWNER,
+        bytes: tagBytes('fine'),
+      })
+
+      expect(result.ok).toBe(true)
+    })
+
     it('refuses a header that declares more pixels than the budget, undecoded', async () => {
       images.script('bomb', { width: 20_000, height: 20_000 })
 

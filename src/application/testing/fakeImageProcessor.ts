@@ -1,7 +1,13 @@
 import { Dimensions } from '../../domain/photos/dimensions'
 import { DomainError } from '../../domain/shared/errors'
 import { ok, type Result } from '../../domain/shared/result'
-import type { ImageProbe, ImageProcessor, RenderSpec, RenderedImage } from '../ports/imageProcessor'
+import type {
+  ImageFormat,
+  ImageProbe,
+  ImageProcessor,
+  RenderSpec,
+  RenderedImage,
+} from '../ports/imageProcessor'
 import { MEDIA_VARIANTS, type PhotoVariant } from '../ports/mediaStore'
 import { VARIANT_SPECS } from '../usecases/photos/uploadPhotos'
 import { LOGO_SPEC } from '../usecases/brand/setEventLogo'
@@ -25,6 +31,8 @@ export interface ImageScript {
   readonly width?: number
   readonly height?: number
   readonly probeError?: DomainError
+  /** What the header says the file is; defaults to a JPEG. */
+  readonly format?: ImageFormat
   readonly renderErrorAt?: PhotoVariant
   readonly byteSizes?: Readonly<Record<PhotoVariant, number>>
   /** What the host's venue ground renders to; defaults to a plausible 200 kB. */
@@ -89,7 +97,7 @@ export class FakeImageProcessor implements ImageProcessor {
     if (script.probeError !== undefined) return { ok: false, error: script.probeError }
 
     return ok({
-      format: 'jpeg',
+      format: script.format ?? 'jpeg',
       dimensions: this.dimensionsOf(script),
       hasAlpha: false,
       exifOrientation: 6,

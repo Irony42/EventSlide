@@ -215,3 +215,40 @@ describe('the host logo, through the real image pipeline', () => {
     expect(!other.ok && other.error.code).toBe('logo.notFound')
   })
 })
+
+describe('the formats a logo may be sent in, through the real pipeline', () => {
+  it('refuses a GIF that a photograph would accept, and writes nothing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eventslide-logo-gif-'))
+    try {
+      const media = createFsMediaStore({ root })
+      const events = new FakeEventRepository()
+      events.seed(anEvent({ id: EVENT, ownerId: OWNER }))
+      const memberships = new FakeMembershipRepository()
+      memberships.seed({ eventId: EVENT, userId: OWNER, role: 'owner', grantedAt: AT })
+      const setEventLogo = makeSetEventLogo({
+        events,
+        memberships,
+        media,
+        imageProcessor: createSharpImageProcessor({ maxPixels: MAX_PIXELS }),
+        hasher: sha256ContentHasher,
+        bus: new RecordingEventBus(),
+        logger: new CapturingLogger(),
+        limits: { maxPixels: MAX_PIXELS },
+      })
+      const gif = new Uint8Array(
+        await sharp({
+          create: { width: 20, height: 20, channels: 3, background: { r: 1, g: 2, b: 3 } },
+        })
+          .gif()
+          .toBuffer(),
+      )
+
+      const result = await setEventLogo({ eventId: EVENT, actorId: OWNER, bytes: gif })
+
+      expect(!result.ok && result.error.code).toBe('image.unsupportedFormat')
+      expect(await media.list(EVENT)).toEqual([])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})

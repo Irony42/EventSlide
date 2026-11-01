@@ -44,6 +44,13 @@ export const LOGO_SPEC: RenderSpec = {
   format: 'webp',
 }
 
+/**
+ * The formats a logo may be sent in (Pierre, 01/11/2026): PNG, JPEG and WebP. The pipeline would also
+ * read AVIF, HEIF and a still GIF for a photograph; none of them is a logo format a host has, and a
+ * narrower door is a narrower parser surface. SVG is code and is never identified at all.
+ */
+const LOGO_FORMATS: readonly string[] = ['png', 'jpeg', 'webp']
+
 /** The most a rendered logo may weigh (256 KiB), after the render. docs/SECURITY.md states the figure. */
 export const MAX_LOGO_BYTES = 262_144
 
@@ -105,6 +112,9 @@ export const makeSetEventLogo = ({
 
     const probed = await imageProcessor.probe(bytes)
     if (!probed.ok) return probed
+    if (!LOGO_FORMATS.includes(probed.value.format)) {
+      return err(DomainError.invalid('image.unsupportedFormat'))
+    }
     if (probed.value.dimensions.exceedsPixelBudget(limits.maxPixels)) {
       return err(
         DomainError.quotaExceeded('photo.pixelBudgetExceeded', {
