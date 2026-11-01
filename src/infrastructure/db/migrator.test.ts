@@ -225,6 +225,7 @@ describe('the real schema', () => {
       'event_missions',
       'event_stats_counters',
       'events',
+      'guestbook_entries',
       'guests',
       'photos',
       'reactions',
@@ -255,6 +256,10 @@ describe('the real schema', () => {
         'idx_events_client',
         'idx_events_join_code',
         'idx_events_slug',
+        'idx_guestbook_event_status',
+        'idx_guestbook_guest',
+        'idx_guestbook_reviewed_by',
+        'idx_guestbook_taken_down',
         'idx_guests_event_seen',
         'idx_photos_event_author',
         'idx_photos_event_mission',
@@ -3050,6 +3055,74 @@ describe('migration 017, the proof that an account accepted the terms', () => {
       { id: 'u1', terms_version: '2026-09', terms_accepted_at: '2026-09-01T08:00:00.000Z' },
       { id: 'u2', terms_version: null, terms_accepted_at: null },
     ])
+    closeDatabase(db)
+  })
+})
+
+describe('migration 019, the guestbook', () => {
+  const columnNames = (db: Db, table: string): string[] =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
+
+  it('adds one empty table and leaves an existing event and its settings as they were', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 19),
+    )
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'u1@example.test', 'hash:x', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Noces', 'noces', 'NOCES1', 'live', '{"moderation":"manual"}', 1000, '2026-06-20T21:00:00.000Z')`,
+    ).run()
+
+    migrate(db, migrations)
+
+    expect(columnNames(db, 'guestbook_entries')).toEqual([
+      'id',
+      'event_id',
+      'guest_id',
+      'body',
+      'status',
+      'review_kind',
+      'reviewed_at',
+      'reviewed_by_user_id',
+      'created_at',
+      'taken_down_at',
+    ])
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM guestbook_entries`).get()).toEqual({ n: 0 })
+    expect(db.prepare(`SELECT settings FROM events WHERE id = 'e1'`).get()).toEqual({
+      settings: '{"moderation":"manual"}',
+    })
+    closeDatabase(db)
+  })
+
+  it('refuses a status the moderation machine does not have', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at)
+            VALUES ('u1', 'u1@example.test', 'hash:x', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'Noces', 'noces', 'NOCES1', 'live', '{}', 1000, '2026-06-20T21:00:00.000Z')`,
+    ).run()
+    db.prepare(
+      `INSERT INTO guests (id, event_id, display_name, joined_at, last_seen_at)
+            VALUES ('g1', 'e1', NULL, '2026-06-20T21:00:00.000Z', '2026-06-20T21:00:00.000Z')`,
+    ).run()
+
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO guestbook_entries (id, event_id, guest_id, body, status, created_at)
+                VALUES ('m1', 'e1', 'g1', 'Bravo', 'accepted', '2026-06-20T21:00:00.000Z')`,
+        )
+        .run(),
+    ).toThrow(/CHECK constraint/)
     closeDatabase(db)
   })
 })
