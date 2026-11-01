@@ -3703,10 +3703,16 @@ videos alike.
 
 ```json
 {
-  "uploads": { "total": 412, "byQuarter": [{ "start": "2026-06-20T19:15:00.000Z", "count": 12 }] },
+  "uploads": {
+    "total": 412,
+    "byQuarter": [{ "start": "2026-06-20T19:15:00.000Z", "count": 12 }]
+  },
   "photos": { "pending": 0, "published": 380, "rejected": 18, "hidden": 14 },
   "guests": { "joined": 86, "contributors": 51, "revoked": 1, "activeNow": 74 },
-  "reactions": { "total": 940, "byKind": { "love": 400, "laugh": 210, "wow": 120, "cheers": 130, "clap": 80 } },
+  "reactions": {
+    "total": 940,
+    "byKind": { "love": 400, "laugh": 210, "wow": 120, "cheers": 130, "clap": 80 }
+  },
   "topContributors": [{ "displayName": "Léa", "photos": 22, "reactions": 71 }],
   "anonymousContributors": { "guests": 9, "photos": 31 },
   "engagement": null
