@@ -16,6 +16,7 @@ import { migration014 } from './014_user_foreign_key_indexes'
 import { migration015 } from './015_operator_takedown'
 import { migration016 } from './016_event_name_fold'
 import { migration017 } from './017_user_terms_acceptance'
+import { migration018 } from './018_event_stats_counters'
 import { migration019 } from './019_guestbook_entries'
 
 /**
@@ -43,5 +44,6 @@ export const migrations: readonly Migration[] = [
   migration015,
   migration016,
   migration017,
+  migration018,
   migration019,
 ]

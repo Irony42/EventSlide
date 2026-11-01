@@ -4,6 +4,7 @@ import type { ShareLink } from '../../../domain/gallery/shareLink'
 import type { DomainError } from '../../../domain/shared/errors'
 import { ok, type Result } from '../../../domain/shared/result'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import type { RecordEngagement } from '../stats/recordEngagement'
 import {
   enterGallery,
   GALLERY_STATUSES,
@@ -38,6 +39,8 @@ export interface OpenGalleryInput {
 
 export interface OpenGalleryDeps extends GalleryAccessDeps {
   readonly photos: PhotoRepository
+  /** Counts the open once it has succeeded (spec 05): a number a day, never who opened it. */
+  readonly engagement: RecordEngagement
 }
 
 export type OpenGallery = (input: OpenGalleryInput) => Promise<Result<GalleryView, DomainError>>
@@ -53,6 +56,10 @@ export const makeOpenGallery =
     // `published` by name: the count and the grid are then the same rule.
     const counts = await deps.photos.countsByStatus(event.id)
     const photoCount = GALLERY_STATUSES.reduce((total, status) => total + counts[status], 0)
+
+    // Only here, once everything that can refuse has agreed: a revoked, expired or locked link,
+    // and a password nobody entered, return above and are not counted.
+    await deps.engagement({ eventId: event.id, metric: 'galleryViews', delta: 1 })
 
     return ok({
       event,
