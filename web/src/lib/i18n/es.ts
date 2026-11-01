@@ -451,6 +451,10 @@ export const es: UiText = {
     'slug.tooLong': 'Esta dirección es demasiado larga.',
     'slug.malformed': 'La dirección solo admite letras sin acento, números y guiones.',
     'slug.reserved': 'Esta dirección está reservada. Elija otra.',
+    'eventSettings.welcomeInvalid': 'Este mensaje no es válido.',
+    'eventSettings.welcomeTooLong': 'Este mensaje es demasiado largo.',
+    'eventSettings.welcomeTooManyLines': 'Este mensaje tiene demasiadas líneas.',
+    'eventSettings.saveFailed': 'No se han podido guardar los ajustes. Inténtelo de nuevo.',
     'eventSettings.graceSecondsInvalid': 'Este plazo de eliminación no se admite.',
     'eventSettings.retentionDaysInvalid': 'Este plazo de conservación no se admite.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Este número de fotos por invitado no se admite.',
@@ -1127,6 +1131,12 @@ export const es: UiText = {
     venuePhotoBusy: 'Enviando la foto…',
     venuePhotoSaved: 'La foto de su local está guardada.',
     venuePhotoRemoved: 'Se ha restablecido la foto por defecto.',
+    welcomeMessage: 'Mensaje de bienvenida',
+    welcomeMessageHint:
+      'Unas palabras que verán sus invitados al unirse a la fiesta. Escriba en el idioma de sus invitados: este texto no se traduce. Cualquiera que tenga el código QR puede leerlo, así que no ponga nada privado.',
+    welcomeMessagePlaceholder: '¡Bienvenidos! Hagan fotos, las veremos en la pantalla de la sala.',
+    welcomeMessageClear: 'Borrar el mensaje',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Crear mi ambiente (A medida)',
     customAmbianceEdit: 'Modificar mi ambiente',
     customAmbianceEntryHint:

@@ -89,6 +89,11 @@ export type MissionScope = 'guest' | 'event'
  * the product holding a raw colour. `design-system/eventTheme.ts` applies it as
  * `--accent-hue` on the surface that carries it.
  */
+/** What the host says to their guests (spec 03): content, shown as written. */
+export interface EventBrandDto {
+  readonly welcomeMessage: string | null
+}
+
 export interface EventThemeDto {
   /** Degrees on the oklch hue circle, 0-359. The server refuses one it cannot read. */
   readonly accentHue: number
@@ -134,6 +139,8 @@ export interface PublicEventDto {
    * round trip later, under their thumb.
    */
   readonly theme: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
 }
 
 /**
@@ -288,6 +295,8 @@ export interface WallResponse {
    * theming leaves the projector on the default look rather than crashing it.
    */
   readonly theme?: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
    *
@@ -351,6 +360,8 @@ export interface MyPhotosDto {
    * Absent from a server build that predates it, and then the stored theme stands.
    */
   readonly theme?: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
 }
 
 /** What `DELETE /api/events/:slug/guests/me` removed. */
@@ -447,6 +458,8 @@ export interface EventSettingsDto {
   readonly maxPhotosPerGuest: number | null
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
   /**
    * The language the projected wall speaks (roadmap 1.5). Here and deliberately **not** on
    * `PublicEventDto`: a client that preferred it over a guest's own choice would be doing

@@ -1235,7 +1235,87 @@ describe('the host event routes', () => {
           groundUrl: null,
         },
         wallLanguage: 'en',
+        brand: { welcomeMessage: null },
       })
+    })
+
+    /* ---- The host's welcome message (spec 03). ---- */
+
+    it('stores a welcome message and answers it in the settings brand', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: '  Bienvenue !\n\nUne photo du gâteau ?  ' })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.brand).toEqual({
+        welcomeMessage: 'Bienvenue !\nUne photo du gâteau ?',
+      })
+    })
+
+    it('leaves the message alone when an older tab saves settings without it', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ welcomeMessage: 'Bienvenue' })
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowCaptions: false })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.brand.welcomeMessage).toBe('Bienvenue')
+    })
+
+    it('clears the message on null', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ welcomeMessage: 'Bienvenue' })
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: null })
+
+      expect(response.body.settings.brand.welcomeMessage).toBeNull()
+    })
+
+    it('answers the domain code for a message that is too long or has too many lines', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const long = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'x'.repeat(281) })
+      const lines = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'a\nb\nc\nd\ne' })
+
+      expect(long.status).toBe(400)
+      expect(long.body.error.code).toBe('eventSettings.welcomeTooLong')
+      expect(lines.body.error.code).toBe('eventSettings.welcomeTooManyLines')
+    })
+
+    it('reads and ignores a read-only brand key, and refuses a logo key', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const ignored = await agent.patch(`/api/events/${SLUG}/settings`).send({
+        brand: { welcomeMessage: 'Piraté', logoUrl: null },
+        allowCaptions: false,
+      })
+      const refused = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ logo: 'ab'.repeat(32) })
+
+      expect(ignored.status).toBe(200)
+      expect(ignored.body.settings.brand.welcomeMessage).toBeNull()
+      expect(refused.status).toBe(400)
+    })
+
+    it('refuses the owner role only: a moderator cannot write the message', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'x' })
+
+      expect(response.status).toBe(403)
     })
 
     /* ---- Per-event theming (roadmap 2.2). ---- */

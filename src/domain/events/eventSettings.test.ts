@@ -116,6 +116,7 @@ describe('EventSettings.create', () => {
       },
       wallLanguage: 'de',
       venuePhoto: null,
+      welcomeMessage: null,
     })
   })
 
@@ -314,6 +315,54 @@ describe('EventSettings.with', () => {
 
     expect(named.venuePhoto?.value).toBe(digest.value.value)
     expect(cleared.venuePhoto).toBeNull()
+  })
+
+  it('holds no welcome message by default', () => {
+    expect(EventSettings.default().welcomeMessage).toBeNull()
+  })
+
+  it('keeps the welcome message when a patch does not mention it', () => {
+    const set = unwrap(EventSettings.default().with({ welcomeMessage: 'Bienvenue !' }))
+
+    expect(unwrap(set.with({ allowCaptions: false })).welcomeMessage).toBe('Bienvenue !')
+  })
+
+  it('clears the welcome message on null', () => {
+    const set = unwrap(EventSettings.default().with({ welcomeMessage: 'Bienvenue !' }))
+
+    expect(unwrap(set.with({ welcomeMessage: null })).welcomeMessage).toBeNull()
+  })
+
+  it('judges a welcome message the host chooses, and cleans it', () => {
+    expect(unwrap(EventSettings.create({ welcomeMessage: '  Salut   toi  ' })).welcomeMessage).toBe(
+      'Salut toi',
+    )
+    const refused = EventSettings.default().with({ welcomeMessage: 'x'.repeat(281) })
+    expect(!refused.ok && refused.error.code).toBe('eventSettings.welcomeTooLong')
+  })
+
+  it('does not re-judge a stored welcome message when another setting is saved', () => {
+    const stored = unwrap(
+      EventSettings.restore({
+        ...EventSettings.default().toProps(),
+        welcomeMessage: 'x'.repeat(500),
+      }),
+    )
+
+    expect(unwrap(stored.with({ allowCaptions: false })).welcomeMessage).toBe('x'.repeat(500))
+  })
+
+  it('restores a welcome message that breaks the rule without throwing', () => {
+    const restored = (welcomeMessage: unknown): string | null =>
+      unwrap(
+        EventSettings.restore({
+          ...EventSettings.default().toProps(),
+          welcomeMessage: welcomeMessage as string | null,
+        }),
+      ).welcomeMessage
+
+    expect(restored('y'.repeat(500))).toBe('y'.repeat(500))
+    expect(restored(42)).toBeNull()
   })
 
   it('names and clears the venue photograph without touching a single other setting', () => {

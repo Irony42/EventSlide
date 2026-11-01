@@ -1,0 +1,21 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.field > :first-child {
+  align-self: stretch;
+}
+
+.count,
+.countOver {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.countOver {
+  color: var(--danger);
+}
