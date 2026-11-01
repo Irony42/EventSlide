@@ -61,7 +61,10 @@ export const eventHoldingBytesSum = (eventIdExpr: string, creditedClipJobExpr?: 
   return `((SELECT COALESCE(SUM(byte_size), 0) FROM photos WHERE event_id = ${eventIdExpr})
        + (SELECT COALESCE(SUM(source_byte_size), 0)
             FROM clip_jobs
-           WHERE event_id = ${eventIdExpr} AND status IN (${HOLDING_BYTES_SQL})${credited}))`
+           WHERE event_id = ${eventIdExpr} AND status IN (${HOLDING_BYTES_SQL})${credited})
+       + (SELECT COALESCE(SUM(byte_size), 0)
+            FROM highlight_reels
+           WHERE event_id = ${eventIdExpr} AND output_hash IS NOT NULL))`
 }
 
 /**

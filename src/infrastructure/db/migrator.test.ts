@@ -225,6 +225,7 @@ describe('the real schema', () => {
       'event_missions',
       'events',
       'guests',
+      'highlight_reels',
       'photos',
       'reactions',
       'schema_migrations',

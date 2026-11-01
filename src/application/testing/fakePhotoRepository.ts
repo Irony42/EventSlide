@@ -11,6 +11,7 @@ import type {
   PhotoId,
 } from '../../domain/shared/ids'
 import type { StagedByteSource } from '../ports/clipJobRepository'
+import type { ReelByteSource } from '../ports/reelRepository'
 import type { ClientEventSource } from './fakeClientRepository'
 import type { GuestPhotoSource } from './fakeGuestRepository'
 import type {
@@ -306,9 +307,18 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     return this
   }
 
+  /** The event's highlight reel file, charged like a staged source (spec 08). */
+  private reels: ReelByteSource | null = null
+
+  chargeReelBytesFrom(source: ReelByteSource): this {
+    this.reels = source
+    return this
+  }
+
   private async stagedBytes(eventId: EventId, crediting?: ClipJobId): Promise<number> {
-    if (this.staged === null) return 0
-    const total = await this.staged.stagedBytes(eventId)
+    const reel = this.reels === null ? 0 : await this.reels.reelBytes(eventId)
+    if (this.staged === null) return reel
+    const total = (await this.staged.stagedBytes(eventId)) + reel
     if (crediting === undefined) return total
     // The mirror of the adapter subtracting the job inside its own SQL.
     return total - (await this.staged.stagedBytesOf(eventId, crediting))
