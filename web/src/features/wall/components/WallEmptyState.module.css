@@ -92,3 +92,14 @@
   text-align: center;
   overflow-wrap: anywhere;
 }
+
+/* The host's own words (spec 03): large enough for the back of the room, kept to the lines the
+   domain allows, and written as typed (line breaks kept). */
+.welcome {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  color: var(--text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

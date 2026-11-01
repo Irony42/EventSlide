@@ -58,6 +58,13 @@ export const makeUpdateEventSettings =
     const settings = event.settings.with(patch)
     if (!settings.ok) return settings
 
+    // A purge hold keeps evidence: changing or clearing the message destroys the previous text, so
+    // it is refused while the value changes (the same text sent back, as a full form does, passes).
+    // Code `saveFailed`, never one that names the hold, like `venuePhoto.saveFailed`.
+    if (event.isPurgeHeld() && settings.value.welcomeMessage !== event.settings.welcomeMessage) {
+      return err(DomainError.unexpected('eventSettings.saveFailed'))
+    }
+
     // The archived rule lives in the entity: an archived event is a record whose media
     // may have been tiered off, and it says so once for every kind of edit.
     const updated = event.withSettings(settings.value)

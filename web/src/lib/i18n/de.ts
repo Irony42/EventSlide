@@ -469,6 +469,11 @@ export const de: UiText = {
     'slug.malformed':
       'Für die Adresse sind nur Buchstaben ohne Umlaute, Ziffern und Bindestriche erlaubt.',
     'slug.reserved': 'Diese Adresse ist reserviert. Wählen Sie eine andere.',
+    'eventSettings.welcomeInvalid': 'Diese Nachricht ist nicht gültig.',
+    'eventSettings.welcomeTooLong': 'Diese Nachricht ist zu lang.',
+    'eventSettings.welcomeTooManyLines': 'Diese Nachricht hat zu viele Zeilen.',
+    'eventSettings.saveFailed':
+      'Die Einstellungen konnten nicht gespeichert werden. Versuchen Sie es erneut.',
     'eventSettings.graceSecondsInvalid': 'Diese Löschfrist ist nicht zulässig.',
     'eventSettings.retentionDaysInvalid': 'Diese Aufbewahrungsdauer ist nicht zulässig.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Diese Anzahl an Fotos pro Gast ist nicht zulässig.',
@@ -923,6 +928,32 @@ export const de: UiText = {
     printQr: 'QR-Code drucken',
     qrScanPrompt: 'Scannen Sie, um Ihre Fotos zu senden.',
     qrAlt: (eventName: string) => `QR-Code zum Beitritt zu ${eventName}`,
+    printKitTitle: 'Tischkarten und Plakat',
+    printKitCrumb: 'Karten und Plakat',
+    printKitIntro:
+      'Drucken Sie etwas für die Tische aus: den QR-Code, den Ersatzcode und drei Zeilen Anleitung.',
+    printKitFormat: 'Format',
+    printKitInk: 'Farbe des QR-Codes',
+    printInkBlack: 'Schwarz (am sichersten)',
+    printInkEvent: 'Farbe der Veranstaltung',
+    printFormatA4: 'A4-Plakat (1 pro Blatt)',
+    printFormatA5: 'A5-Plakat (2 pro Blatt)',
+    printFormatCard: 'A6-Tischkarten (4 pro Blatt)',
+    printKitLanguage: 'Sprache des Drucks',
+    printKitLanguageHint: 'Das ist die Sprache des Abends, nicht die Ihres Bildschirms.',
+    printKitPrint: 'Drucken',
+    printKitPrinting: 'Code wird aktualisiert …',
+    printKitHelp:
+      'Wählen Sie im Druckfenster A4, Maßstab 100 %, ohne Kopf- und Fußzeilen. Ihr Browser bietet dort auch „Als PDF speichern“ an. Nutzen Sie die Schaltfläche Drucken: Strg+P prüft den Code nicht.',
+    printKitCodeChanged:
+      'Der Code des Abends hat sich geändert: Das Blatt unten ist aktuell. Werfen Sie die alten weg.',
+    printKitClosed:
+      'Dieser Abend ist beendet: Gäste, die scannen, können nicht mehr beitreten. Wenn Sie ihn wieder öffnen, gilt derselbe Code wieder.',
+    printKitDraft: 'Gäste können erst beitreten, wenn der Abend eröffnet wird.',
+    printKitArchived: 'Diese Veranstaltung ist archiviert: Ihr QR-Code führt nirgendwohin mehr.',
+    printKitBack: 'Zurück zur Veranstaltung',
+    printKitLongLink: 'Der Link ist lang, der QR-Code wird klein. Nehmen Sie lieber das Plakat.',
+    printKitPreview: 'Vorschau des Blatts',
     storageLabel: 'Belegter Speicher für Fotos',
     storage: (used: string) => `${used} belegt`,
     rotateJoinCodeTitle: 'Code der Feier ändern?',
@@ -1132,6 +1163,13 @@ export const de: UiText = {
     venuePhotoBusy: 'Foto wird gesendet…',
     venuePhotoSaved: 'Das Foto Ihrer Location ist gespeichert.',
     venuePhotoRemoved: 'Das Standardfoto ist wieder da.',
+    welcomeMessage: 'Willkommensnachricht',
+    welcomeMessageHint:
+      'Ein paar Worte, die Ihre Gäste sehen, wenn sie der Feier beitreten. Schreiben Sie in der Sprache Ihrer Gäste: Dieser Text wird nicht übersetzt. Jeder mit dem QR-Code kann ihn lesen, schreiben Sie also nichts Privates hinein.',
+    welcomeMessagePlaceholder:
+      'Willkommen! Machen Sie Fotos, wir sehen sie auf dem Bildschirm im Saal.',
+    welcomeMessageClear: 'Nachricht löschen',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Meine eigene Stimmung erstellen',
     customAmbianceEdit: 'Meine Stimmung bearbeiten',
     customAmbianceEntryHint:
@@ -1762,7 +1800,17 @@ export const de: UiText = {
     },
   },
 
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Teilen Sie Ihre Fotos vom Abend',
+    step1: 'Scannen Sie den QR-Code mit der Kamera Ihres Handys.',
+    step2: 'Senden Sie Ihre Fotos.',
+    step3: 'Sie erscheinen auf dem Bildschirm des Abends.',
+    fallback: (code: string, address: string) =>
+      `Kein QR-Code? Geben Sie den Code ${code} auf ${address} ein.`,
+  },
   titles: {
+    print: 'Tischkarten und Plakat',
     join: 'Der Feier beitreten',
     upload: 'Fotos senden',
     feed: 'Fotos des Abends',

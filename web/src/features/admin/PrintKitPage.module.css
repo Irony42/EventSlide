@@ -1,0 +1,100 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  grid-template-areas:
+    'title title'
+    'controls preview';
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.title {
+  grid-area: title;
+  font-size: var(--text-xl);
+}
+
+.controls {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.preview {
+  grid-area: preview;
+  min-inline-size: 0;
+  max-inline-size: var(--container-host);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+}
+
+.help {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.back {
+  color: var(--accent);
+}
+
+/* Phone: settings first, the sheet below at full width, no sideways scroll. */
+@media (max-width: 48rem) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'title'
+      'controls'
+      'preview';
+  }
+}
+
+/*
+ * Paper takes the sheet and nothing else: the shell's header, footer, skip link and toasts go,
+ * and the page's own padding with them. Scoped by :has(), so no other page's printing changes.
+ */
+@media print {
+  .screenOnly,
+  .controls,
+  .title {
+    display: none;
+  }
+
+  .page {
+    display: block;
+  }
+
+  .preview {
+    max-inline-size: none;
+  }
+
+  :global(body):has(.preview) :global(header),
+  :global(body):has(.preview) :global(footer),
+  :global(body):has(.preview) :global(a[href^='#']),
+  :global(body):has(.preview) :global([aria-live]) {
+    display: none;
+  }
+
+  :global(main):has(.preview) {
+    padding: 0;
+    max-inline-size: none;
+  }
+}

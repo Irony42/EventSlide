@@ -380,7 +380,12 @@ export function WallPage() {
           )}
         </div>
       ) : items.length === 0 ? (
-        <WallEmptyState eventName={wall.event.name} join={join} acceptsGuests={acceptsGuests} />
+        <WallEmptyState
+          eventName={wall.event.name}
+          join={join}
+          acceptsGuests={acceptsGuests}
+          welcomeMessage={wall.brand?.welcomeMessage ?? null}
+        />
       ) : (
         <WallLayouts
           layout={layout ?? wall.layout}

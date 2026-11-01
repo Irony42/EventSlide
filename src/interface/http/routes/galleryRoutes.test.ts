@@ -86,6 +86,14 @@ describe('the shared gallery over HTTP', () => {
       expect(response.body.theme).not.toHaveProperty('material')
     })
 
+    it('carries no host brand: a shared link shows neither message nor logo', async () => {
+      const { token } = subject.seedLink()
+
+      const response = await request(subject.app).get(`/api/gallery/${token}`)
+
+      expect(response.body).not.toHaveProperty('brand')
+    })
+
     it('tells no referrer, no crawler and no cache about the page', async () => {
       const { token } = subject.seedLink()
 

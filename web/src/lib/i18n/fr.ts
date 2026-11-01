@@ -1071,6 +1071,32 @@ export const fr = {
     printQr: 'Imprimer le QR code',
     qrScanPrompt: 'Scannez pour envoyer vos photos.',
     qrAlt: (eventName: string) => `QR code pour rejoindre ${eventName}`,
+    printKitTitle: 'Cartes de table et affiche',
+    printKitCrumb: 'Cartes et affiche',
+    printKitIntro:
+      'Imprimez de quoi poser sur les tables : le QR code, le code de secours et trois lignes d’explication.',
+    printKitFormat: 'Format',
+    printKitInk: 'Couleur du QR',
+    printInkBlack: 'Noir (le plus sûr)',
+    printInkEvent: 'Couleur de l’évènement',
+    printFormatA4: 'Affiche A4 (1 par feuille)',
+    printFormatA5: 'Affiche A5 (2 par feuille)',
+    printFormatCard: 'Cartes de table A6 (4 par feuille)',
+    printKitLanguage: 'Langue du support',
+    printKitLanguageHint: 'C’est la langue de la soirée, pas celle de votre écran.',
+    printKitPrint: 'Imprimer',
+    printKitPrinting: 'Mise à jour du code…',
+    printKitHelp:
+      'Dans la fenêtre d’impression, choisissez A4, échelle 100 %, sans en-têtes ni pieds de page. Votre navigateur y propose aussi « Enregistrer au format PDF ». Utilisez le bouton Imprimer : Ctrl+P ne vérifie pas le code.',
+    printKitCodeChanged:
+      'Le code de la soirée a changé : le support ci-dessous est à jour. Jetez les anciens.',
+    printKitClosed:
+      'Cette soirée est fermée : les invités qui scannent ne peuvent plus rejoindre. Si vous la rouvrez, le même code redevient valable.',
+    printKitDraft: 'Les invités ne pourront rejoindre qu’à l’ouverture de la soirée.',
+    printKitArchived: 'Cet évènement est archivé : son QR code ne mène plus nulle part.',
+    printKitBack: 'Retour à l’évènement',
+    printKitLongLink: 'Le lien est long, le QR code sera petit. Préférez l’affiche.',
+    printKitPreview: 'Aperçu de la feuille',
     storageLabel: 'Espace photos utilisé',
     storage: (used: string) => `${used} utilisés`,
     rotateJoinCodeTitle: 'Changer le code de la soirée ?',
@@ -1323,6 +1349,13 @@ export const fr = {
     venuePhotoBusy: 'Envoi de la photo…',
     venuePhotoSaved: 'La photo de votre lieu est enregistrée.',
     venuePhotoRemoved: 'La photo par défaut est rétablie.',
+    welcomeMessage: 'Message d’accueil',
+    welcomeMessageHint:
+      'Quelques mots affichés à vos invités quand ils rejoignent la soirée. Écrivez dans la langue de vos invités : ce texte n’est pas traduit. Il est visible par toute personne qui a le QR code : n’y mettez rien de privé.',
+    welcomeMessagePlaceholder:
+      'Bienvenue ! Prenez des photos, on les verra sur l’écran dans la salle.',
+    welcomeMessageClear: 'Effacer le message',
+    welcomeMessageCount: (count: number, max: number): string => `${count} / ${max}`,
     customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
     customAmbianceEdit: 'Modifier mon ambiance',
     customAmbianceEntryHint:
@@ -1634,6 +1667,10 @@ export const fr = {
     'slug.malformed':
       'L’adresse n’accepte que des lettres sans accent, des chiffres et des tirets.',
     'slug.reserved': 'Cette adresse est réservée. Choisissez-en une autre.',
+    'eventSettings.welcomeInvalid': 'Ce message n’est pas valide.',
+    'eventSettings.welcomeTooLong': 'Ce message est trop long.',
+    'eventSettings.welcomeTooManyLines': 'Ce message compte trop de lignes.',
+    'eventSettings.saveFailed': 'Les réglages n’ont pas pu être enregistrés. Réessayez.',
     'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
     'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
@@ -2398,7 +2435,17 @@ export const fr = {
    * product name — and **never content**: an event's name, a caption or an invitation's
    * token does not come through here, so a title can neither leak nor be translated wrongly.
    */
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Partagez vos photos de la soirée',
+    step1: 'Scannez le QR code avec l’appareil photo de votre téléphone.',
+    step2: 'Envoyez vos photos.',
+    step3: 'Elles rejoignent l’écran de la soirée.',
+    fallback: (code: string, address: string) =>
+      `Pas de QR code ? Tapez le code ${code} sur ${address}.`,
+  },
   titles: {
+    print: 'Cartes de table et affiche',
     join: 'Rejoindre la soirée',
     upload: 'Envoi de photos',
     feed: 'Les photos de la soirée',
