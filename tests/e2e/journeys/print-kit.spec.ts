@@ -32,7 +32,7 @@ const pathOf = (qr: Locator): Promise<string> =>
     .getAttribute('d')
     .then((d) => d ?? '')
 
-test.beforeEach(({}, testInfo) => {
+test.beforeEach((_fixtures, testInfo) => {
   test.skip(
     testInfo.project.name !== 'chromium-desktop',
     'print rendering is a Chromium behaviour; the other engines would assert the same',
