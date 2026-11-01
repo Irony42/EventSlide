@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { PrintKitPage } from './PrintKitPage'
 import { ApiError } from '../../lib/http'
 import { de } from '../../lib/i18n/de'
+import { DEFAULT_EVENT_THEME } from '../../design-system/eventTheme'
 import { fr } from '../../lib/i18n/fr'
 import { qrPatternOf } from '../../testing/qrPattern'
 import {
@@ -114,6 +115,26 @@ describe('PrintKitPage', () => {
     const stored = window.localStorage.getItem('eventslide.print.camille-et-sacha') ?? ''
     expect(JSON.parse(stored)).toEqual({ format: 'a4', language: 'en' })
     expect(stored).not.toContain('H7K2QM')
+  })
+
+  it('inks the QR in the event colour on request, with the hue of the event, and remembers it', async () => {
+    const user = userEvent.setup()
+    renderPage(
+      apiFor({
+        settings: eventSettings({
+          theme: { ...DEFAULT_EVENT_THEME, accentHue: 345 },
+        }),
+      }),
+    )
+    await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+    expect(screen.getByRole('radio', { name: fr.admin.printInkBlack })).toBeChecked()
+    expect(sheet()).toHaveAttribute('data-ink', 'black')
+
+    await user.click(screen.getByRole('radio', { name: fr.admin.printInkEvent }))
+
+    expect(sheet()).toHaveAttribute('data-ink', 'event')
+    expect(sheet()?.style.getPropertyValue('--accent-hue')).toBe('345')
+    expect(window.localStorage.getItem('eventslide.print.camille-et-sacha')).toContain('"event"')
   })
 
   it('links the @page rule only while the page is mounted', async () => {
@@ -241,7 +262,7 @@ describe('PrintKitPage', () => {
     renderPage(apiFor())
     await screen.findByRole('heading', { name: fr.admin.printKitTitle })
 
-    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getAllByRole('radio')).toHaveLength(5)
     expect(screen.getByRole('radio', { name: fr.admin.printFormatCard })).toBeChecked()
     expect(screen.getByRole('combobox', { name: fr.admin.printKitLanguage })).toBeInTheDocument()
     expect(firstQr()).toHaveAccessibleName(fr.admin.qrAlt('Camille & Sacha'))

@@ -950,6 +950,9 @@ export const it: UiText = {
     printKitIntro:
       'Stampi qualcosa da mettere sui tavoli: il codice QR, il codice di riserva e tre righe di istruzioni.',
     printKitFormat: 'Formato',
+    printKitInk: 'Colore del codice QR',
+    printInkBlack: 'Nero (il più sicuro)',
+    printInkEvent: 'Colore dell’evento',
     printFormatA4: 'Locandina A4 (1 per foglio)',
     printFormatA5: 'Locandina A5 (2 per foglio)',
     printFormatCard: 'Segnaposto A6 (4 per foglio)',
