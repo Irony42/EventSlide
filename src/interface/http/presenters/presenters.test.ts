@@ -4,6 +4,7 @@ import {
   mediaUrl,
   toClientAuditPageDto,
   toEventDto,
+  toEventBrandDto,
   toEventSettingsDto,
   toGuestDto,
   toGuestPhotoDto,
@@ -166,6 +167,7 @@ describe('toPublicEventDto', () => {
         ambiance: 'eventslide',
         groundUrl: null,
       },
+      brand: { welcomeMessage: null },
     })
   })
 
@@ -368,6 +370,7 @@ describe('toEventSettingsDto', () => {
         groundUrl: null,
       },
       wallLanguage: 'es',
+      brand: { welcomeMessage: null },
     })
   })
 
@@ -660,5 +663,13 @@ describe('the host’s venue photograph on the wire (ADR 0010)', () => {
     const { settings } = anEvent({ settings: { theme: guinguette, venuePhoto: digest.value } })
 
     expect(toEventThemeDto(settings, null).groundUrl).toBeNull()
+  })
+})
+
+describe('toEventBrandDto', () => {
+  it('has exactly the message, so nothing of a guest can be added to it unnoticed', () => {
+    const event = anEvent({ settings: { welcomeMessage: 'Bienvenue' } })
+
+    expect(toEventBrandDto(event.settings)).toEqual({ welcomeMessage: 'Bienvenue' })
   })
 })
