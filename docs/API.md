@@ -3715,7 +3715,11 @@ videos alike.
   },
   "topContributors": [{ "displayName": "Léa", "photos": 22, "reactions": 71 }],
   "anonymousContributors": { "guests": 9, "photos": 31 },
-  "engagement": { "since": "2026-11-14", "galleryViews": 57, "galleryArchiveDownloads": 12 }
+  "engagement": {
+    "since": "2026-11-14",
+    "galleryViews": 57,
+    "galleryArchiveDownloads": 12
+  }
 }
 ```
 
