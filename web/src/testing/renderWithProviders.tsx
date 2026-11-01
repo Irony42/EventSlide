@@ -577,6 +577,8 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   purgeEvent: vi.fn(async () => undefined),
 
   moderationQueue: vi.fn(async () => ({ items: [], pendingCount: 0, nextCursor: null })),
+  guestbookQueue: vi.fn(async () => ({ items: [], pendingCount: 0 })),
+  decideGuestbookEntry: vi.fn(async () => undefined),
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),
   topPhotos: vi.fn(async () => ({ items: [] })),

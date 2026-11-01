@@ -139,6 +139,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   createGuestbookEntry: notWired('createGuestbookEntry'),
   listMyGuestbookEntries: notWired('listMyGuestbookEntries'),
   deleteGuestbookEntry: notWired('deleteGuestbookEntry'),
+  listGuestbookQueue: notWired('listGuestbookQueue'),
+  moderateGuestbookEntry: notWired('moderateGuestbookEntry'),
 
   createShareLink: notWired('createShareLink'),
   getShareLink: notWired('getShareLink'),

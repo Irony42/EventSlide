@@ -142,9 +142,10 @@ const DEFAULTS: EventSettingsProps = {
   allowCaptions: true,
   allowReactions: true,
   allowClips: true,
-  // Off until the host panel exists (spec 01, PR 3 flips it for a new event): a book nobody can
-  // moderate must not collect messages.
-  allowGuestbook: false,
+  // On for a **new** event (decision of Pierre, spec 01 Q1), now that the host can moderate it. An
+  // event that already exists is read back as off (`settingsBooleanAddedLater`), so an upgrade
+  // opens nothing for a host who was never asked.
+  allowGuestbook: true,
   guestbookOnWall: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 900,

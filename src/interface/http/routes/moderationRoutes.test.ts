@@ -183,6 +183,8 @@ const usecasesFor = (
     createGuestbookEntry: notWired,
     listMyGuestbookEntries: notWired,
     deleteGuestbookEntry: notWired,
+    listGuestbookQueue: notWired,
+    moderateGuestbookEntry: notWired,
     createShareLink: notWired,
     getShareLink: notWired,
     revokeShareLink: notWired,

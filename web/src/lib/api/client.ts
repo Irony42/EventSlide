@@ -18,6 +18,7 @@ import type {
   GalleryPage,
   GuestListResponse,
   GuestMissionListResponse,
+  GuestbookQueueDto,
   MyPhotosDto,
   InvitationAcceptedDto,
   InvitationPreviewDto,
@@ -689,6 +690,19 @@ export const createApi = (transport: Transport) => ({
 
   moderate: (slug: string, photoId: string, decision: ModerationDecision): Promise<void> =>
     transport.patch(`/api/events/${encode(slug)}/photos/${encode(photoId)}/status`, { decision }),
+
+  /** The host's reading of the guestbook: pending first. No cursor (a book is bounded at 500). */
+  guestbookQueue: (slug: string, signal?: AbortSignal): Promise<GuestbookQueueDto> =>
+    transport.get(`/api/events/${encode(slug)}/guestbook`, { limit: 500 }, signal),
+
+  decideGuestbookEntry: (
+    slug: string,
+    entryId: string,
+    decision: ModerationDecision,
+  ): Promise<void> =>
+    transport.patch(`/api/events/${encode(slug)}/guestbook/${encode(entryId)}/status`, {
+      decision,
+    }),
 
   moderateBulk: (
     slug: string,

@@ -1,17 +1,26 @@
 import { Router } from 'express'
 import type { RequestHandler } from 'express'
 import { asGuestbookEntryId } from '../../../domain/shared/ids'
-import { requireGuest } from '../middleware/authz'
+import { requireGuest, requireRole } from '../middleware/authz'
 import {
   GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE,
   guestWriteLimiter,
   guestbookGuestLimiter,
 } from '../middleware/rateLimit'
-import { withGuest } from '../middleware/scope'
-import { toCreatedGuestbookEntryDto, toGuestbookEntryDto } from '../presenters/presenters'
+import { withGuest, withModerator } from '../middleware/scope'
+import {
+  toCreatedGuestbookEntryDto,
+  toGuestbookEntryDto,
+  toGuestbookQueueItemDto,
+} from '../presenters/presenters'
 import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
-import { guestbookBody, guestbookEntryParams } from '../schemas/requestSchemas'
-import type { MyGuestbookDto } from '../presenters/dto'
+import {
+  guestbookBody,
+  guestbookEntryParams,
+  guestbookQueueQuery,
+  moderationDecisionBody,
+} from '../schemas/requestSchemas'
+import type { GuestbookQueueDto, MyGuestbookDto } from '../presenters/dto'
 import type { HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
 
@@ -44,7 +53,11 @@ export interface GuestbookRouteDeps {
   readonly deps: HttpDeps
   readonly usecases: Pick<
     HttpUseCases,
-    'createGuestbookEntry' | 'listMyGuestbookEntries' | 'deleteGuestbookEntry'
+    | 'createGuestbookEntry'
+    | 'listMyGuestbookEntries'
+    | 'deleteGuestbookEntry'
+    | 'listGuestbookQueue'
+    | 'moderateGuestbookEntry'
   >
   /**
    * The guest-write bucket, **shared with `guestRoutes`** and built once by `server.ts`
@@ -140,6 +153,58 @@ export const guestbookRoutes = ({
         eventId: event.id,
         entryId: asGuestbookEntryId(params.entryId),
         guestId: guest.id,
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /**
+   * `GET /events/:eventSlug/guestbook?status=&limit=` - the host's reading: what needs a decision
+   * first, then the rest, with the author's first name. A moderator's, never a guest's (`403`).
+   * No cursor: a book holds 500 messages at the most, and the domain orders the whole set before
+   * the limit applies so the oldest pending one can never fall off the page.
+   */
+  router.get(
+    '/events/:eventSlug/guestbook',
+    requireRole('moderator', deps),
+    withModerator(async ({ eventId, actor }, req, res) => {
+      const query = guestbookQueueQuery.parse(req.query)
+
+      const result = await usecases.listGuestbookQueue({
+        eventId,
+        status: query.status ?? null,
+        limit: query.limit,
+        actor,
+      })
+
+      sendResult(res, result, (response, view) => {
+        response.setHeader('Cache-Control', 'no-store')
+        const dto: GuestbookQueueDto = {
+          items: view.items.map((row) => toGuestbookQueueItemDto(row.entry, row.authorName)),
+          pendingCount: view.pendingCount,
+        }
+        sendJson(response, dto)
+      })
+    }),
+  )
+
+  /**
+   * `PATCH /events/:eventSlug/guestbook/:entryId/status` - one decision, in the photograph's
+   * vocabulary (`publish`, `hide`, `reject`). `204`, like `PATCH photos/:id/status`.
+   */
+  router.patch(
+    '/events/:eventSlug/guestbook/:entryId/status',
+    requireRole('moderator', deps),
+    withModerator(async ({ eventId, actor }, req, res) => {
+      const params = guestbookEntryParams.parse(req.params)
+      const body = moderationDecisionBody.parse(req.body)
+
+      const result = await usecases.moderateGuestbookEntry({
+        eventId,
+        entryId: asGuestbookEntryId(params.entryId),
+        decision: body.decision,
+        actor,
       })
 
       sendResultNoContent(res, result)

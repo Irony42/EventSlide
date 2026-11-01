@@ -344,6 +344,8 @@ const buildWorld = ({
         createGuestbookEntry: absent('createGuestbookEntry'),
         listMyGuestbookEntries: absent('listMyGuestbookEntries'),
         deleteGuestbookEntry: absent('deleteGuestbookEntry'),
+        listGuestbookQueue: absent('listGuestbookQueue'),
+        moderateGuestbookEntry: absent('moderateGuestbookEntry'),
 
         createShareLink: absent('createShareLink'),
         getShareLink: absent('getShareLink'),

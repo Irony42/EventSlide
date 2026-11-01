@@ -205,6 +205,24 @@ export interface MyGuestbookDto {
   readonly accepting: boolean
 }
 
+/** One message in the host's reading of the guestbook (`GET /api/events/:slug/guestbook`). */
+export interface GuestbookQueueItemDto {
+  readonly id: string
+  readonly text: string
+  /** `null` for a guest who gave no name or whose row is gone; the client words that. */
+  readonly authorName: string | null
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The decisions this message may take now, from the status machine: the buttons the panel shows. */
+  readonly allowedDecisions: readonly ModerationDecision[]
+}
+
+export interface GuestbookQueueDto {
+  readonly items: readonly GuestbookQueueItemDto[]
+  /** The whole book's, not the page's: the badge on the panel. */
+  readonly pendingCount: number
+}
+
 /** What a message just written answers (`POST /api/events/:slug/guestbook`). */
 export interface CreatedGuestbookEntryDto {
   readonly id: string

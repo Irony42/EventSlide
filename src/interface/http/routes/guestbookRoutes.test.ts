@@ -1,3 +1,5 @@
+import { DomainError } from '../../../domain/shared/errors'
+import { err } from '../../../domain/shared/result'
 import type { Express } from 'express'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
@@ -83,6 +85,9 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               guestbook,
               clock: deps.clock,
             }),
+            // The host's half is held at its own file (`guestbookHostRoutes.test.ts`).
+            listGuestbookQueue: async () => err(DomainError.unexpected('test.useCaseNotWired')),
+            moderateGuestbookEntry: async () => err(DomainError.unexpected('test.useCaseNotWired')),
             deleteGuestbookEntry: makeDeleteGuestbookEntry({
               events: deps.events,
               guestbook,

@@ -328,7 +328,7 @@ describe('POST /api/join', () => {
         maxUploadBytes: 25_000_000,
         maxFilesPerUpload: 20,
         allowClips: true,
-        allowGuestbook: false,
+        allowGuestbook: true,
         guestbookMaxLength: 500,
         maxClipBytes: 80_000_000,
         maxClipSeconds: 15,

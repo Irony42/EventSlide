@@ -21,6 +21,7 @@ import type { EventLimits } from '../../../application/usecases/events/getEventL
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
   CreatedGuestbookEntryDto,
+  GuestbookQueueItemDto,
   GuestbookEntryDto,
   CeilingMeterDto,
   CeilingsDto,
@@ -1058,6 +1059,19 @@ export const toGuestbookEntryDto = (
   status: entry.status,
   createdAt: entry.createdAt.toISOString(),
   canDelete,
+})
+
+/** The host's row: with the author's first name (or `null`) and the decisions that are legal now. */
+export const toGuestbookQueueItemDto = (
+  entry: GuestbookEntry,
+  authorName: string | null,
+): GuestbookQueueItemDto => ({
+  id: entry.id,
+  text: entry.text.value,
+  authorName,
+  status: entry.status,
+  createdAt: entry.createdAt.toISOString(),
+  allowedDecisions: allowedDecisionsFrom(entry.status),
 })
 
 /** The answer to writing one: what was stored and whether it was the same message again. */

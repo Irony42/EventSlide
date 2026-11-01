@@ -164,6 +164,15 @@ export const joinCodeParams = z.object({ code: joinCode })
 
 export const missionParams = z.object({ eventSlug: slug, missionId: uuid })
 
+/**
+ * `GET /guestbook?status=&limit=`: one status or none (every one), and a limit up to the book's own
+ * ceiling of 500 rows: a book is bounded, so there is no cursor.
+ */
+export const guestbookQueueQuery = z.strictObject({
+  status: z.enum(PHOTO_STATUSES).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+})
+
 export const guestbookEntryParams = z.object({ eventSlug: slug, entryId: uuid })
 
 // ------------------------------------------------------------------- public --
