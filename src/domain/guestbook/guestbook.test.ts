@@ -84,14 +84,18 @@ describe('allowsAnotherEntry and guestbookRefusalFor', () => {
   })
 
   it('refuses a guest who already holds three messages', () => {
-    expect(guestbookRefusalFor({ heldByGuest: MAX_ENTRIES_PER_GUEST - 1, openInEvent: 0 })).toBeNull()
+    expect(
+      guestbookRefusalFor({ heldByGuest: MAX_ENTRIES_PER_GUEST - 1, openInEvent: 0 }),
+    ).toBeNull()
     expect(guestbookRefusalFor({ heldByGuest: MAX_ENTRIES_PER_GUEST, openInEvent: 0 })).toBe(
       'guestLimit',
     )
   })
 
   it('refuses when the book already holds 500 open messages', () => {
-    expect(guestbookRefusalFor({ heldByGuest: 0, openInEvent: MAX_ENTRIES_PER_EVENT - 1 })).toBeNull()
+    expect(
+      guestbookRefusalFor({ heldByGuest: 0, openInEvent: MAX_ENTRIES_PER_EVENT - 1 }),
+    ).toBeNull()
     expect(guestbookRefusalFor({ heldByGuest: 0, openInEvent: MAX_ENTRIES_PER_EVENT })).toBe(
       'eventFull',
     )
@@ -203,7 +207,9 @@ describe('GuestbookEntry', () => {
 
     it('forbids the author once the message is published', () => {
       const published = entry.publish(host, now)
-      expect(published.ok && published.value.deletionVerdict(mine, later, settings)).toBe('forbidden')
+      expect(published.ok && published.value.deletionVerdict(mine, later, settings)).toBe(
+        'forbidden',
+      )
     })
 
     it('always lets the host, whatever the settings', () => {

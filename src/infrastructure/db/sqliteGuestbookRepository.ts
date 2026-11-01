@@ -120,7 +120,12 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
     // `await` can be written inside.
     return this.db
       .transaction((): GuestbookAdmission => {
-        const duplicate = findDuplicate.get(props.eventId, props.guestId, props.text.value, sinceIso)
+        const duplicate = findDuplicate.get(
+          props.eventId,
+          props.guestId,
+          props.text.value,
+          sinceIso,
+        )
         if (duplicate !== undefined) return { kind: 'duplicate', entry: toEntry(duplicate) }
 
         const refusal = guestbookRefusalFor({
