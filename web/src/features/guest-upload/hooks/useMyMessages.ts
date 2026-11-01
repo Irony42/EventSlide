@@ -13,10 +13,11 @@ import type { GuestbookEntryDto } from '../../../lib/api/dto'
  * server's `canDelete`, whether a new one would be taken is its `accepting`, and the phone
  * recomputes neither.
  *
- * **A refusal to answer hides the feature, it does not raise an error.** An older server has no
- * such route (`404`), a suspended account and a removed event answer `404` too, and a guest the
- * host removed is refused (`401`, `403`): in all of them a card that said "could not load" would
- * be an apology for something nobody can fix, so the screen shows no guestbook instead.
+ * **A failed read shows nothing of the guestbook, and no error.** An older server has no such route
+ * (`404`), a suspended account and a removed event answer `404` too, and a guest the host removed is
+ * refused (`401`, `403`): a card that said "could not load" would be an apology for something nobody
+ * can fix. With no answer there is no `accepting` and no list, so neither the card nor the list shows;
+ * the one error that is shown is a refused removal, from the dialog that asked for it.
  *
  * Not read at all unless `enabled`, which is the event's `allowGuestbook` as the join left it: the
  * majority of events have no guestbook and must not cost a request for it.
@@ -46,7 +47,6 @@ type Answer =
     }
   | { readonly kind: 'gone' }
 
-const REFUSED = new Set([401, 403, 404])
 const NO_ITEMS: readonly GuestbookEntryDto[] = []
 
 export const useMyMessages = (slug: string, enabled: boolean): MyMessagesState => {
@@ -57,13 +57,8 @@ export const useMyMessages = (slug: string, enabled: boolean): MyMessagesState =
   const load = useCallback(
     async (signal: AbortSignal): Promise<Answer> => {
       if (!enabled) return { kind: 'gone' }
-      try {
-        const mine = await api.myGuestbook(slug, signal)
-        return { kind: 'ok', items: mine.items, accepting: mine.accepting, onWall: mine.onWall }
-      } catch (cause) {
-        if (cause instanceof ApiError && REFUSED.has(cause.status)) return { kind: 'gone' }
-        throw cause
-      }
+      const mine = await api.myGuestbook(slug, signal)
+      return { kind: 'ok', items: mine.items, accepting: mine.accepting, onWall: mine.onWall }
     },
     [api, slug, enabled],
   )
