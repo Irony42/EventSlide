@@ -459,6 +459,21 @@ export const updateSettingsBody = z.strictObject({
    * accepted by the use case and refused here, with neither build noticing.
    */
   wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
+  /**
+   * The host's welcome message (spec 03). Absent leaves it alone, `null` clears it. The wire bound is
+   * wide on purpose: the real rule (280 characters, 4 lines) is the domain's, and answers with its own codes.
+   */
+  welcomeMessage: z.string().max(2_000).nullable().optional(),
+  /**
+   * **Read and ignored.** `GET` answers the brand in `settings`, so a tab that sends settings back
+   * as it received them must not get a 400. The route never forwards it: it cannot set a logo.
+   */
+  brand: z
+    .strictObject({
+      welcomeMessage: z.string().nullable().optional(),
+      logoUrl: z.string().max(200).nullable().optional(),
+    })
+    .optional(),
 })
 
 export const eventStatusBody = z.strictObject({

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -8,6 +8,7 @@ import {
   QUIET_ZONE_MODULES,
   totalModulesOf,
   type PrintFormat,
+  type PrintInk,
 } from './printKit'
 import styles from './PrintSheet.module.css'
 import type { Locale } from '../../../lib/i18n/locale'
@@ -21,6 +22,10 @@ export interface PrintSheetProps {
   readonly format: PrintFormat
   /** The language of the evening, which is not necessarily the console's. */
   readonly locale: Locale
+  /** `black` is the safest; `event` wears the event's accent hue, darkened (spec 02, PR 2). */
+  readonly ink: PrintInk
+  /** The hue of the event's theme: the one value a theme moves. */
+  readonly accentHue: number
   /** Told the module count of the rendered QR (quiet zone included), once it is drawn. */
   readonly onQrModules?: (totalModules: number | null) => void
 }
@@ -37,6 +42,8 @@ export function PrintSheet({
   joinCode,
   format,
   locale,
+  ink,
+  accentHue,
   onQrModules,
 }: PrintSheetProps) {
   const root = useRef<HTMLDivElement>(null)
@@ -46,7 +53,14 @@ export function PrintSheet({
   }, [joinUrl, format, onQrModules])
 
   return (
-    <div ref={root} className={styles['sheet']} data-format={format} lang={locale}>
+    <div
+      ref={root}
+      className={styles['sheet']}
+      data-format={format}
+      data-ink={ink}
+      lang={locale}
+      style={{ '--accent-hue': String(accentHue) } as CSSProperties}
+    >
       <LocaleOverride locale={locale}>
         {Array.from({ length: PRINT_FORMAT_SPECS[format].perSheet }, (_, index) => (
           <Card key={index} eventName={eventName} joinUrl={joinUrl} joinCode={joinCode} />

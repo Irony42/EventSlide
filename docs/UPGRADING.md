@@ -666,13 +666,13 @@ people on the night.
 
 <!-- Best-of (spec 08): keep this block together; other changes of 3.5 add their own. -->
 
-**Best-of, favourites (migration 018).** The first boot applies migration 018, which adds one
+**Best-of, favourites (migration 020).** The first boot applies migration 020, which adds one
 nullable column, `photos.highlighted_at`, and a partial index. Nothing is rewritten and no photo
 changes. A host can now star a published photo (`F` on the moderation console) and download the
 stars as a ZIP from the event page. A star disappears when the photo leaves the wall (hidden or
 refused). An old admin tab keeps working, it simply cannot star.
 
-**Best-of, the montage engine (migration 019, no button yet).** The first boot also applies migration 019,
+**Best-of, the montage engine (migration 021, no button yet).** The first boot also applies migration 019,
 which adds the `highlight_reels` table (one row per event). The queue worker now also renders
 the montage of an event's favourites when one is asked for, **after** any clip is transcoded and
 one at a time; nothing asks for one until the montage surface ships. Five optional settings, all

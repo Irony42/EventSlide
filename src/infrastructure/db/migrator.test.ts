@@ -3054,12 +3054,12 @@ describe('migration 017, the proof that an account accepted the terms', () => {
   })
 })
 
-describe('migration 018, the favourites column', () => {
+describe('migration 020, the favourites column', () => {
   it('adds an empty highlighted_at to a photograph that already exists, and rewrites no row', () => {
     const db = freshDb()
     migrate(
       db,
-      migrations.filter((migration) => migration.id < 18),
+      migrations.filter((migration) => migration.id < 20),
     )
     db.prepare(
       `INSERT INTO users (id, email, password_hash, created_at)

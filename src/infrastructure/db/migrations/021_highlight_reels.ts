@@ -12,8 +12,8 @@ import type { Migration } from '../migrator'
  *
  * Deleting an event cascades to its row. The file goes with the event's media directory.
  */
-export const migration019: Migration = {
-  id: 19,
+export const migration021: Migration = {
+  id: 21,
   name: 'highlight_reels',
   sql: `
       CREATE TABLE highlight_reels (

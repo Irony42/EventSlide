@@ -8,8 +8,8 @@ import type { Migration } from '../migrator'
  * `setHighlighted` writes it, and a transition out of `published` clears it. The partial index
  * keeps the favourites query small on an event with tens of thousands of photographs.
  */
-export const migration018: Migration = {
-  id: 18,
+export const migration020: Migration = {
+  id: 20,
   name: 'photo_highlights',
   sql: `
       ALTER TABLE photos ADD COLUMN highlighted_at TEXT;

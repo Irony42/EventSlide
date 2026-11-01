@@ -3582,6 +3582,26 @@ decoration refuse a guest's photograph. The disk guard still applies to the uplo
 - A restored backup whose archive lacks a named ground file leaves the settings naming bytes that are
   gone: the route answers 404 and the page shows the grade over no photograph until the host removes it.
 
+### 24.1 The host's welcome message (spec 03)
+
+A free text the host writes (280 code points, 4 lines), shown to every holder of the join code
+(join page, upload page) and to the empty wall. It is **public to that perimeter**: the settings
+field says so and tells the host to put nothing private in it.
+
+- **Untrusted text.** Cleaned by `toParagraphs` (line separators become `
+` first, then invisibles and
+  bidirectional controls are removed, blank lines dropped). Rendered by React as text: no markup, no
+  Markdown, no link, no variable, so nothing of a guest can enter it.
+- **Never fails a read.** A stored message outside today's rule is kept up to 2 000 characters and
+  otherwise read as none; a cosmetic field cannot take the wall down.
+- **`PATCH /settings`.** Absent leaves it alone, `null` clears it. `brand` is accepted and ignored in
+  the body, so a client that sends settings back unchanged is not refused.
+- **Purge hold.** Changing or clearing the text under a hold destroys the previous text, so it is
+  refused with `500 eventSettings.saveFailed` (never a code naming the hold). The same text sent back,
+  as the full settings form does, and every other setting still pass.
+- **Operator.** Not a field of the operator's closed vocabulary, and not written to the audit.
+- **Shared gallery.** `toGalleryDto` carries no `brand`.
+
 ## 25. The operator's "remove without viewing" levers
 
 Launch review S5 (G8-03); the runbook is `retrait-sans-visualisation.md` of the infra repository. The case they exist
