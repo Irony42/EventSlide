@@ -178,6 +178,8 @@ export interface PrivacyNoticeDto {
    * to read this one.
    */
   readonly operator?: string
+  /** Present only when guests may leave guestbook messages (spec 01): the notice reads for a message too. */
+  readonly guestbook?: true
 }
 
 /** A notice and where this device stands with it: the answer of every notice route. */
