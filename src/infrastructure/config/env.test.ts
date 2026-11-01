@@ -146,6 +146,15 @@ describe('loadConfig', () => {
             tmp: '',
           },
         },
+        books: {
+          enabled: true,
+          maxPhotos: 300,
+          maxBytes: 314_572_800,
+          ttlDays: 7,
+          maxTotalBytes: 2_147_483_648,
+          maxWaitMs: 600_000,
+          maxPerEventPerDay: 3,
+        },
         realtime: {
           maxStreamsPerClient: 12,
           maxStreamsTotal: 500,
@@ -3482,5 +3491,42 @@ describe('loadMaintenanceConfig', () => {
       return
     }
     throw new Error('loadMaintenanceConfig accepted a placeholder secret')
+  })
+})
+
+describe('the photo book settings', () => {
+  it('read every BOOK_* variable, minutes as milliseconds', () => {
+    const config = loadConfig({
+      ...DEV,
+      BOOK_ENABLED: 'false',
+      BOOK_MAX_PHOTOS: '800',
+      BOOK_MAX_BYTES: '1000',
+      BOOK_TTL_DAYS: '30',
+      BOOK_MAX_TOTAL_BYTES: '2000',
+      BOOK_MAX_WAIT_MINUTES: '2',
+      BOOK_MAX_PER_EVENT_PER_DAY: '5',
+    })
+
+    expect(config.books).toEqual({
+      enabled: false,
+      maxPhotos: 800,
+      maxBytes: 1000,
+      ttlDays: 30,
+      maxTotalBytes: 2000,
+      maxWaitMs: 120_000,
+      maxPerEventPerDay: 5,
+    })
+  })
+
+  it.each([
+    ['BOOK_MAX_PHOTOS', '0'],
+    ['BOOK_MAX_PHOTOS', '5001'],
+    ['BOOK_TTL_DAYS', '366'],
+    ['BOOK_MAX_PER_EVENT_PER_DAY', '0'],
+    ['BOOK_ENABLED', 'maybe'],
+  ])('refuses %s=%s', (name, value) => {
+    const issues = refusalIssues({ ...DEV, [name]: value })
+
+    expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
   })
 })

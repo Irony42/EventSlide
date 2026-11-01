@@ -661,3 +661,15 @@ people on the night.
 **How to tell it worked.** The first boot logs no migration and `GET /api/health` answers
 `"version": "3.4.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.5 (not released yet)
+
+<!-- photo book -->
+
+**The photo book (PDF of the published album).** A host can ask for a PDF of the album. It adds
+a migration (`018_album_books`: two tables and `clients.books_allowed`, nothing is rewritten)
+and seven settings, all optional: `BOOK_ENABLED` (`true`; `false` turns the function off for the
+box, read at boot), `BOOK_MAX_PHOTOS` (300), `BOOK_MAX_BYTES` (300 MB), `BOOK_TTL_DAYS` (7),
+`BOOK_MAX_TOTAL_BYTES` (2 GB of finished books kept at once), `BOOK_MAX_WAIT_MINUTES` (10) and
+`BOOK_MAX_PER_EVENT_PER_DAY` (3). Finished books live in `<MEDIA_ROOT>/.books/`, outside the event
+folders and outside the backups: budget the disk for them.

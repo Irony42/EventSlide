@@ -9,6 +9,7 @@ import { DEFAULT_OPERATOR_RESET_LINKS } from '../../domain/clients/operatorGuard
 import {
   blankAsAbsent,
   boolish,
+  boolishWithDefault,
   choice,
   positiveInt,
   retentionSweepInterval,
@@ -233,6 +234,25 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * (7680x4320, 33 MP) and refuses the 16000x16000 container that is 380 MB a frame.
        */
       MAX_CLIP_PIXELS: positiveInt(33_177_600),
+
+      /**
+       * The photo book (PDF of the published album). Box-level limits that sit **on top of**
+       * the per-client switch `NEW_CLIENT_BOOKS_ALLOWED` and the three books per event per day.
+       * `BOOK_ENABLED=false` turns the function off for the box (read once at boot: a restart).
+       */
+      BOOK_ENABLED: boolishWithDefault('true'),
+      /** Most photographs in one book. Inclusive: a book of exactly this many is allowed. */
+      BOOK_MAX_PHOTOS: positiveInt(300, 5_000),
+      /** Most bytes in one finished book (default 300 MB), judged before rendering. */
+      BOOK_MAX_BYTES: positiveInt(300 * 1024 * 1024),
+      /** Days a finished book can be downloaded (never past the album's purge date). */
+      BOOK_TTL_DAYS: positiveInt(7, 365),
+      /** Most bytes of finished books kept on the box at once (default 2 GB). */
+      BOOK_MAX_TOTAL_BYTES: positiveInt(2 * 1024 * 1024 * 1024),
+      /** How long a book waits behind video transcodes before it starts anyway. */
+      BOOK_MAX_WAIT_MINUTES: positiveInt(10, 1_440),
+      /** Books one event may have generated in a rolling day (decision of 01/11/2026). */
+      BOOK_MAX_PER_EVENT_PER_DAY: positiveInt(3, 100),
 
       /**
        * How many upload requests — photos and clips together — may be in flight at
