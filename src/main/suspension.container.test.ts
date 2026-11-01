@@ -86,6 +86,8 @@ const aBrowser = async (container: Container) => {
       note(await agent.patch(path).set(CSRF_HEADER, csrf).send(body)),
     delete: async (path: string, body: object = {}) =>
       note(await agent.delete(path).set(CSRF_HEADER, csrf).send(body)),
+    put: async (path: string, body: object = {}) =>
+      note(await agent.put(path).set(CSRF_HEADER, csrf).send(body)),
     /** One multipart part, for the one write that is a file. */
     putFile: async (path: string, field: string, bytes: Buffer) =>
       note(await agent.put(path).set(CSRF_HEADER, csrf).attach(field, bytes, 'lieu.jpg')),
@@ -344,7 +346,7 @@ describe('a suspended client, through the real composition root', () => {
   const SOME_MISSION = { prompt: 'Le gâteau', scope: 'event' }
 
   const HOST_WRITES: readonly {
-    readonly method: 'patch' | 'post' | 'delete'
+    readonly method: 'patch' | 'post' | 'delete' | 'put'
     readonly path: string
     readonly body: object
   }[] = [
@@ -379,6 +381,10 @@ describe('a suspended client, through the real composition root', () => {
       body: { photoIds: [ANY], decision: 'publish' },
     },
     { method: 'delete', path: '/api/events/:eventSlug/photos/:photoId', body: {} },
+    // The host's favourites (spec 08): a suspended client's event is frozen for them too.
+    { method: 'put', path: '/api/events/:eventSlug/photos/:photoId/highlight', body: {} },
+    { method: 'delete', path: '/api/events/:eventSlug/photos/:photoId/highlight', body: {} },
+    { method: 'post', path: '/api/events/:eventSlug/highlights/preselect', body: { limit: 5 } },
     { method: 'post', path: '/api/events/:eventSlug/share-link', body: {} },
     { method: 'delete', path: '/api/events/:eventSlug/share-link', body: {} },
     // The host's own photograph of the venue (ADR 0010): the removal here, the upload below.

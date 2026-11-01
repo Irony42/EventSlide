@@ -25,9 +25,11 @@ import type {
   MissionDto,
   MissionListResponse,
   MissionScope,
+  HighlightsDto,
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
+  PreselectHighlightsResponse,
   ModeratorInviteResponse,
   OperatorInvitationDto,
   OperatorPasswordResetDto,
@@ -697,6 +699,20 @@ export const createApi = (transport: Transport) => ({
   ): Promise<BulkModerationResponse> =>
     transport.post(`/api/events/${encode(slug)}/moderation/bulk`, { photoIds, decision }),
 
+  /** Stars a published photo as a favourite (spec 08). Idempotent. */
+  highlightPhoto: (slug: string, photoId: string): Promise<void> =>
+    transport.put(`/api/events/${encode(slug)}/photos/${encode(photoId)}/highlight`),
+
+  unhighlightPhoto: (slug: string, photoId: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/photos/${encode(photoId)}/highlight`),
+
+  /** Stars the `limit` most liked photos; never removes a star. */
+  preselectHighlights: (slug: string, limit: number): Promise<PreselectHighlightsResponse> =>
+    transport.post(`/api/events/${encode(slug)}/highlights/preselect`, { limit }),
+
+  highlights: (slug: string, signal?: AbortSignal): Promise<HighlightsDto> =>
+    transport.get(`/api/events/${encode(slug)}/highlights`, undefined, signal),
+
   topPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly TopPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/top-photos`, undefined, signal),
 
@@ -802,6 +818,9 @@ export const createApi = (transport: Transport) => ({
 
   /** Built here so the ZIP link and the wall link cannot drift from the API doc. */
   albumUrl: (slug: string): string => `/api/events/${encode(slug)}/album.zip`,
+
+  /** The favourites as a ZIP (spec 08). */
+  bestOfUrl: (slug: string): string => `/api/events/${encode(slug)}/best-of.zip`,
 
   /** The wall's channel. Public, because a projector has nobody to sign it in. */
   streamUrl: (slug: string): string => `/api/events/${encode(slug)}/stream`,

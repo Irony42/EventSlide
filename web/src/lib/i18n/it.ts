@@ -433,6 +433,8 @@ export const it: UiText = {
 
     'photo.notFound': 'Questa foto non esiste più.',
     'photo.illegalTransition': 'Questa azione non è possibile su questa foto.',
+    'highlight.notPublished': 'Solo una foto pubblicata può essere tra i preferiti.',
+    'highlight.empty': 'Nessun preferito per ora.',
 
     'image.unsupportedFormat':
       'Questo file non è una foto. Formati accettati: JPEG, PNG, HEIC, WebP.',
@@ -654,6 +656,10 @@ export const it: UiText = {
         one: `${t.number(count)} foto rimossa dallo schermo. Resta nel vostro album.`,
         other: `${t.number(count)} foto rimosse dallo schermo. Restano nel vostro album.`,
       }),
+    highlight: 'Preferita',
+    highlightAddHint: 'Aggiungi ai preferiti',
+    highlightRemoveHint: 'Rimuovi dai preferiti',
+    shortcutsFavourite: 'F per aggiungere ai preferiti.',
     decisionFailed: 'Non è stato possibile registrare la decisione. Riprovi.',
     undoFailed: 'Non è stato possibile registrare l’annullamento. Riprovi.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixel`,
@@ -1053,6 +1059,21 @@ export const it: UiText = {
     shareLinkReplace: 'Sostituisci con un nuovo link',
     shareLinkReplaceHint: 'Il link attuale smetterà subito di funzionare.',
     shareLinkCreated: 'Ecco il link. Lo copi adesso: non verrà più mostrato.',
+    bestOf: 'Best-of',
+    bestOfHint: 'Le sue foto preferite, da portare a casa dopo la serata.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} preferita`,
+        other: `${t.number(count)} preferite`,
+      }),
+    bestOfNone:
+      'Nessun preferito per ora. Contrassegni con una stella le foto preferite nella moderazione.',
+    bestOfPreselect: 'Preseleziona le più amate',
+    bestOfPreselected: (limit: number) =>
+      `Le ${t.number(limit)} foto più amate sono ora tra i preferiti. Può toglierne o aggiungerne altre.`,
+    bestOfPreselectNothing:
+      'Niente da aggiungere: le più amate sono già tra i preferiti, oppure nessuno ha ancora reagito.',
+    bestOfDownload: 'Scarica i preferiti (ZIP)',
     shareLinkUrl: 'Indirizzo del link',
     shareLinkCopy: 'Copia il link',
     shareLinkCopied: 'Link copiato.',

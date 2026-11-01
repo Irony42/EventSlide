@@ -355,6 +355,10 @@ const buildWorld = ({
         withdrawReaction: absent('withdrawReaction'),
         getPhotoReactions: absent('getPhotoReactions'),
         getTopPhotos: absent('getTopPhotos'),
+        setPhotoHighlight: absent('setPhotoHighlight'),
+        preselectHighlights: absent('preselectHighlights'),
+        getHighlights: absent('getHighlights'),
+        exportHighlights: absent('exportHighlights'),
       }
 
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))

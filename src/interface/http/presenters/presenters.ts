@@ -409,6 +409,7 @@ export const toModerationPhotoDto = ({
   byteSize: photo.byteSize,
   createdAt: iso(photo.createdAt),
   ...toMediaFacetDto(photo, slug),
+  highlighted: photo.isHighlighted,
 })
 
 export const toGuestDto = (guest: Guest): GuestDto => ({
@@ -484,6 +485,7 @@ export const toModerationQueueItemDto = ({
   durationMs: row.durationMs,
   // The status machine's answer, not a copy of it: see `allowedDecisionsFrom`.
   allowedDecisions: allowedDecisionsFrom(row.status),
+  highlighted: row.highlighted,
 })
 
 /**

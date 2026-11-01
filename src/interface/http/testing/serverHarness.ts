@@ -124,6 +124,10 @@ export const notWiredUseCases = (): HttpUseCases => ({
   uploadClip: notWired('uploadClip'),
   getClipJob: notWired('getClipJob'),
   exportAlbum: notWired('exportAlbum'),
+  setPhotoHighlight: notWired('setPhotoHighlight'),
+  preselectHighlights: notWired('preselectHighlights'),
+  getHighlights: notWired('getHighlights'),
+  exportHighlights: notWired('exportHighlights'),
 
   getModerationQueue: notWired('getModerationQueue'),
   moderatePhoto: notWired('moderatePhoto'),

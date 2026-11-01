@@ -411,7 +411,10 @@ export class FakePhotoRepository implements PhotoRepository, GuestPhotoSource {
     if (at !== null && photo.status !== 'published') return false
     this.rows.set(
       rowKey,
-      Photo.restore({ ...photo.toProps(), highlightedAt: at === null ? null : (photo.highlightedAt ?? at) }),
+      Photo.restore({
+        ...photo.toProps(),
+        highlightedAt: at === null ? null : (photo.highlightedAt ?? at),
+      }),
     )
     return true
   }

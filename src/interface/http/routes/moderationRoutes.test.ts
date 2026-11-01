@@ -1,5 +1,6 @@
 import request from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { highlightRoutes } from './highlightRoutes'
 import { moderationRoutes } from './moderationRoutes'
 import { buildHarness, signInAs, type Harness } from '../testing/middlewareHarness'
 import { GUEST_COOKIE } from '../middleware/authz'
@@ -22,6 +23,12 @@ import { makeModeratePhotosBulk } from '../../../application/usecases/moderation
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListEventPhotos } from '../../../application/usecases/photos/listEventPhotos'
+import { makeExportHighlights } from '../../../application/usecases/highlights/exportHighlights'
+import { makeGetHighlights } from '../../../application/usecases/highlights/getHighlights'
+import { makePreselectHighlights } from '../../../application/usecases/highlights/preselectHighlights'
+import { makeSetPhotoHighlight } from '../../../application/usecases/highlights/setPhotoHighlight'
+import { CapturingLogger } from '../../../application/testing/capturingLogger'
+import { FakeArchiveWriter } from '../../../application/testing/fakeArchiveWriter'
 import { makeGetTopPhotos } from '../../../application/usecases/reactions/getTopPhotos'
 import { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asPhotoId, asUserId } from '../../../domain/shared/ids'
@@ -192,6 +199,16 @@ const usecasesFor = (
     withdrawReaction: notWired,
     getPhotoReactions: notWired,
     getTopPhotos: makeGetTopPhotos({ events, photos, reactions }),
+    setPhotoHighlight: makeSetPhotoHighlight({ events, photos, clock }),
+    preselectHighlights: makePreselectHighlights({ events, photos, reactions, clock }),
+    getHighlights: makeGetHighlights({ events, photos }),
+    exportHighlights: makeExportHighlights({
+      events,
+      photos,
+      media,
+      archive: new FakeArchiveWriter({ emits: 'content' }),
+      logger: new CapturingLogger(),
+    }),
   }
 }
 
@@ -217,14 +234,13 @@ const world = (): World => {
         signInAs({ userId: MODERATOR, email: 'moderateur@example.test' }),
       )
       app.post('/sign-in/gala', signInAs({ userId: GALA_OWNER, email: 'gala@example.test' }))
-      app.use(
-        '/api',
-        moderationRoutes({
-          deps,
-          usecases: usecasesFor(deps, adapters, base.guests),
-          presenter: PRESENTER,
-        }),
-      )
+      const routeDeps = {
+        deps,
+        usecases: usecasesFor(deps, adapters, base.guests),
+        presenter: PRESENTER,
+      }
+      app.use('/api', moderationRoutes(routeDeps))
+      app.use('/api', highlightRoutes(routeDeps))
     },
   })
 
@@ -340,6 +356,7 @@ describe('GET /api/events/:eventSlug/moderation', () => {
       durationMs: null,
       // What the status machine allows from `pending`, so the card offers no dead button.
       allowedDecisions: ['publish', 'reject'],
+      highlighted: false,
     })
   })
 
@@ -526,6 +543,7 @@ describe('GET /api/events/:eventSlug/photos', () => {
       kind: 'photo',
       videoUrl: null,
       durationMs: null,
+      highlighted: false,
     })
   })
 
@@ -1002,5 +1020,181 @@ describe('GET /api/events/:eventSlug/top-photos', () => {
 
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('request.invalid')
+  })
+})
+
+describe('the host favourites routes (spec 08)', () => {
+  const starUrl = (photoId: string, slug = 'mariage'): string =>
+    `/api/events/${slug}/photos/${photoId}/highlight`
+  const star = async (photoId: string): Promise<void> => {
+    const agent = await signedIn(subject, 'moderator')
+    await agent.put(starUrl(photoId)).expect(204)
+  }
+  const ROUTES = [
+    ['put', starUrl(P.published)],
+    ['delete', starUrl(P.published)],
+    ['post', '/api/events/mariage/highlights/preselect'],
+    ['get', '/api/events/mariage/highlights'],
+    ['get', '/api/events/mariage/best-of.zip'],
+  ] as const
+
+  it('stars and unstars a published photograph, idempotently, and shows it on the gallery rows', async () => {
+    const agent = await signedIn(subject, 'moderator')
+
+    await agent.put(starUrl(P.published)).expect(204)
+    await agent.put(starUrl(P.published)).expect(204)
+    const listed = await agent.get('/api/events/mariage/photos?status=published')
+    expect(
+      listed.body.items.map((item: { id: string; highlighted: boolean }) => [
+        item.id,
+        item.highlighted,
+      ]),
+    ).toEqual([
+      [P.publishedTwo, false],
+      [P.published, true],
+    ])
+
+    await agent.delete(starUrl(P.published)).expect(204)
+    expect((await agent.get('/api/events/mariage/highlights')).body).toEqual({ count: 0 })
+  })
+
+  it('shows the star on the queue rows too', async () => {
+    await star(P.published)
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.get('/api/events/mariage/moderation?status=published')
+
+    expect(response.body.items.map((item: { highlighted: boolean }) => item.highlighted)).toContain(
+      true,
+    )
+  })
+
+  it('refuses to star a photograph that is not published with 409 highlight.notPublished', async () => {
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.put(starUrl(P.hidden))
+
+    expect(response.status).toBe(409)
+    expect(response.body.error.code).toBe('highlight.notPublished')
+  })
+
+  it('does not star a photograph of another event: 404, and nothing is starred', async () => {
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.put(starUrl(P.gala))
+
+    expect(response.status).toBe(404)
+    expect(response.body.error.code).toBe('photo.notFound')
+    expect(await subject.photos.countHighlighted(asEventId(GALA))).toBe(0)
+    expect(await subject.photos.countHighlighted(asEventId(WEDDING))).toBe(0)
+  })
+
+  it('answers 401 to nobody, 401 to a guest device token and 404 to a moderator of another event, on every route', async () => {
+    const stranger = await signedIn(subject, 'gala')
+
+    for (const [method, url] of ROUTES) {
+      const anonymous = await request(subject.app)[method](url).send({ limit: 3 })
+      const asGuest = request(subject.app)[method](url)
+      const guest = await asGuest.set('Cookie', guestCookie(subject)).send({ limit: 3 })
+      const other = await stranger[method](url).send({ limit: 3 })
+      expect([method, url, anonymous.status, guest.status, other.status]).toEqual([
+        method,
+        url,
+        401,
+        401,
+        404,
+      ])
+    }
+  })
+
+  it('pre-selects from the reactions and reports how many stars it put', async () => {
+    subject.reactions.seed(
+      aReaction({ id: 'r1', eventId: WEDDING, photoId: P.published, guestId: 'g1' }),
+    )
+    const agent = await signedIn(subject, 'moderator')
+
+    const response = await agent.post('/api/events/mariage/highlights/preselect').send({ limit: 5 })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ added: 1 })
+  })
+
+  it.each([{}, { limit: 0 }, { limit: 121 }, { limit: 2.5 }, { limit: 3, extra: 1 }])(
+    'rejects the pre-selection body %j with 400',
+    async (body) => {
+      const agent = await signedIn(subject, 'moderator')
+
+      const response = await agent.post('/api/events/mariage/highlights/preselect').send(body)
+
+      expect(response.status).toBe(400)
+    },
+  )
+
+  it('refuses every route with 403 client.suspended on a suspended client', async () => {
+    const agent = await signedIn(subject, 'moderator')
+    await star(P.published)
+    subject.events.seed(
+      anEvent({ id: WEDDING, slug: 'mariage', ownerId: OWNER, clientSuspendedAt: AT }),
+    )
+
+    for (const [method, url] of ROUTES) {
+      const response = await agent[method](url).send({ limit: 3 })
+      expect([method, url, response.status, response.body.error?.code]).toEqual([
+        method,
+        url,
+        403,
+        'client.suspended',
+      ])
+    }
+  })
+
+  it('answers 404 event.notFound on every route for an event the operator took down', async () => {
+    const agent = await signedIn(subject, 'moderator')
+    await star(P.published)
+    await subject.events.setTakenDown(asEventId(WEDDING), AT)
+
+    for (const [method, url] of ROUTES) {
+      const response = await agent[method](url).send({ limit: 3 })
+      expect([method, url, response.status]).toEqual([method, url, 404])
+    }
+  })
+
+  it('refuses to star on an archived event but still serves the count and the archive', async () => {
+    await star(P.published)
+    subject.events.seed(
+      anEvent({ id: WEDDING, slug: 'mariage', ownerId: OWNER, status: 'archived' }),
+    )
+    const agent = await signedIn(subject, 'moderator')
+
+    expect((await agent.put(starUrl(P.publishedTwo))).status).toBe(409)
+    expect((await agent.get('/api/events/mariage/highlights')).body).toEqual({ count: 1 })
+    expect((await agent.get('/api/events/mariage/best-of.zip')).status).toBe(200)
+  })
+
+  describe('GET best-of.zip', () => {
+    it('answers 409 highlight.empty with no download header when nothing is starred', async () => {
+      const agent = await signedIn(subject, 'moderator')
+
+      const response = await agent.get('/api/events/mariage/best-of.zip')
+
+      expect(response.status).toBe(409)
+      expect(response.body.error.code).toBe('highlight.empty')
+      expect(response.headers['content-disposition']).toBeUndefined()
+    })
+
+    it('streams a zip named from the slug, with the album headers', async () => {
+      await star(P.published)
+      const agent = await signedIn(subject, 'moderator')
+
+      const response = await agent.get('/api/events/mariage/best-of.zip')
+
+      expect(response.status).toBe(200)
+      expect(response.headers['content-type']).toBe('application/zip')
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="mariage-best-of.zip"',
+      )
+      expect(response.headers['cache-control']).toBe('no-store')
+      expect(response.headers['x-content-type-options']).toBe('nosniff')
+    })
   })
 })

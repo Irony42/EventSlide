@@ -349,6 +349,30 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.moderateBulk(SLUG, [PHOTO], 'reject'),
   },
   {
+    name: 'highlightPhoto',
+    verb: 'put',
+    path: `/api/events/${SLUG}/photos/${PHOTO}/highlight`,
+    invoke: (client) => client.highlightPhoto(SLUG, PHOTO),
+  },
+  {
+    name: 'unhighlightPhoto',
+    verb: 'del',
+    path: `/api/events/${SLUG}/photos/${PHOTO}/highlight`,
+    invoke: (client) => client.unhighlightPhoto(SLUG, PHOTO),
+  },
+  {
+    name: 'preselectHighlights',
+    verb: 'post',
+    path: `/api/events/${SLUG}/highlights/preselect`,
+    invoke: (client) => client.preselectHighlights(SLUG, 20),
+  },
+  {
+    name: 'highlights',
+    verb: 'get',
+    path: `/api/events/${SLUG}/highlights`,
+    invoke: (client) => client.highlights(SLUG),
+  },
+  {
     name: 'topPhotos',
     verb: 'get',
     path: `/api/events/${SLUG}/top-photos`,
@@ -671,7 +695,7 @@ describe('every endpoint addresses the documented method and path', () => {
 
     // The link builders return a string rather than making a request, so they are
     // pinned in their own block below instead.
-    expect(missing).toEqual(['albumUrl', 'moderationStreamUrl', 'streamUrl'])
+    expect(missing).toEqual(['albumUrl', 'bestOfUrl', 'moderationStreamUrl', 'streamUrl'])
   })
 })
 
@@ -1076,6 +1100,10 @@ describe('links the app builds rather than requests', () => {
     expect(subject().albumUrl(SLUG)).toBe(`/api/events/${SLUG}/album.zip`)
   })
 
+  it('points the favourites download at the documented ZIP endpoint', () => {
+    expect(subject().bestOfUrl(SLUG)).toBe(`/api/events/${SLUG}/best-of.zip`)
+  })
+
   it('points the stream at the documented SSE endpoint', () => {
     // `useEventStream` hands this straight to `EventSource`; a wrong path shows as a
     // wall that never updates rather than as an error anybody sees.
@@ -1090,7 +1118,7 @@ describe('links the app builds rather than requests', () => {
     expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
   })
 
-  it.each(['albumUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
+  it.each(['albumUrl', 'bestOfUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
     'escapes a slug in %s too',
     (method) => {
       expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')

@@ -413,6 +413,20 @@ export interface ModerationPhotoDto {
    * the click then ends in `photo.illegalTransition`.
    */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /**
+   * The host's star (spec 08). Optional: a server older than this field omits it, and the
+   * console then shows every photo as not starred rather than failing.
+   */
+  readonly highlighted?: boolean
+}
+
+/** The best-of panel's read: how many favourites can be exported (spec 08). */
+export interface HighlightsDto {
+  readonly count: number
+}
+
+export interface PreselectHighlightsResponse {
+  readonly added: number
 }
 
 export interface ModerationQueueResponse {

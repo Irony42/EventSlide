@@ -661,3 +661,13 @@ people on the night.
 **How to tell it worked.** The first boot logs no migration and `GET /api/health` answers
 `"version": "3.4.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.5 (not released yet)
+
+<!-- Best-of (spec 08): keep this block together; other changes of 3.5 add their own. -->
+
+**Best-of, favourites (migration 018).** The first boot applies migration 018, which adds one
+nullable column, `photos.highlighted_at`, and a partial index. Nothing is rewritten and no photo
+changes. A host can now star a published photo (`F` on the moderation console) and download the
+stars as a ZIP from the event page. A star disappears when the photo leaves the wall (hidden or
+refused). An old admin tab keeps working, it simply cannot star.

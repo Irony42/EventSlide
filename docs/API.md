@@ -2115,6 +2115,28 @@ rather than appending JSON — a truncated ZIP that looked complete is how a hos
 an album they do not actually hold. The photographs are written one at a time, and a host
 who closes the tab part-way leaves nothing open on the server.
 
+### Best-of: the host's favourites (spec 08)
+
+A favourite is a **published** photograph the host starred (`photos.highlighted_at`). Moderator or
+above on every route below: `401 auth.required` with no session, `404 event.notFound` for a caller
+with no membership (and for an event the operator took down), `403 client.suspended` for a suspended
+client.
+
+- `PUT` / `DELETE /api/events/:slug/photos/:photoId/highlight`: `204`, idempotent.
+  `404 photo.notFound` (a photo of another event included), `409 highlight.notPublished` when the
+  photo is not `published`, `409 event.notModeratable` on an archived event (starring is a
+  moderation decision). A photo that leaves `published` loses its star.
+- `POST /api/events/:slug/highlights/preselect` with `{ "limit": 1..120 }`: stars the most
+  reacted-to published photos, never removes a star, answers `{ "added": n }`.
+- `GET /api/events/:slug/highlights`: `{ "count": n }`, the same predicate as the ZIP. Readable on
+  an archived event.
+- `GET /api/events/:slug/best-of.zip`: streamed like `album.zip` (same headers, filename
+  `<slug>-best-of.zip`), oldest photo first, one folder `<slug>-best-of/`. `409 highlight.empty`
+  before any header when there is no favourite.
+
+The moderation rows (`GET /moderation`, `GET /photos`) carry `highlighted: boolean`; no guest, wall
+or gallery payload does.
+
 ---
 
 ## 5. Authentication
@@ -2605,30 +2627,35 @@ The account budget is what bounds a distributed guesser against six digits.
 `:slug` scopes the role check: `requireRole('moderator')` means _moderator of this
 event_, never "is logged in".
 
-| Method   | Path                                       | Role      | OK  |                                                 |
-| -------- | ------------------------------------------ | --------- | --- | ----------------------------------------------- |
-| `GET`    | `/api/events`                              | any       | 200 | Dashboard summaries                             |
-| `POST`   | `/api/events`                              | any       | 201 | Create; the creator becomes owner               |
-| `GET`    | `/api/events/:slug`                        | moderator | 200 | Full event including settings                   |
-| `PATCH`  | `/api/events/:slug`                        | owner     | 200 | Rename; answers the full event                  |
-| `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event                |
-| `PUT`    | `/api/events/:slug/venue-photo`            | owner     | 200 | Own venue photograph; answers the full event    |
-| `DELETE` | `/api/events/:slug/venue-photo`            | owner     | 200 | Back to the bundled one; answers the full event |
-| `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event  |
-| `PATCH`  | `/api/events/:slug/schedule`               | owner     | 200 | Scheduled open/close; answers the full event    |
-| `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code        |
-| `DELETE` | `/api/events/:slug`                        | owner     | 204 | Purge: media first, then rows                   |
-| `GET`    | `/api/events/:slug/photos`                 | moderator | 200 | Paginated, filterable                           |
-| `GET`    | `/api/events/:slug/moderation`             | moderator | 200 | Queue + `pendingCount`                          |
-| `PATCH`  | `/api/events/:slug/photos/:photoId/status` | moderator | 204 | `{ "decision": "publish" }`                     |
-| `POST`   | `/api/events/:slug/moderation/bulk`        | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }`   |
-| `DELETE` | `/api/events/:slug/photos/:photoId`        | moderator | 204 | Delete any photo                                |
-| `GET`    | `/api/events/:slug/guests`                 | moderator | 200 | Guest list + active count                       |
-| `POST`   | `/api/events/:slug/guests/:guestId/revoke` | moderator | 204 | Remove a disruptive guest; idempotent           |
-| `GET`    | `/api/events/:slug/moderators`             | owner     | 200 | Memberships                                     |
-| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite **by link**; `{ "email" }`, no password  |
-| `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                    |
-| `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                              |
+| Method   | Path                                          | Role      | OK  |                                                 |
+| -------- | --------------------------------------------- | --------- | --- | ----------------------------------------------- |
+| `GET`    | `/api/events`                                 | any       | 200 | Dashboard summaries                             |
+| `POST`   | `/api/events`                                 | any       | 201 | Create; the creator becomes owner               |
+| `GET`    | `/api/events/:slug`                           | moderator | 200 | Full event including settings                   |
+| `PATCH`  | `/api/events/:slug`                           | owner     | 200 | Rename; answers the full event                  |
+| `PATCH`  | `/api/events/:slug/settings`                  | owner     | 200 | Settings; answers the full event                |
+| `PUT`    | `/api/events/:slug/venue-photo`               | owner     | 200 | Own venue photograph; answers the full event    |
+| `DELETE` | `/api/events/:slug/venue-photo`               | owner     | 200 | Back to the bundled one; answers the full event |
+| `POST`   | `/api/events/:slug/status`                    | owner     | 200 | `{ "status": "live" }`; answers the full event  |
+| `PATCH`  | `/api/events/:slug/schedule`                  | owner     | 200 | Scheduled open/close; answers the full event    |
+| `POST`   | `/api/events/:slug/join-code`                 | owner     | 200 | Rotate; answers the full event, new code        |
+| `DELETE` | `/api/events/:slug`                           | owner     | 204 | Purge: media first, then rows                   |
+| `GET`    | `/api/events/:slug/photos`                    | moderator | 200 | Paginated, filterable                           |
+| `GET`    | `/api/events/:slug/moderation`                | moderator | 200 | Queue + `pendingCount`                          |
+| `PATCH`  | `/api/events/:slug/photos/:photoId/status`    | moderator | 204 | `{ "decision": "publish" }`                     |
+| `POST`   | `/api/events/:slug/moderation/bulk`           | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }`   |
+| `DELETE` | `/api/events/:slug/photos/:photoId`           | moderator | 204 | Delete any photo                                |
+| `GET`    | `/api/events/:slug/guests`                    | moderator | 200 | Guest list + active count                       |
+| `POST`   | `/api/events/:slug/guests/:guestId/revoke`    | moderator | 204 | Remove a disruptive guest; idempotent           |
+| `GET`    | `/api/events/:slug/moderators`                | owner     | 200 | Memberships                                     |
+| `POST`   | `/api/events/:slug/moderators`                | owner     | 201 | Invite **by link**; `{ "email" }`, no password  |
+| `DELETE` | `/api/events/:slug/moderators/:userId`        | owner     | 204 | Revoke; never the last owner                    |
+| `GET`    | `/api/events/:slug/top-photos`                | moderator | 200 | Photo of the night                              |
+| `PUT`    | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Star a published photo (best-of); idempotent    |
+| `DELETE` | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Take the star off; idempotent                   |
+| `POST`   | `/api/events/:slug/highlights/preselect`      | moderator | 200 | Star the `limit` most liked; `{ added }`        |
+| `GET`    | `/api/events/:slug/highlights`                | moderator | 200 | `{ count }` of exportable favourites            |
+| `GET`    | `/api/events/:slug/best-of.zip`               | moderator | 200 | The favourites as a ZIP                         |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and
