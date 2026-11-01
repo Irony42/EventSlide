@@ -78,6 +78,14 @@ export type DomainEvent =
    */
   | { readonly type: 'clip.failed'; readonly eventId: EventId; readonly clipJobId: ClipJobId }
 
+  /**
+   * The host asked for a highlight reel (spec 08): wakes the worker, as `clip.queued` does. Never
+   * relayed to a browser: the event's stream goes to every guest, and the host's panel polls.
+   */
+  | { readonly type: 'reel.queued'; readonly eventId: EventId }
+  /** A montage will never be made (the log's business, and nobody's screen). */
+  | { readonly type: 'reel.failed'; readonly eventId: EventId; readonly code: string }
+
 export type Unsubscribe = () => void
 
 /**

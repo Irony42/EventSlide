@@ -9,6 +9,7 @@ import { DEFAULT_OPERATOR_RESET_LINKS } from '../../domain/clients/operatorGuard
 import {
   blankAsAbsent,
   boolish,
+  boolishWithDefault,
   choice,
   positiveInt,
   retentionSweepInterval,
@@ -222,6 +223,23 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * what a multi-event cell asks for.
        */
       MAX_QUEUED_CLIPS_PER_EVENT: positiveInt(20, 500),
+      /**
+       * The host's highlight reel, an MP4 montage of their favourites (spec 08). Off, no montage can
+       * be asked for; the favourites and their ZIP stay. The operator's switch if the box suffers:
+       * an environment variable, so changing it is a restart, not a button.
+       */
+      REEL_ENABLED: boolishWithDefault('true'),
+      /** The most photographs one montage may hold. Past it the host is told to remove some. */
+      REEL_MAX_PHOTOS: positiveInt(60, 120),
+      /** How long each photograph is shown, in seconds. */
+      REEL_SECONDS_PER_PHOTO: z.coerce.number().int().min(2).max(8).default(4),
+      /** The largest file a montage may become. Admission leaves this much room, in the quota. */
+      REEL_MAX_OUTPUT_BYTES: positiveInt(150_000_000),
+      /**
+       * Montages that may be waiting or rendering across the box. One per event is guaranteed by the
+       * schema; this is the box-wide cap, judged in the admission transaction like the clips'.
+       */
+      MAX_QUEUED_REELS: positiveInt(2, 50),
       /** The projected height of a clip. 720p reads well at 3 m and encodes quickly. */
       CLIP_MAX_HEIGHT: positiveInt(720, 2_160),
       /**

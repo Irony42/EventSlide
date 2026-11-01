@@ -8,6 +8,7 @@ import { ok, type Result } from '../domain/shared/result'
 import { CapturingLogger } from '../application/testing/capturingLogger'
 import type { RecoverClipJobsReport } from '../application/usecases/clips/recoverClipJobs'
 import type { TranscodeNextClipOutcome } from '../application/usecases/clips/transcodeNextClip'
+import type { TranscodeNextReelOutcome } from '../application/usecases/highlights/transcodeNextReel'
 
 /**
  * The drain loop, driven from a test.
@@ -108,6 +109,7 @@ describe('clipWorker', () => {
       expect(outcome.status === 'completed' && outcome.report).toEqual({
         transcoded: 3,
         failed: 0,
+        rendered: 0,
       })
     })
 
@@ -130,6 +132,7 @@ describe('clipWorker', () => {
       expect(outcome.status === 'completed' && outcome.report).toEqual({
         transcoded: 1,
         failed: 1,
+        rendered: 0,
       })
     })
 
@@ -229,6 +232,101 @@ describe('clipWorker', () => {
       const outcome = await worker.runOnce()
 
       expect(outcome.status === 'completed' && outcome.report.transcoded).toBe(2)
+    })
+  })
+
+  describe('the highlight reel (spec 08)', () => {
+    const rendered: TranscodeNextReelOutcome = { kind: 'rendered', eventId: EVENT }
+    const stale: TranscodeNextReelOutcome = { kind: 'stale', eventId: EVENT }
+    const reelFailed: TranscodeNextReelOutcome = {
+      kind: 'failed',
+      eventId: EVENT,
+      code: 'reel.renderFailed',
+      willRetry: true,
+    }
+    const reelQueue = (...outcomes: readonly TranscodeNextReelOutcome[]) => {
+      const pending = [...outcomes]
+      const state = {
+        calls: 0,
+        take: async (): Promise<Result<TranscodeNextReelOutcome, DomainError>> => {
+          state.calls += 1
+          return ok(pending.shift() ?? { kind: 'idle' })
+        },
+      }
+      return state
+    }
+
+    it('makes a montage only when no clip is due, and looks at the clips again after each one', async () => {
+      const order: string[] = []
+      const clips = [transcoded('a'), IDLE, transcoded('b'), IDLE]
+      const reels: TranscodeNextReelOutcome[] = [rendered, rendered]
+      const { worker } = build({
+        transcodeNext: async () => {
+          order.push('clip')
+          return ok(clips.shift() ?? IDLE)
+        },
+        transcodeNextReel: async () => {
+          order.push('reel')
+          return ok(reels.shift() ?? { kind: 'idle' })
+        },
+      })
+
+      const outcome = await worker.runOnce()
+
+      expect(order).toEqual(['clip', 'clip', 'reel', 'clip', 'clip', 'reel', 'clip', 'reel'])
+      expect(outcome.status === 'completed' && outcome.report).toEqual({
+        transcoded: 2,
+        failed: 0,
+        rendered: 2,
+      })
+    })
+
+    it('counts a failed montage, and does not count a stale one as made', async () => {
+      const reels = reelQueue(reelFailed, stale, rendered)
+      const { worker } = build({ transcodeNextReel: reels.take })
+
+      const outcome = await worker.runOnce()
+
+      expect(outcome.status === 'completed' && outcome.report).toEqual({
+        transcoded: 0,
+        failed: 1,
+        rendered: 1,
+      })
+    })
+
+    it('stops the drain when a reel pass answers with a refusal', async () => {
+      const { worker, lines } = build({
+        transcodeNextReel: async () => ({ ok: false, error: DomainError.unexpected('reel.boom') }),
+      })
+
+      await worker.runOnce()
+
+      expect(lines.some((line) => line.level === 'error')).toBe(true)
+    })
+
+    it('wakes on a queued montage, and recovers interrupted ones at start', async () => {
+      const reels = reelQueue()
+      const recoverReels = vi.fn(async () => ({ requeued: 0, cleaned: 0 }))
+      const { worker, bus } = build({ transcodeNextReel: reels.take, recoverReels })
+      worker.start()
+      await vi.advanceTimersByTimeAsync(0)
+      const before = reels.calls
+
+      bus.publish({ type: 'reel.queued', eventId: EVENT })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(recoverReels).toHaveBeenCalledTimes(1)
+      expect(reels.calls).toBeGreaterThan(before)
+      worker.stop()
+    })
+
+    it('is the clip worker it always was when no reel step is given', async () => {
+      const queue = queueOf(transcoded('a'))
+      const { worker } = build({ transcodeNext: queue.take })
+
+      const outcome = await worker.runOnce()
+
+      expect(outcome.status === 'completed' && outcome.report.rendered).toBe(0)
     })
   })
 

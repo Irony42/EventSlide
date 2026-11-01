@@ -218,6 +218,10 @@ export const openStream = ({
 
   const subscription = deps.bus.subscribe(eventId, (domainEvent, delivery) => {
     if (closed || res.writableEnded) return
+    // The highlight reel is the host's alone (spec 08): this channel goes to every guest of the
+    // event, and the panel that shows a montage's progress polls instead. Not even the name of
+    // the fact is sent.
+    if (domainEvent.type.startsWith('reel.')) return
     writeSignal(res, channel.log.record(delivery.sequence, domainEvent.type))
   })
 
