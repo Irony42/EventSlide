@@ -69,6 +69,9 @@ import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
 import { makeRenameEvent } from '../application/usecases/events/renameEvent'
 import { makeRevokeModerator } from '../application/usecases/events/revokeModerator'
 import { makePurgeExpiredEvents } from '../application/usecases/events/purgeExpiredEvents'
+import { makeGetEventLogoMedia } from '../application/usecases/brand/getEventLogoMedia'
+import { makeRemoveEventLogo } from '../application/usecases/brand/removeEventLogo'
+import { makeSetEventLogo } from '../application/usecases/brand/setEventLogo'
 import { makeGetVenuePhotoMedia } from '../application/usecases/venue/getVenuePhotoMedia'
 import { makeRemoveVenuePhoto } from '../application/usecases/venue/removeVenuePhoto'
 import { makeSetVenuePhoto } from '../application/usecases/venue/setVenuePhoto'
@@ -595,6 +598,25 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       logger: adapters.logger,
     }),
     getVenuePhotoMedia: makeGetVenuePhotoMedia({ media: adapters.media }),
+    // The host's logo (spec 03), beside the venue photograph and by the same pipeline.
+    setEventLogo: makeSetEventLogo({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      media: adapters.media,
+      imageProcessor: adapters.imageProcessor,
+      hasher: adapters.contentHasher,
+      bus: adapters.bus,
+      logger: adapters.logger,
+      limits: { maxPixels: policy.maxImagePixels },
+    }),
+    removeEventLogo: makeRemoveEventLogo({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      media: adapters.media,
+      bus: adapters.bus,
+      logger: adapters.logger,
+    }),
+    getEventLogoMedia: makeGetEventLogoMedia({ media: adapters.media }),
     sweepOrphanedMedia: makeSweepOrphanedMedia({
       events: adapters.events,
       photos: adapters.photos,

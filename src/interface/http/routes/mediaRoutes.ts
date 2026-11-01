@@ -49,7 +49,11 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
 export type MediaRouteDeps = Pick<RouteDeps, 'deps'> & {
   readonly usecases: Pick<
     HttpUseCases,
-    'exportAlbum' | 'getPhotoMedia' | 'getVenuePhotoMedia' | 'identifyMediaViewer'
+    | 'exportAlbum'
+    | 'getPhotoMedia'
+    | 'getVenuePhotoMedia'
+    | 'getEventLogoMedia'
+    | 'identifyMediaViewer'
   >
 }
 
@@ -259,56 +263,77 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
   )
 
   /**
-   * The host's own photograph of their venue (ADR 0010, decision 8): what the guest's page and
-   * the wall paint behind the evening under an ambiance that photographs its ground.
+   * One public file an event's settings name, served by digest: the host's own photograph of their
+   * venue (ADR 0010, decision 8) and the host's logo (spec 03). They differ only in the route, the
+   * use case, the 404 code and the ETag's suffix.
    *
    * Not behind `resolvePublicEvent`, which refuses a draft: the host sets the look of an event
    * before it opens and has to be able to see what they uploaded. The event is read here and the
-   * rule is the use case's — the public and a guest only while the event serves its wall, a
+   * rule is the use case's: the public and a guest only while the event serves its wall, a
    * moderator at any time, and only for the digest the event's settings name right now.
    *
-   * **Every refusal is the same 404**, an unknown slug and a malformed digest included, so the
-   * route cannot be used to ask which events exist or which digests they once held.
+   * **Every refusal is the same 404** for the route's code, an unknown slug and a malformed digest
+   * included, so the route cannot be used to ask which events exist or which digests they once held.
    */
-  router.get(
+  const servePublishedFile = (
+    path: string,
+    notFoundCode: string,
+    getMedia: typeof usecases.getVenuePhotoMedia,
+    etagSuffix: string,
+  ): void => {
+    router.get(
+      path,
+      asyncHandler(async (req, res) => {
+        const refuse = (): void => sendError(res, DomainError.notFound(notFoundCode))
+
+        const slug = Slug.create(req.params['eventSlug'])
+        const digest = venuePhotoDigest.safeParse(req.params['hash'])
+        const hash = digest.success ? ContentHash.create(digest.data) : null
+        if (!slug.ok || hash === null || !hash.ok) return refuse()
+
+        const event = await deps.events.findBySlug(slug.value)
+        if (event === null) return refuse()
+
+        const identified = await usecases.identifyMediaViewer({
+          event,
+          guestToken: guestTokenOf(req),
+          userId: req.context.user?.userId,
+        })
+        if (!identified.ok) return refuse()
+
+        const media = await getMedia({
+          event,
+          hash: hash.value,
+          viewer: identified.value,
+        })
+        if (!media.ok) return sendError(res, media.error)
+
+        res.setHeader('X-Content-Type-Options', 'nosniff')
+
+        const verdict = parseByteRange(req.get('range'), media.value.byteSize)
+        const etag = `"${media.value.contentHash.value}-${etagSuffix}"`
+        if (verdict.kind === 'whole') return sendMedia(req, res, media.value, etag, null)
+        if (verdict.kind === 'unsatisfiable') {
+          res.setHeader('Accept-Ranges', 'bytes')
+          res.setHeader('Content-Range', unsatisfiedRange(media.value.byteSize))
+          return res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
+        }
+        return sendMedia(req, res, media.value, etag, verdict.range)
+      }),
+    )
+  }
+
+  servePublishedFile(
     '/events/:eventSlug/venue-photo/:hash',
-    asyncHandler(async (req, res) => {
-      const refuse = (): void => sendError(res, DomainError.notFound('venuePhoto.notFound'))
-
-      const slug = Slug.create(req.params['eventSlug'])
-      const digest = venuePhotoDigest.safeParse(req.params['hash'])
-      const hash = digest.success ? ContentHash.create(digest.data) : null
-      if (!slug.ok || hash === null || !hash.ok) return refuse()
-
-      const event = await deps.events.findBySlug(slug.value)
-      if (event === null) return refuse()
-
-      const identified = await usecases.identifyMediaViewer({
-        event,
-        guestToken: guestTokenOf(req),
-        userId: req.context.user?.userId,
-      })
-      if (!identified.ok) return refuse()
-
-      const media = await usecases.getVenuePhotoMedia({
-        event,
-        hash: hash.value,
-        viewer: identified.value,
-      })
-      if (!media.ok) return sendError(res, media.error)
-
-      res.setHeader('X-Content-Type-Options', 'nosniff')
-
-      const verdict = parseByteRange(req.get('range'), media.value.byteSize)
-      const etag = `"${media.value.contentHash.value}-ground"`
-      if (verdict.kind === 'whole') return sendMedia(req, res, media.value, etag, null)
-      if (verdict.kind === 'unsatisfiable') {
-        res.setHeader('Accept-Ranges', 'bytes')
-        res.setHeader('Content-Range', unsatisfiedRange(media.value.byteSize))
-        return res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
-      }
-      return sendMedia(req, res, media.value, etag, verdict.range)
-    }),
+    'venuePhoto.notFound',
+    usecases.getVenuePhotoMedia,
+    'ground',
+  )
+  servePublishedFile(
+    '/events/:eventSlug/logo/:hash',
+    'logo.notFound',
+    usecases.getEventLogoMedia,
+    'logo',
   )
 
   /** The whole album as a ZIP. Moderator or above, and streamed. */

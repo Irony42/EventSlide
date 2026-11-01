@@ -331,6 +331,16 @@ export const VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR = 10
 export const venuePhotoLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
+/**
+ * How many logos one **account** may send per hour: the venue photograph's reasoning, with a
+ * counter of its own so a host who is choosing their photograph cannot lock themselves out of
+ * their logo (each call builds its own store).
+ */
+export const LOGOS_PER_ACCOUNT_PER_HOUR = 10
+
+export const logoLimiter = (perHour: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
+
 // ------------------------------------------------------------ second factor --
 
 /**

@@ -11,8 +11,10 @@ import { requireRole, requireUser } from '../middleware/authz'
 import { hostScopeOf, userOf } from '../middleware/scope'
 import {
   INVITATIONS_PER_ACCOUNT_PER_HOUR,
+  LOGOS_PER_ACCOUNT_PER_HOUR,
   VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR,
   invitationIssueLimiter,
+  logoLimiter,
   venuePhotoLimiter,
 } from '../middleware/rateLimit'
 import {
@@ -325,6 +327,9 @@ export const eventRoutes = ({
   /** The multipart part's name. Anything else is `LIMIT_UNEXPECTED_FILE` from multer. */
   const VENUE_PHOTO_FIELD = 'photo'
 
+  /** 2 MiB: see `logoUpload`. Exported by value in docs/API.md and tested at 2 MiB + 1 byte. */
+  const LOGO_UPLOAD_MAX_BYTES = 2 * 1024 * 1024
+
   /**
    * Memory, for `guestRoutes`' reason: the pipeline re-encodes every byte it accepts, so a
    * temporary file would be written to be read straight back and then cleaned up on every exit.
@@ -388,6 +393,69 @@ export const eventRoutes = ({
       const scope = hostScopeOf(req)
 
       const result = await usecases.removeVenuePhoto({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+      })
+
+      await sendEvent(res, result, { role: scope.role })
+    }),
+  )
+
+  // --------------------------------------------------------- the host's logo (spec 03) --
+
+  /** The multipart part's name. Anything else is `LIMIT_UNEXPECTED_FILE` from multer. */
+  const LOGO_FIELD = 'file'
+
+  /**
+   * What a logo upload may weigh on the wire: **2 MiB**, not the operator's `MAX_UPLOAD_BYTES`
+   * that a photograph is judged against. A logo is small, so the most memory one request can hold is
+   * small too; the pixel budget (checked on the header, before any decode) is what bounds the CPU.
+   * No `fileFilter`, for the venue photograph's reason: the format is identified from the bytes.
+   */
+  const logoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: LOGO_UPLOAD_MAX_BYTES, files: 1, fields: 0 },
+  })
+  const logoRateLimiter = logoLimiter(LOGOS_PER_ACCOUNT_PER_HOUR)
+
+  /**
+   * Send, or replace, the event's logo. Owner only, and **authorised before a byte is buffered**:
+   * the role, then the account's budget, then the disk guard, and only then the multipart parser.
+   * Answers the event, whose `brand` now carries the logo's URL.
+   */
+  router.put(
+    '/events/:eventSlug/logo',
+    requireRole('owner', deps),
+    logoRateLimiter,
+    venuePhotoDiskGuard,
+    logoUpload.single(LOGO_FIELD),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+
+      if (req.file === undefined) {
+        sendError(res, DomainError.invalid('upload.noFiles'))
+        return
+      }
+
+      const result = await usecases.setEventLogo({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+        // The bytes and nothing else: the declared name and type reach no layer below this one.
+        bytes: req.file.buffer,
+      })
+
+      await sendEvent(res, result, { role: scope.role })
+    }),
+  )
+
+  /** Take the logo down. Owner only, and idempotent. */
+  router.delete(
+    '/events/:eventSlug/logo',
+    requireRole('owner', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+
+      const result = await usecases.removeEventLogo({
         eventId: scope.event.id,
         actorId: scope.user.userId,
       })

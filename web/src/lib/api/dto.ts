@@ -92,6 +92,7 @@ export type MissionScope = 'guest' | 'event'
 /** What the host says to their guests (spec 03): content, shown as written. */
 export interface EventBrandDto {
   readonly welcomeMessage: string | null
+  readonly logoUrl: string | null
 }
 
 export interface EventThemeDto {

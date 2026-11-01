@@ -6,6 +6,7 @@ import { GUEST_COOKIE } from '../middleware/authz'
 import type { ArchiveWriter } from '../../../application/ports/archiveWriter'
 import { MEDIA_VARIANTS } from '../../../application/ports/mediaStore'
 import { makeExportAlbum, type ExportAlbum } from '../../../application/usecases/photos/exportAlbum'
+import { makeGetEventLogoMedia } from '../../../application/usecases/brand/getEventLogoMedia'
 import { makeGetVenuePhotoMedia } from '../../../application/usecases/venue/getVenuePhotoMedia'
 import { makeGetPhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../../../application/usecases/photos/identifyMediaViewer'
@@ -94,6 +95,7 @@ const buildWorld = async ({
           usecases: {
             getPhotoMedia: makeGetPhotoMedia({ photos, media }),
             getVenuePhotoMedia: makeGetVenuePhotoMedia({ media }),
+            getEventLogoMedia: makeGetEventLogoMedia({ media }),
             identifyMediaViewer: makeIdentifyMediaViewer({
               guests: base.guests,
               tokens: base.guestTokens,
