@@ -667,7 +667,7 @@ people on the night.
 <!-- photo book -->
 
 **The photo book (PDF of the published album).** A host can ask for a PDF of the album. It adds
-a migration (`018_album_books`: two tables and `clients.books_allowed`, nothing is rewritten)
+a migration (`022_album_books`: two tables and `clients.books_allowed`, nothing is rewritten)
 and seven settings, all optional: `BOOK_ENABLED` (`true`; `false` turns the function off for the
 box, read at boot), `BOOK_MAX_PHOTOS` (300), `BOOK_MAX_BYTES` (300 MB), `BOOK_TTL_DAYS` (7),
 `BOOK_MAX_TOTAL_BYTES` (2 GB of finished books kept at once), `BOOK_MAX_WAIT_MINUTES` (10) and
