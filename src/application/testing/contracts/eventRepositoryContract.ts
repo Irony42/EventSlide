@@ -184,6 +184,8 @@ export const eventRepositoryContract = (
             wallLanguage: 'de',
             // Off the default too: a store that dropped it would otherwise round-trip clean.
             venuePhoto: venueDigest,
+            // Off the default (null) for the same reason.
+            welcomeMessage: 'Bienvenue !',
           },
         }),
       )
@@ -207,6 +209,7 @@ export const eventRepositoryContract = (
         },
         wallLanguage: 'de',
         venuePhoto: venueDigest,
+        welcomeMessage: 'Bienvenue !',
       })
     })
 
