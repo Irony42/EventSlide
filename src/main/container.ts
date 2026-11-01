@@ -8,6 +8,7 @@ import { closeDatabase, openDatabase, type Db } from '../infrastructure/db/conne
 import { migrate } from '../infrastructure/db/migrator'
 import { migrations } from '../infrastructure/db/migrations'
 import { SqliteSessionStore } from '../infrastructure/db/sqliteSessionStore'
+import { SqliteEventStatsRepository } from '../infrastructure/db/sqliteEventStatsRepository'
 import { SqliteEventRepository } from '../infrastructure/db/sqliteEventRepository'
 import { SqlitePhotoRepository } from '../infrastructure/db/sqlitePhotoRepository'
 import { SqliteGuestRepository } from '../infrastructure/db/sqliteGuestRepository'
@@ -400,6 +401,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     clips: new SqliteClipJobRepository(db),
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
+    eventStats: new SqliteEventStatsRepository(db),
     missions: new SqliteMissionRepository(db),
     guestbook: new SqliteGuestbookRepository(db),
     users: new SqliteUserRepository(db),

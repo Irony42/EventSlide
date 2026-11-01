@@ -153,6 +153,7 @@ export const notWiredUseCases = (): HttpUseCases => ({
   withdrawReaction: notWired('withdrawReaction'),
   getPhotoReactions: notWired('getPhotoReactions'),
   getTopPhotos: notWired('getTopPhotos'),
+  getEventStats: notWired('getEventStats'),
 })
 
 export interface ServerHarness extends TestWorld {

@@ -664,6 +664,15 @@ people on the night.
 
 ## Upgrading to 3.5 (not released yet)
 
+### Event statistics
+
+- **One migration (018, `event_stats_counters`)**, applied at boot. It only adds a table, so a 3.4.x
+  build still reads the database; going back is the usual restore of the archive you took.
+- **Two counters are kept per event and per UTC day**: how many times the shared album's link was opened
+  and how many times its ZIP was launched. They hold **no address, no browser, no link or guest identifier**,
+  go with the event (purge and retention deadline), and appear only on the host's new statistics page.
+- **`GET /api/events/:slug/stats`** is new. A script that lists the routes sees one more.
+
 ### The guestbook (spec 01)
 
 - **One migration, `019_guestbook_entries`**, applied at boot: a new table, no existing row changes. It only goes

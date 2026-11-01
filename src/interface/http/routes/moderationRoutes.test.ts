@@ -195,6 +195,9 @@ const usecasesFor = (
     withdrawReaction: notWired,
     getPhotoReactions: notWired,
     getTopPhotos: makeGetTopPhotos({ events, photos, reactions }),
+    getEventStats: async () => {
+      throw new Error('getEventStats is not wired in this suite')
+    },
   }
 }
 
