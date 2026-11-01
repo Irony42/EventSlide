@@ -14,6 +14,7 @@ import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
 import { VenuePhotoField } from './components/VenuePhotoField'
+import { WelcomeMessageField } from './components/WelcomeMessageField'
 import { isMutable } from './eventLifecycle'
 import { toSettingsPatch } from './settingsPayload'
 import { toInstant, toLocalInput } from './eventSchedule'
@@ -465,6 +466,13 @@ export function EventSettingsPage() {
           groundUrl={event.settings.theme.groundUrl}
           disabled={readOnly}
           onChanged={replace}
+        />
+
+        {/* Personalisation (spec 03): the host's own words to their guests. Saved with the button below. */}
+        <WelcomeMessageField
+          value={settings.brand?.welcomeMessage ?? null}
+          disabled={readOnly}
+          onChange={(welcomeMessage) => update({ brand: { welcomeMessage } })}
         />
 
         {failure === null ? null : (

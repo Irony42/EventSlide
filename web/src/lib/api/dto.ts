@@ -438,6 +438,14 @@ export interface BulkModerationResponse {
   readonly skipped: readonly string[]
 }
 
+/**
+ * What `PATCH /settings` takes: the settings as read, plus the welcome message at the top level
+ * (the `brand` block of the read side is read-only and ignored by the server).
+ */
+export type EventSettingsPatch = Partial<EventSettingsDto> & {
+  readonly welcomeMessage?: string | null
+}
+
 export interface EventSettingsDto {
   readonly moderation: 'manual' | 'auto'
   readonly allowCaptions: boolean

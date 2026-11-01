@@ -10,7 +10,7 @@ import type {
   ErasedContributionDto,
   EventDto,
   EventLanguage,
-  EventSettingsDto,
+  EventSettingsPatch,
   EventStatus,
   EventSummaryDto,
   EventTemplateKey,
@@ -633,7 +633,7 @@ export const createApi = (transport: Transport) => ({
   getEvent: (slug: string, signal?: AbortSignal): Promise<EventDto> =>
     transport.get(`/api/events/${encode(slug)}`, undefined, signal),
 
-  updateSettings: (slug: string, settings: Partial<EventSettingsDto>): Promise<EventDto> =>
+  updateSettings: (slug: string, settings: EventSettingsPatch): Promise<EventDto> =>
     transport.patch(`/api/events/${encode(slug)}/settings`, settings),
 
   /**

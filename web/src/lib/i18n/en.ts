@@ -431,6 +431,10 @@ export const en: UiText = {
     'slug.tooLong': 'This address is too long.',
     'slug.malformed': 'The address accepts only unaccented letters, digits and hyphens.',
     'slug.reserved': 'This address is reserved. Choose another one.',
+    'eventSettings.welcomeInvalid': 'This message is not valid.',
+    'eventSettings.welcomeTooLong': 'This message is too long.',
+    'eventSettings.welcomeTooManyLines': 'This message has too many lines.',
+    'eventSettings.saveFailed': 'The settings could not be saved. Try again.',
     'eventSettings.graceSecondsInvalid': 'This deletion window is not accepted.',
     'eventSettings.retentionDaysInvalid': 'This retention period is not accepted.',
     'eventSettings.maxPhotosPerGuestInvalid': 'This number of photos per guest is not accepted.',
@@ -1056,6 +1060,12 @@ export const en: UiText = {
     venuePhotoBusy: 'Uploading the photo…',
     venuePhotoSaved: 'Your venue photo is saved.',
     venuePhotoRemoved: 'The default photo is back.',
+    welcomeMessage: 'Welcome message',
+    welcomeMessageHint:
+      'A few words shown to your guests when they join the party. Write in your guests’ language: this text is not translated. Anyone with the QR code can read it, so put nothing private in it.',
+    welcomeMessagePlaceholder: 'Welcome! Take photos, we will see them on the screen in the room.',
+    welcomeMessageClear: 'Clear the message',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Create my ambiance (Custom)',
     customAmbianceEdit: 'Edit my ambiance',
     customAmbianceEntryHint:

@@ -10,7 +10,7 @@ import type {
 } from '../../../lib/api/client'
 import type {
   EventDto,
-  EventSettingsDto,
+  EventSettingsPatch,
   EventStatus,
   MissionDto,
   ModeratorInviteResponse,
@@ -47,11 +47,11 @@ export const usePurgeEvent = (): ActionState<[string], void> => {
   return useAction(useCallback((slug: string) => api.purgeEvent(slug), [api]))
 }
 
-export const useSaveSettings = (): ActionState<[string, Partial<EventSettingsDto>], EventDto> => {
+export const useSaveSettings = (): ActionState<[string, EventSettingsPatch], EventDto> => {
   const api = useApi()
   return useAction(
     useCallback(
-      (slug: string, settings: Partial<EventSettingsDto>) => api.updateSettings(slug, settings),
+      (slug: string, settings: EventSettingsPatch) => api.updateSettings(slug, settings),
       [api],
     ),
   )
