@@ -3058,7 +3058,7 @@ describe('migration 017, the proof that an account accepted the terms', () => {
   })
 })
 
-describe('migration 018, the guestbook', () => {
+describe('migration 019, the guestbook', () => {
   const columnNames = (db: Db, table: string): string[] =>
     (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((row) => row.name)
 
@@ -3066,7 +3066,7 @@ describe('migration 018, the guestbook', () => {
     const db = freshDb()
     migrate(
       db,
-      migrations.filter((migration) => migration.id < 18),
+      migrations.filter((migration) => migration.id < 19),
     )
     db.prepare(
       `INSERT INTO users (id, email, password_hash, created_at)

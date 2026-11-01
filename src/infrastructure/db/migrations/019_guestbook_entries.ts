@@ -34,8 +34,8 @@ import type { Migration } from '../migrator'
  *   none.
  * - `(event_id) WHERE taken_down_at IS NOT NULL`: what an operator lists is the exception.
  */
-export const migration018: Migration = {
-  id: 18,
+export const migration019: Migration = {
+  id: 19,
   name: 'guestbook_entries',
   sql: `
       CREATE TABLE IF NOT EXISTS guestbook_entries (
