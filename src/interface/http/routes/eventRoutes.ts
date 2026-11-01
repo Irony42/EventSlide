@@ -18,17 +18,19 @@ import {
 import {
   toEventDto,
   toEventSummaryDto,
+  toEventStatsDto,
   toGuestDto,
   toModeratorDto,
   toInvitationIssuedDto,
 } from '../presenters/presenters'
-import type { GuestListResponseDto } from '../presenters/dto'
+import type { EventStatsResponseDto, GuestListResponseDto } from '../presenters/dto'
 import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   createEventBody,
   eventScheduleBody,
   eventSlugParams,
   eventStatusBody,
+  eventStatsQuery,
   guestListQuery,
   guestParams,
   moderatorInvitationBody,
@@ -441,6 +443,28 @@ export const eventRoutes = ({
           activeCount,
         }),
       )
+    }),
+  )
+
+  // ----------------------------------------------------------------- statistics --
+
+  router.get(
+    '/events/:eventSlug/stats',
+    requireRole('moderator', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+      eventStatsQuery.parse(req.query)
+
+      const result = await usecases.getEventStats({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+      })
+
+      // no-store: first names and live figures, read again a minute later.
+      return sendResult(res, result, (response, stats) => {
+        response.setHeader('Cache-Control', 'no-store')
+        sendJson<EventStatsResponseDto>(response, toEventStatsDto(stats))
+      })
     }),
   )
 
