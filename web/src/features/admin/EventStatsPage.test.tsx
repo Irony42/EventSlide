@@ -113,6 +113,30 @@ describe('EventStatsPage', () => {
     expect(screen.getByText(`${'x'.repeat(40)}…`)).toBeVisible()
   })
 
+  it('says the after-party figures are not measured while there is nothing to show', async () => {
+    renderPage(fakeApi({ getEventStats: vi.fn(async () => busy({ engagement: null })) }))
+
+    expect(await screen.findByText(fr.admin.stats.engagementNone)).toBeVisible()
+    expect(document.body.textContent).not.toMatch(/NaN|undefined/)
+  })
+
+  it('shows the opens and the ZIPs with the day measuring began, and how to read them', async () => {
+    renderPage(
+      fakeApi({
+        getEventStats: vi.fn(async () =>
+          busy({
+            engagement: { since: '2026-11-14', galleryViews: 57, galleryArchiveDownloads: 12 },
+          }),
+        ),
+      }),
+    )
+
+    expect(await screen.findByText(fr.admin.stats.albumOpens(57))).toBeVisible()
+    expect(screen.getByText(fr.admin.stats.zipLaunches(12))).toBeVisible()
+    expect(screen.getByText(/Mesuré depuis le 14 novembre/)).toBeVisible()
+    expect(screen.getByText(fr.admin.stats.engagementNote)).toBeVisible()
+  })
+
   it('names the anonymous guests as one line', async () => {
     renderPage(
       fakeApi({

@@ -346,8 +346,9 @@ a family home — does not exist, because the stored `original` is ingest's re-e
 every metadata block dropped. The end-to-end journey downloads through a real browser and
 reads the bytes to hold that, rather than trusting it.
 
-Deliberately not built: per-guest links, several links per event, download counts or any
-tracking of who opened what (the product keeps no telemetry, [SECURITY.md](SECURITY.md) §9), author names on the tiles — a first
+Counted since 3.5 (decision of 1 November 2026): how many times the link was opened and how many ZIPs were launched, as **one integer per event and UTC day**, shown to the host on the statistics page and never tied to an address, an agent, a link or a person. That is a count, not a record of who opened what, and it leaves the box nowhere (the product keeps no telemetry, [SECURITY.md](SECURITY.md) §9).
+
+Deliberately not built: per-guest links, several links per event, tracking of who opened what or of which photograph was downloaded, author names on the tiles — a first
 name was shown in the room, and a forwarded link is a wider audience — and a clip player in
 the viewer: the gallery is for keeping the evening, and a clip downloads as its transcode.
 The guest's own photographs are §4.2, which this does not replace.

@@ -932,6 +932,21 @@ export const fr = {
         `${t.count(photos, { one: `${t.number(photos)} envoi publié`, other: `${t.number(photos)} envois publiés` })} · ${t.count(reactions, { one: `${t.number(reactions)} réaction reçue`, other: `${t.number(reactions)} réactions reçues` })}`,
       anonymous: (guests: number, photos: number) =>
         `Les invités sans prénom sont regroupés : ${t.count(guests, { one: `${t.number(guests)} invité`, other: `${t.number(guests)} invités` })}, ${t.count(photos, { one: `${t.number(photos)} envoi`, other: `${t.number(photos)} envois` })}.`,
+      engagementTitle: 'Après la soirée',
+      engagementNone: 'Pas encore mesuré : aucune ouverture du lien d’album ni aucun ZIP lancé.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ouverture du lien d’album`,
+          other: `${t.number(count)} ouvertures du lien d’album`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP lancé`,
+          other: `${t.number(count)} ZIP lancés`,
+        }),
+      measuredSince: (date: string) => `Mesuré depuis le ${date}. Avant, rien n’était compté.`,
+      engagementNote:
+        'Une ouverture est un chargement de la page d’album, pas une personne. Un ZIP lancé n’est pas forcément terminé. Ces chiffres sont indicatifs.',
       retention:
         'Ces chiffres disparaissent avec l’évènement, à sa suppression ou à l’échéance de conservation.',
     },

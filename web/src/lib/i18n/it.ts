@@ -844,6 +844,21 @@ export const it: UiText = {
         `${t.count(photos, { one: `${t.number(photos)} invio pubblicato`, other: `${t.number(photos)} invii pubblicati` })} · ${t.count(reactions, { one: `${t.number(reactions)} reazione ricevuta`, other: `${t.number(reactions)} reazioni ricevute` })}`,
       anonymous: (guests: number, photos: number) =>
         `Gli invitati senza nome sono raggruppati: ${t.count(guests, { one: `${t.number(guests)} invitato`, other: `${t.number(guests)} invitati` })}, ${t.count(photos, { one: `${t.number(photos)} invio`, other: `${t.number(photos)} invii` })}.`,
+      engagementTitle: 'Dopo la serata',
+      engagementNone: 'Non ancora misurato: nessun link dell’album aperto e nessuno ZIP avviato.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} apertura del link dell’album`,
+          other: `${t.number(count)} aperture del link dell’album`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP avviato`,
+          other: `${t.number(count)} ZIP avviati`,
+        }),
+      measuredSince: (date: string) => `Misurato dal ${date}. Prima non veniva contato nulla.`,
+      engagementNote:
+        'Un’apertura è il caricamento della pagina dell’album, non una persona. Uno ZIP avviato non è necessariamente completato. Questi numeri sono indicativi.',
       retention:
         'Questi numeri scompaiono con l’evento, alla sua eliminazione o alla scadenza del periodo di conservazione.',
     },

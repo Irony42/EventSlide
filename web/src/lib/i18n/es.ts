@@ -853,6 +853,21 @@ export const es: UiText = {
         `${t.count(photos, { one: `${t.number(photos)} envío publicado`, other: `${t.number(photos)} envíos publicados` })} · ${t.count(reactions, { one: `${t.number(reactions)} reacción recibida`, other: `${t.number(reactions)} reacciones recibidas` })}`,
       anonymous: (guests: number, photos: number) =>
         `Los invitados sin nombre se agrupan: ${t.count(guests, { one: `${t.number(guests)} invitado`, other: `${t.number(guests)} invitados` })}, ${t.count(photos, { one: `${t.number(photos)} envío`, other: `${t.number(photos)} envíos` })}.`,
+      engagementTitle: 'Después de la fiesta',
+      engagementNone: 'Todavía sin medir: ningún enlace del álbum abierto ni ZIP iniciado.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} apertura del enlace del álbum`,
+          other: `${t.number(count)} aperturas del enlace del álbum`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP iniciado`,
+          other: `${t.number(count)} ZIP iniciados`,
+        }),
+      measuredSince: (date: string) => `Medido desde el ${date}. Antes no se contaba nada.`,
+      engagementNote:
+        'Una apertura es la carga de la página del álbum, no una persona. Un ZIP iniciado no está necesariamente terminado. Estas cifras son orientativas.',
       retention:
         'Estas cifras desaparecen con el evento, al borrarlo o al terminar el plazo de conservación.',
     },

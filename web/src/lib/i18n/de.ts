@@ -863,6 +863,21 @@ export const de: UiText = {
         `${t.count(photos, { one: `${t.number(photos)} veröffentlichter Upload`, other: `${t.number(photos)} veröffentlichte Uploads` })} · ${t.count(reactions, { one: `${t.number(reactions)} erhaltene Reaktion`, other: `${t.number(reactions)} erhaltene Reaktionen` })}`,
       anonymous: (guests: number, photos: number) =>
         `Gäste ohne Vornamen werden zusammengefasst: ${t.count(guests, { one: `${t.number(guests)} Gast`, other: `${t.number(guests)} Gäste` })}, ${t.count(photos, { one: `${t.number(photos)} Upload`, other: `${t.number(photos)} Uploads` })}.`,
+      engagementTitle: 'Nach der Feier',
+      engagementNone: 'Noch nicht gemessen: kein Albumlink geöffnet und kein ZIP gestartet.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} Öffnung des Albumlinks`,
+          other: `${t.number(count)} Öffnungen des Albumlinks`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP gestartet`,
+          other: `${t.number(count)} ZIPs gestartet`,
+        }),
+      measuredSince: (date: string) => `Gemessen seit ${date}. Davor wurde nichts gezählt.`,
+      engagementNote:
+        'Eine Öffnung ist das Laden der Albumseite, keine Person. Ein gestartetes ZIP ist nicht zwingend abgeschlossen. Diese Zahlen sind Richtwerte.',
       retention:
         'Diese Zahlen verschwinden mit der Veranstaltung, bei ihrer Löschung oder zum Ende der Aufbewahrungsfrist.',
     },

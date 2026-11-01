@@ -661,3 +661,14 @@ people on the night.
 **How to tell it worked.** The first boot logs no migration and `GET /api/health` answers
 `"version": "3.4.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.5 (not released yet)
+
+### Event statistics
+
+- **One migration (018, `event_stats_counters`)**, applied at boot. It only adds a table, so a 3.4.x
+  build still reads the database; going back is the usual restore of the archive you took.
+- **Two counters are kept per event and per UTC day**: how many times the shared album's link was opened
+  and how many times its ZIP was launched. They hold **no address, no browser, no link or guest identifier**,
+  go with the event (purge and retention deadline), and appear only on the host's new statistics page.
+- **`GET /api/events/:slug/stats`** is new. A script that lists the routes sees one more.
