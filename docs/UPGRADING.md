@@ -661,3 +661,20 @@ people on the night.
 **How to tell it worked.** The first boot logs no migration and `GET /api/health` answers
 `"version": "3.4.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.5 (not released yet)
+
+### The guestbook (spec 01)
+
+- **One migration, `018_guestbook_entries`**, applied at boot: a new table, no existing row changes. It only goes
+  forward, so take the usual backup first ([above](#upgrading-with-docker)); going back is the restore of that
+  archive.
+- **Two new event settings, `allowGuestbook` and `guestbookOnWall`.** An event created before this version reads
+  the first as **off** and the second as **on**: an upgrade opens no free-text channel onto a room whose host was
+  never asked. Nothing changes for an existing event until its host switches the guestbook on.
+- **Additions to existing responses** (all optional for a client, none removed): `allowGuestbook` and
+  `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
+  settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`. A new `guestbook.changed` signal
+  appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
+- **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
+  are fixed.
