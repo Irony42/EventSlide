@@ -819,6 +819,74 @@ export const de: UiText = {
       t.count(count, { one: `${t.number(count)} Foto`, other: `${t.number(count)} Fotos` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} Gast`, other: `${t.number(count)} Gäste` }),
+    stats: {
+      title: 'Statistik der Veranstaltung',
+      tile: 'Statistik',
+      loading: 'Statistik wird geladen…',
+      empty:
+        'Noch nichts zu zählen. Die Zahlen erscheinen, sobald Gäste der Veranstaltung beitreten.',
+      emptyAction: 'QR-Code anzeigen',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} Upload erhalten`,
+          other: `${t.number(count)} Uploads erhalten`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, { one: `${t.number(count)} Gast`, other: `${t.number(count)} Gäste` }),
+      figureHere: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} gerade da`,
+          other: `${t.number(count)} gerade da`,
+        }),
+      figurePending: (count: number) =>
+        t.count(count, { one: `${t.number(count)} wartend`, other: `${t.number(count)} wartend` }),
+      timelineTitle: 'Uploads im Zeitverlauf',
+      timelineCaption: 'Uploads pro Stunde',
+      hourColumn: 'Stunde',
+      uploadsColumn: 'Uploads',
+      timelineEmpty: 'Noch keine Uploads.',
+      peak: (hour: string, count: number) =>
+        `Spitze: ${hour}, ${t.count(count, { one: `${t.number(count)} Upload`, other: `${t.number(count)} Uploads` })}`,
+      statusTitle: 'Uploads nach Status',
+      statusPublished: 'Veröffentlicht',
+      statusPending: 'Wartend',
+      statusRejected: 'Abgelehnt',
+      statusHidden: 'Ausgeblendet',
+      publishedShare: 'Anteil veröffentlichter Uploads',
+      guestsTitle: 'Gäste',
+      guestsJoined: 'Beigetreten',
+      guestsContributors: 'Mindestens eine Datei gesendet',
+      guestsRevoked: 'Von Ihnen entfernt',
+      reactionsTitle: 'Reaktionen',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} Reaktion`,
+          other: `${t.number(count)} Reaktionen`,
+        }),
+      topTitle: 'Wer am meisten geteilt hat',
+      topEmpty: 'Noch hat niemand einen Upload veröffentlicht.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} veröffentlichter Upload`, other: `${t.number(photos)} veröffentlichte Uploads` })} · ${t.count(reactions, { one: `${t.number(reactions)} erhaltene Reaktion`, other: `${t.number(reactions)} erhaltene Reaktionen` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Gäste ohne Vornamen werden zusammengefasst: ${t.count(guests, { one: `${t.number(guests)} Gast`, other: `${t.number(guests)} Gäste` })}, ${t.count(photos, { one: `${t.number(photos)} Upload`, other: `${t.number(photos)} Uploads` })}.`,
+      engagementTitle: 'Nach der Feier',
+      engagementNone: 'Noch nicht gemessen: kein Albumlink geöffnet und kein ZIP gestartet.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} Öffnung des Albumlinks`,
+          other: `${t.number(count)} Öffnungen des Albumlinks`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP gestartet`,
+          other: `${t.number(count)} ZIPs gestartet`,
+        }),
+      measuredSince: (date: string) => `Gemessen seit ${date}. Davor wurde nichts gezählt.`,
+      engagementNote:
+        'Eine Öffnung ist das Laden der Albumseite, keine Person. Ein gestartetes ZIP ist nicht zwingend abgeschlossen. Diese Zahlen sind Richtwerte.',
+      retention:
+        'Diese Zahlen verschwinden mit der Veranstaltung, bei ihrer Löschung oder zum Ende der Aufbewahrungsfrist.',
+    },
     storageUsed: (used: string, total: string) => `${used} von ${total}`,
     settings: 'Einstellungen',
     moderationMode: 'Moderation',
@@ -1811,6 +1879,7 @@ export const de: UiText = {
     event: 'Veranstaltung',
     moderation: 'Moderation',
     mobileModeration: 'Moderation am Telefon',
+    stats: 'Statistik der Veranstaltung',
     settings: 'Einstellungen der Veranstaltung',
     customAmbiance: 'Eigene Stimmung',
     clientSpace: 'Kundenbereich',

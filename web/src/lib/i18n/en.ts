@@ -769,6 +769,73 @@ export const en: UiText = {
       t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} guest`, other: `${t.number(count)} guests` }),
+    stats: {
+      title: 'Statistics for the event',
+      tile: 'Statistics',
+      loading: 'Loading the statistics…',
+      empty: 'Nothing to count yet. The figures appear as soon as guests join the event.',
+      emptyAction: 'Show the QR code',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} upload received`,
+          other: `${t.number(count)} uploads received`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, { one: `${t.number(count)} guest`, other: `${t.number(count)} guests` }),
+      figureHere: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} here now`,
+          other: `${t.number(count)} here now`,
+        }),
+      figurePending: (count: number) =>
+        t.count(count, { one: `${t.number(count)} waiting`, other: `${t.number(count)} waiting` }),
+      timelineTitle: 'Uploads over time',
+      timelineCaption: 'Uploads per hour',
+      hourColumn: 'Hour',
+      uploadsColumn: 'Uploads',
+      timelineEmpty: 'No uploads yet.',
+      peak: (hour: string, count: number) =>
+        `Peak: ${hour}, ${t.count(count, { one: `${t.number(count)} upload`, other: `${t.number(count)} uploads` })}`,
+      statusTitle: 'Uploads by status',
+      statusPublished: 'Published',
+      statusPending: 'Waiting',
+      statusRejected: 'Rejected',
+      statusHidden: 'Hidden',
+      publishedShare: 'Share of uploads published',
+      guestsTitle: 'Guests',
+      guestsJoined: 'Joined',
+      guestsContributors: 'Sent at least one file',
+      guestsRevoked: 'Removed by you',
+      reactionsTitle: 'Reactions',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} reaction`,
+          other: `${t.number(count)} reactions`,
+        }),
+      topTitle: 'Who shared the most',
+      topEmpty: 'Nobody has published an upload yet.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} published upload`, other: `${t.number(photos)} published uploads` })} · ${t.count(reactions, { one: `${t.number(reactions)} reaction received`, other: `${t.number(reactions)} reactions received` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Guests without a first name are grouped: ${t.count(guests, { one: `${t.number(guests)} guest`, other: `${t.number(guests)} guests` })}, ${t.count(photos, { one: `${t.number(photos)} upload`, other: `${t.number(photos)} uploads` })}.`,
+      engagementTitle: 'After the party',
+      engagementNone: 'Not measured yet: no album link opened and no ZIP launched.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} album link opening`,
+          other: `${t.number(count)} album link openings`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP launched`,
+          other: `${t.number(count)} ZIPs launched`,
+        }),
+      measuredSince: (date: string) => `Measured since ${date}. Nothing was counted before.`,
+      engagementNote:
+        'An opening is a load of the album page, not a person. A launched ZIP is not necessarily finished. These figures are indicative.',
+      retention:
+        'These figures disappear with the event, when it is deleted or when its retention period ends.',
+    },
     storageUsed: (used: string, total: string) => `${used} of ${total}`,
     settings: 'Settings',
     moderationMode: 'Moderation',
@@ -1741,6 +1808,7 @@ export const en: UiText = {
     event: 'Event',
     moderation: 'Moderation',
     mobileModeration: 'Moderation on a phone',
+    stats: 'Statistics for the event',
     settings: 'Event settings',
     customAmbiance: 'Custom ambiance',
     clientSpace: 'Client space',
