@@ -1,4 +1,4 @@
-import type { GuestbookEntry } from '../../domain/guestbook/guestbookEntry'
+import type { EntryStatus, GuestbookEntry } from '../../domain/guestbook/guestbookEntry'
 import type { GuestbookRefusal } from '../../domain/guestbook/guestbookLimits'
 import type { EventId, GuestId, GuestbookEntryId } from '../../domain/shared/ids'
 
@@ -46,6 +46,17 @@ export interface GuestbookRepository {
    * is taken down, is left alone and not created.
    */
   save(entry: GuestbookEntry): Promise<void>
+
+  /**
+   * An event's messages in the given statuses, **oldest first**, at most `limit`. For the album
+   * export (`isInAlbum` statuses) and, later, the host's queue and the wall. A taken-down
+   * message is never in it.
+   */
+  listByStatuses(
+    eventId: EventId,
+    statuses: readonly EntryStatus[],
+    limit: number,
+  ): Promise<readonly GuestbookEntry[]>
 
   /** The guest's own messages, newest first, at most `limit`. */
   listByGuest(
