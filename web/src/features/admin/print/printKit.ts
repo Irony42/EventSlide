@@ -31,6 +31,23 @@ export const PRINT_FORMAT_SPECS: Readonly<Record<PrintFormat, PrintFormatSpec>> 
   card: { perSheet: 4, qrMm: 40 },
 }
 
+export type PrintInk = 'black' | 'event'
+
+export const PRINT_INKS: readonly PrintInk[] = ['black', 'event']
+export const DEFAULT_PRINT_INK: PrintInk = 'black'
+
+/**
+ * The QR ink of "the event's colour": the event's hue at a lightness and chroma fixed here, so the
+ * ink is dark by construction and a hue can never make it pale. A second copy of
+ * `--print-ink-accent` in `tokens.css`, which is what paper actually gets:
+ * `printKit.contract.test.ts` fails when the two differ.
+ */
+export const INK_LIGHTNESS = 0.3
+export const INK_CHROMA = 0.1
+
+/** The least ink/paper contrast (WCAG ratio), against white paper, a pale printer's margin included. */
+export const MIN_INK_CONTRAST = 7
+
 /** Modules of white paper round the code, drawn by the SVG's own margin and never by a fill. */
 export const QUIET_ZONE_MODULES = 4
 

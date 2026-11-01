@@ -1,5 +1,5 @@
 import { SUPPORTED_LOCALES, type Locale } from '../../../lib/i18n/locale'
-import { PRINT_FORMATS, type PrintFormat } from './printKit'
+import { PRINT_FORMATS, PRINT_INKS, type PrintFormat, type PrintInk } from './printKit'
 
 /**
  * What the host last chose on this device, per event.
@@ -11,12 +11,15 @@ import { PRINT_FORMATS, type PrintFormat } from './printKit'
 export interface PrintPreferences {
   readonly format?: PrintFormat
   readonly language?: Locale
+  readonly ink?: PrintInk
 }
 
 const keyFor = (slug: string): string => `eventslide.print.${slug}`
 
 const isFormat = (value: unknown): value is PrintFormat =>
   PRINT_FORMATS.some((format) => format === value)
+
+const isInk = (value: unknown): value is PrintInk => PRINT_INKS.some((ink) => ink === value)
 
 const isLocale = (value: unknown): value is Locale =>
   SUPPORTED_LOCALES.some((locale) => locale === value)
@@ -27,10 +30,11 @@ export const readPrintPreferences = (slug: string): PrintPreferences => {
     if (raw === null) return {}
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return {}
-    const { format, language } = parsed as Record<string, unknown>
+    const { format, language, ink } = parsed as Record<string, unknown>
     return {
       ...(isFormat(format) ? { format } : {}),
       ...(isLocale(language) ? { language } : {}),
+      ...(isInk(ink) ? { ink } : {}),
     }
   } catch {
     return {}

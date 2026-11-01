@@ -1071,6 +1071,9 @@ export const fr = {
     printKitIntro:
       'Imprimez de quoi poser sur les tables : le QR code, le code de secours et trois lignes d’explication.',
     printKitFormat: 'Format',
+    printKitInk: 'Couleur du QR',
+    printInkBlack: 'Noir (le plus sûr)',
+    printInkEvent: 'Couleur de l’évènement',
     printFormatA4: 'Affiche A4 (1 par feuille)',
     printFormatA5: 'Affiche A5 (2 par feuille)',
     printFormatCard: 'Cartes de table A6 (4 par feuille)',
