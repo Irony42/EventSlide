@@ -37,6 +37,7 @@ const READABLE_TABLES = new Set([
   'events',
   'photos',
   'clip_jobs',
+  'highlight_reels',
   'users',
 ])
 

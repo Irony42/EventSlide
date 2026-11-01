@@ -1,3 +1,4 @@
+import type { MediaKind } from '../photos/mediaKind'
 import type { PhotoStatus } from '../photos/photoStatus'
 
 /**
@@ -16,3 +17,11 @@ export const DEFAULT_PRESELECT_LIMIT = 20
 
 /** The most the host may ask to pre-select at once. */
 export const MAX_PRESELECT_LIMIT = 120
+
+/**
+ * Whether a photograph may appear in the montage: published, and a photograph. A clip can be
+ * starred and is in the ZIP (a file), but the video is made of stills in v1. The ZIP and the
+ * video share the first condition (isHighlightable), and a taken-down row is never read.
+ */
+export const isReelEligible = (status: PhotoStatus, kind: MediaKind): boolean =>
+  isHighlightable(status) && kind === 'photo'

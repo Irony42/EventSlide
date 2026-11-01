@@ -229,6 +229,7 @@ describe('the real schema', () => {
       'events',
       'guestbook_entries',
       'guests',
+      'highlight_reels',
       'photos',
       'reactions',
       'schema_migrations',

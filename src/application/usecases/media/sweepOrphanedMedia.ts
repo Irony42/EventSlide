@@ -7,6 +7,7 @@ import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { MediaStore, StoredObject } from '../../ports/mediaStore'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import type { ReelRepository } from '../../ports/reelRepository'
 
 /**
  * The media reconciliation sweep: delete stored objects that nothing names any more.
@@ -83,6 +84,8 @@ export interface SweepOrphanedMediaDeps {
   readonly events: EventRepository
   readonly photos: PhotoRepository
   readonly clips: ClipJobRepository
+  /** The highlight reel's file is named by its row and by nothing else (spec 08). */
+  readonly reels: Pick<ReelRepository, 'listReferencedDigests'>
   readonly media: MediaStore
   readonly clock: Clock
   readonly logger: Logger
@@ -113,6 +116,7 @@ export const makeSweepOrphanedMedia = ({
   events,
   photos,
   clips,
+  reels,
   media,
   clock,
   logger,
@@ -137,6 +141,9 @@ export const makeSweepOrphanedMedia = ({
     // Only jobs that are still holding their bytes: a `done` job gave its source back
     // when the transcode finished, and a `failed` one is not coming back for it.
     for (const job of await clips.listStagedSources(eventId)) named.add(job)
+    // The reel's MP4 is named by its row, not by a photograph: without this the sweep would
+    // collect a finished montage an hour after it was made.
+    for (const digest of await reels.listReferencedDigests(eventId)) named.add(digest)
     // The host's venue photograph is named by the event's settings and by no row of either
     // kind (ADR 0010), so without this the sweep would collect it an hour after it was set.
     const venue = (await events.findById(eventId))?.settings.venuePhoto ?? null
@@ -173,6 +180,8 @@ export const makeSweepOrphanedMedia = ({
     // And the settings, asked again for the same reason: a host replacing their photograph
     // between the snapshot and the unlink has just made this digest the one in use.
     if ((await events.findById(eventId))?.settings.venuePhoto?.equals(hash) === true) return false
+
+    if ((await reels.listReferencedDigests(eventId)).has(hash.value)) return false
 
     // **The disk is asked last, so that it is asked with nothing after it.** Each of
     // these is an `await`, and a re-upload landing between the stat and the unlink is

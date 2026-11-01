@@ -12,6 +12,8 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { isHighlightable } from '../../../domain/highlights/highlightEligibility'
+import type { InvalidateReel } from '../highlights/invalidateReel'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
@@ -37,6 +39,8 @@ export interface ModeratePhotosBulkDeps {
   readonly memberships: MembershipRepository
   readonly bus: EventBus
   readonly clock: Clock
+  /** Retires the highlight reel when photographs leave the wall, once for the batch (spec 08). */
+  readonly invalidateReel?: InvalidateReel
 }
 
 export interface BulkModerationOutcome {
@@ -64,7 +68,14 @@ const toQueueItem = (photo: Photo): QueueItem => ({
 })
 
 export const makeModeratePhotosBulk =
-  ({ events, photos, memberships, bus, clock }: ModeratePhotosBulkDeps): ModeratePhotosBulk =>
+  ({
+    events,
+    photos,
+    memberships,
+    bus,
+    clock,
+    invalidateReel,
+  }: ModeratePhotosBulkDeps): ModeratePhotosBulk =>
   async ({ eventId, photoIds, decision, actor }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -95,6 +106,8 @@ export const makeModeratePhotosBulk =
 
     // One statement, one transaction. 1.0 fired an update per row through `Promise.all`
     // and a failure part-way left the selection half decided.
+    if (!isHighlightable(status)) await invalidateReel?.(eventId, partition.applicable)
+
     const changed = await photos.updateStatuses(eventId, partition.applicable, status, review)
 
     // Exactly what moved. A frame for a photo that was already in the target status

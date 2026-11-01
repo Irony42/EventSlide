@@ -38,6 +38,7 @@ describe('mediaObjectPath', () => {
       poster: 'image/jpeg',
       source: 'application/octet-stream',
       ground: 'image/webp',
+      reel: 'video/mp4',
     })
   })
 
