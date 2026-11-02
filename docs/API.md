@@ -307,6 +307,7 @@ query does not have is `400 request.invalid`.
         "maxEventQuotaBytes": null,
         "maxRetentionDays": null,
         "clipsAllowed": true,
+        "booksAllowed": true,
         "liveAllowed": true,
         "maxLiveDays": null,
         "maxEventsPerPeriod": null,
@@ -616,15 +617,17 @@ box, and `403 auth.secondFactorRequired` where a second factor is required and n
     "maxEventQuotaBytes": 5000000000,
     "maxRetentionDays": 30,
     "maxLiveDays": 3,
-    "clipsAllowed": true
+    "clipsAllowed": true,
+    "booksAllowed": true
   }
 }
 ```
 
 A number is a ceiling and `null` is none; `clipsAllowed` is `true` unless `NEW_CLIENT_CLIPS_ALLOWED`
-says otherwise. A box that set no `NEW_CLIENT_*` answers `null` for the six numbers and `"clipsAllowed": true`,
-which is what every client of such a box has. These are seven of
-a client's nine ceilings: `liveAllowed` has no default (a new client may open), and the period's
+says otherwise, and `booksAllowed` (the photo book) unless `NEW_CLIENT_BOOKS_ALLOWED` does. A box that set
+no `NEW_CLIENT_*` answers `null` for the six numbers and `true` for both switches,
+which is what every client of such a box has. These are eight of
+a client's ten ceilings: `liveAllowed` has no default (a new client may open), and the period's
 start is the day the client is provisioned.
 
 ### CSRF
@@ -677,6 +680,7 @@ other limiters' bodies carry the header only.
 | `POST /api/events/:slug/photos/:id/reactions` (flood ceiling) §    | 600           | client IP **and** event    | `reaction.rateLimited`             |
 | the same reaction §                                                | 30            | **guest** and event        | `reaction.rateLimited`             |
 | the five other guest writes ‡                                      | 300           | client IP **and** event    | `rate.limited`                     |
+| `POST …/guestbook` and `DELETE …/guestbook/:id` ¶                  | 6             | **guest** and event, fixed | `rate.limited`                     |
 | `GET /api/gallery/:token`, `…/photos`, unlock                      | 120           | client IP                  | `rate.limited`                     |
 | `GET /api/gallery-media/…`                                         | 3000          | client IP                  | `rate.limited`                     |
 | `POST /api/gallery/:token/unlock`                                  | 10 / 50       | IP / link, per 15 min      | `gallery.tooManyAttempts`          |
@@ -688,6 +692,8 @@ the guest's own budget (`UPLOAD_RATE_LIMIT_PER_MINUTE`, `REACTION_RATE_LIMIT_PER
 guest the token proves and checked right after it, before the body of an upload is read: two guests
 on one Wi-Fi each have their own. Both answer the same code with the same `Retry-After`. Through 3.1
 the two variables counted per client address and event.
+
+¶ **Guestbook, two stages** (spec 01). Both routes first spend the guest-write bucket of ‡ (client address and event, before the token is verified), then a second budget of **6 a minute per guest** that writing and taking back share. That number is a constant in the code, not a setting: the ceiling of three messages per guest does not bound the abuse by itself, because writing then removing in a loop never holds more than three rows yet announces a `guestbook.changed` each turn, and every open wall re-reads on it.
 
 ‡ **One bucket, six routes**: `PATCH …/photos/:id/caption`, `DELETE …/photos/:id` (a guest taking
 their photo back), `DELETE …/photos/:id/reactions/:kind`, `PATCH …/guests/:guestId` (a guest renaming themself), `DELETE …/guests/me` (a guest erasing what they sent) and
@@ -993,6 +999,8 @@ which is allowed.
     "maxUploadBytes": 25000000,
     "maxFilesPerUpload": 20,
     "allowClips": true,
+    "allowGuestbook": false,
+    "guestbookMaxLength": 500,
     "maxClipBytes": 80000000,
     "maxClipSeconds": 15,
     "theme": {
@@ -1611,6 +1619,102 @@ Empty for the overwhelming majority of events, which set no prompts.
 **Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`;
 `404 event.notFound` (which includes a token for another event).
 
+### `POST /api/events/:slug/guestbook`
+
+A guest leaves a written message (spec 01): plain text, at most **500 characters** (counted in code points,
+so an emoji is one) and **eight line breaks**. It follows the event's moderation, like a photograph: `pending`
+until a moderator publishes it on a moderated event, `published` on arrival with an `automatic` review on an
+`auto` one. The author is the `es_guest` token and never the request; nothing is read from the body but the text.
+
+```json
+{ "text": "Merci pour cette belle soirée !" }
+```
+
+**201** (also for a duplicate)
+
+```json
+{
+  "id": "…",
+  "text": "Merci pour cette belle soirée !",
+  "status": "pending",
+  "createdAt": "2026-06-20T21:00:00.000Z",
+  "duplicate": false
+}
+```
+
+`duplicate: true` answers a message identical to one the same guest wrote **less than a minute ago**: it is that
+message again (a double tap, a retry on bad Wi-Fi), nothing is stored and no signal is sent. The same words later
+are a new message. The check comes before the ceilings, so a guest at their limit who double-taps is told "sent".
+
+The text is cleaned first: normalised to NFC, line breaks folded to `\n`, invisible and control characters
+removed, runs of spaces folded, at most one blank line in a row, the ends trimmed. It is never HTML, Markdown or a
+link: a URL stays text, and it is rendered as a text node only.
+
+**When a guest may write**: the host switched `allowGuestbook` on, and the event is `live`, or `closed` for
+**seven days after it closed** (a guestbook is what people write the next morning; a reopening clears the closing
+instant, a new closing starts a new window). A draft and an archived event do not take messages.
+
+Ceilings, decided inside one write transaction: **3 messages per guest**, counting every row they wrote, refused
+and operator-removed ones included, so being refused frees nothing; and **500 messages per event**, counting the
+ones the host can still act on (`pending`, `published`, `hidden`) and **not** refused ones, so nobody can fill
+the book with text that is then turned down. No byte quota applies and no `NEW_CLIENT_*` setting exists.
+
+**Errors** — `400 request.invalid` (a key other than `text`), `400 guestbook.empty`, `400 guestbook.invalid`,
+`400 guestbook.tooLong` (`details.max` 500), `400 guestbook.tooManyLines` (`details.max` 8);
+`409 guestbook.disabled`; `409 event.notAcceptingUploads` (`details.status`); `409 guestbook.limitReached`
+(`details.max` 3); `409 guestbook.eventFull` (`details.max` 500); `401 auth.required` / `401 guestToken.*`;
+`403 guest.revoked`; `404 event.notFound` (a token for another event, a suspended client, an event the operator
+took down); `429 rate.limited` with a `Retry-After` (both stages of §1).
+
+### `GET /api/events/:slug/guestbook/mine`
+
+The guest's own messages, newest first, at most three, every status but what the operator took down.
+`Cache-Control: no-store`. `mine`, like `photos/mine`: whose list it is comes from the token.
+
+**200**
+
+```json
+{
+  "items": [
+    {
+      "id": "…",
+      "text": "Merci pour cette belle soirée !",
+      "status": "pending",
+      "createdAt": "2026-06-20T21:00:00.000Z",
+      "canDelete": true
+    }
+  ],
+  "accepting": true,
+  "onWall": true
+}
+```
+
+`canDelete` is the server's verdict (`GuestbookEntry.deletionVerdict`) and the phone never recomputes it: it is
+the photograph's rule, not one of its own — the host's `allowGuestSelfDelete` switch, then the author, inside
+`guestSelfDeleteGraceSeconds`, while the message is `pending` or `rejected`. `accepting` is the rule the
+write route applies (`allowGuestbook`, the event's state, the seven-day window), so the card can disappear
+instead of offering a form the server will refuse. `onWall` is `guestbookOnWall`: when false the author is
+told a published message is "published, not shown on the screen".
+
+**Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`; `404 event.notFound`.
+
+### `DELETE /api/events/:slug/guestbook/:entryId`
+
+A guest takes one of their own messages back. The rule is the photograph's (see `canDelete` above); a guest who
+wants a **published** message gone uses `DELETE /guests/me`, which this rule does not gate. Writing and taking
+back share one per-guest budget (§1).
+
+**204**. **Errors** — `404 guestbook.notFound` (also for another guest's message, another event's, an unknown id
+and a message the operator took down: a guest learns nothing about a message that is not theirs);
+`403 event.guestSelfDeleteDisabled` (the host switched self-delete off); `403 guestbook.deleteForbidden`;
+`500 guestbook.deleteFailed` (the operator holds the event's purge: the generic failure a photograph gets,
+answered after the lookup so an unknown id stays a 404); `400 request.invalid` (an id that is not a UUID);
+`401`, `403 guest.revoked`, `404 event.notFound`, `429 rate.limited` as above.
+
+Every change to the guestbook (a message written, removed, erased with its guest) announces one
+`{ "type": "guestbook.changed" }` signal on the event's stream: an invalidation without data, like
+`mission.changed`, that makes the host's panel and the wall re-read.
+
 ### `GET /api/events/:slug/privacy-notice`
 
 The privacy notice in force at this event, and whether **this device** has read it
@@ -1644,6 +1748,7 @@ guest's language, so the notice cannot promise something the configuration contr
 | `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                                                                                                                                        |
 | `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                                                                                                                                               |
 | `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                                                                                                                                             |
+| `guestbook`          | `allowGuestbook`                                                          | **Present (`true`) only when guests may leave guestbook messages** (spec 01): the notice then reads for a message too, and `revision` gains `guestbook=on`. Absent otherwise, so a box without a guestbook asks nobody to read the notice again                                                                                                                                                                                                                         |
 | `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`
@@ -1978,7 +2083,7 @@ with and no other guest this could reach. Nothing is read from the body.
 
 What goes, in one operation: every photograph and clip the guest sent (the files in every rendition, the
 thumbnails and the rows, with the caption and the moderation decision that live on the row), every clip of theirs
-still waiting to be transcoded together with its staged source, every reaction they left on any photograph, and the
+still waiting to be transcoded together with its staged source, every reaction they left on any photograph, every guestbook message they wrote, and the
 guest row itself, which is where their display name and device identity live. It is **independent of the
 moderation state** (a photograph on the wall goes too), of `allowGuestSelfDelete` and of the grace window
 (`DELETE …/photos/:photoId` above keeps both rules; this does not), and of the event's lifecycle: it works on a
@@ -1988,12 +2093,12 @@ clients and is content-free, and a guest has no account to attribute it to.
 **200**
 
 ```json
-{ "photos": 3, "clips": 1 }
+{ "photos": 3, "clips": 1, "messages": 2 }
 ```
 
 **A revoked guest may call this route** and no other: the host's decision about them (`guest.revoked` everywhere else) does not take the right to erase away. The signature, the event in the path, the guest row and the client's suspension are checked as for anyone, so a forged or other-event token is still `401` / `404`.
 
-The counts of what was removed, `clips` including those that were still in the queue. `Cache-Control: no-store`. The
+The counts of what was removed, `clips` including those that were still in the queue and `messages` the guestbook messages the guest wrote (spec 01). `Cache-Control: no-store`. The
 response **clears the `es_guest` cookie**: the guest row is gone, so the token would only be answered
 `401 guestToken.malformed` from now on, which the phone already treats as "forget this session". Every open screen is
 told at once: each photograph announces `photo.deleted` and the operation ends with one `guest.erased` signal (the
@@ -2006,7 +2111,7 @@ photograph for the retention the privacy notice states. A queued clip whose byte
 same event (the same bytes sent twice) is one row owned by its first sender, so the second sender's erasure does not
 remove it and the first one's does.
 
-**A photograph the operator took down is never touched**: it is neither deleted nor counted, its bytes stay, and because its row hangs from the guest row by a cascading foreign key the guest row is kept, **without its display name**, rather than deleted.
+**A photograph or a guestbook message the operator took down is never touched**: it is neither deleted nor counted, its bytes stay, and because its row hangs from the guest row by a cascading foreign key the guest row is kept, **without its display name**, rather than deleted. Messages announce one `guestbook.changed` signal when any were removed.
 
 **Retryable.** Photographs go one at a time (bytes, then row), then the queued clips, the reactions and the guest row. A
 process that dies half way leaves the guest row, so the token still verifies and pressing the button again finishes. A
@@ -2656,6 +2761,7 @@ event_, never "is logged in".
 | `POST`   | `/api/events/:slug/highlights/preselect`      | moderator | 200 | Star the `limit` most liked; `{ added }`        |
 | `GET`    | `/api/events/:slug/highlights`                | moderator | 200 | `{ count }` of exportable favourites            |
 | `GET`    | `/api/events/:slug/best-of.zip`               | moderator | 200 | The favourites as a ZIP                         |
+| `GET`    | `/api/events/:slug/stats`                     | moderator | 200 | Statistics of the evening, derived              |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and
@@ -2935,6 +3041,8 @@ The shape every route in the table that answers `200` returns.
     "allowCaptions": true,
     "allowReactions": true,
     "allowClips": true,
+    "allowGuestbook": false,
+    "guestbookOnWall": true,
     "allowGuestSelfDelete": true,
     "guestSelfDeleteGraceSeconds": 900,
     "retentionDays": 30,
@@ -3045,6 +3153,8 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
   "allowCaptions": true,
   "allowReactions": true,
   "allowClips": true,
+  "allowGuestbook": false,
+  "guestbookOnWall": true,
   "allowGuestSelfDelete": true,
   "guestSelfDeleteGraceSeconds": 900,
   "retentionDays": 30,
@@ -3064,12 +3174,15 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `allowCaptions`               | boolean                                                                                                                                                                                                                                          |
 | `allowReactions`              | boolean                                                                                                                                                                                                                                          |
 | `allowClips`                  | boolean — see below                                                                                                                                                                                                                              |
+| `allowGuestbook`              | boolean — the host's switch over written guestbook messages (spec 01); off for an event that predates it                                                                                                                                         |
+| `guestbookOnWall`             | boolean — whether published messages appear on the projected wall (spec 01)                                                                                                                                                                      |
 | `allowGuestSelfDelete`        | boolean                                                                                                                                                                                                                                          |
 | `guestSelfDeleteGraceSeconds` | integer 0..86400                                                                                                                                                                                                                                 |
 | `retentionDays`               | integer 1..3650, or `null` for "keep"                                                                                                                                                                                                            |
 | `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                                                                         |
 | `theme`                       | object — all five keys required, plus `custom` when the ambiance is `custom`, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`) |
 | `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                                                                 |
+| `welcomeMessage`              | string up to 280 code points and 4 lines, or `null` to clear; absent leaves it alone. Cleaned by the server; **400** `eventSettings.welcomeInvalid`                                                                                              | `welcomeTooLong` | `welcomeTooManyLines`. Changing it under a purge hold is **500** `eventSettings.saveFailed`. `brand` (what `GET` answers) is **read and ignored**. |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
 **refused** where creation reduces — shortening what a host just typed would tell them they got
@@ -3099,6 +3212,10 @@ the feature exists for. Note also that the first save of **any** setting on such
 writes `allowClips: false` into its blob, after which it is indistinguishable from a host
 who chose no — which is why the checkbox ships in the same form as every other setting
 rather than behind one of its own.
+
+#### `brand` — the host's words to their guests (spec 03)
+
+`brand: { welcomeMessage: string | null }` is on `PublicEventDto` (the join response), on the wall response, on `GET /events/:slug/photos/mine` (read per request, so a guest sees a message changed after they joined on their next open) and, for the host, inside `settings`. It is **content**: shown as written and never translated. It is absent from the shared gallery. A client may send it back inside `settings`; the server ignores it, and the message is written only by the top-level `welcomeMessage` key.
 
 #### `wallLanguage` — what language the room's screen speaks
 
@@ -3715,6 +3832,57 @@ Only the thumb is offered: the panel is a podium of small tiles beside the wall,
 second full-size URL per entry would have the projector fetch megabytes it never renders.
 `Cache-Control: no-store`.
 
+### `GET /api/events/:slug/stats`
+
+The host's statistics page ("how did the evening go?"). Moderator or owner, any event status.
+Takes no parameter: a query string is `400 request.invalid`.
+
+Everything is **derived** from the photographs, guests and reactions as they are when you ask, never
+from a counter, so an erased guest or a deleted photograph is gone on the next read. A photograph the
+operator took down is in no figure, reactions included. "Photos" here means **sends**, photographs and
+videos alike.
+
+**200**
+
+```json
+{
+  "uploads": {
+    "total": 412,
+    "byQuarter": [{ "start": "2026-06-20T19:15:00.000Z", "count": 12 }]
+  },
+  "photos": { "pending": 0, "published": 380, "rejected": 18, "hidden": 14 },
+  "guests": { "joined": 86, "contributors": 51, "revoked": 1, "activeNow": 74 },
+  "reactions": {
+    "total": 940,
+    "byKind": { "love": 400, "laugh": 210, "wow": 120, "cheers": 130, "clap": 80 }
+  },
+  "topContributors": [{ "displayName": "Léa", "photos": 22, "reactions": 71 }],
+  "anonymousContributors": { "guests": 9, "photos": 31 },
+  "engagement": {
+    "since": "2026-11-14",
+    "galleryViews": 57,
+    "galleryArchiveDownloads": 12
+  }
+}
+```
+
+- `byQuarter`: sends per **15-minute UTC slot**, sparse (empty slots are absent), in time order. The
+  client regroups into the reader's local hours; every real time zone is a whole number of quarters
+  from UTC, so that is exact where UTC hours would shift a half-hour zone's bars.
+- Invariant: `uploads.total` = the four statuses = the sum of `byQuarter`.
+- `guests.joined` counts every guest row, the ones the host removed included; `activeNow` is the same
+  five-minute window as the guest list and excludes removed guests. A guest the operator's takedown
+  left nameless stays counted in `joined` (and never appears below).
+- `topContributors`: at most ten guests with a first name and at least one **published** send, most
+  sends first, then most reactions received **on those sends**, then guest id. Removed guests are left
+  out. Guests without a first name are folded into `anonymousContributors`, never listed.
+- `engagement`: `null` until a first open of the album link or launch of its ZIP was counted, then `{ "since": "2026-11-14", "galleryViews": 57, "galleryArchiveDownloads": 12 }`: the sums over the days, `since` being the first day counted (nothing was measured before it). A view is a **served** load of the album page (a revoked, expired or locked link, or a wrong password, counts nothing); a ZIP is counted at launch, finished or not. Integers per event and UTC day: no identity is stored.
+
+`Cache-Control: no-store`.
+
+**Errors** — `401` without a session, `404 event.notFound` (not a member, or the operator took the event
+down), `403 client.suspended` (the page shows first names), `400 request.invalid` on any parameter.
+
 ### `PATCH /api/events/:slug/photos/:photoId/status`
 
 ```json
@@ -3898,6 +4066,7 @@ nobody wrote.
         "maxEventQuotaBytes": null,
         "maxRetentionDays": 30,
         "clipsAllowed": true,
+        "booksAllowed": true,
         "liveAllowed": true,
         "maxLiveDays": 3,
         "maxEventsPerPeriod": 6,

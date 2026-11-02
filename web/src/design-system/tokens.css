@@ -241,6 +241,30 @@
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
 
+  /* ---- Print, spec 02: the sheet a host prints for the tables. Lengths are **millimetres, written
+         without a unit**: the preview multiplies them by one screen millimetre and paper by a real
+         one (`--u` in PrintSheet.module.css), so the sheet is the same drawing at 320 px and on A4.
+         `printKit.ts` holds a second copy of the QR sides, which it judges the 0.6 mm module
+         against; `printKit.contract.test.ts` fails if the two diverge. The paper is white by
+         construction (the contrast of the ink is measured against it) and is drawn on screen only. ---- */
+  --print-paper: oklch(100% 0 0);
+  --print-ink-accent: oklch(30% 0.1 var(--accent-hue)); /* the event's hue, darkened: the QR ink */
+  --print-a4-w: 210;
+  --print-a4-h: 297;
+  --print-card-w: 105; /* A6, and half an A4 wide */
+  --print-card-h: 148.5; /* A6, and half an A4 high: an A5 poster is two of them stacked */
+  --print-safe: 8; /* office printers cannot print to the edge */
+  --print-qr-card: 40; /* sides of the QR, quiet zone included */
+  --print-qr-a5: 70;
+  --print-qr-a4: 120;
+  --print-cut-line: 0.3;
+  --print-scale-card: 1; /* type and gaps of each format, as multiples of the card's */
+  --print-scale-a5: 1.3;
+  --print-scale-a4: 2;
+  --print-type-name: 4.5; /* the event's name */
+  --print-type-title: 5.5;
+  --print-type-step: 3.6;
+
   /* ---- Icons. Outlined glyphs on a 16-unit grid, drawn as strokes: this is their weight,
          in the grid's own units, so every glyph in a set is the same line at any size. ---- */
   --icon-stroke: 1.5;

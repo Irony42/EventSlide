@@ -21,6 +21,9 @@ import { makeRevokeModerator } from '../../../application/usecases/events/revoke
 import { makeRotateJoinCode } from '../../../application/usecases/events/rotateJoinCode'
 import { makeScheduleEvent } from '../../../application/usecases/events/scheduleEvent'
 import { makeUpdateEventSettings } from '../../../application/usecases/events/updateEventSettings'
+import { makeGetEventStats } from '../../../application/usecases/stats/getEventStats'
+import { FakeEventStatsRepository } from '../../../application/testing/fakeEventStatsRepository'
+import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { makeListGuests } from '../../../application/usecases/guests/listGuests'
 import { makeRevokeGuest } from '../../../application/usecases/guests/revokeGuest'
 import {
@@ -156,6 +159,8 @@ interface World {
   readonly events: FakeEventRepository
   readonly clients: FakeClientRepository
   readonly guests: FakeGuestRepository
+  readonly photos: FakePhotoRepository
+  readonly reactions: FakeReactionRepository
   readonly memberships: FakeMembershipRepository
   readonly users: FakeUserRepository
   readonly tokens: FakeAccountTokenRepository
@@ -180,6 +185,7 @@ const buildWorld = ({
   const users = new FakeUserRepository()
   const photos = new FakePhotoRepository()
   const guests = new FakeGuestRepository()
+  const reactions = new FakeReactionRepository()
   const memberships = new FakeMembershipRepository({ users })
   // Linked, so a dashboard row carries the counts the SQLite join would really produce
   // and a membership carries the address of a real account.
@@ -341,6 +347,9 @@ const buildWorld = ({
         updateMission: absent('updateMission'),
         deleteMission: absent('deleteMission'),
         getGuestChecklist: absent('getGuestChecklist'),
+        createGuestbookEntry: absent('createGuestbookEntry'),
+        listMyGuestbookEntries: absent('listMyGuestbookEntries'),
+        deleteGuestbookEntry: absent('deleteGuestbookEntry'),
 
         createShareLink: absent('createShareLink'),
         getShareLink: absent('getShareLink'),
@@ -361,6 +370,13 @@ const buildWorld = ({
         exportHighlights: absent('exportHighlights'),
         requestReel: absent('requestReel'),
         getReelMedia: absent('getReelMedia'),
+        getEventStats: makeGetEventStats({
+          events,
+          memberships,
+          guests,
+          stats: new FakeEventStatsRepository(photos, guests, reactions),
+          clock: deps.clock,
+        }),
       }
 
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))
@@ -473,7 +489,19 @@ const buildWorld = ({
     aGuest({ id: GALA_GUEST, eventId: GALA, displayName: 'Sacha', lastSeenAt: AT }),
   )
 
-  return { app: harness.app, events, clients, guests, memberships, users, tokens, mailer, media }
+  return {
+    app: harness.app,
+    events,
+    clients,
+    guests,
+    photos,
+    reactions,
+    memberships,
+    users,
+    tokens,
+    mailer,
+    media,
+  }
 }
 
 type Who =
@@ -557,6 +585,11 @@ const ROUTES: readonly RouteCase[] = [
     name: 'GET /events/:slug/guests',
     requires: 'moderator',
     call: (client, slug) => client.get(`/api/events/${slug}/guests`),
+  },
+  {
+    name: 'GET /events/:slug/stats',
+    requires: 'moderator',
+    call: (client, slug) => client.get(`/api/events/${slug}/stats`),
   },
   {
     name: 'POST /events/:slug/guests/:guestId/revoke',
@@ -1110,6 +1143,47 @@ describe('the host event routes', () => {
       expect(response.status).toBe(200)
       expect(response.body.role).toBe('moderator')
     })
+
+    // The print page (spec 02) reads these two fields as a moderator and as a suspended client's
+    // member, and must be answered 404 once the operator takes the event down.
+    it('a moderator reads the code and the link', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.body.joinCode).toBe('H7K2QM')
+      expect(response.body.joinUrl).toBe('http://localhost:4300/join/H7K2QM')
+    })
+
+    it('an event taken down by the operator answers 404 to its owner', async () => {
+      await world.events.setTakenDown(asEventId(WEDDING), AT)
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent.get(`/api/events/${SLUG}`)
+
+      expect(response.status).toBe(404)
+      expect(response.body.error.code).toBe('event.notFound')
+    })
+
+    it('a suspended client still reads its event, code and link included (200)', async () => {
+      world.clients.seed(aClient({ id: CLIENT_ONE, name: 'Atelier Camille' }))
+      const member = await signedIn(world, 'client-member')
+      const created = await member.post('/api/events').send({ name: 'Un soir de juin' })
+      expect(created.status).toBe(201)
+      world.clients.seed(aClient({ id: CLIENT_ONE, name: 'Atelier Camille', suspendedAt: AT }))
+
+      // Proof that the suspension took: the same member can no longer write.
+      const refused = await member.post('/api/events').send({ name: 'Un autre soir' })
+      expect(refused.status).toBeGreaterThanOrEqual(400)
+
+      const response = await member.get(`/api/events/${String(created.body.slug)}`)
+
+      expect(response.status).toBe(200)
+      expect(response.body.joinCode).toBe(created.body.joinCode)
+      expect(response.body.joinUrl).toBe(
+        `http://localhost:4300/join/${String(created.body.joinCode)}`,
+      )
+    })
   })
 
   describe('PATCH /api/events/:slug', () => {
@@ -1169,6 +1243,8 @@ describe('the host event routes', () => {
         allowCaptions: false,
         allowReactions: false,
         allowClips: false,
+        allowGuestbook: true,
+        guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
@@ -1188,6 +1264,8 @@ describe('the host event routes', () => {
         allowCaptions: false,
         allowReactions: false,
         allowClips: false,
+        allowGuestbook: true,
+        guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 7,
@@ -1200,7 +1278,87 @@ describe('the host event routes', () => {
           groundUrl: null,
         },
         wallLanguage: 'en',
+        brand: { welcomeMessage: null },
       })
+    })
+
+    /* ---- The host's welcome message (spec 03). ---- */
+
+    it('stores a welcome message and answers it in the settings brand', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: '  Bienvenue !\n\nUne photo du gâteau ?  ' })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.brand).toEqual({
+        welcomeMessage: 'Bienvenue !\nUne photo du gâteau ?',
+      })
+    })
+
+    it('leaves the message alone when an older tab saves settings without it', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ welcomeMessage: 'Bienvenue' })
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ allowCaptions: false })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.brand.welcomeMessage).toBe('Bienvenue')
+    })
+
+    it('clears the message on null', async () => {
+      const agent = await signedIn(world, 'owner')
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ welcomeMessage: 'Bienvenue' })
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: null })
+
+      expect(response.body.settings.brand.welcomeMessage).toBeNull()
+    })
+
+    it('answers the domain code for a message that is too long or has too many lines', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const long = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'x'.repeat(281) })
+      const lines = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'a\nb\nc\nd\ne' })
+
+      expect(long.status).toBe(400)
+      expect(long.body.error.code).toBe('eventSettings.welcomeTooLong')
+      expect(lines.body.error.code).toBe('eventSettings.welcomeTooManyLines')
+    })
+
+    it('reads and ignores a read-only brand key, and refuses a logo key', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      const ignored = await agent.patch(`/api/events/${SLUG}/settings`).send({
+        brand: { welcomeMessage: 'Piraté', logoUrl: null },
+        allowCaptions: false,
+      })
+      const refused = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ logo: 'ab'.repeat(32) })
+
+      expect(ignored.status).toBe(200)
+      expect(ignored.body.settings.brand.welcomeMessage).toBeNull()
+      expect(refused.status).toBe(400)
+    })
+
+    it('refuses the owner role only: a moderator cannot write the message', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ welcomeMessage: 'x' })
+
+      expect(response.status).toBe(403)
     })
 
     /* ---- Per-event theming (roadmap 2.2). ---- */
@@ -1989,6 +2147,71 @@ describe('the host event routes', () => {
       await agent.delete(`/api/events/${SLUG}`)
 
       expect(await world.events.findById(GALA)).not.toBeNull()
+    })
+  })
+
+  describe('GET /api/events/:slug/stats', () => {
+    it('answers the page figures, derived, with no-store and the wire field list', async () => {
+      const agent = await signedIn(world, 'moderator')
+      const before = (await agent.get(`/api/events/${SLUG}/stats`)).body.uploads.total
+      world.guests.seed(aGuest({ id: WEDDING_GUEST, eventId: 'evt-wedding', displayName: 'Léa' }))
+      world.photos.seed(
+        aPhoto({
+          id: 'sp1',
+          eventId: 'evt-wedding',
+          author: { kind: 'guest', id: WEDDING_GUEST },
+          status: 'published',
+        }),
+        aPhoto({
+          id: 'sp2',
+          eventId: 'evt-wedding',
+          author: { kind: 'guest', id: WEDDING_GUEST },
+          status: 'rejected',
+        }),
+      )
+
+      const response = await agent.get(`/api/events/${SLUG}/stats`)
+
+      expect(response.status).toBe(200)
+      expect(response.headers['cache-control']).toBe('no-store')
+      expect(Object.keys(response.body).sort()).toEqual([
+        'anonymousContributors',
+        'engagement',
+        'guests',
+        'photos',
+        'reactions',
+        'topContributors',
+        'uploads',
+      ])
+      expect(response.body.uploads.total).toBe(before + 2)
+      expect(response.body.topContributors).toEqual([
+        { displayName: 'Léa', photos: 1, reactions: 0 },
+      ])
+      expect(response.body.engagement).toBeNull()
+    })
+
+    it("does not show another event's figures to this event's moderator", async () => {
+      world.photos.seed(
+        aPhoto({
+          id: 'gala-photo',
+          eventId: 'evt-gala',
+          author: { kind: 'host', id: GALA_OWNER },
+          status: 'published',
+        }),
+      )
+      const agent = await signedIn(world, 'moderator')
+
+      const own = await agent.get(`/api/events/${SLUG}/stats`)
+
+      expect(own.body.uploads.total).toBe(world.photos.ofEvent(WEDDING).length)
+    })
+
+    it('refuses a parameter with a 400', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent.get(`/api/events/${SLUG}/stats?since=today`)
+
+      expect(response.status).toBe(400)
     })
   })
 

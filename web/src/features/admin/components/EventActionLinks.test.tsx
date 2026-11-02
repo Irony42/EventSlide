@@ -26,6 +26,7 @@ describe('EventActionLinks', () => {
       [fr.admin.openWall, '/e/camille-et-sacha/display'],
       [fr.admin.openModeration, '/admin/events/camille-et-sacha/moderation'],
       [fr.mobileModeration.title, '/admin/events/camille-et-sacha/moderation/mobile'],
+      [fr.admin.stats.tile, '/admin/events/camille-et-sacha/stats'],
       [fr.admin.settings, '/admin/events/camille-et-sacha/settings'],
       [fr.admin.download, ALBUM],
     ])
@@ -107,7 +108,7 @@ describe('EventActionLinks', () => {
     // The exact-name queries above would already fail if a glyph leaked into the name;
     // this one says why: every drawing is hidden from assistive technology.
     const glyphs = container.querySelectorAll('svg')
-    expect(glyphs).toHaveLength(5)
+    expect(glyphs).toHaveLength(6)
     for (const glyph of glyphs) {
       expect(glyph).toHaveAttribute('aria-hidden', 'true')
       expect(glyph).toHaveAttribute('focusable', 'false')
@@ -151,6 +152,7 @@ describe('EventActionLinks', () => {
     render('archived')
 
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      fr.admin.stats.tile,
       fr.admin.settings,
       fr.admin.download,
     ])

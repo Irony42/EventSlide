@@ -195,6 +195,9 @@ const usecasesFor = (
     updateMission: notWired,
     deleteMission: notWired,
     getGuestChecklist: notWired,
+    createGuestbookEntry: notWired,
+    listMyGuestbookEntries: notWired,
+    deleteGuestbookEntry: notWired,
     createShareLink: notWired,
     getShareLink: notWired,
     revokeShareLink: notWired,
@@ -242,6 +245,9 @@ const usecasesFor = (
       archive: new FakeArchiveWriter({ emits: 'content' }),
       logger: new CapturingLogger(),
     }),
+    getEventStats: async () => {
+      throw new Error('getEventStats is not wired in this suite')
+    },
   }
 }
 

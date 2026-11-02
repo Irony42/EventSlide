@@ -8,6 +8,7 @@ import { closeDatabase, openDatabase, type Db } from '../infrastructure/db/conne
 import { migrate } from '../infrastructure/db/migrator'
 import { migrations } from '../infrastructure/db/migrations'
 import { SqliteSessionStore } from '../infrastructure/db/sqliteSessionStore'
+import { SqliteEventStatsRepository } from '../infrastructure/db/sqliteEventStatsRepository'
 import { SqliteEventRepository } from '../infrastructure/db/sqliteEventRepository'
 import { SqlitePhotoRepository } from '../infrastructure/db/sqlitePhotoRepository'
 import { SqliteGuestRepository } from '../infrastructure/db/sqliteGuestRepository'
@@ -15,6 +16,7 @@ import { SqliteReactionRepository } from '../infrastructure/db/sqliteReactionRep
 import { SqliteUserRepository } from '../infrastructure/db/sqliteUserRepository'
 import { SqliteMembershipRepository } from '../infrastructure/db/sqliteMembershipRepository'
 import { SqliteClipJobRepository } from '../infrastructure/db/sqliteClipJobRepository'
+import { SqliteGuestbookRepository } from '../infrastructure/db/sqliteGuestbookRepository'
 import { SqliteMissionRepository } from '../infrastructure/db/sqliteMissionRepository'
 import { SqliteShareLinkRepository } from '../infrastructure/db/sqliteShareLinkRepository'
 import { SqliteClientRepository } from '../infrastructure/db/sqliteClientRepository'
@@ -418,7 +420,9 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reelRenderer,
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
+    eventStats: new SqliteEventStatsRepository(db),
     missions: new SqliteMissionRepository(db),
+    guestbook: new SqliteGuestbookRepository(db),
     users: new SqliteUserRepository(db),
     memberships: new SqliteMembershipRepository(db),
     media: createFsMediaStore({ root: mediaRoot }),

@@ -69,7 +69,7 @@ const ACCOUNT_ORDER = `ORDER BY u.created_at DESC, u.id DESC LIMIT :limit`
 
 const CLIENT_SELECT = `SELECT c.id, c.name, c.created_at, c.suspended_at, c.purge_after,
        c.max_events, c.max_total_bytes, c.max_event_quota_bytes, c.max_retention_days,
-       c.clips_allowed, c.live_allowed, c.max_live_days, c.max_events_per_period,
+       c.clips_allowed, c.books_allowed, c.live_allowed, c.max_live_days, c.max_events_per_period,
        c.period_started_at, c.events_created_in_period,
        (SELECT COUNT(*) FROM events ev WHERE ev.client_id = c.id)                AS event_count,
        (SELECT COUNT(*) FROM events ev
@@ -112,6 +112,7 @@ const CLIENT_READS = [
   'clients.max_event_quota_bytes',
   'clients.max_retention_days',
   'clients.clips_allowed',
+  'clients.books_allowed',
   'clients.live_allowed',
   'clients.max_live_days',
   'clients.max_events_per_period',
@@ -247,6 +248,7 @@ interface ClientSqlRow {
   readonly max_event_quota_bytes: number | null
   readonly max_retention_days: number | null
   readonly clips_allowed: number
+  readonly books_allowed: number
   readonly live_allowed: number
   readonly max_live_days: number | null
   readonly max_events_per_period: number | null
@@ -309,6 +311,7 @@ const toClientRow = (row: ClientSqlRow): SiteClientRow => ({
     maxEventQuotaBytes: row.max_event_quota_bytes,
     maxRetentionDays: row.max_retention_days,
     clipsAllowed: fromSqliteBoolean(row.clips_allowed),
+    booksAllowed: fromSqliteBoolean(row.books_allowed),
     liveAllowed: fromSqliteBoolean(row.live_allowed),
     maxLiveDays: row.max_live_days,
     maxEventsPerPeriod: row.max_events_per_period,

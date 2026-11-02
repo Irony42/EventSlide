@@ -64,26 +64,41 @@ export const noticeSections = (
   // Always true, so said on every event: the button is on the guest's own page (roadmap §5.2).
   const erasure = copy.noticeErasure(copy.eraseOpen, copy.mine)
 
+  // An event with a guestbook (spec 01): the same four questions, titled for photos *and* messages,
+  // each with one sentence for a message. Nothing changes for an event without one.
+  const withBook = notice.guestbook === true
+
   return [
     {
-      term: copy.noticeWhatHappens,
+      term: withBook ? text.guestbook.noticeWhatHappens : copy.noticeWhatHappens,
       // Stated unconditionally: the ingest pipeline strips it on every event, so there
       // is no setting it could contradict.
-      sentences: [copy.noticeMetadataStripped, copy.noticePublication[notice.publication]],
+      sentences: [
+        copy.noticeMetadataStripped,
+        copy.noticePublication[notice.publication],
+        ...(withBook ? [text.guestbook.noticeMessagePublication[notice.publication]] : []),
+      ],
     },
     {
-      term: copy.noticeWhoSees,
-      sentences: notice.audiences.map((audience) => copy.noticeAudiences[audience]),
+      term: withBook ? text.guestbook.noticeWhoSees : copy.noticeWhoSees,
+      sentences: [
+        ...notice.audiences.map((audience) => copy.noticeAudiences[audience]),
+        ...(withBook ? [text.guestbook.noticeMessageAudience] : []),
+      ],
     },
     {
-      term: copy.noticeHowLong,
+      term: withBook ? text.guestbook.noticeHowLong : copy.noticeHowLong,
       sentences: [
         notice.retentionDays === null
           ? copy.noticeRetentionNone
           : copy.noticeRetentionDays(notice.retentionDays),
+        ...(withBook ? [text.guestbook.noticeMessageRetention] : []),
       ],
     },
-    { term: copy.noticeRemoval, sentences: [...removal, erasure] },
+    {
+      term: withBook ? text.guestbook.noticeRemoval : copy.noticeRemoval,
+      sentences: [...removal, ...(withBook ? [text.guestbook.noticeMessageRemoval] : []), erasure],
+    },
     ...(notice.operator === undefined
       ? []
       : [{ term: text.about.operatorHostedBy, sentences: [notice.operator] }]),

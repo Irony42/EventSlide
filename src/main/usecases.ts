@@ -3,6 +3,7 @@ import type { Clock } from '../application/ports/clock'
 import type { IdGenerator } from '../application/ports/idGenerator'
 import type { Logger } from '../application/ports/logger'
 import type { EventBus } from '../application/ports/eventBus'
+import type { EventStatsRepository } from '../application/ports/eventStatsRepository'
 import type { EventRepository } from '../application/ports/eventRepository'
 import type { PhotoRepository } from '../application/ports/photoRepository'
 import type { GuestRepository } from '../application/ports/guestRepository'
@@ -12,6 +13,7 @@ import type { MediaStore } from '../application/ports/mediaStore'
 import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
 import type { MissionRepository } from '../application/ports/missionRepository'
+import type { GuestbookRepository } from '../application/ports/guestbookRepository'
 import type { VideoTranscoder } from '../application/ports/videoTranscoder'
 import type { ContentHasher } from '../application/ports/contentHasher'
 import type { ArchiveWriter } from '../application/ports/archiveWriter'
@@ -82,6 +84,8 @@ import { makeAcknowledgePrivacyNotice } from '../application/usecases/guests/ack
 import { makeAuthenticateGuest } from '../application/usecases/guests/authenticateGuest'
 import { makeGetPrivacyNotice } from '../application/usecases/guests/getPrivacyNotice'
 import { makeJoinEvent } from '../application/usecases/guests/joinEvent'
+import { makeRecordEngagement } from '../application/usecases/stats/recordEngagement'
+import { makeGetEventStats } from '../application/usecases/stats/getEventStats'
 import { makeListGuests } from '../application/usecases/guests/listGuests'
 import { makeEraseGuestContribution } from '../application/usecases/guests/eraseGuestContribution'
 import { makeRenameGuest } from '../application/usecases/guests/renameGuest'
@@ -124,6 +128,9 @@ import { makeUploadClip } from '../application/usecases/clips/uploadClip'
 
 import { makeGetWallPlaylist } from '../application/usecases/slideshow/getWallPlaylist'
 
+import { makeCreateGuestbookEntry } from '../application/usecases/guestbook/createGuestbookEntry'
+import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/deleteGuestbookEntry'
+import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
 import { makeCreateMission } from '../application/usecases/missions/createMission'
 import { makeDeleteMission } from '../application/usecases/missions/deleteMission'
 import { makeGetGuestChecklist } from '../application/usecases/missions/getGuestChecklist'
@@ -189,7 +196,10 @@ export interface Adapters {
   readonly reelRenderer: ReelRenderer
   readonly guests: GuestRepository
   readonly reactions: ReactionRepository
+  /** The host statistics page: aggregates derived from photos, guests and reactions (spec 05). */
+  readonly eventStats: EventStatsRepository
   readonly missions: MissionRepository
+  readonly guestbook: GuestbookRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository
   readonly media: MediaStore
@@ -397,6 +407,13 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
   const invalidateReel = makeInvalidateReel({
     reels: adapters.reels,
     media: adapters.media,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  })
+
+  /** The after-party counters (spec 05): one writer, shared by the two gallery use cases. */
+  const engagement = makeRecordEngagement({
+    stats: adapters.eventStats,
     clock: adapters.clock,
     logger: adapters.logger,
   })
@@ -683,6 +700,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       reactions: adapters.reactions,
       clips: adapters.clips,
+      guestbook: adapters.guestbook,
       media: adapters.media,
       bus: adapters.bus,
       clock: adapters.clock,
@@ -696,6 +714,13 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     listGuests: makeListGuests({
       guests: adapters.guests,
       memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
+    getEventStats: makeGetEventStats({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      guests: adapters.guests,
+      stats: adapters.eventStats,
       clock: adapters.clock,
     }),
     getPrivacyNotice: makeGetPrivacyNotice({
@@ -754,6 +779,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     exportAlbum: makeExportAlbum({
       events: adapters.events,
       photos: adapters.photos,
+      guestbook: adapters.guestbook,
+      guests: adapters.guests,
       media: adapters.media,
       archive: adapters.archive,
       logger: adapters.logger,
@@ -934,6 +961,26 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       missions: adapters.missions,
     }),
 
+    // -------------------------------------------------------------- guestbook --
+    createGuestbookEntry: makeCreateGuestbookEntry({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      ids: adapters.ids,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    listMyGuestbookEntries: makeListMyGuestbookEntries({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      clock: adapters.clock,
+    }),
+    deleteGuestbookEntry: makeDeleteGuestbookEntry({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+
     // --------------------------------------------------------------- missions --
     listMissions: makeListMissions({
       events: adapters.events,
@@ -992,7 +1039,11 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       memberships: adapters.memberships,
       clock: adapters.clock,
     }),
-    openGallery: makeOpenGallery({ ...galleryAccess(adapters), photos: adapters.photos }),
+    openGallery: makeOpenGallery({
+      ...galleryAccess(adapters),
+      photos: adapters.photos,
+      engagement,
+    }),
     unlockGallery: makeUnlockGallery({
       ...galleryAccess(adapters),
       hasher: adapters.passwordHasher,
@@ -1012,6 +1063,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       media: adapters.media,
       archive: adapters.archive,
       logger: adapters.logger,
+      engagement,
     }),
 
     // ---------------------------------------------------------------- clients --

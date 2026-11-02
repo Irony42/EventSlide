@@ -346,6 +346,7 @@ export const es: UiText = {
       'Esta duración de evento en curso no se acepta: de 1 a 365 días.',
     'clientCeilings.periodStartedAtInvalid': 'Este inicio de periodo no se acepta.',
     'clientCeilings.clipsAllowedInvalid': 'Este ajuste de vídeos no se acepta.',
+    'clientCeilings.booksAllowedInvalid': 'Este ajuste del libro de fotos no se acepta.',
     'clientCeilings.liveAllowedInvalid': 'Este ajuste de apertura no se acepta.',
     'siteLookup.queryInvalid':
       'Introduzca un identificador, un código, una dirección o el nombre de un evento (300 caracteres como máximo).',
@@ -453,6 +454,10 @@ export const es: UiText = {
     'slug.tooLong': 'Esta dirección es demasiado larga.',
     'slug.malformed': 'La dirección solo admite letras sin acento, números y guiones.',
     'slug.reserved': 'Esta dirección está reservada. Elija otra.',
+    'eventSettings.welcomeInvalid': 'Este mensaje no es válido.',
+    'eventSettings.welcomeTooLong': 'Este mensaje es demasiado largo.',
+    'eventSettings.welcomeTooManyLines': 'Este mensaje tiene demasiadas líneas.',
+    'eventSettings.saveFailed': 'No se han podido guardar los ajustes. Inténtelo de nuevo.',
     'eventSettings.graceSecondsInvalid': 'Este plazo de eliminación no se admite.',
     'eventSettings.retentionDaysInvalid': 'Este plazo de conservación no se admite.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Este número de fotos por invitado no se admite.',
@@ -560,6 +565,73 @@ export const es: UiText = {
     'venuePhoto.tooLarge': 'Esta foto pesa demasiado, incluso reducida. Pruebe con otra.',
     'venuePhoto.notFound': 'Esta foto ya no existe.',
     'venuePhoto.saveFailed': 'No se ha podido guardar la foto. Inténtelo de nuevo.',
+  },
+
+  /** The guestbook, guest side (spec 01). What guests and hosts write is never translated. */
+  guestbook: {
+    title: 'Libro de honor',
+    helpManual: 'Unas palabras para la fiesta. El organizador las lee antes de mostrarlas.',
+    helpAuto: 'Su mensaje aparece en el libro de honor.',
+    open: 'Dejar un mensaje',
+    label: 'Su mensaje',
+    placeholder: 'Su mensaje…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: 'Queda 1 carácter.',
+        other: `Quedan ${t.number(left)} caracteres.`,
+      }),
+    counterFull: 'Límite alcanzado.',
+    send: 'Enviar mi mensaje',
+    cancel: 'Cancelar',
+    thanksManual: '¡Gracias! Su mensaje se mostrará cuando el organizador lo apruebe.',
+    thanksAuto: '¡Gracias! Su mensaje está en el libro de honor.',
+    mine: 'Mis mensajes',
+    statusPending: 'Pendiente de aprobación',
+    statusPublished: 'En la pantalla',
+    statusPublishedNotOnWall: 'Publicado, no se muestra en la pantalla',
+    statusRejected: 'No seleccionado',
+    statusHidden: 'Retirado de la pantalla',
+    remove: 'Retirar este mensaje',
+    removeTitle: '¿Retirar este mensaje definitivamente?',
+    removeConfirm: 'Retirar',
+    removeCancel: 'Conservar',
+    removed: 'Mensaje retirado.',
+    tooLong: (max: number) => `Mensaje demasiado largo (${t.number(max)} caracteres como máximo).`,
+    errors: {
+      'guestbook.empty': 'Escriba al menos una palabra.',
+      'guestbook.invalid': 'Este mensaje no se puede enviar tal cual.',
+      'guestbook.tooManyLines': 'Mensaje demasiado alto: hágalo más corto.',
+      'guestbook.limitReached': 'Ya ha dejado 3 mensajes. Retire uno para escribir otro.',
+      'guestbook.eventFull': 'El libro de honor está completo.',
+      'guestbook.disabled': 'El libro de honor no está abierto por el momento.',
+      'event.notAcceptingUploads': 'El libro de honor no está abierto por el momento.',
+      'guestbook.deleteForbidden':
+        'Este mensaje ya no se puede retirar. Pídaselo al organizador: puede eliminarlo.',
+      'event.guestSelfDeleteDisabled':
+        'El organizador no ha activado la retirada. Pídaselo: puede eliminar un mensaje.',
+      'guestbook.notFound': 'Este mensaje ya no existe.',
+      'guestbook.deleteFailed': 'No se pudo retirar. Inténtelo de nuevo o pídaselo al organizador.',
+      'rate.limited': 'Demasiados mensajes a la vez, inténtelo de nuevo en un minuto.',
+    },
+    eraseBody:
+      'Sus fotos, vídeos, leyendas, mensajes del libro de honor, reacciones y su nombre se borrarán de la fiesta: de la pantalla, del álbum y de la lista del organizador. Es definitivo.',
+    noticeWhatHappens: 'Qué pasa con sus fotos y sus mensajes',
+    noticeWhoSees: 'Quién ve sus fotos y sus mensajes',
+    noticeHowLong: 'Cuánto tiempo se guardan',
+    noticeRemoval: 'Cómo retirar uno',
+    noticeMessagePublication: {
+      afterReview:
+        'Un mensaje del libro de honor lo lee el organizador antes de que pueda pasar a la pantalla.',
+      immediate:
+        'Un mensaje del libro de honor puede pasar a la pantalla en cuanto se envía. El organizador puede retirarlo en cualquier momento.',
+    },
+    noticeMessageAudience:
+      'Sus mensajes los leen el organizador y su equipo, y pueden mostrarse en la pantalla de la fiesta. No aparecen en «Fotos de la velada».',
+    noticeMessageRetention:
+      'Sus mensajes se guardan tanto tiempo como las fotos y se borran con ellas.',
+    noticeMessageRemoval:
+      'Un mensaje se retira como una foto, desde «Mis mensajes» y en las mismas condiciones.',
   },
 
   moderation: {
@@ -803,6 +875,80 @@ export const es: UiText = {
       t.count(count, { one: `${t.number(count)} foto`, other: `${t.number(count)} fotos` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} invitado`, other: `${t.number(count)} invitados` }),
+    stats: {
+      title: 'Estadísticas de la fiesta',
+      tile: 'Estadísticas',
+      loading: 'Cargando las estadísticas…',
+      empty:
+        'Todavía no hay nada que contar. Las cifras aparecen en cuanto los invitados se unen al evento.',
+      emptyAction: 'Ver el código QR',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} envío recibido`,
+          other: `${t.number(count)} envíos recibidos`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} invitado`,
+          other: `${t.number(count)} invitados`,
+        }),
+      figureHere: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} aquí ahora`,
+          other: `${t.number(count)} aquí ahora`,
+        }),
+      figurePending: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} en espera`,
+          other: `${t.number(count)} en espera`,
+        }),
+      timelineTitle: 'Envíos a lo largo del tiempo',
+      timelineCaption: 'Envíos por hora',
+      hourColumn: 'Hora',
+      uploadsColumn: 'Envíos',
+      timelineEmpty: 'Todavía no hay envíos.',
+      peak: (hour: string, count: number) =>
+        `Pico: ${hour}, ${t.count(count, { one: `${t.number(count)} envío`, other: `${t.number(count)} envíos` })}`,
+      statusTitle: 'Envíos por estado',
+      statusPublished: 'Publicados',
+      statusPending: 'En espera',
+      statusRejected: 'Rechazados',
+      statusHidden: 'Ocultos',
+      publishedShare: 'Proporción de envíos publicados',
+      guestsTitle: 'Invitados',
+      guestsJoined: 'Llegados',
+      guestsContributors: 'Han enviado al menos un archivo',
+      guestsRevoked: 'Retirados por usted',
+      reactionsTitle: 'Reacciones',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} reacción`,
+          other: `${t.number(count)} reacciones`,
+        }),
+      topTitle: 'Quienes más han compartido',
+      topEmpty: 'Nadie ha publicado todavía un envío.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} envío publicado`, other: `${t.number(photos)} envíos publicados` })} · ${t.count(reactions, { one: `${t.number(reactions)} reacción recibida`, other: `${t.number(reactions)} reacciones recibidas` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Los invitados sin nombre se agrupan: ${t.count(guests, { one: `${t.number(guests)} invitado`, other: `${t.number(guests)} invitados` })}, ${t.count(photos, { one: `${t.number(photos)} envío`, other: `${t.number(photos)} envíos` })}.`,
+      engagementTitle: 'Después de la fiesta',
+      engagementNone: 'Todavía sin medir: ningún enlace del álbum abierto ni ZIP iniciado.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} apertura del enlace del álbum`,
+          other: `${t.number(count)} aperturas del enlace del álbum`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP iniciado`,
+          other: `${t.number(count)} ZIP iniciados`,
+        }),
+      measuredSince: (date: string) => `Medido desde el ${date}. Antes no se contaba nada.`,
+      engagementNote:
+        'Una apertura es la carga de la página del álbum, no una persona. Un ZIP iniciado no está necesariamente terminado. Estas cifras son orientativas.',
+      retention:
+        'Estas cifras desaparecen con el evento, al borrarlo o al terminar el plazo de conservación.',
+    },
     storageUsed: (used: string, total: string) => `${used} de ${total}`,
     settings: 'Ajustes',
     moderationMode: 'Moderación',
@@ -916,6 +1062,32 @@ export const es: UiText = {
     printQr: 'Imprimir el código QR',
     qrScanPrompt: 'Escanee para enviar sus fotos.',
     qrAlt: (eventName: string) => `Código QR para unirse a ${eventName}`,
+    printKitTitle: 'Tarjetas de mesa y cartel',
+    printKitCrumb: 'Tarjetas y cartel',
+    printKitIntro:
+      'Imprima algo para poner en las mesas: el código QR, el código de respaldo y tres líneas de instrucciones.',
+    printKitFormat: 'Formato',
+    printKitInk: 'Color del código QR',
+    printInkBlack: 'Negro (el más seguro)',
+    printInkEvent: 'Color del evento',
+    printFormatA4: 'Cartel A4 (1 por hoja)',
+    printFormatA5: 'Cartel A5 (2 por hoja)',
+    printFormatCard: 'Tarjetas de mesa A6 (4 por hoja)',
+    printKitLanguage: 'Idioma del soporte',
+    printKitLanguageHint: 'Es el idioma de la velada, no el de su pantalla.',
+    printKitPrint: 'Imprimir',
+    printKitPrinting: 'Actualizando el código…',
+    printKitHelp:
+      'En la ventana de impresión, elija A4, escala 100 %, sin encabezados ni pies de página. Su navegador también ofrece allí «Guardar como PDF». Use el botón Imprimir: Ctrl+P no comprueba el código.',
+    printKitCodeChanged:
+      'El código de la velada ha cambiado: la hoja de abajo está al día. Tire las anteriores.',
+    printKitClosed:
+      'Esta velada está cerrada: los invitados que escaneen ya no pueden unirse. Si la reabre, el mismo código vuelve a valer.',
+    printKitDraft: 'Los invitados solo podrán unirse cuando se abra la velada.',
+    printKitArchived: 'Este evento está archivado: su código QR ya no lleva a ninguna parte.',
+    printKitBack: 'Volver al evento',
+    printKitLongLink: 'El enlace es largo y el código QR será pequeño. Prefiera el cartel.',
+    printKitPreview: 'Vista previa de la hoja',
     storageLabel: 'Espacio de fotos utilizado',
     storage: (used: string) => `${used} utilizados`,
     rotateJoinCodeTitle: '¿Cambiar el código de la fiesta?',
@@ -1122,6 +1294,12 @@ export const es: UiText = {
     venuePhotoBusy: 'Enviando la foto…',
     venuePhotoSaved: 'La foto de su local está guardada.',
     venuePhotoRemoved: 'Se ha restablecido la foto por defecto.',
+    welcomeMessage: 'Mensaje de bienvenida',
+    welcomeMessageHint:
+      'Unas palabras que verán sus invitados al unirse a la fiesta. Escriba en el idioma de sus invitados: este texto no se traduce. Cualquiera que tenga el código QR puede leerlo, así que no ponga nada privado.',
+    welcomeMessagePlaceholder: '¡Bienvenidos! Hagan fotos, las veremos en la pantalla de la sala.',
+    welcomeMessageClear: 'Borrar el mensaje',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Crear mi ambiente (A medida)',
     customAmbianceEdit: 'Modificar mi ambiente',
     customAmbianceEntryHint:
@@ -1499,6 +1677,7 @@ export const es: UiText = {
     maxRetentionDays: 'Conservación tras el final del evento, en días, como máximo',
     maxLiveDays: 'Duración de un evento en curso, en días, como máximo',
     clipsAllowed: 'Vídeos permitidos',
+    booksAllowed: 'Libros de fotos (PDF) permitidos',
     liveAllowed: 'Apertura de eventos permitida',
     renewPeriod: 'Renovar el periodo ahora',
     renewPeriodHint: 'Pone a cero el contador de eventos creados en el periodo.',
@@ -1749,7 +1928,17 @@ export const es: UiText = {
     },
   },
 
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Comparta sus fotos de la velada',
+    step1: 'Escanee el código QR con la cámara de su teléfono.',
+    step2: 'Envíe sus fotos.',
+    step3: 'Se unen a la pantalla de la velada.',
+    fallback: (code: string, address: string) =>
+      `¿Sin código QR? Escriba el código ${code} en ${address}.`,
+  },
   titles: {
+    print: 'Tarjetas de mesa y cartel',
     join: 'Únase a la fiesta',
     upload: 'Envío de fotos',
     feed: 'Fotos de la velada',
@@ -1769,6 +1958,7 @@ export const es: UiText = {
     event: 'Evento',
     moderation: 'Moderación',
     mobileModeration: 'Moderación en el teléfono',
+    stats: 'Estadísticas de la fiesta',
     settings: 'Ajustes del evento',
     customAmbiance: 'Ambiente a medida',
     clientSpace: 'Espacio de cliente',

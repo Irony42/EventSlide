@@ -560,6 +560,81 @@ export const fr = {
     /* -------------------------- end guest surface --------------------------- */
   },
 
+  /**
+   * The guestbook, guest side (spec 01). What guests and hosts write is never translated: these
+   * are only the words around it.
+   */
+  guestbook: {
+    title: 'Livre d’or',
+    helpManual: 'Un petit mot pour la soirée. L’organisateur le lit avant de l’afficher.',
+    helpAuto: 'Votre mot apparaît dans le livre d’or.',
+    open: 'Laisser un mot',
+    label: 'Votre message',
+    placeholder: 'Votre message…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: 'Il reste 1 caractère.',
+        other: `Il reste ${t.number(left)} caractères.`,
+      }),
+    counterFull: 'Limite atteinte.',
+    send: 'Envoyer mon message',
+    cancel: 'Annuler',
+    thanksManual: 'Merci ! Votre message s’affichera une fois validé par l’organisateur.',
+    thanksAuto: 'Merci ! Votre message est dans le livre d’or.',
+    mine: 'Mes messages',
+    statusPending: 'En attente de validation',
+    statusPublished: 'À l’écran',
+    statusPublishedNotOnWall: 'Publié, pas affiché à l’écran',
+    statusRejected: 'Non retenu',
+    statusHidden: 'Retiré de l’écran',
+    remove: 'Retirer ce message',
+    removeTitle: 'Retirer ce message pour de bon ?',
+    removeConfirm: 'Retirer',
+    removeCancel: 'Garder',
+    removed: 'Message retiré.',
+    tooLong: (max: number) => `Message trop long (${t.number(max)} caractères au plus).`,
+    /** By the server's code, for what a message can be refused for. */
+    errors: {
+      'guestbook.empty': 'Écrivez au moins un mot.',
+      'guestbook.invalid': 'Ce message ne peut pas être envoyé tel quel.',
+      'guestbook.tooManyLines': 'Message trop haut : gardez-le plus court.',
+      'guestbook.limitReached':
+        'Vous avez déjà laissé 3 messages. Retirez-en un pour en écrire un autre.',
+      'guestbook.eventFull': 'Le livre d’or est complet.',
+      'guestbook.disabled': 'Le livre d’or n’est pas ouvert pour le moment.',
+      'event.notAcceptingUploads': 'Le livre d’or n’est pas ouvert pour le moment.',
+      'guestbook.deleteForbidden':
+        'Ce message ne peut plus être retiré. Demandez à l’organisateur : il peut le supprimer.',
+      'event.guestSelfDeleteDisabled':
+        'L’organisateur n’a pas activé le retrait. Demandez-lui : il peut supprimer un message.',
+      'guestbook.notFound': 'Ce message n’existe plus.',
+      'guestbook.deleteFailed':
+        'Le retrait n’a pas abouti. Réessayez, ou demandez à l’organisateur.',
+      'rate.limited': 'Trop de messages d’un coup, réessayez dans une minute.',
+    },
+    /** `upload.eraseBody` for an event with a guestbook. */
+    eraseBody:
+      'Vos photos, vos vidéos, vos légendes, vos messages du livre d’or, vos réactions et votre prénom seront effacés de la soirée : de l’écran, de l’album et de la liste de l’organisateur. C’est définitif.',
+    /** The notice's four titles, and one added sentence each, for an event with a guestbook. */
+    noticeWhatHappens: 'Ce que deviennent vos photos et vos messages',
+    noticeWhoSees: 'Qui voit vos photos et vos messages',
+    noticeHowLong: 'Combien de temps ils sont gardés',
+    noticeRemoval: 'Pour en faire retirer un',
+    noticeMessagePublication: {
+      afterReview:
+        'Un message du livre d’or est lu par l’organisateur avant de pouvoir passer à l’écran.',
+      immediate:
+        'Un message du livre d’or peut passer à l’écran dès son envoi. L’organisateur peut le retirer à tout moment.',
+    } satisfies Record<NoticePublication, string>,
+    noticeMessageAudience:
+      'Vos messages sont lus par l’organisateur et son équipe, et peuvent s’afficher sur l’écran de la soirée. Ils ne figurent pas dans « Les photos de la soirée ».',
+    noticeMessageRetention:
+      'Vos messages sont gardés aussi longtemps que les photos, et effacés avec elles.',
+    noticeMessageRemoval:
+      'Un message se retire comme une photo, depuis « Mes messages » et dans les mêmes conditions.',
+  },
+
   moderation: {
     title: 'Modération',
     // Navigation pass, batch C: the way to the other console.
@@ -884,6 +959,77 @@ export const fr = {
       t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} invité`, other: `${t.number(count)} invités` }),
+    stats: {
+      title: 'Statistiques de la soirée',
+      tile: 'Statistiques',
+      loading: 'Chargement des statistiques…',
+      empty:
+        'Rien à compter pour l’instant. Les chiffres apparaissent dès que des invités rejoignent l’évènement.',
+      emptyAction: 'Voir le QR code',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} envoi reçu`,
+          other: `${t.number(count)} envois reçus`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, { one: `${t.number(count)} invité`, other: `${t.number(count)} invités` }),
+      figureHere: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ici maintenant`,
+          other: `${t.number(count)} ici maintenant`,
+        }),
+      figurePending: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} en attente`,
+          other: `${t.number(count)} en attente`,
+        }),
+      timelineTitle: 'Envois dans le temps',
+      timelineCaption: 'Envois par heure',
+      hourColumn: 'Heure',
+      uploadsColumn: 'Envois',
+      timelineEmpty: 'Aucun envoi pour l’instant.',
+      peak: (hour: string, count: number) =>
+        `Pic : ${hour}, ${t.count(count, { one: `${t.number(count)} envoi`, other: `${t.number(count)} envois` })}`,
+      statusTitle: 'Envois par statut',
+      statusPublished: 'Publiés',
+      statusPending: 'En attente',
+      statusRejected: 'Refusés',
+      statusHidden: 'Masqués',
+      publishedShare: 'Part des envois publiés',
+      guestsTitle: 'Invités',
+      guestsJoined: 'Arrivés',
+      guestsContributors: 'Ayant envoyé au moins un fichier',
+      guestsRevoked: 'Retirés par vous',
+      reactionsTitle: 'Réactions',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} réaction`,
+          other: `${t.number(count)} réactions`,
+        }),
+      topTitle: 'Ceux qui ont le plus partagé',
+      topEmpty: 'Personne n’a encore publié d’envoi.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} envoi publié`, other: `${t.number(photos)} envois publiés` })} · ${t.count(reactions, { one: `${t.number(reactions)} réaction reçue`, other: `${t.number(reactions)} réactions reçues` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Les invités sans prénom sont regroupés : ${t.count(guests, { one: `${t.number(guests)} invité`, other: `${t.number(guests)} invités` })}, ${t.count(photos, { one: `${t.number(photos)} envoi`, other: `${t.number(photos)} envois` })}.`,
+      engagementTitle: 'Après la soirée',
+      engagementNone: 'Pas encore mesuré : aucune ouverture du lien d’album ni aucun ZIP lancé.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ouverture du lien d’album`,
+          other: `${t.number(count)} ouvertures du lien d’album`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP lancé`,
+          other: `${t.number(count)} ZIP lancés`,
+        }),
+      measuredSince: (date: string) => `Mesuré depuis le ${date}. Avant, rien n’était compté.`,
+      engagementNote:
+        'Une ouverture est un chargement de la page d’album, pas une personne. Un ZIP lancé n’est pas forcément terminé. Ces chiffres sont indicatifs.',
+      retention:
+        'Ces chiffres disparaissent avec l’évènement, à sa suppression ou à l’échéance de conservation.',
+    },
     storageUsed: (used: string, total: string) => `${used} sur ${total}`,
     settings: 'Réglages',
     moderationMode: 'Modération',
@@ -1071,6 +1217,32 @@ export const fr = {
     printQr: 'Imprimer le QR code',
     qrScanPrompt: 'Scannez pour envoyer vos photos.',
     qrAlt: (eventName: string) => `QR code pour rejoindre ${eventName}`,
+    printKitTitle: 'Cartes de table et affiche',
+    printKitCrumb: 'Cartes et affiche',
+    printKitIntro:
+      'Imprimez de quoi poser sur les tables : le QR code, le code de secours et trois lignes d’explication.',
+    printKitFormat: 'Format',
+    printKitInk: 'Couleur du QR',
+    printInkBlack: 'Noir (le plus sûr)',
+    printInkEvent: 'Couleur de l’évènement',
+    printFormatA4: 'Affiche A4 (1 par feuille)',
+    printFormatA5: 'Affiche A5 (2 par feuille)',
+    printFormatCard: 'Cartes de table A6 (4 par feuille)',
+    printKitLanguage: 'Langue du support',
+    printKitLanguageHint: 'C’est la langue de la soirée, pas celle de votre écran.',
+    printKitPrint: 'Imprimer',
+    printKitPrinting: 'Mise à jour du code…',
+    printKitHelp:
+      'Dans la fenêtre d’impression, choisissez A4, échelle 100 %, sans en-têtes ni pieds de page. Votre navigateur y propose aussi « Enregistrer au format PDF ». Utilisez le bouton Imprimer : Ctrl+P ne vérifie pas le code.',
+    printKitCodeChanged:
+      'Le code de la soirée a changé : le support ci-dessous est à jour. Jetez les anciens.',
+    printKitClosed:
+      'Cette soirée est fermée : les invités qui scannent ne peuvent plus rejoindre. Si vous la rouvrez, le même code redevient valable.',
+    printKitDraft: 'Les invités ne pourront rejoindre qu’à l’ouverture de la soirée.',
+    printKitArchived: 'Cet évènement est archivé : son QR code ne mène plus nulle part.',
+    printKitBack: 'Retour à l’évènement',
+    printKitLongLink: 'Le lien est long, le QR code sera petit. Préférez l’affiche.',
+    printKitPreview: 'Aperçu de la feuille',
     storageLabel: 'Espace photos utilisé',
     storage: (used: string) => `${used} utilisés`,
     rotateJoinCodeTitle: 'Changer le code de la soirée ?',
@@ -1323,6 +1495,13 @@ export const fr = {
     venuePhotoBusy: 'Envoi de la photo…',
     venuePhotoSaved: 'La photo de votre lieu est enregistrée.',
     venuePhotoRemoved: 'La photo par défaut est rétablie.',
+    welcomeMessage: 'Message d’accueil',
+    welcomeMessageHint:
+      'Quelques mots affichés à vos invités quand ils rejoignent la soirée. Écrivez dans la langue de vos invités : ce texte n’est pas traduit. Il est visible par toute personne qui a le QR code : n’y mettez rien de privé.',
+    welcomeMessagePlaceholder:
+      'Bienvenue ! Prenez des photos, on les verra sur l’écran dans la salle.',
+    welcomeMessageClear: 'Effacer le message',
+    welcomeMessageCount: (count: number, max: number): string => `${count} / ${max}`,
     customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
     customAmbianceEdit: 'Modifier mon ambiance',
     customAmbianceEntryHint:
@@ -1525,6 +1704,7 @@ export const fr = {
       'Cette durée d’évènement en cours n’est pas acceptée : de 1 à 365 jours.',
     'clientCeilings.periodStartedAtInvalid': 'Ce début de période n’est pas accepté.',
     'clientCeilings.clipsAllowedInvalid': 'Ce réglage des vidéos n’est pas accepté.',
+    'clientCeilings.booksAllowedInvalid': 'Ce réglage des livres photo n’est pas accepté.',
     'clientCeilings.liveAllowedInvalid': 'Ce réglage d’ouverture n’est pas accepté.',
     'siteLookup.queryInvalid':
       'Saisissez un identifiant, un code, une adresse ou un nom d’évènement (300 caractères au plus).',
@@ -1634,6 +1814,10 @@ export const fr = {
     'slug.malformed':
       'L’adresse n’accepte que des lettres sans accent, des chiffres et des tirets.',
     'slug.reserved': 'Cette adresse est réservée. Choisissez-en une autre.',
+    'eventSettings.welcomeInvalid': 'Ce message n’est pas valide.',
+    'eventSettings.welcomeTooLong': 'Ce message est trop long.',
+    'eventSettings.welcomeTooManyLines': 'Ce message compte trop de lignes.',
+    'eventSettings.saveFailed': 'Les réglages n’ont pas pu être enregistrés. Réessayez.',
     'eventSettings.graceSecondsInvalid': 'Ce délai de suppression n’est pas accepté.',
     'eventSettings.retentionDaysInvalid': 'Ce délai de conservation n’est pas accepté.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
@@ -2139,6 +2323,7 @@ export const fr = {
     maxRetentionDays: 'Conservation après la fin de l’évènement, en jours, au plus',
     maxLiveDays: 'Durée d’un évènement en cours, en jours, au plus',
     clipsAllowed: 'Vidéos autorisées',
+    booksAllowed: 'Livres photo (PDF) autorisés',
     liveAllowed: 'Ouverture d’évènements autorisée',
     renewPeriod: 'Renouveler la période maintenant',
     renewPeriodHint: 'Remet à zéro le compteur d’évènements créés sur la période.',
@@ -2398,7 +2583,17 @@ export const fr = {
    * product name — and **never content**: an event's name, a caption or an invitation's
    * token does not come through here, so a title can neither leak nor be translated wrongly.
    */
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Partagez vos photos de la soirée',
+    step1: 'Scannez le QR code avec l’appareil photo de votre téléphone.',
+    step2: 'Envoyez vos photos.',
+    step3: 'Elles rejoignent l’écran de la soirée.',
+    fallback: (code: string, address: string) =>
+      `Pas de QR code ? Tapez le code ${code} sur ${address}.`,
+  },
   titles: {
+    print: 'Cartes de table et affiche',
     join: 'Rejoindre la soirée',
     upload: 'Envoi de photos',
     feed: 'Les photos de la soirée',
@@ -2418,6 +2613,7 @@ export const fr = {
     event: 'Évènement',
     moderation: 'Modération',
     mobileModeration: 'Modération sur téléphone',
+    stats: 'Statistiques de la soirée',
     settings: 'Réglages de l’évènement',
     customAmbiance: 'Ambiance Sur mesure',
     clientSpace: 'Espace client',

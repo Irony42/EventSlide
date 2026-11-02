@@ -68,6 +68,16 @@ describe('downloadGalleryArchive', () => {
     expect(world.archive.names[1]).toMatch(new RegExp(`^${WEDDING_SLUG}/0002-[0-9a-f]+[.]jpg$`))
   })
 
+  it('counts one ZIP launched, when the link has granted and before a byte is read', async () => {
+    const result = await download(signed())
+    expect(result.ok).toBe(true)
+
+    // Nobody has pulled a chunk yet: the launch is the count, not the download's end.
+    expect(await world.stats.readCounters(WEDDING)).toEqual([
+      { metric: 'galleryArchiveDownloads', day: '2026-06-20', value: 1 },
+    ])
+  })
+
   it('aborts, rather than ends cleanly, when the link is revoked mid-download', async () => {
     // A ZIP that stops early but well-formed looks exactly like a complete album.
     const result = await download(signed())
@@ -180,6 +190,7 @@ describe('downloadGalleryArchive', () => {
     const result = await download(input)
 
     expect(!result.ok && result.error.code).toBe('gallery.notAvailable')
+    expect(await world.stats.readCounters(WEDDING)).toEqual([])
   })
 
   it('refuses a URL for a link that has been revoked', async () => {
@@ -189,6 +200,7 @@ describe('downloadGalleryArchive', () => {
     const result = await download(input)
 
     expect(!result.ok && result.error.code).toBe('gallery.notAvailable')
+    expect(await world.stats.readCounters(WEDDING)).toEqual([])
   })
 
   it('refuses a correctly signed URL for a link that does not exist', async () => {

@@ -1,6 +1,7 @@
 import { planReel, MIN_REEL_PHOTOS } from '../../../domain/highlights/reelPlan'
 import { ReelJob } from '../../../domain/highlights/reelJob'
 import { isReelEligible } from '../../../domain/highlights/highlightEligibility'
+import { retryAfterSecondsFor } from '../../../domain/clips/clipQueue'
 import type { Photo } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import { asReelId, type EventId } from '../../../domain/shared/ids'
@@ -74,6 +75,7 @@ const refusalError = (refusal: ReelRefusal, reservedBytes: number): DomainError 
       return DomainError.rateLimited('reel.queueFull', {
         depth: refusal.depth,
         maxDepth: refusal.maxDepth,
+        retryAfterSeconds: retryAfterSecondsFor(refusal.depth),
       })
     case 'quotaExceeded':
       return DomainError.conflict('event.quotaExceeded', {

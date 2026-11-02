@@ -4,6 +4,10 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
 
 - **Guests join by scanning.** A QR code, a six-character code, a first name if they
   feel like it. No account, no download, no email.
+- **Table cards and a poster, ready to print.** From the event page, "Cartes de table et
+  affiche" lays out A6 cards (four to a sheet), an A5 or an A4 poster with the QR code, the
+  backup code and three lines of instructions, in the language of the evening, and prints it
+  through the browser's own dialog. Nothing is generated on the server.
 - **Nothing reaches the screen without you.** Every photo waits in a moderation queue
   until you approve it. Two hundred people are watching that screen; that is not a
   setting to leave to chance.

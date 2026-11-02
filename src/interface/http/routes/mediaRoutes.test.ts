@@ -9,6 +9,8 @@ import { makeExportAlbum, type ExportAlbum } from '../../../application/usecases
 import { makeGetVenuePhotoMedia } from '../../../application/usecases/venue/getVenuePhotoMedia'
 import { makeGetPhotoMedia } from '../../../application/usecases/photos/getPhotoMedia'
 import { makeIdentifyMediaViewer } from '../../../application/usecases/photos/identifyMediaViewer'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import {
   AT,
@@ -105,6 +107,8 @@ const buildWorld = async ({
               makeExportAlbum({
                 events: deps.events,
                 photos,
+                guestbook: new FakeGuestbookRepository(),
+                guests: new FakeGuestRepository(),
                 media,
                 archive,
                 logger: deps.logger,

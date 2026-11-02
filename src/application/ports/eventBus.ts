@@ -52,6 +52,16 @@ export type DomainEvent =
    */
   | { readonly type: 'mission.changed'; readonly eventId: EventId }
   /**
+   * The guestbook is not what it was: a message written, decided on, taken back by its author,
+   * erased with its guest, or removed or restored by the operator (spec 01).
+   *
+   * An invalidation signal without data, like `mission.changed`: the host's panel, the wall and
+   * the guest's own list refetch, and none could do anything different with "written" than with
+   * "removed". It carries no entry id for the same reason, and a duplicate send publishes
+   * nothing, because nothing changed.
+   */
+  | { readonly type: 'guestbook.changed'; readonly eventId: EventId }
+  /**
    * A clip has been staged and is waiting for the transcoder.
    *
    * Two subscribers care, for different reasons. The guest's own view refetches, so

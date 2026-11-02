@@ -4,6 +4,8 @@ import type { Express } from 'express'
 import request from 'supertest'
 import { aPhoto, atPlus, anEvent, AT, aUser } from '../../../application/testing/builders'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
+import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { makeExportAlbum } from '../../../application/usecases/photos/exportAlbum'
 import { MEDIA_VARIANTS } from '../../../application/ports/mediaStore'
@@ -124,6 +126,8 @@ export const hostAlbum = async (): Promise<AbortableAlbum> => {
             exportAlbum: makeExportAlbum({
               events: deps.events,
               photos,
+              guestbook: new FakeGuestbookRepository(),
+              guests: new FakeGuestRepository(),
               media,
               archive: archiverWriter,
               logger: deps.logger,

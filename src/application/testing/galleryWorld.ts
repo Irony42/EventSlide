@@ -8,6 +8,9 @@ import { AT, anEvent, aShareLink, aUser, type ShareLinkInput } from './builders'
 import { FakeArchiveWriter } from './fakeArchiveWriter'
 import { FakeClock } from './fakeClock'
 import { FakeEventRepository } from './fakeEventRepository'
+import { FakeEventStatsRepository } from './fakeEventStatsRepository'
+import { FakeGuestRepository } from './fakeGuestRepository'
+import { FakeReactionRepository } from './fakeReactionRepository'
 import { FakeGallerySigner } from './fakeGallerySigner'
 import { FakeMembershipRepository } from './fakeMembershipRepository'
 import { FakePasswordHasher } from './fakePasswordHasher'
@@ -15,6 +18,7 @@ import { FakePhotoRepository } from './fakePhotoRepository'
 import { FakeShareLinkRepository } from './fakeShareLinkRepository'
 import { FakeUserRepository } from './fakeUserRepository'
 import { InMemoryMediaStore } from './inMemoryMediaStore'
+import { makeRecordEngagement, type RecordEngagement } from '../usecases/stats/recordEngagement'
 import { SequentialIdGenerator } from './sequentialIdGenerator'
 
 /**
@@ -50,6 +54,9 @@ export interface GalleryWorld {
   readonly media: InMemoryMediaStore
   readonly archive: FakeArchiveWriter
   readonly logger: CapturingLogger
+  /** What the after-party counters hold: opens and ZIPs, per day. */
+  readonly stats: FakeEventStatsRepository
+  readonly engagement: RecordEngagement
   /**
    * Stores a link for the wedding, created by the owner, and answers its token. The
    * token is the fake signer's, so the digest the repository holds is the one a request
@@ -82,6 +89,12 @@ export const buildGalleryWorld = (): GalleryWorld => {
   const shareLinks = new FakeShareLinkRepository()
   const signer = new FakeGallerySigner()
   const media = new InMemoryMediaStore(clock)
+  const stats = new FakeEventStatsRepository(
+    photos,
+    new FakeGuestRepository(photos),
+    new FakeReactionRepository(),
+  )
+  const logger = new CapturingLogger()
 
   return {
     clock,
@@ -95,7 +108,9 @@ export const buildGalleryWorld = (): GalleryWorld => {
     ids: new SequentialIdGenerator(),
     media,
     archive: new FakeArchiveWriter(),
-    logger: new CapturingLogger(),
+    logger,
+    stats,
+    engagement: makeRecordEngagement({ stats, clock, logger }),
     seedLink: (input = {}) => {
       const { token, digest } = signer.mintToken()
       const link = aShareLink({

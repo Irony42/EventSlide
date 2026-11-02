@@ -153,6 +153,15 @@ describe('loadConfig', () => {
             tmp: '',
           },
         },
+        books: {
+          enabled: true,
+          maxPhotos: 300,
+          maxBytes: 314_572_800,
+          ttlDays: 7,
+          maxTotalBytes: 2_147_483_648,
+          maxWaitMs: 600_000,
+          maxPerEventPerDay: 3,
+        },
         realtime: {
           maxStreamsPerClient: 12,
           maxStreamsTotal: 500,
@@ -212,6 +221,7 @@ describe('loadConfig', () => {
           maxRetentionDays: null,
           maxLiveDays: null,
           clipsAllowed: true,
+          booksAllowed: true,
         },
         // Nobody has set a key, and nobody is required to hold a second factor.
         mfa: { encryptionKey: null, requireOperatorSecondFactor: false },
@@ -1023,7 +1033,11 @@ describe('loadConfig', () => {
     ] as const
 
     /** Every variable of the family, which is what `SITE_ADMIN=off` refuses. */
-    const ALL = [...NUMERIC.map(([name]) => name), 'NEW_CLIENT_CLIPS_ALLOWED'] as const
+    const ALL = [
+      ...NUMERIC.map(([name]) => name),
+      'NEW_CLIENT_CLIPS_ALLOWED',
+      'NEW_CLIENT_BOOKS_ALLOWED',
+    ] as const
 
     /** A box that has an operator, which is the only kind that may set any of them. */
     const hosted = (overrides: Source = {}): Source =>
@@ -1037,6 +1051,7 @@ describe('loadConfig', () => {
       maxRetentionDays: null,
       maxLiveDays: null,
       clipsAllowed: true,
+      booksAllowed: true,
     }
 
     it('is no ceiling at all on a box that never mentions them, so a self-hosted box is unchanged', () => {
@@ -1119,6 +1134,30 @@ describe('loadConfig', () => {
         const issues = refusalIssues(hosted({ NEW_CLIENT_CLIPS_ALLOWED: given }))
 
         expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_CLIPS_ALLOWED: '))).toBe(true)
+      },
+    )
+
+    it.each([
+      ['0', false],
+      ['false', false],
+      ['1', true],
+      ['true', true],
+    ])('reads NEW_CLIENT_BOOKS_ALLOWED=%s as booksAllowed %s', (given, expected) => {
+      const config = loadConfig(hosted({ NEW_CLIENT_BOOKS_ALLOWED: given }))
+
+      expect(config.newClientCeilings.booksAllowed).toBe(expected)
+    })
+
+    it('allows photo books on a box that named nothing, as it allows clips', () => {
+      expect(loadConfig(hosted({})).newClientCeilings.booksAllowed).toBe(true)
+    })
+
+    it.each(['yes', 'no', 'on', 'TRUE', '2', ' true'])(
+      'refuses NEW_CLIENT_BOOKS_ALLOWED=%j rather than guess which way it was meant',
+      (given) => {
+        const issues = refusalIssues(hosted({ NEW_CLIENT_BOOKS_ALLOWED: given }))
+
+        expect(issues.some((issue) => issue.startsWith('NEW_CLIENT_BOOKS_ALLOWED: '))).toBe(true)
       },
     )
 
@@ -3505,5 +3544,42 @@ describe('loadMaintenanceConfig', () => {
       return
     }
     throw new Error('loadMaintenanceConfig accepted a placeholder secret')
+  })
+})
+
+describe('the photo book settings', () => {
+  it('read every BOOK_* variable, minutes as milliseconds', () => {
+    const config = loadConfig({
+      ...DEV,
+      BOOK_ENABLED: 'false',
+      BOOK_MAX_PHOTOS: '800',
+      BOOK_MAX_BYTES: '1000',
+      BOOK_TTL_DAYS: '30',
+      BOOK_MAX_TOTAL_BYTES: '2000',
+      BOOK_MAX_WAIT_MINUTES: '2',
+      BOOK_MAX_PER_EVENT_PER_DAY: '5',
+    })
+
+    expect(config.books).toEqual({
+      enabled: false,
+      maxPhotos: 800,
+      maxBytes: 1000,
+      ttlDays: 30,
+      maxTotalBytes: 2000,
+      maxWaitMs: 120_000,
+      maxPerEventPerDay: 5,
+    })
+  })
+
+  it.each([
+    ['BOOK_MAX_PHOTOS', '0'],
+    ['BOOK_MAX_PHOTOS', '5001'],
+    ['BOOK_TTL_DAYS', '366'],
+    ['BOOK_MAX_PER_EVENT_PER_DAY', '0'],
+    ['BOOK_ENABLED', 'maybe'],
+  ])('refuses %s=%s', (name, value) => {
+    const issues = refusalIssues({ ...DEV, [name]: value })
+
+    expect(issues.some((issue) => issue.startsWith(`${name}: `))).toBe(true)
   })
 })

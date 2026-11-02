@@ -393,4 +393,49 @@ describe('updateEventSettings', () => {
       expect(result.ok && result.value.settings.allowClips).toBe(true)
     })
   })
+
+  describe('welcome message', () => {
+    const update = (patch: Parameters<UpdateEventSettings>[0]['patch']) =>
+      updateEventSettings({ eventId: WEDDING, actorId: OWNER, patch })
+
+    it('stores the cleaned message', async () => {
+      const result = await update({ welcomeMessage: '  Bienvenue   !  ' })
+
+      expect(result.ok && result.value.settings.welcomeMessage).toBe('Bienvenue !')
+    })
+
+    it('refuses a message above the ceiling with its own code', async () => {
+      const result = await update({ welcomeMessage: 'x'.repeat(281) })
+
+      expect(!result.ok && result.error.code).toBe('eventSettings.welcomeTooLong')
+    })
+
+    it('leaves the message alone when the patch does not mention it', async () => {
+      await update({ welcomeMessage: 'Bienvenue' })
+      const result = await update({ moderation: 'auto' })
+
+      expect(result.ok && result.value.settings.welcomeMessage).toBe('Bienvenue')
+    })
+
+    it('refuses to change the message while a purge hold is on, without naming the hold', async () => {
+      await update({ welcomeMessage: 'Bienvenue' })
+      await events.setPurgeHeld(WEDDING, AT)
+
+      const changed = await update({ welcomeMessage: 'Autre' })
+      const cleared = await update({ welcomeMessage: null })
+
+      expect(!changed.ok && changed.error.code).toBe('eventSettings.saveFailed')
+      expect(!cleared.ok && cleared.error.code).toBe('eventSettings.saveFailed')
+    })
+
+    it('accepts the same message and other settings under a purge hold', async () => {
+      await update({ welcomeMessage: 'Bienvenue' })
+      await events.setPurgeHeld(WEDDING, AT)
+
+      const same = await update({ welcomeMessage: ' Bienvenue ', moderation: 'auto' })
+
+      expect(same.ok && same.value.settings.welcomeMessage).toBe('Bienvenue')
+      expect(same.ok && same.value.settings.moderation).toBe('auto')
+    })
+  })
 })

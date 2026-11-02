@@ -394,6 +394,7 @@ const PARAMETERS: Readonly<Record<string, string>> = {
   userId: CLIENT,
   clipJobId: A_PHOTO,
   missionId: A_PHOTO,
+  entryId: A_PHOTO,
   variant: 'display',
   hash: '0'.repeat(64),
   kind: 'love',

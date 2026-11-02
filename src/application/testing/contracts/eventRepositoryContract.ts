@@ -163,6 +163,9 @@ export const eventRepositoryContract = (
             allowCaptions: false,
             allowReactions: false,
             allowClips: false,
+            // Both off their defaults (false and true), so a store that dropped one is caught.
+            allowGuestbook: true,
+            guestbookOnWall: false,
             allowGuestSelfDelete: false,
             guestSelfDeleteGraceSeconds: 60,
             retentionDays: 30,
@@ -184,6 +187,8 @@ export const eventRepositoryContract = (
             wallLanguage: 'de',
             // Off the default too: a store that dropped it would otherwise round-trip clean.
             venuePhoto: venueDigest,
+            // Off the default (null) for the same reason.
+            welcomeMessage: 'Bienvenue !',
           },
         }),
       )
@@ -195,6 +200,8 @@ export const eventRepositoryContract = (
         allowCaptions: false,
         allowReactions: false,
         allowClips: false,
+        allowGuestbook: true,
+        guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
@@ -207,6 +214,7 @@ export const eventRepositoryContract = (
         },
         wallLanguage: 'de',
         venuePhoto: venueDigest,
+        welcomeMessage: 'Bienvenue !',
       })
     })
 

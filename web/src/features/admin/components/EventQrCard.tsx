@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Button } from '../../../design-system/components/Button'
 import { Card } from '../../../design-system/components/Card'
@@ -16,6 +16,8 @@ export interface EventQrCardProps {
   readonly joinUrl: string
   /** Lets a control elsewhere on the page take the host to this card (the new-code toast). */
   readonly titleRef?: RefObject<HTMLHeadingElement | null>
+  /** A link under the print button (the table cards page); hidden on paper like the button. */
+  readonly extraAction?: ReactNode
 }
 
 /**
@@ -25,7 +27,13 @@ export interface EventQrCardProps {
  * Wi-Fi would drop it anyway — and the code would then be missing from the one artefact
  * that has to work on paper.
  */
-export function EventQrCard({ eventName, joinCode, joinUrl, titleRef }: EventQrCardProps) {
+export function EventQrCard({
+  eventName,
+  joinCode,
+  joinUrl,
+  titleRef,
+  extraAction,
+}: EventQrCardProps) {
   const t = useTranslations()
 
   const handlePrint = () => {
@@ -62,6 +70,9 @@ export function EventQrCard({ eventName, joinCode, joinUrl, titleRef }: EventQrC
       <Button className={styles['printAction']} onClick={handlePrint}>
         {t.admin.printQr}
       </Button>
+      {extraAction === undefined ? null : (
+        <div className={styles['printAction']}>{extraAction}</div>
+      )}
     </Card>
   )
 }

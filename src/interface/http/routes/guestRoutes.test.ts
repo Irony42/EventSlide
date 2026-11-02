@@ -18,6 +18,7 @@ import { FakeMissionRepository } from '../../../application/testing/fakeMissionR
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { FakeClipJobRepository } from '../../../application/testing/fakeClipJobRepository'
 import { makeDeletePhoto } from '../../../application/usecases/photos/deletePhoto'
 import { makeListGuestPhotos } from '../../../application/usecases/photos/listGuestPhotos'
@@ -234,6 +235,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               photos,
               reactions,
               clips: new FakeClipJobRepository(),
+              guestbook: new FakeGuestbookRepository(),
               media,
               bus: deps.bus,
               clock: deps.clock,
@@ -894,6 +896,28 @@ describe('GET /api/events/:eventSlug/photos/mine', () => {
     expect(endedResponse.body.acceptingUploads).toBe(false)
   })
 
+  it('carries the host’s welcome message, also on an evening that has been closed', async () => {
+    // The message stays on the page a guest already has open: only "can I send more" changes.
+    const ended = buildSubject()
+    ended.harness.events.seed(
+      anEvent({
+        id: 'ended-id',
+        slug: 'termine',
+        joinCode: 'C10SED',
+        status: 'closed',
+        settings: { welcomeMessage: 'Merci d’être venus' },
+      }),
+    )
+    ended.harness.guests.seed(aGuest({ id: GUEST, eventId: 'ended-id', displayName: 'Léa' }))
+
+    const response = await request(ended.app)
+      .get('/api/events/termine/photos/mine')
+      .set('Cookie', cookie(ended.harness.issueGuestToken('ended-id', GUEST)))
+
+    expect(response.status).toBe(200)
+    expect(response.body.brand).toEqual({ welcomeMessage: 'Merci d’être venus' })
+  })
+
   it('carries the event’s look as it is now, so a guest who joined before a change learns of it', async () => {
     // Populated, not merely declared: `dtoContract.test.ts` cannot see a presenter that declares
     // the field and never fills it. The join's copy of the theme is a snapshot and the upload
@@ -1491,7 +1515,7 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     const response = await erase(subject)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ photos: 3, clips: 0 })
+    expect(response.body).toEqual({ photos: 3, clips: 0, messages: 0 })
     expect(response.headers['cache-control']).toBe('no-store')
     expect(String(response.headers['set-cookie'])).toMatch(/es_guest=;/)
     expect(await photoIdsOf(subject, WEDDING)).toEqual([ANOTHER_GUESTS, OTHERS_PUBLISHED].sort())
@@ -1541,7 +1565,7 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     const response = await erase(subject)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ photos: 3, clips: 0 })
+    expect(response.body).toEqual({ photos: 3, clips: 0, messages: 0 })
     expect(await photoIdsOf(subject, WEDDING)).not.toContain(PENDING)
     expect(await photoIdsOf(subject, WEDDING)).toContain(ANOTHER_GUESTS)
   })
@@ -1599,7 +1623,7 @@ describe('DELETE /api/events/:eventSlug/guests/me (guest self-service erasure)',
     const response = await erase(subject)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ photos: 2, clips: 0 })
+    expect(response.body).toEqual({ photos: 2, clips: 0, messages: 0 })
     expect((await subject.photos.locate(asPhotoId(PUBLISHED)))?.takenDownAt).not.toBeNull()
     const kept = await subject.harness.guests.findById(asEventId(WEDDING), asGuestId(GUEST))
     expect(kept?.label()).toBeNull()

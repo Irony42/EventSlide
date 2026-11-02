@@ -5,6 +5,7 @@ import {
   asClipJobId,
   asEventId,
   asGuestId,
+  asGuestbookEntryId,
   asMissionId,
   asPhotoId,
   asReactionId,
@@ -15,6 +16,7 @@ import {
   type ClipJobId,
   type EventId,
   type GuestId,
+  type GuestbookEntryId,
   type MissionId,
   type PhotoId,
   type ReactionId,
@@ -73,6 +75,7 @@ type Kind =
   | 'reaction'
   | 'clipJob'
   | 'mission'
+  | 'guestbookEntry'
   | 'shareLink'
   | 'client'
   | 'accountToken'
@@ -85,6 +88,7 @@ const PREFIX: Record<Kind, string> = {
   reaction: '30000000',
   clipJob: '40000000',
   mission: '50000000',
+  guestbookEntry: 'a0000000',
   shareLink: '60000000',
   client: '70000000',
   accountToken: '80000000',
@@ -114,6 +118,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     reactionId: (): ReactionId => asReactionId(next('reaction')),
     clipJobId: (): ClipJobId => asClipJobId(next('clipJob')),
     missionId: (): MissionId => asMissionId(next('mission')),
+    guestbookEntryId: (): GuestbookEntryId => asGuestbookEntryId(next('guestbookEntry')),
     shareLinkId: (): ShareLinkId => asShareLinkId(next('shareLink')),
     clientId: (): ClientId => asClientId(next('client')),
     accountTokenId: (): AccountTokenId => asAccountTokenId(next('accountToken')),

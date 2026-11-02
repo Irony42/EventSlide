@@ -16,6 +16,7 @@ describe('ClientCeilings.create', () => {
       maxEventQuotaBytes: null,
       maxRetentionDays: null,
       clipsAllowed: true,
+      booksAllowed: true,
       liveAllowed: true,
       maxLiveDays: null,
       maxEventsPerPeriod: null,
@@ -175,6 +176,7 @@ describe('ClientCeilings.create', () => {
       maxEventQuotaBytes: null,
       maxRetentionDays: null,
       clipsAllowed: false,
+      booksAllowed: false,
       liveAllowed: false,
       maxLiveDays: 7,
       maxEventsPerPeriod: 1,
@@ -192,6 +194,7 @@ describe('ClientCeilings.create', () => {
       maxEventQuotaBytes: 100,
       maxRetentionDays: 60,
       clipsAllowed: true,
+      booksAllowed: true,
       liveAllowed: true,
       maxLiveDays: 14,
       maxEventsPerPeriod: 30,
@@ -333,6 +336,7 @@ describe('ClientCeilings.allowsOpening', () => {
       maxEventQuotaBytes: null,
       maxRetentionDays: null,
       clipsAllowed: true,
+      booksAllowed: true,
       liveAllowed: false,
       maxLiveDays: null,
       maxEventsPerPeriod: null,
@@ -354,6 +358,19 @@ describe('ClientCeilings.liveDeadline', () => {
     expect(ceilings.liveDeadline(new Date('2026-06-20T18:00:00.000Z'))).toEqual(
       new Date('2026-06-27T18:00:00.000Z'),
     )
+  })
+})
+
+describe('ClientCeilings.booksAllowed', () => {
+  it('is on for an unlimited client and reflects the flag it was built with', () => {
+    expect(ClientCeilings.unlimited().booksAllowed).toBe(true)
+    expect(must(ClientCeilings.create({ booksAllowed: false })).booksAllowed).toBe(false)
+  })
+
+  it.each([undefined, 'false', 0, null])('refuses %s as booksAllowed', (bad) => {
+    const result = ClientCeilings.create({ booksAllowed: bad as unknown as boolean })
+
+    expect(!result.ok && result.error.code).toBe('clientCeilings.booksAllowedInvalid')
   })
 })
 

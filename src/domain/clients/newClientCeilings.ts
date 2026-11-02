@@ -4,12 +4,12 @@ import type { ClientCeilingsInput, ClientCeilingsProps } from './clientCeilings'
  * The ceilings a box gives a client it creates when nobody names them (`NEW_CLIENT_*`,
  * free plan G2-18; roadmap §10.5).
  *
- * **Seven of the nine, on purpose.** `liveAllowed` is the quarantine switch and has no
+ * **Eight of the ten, on purpose.** `liveAllowed` is the quarantine switch and has no
  * default to configure: a new client is allowed to open, and an operator who wants it held
  * says so for that client. `periodStartedAt` is not a setting at all but a moment, and
  * {@link startingCeilings} is what supplies it.
  *
- * Every bound is `null` ("no ceiling") and `clipsAllowed` is `true` on a box that configured
+ * Every bound is `null` ("no ceiling") and `clipsAllowed` and `booksAllowed` are `true` on a box that configured
  * nothing, which is exactly what `ClientCeilings.unlimited()` is, so a self-hosted box
  * provisions every client as it always did.
  */
@@ -22,6 +22,7 @@ export type NewClientDefaults = Pick<
   | 'maxRetentionDays'
   | 'maxLiveDays'
   | 'clipsAllowed'
+  | 'booksAllowed'
 >
 
 /** What the operator named, or the default when they did not. `null` is a value, `undefined` is not. */
@@ -75,6 +76,7 @@ export const startingCeilings = (
     maxRetentionDays: orDefault(named.maxRetentionDays, defaults.maxRetentionDays),
     maxLiveDays: orDefault(named.maxLiveDays, defaults.maxLiveDays),
     clipsAllowed: orDefault(named.clipsAllowed, defaults.clipsAllowed),
+    booksAllowed: orDefault(named.booksAllowed, defaults.booksAllowed),
     ...(named.liveAllowed === undefined ? {} : { liveAllowed: named.liveAllowed }),
     ...(periodStartedAt === undefined ? {} : { periodStartedAt }),
   }

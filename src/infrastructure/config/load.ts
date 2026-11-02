@@ -263,6 +263,16 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       },
     },
 
+    books: {
+      enabled: raw.BOOK_ENABLED,
+      maxPhotos: raw.BOOK_MAX_PHOTOS,
+      maxBytes: raw.BOOK_MAX_BYTES,
+      ttlDays: raw.BOOK_TTL_DAYS,
+      maxTotalBytes: raw.BOOK_MAX_TOTAL_BYTES,
+      maxWaitMs: raw.BOOK_MAX_WAIT_MINUTES * 60_000,
+      maxPerEventPerDay: raw.BOOK_MAX_PER_EVENT_PER_DAY,
+    },
+
     realtime: {
       maxStreamsPerClient: raw.MAX_STREAMS_PER_CLIENT,
       maxStreamsTotal: raw.MAX_STREAMS_TOTAL,
@@ -376,6 +386,7 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       maxRetentionDays: raw.NEW_CLIENT_MAX_RETENTION_DAYS ?? null,
       maxLiveDays: raw.NEW_CLIENT_MAX_LIVE_DAYS ?? null,
       clipsAllowed: raw.NEW_CLIENT_CLIPS_ALLOWED ?? true,
+      booksAllowed: raw.NEW_CLIENT_BOOKS_ALLOWED ?? true,
     },
 
     mfa: {

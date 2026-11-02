@@ -45,6 +45,7 @@ export const privacyNoticeOf = async (
       retentionDays: ceilings.clampRetention(settings.retentionDays),
       allowGuestSelfDelete: settings.allowGuestSelfDelete,
       guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
+      allowGuestbook: settings.allowGuestbook,
     },
     operatorName,
   )

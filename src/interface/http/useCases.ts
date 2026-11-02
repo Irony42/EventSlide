@@ -64,6 +64,7 @@ import type { UpdateEventSettings } from '../../application/usecases/events/upda
 import type { AcknowledgePrivacyNotice } from '../../application/usecases/guests/acknowledgePrivacyNotice'
 import type { GetPrivacyNotice } from '../../application/usecases/guests/getPrivacyNotice'
 import type { JoinEvent } from '../../application/usecases/guests/joinEvent'
+import type { GetEventStats } from '../../application/usecases/stats/getEventStats'
 import type { ListGuests } from '../../application/usecases/guests/listGuests'
 import type { EraseGuestContribution } from '../../application/usecases/guests/eraseGuestContribution'
 import type { RenameGuest } from '../../application/usecases/guests/renameGuest'
@@ -98,6 +99,9 @@ import type { WithdrawReaction } from '../../application/usecases/reactions/with
 
 import type { GetWallPlaylist } from '../../application/usecases/slideshow/getWallPlaylist'
 
+import type { CreateGuestbookEntry } from '../../application/usecases/guestbook/createGuestbookEntry'
+import type { DeleteGuestbookEntry } from '../../application/usecases/guestbook/deleteGuestbookEntry'
+import type { ListMyGuestbookEntries } from '../../application/usecases/guestbook/listMyGuestbookEntries'
 import type { CreateMission } from '../../application/usecases/missions/createMission'
 import type { DeleteMission } from '../../application/usecases/missions/deleteMission'
 import type { GetGuestChecklist } from '../../application/usecases/missions/getGuestChecklist'
@@ -215,6 +219,7 @@ export interface HttpUseCases {
   readonly eraseGuestContribution: EraseGuestContribution
   readonly revokeGuest: RevokeGuest
   readonly listGuests: ListGuests
+  readonly getEventStats: GetEventStats
   readonly getPrivacyNotice: GetPrivacyNotice
   readonly acknowledgePrivacyNotice: AcknowledgePrivacyNotice
 
@@ -249,6 +254,10 @@ export interface HttpUseCases {
   // the wall
   readonly getWallPlaylist: GetWallPlaylist
 
+  // guestbook (spec 01)
+  readonly createGuestbookEntry: CreateGuestbookEntry
+  readonly listMyGuestbookEntries: ListMyGuestbookEntries
+  readonly deleteGuestbookEntry: DeleteGuestbookEntry
   // missions
   readonly listMissions: ListMissions
   readonly createMission: CreateMission

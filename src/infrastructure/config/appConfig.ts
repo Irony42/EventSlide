@@ -86,6 +86,18 @@ export interface AppConfig {
     readonly maxQueued: number
   }
 
+  /** The photo book (PDF of the published album); every figure from a `BOOK_*` variable. */
+  readonly books: {
+    readonly enabled: boolean
+    readonly maxPhotos: number
+    readonly maxBytes: number
+    readonly ttlDays: number
+    readonly maxTotalBytes: number
+    /** How long a book waits behind video transcodes, in milliseconds. */
+    readonly maxWaitMs: number
+    readonly maxPerEventPerDay: number
+  }
+
   readonly clips: {
     readonly maxBytes: number
     readonly maxDurationMs: number
@@ -349,5 +361,6 @@ export interface AppConfig {
     readonly maxRetentionDays: number | null
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
+    readonly booksAllowed: boolean
   }
 }

@@ -61,6 +61,14 @@ import type { WallLayout } from '../../../domain/slideshow/wallLayout'
  * phone from the join it already performed, the host's console from the event it is
  * editing.
  */
+/**
+ * What the host says to their guests (spec 03). Content, shown as written and never translated.
+ * Beside the theme, and absent from the shared gallery on purpose.
+ */
+export interface EventBrandDto {
+  readonly welcomeMessage: string | null
+}
+
 export interface EventThemeDto {
   /** Degrees on the oklch hue circle, 0-359. Validated for legibility server-side. */
   readonly accentHue: number
@@ -99,6 +107,10 @@ export interface PublicEventDto {
   readonly maxFilesPerUpload: number
   /** The host's switch over video. `false` means: do not offer the control at all. */
   readonly allowClips: boolean
+  /** The host's switch over written messages (spec 01). `false` means: do not offer the card. */
+  readonly allowGuestbook: boolean
+  /** The longest message, in characters, so the phone states a limit the server owns. */
+  readonly guestbookMaxLength: number
   /** `MAX_CLIP_BYTES`. Separate from `maxUploadBytes`, which is the photo path's. */
   readonly maxClipBytes: number
   /** `MAX_CLIP_SECONDS`. Seconds, because that is the unit a guest is told about. */
@@ -111,6 +123,8 @@ export interface PublicEventDto {
    * arrived a network round trip later would repaint the screen under a guest's thumb.
    */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
 }
 
 /**
@@ -147,6 +161,11 @@ export interface PrivacyNoticeDto {
    * operator is asked to read this one.
    */
   readonly operator?: string
+  /**
+   * Present (and `true`) only when guests may leave guestbook messages (spec 01): the notice then
+   * reads for a message too. Part of `revision` only in that case.
+   */
+  readonly guestbook?: true
 }
 
 /** A notice and where this device stands with it: every read of the notice answers this. */
@@ -181,6 +200,36 @@ export interface RenamedGuestDto {
 export interface ErasedContributionDto {
   readonly photos: number
   readonly clips: number
+  /** Guestbook messages removed with them (spec 01). */
+  readonly messages: number
+}
+
+/** One of a guest's own guestbook messages (`GET /api/events/:slug/guestbook/mine`). */
+export interface GuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The server's verdict (`GuestbookEntry.deletionVerdict`): the phone never recomputes it. */
+  readonly canDelete: boolean
+}
+
+export interface MyGuestbookDto {
+  readonly items: readonly GuestbookEntryDto[]
+  /** Whether a new message would be taken now: the switch, the event's state and the window. */
+  readonly accepting: boolean
+  /** Whether published messages appear on the wall: said to their authors in the status. */
+  readonly onWall: boolean
+}
+
+/** What a message just written answers (`POST /api/events/:slug/guestbook`). */
+export interface CreatedGuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** True when this was the same message sent a moment ago: nothing new was stored. */
+  readonly duplicate: boolean
 }
 
 export interface JoinResponseDto {
@@ -320,6 +369,8 @@ export interface WallResponseDto {
    * theme and the photos it themes are rendered together.
    */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
   /**
    * The language this screen renders its own words in (roadmap 1.5). On this response for
    * the theme's reason — the projector must not paint one language and repaint in another
@@ -351,6 +402,8 @@ export interface MyPhotosDto {
    * readable "event by slug"), so this is the read it already makes that can carry the news.
    */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
 }
 
 export interface GuestPhotoDto {
@@ -405,12 +458,18 @@ export interface EventSettingsDto {
    * is an apology, while this is a decision.
    */
   readonly allowClips: boolean
+  /** The host's switch over written guestbook messages (spec 01). */
+  readonly allowGuestbook: boolean
+  /** Whether published messages appear on the projected wall (spec 01). */
+  readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null
   readonly maxPhotosPerGuest: number | null
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
+  /** The host's own words to their guests (spec 03): content, never translated. */
+  readonly brand: EventBrandDto
   /**
    * The language the projected wall speaks (roadmap 1.5). On the host's settings response
    * and **not** on `PublicEventDto`: putting it on the join response would invite a client
@@ -929,6 +988,7 @@ export interface ClientDefaultsDto {
     readonly maxRetentionDays: number | null
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
+    readonly booksAllowed: boolean
   }
 }
 
@@ -946,6 +1006,7 @@ export interface CeilingsDto {
   readonly maxEventQuotaBytes: number | null
   readonly maxRetentionDays: number | null
   readonly clipsAllowed: boolean
+  readonly booksAllowed: boolean
   readonly liveAllowed: boolean
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null
@@ -1238,4 +1299,60 @@ export interface HighlightsDto {
 /** `POST /events/:eventSlug/highlights/preselect`: how many stars it put. */
 export interface PreselectHighlightsResponseDto {
   readonly added: number
+}
+
+// ------------------------------------------------------------------- statistics --
+
+/** A non-empty 15-minute slot, `start` an ISO instant in UTC. The browser regroups into local hours. */
+export interface StatsQuarterDto {
+  readonly start: string
+  readonly count: number
+}
+
+/** One of the ten guests the page names. A first name is content: shown as written. */
+export interface StatsContributorDto {
+  readonly displayName: string
+  readonly photos: number
+  readonly reactions: number
+}
+
+/** What the after-party counters hold, summed over the days; `since` is the first day counted. */
+export interface EngagementDto {
+  readonly since: string
+  readonly galleryViews: number
+  readonly galleryArchiveDownloads: number
+}
+
+/**
+ * The host statistics page (spec 05). Everything is derived from the album at read time.
+ * `photos` means sends, photographs and videos alike. `engagement` is `null` until a first
+ * open of the album link or ZIP was counted.
+ */
+export interface EventStatsResponseDto {
+  readonly uploads: {
+    readonly total: number
+    readonly byQuarter: readonly StatsQuarterDto[]
+  }
+  readonly photos: {
+    readonly pending: number
+    readonly published: number
+    readonly rejected: number
+    readonly hidden: number
+  }
+  readonly guests: {
+    readonly joined: number
+    readonly contributors: number
+    readonly revoked: number
+    readonly activeNow: number
+  }
+  readonly reactions: {
+    readonly total: number
+    readonly byKind: ReactionCounts
+  }
+  readonly topContributors: readonly StatsContributorDto[]
+  readonly anonymousContributors: {
+    readonly guests: number
+    readonly photos: number
+  }
+  readonly engagement: EngagementDto | null
 }

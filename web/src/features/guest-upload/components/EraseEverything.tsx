@@ -15,7 +15,14 @@ import styles from './EraseEverything.module.css'
  * a different, labelled action and the dialog opens with focus on the safe choice
  * (`ConfirmDialog`). The failure sentence stays on the page after the dialog closes.
  */
-export function EraseEverything({ state }: { readonly state: EraseEverythingState }) {
+export function EraseEverything({
+  state,
+  guestbook = false,
+}: {
+  readonly state: EraseEverythingState
+  /** The event has a guestbook: the confirmation names the messages that go with the rest. */
+  readonly guestbook?: boolean
+}) {
   const t = useTranslations()
   const [open, setOpen] = useState(false)
 
@@ -32,7 +39,7 @@ export function EraseEverything({ state }: { readonly state: EraseEverythingStat
       <ConfirmDialog
         open={open && !state.done}
         title={t.upload.eraseTitle}
-        description={`${t.upload.eraseBody} ${t.upload.eraseLimits}`}
+        description={`${guestbook ? t.guestbook.eraseBody : t.upload.eraseBody} ${t.upload.eraseLimits}`}
         confirmLabel={t.upload.eraseConfirm}
         cancelLabel={t.upload.eraseCancel}
         busy={state.busy}
