@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import sharp from 'sharp'
 import { join } from 'node:path'
 import type { ReelRenderer, ReelSpec, RenderedReel } from '../../application/ports/reelRenderer'
 import { DomainError } from '../../domain/shared/errors'
@@ -70,6 +71,18 @@ const segmentFilter = (seconds: number): string => {
   ].join(',')
 }
 
+/**
+ * The still as the encoder will read it: a PNG that sharp decoded and wrote again.
+ *
+ * Two measured reasons. The stored `display` variant is WebP or a progressive mozjpeg, and the
+ * pinned `image2` demuxer picks its decoder from the file's extension: a fixed `.jpg` broke on
+ * WebP, and ffmpeg's own JPEG decoder refuses some mozjpeg scan scripts ("Invalid data") that
+ * sharp reads without complaint. And what ffmpeg then parses is a PNG this process wrote itself,
+ * not bytes it did not.
+ */
+const stillOf = async (frame: Uint8Array): Promise<Buffer> =>
+  sharp(frame).png({ compressionLevel: 1 }).toBuffer()
+
 const failureCodeOf = (result: RunResult): string => {
   if (result.failure === 'spawnFailed') return 'reel.transcoderUnavailable'
   if (result.failure === 'cancelled') return 'reel.cancelled'
@@ -116,9 +129,21 @@ export const createFfmpegReelRenderer = ({
     try {
       const segments: string[] = []
       for (const [index, frame] of frames.entries()) {
-        const still = join(directory, `frame-${index}.jpg`)
+        const still = join(directory, `frame-${index}.png`)
         const segment = join(directory, `segment-${index}.mp4`)
-        await writeFile(still, frame)
+        let png: Buffer
+        try {
+          png = await stillOf(frame)
+        } catch (cause) {
+          // A picture sharp cannot read is a failed render of that picture, not a storage fault.
+          return err(
+            DomainError.unexpected('reel.renderFailed', {
+              frame: index,
+              reason: String(cause).slice(0, 160),
+            }),
+          )
+        }
+        await writeFile(still, png)
 
         const made = await run(
           [
