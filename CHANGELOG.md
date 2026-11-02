@@ -20,6 +20,127 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.5.0] - 2026-11-02
+
+Everything merged to `main` after the tag `v3.4.0`: pull requests #288, #289, #290, #291, #292, #293, #294,
+#295, #296, #297, #298, #299, #300, #301, #302, #303, #304, #305, #306, #307, #308, #309, #310, #311 and
+#312. This is a minor release, the six specs of the 1 November batch: a written guestbook, printable QR
+supports, a welcome message and a logo, a PDF photo book, per-event statistics and a best-of with a
+highlight video. It breaks nothing that
+[docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to keep, but it applies six
+migrations (018 to 023), adds a runtime dependency (`pdfkit`), opens a free-text channel for new events and
+writes files outside the event folders, so read "Behaviour changes to check before upgrading" and
+[Upgrading to 3.5](docs/UPGRADING.md#upgrading-to-35) before you upgrade.
+
+### Guests
+
+- **A written guestbook** (#295, #301). A guest leaves a short message (500 characters, 8 line breaks, three
+  per guest, 500 per event) from a folded card on the upload screen, sees it in their messages with its
+  status in words, and can take it back with « Retirer ce message » while the server allows it. A message
+  is accepted while the evening is live and for seven days after it closed. The privacy notice names the
+  messages when the host has a guestbook, so every guest is shown it again, and « Supprimer tout ce que j'ai
+  envoyé » erases the messages too.
+- **The host's welcome message and logo** (#296, #303, #305). A free message (280 characters, 4 lines) and
+  the host's logo are shown on the join page and, compact, on the upload screen. The logo is PNG, JPEG or
+  WebP (SVG is refused), re-encoded to WebP.
+
+### The wall
+
+- **Guestbook cards** (#310). Every sixth change of photograph, a published message takes the whole screen
+  (round robin, the newest 100, 6 seconds plus 60 ms a character and at most 20) and the photographs wait
+  under it. The wall shows messages only when the host switched on both `allowGuestbook` and
+  `guestbookOnWall`.
+- **The empty wall shows the welcome message and the logo** (#296, #305), and neither once photographs
+  arrive.
+
+### Hosts
+
+- **A guestbook panel** (#304). Messages are read and decided on like photographs (pending first, publish,
+  hide, refuse; any moderator; read only on an archived event). Two switches on the settings page: the
+  guestbook, and whether it goes on the wall. **A new event opens with the guestbook on.** The messages
+  are in the album ZIP as `guestbook.txt` (#298).
+- **Printable table cards and posters** (#290, #291, #307). A print page under the QR card: A6 cards (four
+  per sheet), A5 and A4 posters, in black ink or in the event's colour, in the language of the wall, with
+  the event's logo at the centre of the QR if wanted. Printed through the browser's dialog; no route and no
+  migration.
+- **Event statistics** (#294, #297). A page and a tile on the event page: sends per status and per 15
+  minutes, guests, reactions, the ten top contributors and, after the evening, how many times the album link
+  was opened and its ZIP launched (per day, with no identity).
+- **A PDF photo book** (#289, #299, #306, #309, #311). A panel on the event page makes a PDF of the
+  published photographs (cover, one or four per page, first names and captions if wanted, up to 300 photos
+  and 300 MB), kept seven days, downloaded by a moderator. It goes stale, then 404, as soon as a photograph
+  leaves the wall, and is made again on request. Three books per event per rolling day.
+- **Favourites and a best-of** (#293, #302, #308). A host stars a published photograph (`F`), downloads the
+  favourites as a ZIP, pre-selects the twenty most liked and asks for a highlight video (3 to 60 photographs,
+  4 seconds each, 1280x720 MP4, no audio) that is played and downloaded from the panel.
+
+### Operators
+
+- **A client can be switched off for photo books** (#299). `NEW_CLIENT_BOOKS_ALLOWED` is the default a new
+  client starts with and the console shows « Livres photo (PDF) autorisés » per client; the book routes
+  answer `403` when it is off.
+- **Take down one guestbook message** (#312), on the Retrait screen, with the photograph's contract: by
+  identifier alone, a mandatory reason, step-up, one audit line written before the message moves. The
+  operator is never handed the text; the message keeps counting toward its guest's three.
+
+### Behaviour changes to check before upgrading
+
+- **Six migrations, applied at boot, 018 to 023.** They only go forward; a 3.4.x build still reads the
+  database, so going back is the restore of the archive taken before the upgrade, which undoes all of them.
+  - `018_event_stats_counters`: a table of per-day counters for album-link opens and ZIP launches (#297).
+  - `019_guestbook_entries`: the guestbook table and its indexes (#295).
+  - `020_photo_highlights`: one nullable column, `photos.highlighted_at`, and a partial index (#293).
+  - `021_highlight_reels`: the `highlight_reels` table, one row per event (#302).
+  - `022_album_books`: `album_books`, `album_book_requests` (which keeps the daily count when a book is
+    deleted) and `clients.books_allowed` (#289).
+  - `023_audit_subject_guestbook`: **rebuilds the append-only `audit_log` table** to widen its
+    `subject_type` `CHECK` list with `guestbook` (#312). Every row keeps its `seq`, the sequence counter is
+    carried over so a pruned number is never handed out again, and the indexes and the three triggers are
+    recreated as they were.
+- **The guestbook is on for new events and off for existing ones.** An event created after the upgrade has
+  `allowGuestbook` on (in manual moderation every message waits for the host); an event created before reads
+  it as **off**, and `guestbookOnWall` as on, until its host changes it. The wall shows messages only when
+  both `allowGuestbook` and `guestbookOnWall` are on and at least one message is published. A host who does
+  not want a free-text channel unticks the box in the settings.
+- **New optional settings, none required** (defaults in `src/infrastructure/config/schema.ts`,
+  documented in `.env.example`): `BOOK_ENABLED` (`true`), `BOOK_MAX_PHOTOS` (300), `BOOK_MAX_BYTES` (300
+  MiB), `BOOK_TTL_DAYS` (7), `BOOK_MAX_TOTAL_BYTES` (2 GiB), `BOOK_MAX_WAIT_MINUTES` (10),
+  `BOOK_MAX_PER_EVENT_PER_DAY` (3), `REEL_ENABLED` (`true`), `REEL_MAX_PHOTOS` (60, at most 120),
+  `REEL_SECONDS_PER_PHOTO` (4, 2 to 8), `REEL_MAX_OUTPUT_BYTES` (150 MB), `MAX_QUEUED_REELS` (2) and
+  `NEW_CLIENT_BOOKS_ALLOWED` (absent means allowed). `BOOK_ENABLED=false` and `REEL_ENABLED=false` turn the
+  functions off, read at boot. The guestbook adds no variable: its ceilings are fixed.
+- **Disk: books and montages are not backed up.** Finished books live in `<MEDIA_ROOT>/.books/`, outside the
+  event folders and the backups, up to `BOOK_MAX_TOTAL_BYTES`: budget the disk for them. A finished montage
+  counts against the event's quota and its client's, and is not in the backup either. Both are made again on
+  request, and the purge of an event deletes them.
+- **A new runtime dependency, `pdfkit`**, and four fonts shipped with the server (Noto Sans and Noto Serif,
+  Regular and Bold, SIL Open Font License; `NOTICE` and `docs/LICENCE.md` say so). They are copied to
+  `dist/server/fonts` by `build:api`; the image carries them.
+- **The box works harder after an event.** The queue worker renders a montage after any clip, one encoder at a
+  time, and the PDF of a book is built in the server process (about 250 MB of memory for 300 large
+  photographs in the spike of #306). A box already short of memory should watch the first book.
+- **New fields, all optional for a client, none removed**: `brand` (welcome message and logo) on join, wall,
+  `photos/mine` and the host's settings; `allowGuestbook` and `guestbookMaxLength` on join; `allowGuestbook`
+  and `guestbookOnWall` in the settings; `guestbook` on the wall; `messages` in the answer of
+  `DELETE /guests/me`; `highlighted` on the moderation DTOs; `engagement` on the statistics DTO; `booksAllowed`
+  on the client. `GET /highlights` now answers `{ count, reel }`. A phone or a wall left open across the
+  upgrade ignores them until it is reloaded. Rolling back to 3.4.x drops the welcome message and the logo at
+  the next settings save.
+- **Two things are counted that were not**: album-link opens and ZIP launches, per event and per day, with no
+  address, browser, link or guest identifier (`docs/SECURITY.md` §9; "no telemetry" is kept).
+
+### Documentation, tests and dependencies
+
+- `docs/API.md` describes the new routes and fields, `docs/SECURITY.md` the data inventory and flows,
+  `docs/OPERATING.md` where the books live, backups, expiry and privacy, `docs/FEATURES.md` the book, and
+  `docs/ARCHITECTURE.md` the new ports. The README was refreshed (#288).
+- New guards: `bookInvalidation.guard.test.ts` and `reelInvalidation.guard.test.ts` fail the build when a
+  path that removes a photograph forgets to retire the book or the montage, `printKitContract.test.ts`, and
+  the contract suites of the new repositories. New e2e journeys cover the print kit, the brand, the book and
+  the best-of.
+- Dependencies: `pdfkit` 0.20.2 (runtime, MIT) and `@types/pdfkit` (dev) (#300); `@zxing/library` 0.23.0
+  (dev, Apache-2.0), only to decode the printed QR in the e2e (#292).
+
 ## [3.4.0] - 2026-10-31
 
 Everything merged to `main` after the tag `v3.3.0`: pull requests #279, #280, #281, #282, #283 and #284
