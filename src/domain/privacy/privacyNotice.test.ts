@@ -17,8 +17,9 @@ import {
  */
 
 /** Setup only: a patch the domain refuses is a broken test, not a rule. */
+/** The guestbook defaults to off here: new events open it, and these cases are about the older clauses. */
 const settings = (patch: EventSettingsPatch = {}): NoticePolicy => {
-  const built = EventSettings.create(patch)
+  const built = EventSettings.create({ allowGuestbook: false, ...patch })
   if (!built.ok) throw new Error(`test setup: ${built.error.code}`)
   return built.value
 }
