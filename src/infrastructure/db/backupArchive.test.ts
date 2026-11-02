@@ -467,6 +467,19 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    it('leaves the finished photo books out of the archive: the host can make them again (spec 04)', async () => {
+      await seedAnEvening()
+      await mkdir(join(mediaRoot, '.books'), { recursive: true })
+      await writeFile(join(mediaRoot, '.books', `${EVENT}.pdf`), 'a finished book')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(3)
+      expect(manifest.media.entries.some((entry) => entry.path.includes('.books'))).toBe(false)
+      expect(manifest.skipped.join(' ')).not.toContain('.books')
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('leaves an event’s highlight reel out of the archive: the host can make it again (spec 08)', async () => {
       await seedAnEvening()
       const reelDir = join(mediaRoot, EVENT, 'reel', 'ab')

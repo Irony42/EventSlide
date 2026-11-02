@@ -115,6 +115,7 @@ const bootstrap = async (): Promise<void> => {
   // restart is invisible to everything until this puts it back, and a guest who is
   // standing in the room has already waited once.
   container.clipWorker.start()
+  container.albumBookWorker?.start()
   // Its first pass is immediate too, and for the same reason: whatever killed the last
   // process may have left a reservation charging an event for bytes that never arrived.
   container.reservationReaper.start()

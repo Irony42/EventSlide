@@ -14,6 +14,9 @@ licences. Notably:
   - ffmpeg (GPL; Debian's build enables libx264), for short video clips. It is
     installed with apt in the runtime stage of the Dockerfile and run as a
     separate process, never linked into EventSlide.
+  - pdfkit (MIT), which writes the photo book's PDF. The book embeds subsets of the Noto Sans
+    and Noto Serif fonts (SIL Open Font Licence 1.1; the licence text ships beside them in
+    src/infrastructure/media/fonts/OFL-Noto.txt).
   - the JavaScript libraries the web application bundles (React and others, under MIT
     and ISC licences). Their notices are written by the build to
     third-party-licenses.txt and sent by the server at /third-party-licenses.txt.

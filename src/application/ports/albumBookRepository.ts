@@ -25,6 +25,9 @@ export interface AlbumBookRepository {
   /** Writes the book as it now stands. Update-only: a book that was never requested is refused. */
   save(book: AlbumBook): Promise<void>
 
+  /** The oldest `queued` book, **without** claiming it: what the worker looks at before it decides to wait. */
+  findNextQueued(): Promise<AlbumBook | null>
+
   /** The oldest `queued` book, now `running` with `startedAt = now`; `null` when none is due. */
   claimNext(now: Date): Promise<AlbumBook | null>
 
