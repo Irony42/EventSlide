@@ -10,6 +10,8 @@ import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import { requireWritable } from '../shared/eventRole'
 import type { InvalidateReel } from '../highlights/invalidateReel'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import { isInBook } from '../../../domain/book/isInBook'
 import { makeRemovePhotoRecord } from './removePhotoRecord'
 
 /**
@@ -46,6 +48,11 @@ export interface DeletePhotoDeps {
    * montage stops being served before the photograph stops existing.
    */
   readonly invalidateReel?: InvalidateReel
+  /**
+   * Retires the photo book that holds a photograph about to go (spec 04), awaited and before anything goes: a book
+   * must never still hold what was removed.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export type DeletePhoto = (input: DeletePhotoInput) => Promise<Result<void, DomainError>>
@@ -58,6 +65,7 @@ export const makeDeletePhoto = ({
   bus,
   clock,
   invalidateReel,
+  invalidateBook,
 }: DeletePhotoDeps): DeletePhoto => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
 
@@ -90,6 +98,7 @@ export const makeDeletePhoto = ({
 
     // Bytes first, then the row; `removePhotoRecord` carries the argument and the guards.
     await invalidateReel?.(eventId, [photoId])
+    if (isInBook(photo.status)) await invalidateBook?.(eventId, 'photoRemoved')
     await removePhotoRecord(eventId, photo)
 
     // **And the clip job that produced it, if there was one.** A `done` job blocks the

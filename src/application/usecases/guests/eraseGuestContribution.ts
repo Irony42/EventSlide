@@ -13,6 +13,8 @@ import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { ReactionRepository } from '../../ports/reactionRepository'
 import type { InvalidateReel } from '../highlights/invalidateReel'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import { isInBook } from '../../../domain/book/isInBook'
 import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
 
 /**
@@ -83,6 +85,11 @@ export interface EraseGuestContributionDeps {
    * with all of them, before anything is removed and before the guest's row goes.
    */
   readonly invalidateReel?: InvalidateReel
+  /**
+   * Retires the photo book that holds any of this guest's photographs (spec 04), awaited and before anything goes: a book
+   * must never still hold what was removed.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export type EraseGuestContribution = (
@@ -103,6 +110,7 @@ export const makeEraseGuestContribution = ({
   bus,
   clock,
   invalidateReel,
+  invalidateBook,
 }: EraseGuestContributionDeps): EraseGuestContribution => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
 
@@ -150,6 +158,11 @@ export const makeEraseGuestContribution = ({
       eventId,
       (await authoredBy(eventId, guestId)).map((photo) => photo.id),
     )
+    // One call too: the guest's published photographs are in the book, and the book is a file the
+    // erasure must reach (a copy the host already downloaded is out of reach, as with the ZIP).
+    if ((await authoredBy(eventId, guestId)).some((photo) => isInBook(photo.status))) {
+      await invalidateBook?.(eventId, 'photoRemoved')
+    }
     await removeAll()
 
     // Clips with no photograph yet: reserved, queued or running. Their staged source is the

@@ -426,6 +426,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     photos: new SqlitePhotoRepository(db),
     clips: new SqliteClipJobRepository(db),
     reels: new SqliteReelRepository(db),
+    books: new SqliteAlbumBookRepository(db),
+    bookFiles: createFsBookFileStore(mediaRoot),
     reelRenderer,
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
@@ -480,6 +482,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     auditRetentionDays: config.audit.retentionDays,
     newClientDefaults: config.newClientCeilings,
     reel: config.reel,
+    book: { enabled: config.books.enabled, maxPerEventPerDay: config.books.maxPerEventPerDay },
     operatorName: config.operator.name,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
@@ -642,8 +645,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // ------------------------------------------------------------ photo books --
 
   // Spec 04. Built only when the function is on: a box that switched it off pays for nothing.
-  const books = new SqliteAlbumBookRepository(db)
-  const bookFiles = createFsBookFileStore(mediaRoot)
+  const { books, bookFiles } = adapters
   const albumBookWorker: AlbumBookWorker | null = config.books.enabled
     ? createAlbumBookWorker({
         buildNext: makeBuildNextAlbumBook({
