@@ -34,7 +34,8 @@ import { fromIsoText, fromNullableIsoText, fromSqliteBoolean } from './rowMappin
  * content-bearing columns — `events.name`, `events.slug`, `events.join_code`,
  * `events.settings`, `photos.caption`, `users.display_name`, every digest and hash — fails
  * whichever list it is found in, and any table outside `clients`, `client_members`, `events`,
- * `photos`, `clip_jobs` and `users` (`guests` and `event_missions` among them) fails whether
+ * `photos`, `clip_jobs`, `highlight_reels` (its size only) and `users` (`guests` and
+ * `event_missions` among them) fails whether
  * or not a list mentions it, as does a `*` that is not `COUNT(*)`. The columns
  * that carry free text *and are allowed* are exactly two: `clients.name` and `users.email`
  * (the labels declared in `domain/site/siteOverviewRows.ts`).
@@ -95,6 +96,9 @@ const EVENT_BYTES_READS = [
   'clip_jobs.event_id',
   'clip_jobs.status',
   'clip_jobs.source_byte_size',
+  // The highlight reel's file (spec 08): a size per event, and nothing of what is in it.
+  'highlight_reels.event_id',
+  'highlight_reels.byte_size',
 ] as const
 
 const CLIENT_READS = [

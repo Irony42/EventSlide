@@ -4,6 +4,10 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
 
 - **Guests join by scanning.** A QR code, a six-character code, a first name if they
   feel like it. No account, no download, no email.
+- **Table cards and a poster, ready to print.** From the event page, "Cartes de table et
+  affiche" lays out A6 cards (four to a sheet), an A5 or an A4 poster with the QR code, the
+  backup code and three lines of instructions, in the language of the evening, and prints it
+  through the browser's own dialog. Nothing is generated on the server.
 - **Nothing reaches the screen without you.** Every photo waits in a moderation queue
   until you approve it. Two hundred people are watching that screen; that is not a
   setting to leave to chance.
@@ -22,6 +26,8 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
   have it removed — written from your event's own settings, in the guest's language, so
   it cannot say something your configuration does not do. Read once per phone, and shown
   again if you change one of those settings mid-evening.
+- **Your favourites, in one ZIP.** Star the best photos in the moderation console (or pre-select the
+  most liked), then download just those from the event page.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.
 - **And your guests', with one link.** The morning after, make a shared gallery link on

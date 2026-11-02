@@ -63,7 +63,7 @@ const PHOTO_COLUMNS = `
   id, event_id, author_guest_id, author_user_id, status, content_hash,
   width, height, byte_size, caption, created_at,
   review_kind, reviewed_at, reviewed_by_user_id,
-  media_kind, duration_ms, poster_hash, mission_id
+  media_kind, duration_ms, poster_hash, mission_id, highlighted_at
 `
 
 const INSERT_PHOTO = `
@@ -182,6 +182,8 @@ interface PhotoRow {
   readonly poster_hash: string | null
   /** Which of the host's prompts this photograph answers (roadmap §2.1), or `null`. */
   readonly mission_id: string | null
+  /** The host's star (spec 08). Read here, never written by `save`. */
+  readonly highlighted_at: string | null
 }
 
 /** Named parameters, so one object binds both the insert and the update. */
@@ -363,6 +365,7 @@ const toPhoto = (row: PhotoRow): Photo =>
     // already carries. There is nothing here a corrupt value could break that the
     // database has not already refused.
     missionId: row.mission_id === null ? null : asMissionId(row.mission_id),
+    highlightedAt: fromNullableIsoText(row.highlighted_at),
   })
 
 /**
@@ -543,7 +546,13 @@ export class SqlitePhotoRepository implements PhotoRepository {
       filters.push('created_at <= ?')
       params.push(toIsoText(query.until))
     }
-    const direction = query.order === 'asc' ? 'ASC' : 'DESC'
+    if (query.highlightedOnly === true) {
+      // Starred and published: a star cannot outlive `published`, but the status is asked
+      // anyway, so a favourites page is never one a stale row could widen.
+      filters.push("highlighted_at IS NOT NULL AND status = 'published'")
+    }
+    // `oldestFirst` (the best-of) and `order: 'asc'` (the photo book) ask for the same order.
+    const direction = query.order === 'asc' || query.oldestFirst === true ? 'ASC' : 'DESC'
     if (cursor !== null) {
       // The keyset predicate, matching `ORDER BY created_at DESC, id DESC` (or ASC, ASC).
       // An OFFSET here would skip or repeat a photo every time a guest uploads mid-scroll.
@@ -650,9 +659,16 @@ export class SqlitePhotoRepository implements PhotoRepository {
     const update = this.db.prepare<PhotoBindings>(UPDATE_PHOTO)
     const insert = this.db.prepare<PhotoBindings>(INSERT_PHOTO)
     const bindings = toBindings(photo)
+    const clearStar = this.db.prepare<[string, string]>(
+      `UPDATE photos SET highlighted_at = NULL WHERE event_id = ? AND id = ?`,
+    )
 
     this.db.transaction(() => {
       if (update.run(bindings).changes === 0) insert.run(bindings)
+      // The star is not rewritten from the aggregate, but it does not outlive `published`.
+      if (photo.status !== 'published') {
+        clearStar.run(photo.eventId, photo.id)
+      }
     })()
   }
 
@@ -759,6 +775,36 @@ export class SqlitePhotoRepository implements PhotoRepository {
       .immediate()
   }
 
+  async setHighlighted(eventId: EventId, photoId: PhotoId, at: Date | null): Promise<boolean> {
+    // The status is part of the write, so a hide landing a moment earlier leaves no star.
+    const result =
+      at === null
+        ? this.db
+            .prepare<[string, string]>(
+              `UPDATE photos SET highlighted_at = NULL
+                WHERE event_id = ? AND id = ? AND taken_down_at IS NULL`,
+            )
+            .run(eventId, photoId)
+        : this.db
+            .prepare<[string, string, string]>(
+              `UPDATE photos SET highlighted_at = COALESCE(highlighted_at, ?)
+                WHERE event_id = ? AND id = ? AND status = 'published' AND taken_down_at IS NULL`,
+            )
+            .run(toIsoText(at), eventId, photoId)
+    return result.changes > 0
+  }
+
+  async countHighlighted(eventId: EventId): Promise<number> {
+    const row = this.db
+      .prepare<[string], AggregateRow>(
+        `SELECT COUNT(*) AS value FROM photos
+          WHERE event_id = ? AND highlighted_at IS NOT NULL
+            AND status = 'published' AND taken_down_at IS NULL`,
+      )
+      .get(eventId)
+    return aggregate(row)
+  }
+
   async delete(eventId: EventId, photoId: PhotoId): Promise<void> {
     this.db
       .prepare<[string, string]>(`DELETE FROM photos WHERE event_id = ? AND id = ?`)
@@ -796,6 +842,10 @@ export class SqlitePhotoRepository implements PhotoRepository {
         WHERE event_id = ? AND id = ?`,
     )
 
+    const clearStar = this.db.prepare<[string, string]>(
+      `UPDATE photos SET highlighted_at = NULL WHERE event_id = ? AND id = ?`,
+    )
+
     const changed: PhotoId[] = []
     this.db.transaction(() => {
       for (const photoId of photoIds) {
@@ -804,6 +854,7 @@ export class SqlitePhotoRepository implements PhotoRepository {
         if (!canTransition(row.status, status)) continue
 
         move.run(status, decision.kind, decision.at, decision.userId, eventId, photoId)
+        if (status !== 'published') clearStar.run(eventId, photoId)
         changed.push(photoId)
       }
     })()

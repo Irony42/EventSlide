@@ -6,6 +6,7 @@ import type { AuditRecorder } from '../../ports/auditLog'
 import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import type { InvalidateReel } from '../highlights/invalidateReel'
 import { recordOperatorAct, type OperatorActInput } from './operatorAct'
 
 /**
@@ -34,12 +35,17 @@ export interface SetPhotoTakedownDeps {
   readonly audit: AuditRecorder
   readonly bus: Pick<EventBus, 'publish'>
   readonly clock: Clock
+  /**
+   * Retires the highlight reel that holds a photograph being taken down (spec 08). No audit entry
+   * and no new signal: the montage simply stops being servable, and the host is told no reason.
+   */
+  readonly invalidateReel?: InvalidateReel
 }
 
 export type SetPhotoTakedown = (input: SetPhotoTakedownInput) => Promise<Result<void, DomainError>>
 
 export const makeSetPhotoTakedown =
-  ({ photos, audit, bus, clock }: SetPhotoTakedownDeps): SetPhotoTakedown =>
+  ({ photos, audit, bus, clock, invalidateReel }: SetPhotoTakedownDeps): SetPhotoTakedown =>
   async ({ photoId, down, reason, actor }) => {
     const why = parseAuditReason(reason)
     if (!why.ok) return why
@@ -58,6 +64,7 @@ export const makeSetPhotoTakedown =
     })
     if (!recorded.ok) return recorded
 
+    if (down) await invalidateReel?.(located.eventId, [photoId])
     await photos.setTakenDown(located.eventId, photoId, down ? at : null)
     // A neutral signal that already means "read again": the stream forwards a signal's type to the
     // host and to every guest, and none of them is told that the operator acted (runbook csam.md).

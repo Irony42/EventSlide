@@ -10,6 +10,7 @@ import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName, foldName } from '../../domain/events/eventName'
+import { restoreWelcomeMessage } from '../../domain/events/welcomeMessage'
 import {
   EventSettings,
   isModerationMode,
@@ -442,6 +443,19 @@ const settingsOf = (raw: string): EventSettings => {
      * decision cannot be written afterwards.
      */
     allowClips: settingsBooleanAddedLater(decoded['allowClips'], 'allowClips', false),
+    /**
+     * Added by the guestbook (spec 01, 3.5.0), and **off** when the key is absent: an event
+     * that predates it has a host who was never asked, and a free-text channel onto a room is
+     * not something an upgrade opens. Without this line the first read of any 3.4.0 event
+     * would throw `Corrupt events.settings`.
+     */
+    allowGuestbook: settingsBooleanAddedLater(decoded['allowGuestbook'], 'allowGuestbook', false),
+    /**
+     * Added with it, and **on** when absent: the opposite concession, because the wall showing
+     * published messages is only reachable once the host has turned the guestbook on, and the
+     * host who did has agreed to what it shows.
+     */
+    guestbookOnWall: settingsBooleanAddedLater(decoded['guestbookOnWall'], 'guestbookOnWall', true),
     allowGuestSelfDelete: settingsBoolean(decoded['allowGuestSelfDelete'], 'allowGuestSelfDelete'),
     guestSelfDeleteGraceSeconds: settingsInteger(
       decoded['guestSelfDeleteGraceSeconds'],
@@ -470,6 +484,8 @@ const settingsOf = (raw: string): EventSettings => {
     wallLanguage: settingsLanguageAddedLater(decoded['wallLanguage']),
     /** Added by the host's venue photograph (ADR 0010); absent and malformed both read as none. */
     venuePhoto: settingsVenuePhotoAddedLater(decoded['venuePhoto']),
+    /** Added by spec 03; absent and malformed both read as none, and a cosmetic field never fails the read. */
+    welcomeMessage: restoreWelcomeMessage(decoded['welcomeMessage']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the

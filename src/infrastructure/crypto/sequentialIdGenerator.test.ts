@@ -50,6 +50,7 @@ describe('createSequentialIdGenerator', () => {
       ids.reactionId(),
       ids.clipJobId(),
       ids.missionId(),
+      ids.guestbookEntryId(),
       ids.shareLinkId(),
       ids.clientId(),
       ids.accountTokenId(),

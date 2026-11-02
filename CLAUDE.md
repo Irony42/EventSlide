@@ -111,12 +111,14 @@ src/
     guests/        Guest identity, display names
     photos/        Photo entity, status machine, captions, quotas
     moderation/    Queue ordering and decisions (pure)
+    guestbook/     Written guest messages: text, entry, ceilings, the closed-event window (spec 01)
     slideshow/     Playlist building, layouts, transitions (pure)
     reactions/     Reaction rules
     clients/       Client entity, ceilings, roles, ceiling levels (roadmap §10.2, §10.5)
     audit/         Audit entries, their allow-listed details, retention (roadmap §10.8; an owner reads their client's, G2-16)
     mail/          Outgoing message rules: one mailbox, a one-line subject (roadmap §10.3)
     legal/         The terms of use an invitation's acceptance agrees to: a URL and a short version (G2-20)
+    stats/         The host statistics page: the ranking of the top contributors (spec 05; every figure is derived, never counted)
     site/          What the operator may see of the box: the closed field vocabulary and the rows of the content-free overview (roadmap §10.4; served by `/api/site`, G2-14)
   application/
     ports/         Interfaces. One file per port. No implementations.

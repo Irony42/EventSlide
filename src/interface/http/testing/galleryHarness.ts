@@ -8,6 +8,10 @@ import {
   aUser,
   type ShareLinkInput,
 } from '../../../application/testing/builders'
+import { FakeEventStatsRepository } from '../../../application/testing/fakeEventStatsRepository'
+import { FakeGuestRepository } from '../../../application/testing/fakeGuestRepository'
+import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
+import { makeRecordEngagement } from '../../../application/usecases/stats/recordEngagement'
 import { FakePasswordHasher } from '../../../application/testing/fakePasswordHasher'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeShareLinkRepository } from '../../../application/testing/fakeShareLinkRepository'
@@ -64,6 +68,8 @@ export interface GalleryHarness extends ServerHarness {
   readonly signer: GallerySigner
   readonly hasher: FakePasswordHasher
   readonly archive: FakeArchiveWriter
+  /** The after-party counters the gallery routes feed. */
+  readonly stats: FakeEventStatsRepository
   /** Stores a link for the wedding by its owner, and answers the token that opens it. */
   seedLink(input?: ShareLinkInput): { readonly link: ShareLink; readonly token: string }
   seedPhoto(photo: Photo): Promise<void>
@@ -86,13 +92,23 @@ export const buildGalleryHarness = (
   const logger = new CapturingLogger()
   const media = new InMemoryMediaStore()
   const archiveWriter = overrides.archive ?? archive
+  const stats = new FakeEventStatsRepository(
+    photos,
+    new FakeGuestRepository(photos),
+    new FakeReactionRepository(),
+  )
+  const engagement = makeRecordEngagement({
+    stats,
+    clock: { now: () => harness.clock.now() },
+    logger,
+  })
 
   // The use cases close over `harness` and are only called once it exists, so the rule
   // reads the very repositories the server's own middleware reads.
   const harness = buildServerHarness({
     config,
     usecases: {
-      openGallery: (input) => makeOpenGallery({ ...access(), photos })(input),
+      openGallery: (input) => makeOpenGallery({ ...access(), photos, engagement })(input),
       unlockGallery: (input) => makeUnlockGallery({ ...access(), hasher })(input),
       listGalleryPhotos: (input) => makeListGalleryPhotos({ ...access(), photos })(input),
       getGalleryMedia: (input) => makeGetGalleryMedia({ ...access(), photos, media })(input),
@@ -103,6 +119,7 @@ export const buildGalleryHarness = (
           media,
           archive: archiveWriter,
           logger,
+          engagement,
         })(input),
     },
   })
@@ -138,6 +155,7 @@ export const buildGalleryHarness = (
     signer,
     hasher,
     archive,
+    stats,
     seedLink: (input = {}) => {
       const { token, digest } = signer.mintToken()
       const link = aShareLink({

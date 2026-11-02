@@ -5,6 +5,8 @@ import type { EventSettings } from '../../../domain/events/eventSettings'
 import type { ThemeCustom } from '../../../domain/events/eventTheme'
 import { acceptsGuests } from '../../../domain/events/eventStatus'
 import type { Guest } from '../../../domain/guests/guest'
+import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
+import { GUESTBOOK_TEXT_MAX_LENGTH } from '../../../domain/guestbook/guestbookText'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
 import type { User } from '../../../domain/users/user'
@@ -18,6 +20,8 @@ import type { PendingInvitation } from '../../../application/usecases/clients/li
 import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
+  CreatedGuestbookEntryDto,
+  GuestbookEntryDto,
   CeilingMeterDto,
   CeilingsDto,
   ClientAuditEntryDto,
@@ -29,6 +33,7 @@ import type {
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
+  EventBrandDto,
   EventThemeDto,
   ThemeCustomDto,
   GalleryDto,
@@ -60,6 +65,10 @@ import type {
   SessionUserDto,
   ShareLinkCreatedDto,
   ShareLinkDto,
+  EngagementDto,
+  EventStatsResponseDto,
+  StatsContributorDto,
+  StatsQuarterDto,
   TopPhotoDto,
   TotpEnrolmentDto,
   UploadOutcomeDto,
@@ -98,6 +107,7 @@ import type {
   GalleryPage,
 } from '../../../application/usecases/gallery/listGalleryPhotos'
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
+import type { EventStats } from '../../../application/usecases/stats/getEventStats'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
@@ -247,16 +257,27 @@ export const venueGroundUrl = (settings: EventSettings, slug: string | null): st
     ? null
     : `/api/events/${encodeURIComponent(slug)}/venue-photo/${settings.venuePhoto.value}`
 
+/**
+ * What the host says to their guests, copied field for field. Takes only the settings: nothing of a
+ * guest can reach it (spec 03, section 7).
+ */
+export const toEventBrandDto = (settings: EventSettings): EventBrandDto => ({
+  welcomeMessage: settings.welcomeMessage,
+})
+
 export const toEventSettingsDto = (settings: EventSettings, slug: string): EventSettingsDto => ({
   moderation: settings.moderation,
   allowCaptions: settings.allowCaptions,
   allowReactions: settings.allowReactions,
   allowClips: settings.allowClips,
+  allowGuestbook: settings.allowGuestbook,
+  guestbookOnWall: settings.guestbookOnWall,
   allowGuestSelfDelete: settings.allowGuestSelfDelete,
   guestSelfDeleteGraceSeconds: settings.guestSelfDeleteGraceSeconds,
   retentionDays: settings.retentionDays,
   maxPhotosPerGuest: settings.maxPhotosPerGuest,
   theme: toEventThemeDto(settings, slug),
+  brand: toEventBrandDto(settings),
   wallLanguage: settings.wallLanguage,
 })
 
@@ -290,11 +311,14 @@ export const toPublicEventDto = (
   // `EventSettingsDto.allowClips` answers for the host — that one is their own switch, and it
   // stays exactly as they set it whatever this deployment or their plan can do.
   allowClips: clipsAccepted && context.clipLimits.supported,
+  allowGuestbook: event.settings.allowGuestbook,
+  guestbookMaxLength: GUESTBOOK_TEXT_MAX_LENGTH,
   maxClipBytes: context.clipLimits.maxBytes,
   maxClipSeconds: context.clipLimits.maxSeconds,
   // Unlike the switches above, this is not a permission: it is what the host's event
   // looks like, and the guest's screen is one of the three places it looks like it.
   theme: toEventThemeDto(event.settings, event.slug.value),
+  brand: toEventBrandDto(event.settings),
 })
 
 /**
@@ -312,6 +336,8 @@ export const toPrivacyNoticeDto = (notice: PrivacyNotice): PrivacyNoticeDto => (
   selfRemovalSeconds: notice.selfRemovalSeconds,
   // Absent, not `null`, on a box that named nobody: the answer stays what it always was.
   ...(notice.operator === null ? {} : { operator: notice.operator }),
+  // Present only when true, like the operator: a box without a guestbook answers what it always did.
+  ...(notice.guestbook ? { guestbook: true as const } : {}),
 })
 
 export const toPrivacyNoticeStateDto = ({
@@ -409,6 +435,7 @@ export const toModerationPhotoDto = ({
   byteSize: photo.byteSize,
   createdAt: iso(photo.createdAt),
   ...toMediaFacetDto(photo, slug),
+  highlighted: photo.isHighlighted,
 })
 
 export const toGuestDto = (guest: Guest): GuestDto => ({
@@ -484,6 +511,7 @@ export const toModerationQueueItemDto = ({
   durationMs: row.durationMs,
   // The status machine's answer, not a copy of it: see `allowedDecisionsFrom`.
   allowedDecisions: allowedDecisionsFrom(row.status),
+  highlighted: row.highlighted,
 })
 
 /**
@@ -768,6 +796,7 @@ export const toWallResponseDto = (
     // screen: two projectors in the same room must agree about the colour even when one
     // of them is showing a mosaic and the other a spotlight.
     theme: toEventThemeDto(view.event.settings, view.event.slug.value),
+    brand: toEventBrandDto(view.event.settings),
     // The same argument as the theme, one step further: the language is a property of the
     // event and not of the screen, so two projectors in one room agree about it even when
     // one of them was launched from a laptop set to English. `?layout=` is the deliberate
@@ -1040,3 +1069,47 @@ const toPendingInvitationDto = (invitation: PendingInvitation): PendingInvitatio
 export const toPendingInvitationsDto = (
   invitations: readonly PendingInvitation[],
 ): PendingInvitationsDto => ({ items: invitations.map(toPendingInvitationDto) })
+
+/** A guest's own message: no author (it is theirs), and `canDelete` is the server's verdict. */
+export const toGuestbookEntryDto = (
+  entry: GuestbookEntry,
+  canDelete: boolean,
+): GuestbookEntryDto => ({
+  id: entry.id,
+  text: entry.text.value,
+  status: entry.status,
+  createdAt: entry.createdAt.toISOString(),
+  canDelete,
+})
+
+/** The answer to writing one: what was stored and whether it was the same message again. */
+export const toCreatedGuestbookEntryDto = (
+  entry: GuestbookEntry,
+  duplicate: boolean,
+): CreatedGuestbookEntryDto => ({
+  id: entry.id,
+  text: entry.text.value,
+  status: entry.status,
+  createdAt: entry.createdAt.toISOString(),
+  duplicate,
+})
+
+/** The one field list of the statistics page, so a field cannot reach the wire by accident. */
+export const toEventStatsDto = (stats: EventStats): EventStatsResponseDto => ({
+  uploads: {
+    total: stats.uploadsTotal,
+    byQuarter: stats.derived.byQuarter.map((slot): StatsQuarterDto => ({
+      start: iso(slot.start),
+      count: slot.count,
+    })),
+  },
+  photos: { ...stats.derived.byStatus },
+  guests: { ...stats.derived.guests, activeNow: stats.activeNow },
+  reactions: {
+    total: stats.derived.reactions.total,
+    byKind: { ...stats.derived.reactions.byKind },
+  },
+  topContributors: stats.contributors.top.map((line): StatsContributorDto => ({ ...line })),
+  anonymousContributors: { ...stats.contributors.anonymous },
+  engagement: stats.engagement === null ? null : ({ ...stats.engagement } satisfies EngagementDto),
+})

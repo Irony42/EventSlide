@@ -443,6 +443,20 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    it('leaves an event’s highlight reel out of the archive: the host can make it again (spec 08)', async () => {
+      await seedAnEvening()
+      const reelDir = join(mediaRoot, EVENT, 'reel', 'ab')
+      await mkdir(reelDir, { recursive: true })
+      await writeFile(join(reelDir, `${'ab'.repeat(32)}.mp4`), 'a finished montage')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(3)
+      expect(manifest.media.entries.some((entry) => entry.path.includes('/reel/'))).toBe(false)
+      expect(manifest.unreferencedMediaFiles).toBe(0)
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('leaves an upload still being staged out of the archive', async () => {
       await seedAnEvening()
       const directory = join(mediaRoot, EVENT, 'original', 'ff')

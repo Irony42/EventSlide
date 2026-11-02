@@ -4,6 +4,7 @@ import {
   asClipJobId,
   asEventId,
   asGuestId,
+  asGuestbookEntryId,
   asMissionId,
   asPhotoId,
   asReactionId,
@@ -14,6 +15,7 @@ import {
   type ClipJobId,
   type EventId,
   type GuestId,
+  type GuestbookEntryId,
   type MissionId,
   type PhotoId,
   type ReactionId,
@@ -43,6 +45,8 @@ export class SequentialIdGenerator implements IdGenerator {
   private clipJobs = 0
 
   private missions = 0
+
+  private guestbookEntries = 0
 
   private shareLinks = 0
 
@@ -92,6 +96,11 @@ export class SequentialIdGenerator implements IdGenerator {
     return asMissionId(`mission-${this.missions}`)
   }
 
+  guestbookEntryId(): GuestbookEntryId {
+    this.guestbookEntries += 1
+    return asGuestbookEntryId(`entry-${this.guestbookEntries}`)
+  }
+
   shareLinkId(): ShareLinkId {
     this.shareLinks += 1
     return asShareLinkId(`share-link-${this.shareLinks}`)
@@ -136,6 +145,7 @@ export class SequentialIdGenerator implements IdGenerator {
     this.reactions = 0
     this.clipJobs = 0
     this.missions = 0
+    this.guestbookEntries = 0
     this.shareLinks = 0
     this.clients = 0
     this.accountTokens = 0

@@ -22,6 +22,7 @@ import type {
   ClientLimitsDto,
   ClipJobDto,
   CurrentUserDto,
+  EventStatsResponse,
   EventDto,
   EventSettingsDto,
   GalleryDto,
@@ -450,6 +451,18 @@ export const anInvitationAccepted = (
   ...overrides,
 })
 
+/** The statistics of an event nobody has joined: every figure at zero. */
+export const anEventStats = (overrides: Partial<EventStatsResponse> = {}): EventStatsResponse => ({
+  uploads: { total: 0, byQuarter: [] },
+  photos: { pending: 0, published: 0, rejected: 0, hidden: 0 },
+  guests: { joined: 0, contributors: 0, revoked: 0, activeNow: 0 },
+  reactions: { total: 0, byKind: { love: 0, laugh: 0, wow: 0, cheers: 0, clap: 0 } },
+  topContributors: [],
+  anonymousContributors: { guests: 0, photos: 0 },
+  engagement: null,
+  ...overrides,
+})
+
 export const aSessionUser = (overrides: Partial<CurrentUserDto> = {}): CurrentUserDto => ({
   userId: 'user-1',
   email: 'organisation@example.com',
@@ -491,6 +504,16 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   // have the picker replaced by the notice the moment this answers.
   privacyNotice: vi.fn(async () => aPrivacyNoticeState()),
   acknowledgePrivacyNotice: vi.fn(async () => aPrivacyNoticeState()),
+  // No messages, and no longer accepting: the guestbook card is off unless a test turns it on.
+  myGuestbook: vi.fn(async () => ({ items: [], accepting: true, onWall: true })),
+  writeGuestbookEntry: vi.fn(async (_slug: string, text: string) => ({
+    id: 'entry-1',
+    text,
+    status: 'pending' as const,
+    createdAt: CREATED_AT,
+    duplicate: false,
+  })),
+  deleteMyGuestbookEntry: vi.fn(async () => undefined),
   deleteMyPhoto: vi.fn(async () => undefined),
   eraseMyContribution: vi.fn(async () => ({ photos: 0, clips: 0 })),
   react: vi.fn(async () => undefined),
@@ -581,8 +604,13 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),
   topPhotos: vi.fn(async () => ({ items: [] })),
+  highlightPhoto: vi.fn(async () => undefined),
+  unhighlightPhoto: vi.fn(async () => undefined),
+  preselectHighlights: vi.fn(async () => ({ added: 0 })),
+  highlights: vi.fn(async () => ({ count: 0 })),
 
   listGuests: vi.fn(async () => ({ items: [], activeCount: 0 })),
+  getEventStats: vi.fn(async () => anEventStats()),
   revokeGuest: vi.fn(async () => undefined),
 
   listModerators: vi.fn(async () => ({ items: [] })),
@@ -614,6 +642,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   })),
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
+  bestOfUrl: vi.fn((slug: string) => `/api/events/${slug}/best-of.zip`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),
   moderationStreamUrl: vi.fn((slug: string) => `/api/events/${slug}/moderation/stream`),
 

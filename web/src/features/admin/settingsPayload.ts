@@ -1,3 +1,4 @@
+import type { EventSettingsPatch } from '../../lib/api/client'
 import type { EventSettingsDto } from '../../lib/api/dto'
 
 /**
@@ -11,8 +12,11 @@ import type { EventSettingsDto } from '../../lib/api/dto'
  * point an event's ground at any path. The theme is rebuilt field by field rather than
  * stripped of one, so whatever the server adds to the theme next is not sent by accident.
  */
-export const toSettingsPatch = (settings: EventSettingsDto): EventSettingsDto => ({
+export const toSettingsPatch = (settings: EventSettingsDto): EventSettingsPatch => ({
   ...settings,
+  // The message goes at the top level, where the route reads it; `brand` stays read-only. Not sent at
+  // all when the server did not say (an older build), so a save never clears what it never saw.
+  ...(settings.brand === undefined ? {} : { welcomeMessage: settings.brand.welcomeMessage }),
   theme: {
     accentHue: settings.theme.accentHue,
     fonts: settings.theme.fonts,

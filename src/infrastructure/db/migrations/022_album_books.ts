@@ -23,8 +23,8 @@ import type { Migration } from '../migrator'
  *
  * Kept in one file so renumbering it after another migration lands is a two-line change.
  */
-export const migration018: Migration = {
-  id: 18,
+export const migration022: Migration = {
+  id: 22,
   name: 'album_books',
   sql: `
       ALTER TABLE clients ADD COLUMN books_allowed INTEGER NOT NULL DEFAULT 1

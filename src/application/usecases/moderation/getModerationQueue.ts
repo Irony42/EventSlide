@@ -86,6 +86,8 @@ export interface ModerationQueueRow extends QueueItem {
   readonly kind: MediaKind
   /** `null` for a photograph. Milliseconds, measured on the stored file. */
   readonly durationMs: number | null
+  /** The host's star (spec 08). Only the moderation console reads it. */
+  readonly highlighted: boolean
 }
 
 export interface ModerationQueueView {
@@ -115,6 +117,7 @@ const toRow = (photo: Photo, names: ReadonlyMap<GuestId, string>): ModerationQue
   authorName: photo.author.kind === 'guest' ? (names.get(photo.author.guestId) ?? null) : null,
   kind: photo.kind,
   durationMs: photo.facet.kind === 'clip' ? photo.facet.duration.ms : null,
+  highlighted: photo.isHighlighted,
 })
 
 /**

@@ -435,6 +435,8 @@ export const it: UiText = {
 
     'photo.notFound': 'Questa foto non esiste più.',
     'photo.illegalTransition': 'Questa azione non è possibile su questa foto.',
+    'highlight.notPublished': 'Solo una foto pubblicata può essere tra i preferiti.',
+    'highlight.empty': 'Nessun preferito per ora.',
 
     'image.unsupportedFormat':
       'Questo file non è una foto. Formati accettati: JPEG, PNG, HEIC, WebP.',
@@ -463,6 +465,10 @@ export const it: UiText = {
     'slug.tooLong': 'Questo indirizzo è troppo lungo.',
     'slug.malformed': 'L’indirizzo accetta solo lettere senza accento, cifre e trattini.',
     'slug.reserved': 'Questo indirizzo è riservato. Ne scelga un altro.',
+    'eventSettings.welcomeInvalid': 'Questo messaggio non è valido.',
+    'eventSettings.welcomeTooLong': 'Questo messaggio è troppo lungo.',
+    'eventSettings.welcomeTooManyLines': 'Questo messaggio ha troppe righe.',
+    'eventSettings.saveFailed': 'Non è stato possibile salvare le impostazioni. Riprovate.',
     'eventSettings.graceSecondsInvalid': 'Questo tempo di eliminazione non è accettato.',
     'eventSettings.retentionDaysInvalid': 'Questo periodo di conservazione non è accettato.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Questo numero di foto per invitato non è accettato.',
@@ -574,6 +580,74 @@ export const it: UiText = {
     'venuePhoto.saveFailed': 'Non è stato possibile salvare la foto. Riprovate.',
   },
 
+  /** The guestbook, guest side (spec 01). What guests and hosts write is never translated. */
+  guestbook: {
+    title: 'Libro degli ospiti',
+    helpManual: 'Qualche parola per la serata. L’organizzatore la legge prima di mostrarla.',
+    helpAuto: 'Il suo messaggio compare nel libro degli ospiti.',
+    open: 'Lasciare un messaggio',
+    label: 'Il suo messaggio',
+    placeholder: 'Il suo messaggio…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: 'Resta 1 carattere.',
+        other: `Restano ${t.number(left)} caratteri.`,
+      }),
+    counterFull: 'Limite raggiunto.',
+    send: 'Invia il mio messaggio',
+    cancel: 'Annulla',
+    thanksManual: 'Grazie! Il suo messaggio comparirà quando l’organizzatore l’avrà approvato.',
+    thanksAuto: 'Grazie! Il suo messaggio è nel libro degli ospiti.',
+    mine: 'I miei messaggi',
+    statusPending: 'In attesa di approvazione',
+    statusPublished: 'Sullo schermo',
+    statusPublishedNotOnWall: 'Pubblicato, non mostrato sullo schermo',
+    statusRejected: 'Non selezionato',
+    statusHidden: 'Rimosso dallo schermo',
+    remove: 'Rimuovi questo messaggio',
+    removeTitle: 'Rimuovere questo messaggio in modo definitivo?',
+    removeConfirm: 'Rimuovi',
+    removeCancel: 'Tieni',
+    removed: 'Messaggio rimosso.',
+    tooLong: (max: number) => `Messaggio troppo lungo (al massimo ${t.number(max)} caratteri).`,
+    errors: {
+      'guestbook.empty': 'Scriva almeno una parola.',
+      'guestbook.invalid': 'Questo messaggio non può essere inviato così com’è.',
+      'guestbook.tooManyLines': 'Messaggio troppo alto: lo accorci.',
+      'guestbook.limitReached':
+        'Ha già lasciato 3 messaggi. Ne rimuova uno per scriverne un altro.',
+      'guestbook.eventFull': 'Il libro degli ospiti è pieno.',
+      'guestbook.disabled': 'Il libro degli ospiti non è aperto al momento.',
+      'event.notAcceptingUploads': 'Il libro degli ospiti non è aperto al momento.',
+      'guestbook.deleteForbidden':
+        'Questo messaggio non può più essere rimosso. Lo chieda all’organizzatore: può eliminarlo.',
+      'event.guestSelfDeleteDisabled':
+        'L’organizzatore non ha attivato la rimozione. Glielo chieda: può eliminare un messaggio.',
+      'guestbook.notFound': 'Questo messaggio non esiste più.',
+      'guestbook.deleteFailed':
+        'La rimozione non è andata a buon fine. Riprovi, o lo chieda all’organizzatore.',
+      'rate.limited': 'Troppi messaggi in una volta, riprovi tra un minuto.',
+    },
+    eraseBody:
+      'Le sue foto, i video, le didascalie, i messaggi del libro degli ospiti, le reazioni e il suo nome saranno cancellati dalla serata: dallo schermo, dall’album e dall’elenco dell’organizzatore. L’operazione è definitiva.',
+    noticeWhatHappens: 'Cosa succede alle sue foto e ai suoi messaggi',
+    noticeWhoSees: 'Chi vede le sue foto e i suoi messaggi',
+    noticeHowLong: 'Per quanto tempo vengono conservati',
+    noticeRemoval: 'Come farne rimuovere uno',
+    noticeMessagePublication: {
+      afterReview:
+        'Un messaggio del libro degli ospiti è letto dall’organizzatore prima di poter andare sullo schermo.',
+      immediate:
+        'Un messaggio del libro degli ospiti può andare sullo schermo appena inviato. L’organizzatore può rimuoverlo in qualsiasi momento.',
+    },
+    noticeMessageAudience:
+      'I suoi messaggi sono letti dall’organizzatore e dal suo team e possono comparire sullo schermo della serata. Non sono in «Foto della serata».',
+    noticeMessageRetention: 'I suoi messaggi sono conservati quanto le foto e cancellati con esse.',
+    noticeMessageRemoval:
+      'Un messaggio si rimuove come una foto, da «I miei messaggi» e alle stesse condizioni.',
+  },
+
   moderation: {
     title: 'Moderazione',
     // Navigation pass, batch C: the way to the other console.
@@ -656,6 +730,10 @@ export const it: UiText = {
         one: `${t.number(count)} foto rimossa dallo schermo. Resta nel vostro album.`,
         other: `${t.number(count)} foto rimosse dallo schermo. Restano nel vostro album.`,
       }),
+    highlight: 'Preferita',
+    highlightAddHint: 'Aggiungi ai preferiti',
+    highlightRemoveHint: 'Rimuovi dai preferiti',
+    shortcutsFavourite: 'F per aggiungere ai preferiti.',
     decisionFailed: 'Non è stato possibile registrare la decisione. Riprovi.',
     undoFailed: 'Non è stato possibile registrare l’annullamento. Riprovi.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixel`,
@@ -793,6 +871,77 @@ export const it: UiText = {
       t.count(count, { one: `${t.number(count)} foto`, other: `${t.number(count)} foto` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} invitato`, other: `${t.number(count)} invitati` }),
+    stats: {
+      title: 'Statistiche della serata',
+      tile: 'Statistiche',
+      loading: 'Caricamento delle statistiche…',
+      empty:
+        'Ancora niente da contare. I numeri compaiono appena gli invitati si uniscono all’evento.',
+      emptyAction: 'Mostra il codice QR',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} invio ricevuto`,
+          other: `${t.number(count)} invii ricevuti`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} invitato`,
+          other: `${t.number(count)} invitati`,
+        }),
+      figureHere: (count: number) =>
+        t.count(count, { one: `${t.number(count)} qui ora`, other: `${t.number(count)} qui ora` }),
+      figurePending: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} in attesa`,
+          other: `${t.number(count)} in attesa`,
+        }),
+      timelineTitle: 'Invii nel tempo',
+      timelineCaption: 'Invii per ora',
+      hourColumn: 'Ora',
+      uploadsColumn: 'Invii',
+      timelineEmpty: 'Ancora nessun invio.',
+      peak: (hour: string, count: number) =>
+        `Picco: ${hour}, ${t.count(count, { one: `${t.number(count)} invio`, other: `${t.number(count)} invii` })}`,
+      statusTitle: 'Invii per stato',
+      statusPublished: 'Pubblicati',
+      statusPending: 'In attesa',
+      statusRejected: 'Rifiutati',
+      statusHidden: 'Nascosti',
+      publishedShare: 'Quota di invii pubblicati',
+      guestsTitle: 'Invitati',
+      guestsJoined: 'Arrivati',
+      guestsContributors: 'Hanno inviato almeno un file',
+      guestsRevoked: 'Rimossi da lei',
+      reactionsTitle: 'Reazioni',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} reazione`,
+          other: `${t.number(count)} reazioni`,
+        }),
+      topTitle: 'Chi ha condiviso di più',
+      topEmpty: 'Nessuno ha ancora pubblicato un invio.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} invio pubblicato`, other: `${t.number(photos)} invii pubblicati` })} · ${t.count(reactions, { one: `${t.number(reactions)} reazione ricevuta`, other: `${t.number(reactions)} reazioni ricevute` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Gli invitati senza nome sono raggruppati: ${t.count(guests, { one: `${t.number(guests)} invitato`, other: `${t.number(guests)} invitati` })}, ${t.count(photos, { one: `${t.number(photos)} invio`, other: `${t.number(photos)} invii` })}.`,
+      engagementTitle: 'Dopo la serata',
+      engagementNone: 'Non ancora misurato: nessun link dell’album aperto e nessuno ZIP avviato.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} apertura del link dell’album`,
+          other: `${t.number(count)} aperture del link dell’album`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP avviato`,
+          other: `${t.number(count)} ZIP avviati`,
+        }),
+      measuredSince: (date: string) => `Misurato dal ${date}. Prima non veniva contato nulla.`,
+      engagementNote:
+        'Un’apertura è il caricamento della pagina dell’album, non una persona. Uno ZIP avviato non è necessariamente completato. Questi numeri sono indicativi.',
+      retention:
+        'Questi numeri scompaiono con l’evento, alla sua eliminazione o alla scadenza del periodo di conservazione.',
+    },
     storageUsed: (used: string, total: string) => `${used} su ${total}`,
     settings: 'Impostazioni',
     moderationMode: 'Moderazione',
@@ -891,6 +1040,33 @@ export const it: UiText = {
     printQr: 'Stampa il codice QR',
     qrScanPrompt: 'Scansioni per inviare le sue foto.',
     qrAlt: (eventName: string) => `Codice QR per entrare in ${eventName}`,
+    printKitTitle: 'Segnaposto e locandina',
+    printKitCrumb: 'Segnaposto e locandina',
+    printKitIntro:
+      'Stampi qualcosa da mettere sui tavoli: il codice QR, il codice di riserva e tre righe di istruzioni.',
+    printKitFormat: 'Formato',
+    printKitInk: 'Colore del codice QR',
+    printInkBlack: 'Nero (il più sicuro)',
+    printInkEvent: 'Colore dell’evento',
+    printFormatA4: 'Locandina A4 (1 per foglio)',
+    printFormatA5: 'Locandina A5 (2 per foglio)',
+    printFormatCard: 'Segnaposto A6 (4 per foglio)',
+    printKitLanguage: 'Lingua del supporto',
+    printKitLanguageHint: 'È la lingua della serata, non quella del suo schermo.',
+    printKitPrint: 'Stampa',
+    printKitPrinting: 'Aggiornamento del codice…',
+    printKitHelp:
+      'Nella finestra di stampa scelga A4, scala 100 %, senza intestazioni né piè di pagina. Il browser offre lì anche «Salva come PDF». Usi il pulsante Stampa: Ctrl+P non verifica il codice.',
+    printKitCodeChanged:
+      'Il codice della serata è cambiato: il foglio qui sotto è aggiornato. Getti via i vecchi.',
+    printKitClosed:
+      'Questa serata è chiusa: gli ospiti che scansionano non possono più entrare. Se la riapre, lo stesso codice torna valido.',
+    printKitDraft: 'Gli ospiti potranno entrare solo all’apertura della serata.',
+    printKitArchived:
+      'Questo evento è archiviato: il suo codice QR non porta più da nessuna parte.',
+    printKitBack: 'Torna all’evento',
+    printKitLongLink: 'Il link è lungo e il codice QR sarà piccolo. Preferisca la locandina.',
+    printKitPreview: 'Anteprima del foglio',
     storageLabel: 'Spazio foto utilizzato',
     storage: (used: string) => `${used} utilizzati`,
     rotateJoinCodeTitle: 'Cambiare il codice della serata?',
@@ -1055,6 +1231,21 @@ export const it: UiText = {
     shareLinkReplace: 'Sostituisci con un nuovo link',
     shareLinkReplaceHint: 'Il link attuale smetterà subito di funzionare.',
     shareLinkCreated: 'Ecco il link. Lo copi adesso: non verrà più mostrato.',
+    bestOf: 'Best-of',
+    bestOfHint: 'Le sue foto preferite, da portare a casa dopo la serata.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} preferita`,
+        other: `${t.number(count)} preferite`,
+      }),
+    bestOfNone:
+      'Nessun preferito per ora. Contrassegni con una stella le foto preferite nella moderazione.',
+    bestOfPreselect: 'Preseleziona le più amate',
+    bestOfPreselected: (limit: number) =>
+      `Le ${t.number(limit)} foto più amate sono ora tra i preferiti. Può toglierne o aggiungerne altre.`,
+    bestOfPreselectNothing:
+      'Niente da aggiungere: le più amate sono già tra i preferiti, oppure nessuno ha ancora reagito.',
+    bestOfDownload: 'Scarica i preferiti (ZIP)',
     shareLinkUrl: 'Indirizzo del link',
     shareLinkCopy: 'Copia il link',
     shareLinkCopied: 'Link copiato.',
@@ -1082,6 +1273,12 @@ export const it: UiText = {
     venuePhotoBusy: 'Invio della foto…',
     venuePhotoSaved: 'La foto del vostro locale è salvata.',
     venuePhotoRemoved: 'La foto predefinita è stata ripristinata.',
+    welcomeMessage: 'Messaggio di benvenuto',
+    welcomeMessageHint:
+      'Poche parole mostrate ai vostri invitati quando si uniscono alla festa. Scrivete nella lingua dei vostri invitati: questo testo non viene tradotto. Chiunque abbia il codice QR può leggerlo, quindi non inseriteci nulla di privato.',
+    welcomeMessagePlaceholder: 'Benvenuti! Fate delle foto, le vedremo sullo schermo in sala.',
+    welcomeMessageClear: 'Cancella il messaggio',
+    welcomeMessageCount: (count, max) => `${count} / ${max}`,
     customAmbianceCreate: 'Crea la mia atmosfera (Su misura)',
     customAmbianceEdit: 'Modifica la mia atmosfera',
     customAmbianceEntryHint:
@@ -1703,7 +1900,17 @@ export const it: UiText = {
     },
   },
 
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Condividi le tue foto della serata',
+    step1: 'Inquadra il codice QR con la fotocamera del telefono.',
+    step2: 'Invia le tue foto.',
+    step3: 'Compaiono sullo schermo della serata.',
+    fallback: (code: string, address: string) =>
+      `Niente codice QR? Digita il codice ${code} su ${address}.`,
+  },
   titles: {
+    print: 'Segnaposto e locandina',
     join: 'Entri nella serata',
     upload: 'Invio di foto',
     feed: 'Foto della serata',
@@ -1723,6 +1930,7 @@ export const it: UiText = {
     event: 'Evento',
     moderation: 'Moderazione',
     mobileModeration: 'Moderazione da telefono',
+    stats: 'Statistiche della serata',
     settings: 'Impostazioni dell’evento',
     customAmbiance: 'Atmosfera su misura',
     clientSpace: 'Area cliente',

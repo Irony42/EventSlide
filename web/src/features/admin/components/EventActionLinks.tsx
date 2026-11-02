@@ -165,6 +165,9 @@ export function EventActionLinks({ slug, status, role, albumUrl }: EventActionLi
             {t.mobileModeration.title}
           </RouteTile>
         ) : null}
+        <RouteTile priority="secondary" glyph="stats" to={`/admin/events/${slug}/stats`}>
+          {t.admin.stats.tile}
+        </RouteTile>
         {canManageEvent(role) ? (
           <RouteTile priority="secondary" glyph="settings" to={`/admin/events/${slug}/settings`}>
             {t.admin.settings}

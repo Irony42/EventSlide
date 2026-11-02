@@ -9,6 +9,7 @@ import type { ArchiveWriter } from '../../ports/archiveWriter'
 import type { Logger } from '../../ports/logger'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import type { RecordEngagement } from '../stats/recordEngagement'
 import { albumEntries } from '../shared/albumEntries'
 import {
   eventBehind,
@@ -61,6 +62,8 @@ export interface DownloadGalleryArchiveDeps extends GalleryAccessDeps {
   readonly media: MediaStore
   readonly archive: ArchiveWriter
   readonly logger: Logger
+  /** Counts the launch once the link is known to grant (spec 05): a number a day, no identity. */
+  readonly engagement: RecordEngagement
 }
 
 export type DownloadGalleryArchive = (
@@ -143,6 +146,10 @@ export const makeDownloadGalleryArchive =
         })
       },
     })
+
+    // A launch, not a completed download: counted when the link has granted and before the
+    // bytes flow, so a client that hangs up halfway is still one ZIP started.
+    await deps.engagement({ eventId, metric: 'galleryArchiveDownloads', delta: 1 })
 
     return ok({ event, chunks: deps.archive.stream(entries) })
   }

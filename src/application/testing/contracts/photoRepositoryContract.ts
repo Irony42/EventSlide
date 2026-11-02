@@ -706,6 +706,140 @@ export const photoRepositoryContract = (
       expect(await repo.listIdsByStatus(WEDDING, 'published', 10)).toEqual([])
     })
 
+    // ------------------------------------------------ the host's favourites (spec 08) --
+
+    describe('the host favourites', () => {
+      const STAR = atPlus(9_000)
+      const id = asPhotoId
+
+      const seedThree = async (): Promise<void> => {
+        await saveAll([
+          aPhoto({ id: 'p-a', eventId: WEDDING, status: 'published', createdAt: atPlus(0) }),
+          aPhoto({ id: 'p-b', eventId: WEDDING, status: 'published', createdAt: atPlus(1_000) }),
+          aPhoto({ id: 'p-c', eventId: WEDDING, status: 'published', createdAt: atPlus(2_000) }),
+        ])
+      }
+
+      it('stars a published photograph and counts it', async () => {
+        await seedThree()
+
+        expect(await repo.setHighlighted(WEDDING, id('p-b'), STAR)).toBe(true)
+
+        expect((await repo.findById(WEDDING, id('p-b')))?.highlightedAt).toEqual(STAR)
+        expect(await repo.countHighlighted(WEDDING)).toBe(1)
+      })
+
+      it('keeps the first instant when a star is set twice', async () => {
+        await seedThree()
+        await repo.setHighlighted(WEDDING, id('p-b'), STAR)
+
+        expect(await repo.setHighlighted(WEDDING, id('p-b'), atPlus(20_000))).toBe(true)
+
+        expect((await repo.findById(WEDDING, id('p-b')))?.highlightedAt).toEqual(STAR)
+      })
+
+      it.each(['pending', 'hidden', 'rejected'] as const)(
+        'refuses to star a %s photograph and writes nothing',
+        async (status) => {
+          await repo.save(aPhoto({ id: 'p-x', eventId: WEDDING, status }))
+
+          expect(await repo.setHighlighted(WEDDING, id('p-x'), STAR)).toBe(false)
+
+          expect((await repo.findById(WEDDING, id('p-x')))?.highlightedAt).toBeNull()
+        },
+      )
+
+      it('clears a star, and answers false only for a photograph that is not there', async () => {
+        await seedThree()
+        await repo.setHighlighted(WEDDING, id('p-b'), STAR)
+
+        expect(await repo.setHighlighted(WEDDING, id('p-b'), null)).toBe(true)
+        expect(await repo.setHighlighted(WEDDING, id('p-b'), null)).toBe(true)
+        expect(await repo.setHighlighted(WEDDING, id('nope'), null)).toBe(false)
+
+        expect(await repo.countHighlighted(WEDDING)).toBe(0)
+      })
+
+      it('does not reach a photograph of another event', async () => {
+        await seedThree()
+
+        expect(await repo.setHighlighted(GALA, id('p-b'), STAR)).toBe(false)
+        expect(await repo.setHighlighted(GALA, id('p-b'), null)).toBe(false)
+
+        expect(await repo.countHighlighted(WEDDING)).toBe(0)
+        expect(await repo.countHighlighted(GALA)).toBe(0)
+      })
+
+      it('survives a save of a photograph read before the star was set', async () => {
+        await seedThree()
+        const stale = await repo.findById(WEDDING, id('p-b'))
+        await repo.setHighlighted(WEDDING, id('p-b'), STAR)
+
+        if (stale === null) throw new Error('fixture missing')
+        await repo.save(stale.withCaption(null))
+
+        expect((await repo.findById(WEDDING, id('p-b')))?.highlightedAt).toEqual(STAR)
+      })
+
+      it.each(['hidden', 'rejected'] as const)(
+        'loses its star when a save takes the photograph to %s',
+        async (status) => {
+          await seedThree()
+          await repo.setHighlighted(WEDDING, id('p-b'), STAR)
+          const photo = await repo.findById(WEDDING, id('p-b'))
+          if (photo === null) throw new Error('fixture missing')
+          const moved = photo.transitionTo(status, { kind: 'host', userId: HOST }, atPlus(10_000))
+          if (!moved.ok) throw new Error('fixture transition')
+
+          await repo.save(moved.value)
+
+          expect((await repo.findById(WEDDING, id('p-b')))?.highlightedAt).toBeNull()
+          expect(await repo.countHighlighted(WEDDING)).toBe(0)
+        },
+      )
+
+      it('loses its star when a bulk status update takes the photograph off the wall', async () => {
+        await seedThree()
+        await repo.setHighlighted(WEDDING, id('p-b'), STAR)
+
+        await repo.updateStatuses(WEDDING, [id('p-b')], 'hidden', AUTOMATIC)
+
+        expect((await repo.findById(WEDDING, id('p-b')))?.highlightedAt).toBeNull()
+      })
+
+      it('lists only the favourites, oldest first when asked, paging without repeats', async () => {
+        await seedThree()
+        await repo.setHighlighted(WEDDING, id('p-a'), STAR)
+        await repo.setHighlighted(WEDDING, id('p-c'), STAR)
+
+        expect(await pageThrough(repo, WEDDING, 1, { highlightedOnly: true })).toEqual([
+          'p-c',
+          'p-a',
+        ])
+        expect(
+          await pageThrough(repo, WEDDING, 1, { highlightedOnly: true, oldestFirst: true }),
+        ).toEqual(['p-a', 'p-c'])
+        expect(await pageThrough(repo, WEDDING, 2, { oldestFirst: true })).toEqual([
+          'p-a',
+          'p-b',
+          'p-c',
+        ])
+      })
+
+      it('leaves a taken-down favourite out of the list and the count, and keeps its star', async () => {
+        await seedThree()
+        await repo.setHighlighted(WEDDING, id('p-b'), STAR)
+        await repo.setTakenDown(WEDDING, id('p-b'), atPlus(5_000))
+
+        expect(await repo.countHighlighted(WEDDING)).toBe(0)
+        expect(await repo.setHighlighted(WEDDING, id('p-b'), null)).toBe(false)
+        expect(await pageThrough(repo, WEDDING, 5, { highlightedOnly: true })).toEqual([])
+
+        await repo.setTakenDown(WEDDING, id('p-b'), null)
+        expect(await repo.countHighlighted(WEDDING)).toBe(1)
+      })
+    })
+
     // ------------------------------------------- the operator's takedown (S5) --
 
     describe('a photograph the operator took down (launch review S5)', () => {

@@ -9,6 +9,7 @@ import type { MediaStore } from '../../ports/mediaStore'
 import type { ClipJobRepository } from '../../ports/clipJobRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import { requireWritable } from '../shared/eventRole'
+import type { InvalidateReel } from '../highlights/invalidateReel'
 import { makeRemovePhotoRecord } from './removePhotoRecord'
 
 /**
@@ -40,6 +41,11 @@ export interface DeletePhotoDeps {
   readonly media: MediaStore
   readonly bus: EventBus
   readonly clock: Clock
+  /**
+   * Retires the highlight reel that holds a photograph about to go (spec 08). Called first: the
+   * montage stops being served before the photograph stops existing.
+   */
+  readonly invalidateReel?: InvalidateReel
 }
 
 export type DeletePhoto = (input: DeletePhotoInput) => Promise<Result<void, DomainError>>
@@ -51,6 +57,7 @@ export const makeDeletePhoto = ({
   media,
   bus,
   clock,
+  invalidateReel,
 }: DeletePhotoDeps): DeletePhoto => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
 
@@ -82,6 +89,7 @@ export const makeDeletePhoto = ({
     if (verdict === 'forbidden') return err(DomainError.forbidden('photo.deleteForbidden'))
 
     // Bytes first, then the row; `removePhotoRecord` carries the argument and the guards.
+    await invalidateReel?.(eventId, [photoId])
     await removePhotoRecord(eventId, photo)
 
     // **And the clip job that produced it, if there was one.** A `done` job blocks the

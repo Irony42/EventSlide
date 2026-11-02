@@ -16,7 +16,11 @@ import { migration014 } from './014_user_foreign_key_indexes'
 import { migration015 } from './015_operator_takedown'
 import { migration016 } from './016_event_name_fold'
 import { migration017 } from './017_user_terms_acceptance'
-import { migration018 } from './018_album_books'
+import { migration018 } from './018_event_stats_counters'
+import { migration019 } from './019_guestbook_entries'
+import { migration020 } from './020_photo_highlights'
+import { migration021 } from './021_highlight_reels'
+import { migration022 } from './022_album_books'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -44,4 +48,8 @@ export const migrations: readonly Migration[] = [
   migration016,
   migration017,
   migration018,
+  migration019,
+  migration020,
+  migration021,
+  migration022,
 ]
