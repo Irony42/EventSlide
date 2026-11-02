@@ -382,6 +382,24 @@ export interface ErasedContributionDto {
   readonly messages?: number
 }
 
+/** One message in the host's reading of the guestbook (spec 01). */
+export interface GuestbookQueueItemDto {
+  readonly id: string
+  readonly text: string
+  /** `null` for a guest who gave no name or whose row is gone; the client words that. */
+  readonly authorName: string | null
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The decisions this message may take now, from the status machine: the buttons the panel shows. */
+  readonly allowedDecisions: readonly ModerationDecision[]
+}
+
+export interface GuestbookQueueDto {
+  readonly items: readonly GuestbookQueueItemDto[]
+  /** The whole book's, not the page's: the badge on the panel. */
+  readonly pendingCount: number
+}
+
 /** One of the guest's own guestbook messages (spec 01). */
 export interface GuestbookEntryDto {
   readonly id: string
@@ -548,9 +566,9 @@ export interface EventSettingsDto {
    * exactly the events it exists for.
    */
   readonly allowClips: boolean
-  /** Optional until the host panel reads it (spec 01): an older server does not send it. */
-  readonly allowGuestbook?: boolean
-  readonly guestbookOnWall?: boolean
+  /** The guestbook (spec 01): open for guests, and whether its published messages reach the wall. */
+  readonly allowGuestbook: boolean
+  readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

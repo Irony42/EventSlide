@@ -994,12 +994,18 @@ export const de: UiText = {
     moderationManual: 'Jedes Foto freigeben',
     moderationAuto: 'Automatisch freigeben',
     moderationAutoWarning:
-      'Fotos und Videos erscheinen ohne Freigabe auf dem Bildschirm. Nur für Veranstaltungen im engen Kreis.',
+      'Fotos, Videos und Gästebuch-Nachrichten erscheinen ohne Freigabe auf dem Bildschirm. Nur für Veranstaltungen im engen Kreis.',
     allowCaptions: 'Bildunterschriften erlauben',
     allowReactions: 'Reaktionen erlauben',
     allowClips: 'Videos erlauben',
     allowClipsHint:
       'Gäste können zusätzlich zu Fotos kurze Videos senden. Ohne Haken werden Videos abgelehnt: weil Sie den Haken entfernt haben, weil die bei der Erstellung gewählte Vorlage es so eingestellt hat, oder weil die Veranstaltung älter ist als diese Funktion. Setzen Sie den Haken, um Videos zu erlauben.',
+    allowGuestbook: 'Gästebuch öffnen',
+    allowGuestbookHint:
+      'Gäste hinterlassen eine kurze Nachricht. Ohne Haken: das Gästebuch ist geschlossen, bereits geschriebene Nachrichten bleiben erhalten.',
+    guestbookOnWall: 'Nachrichten auf dem Bildschirm im Saal zeigen',
+    guestbookOnWallHint:
+      'Ohne Haken: veröffentlichte Nachrichten bleiben im Gästebuch, erscheinen aber nicht auf dem Bildschirm.',
     allowGuestSelfDelete: 'Gästen erlauben, ihre Fotos zu löschen',
 
     wallLanguage: 'Sprache der Leinwand im Saal',
@@ -1416,6 +1422,27 @@ export const de: UiText = {
     customKept:
       'Ihre Auswahl bleibt so, wie Sie sie verlassen haben: ändern Sie sie und speichern Sie erneut.',
     customSaved: 'Ihre Stimmung ist gespeichert.',
+  },
+
+  /** The guestbook, host side (spec 01). What guests write is never translated. */
+  guestbookHost: {
+    title: 'Gästebuch',
+    hint: 'Die Nachrichten Ihrer Gäste. Sie erscheinen je nach Einstellung auf dem Bildschirm.',
+    empty: 'Noch keine Nachrichten.',
+    anonymous: 'Gast ohne Namen',
+    pending: (count: number) =>
+      t.count(count, {
+        one: '1 wartet',
+        other: `${t.number(count)} warten`,
+      }),
+    statusPending: 'Wartet',
+    statusPublished: 'Auf dem Bildschirm',
+    statusRejected: 'Nicht übernommen',
+    statusHidden: 'Vom Bildschirm genommen',
+    copyId: 'Kennung kopieren',
+    idCopied: 'Kennung kopiert.',
+    copyFailed: 'Kopieren nicht möglich: Markieren Sie die Kennung von Hand.',
+    decided: 'Entscheidung gespeichert.',
   },
 
   auth: {

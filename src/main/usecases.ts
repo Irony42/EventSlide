@@ -140,7 +140,9 @@ import { makeGetWallPlaylist } from '../application/usecases/slideshow/getWallPl
 
 import { makeCreateGuestbookEntry } from '../application/usecases/guestbook/createGuestbookEntry'
 import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/deleteGuestbookEntry'
+import { makeListGuestbookQueue } from '../application/usecases/guestbook/listGuestbookQueue'
 import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
+import { makeModerateGuestbookEntry } from '../application/usecases/guestbook/moderateGuestbookEntry'
 import { makeCreateMission } from '../application/usecases/missions/createMission'
 import { makeDeleteMission } from '../application/usecases/missions/deleteMission'
 import { makeGetGuestChecklist } from '../application/usecases/missions/getGuestChecklist'
@@ -1056,6 +1058,19 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     deleteGuestbookEntry: makeDeleteGuestbookEntry({
       events: adapters.events,
       guestbook: adapters.guestbook,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    listGuestbookQueue: makeListGuestbookQueue({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      guests: adapters.guests,
+      memberships: adapters.memberships,
+    }),
+    moderateGuestbookEntry: makeModerateGuestbookEntry({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      memberships: adapters.memberships,
       bus: adapters.bus,
       clock: adapters.clock,
     }),

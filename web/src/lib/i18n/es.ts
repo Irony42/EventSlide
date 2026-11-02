@@ -985,12 +985,18 @@ export const es: UiText = {
      * nobody having watched it. A warning, not a description.
      */
     moderationAutoWarning:
-      'Las fotos y los vídeos aparecerán en la pantalla sin aprobación. Resérvelo para eventos entre personas de confianza.',
+      'Las fotos, los vídeos y los mensajes del libro de visitas aparecerán en la pantalla sin aprobación. Resérvelo para eventos entre personas de confianza.',
     allowCaptions: 'Permitir los pies de foto',
     allowReactions: 'Permitir las reacciones',
     allowClips: 'Permitir los vídeos',
     allowClipsHint:
       'Los invitados pueden enviar vídeos cortos, además de fotos. Cuando la casilla está desmarcada, los vídeos se rechazan: porque usted la ha desmarcado, porque la plantilla elegida al crear el evento lo dejó así, o porque el evento es anterior a esta función. Márquela para permitirlos.',
+    allowGuestbook: 'Abrir el libro de visitas',
+    allowGuestbookHint:
+      'Los invitados dejan un mensaje corto. Desmarcado: el libro está cerrado y se conservan los mensajes ya escritos.',
+    guestbookOnWall: 'Mostrar los mensajes en la pantalla de la sala',
+    guestbookOnWallHint:
+      'Desmarcado: los mensajes publicados siguen en el libro pero no aparecen en la pantalla.',
     allowGuestSelfDelete: 'Permitir que los invitados eliminen sus fotos',
 
     /**
@@ -1405,6 +1411,27 @@ export const es: UiText = {
     customPreviewAuthor: 'Lea',
     customKept: 'Su elección se conserva tal como la dejó: modifíquela y guarde de nuevo.',
     customSaved: 'Su ambiente está guardado.',
+  },
+
+  /** The guestbook, host side (spec 01). What guests write is never translated. */
+  guestbookHost: {
+    title: 'Libro de visitas',
+    hint: 'Los mensajes que dejan sus invitados. Llegan a la pantalla según sus ajustes.',
+    empty: 'Aún no hay mensajes.',
+    anonymous: 'Invitado sin nombre',
+    pending: (count: number) =>
+      t.count(count, {
+        one: '1 en espera',
+        other: `${t.number(count)} en espera`,
+      }),
+    statusPending: 'En espera',
+    statusPublished: 'En pantalla',
+    statusRejected: 'No aceptado',
+    statusHidden: 'Retirado de la pantalla',
+    copyId: 'Copiar el identificador',
+    idCopied: 'Identificador copiado.',
+    copyFailed: 'No se pudo copiar: seleccione el identificador a mano.',
+    decided: 'Decisión guardada.',
   },
 
   auth: {

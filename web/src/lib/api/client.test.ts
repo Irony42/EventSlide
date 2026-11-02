@@ -180,6 +180,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.writeGuestbookEntry(SLUG, 'Bravo'),
   },
   {
+    name: 'guestbookQueue',
+    verb: 'get',
+    path: `/api/events/${SLUG}/guestbook`,
+    invoke: (client) => client.guestbookQueue(SLUG),
+  },
+  {
+    name: 'decideGuestbookEntry',
+    verb: 'patch',
+    path: `/api/events/${SLUG}/guestbook/entry-1/status`,
+    invoke: (client) => client.decideGuestbookEntry(SLUG, 'entry-1', 'publish'),
+  },
+  {
     name: 'deleteMyGuestbookEntry',
     verb: 'del',
     path: `/api/events/${SLUG}/guestbook/entry-1`,

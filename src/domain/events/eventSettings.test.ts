@@ -15,6 +15,14 @@ describe('EventSettings defaults', () => {
     expect(EventSettings.default().moderation).toBe('manual')
   })
 
+  it('opens the guestbook for a new event and shows its messages on the wall', () => {
+    // Pierre, spec 01 Q1: on for new events. An event that exists is read back as off, which the
+    // SQLite repository test holds (`settingsBooleanAddedLater`).
+    const settings = EventSettings.default()
+
+    expect([settings.allowGuestbook, settings.guestbookOnWall]).toEqual([true, true])
+  })
+
   it('lets a guest caption, react and take back their own photo', () => {
     const settings = EventSettings.default()
 

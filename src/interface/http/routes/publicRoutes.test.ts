@@ -328,7 +328,7 @@ describe('POST /api/join', () => {
         maxUploadBytes: 25_000_000,
         maxFilesPerUpload: 20,
         allowClips: true,
-        allowGuestbook: false,
+        allowGuestbook: true,
         guestbookMaxLength: 500,
         maxClipBytes: 80_000_000,
         maxClipSeconds: 15,
@@ -344,11 +344,12 @@ describe('POST /api/join', () => {
       privacyNotice: {
         notice: {
           revision:
-            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900;selfErase=phone',
+            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900;selfErase=phone;guestbook=on',
           publication: 'afterReview',
           audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
           retentionDays: null,
           selfRemovalSeconds: 900,
+          guestbook: true,
         },
         acknowledgement: 'none',
       },

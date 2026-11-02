@@ -973,12 +973,18 @@ export const it: UiText = {
     moderationManual: 'Approva ogni foto',
     moderationAuto: 'Pubblica automaticamente',
     moderationAutoWarning:
-      'Le foto e i video appariranno sullo schermo senza approvazione. Da riservare agli eventi tra amici e familiari.',
+      'Le foto, i video e i messaggi del libro degli ospiti appariranno sullo schermo senza approvazione. Da riservare agli eventi tra amici e familiari.',
     allowCaptions: 'Consenti le didascalie',
     allowReactions: 'Consenti le reazioni',
     allowClips: 'Consenti i video',
     allowClipsHint:
       'Gli invitati possono inviare brevi video, oltre alle foto. Quando la casella non è selezionata, i video vengono rifiutati: perché l’ha deselezionata, perché il modello scelto alla creazione l’ha impostata così, oppure perché l’evento è anteriore a questa funzionalità. La selezioni per consentirli.',
+    allowGuestbook: 'Apri il libro degli ospiti',
+    allowGuestbookHint:
+      'Gli invitati lasciano un breve messaggio. Se deselezionata: il libro è chiuso e i messaggi già scritti restano.',
+    guestbookOnWall: 'Mostra i messaggi sullo schermo della sala',
+    guestbookOnWallHint:
+      'Se deselezionata: i messaggi pubblicati restano nel libro ma non compaiono sullo schermo.',
     allowGuestSelfDelete: 'Consenti agli invitati di eliminare le proprie foto',
     wallLanguage: 'Lingua dello schermo in sala',
     wallLanguageHint:
@@ -1385,6 +1391,27 @@ export const it: UiText = {
     customPreviewAuthor: 'Lea',
     customKept: 'La tua scelta resta com’era: modificala e salva di nuovo.',
     customSaved: 'La tua atmosfera è salvata.',
+  },
+
+  /** The guestbook, host side (spec 01). What guests write is never translated. */
+  guestbookHost: {
+    title: 'Libro degli ospiti',
+    hint: 'I messaggi lasciati dai suoi invitati. Arrivano sullo schermo secondo le sue impostazioni.',
+    empty: 'Ancora nessun messaggio.',
+    anonymous: 'Invitato senza nome',
+    pending: (count: number) =>
+      t.count(count, {
+        one: '1 in attesa',
+        other: `${t.number(count)} in attesa`,
+      }),
+    statusPending: 'In attesa',
+    statusPublished: 'Sullo schermo',
+    statusRejected: 'Non accettato',
+    statusHidden: 'Tolto dallo schermo',
+    copyId: 'Copia l’identificativo',
+    idCopied: 'Identificativo copiato.',
+    copyFailed: 'Copia impossibile: selezioni l’identificativo a mano.',
+    decided: 'Decisione salvata.',
   },
 
   auth: {
