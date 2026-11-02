@@ -3163,3 +3163,69 @@ describe('migration 020, the favourites column', () => {
     closeDatabase(db)
   })
 })
+
+describe('migration 023 (the audit log learns the guestbook subject)', () => {
+  const insert = (db: Db, seq: number, subject = 'photo'): void => {
+    db.prepare(
+      `INSERT INTO audit_log (seq, at, actor_kind, action, subject_type, subject_id, client_id, details)
+            VALUES (?, '2026-06-20T09:00:00.000Z', 'system', 'x', ?, ?, 'c1', '{"reason":"r"}')`,
+    ).run(seq, subject, `s${seq}`)
+  }
+
+  const before = (): Db => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 23),
+    )
+    return db
+  }
+
+  it('keeps every row, and the counter, so a pruned sequence number is never handed out again', () => {
+    const db = before()
+    insert(db, 1)
+    insert(db, 2)
+    insert(db, 3, 'event')
+    // Prune the top row through the gate, as the retention sweep does.
+    db.prepare(`UPDATE audit_prune_gate SET open = 1`).run()
+    db.prepare(`DELETE FROM audit_log WHERE seq = 3`).run()
+    db.prepare(`UPDATE audit_prune_gate SET open = 0`).run()
+
+    migrate(db, migrations)
+
+    expect(
+      db.prepare(`SELECT seq, subject_type, details FROM audit_log ORDER BY seq`).all(),
+    ).toEqual([
+      { seq: 1, subject_type: 'photo', details: '{"reason":"r"}' },
+      { seq: 2, subject_type: 'photo', details: '{"reason":"r"}' },
+    ])
+    db.prepare(
+      `INSERT INTO audit_log (at, actor_kind, action, subject_type, subject_id)
+            VALUES ('2026-06-20T09:00:00.000Z', 'system', 'x', 'guestbook', 'g1')`,
+    ).run()
+    expect(db.prepare(`SELECT MAX(seq) AS top FROM audit_log`).get()).toEqual({ top: 4 })
+    closeDatabase(db)
+  })
+
+  it('keeps the log append-only and its indexes after the rebuild', () => {
+    const db = before()
+    insert(db, 1)
+    migrate(db, migrations)
+
+    expect(() => db.prepare(`UPDATE audit_log SET action = 'y'`).run()).toThrow(/append-only/)
+    expect(() => db.prepare(`DELETE FROM audit_log`).run()).toThrow(/retention sweep/)
+    expect(() => insert(db, 1)).toThrow(/never overwritten/)
+    expect(indexNames(db)).toEqual(
+      expect.arrayContaining(['idx_audit_client', 'idx_audit_actor_user']),
+    )
+    closeDatabase(db)
+  })
+
+  it('still refuses a subject the domain does not declare', () => {
+    const db = before()
+    migrate(db, migrations)
+
+    expect(() => insert(db, 1, 'pizza')).toThrow(/CHECK/)
+    closeDatabase(db)
+  })
+})

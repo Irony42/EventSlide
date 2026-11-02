@@ -72,6 +72,8 @@ describe('AUDIT_ACTIONS', () => {
       'client.ceilingsChanged',
       'photo.takenDown',
       'photo.restored',
+      'guestbook.takenDown',
+      'guestbook.restored',
       'event.takenDown',
       'event.restored',
       'event.purgeHeld',

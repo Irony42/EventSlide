@@ -11,6 +11,8 @@
  * - `report` is for a signalement about an event (G6-05).
  * - `access_request` is for the waiting list of G8-09. It may never be built; it is free
  *   now and a table rebuild later.
+ * - `guestbook` is for the operator's take-down of one guestbook message (spec 01), whose id is the subject. It was not
+ *   in the list, so migration 023 rebuilt the table to add it.
  */
 
 export const AUDIT_SUBJECT_TYPES = [
@@ -21,6 +23,7 @@ export const AUDIT_SUBJECT_TYPES = [
   'photo',
   'report',
   'access_request',
+  'guestbook',
 ] as const
 
 export type AuditSubjectType = (typeof AUDIT_SUBJECT_TYPES)[number]

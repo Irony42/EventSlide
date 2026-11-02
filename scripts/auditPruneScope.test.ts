@@ -91,9 +91,11 @@ const filesNaming = (name: string): string[] =>
     .sort()
 
 describe('the audit log can be pruned only through the pruning use case', () => {
-  it('names the retention gate in the adapter and its migration, and nowhere else', () => {
+  it('names the retention gate in the adapter and its migrations, and nowhere else', () => {
     expect(filesNaming('audit_prune_gate')).toEqual([
       'src/infrastructure/db/migrations/009_audit_log.ts',
+      // Recreates the delete trigger, which reads the gate, when it rebuilds the table.
+      'src/infrastructure/db/migrations/023_audit_subject_guestbook.ts',
       'src/infrastructure/db/sqliteAuditLog.ts',
     ])
   })
