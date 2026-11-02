@@ -662,7 +662,29 @@ people on the night.
 `"version": "3.4.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
 
-## Upgrading to 3.5 (not released yet)
+## Upgrading to 3.5
+
+3.5.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
+`BREAKING` section. It applies **six migrations (018 to 023)**, adds a runtime dependency (`pdfkit`) and a
+set of optional settings, and **opens the guestbook on every new event**. Back up with the version you run
+now ([above](#upgrading-with-docker)): the migrations only go forward, and going back is the restore of that
+archive. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker),
+with `vX.Y.Z` as `v3.5.0`; the image is `ghcr.io/irony42/eventslide:3.5.0`. The sections below say what each
+part of the release changes.
+
+### Welcome message and logo (spec 03)
+
+- **No migration**: both live in the event's settings. The host writes a welcome message (280 characters, 4
+  lines) and uploads a logo (PNG, JPEG or WebP, 2 MiB, re-encoded to WebP) on the settings page; guests see
+  them on the join page and the upload screen, the room on the empty wall.
+- **The logo is a new media variant**: it is covered by the quota, the sweeps and the backup, and a purge
+  hold refuses changing it.
+- **Rolling back to 3.4.x** drops the message and the logo at the first settings save.
+
+### Printable supports (spec 02)
+
+- A print page under the event's QR card (cards A6, posters A5 and A4). Nothing is stored, no route is added
+  and no migration applies.
 
 ### Event statistics
 
@@ -686,7 +708,8 @@ people on the night.
   guestbook panel, where messages are read and decided on like photographs.
 - **Additions to existing responses** (all optional for a client, none removed): `allowGuestbook` and
   `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
-  settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`, and `guestbook` in `GET /api/events/:slug/wall` (the published messages the room reads). A new `guestbook.changed` signal
+  settings, `messages` in the answer of `DELETE /api/events/:slug/guests/me` and `guestbook` in
+  `GET /api/events/:slug/wall` (the published messages the room reads). A new `guestbook.changed` signal
   appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
 - **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
   are fixed.
@@ -699,10 +722,10 @@ changes. A host can now star a published photo (`F` on the moderation console) a
 stars as a ZIP from the event page. A star disappears when the photo leaves the wall (hidden or
 refused). An old admin tab keeps working, it simply cannot star.
 
-**Best-of, the montage engine (migration 021, no button yet).** The first boot also applies migration 021,
+**Best-of, the highlight video (migration 021).** The first boot also applies migration 021,
 which adds the `highlight_reels` table (one row per event). The queue worker now also renders
 the montage of an event's favourites when one is asked for, **after** any clip is transcoded and
-one at a time; nothing asks for one until the montage surface ships. Five optional settings, all
+one at a time; a host asks for one from the best-of panel. Five optional settings, all
 with defaults that need no action: `REEL_ENABLED` (true), `REEL_MAX_PHOTOS` (60, at most 120),
 `REEL_SECONDS_PER_PHOTO` (4, 2 to 8), `REEL_MAX_OUTPUT_BYTES` (150 MB) and `MAX_QUEUED_REELS` (2).
 A finished montage counts against the event's quota and its client's, and is **not** in the backup:
