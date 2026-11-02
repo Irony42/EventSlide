@@ -80,6 +80,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   suspendClient: notWired('suspendClient'),
   resumeClient: notWired('resumeClient'),
   setPhotoTakedown: notWired('setPhotoTakedown'),
+  setGuestbookTakedown: notWired('setGuestbookTakedown'),
+  getSiteGuestbookState: notWired('getSiteGuestbookState'),
   lookupSiteEvents: notWired('lookupSiteEvents'),
   getSiteEventState: notWired('getSiteEventState'),
   getSitePhotoState: notWired('getSitePhotoState'),

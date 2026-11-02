@@ -11,6 +11,7 @@ import {
   aClient,
   aGuest,
   aMission,
+  aGuestbookEntry,
   aPhoto,
   aUser,
   atPlus,
@@ -180,6 +181,17 @@ const CALLS: readonly Call[] = [
     name: `post /api/site/photos/:photoId/${verb}`,
     method: 'post',
     path: `/api/site/photos/${TAKEDOWN_PHOTO}/${verb}`,
+    body: { reason: REASON },
+  })),
+  {
+    name: 'get /api/site/guestbook-entries/:entryId',
+    method: 'get',
+    path: `/api/site/guestbook-entries/${TAKEDOWN_PHOTO}`,
+  },
+  ...(['take-down', 'restore'] as const).map((verb): Call => ({
+    name: `post /api/site/guestbook-entries/:entryId/${verb}`,
+    method: 'post',
+    path: `/api/site/guestbook-entries/${TAKEDOWN_PHOTO}/${verb}`,
     body: { reason: REASON },
   })),
   ...(['take-down', 'restore', 'purge-hold', 'purge-release'] as const).map((verb): Call => ({
@@ -528,6 +540,9 @@ describe.each(['delivers', 'none'] as const)(
       await plant(site)
       await site.world.addPhoto(
         aPhoto({ id: TAKEDOWN_PHOTO, eventId: ID.eventK, author: { kind: 'host', id: ID.owner } }),
+      )
+      await site.repos.guestbook.admit(
+        aGuestbookEntry({ id: TAKEDOWN_PHOTO, eventId: ID.eventK, guestId: PLANT.guestId }),
       )
       const operator = await site.signInAsOperator()
       const answers: { call: Call; status: number; text: string; body: unknown }[] = []

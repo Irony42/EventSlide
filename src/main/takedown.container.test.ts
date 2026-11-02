@@ -405,3 +405,83 @@ describe('the host of a suspended client', () => {
     expect((await s.host.get(`/api/events/${SLUG}`)).status).toBe(200)
   })
 })
+
+describe('a guestbook message the operator took down, by its id (spec 01)', () => {
+  /** The scene, with the guestbook open: new events do not open it on their own until the host panel ships. */
+  const bookScene = async (): Promise<Scene> => {
+    const made = await scene()
+    const opened = await made.host.patch(`/api/events/${SLUG}/settings`, { allowGuestbook: true })
+    expect(opened.status).toBe(200)
+    return made
+  }
+
+  const write = async (s: Scene, text: string) =>
+    s.guest.post(`/api/events/${SLUG}/guestbook`, { text })
+
+  /** What the guest reads of their own messages: the one reader this branch has (the host's queue and the wall land in their own PRs). */
+  const mineHolds = async (s: Scene, text: string) =>
+    JSON.stringify((await s.guest.get(`/api/events/${SLUG}/guestbook/mine`)).body).includes(text)
+
+  it('is read from the guest’s own list before, not after, and is back when restored; the operator never reads it', async () => {
+    const s = await bookScene()
+    const written = await write(s, 'Une soirée inoubliable')
+    expect(written.status, JSON.stringify(written.body)).toBe(201)
+    const entryId = written.body.id as string
+    expect(await mineHolds(s, 'inoubliable')).toBe(true)
+
+    expect((await act(s, `guestbook-entries/${entryId}/take-down`)).status).toBe(204)
+    expect(await mineHolds(s, 'inoubliable')).toBe(false)
+    const state = await s.host.get(`/api/site/guestbook-entries/${entryId}`)
+    expect(state.status).toBe(200)
+    expect(JSON.stringify(state.body)).not.toContain('inoubliable')
+
+    expect((await act(s, `guestbook-entries/${entryId}/restore`)).status).toBe(204)
+    expect(await mineHolds(s, 'inoubliable')).toBe(true)
+  })
+
+  it('cannot be taken back by its author, and still counts toward the guest’s three', async () => {
+    const s = await bookScene()
+    const entryId = (await write(s, 'Premier mot')).body.id as string
+    await act(s, `guestbook-entries/${entryId}/take-down`)
+
+    const deleted = await s.guest.delete(`/api/events/${SLUG}/guestbook/${entryId}`)
+    await write(s, 'Deuxième mot')
+    await write(s, 'Troisième mot')
+    const fourth = await write(s, 'Quatrième mot')
+
+    expect(deleted.status).toBe(404)
+    expect([fourth.status, fourth.body.error.code]).toEqual([409, 'guestbook.limitReached'])
+  })
+
+  it('writes one line with the reason, naming the message and no client', async () => {
+    const s = await bookScene()
+    const entryId = (await write(s, 'Un mot')).body.id as string
+
+    await act(s, `guestbook-entries/${entryId}/take-down`)
+    await act(s, `guestbook-entries/${entryId}/take-down`)
+
+    const audit = (await s.host.get('/api/site/audit')).body.items as readonly {
+      readonly action: string
+      readonly clientId: string | null
+      readonly subject: { readonly type: string; readonly id: string }
+      readonly details: Record<string, unknown>
+    }[]
+    const lines = audit.filter((line) => line.action === 'guestbook.takenDown')
+    expect(lines).toHaveLength(1)
+    expect(lines[0]?.subject).toEqual({ type: 'guestbook', id: entryId })
+    expect(lines[0]?.clientId).toBeNull()
+    expect(lines[0]?.details).toEqual({ reason: REASON })
+  })
+
+  it('is refused without a reason, and for an id nobody holds', async () => {
+    const s = await bookScene()
+    const entryId = (await write(s, 'Un mot')).body.id as string
+
+    const blank = await act(s, `guestbook-entries/${entryId}/take-down`, '   ')
+    const unknown = await act(s, 'guestbook-entries/99999999-9999-4999-8999-999999999999/take-down')
+
+    expect([blank.status, blank.body.error.code]).toEqual([400, 'audit.reasonInvalid'])
+    expect([unknown.status, unknown.body.error.code]).toEqual([404, 'guestbook.notFound'])
+    expect(await mineHolds(s, 'Un mot')).toBe(true)
+  })
+})

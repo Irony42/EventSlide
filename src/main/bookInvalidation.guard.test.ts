@@ -27,6 +27,8 @@ const CANNOT_SPOIL_A_BOOK: Readonly<Record<string, string>> = {
   'photos/uploadPhotos.ts': 'it only inserts photographs and publishes them (auto moderation)',
   'photos/removePhotoRecord.ts':
     'the helper the removing paths call; each of them retires the book first (the guard below counts them)',
+  'site/setGuestbookTakedown.ts':
+    'it takes down a guestbook message, which a photo book never prints: no photograph changes',
   'site/setEventTakedown.ts':
     'it hides the whole event: the book is served only through the event, so none is reachable and the photographs are unchanged on restoring it',
 }

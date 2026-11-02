@@ -107,6 +107,14 @@ export const AUDIT_ACTIONS = {
   'photo.takenDown': { subject: 'photo', details: { reason: detail.reason } },
   /** An operator put a taken-down photograph back (`setPhotoTakedown`). Same shape and visibility. */
   'photo.restored': { subject: 'photo', details: { reason: detail.reason } },
+  /**
+   * An operator took one guestbook message down by its id, **without reading it**
+   * (`setGuestbookTakedown`, spec 01). The subject is the message's opaque id; same shape and
+   * visibility as a photograph's: no client id, so not in the client-readable trail, and never the text.
+   */
+  'guestbook.takenDown': { subject: 'guestbook', details: { reason: detail.reason } },
+  /** An operator put a taken-down guestbook message back (`setGuestbookTakedown`). */
+  'guestbook.restored': { subject: 'guestbook', details: { reason: detail.reason } },
   /** An operator took a whole event down (`setEventTakedown`), by its id. Same shape and visibility. */
   'event.takenDown': { subject: 'event', details: { reason: detail.reason } },
   /** An operator put a taken-down event back (`setEventTakedown`). */

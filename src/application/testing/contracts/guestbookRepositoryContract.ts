@@ -323,5 +323,42 @@ export const guestbookRepositoryContract = (
       expect(await repo.countTakenDownBy(WEDDING, LEA)).toBe(1)
       expect(await repo.countByGuest(WEDDING, LEA)).toBe(1)
     })
+
+    describe("the operator's take-down", () => {
+      it('locates a message by its id alone, across events, without its text, and sees a taken-down one', async () => {
+        await repo.admit(entry({ id: 'e1', createdAt: at(0) }))
+        await repo.admit(
+          entry({ id: 'g1', eventId: 'evt-gala', guestId: 'guest-sam', createdAt: at(1) }),
+        )
+
+        expect(await repo.locate(entryId('e1'))).toEqual({ eventId: WEDDING, takenDownAt: null })
+        expect(await repo.locate(entryId('g1'))).toEqual({ eventId: GALA, takenDownAt: null })
+        expect(await repo.locate(entryId('nope'))).toBeNull()
+
+        await repo.setTakenDown(WEDDING, entryId('e1'), at(5))
+        expect(await repo.locate(entryId('e1'))).toEqual({ eventId: WEDDING, takenDownAt: at(5) })
+      })
+
+      it('takes a message out of every read, and puts it back', async () => {
+        await repo.admit(entry({ id: 'e1', createdAt: at(0) }))
+
+        await repo.setTakenDown(WEDDING, entryId('e1'), at(1))
+        expect(await repo.findById(WEDDING, entryId('e1'))).toBeNull()
+        expect(await repo.listByGuest(WEDDING, LEA, 10)).toEqual([])
+        expect(await repo.countTakenDownBy(WEDDING, LEA)).toBe(1)
+
+        await repo.setTakenDown(WEDDING, entryId('e1'), null)
+        expect((await repo.findById(WEDDING, entryId('e1')))?.takenDownAt).toBeNull()
+        expect(await repo.countTakenDownBy(WEDDING, LEA)).toBe(0)
+      })
+
+      it('acts only inside the event it is given', async () => {
+        await repo.admit(entry({ id: 'e1', createdAt: at(0) }))
+
+        await repo.setTakenDown(GALA, entryId('e1'), at(1))
+
+        expect((await repo.locate(entryId('e1')))?.takenDownAt).toBeNull()
+      })
+    })
   })
 }

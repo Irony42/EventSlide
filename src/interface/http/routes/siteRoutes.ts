@@ -4,6 +4,7 @@ import {
   asAccountTokenId,
   asClientId,
   asEventId,
+  asGuestbookEntryId,
   asPhotoId,
   asUserId,
 } from '../../../domain/shared/ids'
@@ -31,6 +32,7 @@ import { sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import {
   toSiteEventLookupDto,
   toSiteEventStateDto,
+  toSiteGuestbookStateDto,
   toSitePhotoStateDto,
 } from '../presenters/takedownPresenter'
 import {
@@ -42,6 +44,7 @@ import {
   operatorActBody,
   operatorInvitationBody,
   operatorPasswordResetBody,
+  guestbookEntryIdParams,
   photoIdParams,
   provisionClientBody,
   siteEventLookupQuery,
@@ -118,6 +121,8 @@ export interface SiteRouteDeps extends Pick<RouteDeps, 'deps'> {
     | 'suspendClient'
     | 'resumeClient'
     | 'setPhotoTakedown'
+    | 'setGuestbookTakedown'
+    | 'getSiteGuestbookState'
     | 'lookupSiteEvents'
     | 'getSiteEventState'
     | 'getSitePhotoState'
@@ -464,6 +469,65 @@ export const siteRoutes = ({ deps, usecases }: SiteRouteDeps): Router => {
 
       const result = await usecases.setPhotoTakedown({
         photoId: asPhotoId(params.photoId),
+        down: false,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** Where a guestbook message is and whether it is down, by its id alone: never its text. */
+  router.get(
+    '/guestbook-entries/:entryId',
+    asyncHandler(async (req, res) => {
+      const params = guestbookEntryIdParams.parse(req.params)
+
+      const result = await usecases.getSiteGuestbookState({
+        entryId: asGuestbookEntryId(params.entryId),
+      })
+
+      res.setHeader('Cache-Control', 'no-store')
+      sendResult(res, result, (response, state) =>
+        sendJson(response, toSiteGuestbookStateDto(state)),
+      )
+    }),
+  )
+
+  /**
+   * Takes one guestbook message down by its id, **without reading it**: gone from the wall, the
+   * host's queue, the guest's own list and the export, and every screen is told. The row is kept
+   * and still counts for its guest's ceiling. `404 guestbook.notFound` for an id nobody holds.
+   */
+  router.post(
+    '/guestbook-entries/:entryId/take-down',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = guestbookEntryIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setGuestbookTakedown({
+        entryId: asGuestbookEntryId(params.entryId),
+        down: true,
+        reason: body.reason,
+        actor: { kind: 'operator', userId: userOf(req).userId },
+      })
+
+      sendResultNoContent(res, result)
+    }),
+  )
+
+  /** Puts a taken-down guestbook message back. */
+  router.post(
+    '/guestbook-entries/:entryId/restore',
+    requireStepUp(deps),
+    asyncHandler(async (req, res) => {
+      const params = guestbookEntryIdParams.parse(req.params)
+      const body = operatorActBody.parse(req.body)
+
+      const result = await usecases.setGuestbookTakedown({
+        entryId: asGuestbookEntryId(params.entryId),
         down: false,
         reason: body.reason,
         actor: { kind: 'operator', userId: userOf(req).userId },

@@ -1995,6 +1995,16 @@ export const es: UiText = {
     takedownPhotoOf: (id: string) => `En el evento ${id}`,
     takedownPhotoDown: 'Retirar la foto',
     takedownPhotoUp: 'Restituir la foto',
+    takedownGuestbookTitle: 'Un mensaje del libro de visitas',
+    takedownGuestbookIntro:
+      'Pegue el identificador del mensaje tal como lo da el aviso. Solo ve el evento al que pertenece y su estado, nunca su texto.',
+    takedownGuestbookLabel: 'Identificador del mensaje',
+    takedownGuestbookAction: 'Buscar el mensaje',
+    takedownGuestbookNone: 'Ningún mensaje tiene este identificador.',
+    takedownGuestbookHeading: (id: string) => `Mensaje ${id}`,
+    takedownGuestbookOf: (id: string) => `En el evento ${id}`,
+    takedownGuestbookDown: 'Retirar el mensaje',
+    takedownGuestbookUp: 'Restablecer el mensaje',
     takedownReason: 'Motivo',
     takedownReasonHint:
       'Una frase en una sola línea, de 200 caracteres como máximo, sin dirección de correo. Se escribe en el registro de la instancia.',
@@ -2031,6 +2041,16 @@ export const es: UiText = {
         title: '¿Restituir esta foto?',
         body: 'Reaparece con el estado que le había dado el anfitrión.',
         confirm: 'Restituir la foto',
+      },
+      guestbookDown: {
+        title: '¿Retirar este mensaje?',
+        body: 'Desaparece al instante de la pantalla, de la cola del anfitrión y de la lista de su autor, y las pantallas abiertas lo olvidan. El texto se conserva. El anfitrión no puede restablecerlo, y su autor no recupera el sitio que ocupaba.',
+        confirm: 'Retirar el mensaje',
+      },
+      guestbookUp: {
+        title: '¿Restablecer este mensaje?',
+        body: 'Reaparece con el estado que el anfitrión le había dado.',
+        confirm: 'Restablecer el mensaje',
       },
     },
   },

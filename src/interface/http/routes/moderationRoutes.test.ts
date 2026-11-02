@@ -128,6 +128,8 @@ const usecasesFor = (
     setClientCeilings: notWired,
     suspendClient: notWired,
     setPhotoTakedown: notWired,
+    setGuestbookTakedown: notWired,
+    getSiteGuestbookState: notWired,
     lookupSiteEvents: notWired,
     getSiteEventState: notWired,
     getSitePhotoState: notWired,

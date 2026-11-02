@@ -36,7 +36,7 @@ export interface OperatorActLine {
   readonly at: Date
   readonly actor: AuditActorInput
   readonly action: AuditAction
-  readonly subject: { readonly type: 'photo' | 'event'; readonly id: string }
+  readonly subject: { readonly type: 'photo' | 'event' | 'guestbook'; readonly id: string }
   /** Already parsed by `parseAuditReason`. */
   readonly reason: string
 }
