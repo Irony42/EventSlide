@@ -22,7 +22,7 @@
     "dev:api": "tsx watch --env-file=scripts/dev.env --clear-screen=false src/main/index.ts",
     "dev:web": "vite --config web/vite.config.ts",
     "build": "npm run build:web && npm run build:api && npm run build:ops",
-    "build:api": "tsc -p tsconfig.build.json && tsx scripts/copyServerAssets.ts",
+    "build:api": "tsc -p tsconfig.build.json && tsx -e \"import('./scripts/copyServerAssets').then((m) => m.runCli(() => m.copyServerAssets(), console.log, console.error)).then((code) => { process.exitCode = code })\"",
     "build:ops": "tsc -p tsconfig.ops.json",
     "build:web": "npm run build:client && npm run build:sw",
     "build:client": "vite build --config web/vite.config.ts",
