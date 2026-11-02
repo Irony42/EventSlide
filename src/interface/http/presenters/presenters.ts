@@ -276,9 +276,20 @@ export const venueGroundUrl = (settings: EventSettings, slug: string | null): st
  * What the host says to their guests, copied field for field. Takes only the settings: nothing of a
  * guest can reach it (spec 03, section 7).
  */
-export const toEventBrandDto = (settings: EventSettings): EventBrandDto => ({
+export const toEventBrandDto = (settings: EventSettings, slug: string | null): EventBrandDto => ({
   welcomeMessage: settings.welcomeMessage,
+  logoUrl: eventLogoUrl(settings, slug),
 })
+
+/**
+ * Where the host's logo is served, or `null`. The digest is in the path, so the URL changes when
+ * the logo does and the route's year-long cache is safe. Built here, never from anything a client sent;
+ * `null` for a surface that cannot read it (no slug).
+ */
+export const eventLogoUrl = (settings: EventSettings, slug: string | null): string | null =>
+  slug === null || settings.logo === null
+    ? null
+    : `/api/events/${encodeURIComponent(slug)}/logo/${settings.logo.value}`
 
 export const toEventSettingsDto = (settings: EventSettings, slug: string): EventSettingsDto => ({
   moderation: settings.moderation,
@@ -292,7 +303,7 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   retentionDays: settings.retentionDays,
   maxPhotosPerGuest: settings.maxPhotosPerGuest,
   theme: toEventThemeDto(settings, slug),
-  brand: toEventBrandDto(settings),
+  brand: toEventBrandDto(settings, slug),
   wallLanguage: settings.wallLanguage,
 })
 
@@ -333,7 +344,7 @@ export const toPublicEventDto = (
   // Unlike the switches above, this is not a permission: it is what the host's event
   // looks like, and the guest's screen is one of the three places it looks like it.
   theme: toEventThemeDto(event.settings, event.slug.value),
-  brand: toEventBrandDto(event.settings),
+  brand: toEventBrandDto(event.settings, event.slug.value),
 })
 
 /**
@@ -811,7 +822,7 @@ export const toWallResponseDto = (
     // screen: two projectors in the same room must agree about the colour even when one
     // of them is showing a mosaic and the other a spotlight.
     theme: toEventThemeDto(view.event.settings, view.event.slug.value),
-    brand: toEventBrandDto(view.event.settings),
+    brand: toEventBrandDto(view.event.settings, view.event.slug.value),
     // The same argument as the theme, one step further: the language is a property of the
     // event and not of the screen, so two projectors in one room agree about it even when
     // one of them was launched from a laptop set to English. `?layout=` is the deliberate

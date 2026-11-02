@@ -51,6 +51,16 @@ export const MIN_INK_CONTRAST = 7
 /** Modules of white paper round the code, drawn by the SVG's own margin and never by a fill. */
 export const QUIET_ZONE_MODULES = 4
 
+/**
+ * Error correction of the printed QR: M as on the wall, H as soon as a logo covers the centre
+ * (H restores up to 30 % of the modules, which is what the logo and its cleared zone take).
+ */
+export type QrLevel = 'M' | 'H'
+export const qrLevelOf = (hasLogo: boolean): QrLevel => (hasLogo ? 'H' : 'M')
+
+/** The logo's side at most, as a share of the QR's side (4 % of its area). */
+export const LOGO_MAX_SHARE = 0.2
+
 /** Smallest printed module a phone camera reads reliably, in millimetres. */
 export const MIN_MODULE_MM = 0.6
 

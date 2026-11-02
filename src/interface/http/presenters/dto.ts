@@ -67,6 +67,8 @@ import type { WallLayout } from '../../../domain/slideshow/wallLayout'
  */
 export interface EventBrandDto {
   readonly welcomeMessage: string | null
+  /** Where the host's logo is served, or `null`: `/api/events/<slug>/logo/<digest>`. */
+  readonly logoUrl: string | null
 }
 
 export interface EventThemeDto {

@@ -98,6 +98,7 @@ export const fr = {
     submit: 'Rejoindre',
     submitting: 'Connexion…',
     welcome: (eventName: string) => `Bienvenue à ${eventName}`,
+    logoAlt: (eventName: string) => `Logo de ${eventName}`,
     anonymous: 'Rester anonyme',
     /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
     notYourEvening: 'Ce n’est pas votre soirée ?',
@@ -1225,6 +1226,9 @@ export const fr = {
     printKitInk: 'Couleur du QR',
     printInkBlack: 'Noir (le plus sûr)',
     printInkEvent: 'Couleur de l’évènement',
+    printKitLogo: 'Logo de l’évènement au centre du QR',
+    printKitLogoHint:
+      'Le QR code passe en correction d’erreurs maximale : il reste lisible, mais il est un peu plus dense.',
     printFormatA4: 'Affiche A4 (1 par feuille)',
     printFormatA5: 'Affiche A5 (2 par feuille)',
     printFormatCard: 'Cartes de table A6 (4 par feuille)',
@@ -1515,6 +1519,17 @@ export const fr = {
       'Bienvenue ! Prenez des photos, on les verra sur l’écran dans la salle.',
     welcomeMessageClear: 'Effacer le message',
     welcomeMessageCount: (count: number, max: number): string => `${count} / ${max}`,
+    logo: 'Logo de l’évènement',
+    logoHint:
+      'Un logo ou un monogramme, de préférence en PNG sur fond transparent (PNG, JPEG ou WebP). Il apparaît sur la page de vos invités et sur l’écran, jamais sur les photos.',
+    logoPreviewAlt: 'Aperçu du logo de l’évènement',
+    logoNone: 'Aucun logo pour le moment.',
+    logoChoose: 'Choisir un logo',
+    logoReplace: 'Remplacer le logo',
+    logoRemove: 'Retirer le logo',
+    logoBusy: 'Envoi du logo…',
+    logoSaved: 'Le logo est enregistré.',
+    logoRemoved: 'Le logo est retiré.',
     customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
     customAmbianceEdit: 'Modifier mon ambiance',
     customAmbianceEntryHint:
@@ -1839,6 +1854,9 @@ export const fr = {
     'slug.malformed':
       'L’adresse n’accepte que des lettres sans accent, des chiffres et des tirets.',
     'slug.reserved': 'Cette adresse est réservée. Choisissez-en une autre.',
+    'logo.tooLarge': 'Ce logo est trop lourd, même réduit. Essayez-en un autre.',
+    'logo.notFound': 'Ce logo n’existe plus.',
+    'logo.saveFailed': 'Le logo n’a pas pu être enregistré. Réessayez.',
     'eventSettings.welcomeInvalid': 'Ce message n’est pas valide.',
     'eventSettings.welcomeTooLong': 'Ce message est trop long.',
     'eventSettings.welcomeTooManyLines': 'Ce message compte trop de lignes.',
