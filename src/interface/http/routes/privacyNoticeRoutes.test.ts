@@ -110,6 +110,7 @@ describe('GET /api/events/:slug/privacy-notice', () => {
         audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
         retentionDays: 30,
         selfRemovalSeconds: 900,
+        guestbook: true,
       },
       acknowledgement: 'none',
     })
