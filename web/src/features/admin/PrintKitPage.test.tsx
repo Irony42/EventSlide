@@ -276,4 +276,114 @@ describe('PrintKitPage', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: fr.app.retry })).toBeInTheDocument()
   })
+
+  describe('the event logo at the centre of the QR', () => {
+    const LOGO = `/api/events/camille-et-sacha/logo/${'a'.repeat(64)}`
+    const withLogo = (logoUrl: string | null) =>
+      apiFor({ settings: eventSettings({ brand: { welcomeMessage: null, logoUrl } }) })
+
+    /** jsdom loads no image: this one answers when the test says so. */
+    const stubImages = () => {
+      const pending: Array<() => void> = []
+      class FakeImage {
+        onload: (() => void) | null = null
+        set src(_value: string) {
+          pending.push(() => this.onload?.())
+        }
+      }
+      vi.stubGlobal('Image', FakeImage)
+      return () => pending.splice(0).forEach((arrive) => arrive())
+    }
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('offers the logo only when the event has one', async () => {
+      renderPage(withLogo(null))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(screen.queryByRole('checkbox', { name: fr.admin.printKitLogo })).toBeNull()
+    })
+
+    it('never draws a logo address the server did not mint', async () => {
+      renderPage(withLogo('https://evil.example/logo.png'))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(screen.queryByRole('checkbox', { name: fr.admin.printKitLogo })).toBeNull()
+      expect(sheet()?.querySelector('image')).toBeNull()
+    })
+
+    it('draws it in the centre at level H, remembers the choice, and drops it when unticked', async () => {
+      const arrive = stubImages()
+      const user = userEvent.setup()
+      renderPage(withLogo(LOGO))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      expect(sheet()?.querySelector('image')).toBeNull()
+      const plain = qrPatternOf(firstQr())
+
+      await user.click(screen.getByRole('checkbox', { name: fr.admin.printKitLogo }))
+      arrive()
+
+      await waitFor(() => expect(sheet()?.querySelector('image')).not.toBeNull())
+      expect(sheet()?.querySelector('image')?.getAttribute('href')).toBe(LOGO)
+      // Level H, not M: the pattern differs from the plain code, and is the one H draws.
+      expect(qrPatternOf(firstQr())).not.toBe(plain)
+      expect(window.localStorage.getItem('eventslide.print.camille-et-sacha')).toContain(
+        '"logo":true',
+      )
+      expect(window.localStorage.getItem('eventslide.print.camille-et-sacha')).not.toContain(LOGO)
+
+      await user.click(screen.getByRole('checkbox', { name: fr.admin.printKitLogo }))
+      expect(sheet()?.querySelector('image')).toBeNull()
+      expect(qrPatternOf(firstQr())).toBe(plain)
+    })
+
+    it('keeps the logo within a fifth of the side', async () => {
+      const arrive = stubImages()
+      const user = userEvent.setup()
+      renderPage(withLogo(LOGO))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+      await user.click(screen.getByRole('checkbox', { name: fr.admin.printKitLogo }))
+      arrive()
+      await waitFor(() => expect(sheet()?.querySelector('image')).not.toBeNull())
+      const svg = sheet()?.querySelector('svg') as SVGElement
+      const side = Number(svg.getAttribute('viewBox')?.split(' ')[2])
+      const logo = sheet()?.querySelector('image') as SVGElement
+      expect(Number(logo.getAttribute('width')) / side).toBeLessThanOrEqual(0.2)
+    })
+
+    it('waits for the logo to arrive before it prints', async () => {
+      const print = vi.spyOn(window, 'print').mockImplementation(() => {})
+      const arrive = stubImages()
+      const user = userEvent.setup()
+      window.localStorage.setItem('eventslide.print.camille-et-sacha', '{"logo":true}')
+      renderPage(withLogo(LOGO))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      await user.click(screen.getByRole('button', { name: fr.admin.printKitPrint }))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(print).not.toHaveBeenCalled()
+
+      arrive()
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
+      expect(sheet()?.querySelector('image')).not.toBeNull()
+    })
+
+    it('falls back to the plain code when the logo cannot be loaded', async () => {
+      const print = vi.spyOn(window, 'print').mockImplementation(() => {})
+      class BrokenImage {
+        onerror: (() => void) | null = null
+        set src(_value: string) {
+          queueMicrotask(() => this.onerror?.())
+        }
+      }
+      vi.stubGlobal('Image', BrokenImage)
+      const user = userEvent.setup()
+      window.localStorage.setItem('eventslide.print.camille-et-sacha', '{"logo":true}')
+      renderPage(withLogo(LOGO))
+      await screen.findByRole('heading', { name: fr.admin.printKitTitle })
+
+      await user.click(screen.getByRole('button', { name: fr.admin.printKitPrint }))
+
+      await waitFor(() => expect(print).toHaveBeenCalledTimes(1))
+      expect(sheet()?.querySelector('image')).toBeNull()
+      expect(qrPatternOf(firstQr())).toBe(patternOfUrl(JOIN_URL))
+    })
+  })
 })

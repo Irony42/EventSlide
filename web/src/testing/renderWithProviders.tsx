@@ -595,6 +595,8 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   updateSettings: vi.fn(async () => anEventDto()),
   putVenuePhoto: vi.fn(async () => anEventDto()),
   removeVenuePhoto: vi.fn(async () => anEventDto()),
+  putEventLogo: vi.fn(async () => anEventDto()),
+  removeEventLogo: vi.fn(async () => anEventDto()),
   setEventStatus: vi.fn(async () => anEventDto()),
   setSchedule: vi.fn(async () => anEventDto()),
   rotateJoinCode: vi.fn(async () => anEventDto()),
@@ -608,6 +610,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   unhighlightPhoto: vi.fn(async () => undefined),
   preselectHighlights: vi.fn(async () => ({ added: 0 })),
   highlights: vi.fn(async () => ({ count: 0 })),
+  requestReel: vi.fn(async () => ({
+    status: 'queued' as const,
+    photoCount: 3,
+    updatedAt: '2026-11-02T10:00:00.000Z',
+  })),
 
   listGuests: vi.fn(async () => ({ items: [], activeCount: 0 })),
   getEventStats: vi.fn(async () => anEventStats()),
@@ -642,6 +649,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   })),
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
+  reelUrl: vi.fn((slug: string) => `/api/events/${slug}/highlights/reel.mp4`),
   bestOfUrl: vi.fn((slug: string) => `/api/events/${slug}/best-of.zip`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),
   moderationStreamUrl: vi.fn((slug: string) => `/api/events/${slug}/moderation/stream`),

@@ -1,0 +1,86 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0;
+  border: none;
+}
+
+.legend {
+  padding: 0;
+  font-weight: 650;
+  font-size: var(--text-sm);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/**
+ * The logo as guests will see it: on a plaque, contained and never cropped, at the size the
+ * server stored. A preview of the file the server stored (the response's own URL).
+ */
+.plaque {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+.preview {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: calc(var(--space-8) * 2);
+  object-fit: contain;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* The label is the button, with the real input stretched transparently over it, as in
+   `ClipComposer`: a `<div onClick>` forwarding to `input.click()` is unreachable by keyboard. */
+.pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pick:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.pick:has(.input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.busy {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

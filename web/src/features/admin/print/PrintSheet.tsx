@@ -5,7 +5,9 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { joinHost } from '../../wall/joinHost'
 import {
   PRINT_FORMAT_SPECS,
+  LOGO_MAX_SHARE,
   QUIET_ZONE_MODULES,
+  qrLevelOf,
   totalModulesOf,
   type PrintFormat,
   type PrintInk,
@@ -26,6 +28,8 @@ export interface PrintSheetProps {
   readonly ink: PrintInk
   /** The hue of the event's theme: the one value a theme moves. */
   readonly accentHue: number
+  /** The event's logo, drawn at the centre of the QR (level H); `null` for the plain code. */
+  readonly logoUrl?: string | null
   /** Told the module count of the rendered QR (quiet zone included), once it is drawn. */
   readonly onQrModules?: (totalModules: number | null) => void
 }
@@ -44,13 +48,14 @@ export function PrintSheet({
   locale,
   ink,
   accentHue,
+  logoUrl = null,
   onQrModules,
 }: PrintSheetProps) {
   const root = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     onQrModules?.(totalModulesOf(root.current?.querySelector('svg') ?? null))
-  }, [joinUrl, format, onQrModules])
+  }, [joinUrl, format, logoUrl, onQrModules])
 
   return (
     <div
@@ -63,18 +68,36 @@ export function PrintSheet({
     >
       <LocaleOverride locale={locale}>
         {Array.from({ length: PRINT_FORMAT_SPECS[format].perSheet }, (_, index) => (
-          <Card key={index} eventName={eventName} joinUrl={joinUrl} joinCode={joinCode} />
+          <Card
+            key={index}
+            eventName={eventName}
+            joinUrl={joinUrl}
+            joinCode={joinCode}
+            logoUrl={logoUrl}
+          />
         ))}
       </LocaleOverride>
     </div>
   )
 }
 
+/** Drawing units of the SVG; the stylesheet scales it, so only the logo's share matters. */
+const QR_SIZE = 100
+
+/** Centred, cleared to the module grid so no module is half-hidden, at most 20 % of the side. */
+const logoSettings = (src: string) => ({
+  src,
+  width: QR_SIZE * LOGO_MAX_SHARE,
+  height: QR_SIZE * LOGO_MAX_SHARE,
+  excavate: true,
+})
+
 function Card({
   eventName,
   joinUrl,
   joinCode,
-}: Pick<PrintSheetProps, 'eventName' | 'joinUrl' | 'joinCode'>) {
+  logoUrl = null,
+}: Pick<PrintSheetProps, 'eventName' | 'joinUrl' | 'joinCode' | 'logoUrl'>) {
   const t = useTranslations()
   const address = joinHost(joinUrl)
   return (
@@ -86,7 +109,9 @@ function Card({
           value={joinUrl}
           fgColor="currentColor"
           bgColor="transparent"
-          level="M"
+          level={qrLevelOf(logoUrl !== null)}
+          size={QR_SIZE}
+          {...(logoUrl === null ? {} : { imageSettings: logoSettings(logoUrl) })}
           marginSize={QUIET_ZONE_MODULES}
         />
       </div>

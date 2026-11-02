@@ -1,0 +1,42 @@
+/* The host's logo on a light plaque: contained, never cropped, bounded on every screen. */
+.full,
+.compact,
+.wall {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  max-inline-size: 100%;
+}
+
+.full {
+  margin-block-end: var(--space-4);
+}
+
+.compact {
+  margin-block-end: var(--space-2);
+}
+
+.wall {
+  padding: var(--space-3);
+}
+
+.image {
+  display: block;
+  max-inline-size: 100%;
+  object-fit: contain;
+  block-size: auto;
+}
+
+.full .image {
+  max-block-size: calc(var(--space-8) * 2);
+}
+
+.compact .image {
+  max-block-size: var(--space-8);
+}
+
+.wall .image {
+  max-block-size: calc(var(--space-10) * 2);
+}

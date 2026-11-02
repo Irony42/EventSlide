@@ -55,13 +55,27 @@ describe('every field of the wall response is accounted for', () => {
     // changed on the empty wall the host is looking at moves no photograph and so no `revision`.
     const withMessage = (welcomeMessage: string | null) => ({
       ...aWallResponse(),
-      brand: { welcomeMessage },
+      brand: { welcomeMessage, logoUrl: null },
     })
 
     expect(sameSettings(withMessage(null), withMessage('Bienvenue'))).toBe(false)
     expect(sameSettings(withMessage('Bienvenue'), withMessage('Autre'))).toBe(false)
     expect(sameSettings(withMessage('Bienvenue'), withMessage(null))).toBe(false)
     expect(sameSettings(withMessage('Bienvenue'), withMessage('Bienvenue'))).toBe(true)
+  })
+
+  it('notices the host uploading, replacing or removing the logo', () => {
+    const withLogo = (logoUrl: string | null) => ({
+      ...aWallResponse(),
+      brand: { welcomeMessage: null, logoUrl },
+    })
+    const one = `/api/events/soiree/logo/${'a'.repeat(64)}`
+    const two = `/api/events/soiree/logo/${'b'.repeat(64)}`
+
+    expect(sameSettings(withLogo(null), withLogo(one))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(two))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(null))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(one))).toBe(true)
   })
 
   it('notices the host replacing or removing the venue photo', () => {

@@ -12,6 +12,8 @@ export interface PrintPreferences {
   readonly format?: PrintFormat
   readonly language?: Locale
   readonly ink?: PrintInk
+  /** The event's logo at the centre of the QR; the logo itself is never stored here. */
+  readonly logo?: boolean
 }
 
 const keyFor = (slug: string): string => `eventslide.print.${slug}`
@@ -30,11 +32,12 @@ export const readPrintPreferences = (slug: string): PrintPreferences => {
     if (raw === null) return {}
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return {}
-    const { format, language, ink } = parsed as Record<string, unknown>
+    const { format, language, ink, logo } = parsed as Record<string, unknown>
     return {
       ...(isFormat(format) ? { format } : {}),
       ...(isLocale(language) ? { language } : {}),
       ...(isInk(ink) ? { ink } : {}),
+      ...(typeof logo === 'boolean' ? { logo } : {}),
     }
   } catch {
     return {}
