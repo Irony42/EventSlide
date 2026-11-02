@@ -9,8 +9,10 @@ import {
   PRINT_FORMATS,
   PRINT_FORMAT_SPECS,
   availabilityOf,
+  LOGO_MAX_SHARE,
   isQrTooSmall,
   moduleMm,
+  qrLevelOf,
   totalModulesOf,
 } from './printKit'
 
@@ -112,5 +114,16 @@ describe('the ink of the QR on white paper', () => {
     if (ink === undefined) throw new Error('--text-print is not an oklch token')
 
     expect(ratioOf(srgb(ink), WHITE)).toBeGreaterThanOrEqual(MIN_INK_CONTRAST)
+  })
+})
+
+describe('the logo at the centre of the QR', () => {
+  it('asks for the highest error correction when a logo covers the centre, and only then', () => {
+    expect(qrLevelOf(true)).toBe('H')
+    expect(qrLevelOf(false)).toBe('M')
+  })
+
+  it('takes at most a fifth of the side, which is 4 % of the area', () => {
+    expect(LOGO_MAX_SHARE).toBe(0.2)
   })
 })

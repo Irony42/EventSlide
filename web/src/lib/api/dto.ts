@@ -92,6 +92,7 @@ export type MissionScope = 'guest' | 'event'
 /** What the host says to their guests (spec 03): content, shown as written. */
 export interface EventBrandDto {
   readonly welcomeMessage: string | null
+  readonly logoUrl: string | null
 }
 
 export interface EventThemeDto {
@@ -510,6 +511,20 @@ export interface RequestBookBody {
 /** The best-of panel's read: how many favourites can be exported (spec 08). */
 export interface HighlightsDto {
   readonly count: number
+  /** The montage of the favourites; `null` when none was ever asked for. Optional: older server. */
+  readonly reel?: ReelDto | null
+}
+
+export type ReelStatusDto = 'queued' | 'running' | 'done' | 'failed' | 'stale'
+
+/** The montage's state. The photograph ids never travel: only how many, and how long. */
+export interface ReelDto {
+  readonly status: ReelStatusDto
+  readonly photoCount: number
+  readonly durationMs?: number
+  readonly byteSize?: number
+  readonly failureCode?: string
+  readonly updatedAt: string
 }
 
 export interface PreselectHighlightsResponse {

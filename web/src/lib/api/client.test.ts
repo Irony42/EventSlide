@@ -319,6 +319,18 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.removeVenuePhoto(SLUG),
   },
   {
+    name: 'putEventLogo',
+    verb: 'put',
+    path: `/api/events/${SLUG}/logo`,
+    invoke: (client) => client.putEventLogo(SLUG, new File(['x'], 'logo.png')),
+  },
+  {
+    name: 'removeEventLogo',
+    verb: 'del',
+    path: `/api/events/${SLUG}/logo`,
+    invoke: (client) => client.removeEventLogo(SLUG),
+  },
+  {
     name: 'setEventStatus',
     verb: 'post',
     path: `/api/events/${SLUG}/status`,
@@ -414,6 +426,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'del',
     path: `/api/events/${SLUG}/book`,
     invoke: (client) => client.deleteAlbumBook(SLUG),
+  },
+  {
+    name: 'requestReel',
+    verb: 'post',
+    path: `/api/events/${SLUG}/highlights/reel`,
+    invoke: (client) => client.requestReel(SLUG),
   },
   {
     name: 'topPhotos',
@@ -749,6 +767,7 @@ describe('every endpoint addresses the documented method and path', () => {
       'albumUrl',
       'bestOfUrl',
       'moderationStreamUrl',
+      'reelUrl',
       'streamUrl',
     ])
   })
@@ -861,6 +880,17 @@ describe('request bodies', () => {
     expect(body).toBeInstanceOf(FormData)
     expect((body as FormData).get('photo')).toBe(file)
     expect([...(body as FormData).keys()]).toEqual(['photo'])
+  })
+
+  it('sends the logo as one multipart part named file', async () => {
+    const file = new File(['bytes'], 'logo.png', { type: 'image/png' })
+
+    await subject().putEventLogo(SLUG, file)
+
+    const body = only().body
+    expect(body).toBeInstanceOf(FormData)
+    expect((body as FormData).get('file')).toBe(file)
+    expect([...(body as FormData).keys()]).toEqual(['file'])
   })
 
   it('sends the address and the page language with an invitation, and no password', async () => {
@@ -1182,6 +1212,10 @@ describe('links the app builds rather than requests', () => {
     expect(subject().albumBookUrl(SLUG)).toBe(`/api/events/${SLUG}/book.pdf`)
   })
 
+  it('points the montage player at the documented MP4 endpoint', () => {
+    expect(subject().reelUrl(SLUG)).toBe(`/api/events/${SLUG}/highlights/reel.mp4`)
+  })
+
   it('points the stream at the documented SSE endpoint', () => {
     // `useEventStream` hands this straight to `EventSource`; a wrong path shows as a
     // wall that never updates rather than as an error anybody sees.
@@ -1196,12 +1230,16 @@ describe('links the app builds rather than requests', () => {
     expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
   })
 
-  it.each(['albumUrl', 'albumBookUrl', 'bestOfUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
-    'escapes a slug in %s too',
-    (method) => {
-      expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')
-    },
-  )
+  it.each([
+    'albumUrl',
+    'albumBookUrl',
+    'bestOfUrl',
+    'reelUrl',
+    'streamUrl',
+    'moderationStreamUrl',
+  ] as const)('escapes a slug in %s too', (method) => {
+    expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')
+  })
 })
 
 describe('the session answer', () => {

@@ -106,6 +106,9 @@ export const notWiredUseCases = (): HttpUseCases => ({
   setVenuePhoto: notWired('setVenuePhoto'),
   removeVenuePhoto: notWired('removeVenuePhoto'),
   getVenuePhotoMedia: notWired('getVenuePhotoMedia'),
+  setEventLogo: notWired('setEventLogo'),
+  removeEventLogo: notWired('removeEventLogo'),
+  getEventLogoMedia: notWired('getEventLogoMedia'),
   listModerators: notWired('listModerators'),
   revokeModerator: notWired('revokeModerator'),
 
@@ -132,6 +135,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   preselectHighlights: notWired('preselectHighlights'),
   getHighlights: notWired('getHighlights'),
   exportHighlights: notWired('exportHighlights'),
+  requestReel: notWired('requestReel'),
+  getReelMedia: notWired('getReelMedia'),
 
   getModerationQueue: notWired('getModerationQueue'),
   moderatePhoto: notWired('moderatePhoto'),
