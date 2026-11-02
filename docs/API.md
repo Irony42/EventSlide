@@ -245,33 +245,36 @@ where they have an authenticator, within the last five minutes, or the answer is
 send it. That is stricter than the plan's table, which names the irreversible acts only; a console prompts
 once before a session of writes. The reads ask for none. A state-changing request meets CSRF first.
 
-| Route                                            | What it is                                            | Step-up | Audit line(s)                                       |
-| ------------------------------------------------ | ----------------------------------------------------- | :-----: | --------------------------------------------------- |
-| `GET /api/site/clients`                          | every client with its ceilings and what it uses       |    —    | —                                                   |
-| `GET /api/site/clients/:clientId/events`         | one client's events as shapes and sizes               |    —    | —                                                   |
-| `GET /api/site/accounts`                         | every account, by address                             |    —    | —                                                   |
-| `GET /api/site/audit`                            | the audit log                                         |    —    | —                                                   |
-| `GET /api/site/client-defaults`                  | the ceilings a new client starts with                 |    —    | —                                                   |
-| `POST /api/site/clients`                         | open a client and invite its owner                    |   yes   | `client.created`, `invitation.issued`               |
-| `PATCH /api/site/clients/:clientId`              | rename a client                                       |   yes   | `client.renamed`                                    |
-| `PUT /api/site/clients/:clientId/ceilings`       | change a client's ceilings, **with a reason**         |   yes   | `client.ceilingsChanged` (and `client.periodReset`) |
-| `POST /api/site/clients/:clientId/suspend`       | freeze a client                                       |   yes   | `client.suspended`                                  |
-| `POST /api/site/clients/:clientId/resume`        | lift a suspension                                     |   yes   | `client.resumed`                                    |
-| `GET /api/site/events/lookup?q=`                 | which event a slug, code, address or exact name names |    —    | —                                                   |
-| `GET /api/site/events/:eventId`                  | one event's takedown state                            |    —    | —                                                   |
-| `GET /api/site/photos/:photoId`                  | where a photograph is, and whether it is down         |    —    | —                                                   |
-| `POST /api/site/photos/:photoId/take-down`       | take a photograph down by its id, **with a reason**   |   yes   | `photo.takenDown`                                   |
-| `POST /api/site/photos/:photoId/restore`         | put it back                                           |   yes   | `photo.restored`                                    |
-| `POST /api/site/events/:eventId/take-down`       | take a whole event down, **with a reason**            |   yes   | `event.takenDown`                                   |
-| `POST /api/site/events/:eventId/restore`         | put it back                                           |   yes   | `event.restored`                                    |
-| `POST /api/site/events/:eventId/purge-hold`      | hold an event's purge (evidence), **with a reason**   |   yes   | `event.purgeHeld`                                   |
-| `POST /api/site/events/:eventId/purge-release`   | release the hold                                      |   yes   | `event.purgeReleased`                               |
-| `POST /api/site/clients/:clientId/invitations`   | invite somebody into a client's account               |   yes   | `invitation.issued`                                 |
-| `POST /api/site/accounts/:userId/password-reset` | reset an account's password                           |   yes   | `account.resetRequested`, `account.resetIssued`     |
-| `POST /api/site/clients/:clientId/offboard`      | end an engagement                                     |   yes   | `client.offboarded`                                 |
-| `POST /api/site/accounts/:userId/disable`        | switch an account off                                 |   yes   | `account.disabled` (one line per client)            |
-| `POST /api/site/accounts/:userId/enable`         | switch an account back on                             |   yes   | `account.enabled` (one line per client)             |
-| `DELETE /api/site/accounts/:userId`              | delete an account (erasure request)                   |   yes   | `account.deleted` (one line per client)             |
+| Route                                                 | What it is                                                 | Step-up | Audit line(s)                                       |
+| ----------------------------------------------------- | ---------------------------------------------------------- | :-----: | --------------------------------------------------- |
+| `GET /api/site/clients`                               | every client with its ceilings and what it uses            |    —    | —                                                   |
+| `GET /api/site/clients/:clientId/events`              | one client's events as shapes and sizes                    |    —    | —                                                   |
+| `GET /api/site/accounts`                              | every account, by address                                  |    —    | —                                                   |
+| `GET /api/site/audit`                                 | the audit log                                              |    —    | —                                                   |
+| `GET /api/site/client-defaults`                       | the ceilings a new client starts with                      |    —    | —                                                   |
+| `POST /api/site/clients`                              | open a client and invite its owner                         |   yes   | `client.created`, `invitation.issued`               |
+| `PATCH /api/site/clients/:clientId`                   | rename a client                                            |   yes   | `client.renamed`                                    |
+| `PUT /api/site/clients/:clientId/ceilings`            | change a client's ceilings, **with a reason**              |   yes   | `client.ceilingsChanged` (and `client.periodReset`) |
+| `POST /api/site/clients/:clientId/suspend`            | freeze a client                                            |   yes   | `client.suspended`                                  |
+| `POST /api/site/clients/:clientId/resume`             | lift a suspension                                          |   yes   | `client.resumed`                                    |
+| `GET /api/site/events/lookup?q=`                      | which event a slug, code, address or exact name names      |    —    | —                                                   |
+| `GET /api/site/events/:eventId`                       | one event's takedown state                                 |    —    | —                                                   |
+| `GET /api/site/photos/:photoId`                       | where a photograph is, and whether it is down              |    —    | —                                                   |
+| `POST /api/site/photos/:photoId/take-down`            | take a photograph down by its id, **with a reason**        |   yes   | `photo.takenDown`                                   |
+| `POST /api/site/photos/:photoId/restore`              | put it back                                                |   yes   | `photo.restored`                                    |
+| `GET /api/site/guestbook-entries/:entryId`            | where a guestbook message is, and whether it is down       |    —    | —                                                   |
+| `POST /api/site/guestbook-entries/:entryId/take-down` | take a guestbook message down by its id, **with a reason** |   yes   | `guestbook.takenDown`                               |
+| `POST /api/site/guestbook-entries/:entryId/restore`   | put it back                                                |   yes   | `guestbook.restored`                                |
+| `POST /api/site/events/:eventId/take-down`            | take a whole event down, **with a reason**                 |   yes   | `event.takenDown`                                   |
+| `POST /api/site/events/:eventId/restore`              | put it back                                                |   yes   | `event.restored`                                    |
+| `POST /api/site/events/:eventId/purge-hold`           | hold an event's purge (evidence), **with a reason**        |   yes   | `event.purgeHeld`                                   |
+| `POST /api/site/events/:eventId/purge-release`        | release the hold                                           |   yes   | `event.purgeReleased`                               |
+| `POST /api/site/clients/:clientId/invitations`        | invite somebody into a client's account                    |   yes   | `invitation.issued`                                 |
+| `POST /api/site/accounts/:userId/password-reset`      | reset an account's password                                |   yes   | `account.resetRequested`, `account.resetIssued`     |
+| `POST /api/site/clients/:clientId/offboard`           | end an engagement                                          |   yes   | `client.offboarded`                                 |
+| `POST /api/site/accounts/:userId/disable`             | switch an account off                                      |   yes   | `account.disabled` (one line per client)            |
+| `POST /api/site/accounts/:userId/enable`              | switch an account back on                                  |   yes   | `account.enabled` (one line per client)             |
+| `DELETE /api/site/accounts/:userId`                   | delete an account (erasure request)                        |   yes   | `account.deleted` (one line per client)             |
 
 **The reads show shapes and sizes, never what a client or a guest made.** A client row is an id, a name,
 its ceilings, the instants it was created, suspended and set to be purged, and four counts and a byte sum;
@@ -491,7 +494,7 @@ alone (`:photoId` and `:eventId` are ids, never slugs). Each needs the second fa
   sweep and the host's purge delete the row with a statement that refuses a held event, and touch the bytes only after it
   succeeded, so a hold set while a sweep was running still wins. It hides nothing. `purge-release` makes the event due again at its own deadline,
   which may have passed, so the next sweep purges it.
-- **Audit**: one line per change (`photo.takenDown`, `photo.restored`, `event.takenDown`, `event.restored`,
+- **Audit**: one line per change (`photo.takenDown`, `photo.restored`, `guestbook.takenDown`, `guestbook.restored`, `event.takenDown`, `event.restored`,
   `event.purgeHeld`, `event.purgeReleased`), subject the photograph's or the event's id, `details: { reason }`, and
   **no client id**, so it is in the operator's own view of the log and **not** in the client's (`GET /api/client/audit`):
   the host is not warned. Idempotent: doing what is already done is `204` and writes nothing. The line is written
@@ -512,6 +515,15 @@ return **ids, a status and instants, never a name, a slug, a join code or a phot
 - `GET /api/site/events/:eventId` — the same row for one id; **404** `event.notFound`.
 - `GET /api/site/photos/:photoId` — `{ "id", "eventId", "takenDownAt" | null }`; **404** `photo.notFound`. It never
   reads the photograph: the answer is an event id and an instant.
+- `GET /api/site/guestbook-entries/:entryId` — the same shape for a guestbook message (spec 01); **404**
+  `guestbook.notFound`. It never reads the text.
+- **`take-down` (guestbook message)**: `POST /api/site/guestbook-entries/:entryId/take-down` and `/restore`, the
+  photograph's contract: a mandatory `reason`, a step-up, `204`, idempotent, one audit line (`guestbook.takenDown` /
+  `guestbook.restored`, subject type `guestbook`, no client id) written **before** the lever moves. The message is left
+  out of the wall, the host's queue, the guest's own list and the album text; every screen is told by a neutral
+  `guestbook.changed` signal. The row stays, **still counts toward its guest's three** (taking it down frees no
+  place), is skipped by that guest's erasure (which then keeps the guest row, without its name) and cannot be
+  decided on by the host or taken back by the guest (`404 guestbook.notFound`). Only on a box with `SITE_ADMIN=on`.
 
 The operator console has a screen for all of it, **Retrait** (`/admin/site/takedown`, docs/SECURITY.md §23 and §25).
 

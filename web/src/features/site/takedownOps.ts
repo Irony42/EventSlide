@@ -1,12 +1,19 @@
 import type { Api } from '../../lib/api/client'
 
 /**
- * The six acts of the "remove without viewing" screen (launch review S5), and the one place that
+ * The eight acts of the "remove without viewing" screen (launch review S5), and the one place that
  * says which request each one is. Not a rule: the server decides what each does, and this only
  * names the six and sends the id and the reason the operator gave.
  */
 export type TakedownOp =
-  'eventDown' | 'eventUp' | 'purgeHold' | 'purgeRelease' | 'photoDown' | 'photoUp'
+  | 'eventDown'
+  | 'eventUp'
+  | 'purgeHold'
+  | 'purgeRelease'
+  | 'photoDown'
+  | 'photoUp'
+  | 'guestbookDown'
+  | 'guestbookUp'
 
 export const runTakedownOp = (
   api: Api,
@@ -27,5 +34,9 @@ export const runTakedownOp = (
       return api.siteTakeDownPhoto(id, reason)
     case 'photoUp':
       return api.siteRestorePhoto(id, reason)
+    case 'guestbookDown':
+      return api.siteTakeDownGuestbookEntry(id, reason)
+    case 'guestbookUp':
+      return api.siteRestoreGuestbookEntry(id, reason)
   }
 }

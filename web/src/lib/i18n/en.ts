@@ -1824,6 +1824,16 @@ export const en: UiText = {
     takedownPhotoOf: (id: string) => `In event ${id}`,
     takedownPhotoDown: 'Take the photograph down',
     takedownPhotoUp: 'Put the photograph back',
+    takedownGuestbookTitle: 'A guestbook message',
+    takedownGuestbookIntro:
+      'Paste the identifier of the message as the report gives it. You only see the event it belongs to and its state, never its text.',
+    takedownGuestbookLabel: 'Message identifier',
+    takedownGuestbookAction: 'Find the message',
+    takedownGuestbookNone: 'No message has this identifier.',
+    takedownGuestbookHeading: (id: string) => `Message ${id}`,
+    takedownGuestbookOf: (id: string) => `In event ${id}`,
+    takedownGuestbookDown: 'Take the message down',
+    takedownGuestbookUp: 'Put the message back',
     takedownReason: 'Reason',
     takedownReasonHint:
       'One sentence on a single line, 200 characters at most, with no e-mail address. It is written to the instance log.',
@@ -1860,6 +1870,16 @@ export const en: UiText = {
         title: 'Put this photograph back?',
         body: 'It reappears with the status the host had given it.',
         confirm: 'Put the photograph back',
+      },
+      guestbookDown: {
+        title: 'Take this message down?',
+        body: 'It leaves the wall, the host’s queue and its author’s list at once, and open screens forget it. The text is kept. The host cannot put it back, and its author does not get the place back.',
+        confirm: 'Take the message down',
+      },
+      guestbookUp: {
+        title: 'Put this message back?',
+        body: 'It reappears in the state the host had given it.',
+        confirm: 'Put the message back',
       },
     },
   },

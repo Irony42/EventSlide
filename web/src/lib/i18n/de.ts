@@ -1899,6 +1899,16 @@ export const de: UiText = {
     takedownPhotoOf: (id: string) => `In Veranstaltung ${id}`,
     takedownPhotoDown: 'Foto entfernen',
     takedownPhotoUp: 'Foto wiederherstellen',
+    takedownGuestbookTitle: 'Eine Gästebuch-Nachricht',
+    takedownGuestbookIntro:
+      'Fügen Sie die Kennung der Nachricht so ein, wie die Meldung sie angibt. Sie sehen nur die Veranstaltung, zu der sie gehört, und ihren Zustand, nie ihren Text.',
+    takedownGuestbookLabel: 'Kennung der Nachricht',
+    takedownGuestbookAction: 'Nachricht suchen',
+    takedownGuestbookNone: 'Keine Nachricht hat diese Kennung.',
+    takedownGuestbookHeading: (id: string) => `Nachricht ${id}`,
+    takedownGuestbookOf: (id: string) => `In der Veranstaltung ${id}`,
+    takedownGuestbookDown: 'Nachricht entfernen',
+    takedownGuestbookUp: 'Nachricht wiederherstellen',
     takedownReason: 'Grund',
     takedownReasonHint:
       'Ein Satz in einer Zeile, höchstens 200 Zeichen, ohne E-Mail-Adresse. Er wird im Protokoll der Instanz festgehalten.',
@@ -1935,6 +1945,16 @@ export const de: UiText = {
         title: 'Dieses Foto wiederherstellen?',
         body: 'Es erscheint wieder mit dem Status, den der Gastgeber ihm gegeben hatte.',
         confirm: 'Foto wiederherstellen',
+      },
+      guestbookDown: {
+        title: 'Diese Nachricht entfernen?',
+        body: 'Sie verschwindet sofort von der Wand, aus der Liste der Gastgeberin oder des Gastgebers und aus der Liste ihres Autors; geöffnete Bildschirme vergessen sie. Der Text bleibt erhalten. Der Gastgeber kann sie nicht zurückholen, und ihr Autor bekommt den Platz nicht zurück.',
+        confirm: 'Nachricht entfernen',
+      },
+      guestbookUp: {
+        title: 'Diese Nachricht wiederherstellen?',
+        body: 'Sie erscheint wieder in dem Zustand, den der Gastgeber ihr gegeben hatte.',
+        confirm: 'Nachricht wiederherstellen',
       },
     },
   },

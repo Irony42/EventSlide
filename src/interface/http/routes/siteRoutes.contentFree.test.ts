@@ -16,7 +16,6 @@ import {
   aUser,
   atPlus,
 } from '../../../application/testing/builders'
-import { SqliteGuestbookRepository } from '../../../infrastructure/db/sqliteGuestbookRepository'
 import { CSRF_HEADER } from '../middleware/csrf'
 import { mountedRoutes } from '../testing/routeTable'
 import { anonymousCaller, type Caller } from '../testing/signIn'
@@ -542,7 +541,7 @@ describe.each(['delivers', 'none'] as const)(
       await site.world.addPhoto(
         aPhoto({ id: TAKEDOWN_PHOTO, eventId: ID.eventK, author: { kind: 'host', id: ID.owner } }),
       )
-      await new SqliteGuestbookRepository(site.db).admit(
+      await site.repos.guestbook.admit(
         aGuestbookEntry({ id: TAKEDOWN_PHOTO, eventId: ID.eventK, guestId: PLANT.guestId }),
       )
       const operator = await site.signInAsOperator()

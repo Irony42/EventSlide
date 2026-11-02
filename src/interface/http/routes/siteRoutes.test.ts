@@ -1,6 +1,5 @@
 import type request from 'supertest'
 import { aGuest, aGuestbookEntry, aPhoto } from '../../../application/testing/builders'
-import { SqliteGuestbookRepository } from '../../../infrastructure/db/sqliteGuestbookRepository'
 import { describe, expect, it } from 'vitest'
 import { STEP_UP_LIFETIME_MS } from '../../../domain/users/secondFactor'
 import { asUserId } from '../../../domain/shared/ids'
@@ -46,7 +45,7 @@ const box = async (options: SiteHarnessOptions = {}) => {
   )
   // The take-down routes also name a guestbook message, under the same id.
   await made.site.world.addGuest(aGuest({ id: 'guest-1', eventId: ID.eventK }))
-  await new SqliteGuestbookRepository(made.site.db).admit(
+  await made.site.repos.guestbook.admit(
     aGuestbookEntry({ id: A_PHOTO, eventId: ID.eventK, guestId: 'guest-1' }),
   )
   return made

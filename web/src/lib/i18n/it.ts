@@ -1860,6 +1860,16 @@ export const it: UiText = {
     takedownPhotoOf: (id: string) => `Nell’evento ${id}`,
     takedownPhotoDown: 'Rimuova la foto',
     takedownPhotoUp: 'Ripristini la foto',
+    takedownGuestbookTitle: 'Un messaggio del libro degli ospiti',
+    takedownGuestbookIntro:
+      'Incolli l’identificativo del messaggio come lo dà la segnalazione. Vede solo l’evento a cui appartiene e il suo stato, mai il testo.',
+    takedownGuestbookLabel: 'Identificativo del messaggio',
+    takedownGuestbookAction: 'Cerca il messaggio',
+    takedownGuestbookNone: 'Nessun messaggio ha questo identificativo.',
+    takedownGuestbookHeading: (id: string) => `Messaggio ${id}`,
+    takedownGuestbookOf: (id: string) => `Nell’evento ${id}`,
+    takedownGuestbookDown: 'Rimuovi il messaggio',
+    takedownGuestbookUp: 'Ripristina il messaggio',
     takedownReason: 'Motivo',
     takedownReasonHint:
       'Una frase su una sola riga, di 200 caratteri al massimo, senza indirizzo e-mail. Viene scritta nel registro dell’istanza.',
@@ -1896,6 +1906,16 @@ export const it: UiText = {
         title: 'Ripristinare questa foto?',
         body: 'Riappare con lo stato che l’organizzatore le aveva dato.',
         confirm: 'Ripristini la foto',
+      },
+      guestbookDown: {
+        title: 'Rimuovere questo messaggio?',
+        body: 'Scompare subito dallo schermo, dalla coda dell’organizzatore e dall’elenco del suo autore, e gli schermi aperti lo dimenticano. Il testo viene conservato. L’organizzatore non può ripristinarlo e il suo autore non riottiene il posto che occupava.',
+        confirm: 'Rimuovi il messaggio',
+      },
+      guestbookUp: {
+        title: 'Ripristinare questo messaggio?',
+        body: 'Riappare con lo stato che l’organizzatore gli aveva dato.',
+        confirm: 'Ripristina il messaggio',
       },
     },
   },

@@ -158,6 +158,7 @@ export interface SiteHarness {
     readonly tokens: SqliteAccountTokenRepository
     readonly users: SqliteUserRepository
     readonly audit: SqliteAuditLog
+    readonly guestbook: SqliteGuestbookRepository
   }
   /** Seeds an account and makes it one the stub sign-in knows by its address. */
   addAccount(user: User): Promise<void>
@@ -384,7 +385,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
     mailer: recorder,
     reveal: () => revealDatabase(db),
     sessions,
-    repos: { clients, events, memberships, tokens, users, audit },
+    repos: { clients, events, memberships, tokens, users, audit, guestbook },
     addAccount,
     recognise,
     signIn: (address) => signedInAs(harness.app, address),
