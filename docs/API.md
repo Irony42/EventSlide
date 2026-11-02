@@ -1186,6 +1186,12 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
       "completedByGuests": 12
     }
   ],
+  "guestbook": {
+    "everyNth": 6,
+    "messages": [
+      { "id": "…", "text": "Une belle soirée", "authorName": "Léa", "displayMs": 6600 }
+    ]
+  },
   "wallLanguage": "fr"
 }
 ```
@@ -1194,6 +1200,15 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
 is what stops the wall drawing a panel at all. It rides here rather than behind a second
 request for the reason `theme` does: a projector runs unattended, and one fetch that either
 arrives or does not beats two that can half-arrive.
+
+`guestbook` (spec 01) is **absent** unless the host switched the guestbook on **and** its messages for the
+wall, and at least one message is published. It is `{ "everyNth": 6, "messages": [{ "id", "text", "authorName",
+"displayMs" }] }`: the newest 100 published messages, oldest first. A `pending`, `rejected` or `hidden` message,
+one the operator took down, and another event's never appear, and no guest id does either. `authorName` is `null`
+for a guest who gave no name (the wall words that). `everyNth` and each `displayMs` are the server's: the wall
+shows a card after that many photograph changes, for that long (6 s plus 60 ms a character, at most 20 s), and
+holds the photographs while it is up. `revision` does **not** cover it, so a wall compares `guestbook` message by
+message, like `missions`; a `guestbook.changed` signal makes it read again.
 
 Each row carries what the room draws and nothing else. `achieved` is true once **one
 published photograph** names the mission — counted on every read, never stored, so a

@@ -686,7 +686,7 @@ people on the night.
   guestbook panel, where messages are read and decided on like photographs.
 - **Additions to existing responses** (all optional for a client, none removed): `allowGuestbook` and
   `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
-  settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`. A new `guestbook.changed` signal
+  settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`, and `guestbook` in `GET /api/events/:slug/wall` (the published messages the room reads). A new `guestbook.changed` signal
   appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
 - **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
   are fixed.

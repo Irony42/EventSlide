@@ -904,6 +904,9 @@ export const fr = {
     videoBy: (name: string) => `Vidéo envoyée par ${name}`,
     videoByAnonymous: 'Vidéo envoyée par un invité',
 
+    /** The signature under a guestbook card (spec 01) when the guest gave no name. */
+    guestbookAnonymous: 'Un invité',
+
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     /**
