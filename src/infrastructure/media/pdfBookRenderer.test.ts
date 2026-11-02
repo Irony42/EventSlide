@@ -54,7 +54,17 @@ const textsOf = (pdf: Buffer): string[] => {
       }
     }
     for (const ranges of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
-      for (const row of String(ranges[1]).matchAll(
+      // pdfkit writes the array form: <from> <to> [<unicode> <unicode> ...], one entry per code.
+      const body = String(ranges[1])
+      const arrays = /<([0-9a-fA-F]+)>\s*<[0-9a-fA-F]+>\s*\[([^\]]*)\]/g
+      for (const row of body.matchAll(arrays)) {
+        const from = parseInt(String(row[1]), 16)
+        const targets = [...String(row[2]).matchAll(/<([0-9a-fA-F]+)>/g)]
+        targets.forEach((target, offset) => {
+          map.set(from + offset, String.fromCodePoint(parseInt(String(target[1]), 16)))
+        })
+      }
+      for (const row of body.replace(arrays, '').matchAll(
         /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g,
       )) {
         const [from, to, start] = [1, 2, 3].map((index) => parseInt(String(row[index]), 16)) as [
@@ -70,8 +80,10 @@ const textsOf = (pdf: Buffer): string[] => {
     maps.push(map)
   }
   const decoded: string[] = []
-  for (const shown of source.matchAll(/\[?((?:<[0-9a-fA-F]+>\s*-?[\d.]*\s*)+)\]?\s*(?:TJ|Tj)/g)) {
-    const codes = [...String(shown[1]).matchAll(/<([0-9a-fA-F]+)>/g)].flatMap((hex) =>
+  // Two linear passes: a nested quantifier here backtracks catastrophically on a long stream.
+  for (const shown of source.matchAll(/\[([^\]]*)\]\s*TJ|(<[0-9a-fA-F]+>)\s*Tj/g)) {
+    const inside = String(shown[1] ?? shown[2])
+    const codes = [...inside.matchAll(/<([0-9a-fA-F]+)>/g)].flatMap((hex) =>
       (String(hex[1]).match(/.{4}/g) ?? []).map((code) => parseInt(code, 16)),
     )
     for (const map of maps) decoded.push(codes.map((code) => map.get(code) ?? '').join(''))
@@ -79,8 +91,7 @@ const textsOf = (pdf: Buffer): string[] => {
   return decoded
 }
 
-// WIP: the file hangs after 6 of 14 tests (worker killed); skipped until the cause is found.
-describe.skip('createPdfBookRenderer', () => {
+describe('createPdfBookRenderer', () => {
   it('writes a PDF, a cover and a closing page around one page per photograph', async () => {
     const pdf = await render(input(of(await photo(), await photo(), await photo())))
 
