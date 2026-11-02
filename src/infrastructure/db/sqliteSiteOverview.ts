@@ -34,7 +34,8 @@ import { fromIsoText, fromNullableIsoText, fromSqliteBoolean } from './rowMappin
  * content-bearing columns — `events.name`, `events.slug`, `events.join_code`,
  * `events.settings`, `photos.caption`, `users.display_name`, every digest and hash — fails
  * whichever list it is found in, and any table outside `clients`, `client_members`, `events`,
- * `photos`, `clip_jobs` and `users` (`guests` and `event_missions` among them) fails whether
+ * `photos`, `clip_jobs`, `highlight_reels` (its size only) and `users` (`guests` and
+ * `event_missions` among them) fails whether
  * or not a list mentions it, as does a `*` that is not `COUNT(*)`. The columns
  * that carry free text *and are allowed* are exactly two: `clients.name` and `users.email`
  * (the labels declared in `domain/site/siteOverviewRows.ts`).
@@ -68,7 +69,7 @@ const ACCOUNT_ORDER = `ORDER BY u.created_at DESC, u.id DESC LIMIT :limit`
 
 const CLIENT_SELECT = `SELECT c.id, c.name, c.created_at, c.suspended_at, c.purge_after,
        c.max_events, c.max_total_bytes, c.max_event_quota_bytes, c.max_retention_days,
-       c.clips_allowed, c.live_allowed, c.max_live_days, c.max_events_per_period,
+       c.clips_allowed, c.books_allowed, c.live_allowed, c.max_live_days, c.max_events_per_period,
        c.period_started_at, c.events_created_in_period,
        (SELECT COUNT(*) FROM events ev WHERE ev.client_id = c.id)                AS event_count,
        (SELECT COUNT(*) FROM events ev
@@ -95,6 +96,9 @@ const EVENT_BYTES_READS = [
   'clip_jobs.event_id',
   'clip_jobs.status',
   'clip_jobs.source_byte_size',
+  // The highlight reel's file (spec 08): a size per event, and nothing of what is in it.
+  'highlight_reels.event_id',
+  'highlight_reels.byte_size',
 ] as const
 
 const CLIENT_READS = [
@@ -108,6 +112,7 @@ const CLIENT_READS = [
   'clients.max_event_quota_bytes',
   'clients.max_retention_days',
   'clients.clips_allowed',
+  'clients.books_allowed',
   'clients.live_allowed',
   'clients.max_live_days',
   'clients.max_events_per_period',
@@ -243,6 +248,7 @@ interface ClientSqlRow {
   readonly max_event_quota_bytes: number | null
   readonly max_retention_days: number | null
   readonly clips_allowed: number
+  readonly books_allowed: number
   readonly live_allowed: number
   readonly max_live_days: number | null
   readonly max_events_per_period: number | null
@@ -305,6 +311,7 @@ const toClientRow = (row: ClientSqlRow): SiteClientRow => ({
     maxEventQuotaBytes: row.max_event_quota_bytes,
     maxRetentionDays: row.max_retention_days,
     clipsAllowed: fromSqliteBoolean(row.clips_allowed),
+    booksAllowed: fromSqliteBoolean(row.books_allowed),
     liveAllowed: fromSqliteBoolean(row.live_allowed),
     maxLiveDays: row.max_live_days,
     maxEventsPerPeriod: row.max_events_per_period,

@@ -3,6 +3,7 @@ import { Button } from '../../../design-system/components/Button'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 import { decisionWording, inDisplayOrder } from './decisionWording'
+import { HighlightToggle } from './HighlightToggle'
 import styles from './ModerationCard.module.css'
 
 /**
@@ -40,6 +41,8 @@ export interface ModerationCardProps {
   readonly onFocusCard: (photoId: string) => void
   readonly onDecide: (photoId: string, decision: ModerationDecision) => void
   readonly onOpen: (photoId: string) => void
+  /** Stars or unstars a published photo (spec 08). Absent where the surface has no best-of. */
+  readonly onToggleHighlight?: (photoId: string) => void
   readonly cardRef: (element: HTMLElement | null) => void
 }
 
@@ -51,6 +54,7 @@ export function ModerationCard({
   onFocusCard,
   onDecide,
   onOpen,
+  onToggleHighlight,
   cardRef,
 }: ModerationCardProps) {
   const t = useTranslations()
@@ -188,6 +192,12 @@ export function ModerationCard({
             </Button>
           )
         })}
+        {photo.status === 'published' && onToggleHighlight !== undefined ? (
+          <HighlightToggle
+            highlighted={photo.highlighted === true}
+            onToggle={() => onToggleHighlight(photo.id)}
+          />
+        ) : null}
       </div>
     </article>
   )

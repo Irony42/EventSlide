@@ -15,7 +15,10 @@ export interface CeilingsFieldsetProps {
   readonly disabled?: boolean
 }
 
-type TextField = Exclude<CeilingField, 'clipsAllowed' | 'liveAllowed' | 'renewPeriod'>
+type TextField = Exclude<
+  CeilingField,
+  'clipsAllowed' | 'booksAllowed' | 'liveAllowed' | 'renewPeriod'
+>
 
 /**
  * The nine ceilings of a client, as the console edits them.
@@ -82,6 +85,11 @@ export function CeilingsFieldset({
         label={t.site.clipsAllowed}
         checked={fields.clipsAllowed}
         onChange={(clipsAllowed) => onChange({ ...fields, clipsAllowed })}
+      />
+      <CheckboxField
+        label={t.site.booksAllowed}
+        checked={fields.booksAllowed}
+        onChange={(booksAllowed) => onChange({ ...fields, booksAllowed })}
       />
       <CheckboxField
         label={t.site.liveAllowed}

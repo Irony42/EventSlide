@@ -581,7 +581,11 @@ export const guestRoutes = ({
           secure: deps.config.secureCookie,
           path: '/',
         })
-        const dto: ErasedContributionDto = { photos: erased.photos, clips: erased.clips }
+        const dto: ErasedContributionDto = {
+          photos: erased.photos,
+          clips: erased.clips,
+          messages: erased.messages,
+        }
         sendJson(response, dto)
       })
     }),

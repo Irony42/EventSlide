@@ -270,6 +270,7 @@ export function MobileModerationPage() {
           photos={queue.onScreen.filter((photo) => photo.status === 'published')}
           busy={queue.busy}
           onRemove={removeFromScreen}
+          onToggleHighlight={(photoId) => void queue.toggleHighlight(photoId)}
         />
       )}
 

@@ -1,6 +1,8 @@
 import type { Clock } from '../application/ports/clock'
 import type { EventBus, Unsubscribe } from '../application/ports/eventBus'
 import type { Logger } from '../application/ports/logger'
+import type { RecoverReels } from '../application/usecases/highlights/recoverReels'
+import type { TranscodeNextReel } from '../application/usecases/highlights/transcodeNextReel'
 import type { RecoverClipJobs } from '../application/usecases/clips/recoverClipJobs'
 import type { TranscodeNextClip } from '../application/usecases/clips/transcodeNextClip'
 import { createGuardedJob, type JobOutcome } from './guardedJob'
@@ -41,6 +43,13 @@ export interface ClipWorkerDeps {
   readonly transcodeNext: TranscodeNextClip
   /** Crash recovery, run once before the first drain. */
   readonly recover: RecoverClipJobs
+  /**
+   * The host's highlight reel (spec 08), drained by the **same** loop: one encoder at a time on a
+   * two-core box, clips first (a guest is waiting for one), a montage when no clip is due. Absent,
+   * the worker is the clip worker it always was.
+   */
+  readonly transcodeNextReel?: TranscodeNextReel
+  readonly recoverReels?: RecoverReels
   readonly bus: EventBus
   readonly logger: Logger
   /** For the duration in the log line. Injected so that duration is assertable. */
@@ -60,6 +69,8 @@ export interface ClipWorkerDeps {
 export interface DrainReport {
   readonly transcoded: number
   readonly failed: number
+  /** Highlight reels made in this drain. */
+  readonly rendered: number
 }
 
 export type DrainOutcome = JobOutcome<DrainReport>
@@ -78,6 +89,8 @@ const DEFAULT_MAX_PER_DRAIN = 50
 export const createClipWorker = ({
   transcodeNext,
   recover,
+  transcodeNextReel,
+  recoverReels,
   bus,
   logger,
   clock,
@@ -90,6 +103,7 @@ export const createClipWorker = ({
   const drain = async (): Promise<DrainReport> => {
     let transcoded = 0
     let failed = 0
+    let rendered = 0
 
     for (let taken = 0; taken < maxPerDrain; taken += 1) {
       if (stopping) break
@@ -103,12 +117,25 @@ export const createClipWorker = ({
         break
       }
 
-      if (outcome.value.kind === 'idle') break
-      if (outcome.value.kind === 'transcoded') transcoded += 1
-      else failed += 1
+      if (outcome.value.kind !== 'idle') {
+        if (outcome.value.kind === 'transcoded') transcoded += 1
+        else failed += 1
+        continue
+      }
+
+      // No clip is due: one montage, then clips are looked at again before the next.
+      if (transcodeNextReel === undefined) break
+      const reel = await transcodeNextReel()
+      if (!reel.ok) {
+        logger.error('clip worker could not complete a reel pass', { code: reel.error.code })
+        break
+      }
+      if (reel.value.kind === 'idle') break
+      if (reel.value.kind === 'rendered') rendered += 1
+      else if (reel.value.kind === 'failed') failed += 1
     }
 
-    return { transcoded, failed }
+    return { transcoded, failed, rendered }
   }
 
   /**
@@ -133,10 +160,11 @@ export const createClipWorker = ({
     // could not be read would be a far worse outcome than a skipped drain.
     failedMessage: 'clip drain failed',
     describe: (report, durationMs) => {
-      if (report.transcoded > 0 || report.failed > 0) {
+      if (report.transcoded > 0 || report.failed > 0 || report.rendered > 0) {
         logger.info('clip drain finished', {
           transcoded: report.transcoded,
           failed: report.failed,
+          rendered: report.rendered,
           durationMs,
         })
       }
@@ -162,7 +190,7 @@ export const createClipWorker = ({
        * subscriber there would be a slow upload for the guest who caused it.
        */
       unsubscribe = bus.subscribeAll((event) => {
-        if (event.type !== 'clip.queued') return
+        if (event.type !== 'clip.queued' && event.type !== 'reel.queued') return
         void job.runOnce()
       })
 
@@ -182,6 +210,7 @@ export const createClipWorker = ({
       void (async () => {
         try {
           await recover()
+          await recoverReels?.()
         } catch (error) {
           // Not fatal: an unrecovered job is picked up by the next boot, and refusing to
           // start the worker over it would strand every *new* clip as well.

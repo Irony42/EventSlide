@@ -328,6 +328,8 @@ describe('POST /api/join', () => {
         maxUploadBytes: 25_000_000,
         maxFilesPerUpload: 20,
         allowClips: true,
+        allowGuestbook: false,
+        guestbookMaxLength: 500,
         maxClipBytes: 80_000_000,
         maxClipSeconds: 15,
         theme: {
@@ -584,8 +586,10 @@ describe('POST /api/join', () => {
     expect(Object.keys(response.body.event).sort()).toEqual([
       'allowCaptions',
       'allowClips',
+      'allowGuestbook',
       'allowReactions',
       'brand',
+      'guestbookMaxLength',
       'maxClipBytes',
       'maxClipSeconds',
       'maxFilesPerUpload',

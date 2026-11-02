@@ -4,6 +4,7 @@ import type {
   ClipJobId,
   EventId,
   GuestId,
+  GuestbookEntryId,
   MissionId,
   PhotoId,
   ReactionId,
@@ -40,6 +41,8 @@ export interface IdGenerator {
    * enumerate the evening's missions.
    */
   missionId(): MissionId
+
+  guestbookEntryId(): GuestbookEntryId
 
   /**
    * A shared gallery link (roadmap §4.1). The row's name, which signed media URLs carry;

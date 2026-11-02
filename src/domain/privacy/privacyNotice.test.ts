@@ -271,3 +271,24 @@ describe('privacyNoticeFor — who hosts it (roadmap G2-17)', () => {
     expect(longest.revision.length).toBeLessThan(512)
   })
 })
+
+describe('privacyNoticeFor — the guestbook (spec 01)', () => {
+  it('leaves the revision exactly as it was when the guestbook is off', () => {
+    const notice = privacyNoticeFor(settings({ allowGuestbook: false }))
+    expect(notice.guestbook).toBe(false)
+    expect(notice.revision).not.toContain('guestbook')
+  })
+
+  it('changes the revision, and says so, when the guestbook is on', () => {
+    const off = privacyNoticeFor(settings({ allowGuestbook: false }))
+    const on = privacyNoticeFor(settings({ allowGuestbook: true }))
+    expect(on.guestbook).toBe(true)
+    expect(on.revision).not.toBe(off.revision)
+    expect(on.revision).toContain('guestbook=on')
+  })
+
+  it('keeps the operator as the last clause', () => {
+    const notice = privacyNoticeFor(settings({ allowGuestbook: true }), 'Association X')
+    expect(notice.revision.endsWith(';operator=Association X')).toBe(true)
+  })
+})

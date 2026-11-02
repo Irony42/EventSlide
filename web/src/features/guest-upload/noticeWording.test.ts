@@ -124,3 +124,43 @@ describe('noticeSections, the operator', () => {
     },
   )
 })
+
+describe('noticeSections with a guestbook (spec 01)', () => {
+  it('leaves the notice of an event without a guestbook exactly as it was', () => {
+    const sections = noticeSections(aPrivacyNotice(), fr)
+    expect(sections.map((section) => section.term)).toEqual([
+      fr.upload.noticeWhatHappens,
+      fr.upload.noticeWhoSees,
+      fr.upload.noticeHowLong,
+      fr.upload.noticeRemoval,
+    ])
+    expect(JSON.stringify(sections)).not.toContain(fr.guestbook.noticeMessageAudience)
+  })
+
+  it('titles the four questions for photos and messages, and adds one sentence to each', () => {
+    const plain = noticeSections(aPrivacyNotice(), fr)
+    const withBook = noticeSections(aPrivacyNotice({ guestbook: true }), fr)
+
+    expect(withBook.map((section) => section.term)).toEqual([
+      fr.guestbook.noticeWhatHappens,
+      fr.guestbook.noticeWhoSees,
+      fr.guestbook.noticeHowLong,
+      fr.guestbook.noticeRemoval,
+    ])
+    withBook.forEach((section, index) => {
+      expect(section.sentences.length).toBe((plain[index]?.sentences.length ?? 0) + 1)
+    })
+    expect(withBook[0]?.sentences).toContain(fr.guestbook.noticeMessagePublication.afterReview)
+    expect(withBook[1]?.sentences).toContain(fr.guestbook.noticeMessageAudience)
+    expect(withBook[2]?.sentences).toContain(fr.guestbook.noticeMessageRetention)
+    expect(withBook[3]?.sentences).toContain(fr.guestbook.noticeMessageRemoval)
+  })
+
+  it('says a message goes straight to the screen on an event that publishes on arrival', () => {
+    const sections = noticeSections(
+      aPrivacyNotice({ guestbook: true, publication: 'immediate' }),
+      fr,
+    )
+    expect(sections[0]?.sentences).toContain(fr.guestbook.noticeMessagePublication.immediate)
+  })
+})

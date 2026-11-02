@@ -12,6 +12,8 @@ import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
+import { isHighlightable } from '../../../domain/highlights/highlightEligibility'
+import type { InvalidateReel } from '../highlights/invalidateReel'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
@@ -41,6 +43,8 @@ export interface ModeratePhotoDeps {
   readonly memberships: MembershipRepository
   readonly bus: EventBus
   readonly clock: Clock
+  /** Retires the highlight reel when a photograph leaves the wall (spec 08). */
+  readonly invalidateReel?: InvalidateReel
 }
 
 export interface ModeratedPhoto {
@@ -53,7 +57,7 @@ export type ModeratePhoto = (
 ) => Promise<Result<ModeratedPhoto, DomainError>>
 
 export const makeModeratePhoto =
-  ({ events, photos, memberships, bus, clock }: ModeratePhotoDeps): ModeratePhoto =>
+  ({ events, photos, memberships, bus, clock, invalidateReel }: ModeratePhotoDeps): ModeratePhoto =>
   async ({ eventId, photoId, decision, actor }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -85,6 +89,8 @@ export const makeModeratePhoto =
     const moved = photo.transitionTo(targetStatusFor(decision), reviewer, clock.now())
     if (!moved.ok) return moved
 
+    // A photograph that leaves the wall leaves every montage that holds it, before it is saved.
+    if (!isHighlightable(moved.value.status)) await invalidateReel?.(eventId, [photoId])
     await photos.save(moved.value)
     bus.publish({ type: 'photo.moderated', eventId, photoId, status: moved.value.status })
 

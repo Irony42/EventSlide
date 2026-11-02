@@ -235,6 +235,14 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       bodyTimeoutMs: raw.UPLOAD_BODY_TIMEOUT_SECONDS * 1000,
     },
 
+    reel: {
+      enabled: raw.REEL_ENABLED,
+      maxPhotos: raw.REEL_MAX_PHOTOS,
+      secondsPerPhoto: raw.REEL_SECONDS_PER_PHOTO,
+      maxOutputBytes: raw.REEL_MAX_OUTPUT_BYTES,
+      maxQueued: raw.MAX_QUEUED_REELS,
+    },
+
     clips: {
       maxBytes: raw.MAX_CLIP_BYTES,
       maxDurationMs: raw.MAX_CLIP_SECONDS * 1000,
@@ -253,6 +261,16 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
         temp: raw.TEMP,
         tmp: raw.TMP,
       },
+    },
+
+    books: {
+      enabled: raw.BOOK_ENABLED,
+      maxPhotos: raw.BOOK_MAX_PHOTOS,
+      maxBytes: raw.BOOK_MAX_BYTES,
+      ttlDays: raw.BOOK_TTL_DAYS,
+      maxTotalBytes: raw.BOOK_MAX_TOTAL_BYTES,
+      maxWaitMs: raw.BOOK_MAX_WAIT_MINUTES * 60_000,
+      maxPerEventPerDay: raw.BOOK_MAX_PER_EVENT_PER_DAY,
     },
 
     realtime: {
@@ -368,6 +386,7 @@ export const load = (schema: typeof serverSchema, source: Source): AppConfig => 
       maxRetentionDays: raw.NEW_CLIENT_MAX_RETENTION_DAYS ?? null,
       maxLiveDays: raw.NEW_CLIENT_MAX_LIVE_DAYS ?? null,
       clipsAllowed: raw.NEW_CLIENT_CLIPS_ALLOWED ?? true,
+      booksAllowed: raw.NEW_CLIENT_BOOKS_ALLOWED ?? true,
     },
 
     mfa: {

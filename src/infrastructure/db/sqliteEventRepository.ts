@@ -443,6 +443,19 @@ const settingsOf = (raw: string): EventSettings => {
      * decision cannot be written afterwards.
      */
     allowClips: settingsBooleanAddedLater(decoded['allowClips'], 'allowClips', false),
+    /**
+     * Added by the guestbook (spec 01, 3.5.0), and **off** when the key is absent: an event
+     * that predates it has a host who was never asked, and a free-text channel onto a room is
+     * not something an upgrade opens. Without this line the first read of any 3.4.0 event
+     * would throw `Corrupt events.settings`.
+     */
+    allowGuestbook: settingsBooleanAddedLater(decoded['allowGuestbook'], 'allowGuestbook', false),
+    /**
+     * Added with it, and **on** when absent: the opposite concession, because the wall showing
+     * published messages is only reachable once the host has turned the guestbook on, and the
+     * host who did has agreed to what it shows.
+     */
+    guestbookOnWall: settingsBooleanAddedLater(decoded['guestbookOnWall'], 'guestbookOnWall', true),
     allowGuestSelfDelete: settingsBoolean(decoded['allowGuestSelfDelete'], 'allowGuestSelfDelete'),
     guestSelfDeleteGraceSeconds: settingsInteger(
       decoded['guestSelfDeleteGraceSeconds'],

@@ -178,6 +178,12 @@ export const RECORDED_LICENSES: readonly RecordedLicense[] = [
     reason:
       'Declares the legacy "BSD"; its LICENSE is the three-clause text (Walmart and other contributors).',
   },
+  {
+    package: 'png-js@2.0.0',
+    license: 'MIT',
+    reason:
+      'A dependency of pdfkit (the photo book) whose package.json declares no licence; its LICENSE is the MIT text (Devon Govett).',
+  },
 ]
 
 export interface LicensePolicy {

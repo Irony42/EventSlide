@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { asEventId, asGuestId, asPhotoId } from '../../../domain/shared/ids'
+import { asEventId, asGuestId, asGuestbookEntryId, asPhotoId } from '../../../domain/shared/ids'
 import { MEDIA_VARIANTS } from '../../ports/mediaStore'
 import {
   aClip,
   aClipJob,
   aGuest,
+  aGuestbookEntry,
   anEvent,
   aPhoto,
   aReaction,
@@ -14,6 +15,7 @@ import { FakeClipJobRepository } from '../../testing/fakeClipJobRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
@@ -31,6 +33,7 @@ describe('eraseGuestContribution', () => {
   let guests: FakeGuestRepository
   let reactions: FakeReactionRepository
   let clips: FakeClipJobRepository
+  let guestbook: FakeGuestbookRepository
   let media: InMemoryMediaStore
   let bus: RecordingEventBus
   let erase: EraseGuestContribution
@@ -41,6 +44,7 @@ describe('eraseGuestContribution', () => {
     guests = new FakeGuestRepository(photos)
     reactions = new FakeReactionRepository()
     clips = new FakeClipJobRepository()
+    guestbook = new FakeGuestbookRepository()
     const clock = new FakeClock()
     media = new InMemoryMediaStore(clock)
     bus = new RecordingEventBus()
@@ -53,6 +57,7 @@ describe('eraseGuestContribution', () => {
       photos,
       reactions,
       clips,
+      guestbook,
       media,
       bus,
       clock,
@@ -86,7 +91,7 @@ describe('eraseGuestContribution', () => {
 
     const result = await run()
 
-    expect(result).toEqual({ ok: true, value: { photos: 2, clips: 0 } })
+    expect(result).toEqual({ ok: true, value: { photos: 2, clips: 0, messages: 0 } })
     expect(await photos.findById(EVENT, pending.id)).toBeNull()
     expect(await photos.findById(EVENT, published.id)).toBeNull()
     expect(media.variantsOf(EVENT, published.contentHash)).toEqual([])
@@ -183,7 +188,7 @@ describe('eraseGuestContribution', () => {
 
     const result = await run()
 
-    expect(result).toEqual({ ok: true, value: { photos: 0, clips: 1 } })
+    expect(result).toEqual({ ok: true, value: { photos: 0, clips: 1, messages: 0 } })
     expect(await clips.listByAuthor(EVENT, LEA)).toEqual([])
   })
 
@@ -199,7 +204,7 @@ describe('eraseGuestContribution', () => {
 
     const result = await run()
 
-    expect(result).toEqual({ ok: true, value: { photos: 0, clips: 1 } })
+    expect(result).toEqual({ ok: true, value: { photos: 0, clips: 1, messages: 0 } })
     expect(media.variantsOf(EVENT, job.sourceHash)).toEqual([])
     expect(await clips.findById(EVENT, job.id)).toBeNull()
   })
@@ -239,7 +244,7 @@ describe('eraseGuestContribution', () => {
 
     const result = await run()
 
-    expect(result).toEqual({ ok: true, value: { photos: 205, clips: 0 } })
+    expect(result).toEqual({ ok: true, value: { photos: 205, clips: 0, messages: 0 } })
     expect((await photos.list(EVENT)).items).toEqual([])
   })
 
@@ -296,7 +301,7 @@ describe('eraseGuestContribution', () => {
 
     const result = await run()
 
-    expect(result).toEqual({ ok: true, value: { photos: 0, clips: 0 } })
+    expect(result).toEqual({ ok: true, value: { photos: 0, clips: 0, messages: 0 } })
     expect(media.variantsOf(EVENT, job.sourceHash)).toEqual([])
   })
 
@@ -351,12 +356,80 @@ describe('eraseGuestContribution', () => {
 
     const result = await run()
 
-    expect(result).toEqual({ ok: true, value: { photos: 1, clips: 0 } })
+    expect(result).toEqual({ ok: true, value: { photos: 1, clips: 0, messages: 0 } })
     expect(media.variantsOf(EVENT, down.contentHash)).not.toEqual([])
     expect((await photos.locate(down.id))?.takenDownAt).not.toBeNull()
     expect(bus.published.filter((e) => e.type === 'photo.deleted')).toHaveLength(1)
     const kept = await guests.findById(EVENT, LEA)
     expect(kept).not.toBeNull()
     expect(kept?.label()).toBeNull()
+  })
+
+  describe('the guestbook', () => {
+    const entryOf = (id: string, guestId: string, eventId = 'event-1') =>
+      aGuestbookEntry({ id, guestId, eventId, text: id })
+    const GUESTBOOK_EVENT = asEventId('event-1')
+
+    it('removes every message of the guest whatever its status, counts them, and announces the change', async () => {
+      const published = aGuestbookEntry({ id: 'm1', guestId: 'guest-lea', moderation: 'auto' })
+      guestbook.seed(published, entryOf('m2', 'guest-lea'))
+
+      const result = await run()
+
+      expect(result).toEqual({ ok: true, value: { photos: 0, clips: 0, messages: 2 } })
+      expect(guestbook.all(GUESTBOOK_EVENT)).toEqual([])
+      expect(bus.published.map((e) => e.type)).toContain('guestbook.changed')
+    })
+
+    it('ignores the self-delete switch for messages as it does for photographs', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { allowGuestSelfDelete: false } }))
+      guestbook.seed(aGuestbookEntry({ id: 'm1', guestId: 'guest-lea', moderation: 'auto' }))
+
+      const result = await run()
+
+      expect(result.ok && result.value.messages).toBe(1)
+    })
+
+    it('leaves the messages of another guest and of another event alone', async () => {
+      guestbook.seed(
+        entryOf('m1', 'guest-lea'),
+        entryOf('m-sam', 'guest-sam'),
+        entryOf('m-other', 'guest-lea', 'event-2'),
+      )
+
+      await run()
+
+      expect(guestbook.all(GUESTBOOK_EVENT).map((row) => row.id)).toEqual(['m-sam'])
+      expect(guestbook.all(OTHER_EVENT).map((row) => row.id)).toEqual(['m-other'])
+    })
+
+    it('announces nothing about messages when there were none', async () => {
+      await run()
+
+      expect(bus.published.map((e) => e.type)).not.toContain('guestbook.changed')
+    })
+
+    it('keeps a message the operator took down, uncounted, and keeps the guest row without its name', async () => {
+      guestbook.seed(entryOf('m-down', 'guest-lea'), entryOf('m-up', 'guest-lea'))
+      guestbook.takeDown(GUESTBOOK_EVENT, asGuestbookEntryId('m-down'), new Date(0))
+
+      const result = await run()
+
+      expect(result.ok && result.value.messages).toBe(1)
+      expect(guestbook.all(GUESTBOOK_EVENT).map((row) => row.id)).toEqual(['m-down'])
+      const kept = await guests.findById(EVENT, LEA)
+      expect(kept).not.toBeNull()
+      expect(kept?.label()).toBeNull()
+    })
+
+    it('keeps every message on a purge-held event and fails generically', async () => {
+      guestbook.seed(entryOf('m1', 'guest-lea'))
+      await events.setPurgeHeld(EVENT, new Date(0))
+
+      const result = await run()
+
+      expect(!result.ok && result.error.code).toBe('photo.deleteFailed')
+      expect(guestbook.all(GUESTBOOK_EVENT)).toHaveLength(1)
+    })
   })
 })

@@ -85,6 +85,8 @@ describe('EventSettings.create', () => {
         allowCaptions: false,
         allowReactions: false,
         allowClips: false,
+        allowGuestbook: true,
+        guestbookOnWall: false,
         allowGuestSelfDelete: false,
         guestSelfDeleteGraceSeconds: 60,
         retentionDays: 30,
@@ -99,11 +101,14 @@ describe('EventSettings.create', () => {
       }),
     )
 
+    expect([settings.allowGuestbook, settings.guestbookOnWall]).toEqual([true, false])
     expect(settings.toProps()).toEqual({
       moderation: 'auto',
       allowCaptions: false,
       allowReactions: false,
       allowClips: false,
+      allowGuestbook: true,
+      guestbookOnWall: false,
       allowGuestSelfDelete: false,
       guestSelfDeleteGraceSeconds: 60,
       retentionDays: 30,

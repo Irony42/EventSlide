@@ -30,6 +30,8 @@ export type ReactionId = Branded<string, 'ReactionId'>
  * transcode eventually produces.
  */
 export type ClipJobId = Branded<string, 'ClipJobId'>
+/** The one highlight reel of an event (spec 08): a queued montage, then its file. */
+export type ReelId = Branded<string, 'ReelId'>
 /**
  * One prompt on the host's list — "a selfie with the couple" (docs/ROADMAP.md §2.1).
  *
@@ -40,6 +42,7 @@ export type ClipJobId = Branded<string, 'ClipJobId'>
  * `PhotoId` belongs, and the repository that reads it takes an `EventId` first.
  */
 export type MissionId = Branded<string, 'MissionId'>
+export type GuestbookEntryId = Branded<string, 'GuestbookEntryId'>
 /**
  * One shared gallery link (docs/ROADMAP.md §4.1).
  *
@@ -73,7 +76,9 @@ export const asGuestId = (value: string): GuestId => value as GuestId
 export const asUserId = (value: string): UserId => value as UserId
 export const asReactionId = (value: string): ReactionId => value as ReactionId
 export const asClipJobId = (value: string): ClipJobId => value as ClipJobId
+export const asReelId = (value: string): ReelId => value as ReelId
 export const asMissionId = (value: string): MissionId => value as MissionId
+export const asGuestbookEntryId = (value: string): GuestbookEntryId => value as GuestbookEntryId
 export const asShareLinkId = (value: string): ShareLinkId => value as ShareLinkId
 export const asClientId = (value: string): ClientId => value as ClientId
 export const asAccountTokenId = (value: string): AccountTokenId => value as AccountTokenId

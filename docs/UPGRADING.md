@@ -661,3 +661,62 @@ people on the night.
 **How to tell it worked.** The first boot logs no migration and `GET /api/health` answers
 `"version": "3.4.0"`, and `GET /api/ready` answers 200. If anything looks wrong, go back as
 [described above](#going-back): restore the archive you took before the upgrade.
+
+## Upgrading to 3.5 (not released yet)
+
+### Event statistics
+
+- **One migration (018, `event_stats_counters`)**, applied at boot. It only adds a table, so a 3.4.x
+  build still reads the database; going back is the usual restore of the archive you took.
+- **Two counters are kept per event and per UTC day**: how many times the shared album's link was opened
+  and how many times its ZIP was launched. They hold **no address, no browser, no link or guest identifier**,
+  go with the event (purge and retention deadline), and appear only on the host's new statistics page.
+- **`GET /api/events/:slug/stats`** is new. A script that lists the routes sees one more.
+
+### The guestbook (spec 01)
+
+- **One migration, `019_guestbook_entries`**, applied at boot: a new table, no existing row changes. It only goes
+  forward, so take the usual backup first ([above](#upgrading-with-docker)); going back is the restore of that
+  archive.
+- **Two new event settings, `allowGuestbook` and `guestbookOnWall`.** An event created before this version reads
+  the first as **off** and the second as **on**: an upgrade opens no free-text channel onto a room whose host was
+  never asked. Nothing changes for an existing event until its host switches the guestbook on.
+- **Additions to existing responses** (all optional for a client, none removed): `allowGuestbook` and
+  `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
+  settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`. A new `guestbook.changed` signal
+  appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
+- **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
+  are fixed.
+
+<!-- Best-of (spec 08): keep this block together; other changes of 3.5 add their own. -->
+
+**Best-of, favourites (migration 020).** The first boot applies migration 020, which adds one
+nullable column, `photos.highlighted_at`, and a partial index. Nothing is rewritten and no photo
+changes. A host can now star a published photo (`F` on the moderation console) and download the
+stars as a ZIP from the event page. A star disappears when the photo leaves the wall (hidden or
+refused). An old admin tab keeps working, it simply cannot star.
+
+**Best-of, the montage engine (migration 021, no button yet).** The first boot also applies migration 021,
+which adds the `highlight_reels` table (one row per event). The queue worker now also renders
+the montage of an event's favourites when one is asked for, **after** any clip is transcoded and
+one at a time; nothing asks for one until the montage surface ships. Five optional settings, all
+with defaults that need no action: `REEL_ENABLED` (true), `REEL_MAX_PHOTOS` (60, at most 120),
+`REEL_SECONDS_PER_PHOTO` (4, 2 to 8), `REEL_MAX_OUTPUT_BYTES` (150 MB) and `MAX_QUEUED_REELS` (2).
+A finished montage counts against the event's quota and its client's, and is **not** in the backup:
+it is made again on request.
+
+<!-- photo book -->
+
+**The photo book (PDF of the published album).** A host can ask for a PDF of the album. It adds
+a migration (`022_album_books`: two tables and `clients.books_allowed`, nothing is rewritten)
+and seven settings, all optional: `BOOK_ENABLED` (`true`; `false` turns the function off for the
+box, read at boot), `BOOK_MAX_PHOTOS` (300), `BOOK_MAX_BYTES` (300 MB), `BOOK_TTL_DAYS` (7),
+`BOOK_MAX_TOTAL_BYTES` (2 GB of finished books kept at once), `BOOK_MAX_WAIT_MINUTES` (10) and
+`BOOK_MAX_PER_EVENT_PER_DAY` (3). Finished books live in `<MEDIA_ROOT>/.books/`, outside the event
+folders and outside the backups: budget the disk for them.
+
+**Per-client switch for the photo book.** `NEW_CLIENT_BOOKS_ALLOWED` (`true`, `false`, `1` or `0`;
+absent means allowed) is the default a client created on a hosted box starts with, like
+`NEW_CLIENT_CLIPS_ALLOWED`; the operator console shows it per client (« Livres photo (PDF)
+autorisés »). Existing clients keep the function on. On top of it, one event gets at most
+`BOOK_MAX_PER_EVENT_PER_DAY` books in a rolling day.

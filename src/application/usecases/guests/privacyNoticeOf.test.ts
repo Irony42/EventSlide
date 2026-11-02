@@ -62,6 +62,15 @@ describe('privacyNoticeOf', () => {
     )
   })
 
+  it('carries the guestbook switch through the ceiling path too', async () => {
+    const clients = new FakeClientRepository().seed(
+      aClient({ id: 'client-1', ceilings: { maxRetentionDays: 30 } }),
+    )
+    const event = anEvent({ clientId: 'client-1', settings: { allowGuestbook: true } })
+
+    expect((await privacyNoticeOf(clients, event, null)).guestbook).toBe(true)
+  })
+
   it('gives a different revision when the ceiling changes what is promised, so guests are asked again', async () => {
     const lowered = world({ maxRetentionDays: 14 }, null)
     const raised = world({ maxRetentionDays: 30 }, null)

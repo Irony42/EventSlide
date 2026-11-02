@@ -333,6 +333,7 @@ export const en: UiText = {
       'This length of an ongoing event is not accepted: from 1 to 365 days.',
     'clientCeilings.periodStartedAtInvalid': 'This start of period is not accepted.',
     'clientCeilings.clipsAllowedInvalid': 'This video setting is not accepted.',
+    'clientCeilings.booksAllowedInvalid': 'This photo book setting is not accepted.',
     'clientCeilings.liveAllowedInvalid': 'This opening setting is not accepted.',
     'siteLookup.queryInvalid':
       'Enter an id, a code, an address or an event name (300 characters at most).',
@@ -404,6 +405,8 @@ export const en: UiText = {
 
     'photo.notFound': 'This photo no longer exists.',
     'photo.illegalTransition': 'This action is not possible on this photo.',
+    'highlight.notPublished': 'Only a published photo can be a favourite.',
+    'highlight.empty': 'No favourites yet.',
 
     'image.unsupportedFormat': 'This file is not a photo. Accepted formats: JPEG, PNG, HEIC, WebP.',
     'image.corrupt': 'This photo looks damaged. Try another one.',
@@ -545,6 +548,71 @@ export const en: UiText = {
     'venuePhoto.saveFailed': 'The photo could not be saved. Try again.',
   },
 
+  /** The guestbook, guest side (spec 01). What guests and hosts write is never translated. */
+  guestbook: {
+    title: 'Guestbook',
+    helpManual: 'A few words for the evening. The organiser reads it before showing it.',
+    helpAuto: 'Your note appears in the guestbook.',
+    open: 'Leave a note',
+    label: 'Your message',
+    placeholder: 'Your message…',
+    counter: (length: number, max: number) => `${t.number(length)} / ${t.number(max)}`,
+    counterNear: (left: number) =>
+      t.count(left, {
+        one: '1 character left.',
+        other: `${t.number(left)} characters left.`,
+      }),
+    counterFull: 'Limit reached.',
+    send: 'Send my message',
+    cancel: 'Cancel',
+    thanksManual: 'Thank you! Your message will appear once the organiser approves it.',
+    thanksAuto: 'Thank you! Your message is in the guestbook.',
+    mine: 'My messages',
+    statusPending: 'Waiting for approval',
+    statusPublished: 'On the screen',
+    statusPublishedNotOnWall: 'Published, not shown on the screen',
+    statusRejected: 'Not selected',
+    statusHidden: 'Taken off the screen',
+    remove: 'Remove this message',
+    removeTitle: 'Remove this message for good?',
+    removeConfirm: 'Remove',
+    removeCancel: 'Keep',
+    removed: 'Message removed.',
+    tooLong: (max: number) => `Message too long (${t.number(max)} characters at most).`,
+    errors: {
+      'guestbook.empty': 'Write at least one word.',
+      'guestbook.invalid': 'This message cannot be sent as it is.',
+      'guestbook.tooManyLines': 'Message too tall: please keep it shorter.',
+      'guestbook.limitReached': 'You have already left 3 messages. Remove one to write another.',
+      'guestbook.eventFull': 'The guestbook is full.',
+      'guestbook.disabled': 'The guestbook is not open right now.',
+      'event.notAcceptingUploads': 'The guestbook is not open right now.',
+      'guestbook.deleteForbidden':
+        'This message can no longer be removed. Ask the organiser: they can delete it.',
+      'event.guestSelfDeleteDisabled':
+        'The organiser has not turned removal on. Ask them: they can delete a message.',
+      'guestbook.notFound': 'This message no longer exists.',
+      'guestbook.deleteFailed': 'The removal did not go through. Try again, or ask the organiser.',
+      'rate.limited': 'Too many messages at once, try again in a minute.',
+    },
+    eraseBody:
+      'Your photos, videos, captions, guestbook messages, reactions and first name will be erased from the event: from the screen, the album and the organiser’s list. This cannot be undone.',
+    noticeWhatHappens: 'What happens to your photos and messages',
+    noticeWhoSees: 'Who sees your photos and messages',
+    noticeHowLong: 'How long they are kept',
+    noticeRemoval: 'Having one removed',
+    noticeMessagePublication: {
+      afterReview: 'A guestbook message is read by the organiser before it can go on the screen.',
+      immediate:
+        'A guestbook message can go on the screen as soon as it is sent. The organiser can remove it at any time.',
+    },
+    noticeMessageAudience:
+      'Your messages are read by the organiser and their team, and may be shown on the event screen. They are not in “Photos from the evening”.',
+    noticeMessageRetention: 'Your messages are kept as long as the photos, and erased with them.',
+    noticeMessageRemoval:
+      'A message is removed like a photo, from “My messages” and under the same conditions.',
+  },
+
   moderation: {
     title: 'Moderation',
     // Navigation pass, batch C: the way to the other console.
@@ -628,6 +696,10 @@ export const en: UiText = {
         one: `${t.number(count)} photo taken off the screen. It stays in your album.`,
         other: `${t.number(count)} photos taken off the screen. They stay in your album.`,
       }),
+    highlight: 'Favourite',
+    highlightAddHint: 'Add to favourites',
+    highlightRemoveHint: 'Remove from favourites',
+    shortcutsFavourite: 'F to add to favourites.',
     decisionFailed: 'The decision could not be saved. Try again.',
     undoFailed: 'The decision could not be undone. Try again.',
     dimensions: (width: number, height: number) => `${width} × ${height} pixels`,
@@ -771,6 +843,73 @@ export const en: UiText = {
       t.count(count, { one: `${t.number(count)} photo`, other: `${t.number(count)} photos` }),
     guests: (count: number) =>
       t.count(count, { one: `${t.number(count)} guest`, other: `${t.number(count)} guests` }),
+    stats: {
+      title: 'Statistics for the event',
+      tile: 'Statistics',
+      loading: 'Loading the statistics…',
+      empty: 'Nothing to count yet. The figures appear as soon as guests join the event.',
+      emptyAction: 'Show the QR code',
+      figureUploads: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} upload received`,
+          other: `${t.number(count)} uploads received`,
+        }),
+      figureGuests: (count: number) =>
+        t.count(count, { one: `${t.number(count)} guest`, other: `${t.number(count)} guests` }),
+      figureHere: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} here now`,
+          other: `${t.number(count)} here now`,
+        }),
+      figurePending: (count: number) =>
+        t.count(count, { one: `${t.number(count)} waiting`, other: `${t.number(count)} waiting` }),
+      timelineTitle: 'Uploads over time',
+      timelineCaption: 'Uploads per hour',
+      hourColumn: 'Hour',
+      uploadsColumn: 'Uploads',
+      timelineEmpty: 'No uploads yet.',
+      peak: (hour: string, count: number) =>
+        `Peak: ${hour}, ${t.count(count, { one: `${t.number(count)} upload`, other: `${t.number(count)} uploads` })}`,
+      statusTitle: 'Uploads by status',
+      statusPublished: 'Published',
+      statusPending: 'Waiting',
+      statusRejected: 'Rejected',
+      statusHidden: 'Hidden',
+      publishedShare: 'Share of uploads published',
+      guestsTitle: 'Guests',
+      guestsJoined: 'Joined',
+      guestsContributors: 'Sent at least one file',
+      guestsRevoked: 'Removed by you',
+      reactionsTitle: 'Reactions',
+      reactionsTotal: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} reaction`,
+          other: `${t.number(count)} reactions`,
+        }),
+      topTitle: 'Who shared the most',
+      topEmpty: 'Nobody has published an upload yet.',
+      topLine: (photos: number, reactions: number) =>
+        `${t.count(photos, { one: `${t.number(photos)} published upload`, other: `${t.number(photos)} published uploads` })} · ${t.count(reactions, { one: `${t.number(reactions)} reaction received`, other: `${t.number(reactions)} reactions received` })}`,
+      anonymous: (guests: number, photos: number) =>
+        `Guests without a first name are grouped: ${t.count(guests, { one: `${t.number(guests)} guest`, other: `${t.number(guests)} guests` })}, ${t.count(photos, { one: `${t.number(photos)} upload`, other: `${t.number(photos)} uploads` })}.`,
+      engagementTitle: 'After the party',
+      engagementNone: 'Not measured yet: no album link opened and no ZIP launched.',
+      albumOpens: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} album link opening`,
+          other: `${t.number(count)} album link openings`,
+        }),
+      zipLaunches: (count: number) =>
+        t.count(count, {
+          one: `${t.number(count)} ZIP launched`,
+          other: `${t.number(count)} ZIPs launched`,
+        }),
+      measuredSince: (date: string) => `Measured since ${date}. Nothing was counted before.`,
+      engagementNote:
+        'An opening is a load of the album page, not a person. A launched ZIP is not necessarily finished. These figures are indicative.',
+      retention:
+        'These figures disappear with the event, when it is deleted or when its retention period ends.',
+    },
     storageUsed: (used: string, total: string) => `${used} of ${total}`,
     settings: 'Settings',
     moderationMode: 'Moderation',
@@ -873,6 +1012,32 @@ export const en: UiText = {
     printQr: 'Print the QR code',
     qrScanPrompt: 'Scan to send your photos.',
     qrAlt: (eventName: string) => `QR code to join ${eventName}`,
+    printKitTitle: 'Table cards and poster',
+    printKitCrumb: 'Cards and poster',
+    printKitIntro:
+      'Print something to put on the tables: the QR code, the backup code and three lines of instructions.',
+    printKitFormat: 'Format',
+    printKitInk: 'QR colour',
+    printInkBlack: 'Black (the safest)',
+    printInkEvent: 'Colour of the event',
+    printFormatA4: 'A4 poster (1 per sheet)',
+    printFormatA5: 'A5 poster (2 per sheet)',
+    printFormatCard: 'A6 table cards (4 per sheet)',
+    printKitLanguage: 'Language of the sheet',
+    printKitLanguageHint: 'This is the language of the evening, not of your screen.',
+    printKitPrint: 'Print',
+    printKitPrinting: 'Updating the code…',
+    printKitHelp:
+      'In the print window, choose A4, scale 100%, no headers or footers. Your browser also offers “Save as PDF” there. Use the Print button: Ctrl+P does not check the code.',
+    printKitCodeChanged:
+      'The code for the evening has changed: the sheet below is up to date. Throw the old ones away.',
+    printKitClosed:
+      'This evening is closed: guests who scan can no longer join. If you reopen it, the same code works again.',
+    printKitDraft: 'Guests will only be able to join once the evening opens.',
+    printKitArchived: 'This event is archived: its QR code no longer leads anywhere.',
+    printKitBack: 'Back to the event',
+    printKitLongLink: 'The link is long, so the QR code will be small. Prefer the poster.',
+    printKitPreview: 'Preview of the sheet',
     storageLabel: 'Photo storage used',
     storage: (used: string) => `${used} used`,
     rotateJoinCodeTitle: 'Change the event code?',
@@ -1037,6 +1202,20 @@ export const en: UiText = {
     shareLinkReplace: 'Replace with a new link',
     shareLinkReplaceHint: 'The current link will stop working at once.',
     shareLinkCreated: 'Here is the link. Copy it now: it will not be shown again.',
+    bestOf: 'Best-of',
+    bestOfHint: 'Your favourite photos, to take home after the party.',
+    bestOfCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} favourite`,
+        other: `${t.number(count)} favourites`,
+      }),
+    bestOfNone: 'No favourites yet. Star your favourite photos in moderation.',
+    bestOfPreselect: 'Pre-select the most liked',
+    bestOfPreselected: (limit: number) =>
+      `The ${t.number(limit)} most liked photos are now favourites. You can remove some or add more.`,
+    bestOfPreselectNothing:
+      'Nothing to add: the most liked photos are already favourites, or nobody has reacted yet.',
+    bestOfDownload: 'Download favourites (ZIP)',
     shareLinkUrl: 'Link address',
     shareLinkCopy: 'Copy the link',
     shareLinkCopied: 'Link copied.',
@@ -1450,6 +1629,7 @@ export const en: UiText = {
     maxRetentionDays: 'Retention after the event ends, in days, at most',
     maxLiveDays: 'Length of an ongoing event, in days, at most',
     clipsAllowed: 'Videos allowed',
+    booksAllowed: 'Photo books (PDF) allowed',
     liveAllowed: 'Opening events allowed',
     renewPeriod: 'Renew the period now',
     renewPeriodHint: 'Resets the counter of events created in the period.',
@@ -1698,7 +1878,16 @@ export const en: UiText = {
     },
   },
 
+  /** The text on the printed sheet, in the language of the evening (spec 02). */
+  printKit: {
+    title: 'Share your photos of the evening',
+    step1: 'Scan the QR code with your phone’s camera.',
+    step2: 'Send your photos.',
+    step3: 'They join the evening’s screen.',
+    fallback: (code: string, address: string) => `No QR code? Type the code ${code} at ${address}.`,
+  },
   titles: {
+    print: 'Table cards and poster',
     join: 'Join the event',
     upload: 'Send photos',
     feed: 'Photos from the evening',
@@ -1718,6 +1907,7 @@ export const en: UiText = {
     event: 'Event',
     moderation: 'Moderation',
     mobileModeration: 'Moderation on a phone',
+    stats: 'Statistics for the event',
     settings: 'Event settings',
     customAmbiance: 'Custom ambiance',
     clientSpace: 'Client space',

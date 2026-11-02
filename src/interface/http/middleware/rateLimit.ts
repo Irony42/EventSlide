@@ -234,6 +234,23 @@ export const reactionGuestLimiter = (perMinute: number): RateLimitRequestHandler
 export const guestWriteLimiter = (perMinute: number): RateLimitRequestHandler =>
   limiter(perMinute, 'rate.limited', (req) => `${clientKey(req)}:${eventKey(req)}`)
 
+/**
+ * What one guest may write in the guestbook per minute, writing and taking back together.
+ *
+ * A constant and not a setting, on purpose (spec 01): there is no variable to document, and the
+ * number is sized by what a person does (a message, a correction, a second thought) with room for
+ * a double tap, while the loop it exists to stop is hundreds a minute.
+ */
+export const GUESTBOOK_WRITES_PER_GUEST_PER_MINUTE = 6
+
+/**
+ * The **second stage** of the guestbook limit, per **guest** and event, after `requireGuest`.
+ * Keyed by the verified guest, like {@link uploadGuestLimiter}; see `guestbookRoutes.ts` for why
+ * the ceiling of three messages does not make it redundant.
+ */
+export const guestbookGuestLimiter = (perMinute: number): RateLimitRequestHandler =>
+  limiter(perMinute, 'rate.limited', guestKey)
+
 // -------------------------------------------------------------- event creation --
 
 /**

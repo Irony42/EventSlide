@@ -37,6 +37,8 @@ export const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   ground: 'image/webp',
   // A host's logo, always re-encoded to WebP (alpha kept) by `setEventLogo`.
   logo: 'image/webp',
+  // The host's highlight reel (spec 08), served only by its own route.
+  reel: 'video/mp4',
 }
 
 export const EXTENSION: Readonly<Record<MediaVariant, string>> = {
@@ -48,6 +50,7 @@ export const EXTENSION: Readonly<Record<MediaVariant, string>> = {
   source: 'bin',
   ground: 'webp',
   logo: 'webp',
+  reel: 'mp4',
 }
 
 /** The characters of the shard directory: the first two of the hash. */

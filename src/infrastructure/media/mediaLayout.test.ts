@@ -40,6 +40,7 @@ describe('mediaObjectPath', () => {
       source: 'application/octet-stream',
       ground: 'image/webp',
       logo: 'image/webp',
+      reel: 'video/mp4',
     })
   })
 

@@ -29,6 +29,8 @@ export interface ClientCeilingsProps {
   readonly maxEventQuotaBytes: number | null
   readonly maxRetentionDays: number | null
   readonly clipsAllowed: boolean
+  /** The photo book (PDF of the album): the client's plan, like `clipsAllowed`. */
+  readonly booksAllowed: boolean
   readonly liveAllowed: boolean
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null
@@ -42,6 +44,7 @@ const UNLIMITED: ClientCeilingsProps = {
   maxEventQuotaBytes: null,
   maxRetentionDays: null,
   clipsAllowed: true,
+  booksAllowed: true,
   liveAllowed: true,
   maxLiveDays: null,
   maxEventsPerPeriod: null,
@@ -146,6 +149,9 @@ export class ClientCeilings {
     if (typeof props.clipsAllowed !== 'boolean') {
       return err(DomainError.invalid('clientCeilings.clipsAllowedInvalid'))
     }
+    if (typeof props.booksAllowed !== 'boolean') {
+      return err(DomainError.invalid('clientCeilings.booksAllowedInvalid'))
+    }
     if (typeof props.liveAllowed !== 'boolean') {
       return err(DomainError.invalid('clientCeilings.liveAllowedInvalid'))
     }
@@ -194,6 +200,10 @@ export class ClientCeilings {
 
   get clipsAllowed(): boolean {
     return this.props.clipsAllowed
+  }
+
+  get booksAllowed(): boolean {
+    return this.props.booksAllowed
   }
 
   get maxLiveDays(): number | null {

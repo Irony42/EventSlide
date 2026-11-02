@@ -111,6 +111,10 @@ export function ModerationPage() {
     selection.moveFocus(1)
   }
 
+  const toggleHighlight = (photoId: string) => {
+    void queue.toggleHighlight(photoId)
+  }
+
   useModerationShortcuts(
     {
       onNext: () => selection.moveFocus(1),
@@ -120,6 +124,9 @@ export function ModerationPage() {
       onHide: () => decideByKey('hide'),
       onUndo: () => {
         void queue.undo()
+      },
+      onHighlight: () => {
+        if (focused !== null) toggleHighlight(focused.id)
       },
       onToggleSelect: () => {
         if (selection.focusedId !== null) selection.toggle(selection.focusedId)
@@ -204,6 +211,7 @@ export function ModerationPage() {
           onSelectToggle={selection.toggle}
           onFocusCard={(photoId) => selection.focus(photoId, { moveDomFocus: false })}
           onDecide={decideOne}
+          onToggleHighlight={toggleHighlight}
           onOpen={openLightbox}
           registerCard={selection.registerCard}
         />
@@ -216,6 +224,7 @@ export function ModerationPage() {
         onPrevious={() => selection.moveFocus(-1, { moveDomFocus: false })}
         onNext={() => selection.moveFocus(1, { moveDomFocus: false })}
         onDecide={decideOne}
+        onToggleHighlight={toggleHighlight}
       />
 
       <ConfirmDialog

@@ -122,6 +122,7 @@ const CEILINGS_FIELDS = {
   maxEventQuotaBytes: field.nullable(field.count),
   maxRetentionDays: field.nullable(field.count),
   clipsAllowed: field.flag,
+  booksAllowed: field.flag,
   liveAllowed: field.flag,
   maxLiveDays: field.nullable(field.count),
   maxEventsPerPeriod: field.nullable(field.count),

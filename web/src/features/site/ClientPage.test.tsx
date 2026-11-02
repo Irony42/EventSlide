@@ -450,6 +450,24 @@ describe('a client’s page: changing its ceilings', () => {
     expect(await screen.findByText(fr.site.ceilingsSaved)).toBeVisible()
   })
 
+  it('sends the photo book switch turned off as false, and shows it on to start with', async () => {
+    const api = withClient(client)
+    await openCeilings(api)
+
+    expect(screen.getByLabelText(fr.site.booksAllowed)).toBeChecked()
+    await userEvent.click(screen.getByLabelText(fr.site.booksAllowed))
+    await userEvent.type(screen.getByLabelText(fr.site.ceilingsReason), 'Disque plein')
+    await save()
+
+    await waitFor(() =>
+      expect(api.siteSetCeilings).toHaveBeenCalledWith(
+        CLIENT_ID,
+        { booksAllowed: false },
+        'Disque plein',
+      ),
+    )
+  })
+
   it('sends a ceiling removed as null and a switch turned off as false', async () => {
     const api = withClient(client)
     await openCeilings(api)

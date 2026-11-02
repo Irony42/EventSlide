@@ -144,6 +144,7 @@ const ceilingsPatchOf = (body: CeilingsBody): ClientCeilingsInput => ({
   ...(body.maxEventQuotaBytes === undefined ? {} : { maxEventQuotaBytes: body.maxEventQuotaBytes }),
   ...(body.maxRetentionDays === undefined ? {} : { maxRetentionDays: body.maxRetentionDays }),
   ...(body.clipsAllowed === undefined ? {} : { clipsAllowed: body.clipsAllowed }),
+  ...(body.booksAllowed === undefined ? {} : { booksAllowed: body.booksAllowed }),
   ...(body.liveAllowed === undefined ? {} : { liveAllowed: body.liveAllowed }),
   ...(body.maxLiveDays === undefined ? {} : { maxLiveDays: body.maxLiveDays }),
   ...(body.maxEventsPerPeriod === undefined ? {} : { maxEventsPerPeriod: body.maxEventsPerPeriod }),
