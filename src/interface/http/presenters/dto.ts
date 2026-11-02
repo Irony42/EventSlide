@@ -1273,6 +1273,34 @@ export type OperatorPasswordResetDto =
 
 // ---------------------------------------------------------------- best-of (spec 08) --
 
+/**
+ * `GET /events/:eventSlug/book` and the `202` of `POST` (spec 04): the event's photo book.
+ * `none` when the host never asked for one. No guest text, no path: the title and subtitle are
+ * the host's own words, `failureCode` and `staleReason` are closed lists.
+ */
+export type AlbumBookDto =
+  | { readonly status: 'none' }
+  | {
+      readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
+      readonly options: {
+        readonly title: string
+        readonly subtitle: string
+        readonly language: string
+        readonly layout: 'one' | 'four'
+        readonly showAuthors: boolean
+        readonly showCaptions: boolean
+      }
+      readonly requestedAt: string
+      readonly doneAt: string | null
+      readonly photoCount: number | null
+      readonly skippedCount: number | null
+      readonly pageCount: number | null
+      readonly byteSize: number | null
+      readonly expiresAt: string | null
+      readonly failureCode: string | null
+      readonly staleReason: string | null
+    }
+
 /** `GET /events/:eventSlug/highlights`: how many favourites can be exported. */
 export interface HighlightsDto {
   readonly count: number

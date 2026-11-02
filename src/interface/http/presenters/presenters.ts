@@ -20,6 +20,7 @@ import type { PendingInvitation } from '../../../application/usecases/clients/li
 import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
+  AlbumBookDto,
   CreatedGuestbookEntryDto,
   GuestbookEntryDto,
   CeilingMeterDto,
@@ -77,6 +78,7 @@ import type {
   WallMissionDto,
   WallResponseDto,
 } from './dto'
+
 import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
@@ -108,6 +110,7 @@ import type {
 } from '../../../application/usecases/gallery/listGalleryPhotos'
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
 import type { EventStats } from '../../../application/usecases/stats/getEventStats'
+import type { AlbumBook } from '../../../domain/book/albumBook'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
@@ -153,6 +156,24 @@ export interface PresenterContext {
 
 const iso = (date: Date): string => date.toISOString()
 const isoOrNull = (date: Date | null): string | null => (date === null ? null : date.toISOString())
+
+/** The photo book as the host's screen reads it (spec 04); `none` when none was ever asked for. */
+export const toAlbumBookDto = (book: AlbumBook | null): AlbumBookDto =>
+  book === null
+    ? { status: 'none' }
+    : {
+        status: book.status,
+        options: { ...book.options },
+        requestedAt: iso(book.requestedAt),
+        doneAt: isoOrNull(book.doneAt),
+        photoCount: book.photoCount,
+        skippedCount: book.skippedCount,
+        pageCount: book.pageCount,
+        byteSize: book.byteSize,
+        expiresAt: isoOrNull(book.expiresAt),
+        failureCode: book.failureCode,
+        staleReason: book.staleReason,
+      }
 
 export const mediaUrl = (slug: string, photoId: string, variant: MediaVariant): string =>
   `/api/events/${encodeURIComponent(slug)}/photos/${encodeURIComponent(photoId)}/${variant}`

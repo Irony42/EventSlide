@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CLIENT_LOCALES, DEFAULT_CLIENT_LOCALE } from '../../../domain/clients/clientLocale'
+import { BOOK_LAYOUTS } from '../../../domain/book/bookLayout'
 import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
@@ -650,6 +651,21 @@ export const wallQuery = z.strictObject({
  */
 export const preselectHighlightsBody = z.strictObject({
   limit: z.number().int().min(1).max(MAX_PRESELECT_LIMIT),
+})
+
+/**
+ * `POST /events/:eventSlug/book` (spec 04): what the host chose in the dialog. Strict: a field
+ * this route does not know is a 400, not silently dropped. The title and subtitle are measured and
+ * cleaned by the domain (`parseBookTitle`), so a length decided here could drift from it; the
+ * schema only bounds what a body may carry.
+ */
+export const requestBookBody = z.strictObject({
+  title: z.string().max(400),
+  subtitle: z.string().max(400).optional(),
+  language: z.enum(EVENT_LANGUAGES).optional(),
+  layout: z.enum(BOOK_LAYOUTS),
+  showAuthors: z.boolean(),
+  showCaptions: z.boolean(),
 })
 
 export const topPhotosQuery = z.strictObject({

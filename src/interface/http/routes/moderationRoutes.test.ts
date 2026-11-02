@@ -204,6 +204,18 @@ const usecasesFor = (
     getTopPhotos: makeGetTopPhotos({ events, photos, reactions }),
     setPhotoHighlight: makeSetPhotoHighlight({ events, photos, clock }),
     preselectHighlights: makePreselectHighlights({ events, photos, reactions, clock }),
+    requestAlbumBook: async () => {
+      throw new Error('requestAlbumBook is not wired in this suite')
+    },
+    getAlbumBook: async () => {
+      throw new Error('getAlbumBook is not wired in this suite')
+    },
+    downloadAlbumBook: async () => {
+      throw new Error('downloadAlbumBook is not wired in this suite')
+    },
+    deleteAlbumBook: async () => {
+      throw new Error('deleteAlbumBook is not wired in this suite')
+    },
     getHighlights: makeGetHighlights({ events, photos }),
     exportHighlights: makeExportHighlights({
       events,
