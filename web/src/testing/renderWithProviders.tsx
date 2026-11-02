@@ -40,6 +40,7 @@ import type {
   SessionResponse,
   ShareLinkDto,
   WallItemDto,
+  WallGuestbookMessageDto,
   WallMissionDto,
   WallResponse,
 } from '../lib/api/dto'
@@ -158,6 +159,16 @@ export const aShareLink = (overrides: Partial<ShareLinkDto> = {}): ShareLinkDto 
 })
 
 /** One of the host's prompts, as the room sees it. Unanswered by default. */
+export const aWallGuestbookMessage = (
+  overrides: Partial<WallGuestbookMessageDto> = {},
+): WallGuestbookMessageDto => ({
+  id: 'entry-1',
+  text: 'Une soirée merveilleuse',
+  authorName: 'Léa',
+  displayMs: 8_000,
+  ...overrides,
+})
+
 export const aWallMission = (overrides: Partial<WallMissionDto> = {}): WallMissionDto => ({
   id: 'mission-1',
   prompt: 'un selfie avec les mariés',

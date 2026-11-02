@@ -1040,6 +1040,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       guests: adapters.guests,
       missions: adapters.missions,
+      guestbook: adapters.guestbook,
     }),
 
     // -------------------------------------------------------------- guestbook --

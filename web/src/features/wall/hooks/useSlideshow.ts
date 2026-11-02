@@ -29,6 +29,12 @@ export interface SlideshowOptions {
    * that arrives on a page still loading is just the list the wall opened on.
    */
   readonly loaded: boolean
+  /**
+   * Something covers the photographs (a guestbook card, spec 01): the slide timer waits until it
+   * is gone, so no photograph goes by unseen underneath. Not a pause: the wall does not say
+   * "paused", and the host's own pause and resume are untouched.
+   */
+  readonly hold?: boolean
 }
 
 /** A photo the wall has put on screen lately, and which lane it came from. */
@@ -132,7 +138,12 @@ const asCandidate = (item: WallItemDto): SlideCandidate => ({
 
 const present = (item: WallItemDto | undefined): item is WallItemDto => item !== undefined
 
-export const useSlideshow = ({ items, intervalMs, loaded }: SlideshowOptions): Slideshow => {
+export const useSlideshow = ({
+  items,
+  intervalMs,
+  loaded,
+  hold = false,
+}: SlideshowOptions): Slideshow => {
   const [state, setState] = useState<State>(INITIAL)
   const [manuallyPaused, setManuallyPaused] = useState(false)
 
@@ -251,13 +262,13 @@ export const useSlideshow = ({ items, intervalMs, loaded }: SlideshowOptions): S
   const currentId = current?.id ?? null
 
   useEffect(() => {
-    if (paused || !canAdvance || currentId === null) return
+    if (paused || hold || !canAdvance || currentId === null) return
 
     const timer = window.setTimeout(() => advanceRef.current(), effectiveIntervalMs)
     // Cleared on every re-run and on unmount. An eight-hour run that leaked one timer
     // per slide would end the evening with three thousand of them.
     return () => window.clearTimeout(timer)
-  }, [paused, canAdvance, effectiveIntervalMs, currentId])
+  }, [paused, hold, canAdvance, effectiveIntervalMs, currentId])
 
   const pause = useCallback(() => setManuallyPaused(true), [])
   const resume = useCallback(() => setManuallyPaused(false), [])
@@ -271,7 +282,7 @@ export const useSlideshow = ({ items, intervalMs, loaded }: SlideshowOptions): S
     // reason: a layout timing itself off the server's number would drift apart from the
     // wall under the e2e hooks, and one that ignored `paused` would go on animating
     // after the host had stopped the show.
-    intervalMs: !paused && canAdvance ? effectiveIntervalMs : 0,
+    intervalMs: !paused && !hold && canAdvance ? effectiveIntervalMs : 0,
     generation: state.generation,
     recent,
     upcoming,

@@ -140,6 +140,32 @@ const sameMissions = (kept: WallResponse, fresh: WallResponse): boolean => {
 }
 
 /**
+ * The guestbook cards, compared message by message (spec 01).
+ *
+ * Like the missions, and for the same reason: `revision` fingerprints the photographs' ids, so
+ * a message published or removed moves nothing it can see. Folding messages into `revision` was
+ * rejected because it would restart the order of the slides at every message. The text and the
+ * signature are what the room reads, `displayMs` is how long, and `everyNth` is how often.
+ */
+const sameGuestbook = (kept: WallResponse, fresh: WallResponse): boolean => {
+  if (kept.guestbook?.everyNth !== fresh.guestbook?.everyNth) return false
+  const before = kept.guestbook?.messages ?? []
+  const after = fresh.guestbook?.messages ?? []
+  if (before.length !== after.length) return false
+
+  return before.every((message, index) => {
+    const now = after[index]
+    return (
+      now !== undefined &&
+      message.id === now.id &&
+      message.text === now.text &&
+      message.authorName === now.authorName &&
+      message.displayMs === now.displayMs
+    )
+  })
+}
+
+/**
  * Everything on a wall response that is **not** the playlist, compared.
  *
  * `revision` fingerprints `items` and nothing else, which is exactly right for deciding
@@ -192,7 +218,8 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.brand?.welcomeMessage === fresh.brand?.welcomeMessage &&
   // Same for the logo: it is drawn on that empty wall and moves no photograph either.
   kept.brand?.logoUrl === fresh.brand?.logoUrl &&
-  sameMissions(kept, fresh)
+  sameMissions(kept, fresh) &&
+  sameGuestbook(kept, fresh)
 
 /**
  * The wall's playlist, kept current over SSE.

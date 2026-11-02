@@ -859,6 +859,9 @@ export const it: UiText = {
     layoutOrder: (names: readonly string[]) => `Disposizioni, in ordine: ${names.join(', ')}.`,
     videoBy: (name: string) => `Video inviato da ${name}`,
     videoByAnonymous: 'Video inviato da un invitato',
+
+    /** The signature under a guestbook card (spec 01) when the guest gave no name. */
+    guestbookAnonymous: 'Un invitato',
     missionsTitle: 'Missioni',
     missionDone: 'Fatto',
     missionGuests: (count: number) =>

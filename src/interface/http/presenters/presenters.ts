@@ -77,6 +77,8 @@ import type {
   UploadOutcomeDto,
   UploadResponseDto,
   WallItemDto,
+  WallGuestbookDto,
+  WallGuestbookMessageDto,
   WallMissionDto,
   WallResponseDto,
 } from './dto'
@@ -93,6 +95,7 @@ import type {
 } from '../../../application/usecases/photos/uploadPhotos'
 import type { PhotoReactionsView } from '../../../application/usecases/reactions/getPhotoReactions'
 import type {
+  WallGuestbook,
   WallMissionStanding,
   WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
@@ -840,6 +843,8 @@ export const toWallResponseDto = (
     layout: view.layout,
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
+    // Absent rather than empty: an older wall and a room with nothing to read look alike.
+    ...(view.guestbook === null ? {} : { guestbook: toWallGuestbookDto(view.guestbook) }),
     // Unlike the layout, the theme *is* a property of the event rather than of the
     // screen: two projectors in the same room must agree about the colour even when one
     // of them is showing a mosaic and the other a spotlight.
@@ -931,6 +936,17 @@ export const toGuestMissionDto = (row: ChecklistItem): GuestMissionDto => ({
  * wall renders a per-guest prompt as a number — a tick would be wrong for something two
  * hundred people can each answer — and a once-for-the-evening prompt as a tick.
  */
+/** What the room reads of the guestbook: the use case's view is already free of guest ids. */
+export const toWallGuestbookDto = (book: WallGuestbook): WallGuestbookDto => ({
+  everyNth: book.everyNth,
+  messages: book.messages.map((message): WallGuestbookMessageDto => ({
+    id: message.id,
+    text: message.text,
+    authorName: message.authorName,
+    displayMs: message.displayMs,
+  })),
+})
+
 export const toWallMissionDto = (row: WallMissionStanding): WallMissionDto => ({
   id: row.mission.id,
   prompt: row.mission.prompt.value,

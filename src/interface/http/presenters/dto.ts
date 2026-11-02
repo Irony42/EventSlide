@@ -381,6 +381,12 @@ export interface WallResponseDto {
    */
   readonly missions: readonly WallMissionDto[]
   /**
+   * The guestbook, for the room (spec 01): present only when the host switched it on and its
+   * messages for the wall, and at least one message is published. Never carries a guest id.
+   * The rhythm and each card's duration are the server's, and `revision` does not cover it.
+   */
+  readonly guestbook?: WallGuestbookDto
+  /**
    * What the room is meant to look like.
    *
    * On this response rather than on a second request, because the wall must not paint a
@@ -837,6 +843,20 @@ export interface GuestMissionListResponseDto {
  * completion for three seconds and then stop — see `WallMissionStanding` for why that
  * was declined.
  */
+export interface WallGuestbookMessageDto {
+  readonly id: string
+  readonly text: string
+  /** `null` for a guest who gave no name or whose row is gone. */
+  readonly authorName: string | null
+  readonly displayMs: number
+}
+
+export interface WallGuestbookDto {
+  /** A message card comes up after this many photographs. */
+  readonly everyNth: number
+  readonly messages: readonly WallGuestbookMessageDto[]
+}
+
 export interface WallMissionDto {
   readonly id: string
   readonly prompt: string

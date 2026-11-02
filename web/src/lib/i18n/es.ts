@@ -863,6 +863,9 @@ export const es: UiText = {
     videoBy: (name: string) => `Vídeo enviado por ${name}`,
     videoByAnonymous: 'Vídeo enviado por un invitado',
 
+    /** The signature under a guestbook card (spec 01) when the guest gave no name. */
+    guestbookAnonymous: 'Un invitado',
+
     missionsTitle: 'Misiones',
     missionDone: 'Hecho',
     missionGuests: (count: number) =>
