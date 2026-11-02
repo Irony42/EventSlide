@@ -1051,6 +1051,9 @@ export const it: UiText = {
     printKitInk: 'Colore del codice QR',
     printInkBlack: 'Nero (il più sicuro)',
     printInkEvent: 'Colore dell’evento',
+    printKitLogo: 'Logo dell’evento al centro del QR',
+    printKitLogoHint:
+      'Il codice QR passa alla massima correzione degli errori: resta leggibile, ma è un po’ più denso.',
     printFormatA4: 'Locandina A4 (1 per foglio)',
     printFormatA5: 'Locandina A5 (2 per foglio)',
     printFormatCard: 'Segnaposto A6 (4 per foglio)',

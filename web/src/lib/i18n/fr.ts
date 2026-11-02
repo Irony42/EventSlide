@@ -1225,6 +1225,9 @@ export const fr = {
     printKitInk: 'Couleur du QR',
     printInkBlack: 'Noir (le plus sûr)',
     printInkEvent: 'Couleur de l’évènement',
+    printKitLogo: 'Logo de l’évènement au centre du QR',
+    printKitLogoHint:
+      'Le QR code passe en correction d’erreurs maximale : il reste lisible, mais il est un peu plus dense.',
     printFormatA4: 'Affiche A4 (1 par feuille)',
     printFormatA5: 'Affiche A5 (2 par feuille)',
     printFormatCard: 'Cartes de table A6 (4 par feuille)',

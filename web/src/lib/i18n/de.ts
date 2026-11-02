@@ -1077,6 +1077,9 @@ export const de: UiText = {
     printKitInk: 'Farbe des QR-Codes',
     printInkBlack: 'Schwarz (am sichersten)',
     printInkEvent: 'Farbe der Veranstaltung',
+    printKitLogo: 'Logo der Veranstaltung in der Mitte des QR-Codes',
+    printKitLogoHint:
+      'Der QR-Code nutzt die höchste Fehlerkorrektur: Er bleibt lesbar, wird aber etwas dichter.',
     printFormatA4: 'A4-Plakat (1 pro Blatt)',
     printFormatA5: 'A5-Plakat (2 pro Blatt)',
     printFormatCard: 'A6-Tischkarten (4 pro Blatt)',

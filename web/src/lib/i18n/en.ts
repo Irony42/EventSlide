@@ -1020,6 +1020,9 @@ export const en: UiText = {
     printKitInk: 'QR colour',
     printInkBlack: 'Black (the safest)',
     printInkEvent: 'Colour of the event',
+    printKitLogo: 'Event logo at the centre of the QR',
+    printKitLogoHint:
+      'The QR code switches to the highest error correction: it stays readable, but a little denser.',
     printFormatA4: 'A4 poster (1 per sheet)',
     printFormatA5: 'A5 poster (2 per sheet)',
     printFormatCard: 'A6 table cards (4 per sheet)',
