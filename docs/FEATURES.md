@@ -28,6 +28,10 @@ The long version of the [README](../README.md#what-it-does): every feature, by w
   again if you change one of those settings mid-evening.
 - **Your favourites, in one ZIP.** Star the best photos in the moderation console (or pre-select the
   most liked), then download just those from the event page.
+- **A photo book as a PDF.** From the event page, a cover, your published photos one or four to
+  a page, first names and captions if you wish, and a closing page, in your language. It is
+  kept for a week; removing a photo afterwards retires it. Non-Latin names are embedded, but not
+  right-to-left scripts or emojis, which are left out rather than drawn as boxes.
 - **The album is yours afterwards.** One ZIP, full resolution, and an automatic purge
   when you choose one.
 - **And your guests', with one link.** The morning after, make a shared gallery link on

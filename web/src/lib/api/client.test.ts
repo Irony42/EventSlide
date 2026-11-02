@@ -403,6 +403,31 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.highlights(SLUG),
   },
   {
+    name: 'albumBook',
+    verb: 'get',
+    path: `/api/events/${SLUG}/book`,
+    invoke: (client) => client.albumBook(SLUG),
+  },
+  {
+    name: 'requestAlbumBook',
+    verb: 'post',
+    path: `/api/events/${SLUG}/book`,
+    invoke: (client) =>
+      client.requestAlbumBook(SLUG, {
+        title: 'Mariage',
+        subtitle: '',
+        layout: 'four',
+        showAuthors: true,
+        showCaptions: false,
+      }),
+  },
+  {
+    name: 'deleteAlbumBook',
+    verb: 'del',
+    path: `/api/events/${SLUG}/book`,
+    invoke: (client) => client.deleteAlbumBook(SLUG),
+  },
+  {
     name: 'requestReel',
     verb: 'post',
     path: `/api/events/${SLUG}/highlights/reel`,
@@ -738,6 +763,7 @@ describe('every endpoint addresses the documented method and path', () => {
     // The link builders return a string rather than making a request, so they are
     // pinned in their own block below instead.
     expect(missing).toEqual([
+      'albumBookUrl',
       'albumUrl',
       'bestOfUrl',
       'moderationStreamUrl',
@@ -1163,6 +1189,29 @@ describe('links the app builds rather than requests', () => {
     expect(subject().bestOfUrl(SLUG)).toBe(`/api/events/${SLUG}/best-of.zip`)
   })
 
+  it('posts the book form in a body, never in the address', async () => {
+    await subject().requestAlbumBook(SLUG, {
+      title: 'Mariage',
+      subtitle: '',
+      layout: 'four',
+      showAuthors: true,
+      showCaptions: false,
+    })
+
+    expect(only().body).toEqual({
+      title: 'Mariage',
+      subtitle: '',
+      layout: 'four',
+      showAuthors: true,
+      showCaptions: false,
+    })
+    expect(only().path).toBe(`/api/events/${SLUG}/book`)
+  })
+
+  it('points the photo book download at the documented PDF endpoint', () => {
+    expect(subject().albumBookUrl(SLUG)).toBe(`/api/events/${SLUG}/book.pdf`)
+  })
+
   it('points the montage player at the documented MP4 endpoint', () => {
     expect(subject().reelUrl(SLUG)).toBe(`/api/events/${SLUG}/highlights/reel.mp4`)
   })
@@ -1181,12 +1230,16 @@ describe('links the app builds rather than requests', () => {
     expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
   })
 
-  it.each(['albumUrl', 'bestOfUrl', 'reelUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
-    'escapes a slug in %s too',
-    (method) => {
-      expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')
-    },
-  )
+  it.each([
+    'albumUrl',
+    'albumBookUrl',
+    'bestOfUrl',
+    'reelUrl',
+    'streamUrl',
+    'moderationStreamUrl',
+  ] as const)('escapes a slug in %s too', (method) => {
+    expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')
+  })
 })
 
 describe('the session answer', () => {

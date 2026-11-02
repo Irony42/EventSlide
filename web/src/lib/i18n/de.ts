@@ -441,6 +441,16 @@ export const de: UiText = {
     'photo.illegalTransition': 'Diese Aktion ist bei diesem Foto nicht möglich.',
     'highlight.notPublished': 'Nur ein veröffentlichtes Foto kann ein Favorit sein.',
     'highlight.empty': 'Noch keine Favoriten.',
+    'book.alreadyRunning': 'Ein Fotobuch wird bereits vorbereitet.',
+    'book.empty': 'Noch kein veröffentlichtes Foto: Es gibt kein Fotobuch zu erstellen.',
+    'book.dailyLimitReached':
+      'Sie haben das Tageslimit für Fotobücher erreicht. Versuchen Sie es morgen wieder.',
+    'book.unavailable': 'Fotobücher sind im Moment nicht verfügbar.',
+    'book.notAllowed': 'Ihr Bereich enthält keine Fotobücher.',
+    'book.notFound': 'Dieses Fotobuch ist nicht mehr verfügbar. Erstellen Sie es neu.',
+    'book.titleEmpty': 'Geben Sie dem Fotobuch einen Titel.',
+    'book.titleTooLong': 'Dieser Titel ist zu lang.',
+    'book.subtitleTooLong': 'Dieser Untertitel ist zu lang.',
     'reel.notEnoughPhotos': 'Für ein Video braucht es mindestens drei veröffentlichte Favoriten.',
     'reel.tooManyPhotos': 'Zu viele Favoriten für ein Video: Entfernen Sie einige.',
     'reel.alreadyRunning': 'Ein Video wird bereits erstellt.',
@@ -1294,6 +1304,31 @@ export const de: UiText = {
     bestOfPreselectNothing:
       'Nichts hinzuzufügen: Die beliebtesten Fotos sind bereits Favoriten, oder noch niemand hat reagiert.',
     bestOfDownload: 'Favoriten herunterladen (ZIP)',
+    // Spec 04: the photo book (a PDF of the published album) on the event page.
+    book: 'Fotobuch',
+    bookHint: 'Ein PDF Ihrer veröffentlichten Fotos zum Aufbewahren oder Drucken.',
+    bookTitle: 'Titel',
+    bookSubtitle: 'Untertitel',
+    bookLayout: 'Seitenaufteilung',
+    bookLayoutOne: 'Ein Foto pro Seite',
+    bookLayoutFour: 'Vier Fotos pro Seite',
+    bookShowAuthors: 'Vornamen des Gasts unter jedem Foto anzeigen',
+    bookShowCaptions: 'Bildunterschriften anzeigen',
+    bookCreate: 'Fotobuch erstellen',
+    bookRebuild: 'Fotobuch neu erstellen',
+    bookWorking:
+      'Ihr Fotobuch wird vorbereitet. Sie können diese Seite verlassen, es ist in wenigen Minuten fertig.',
+    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
+      `Ihr Fotobuch ist fertig: ${t.count(photos, { one: `${t.number(photos)} Foto`, other: `${t.number(photos)} Fotos` })}, ${t.count(pages, { one: `${t.number(pages)} Seite`, other: `${t.number(pages)} Seiten` })}, ${size}.${until === null ? '' : ` Verfügbar bis ${until}.`}`,
+    bookDownload: 'Fotobuch herunterladen (PDF)',
+    bookDelete: 'Fotobuch löschen',
+    bookDeleteTitle: 'Fotobuch löschen?',
+    bookDeleteHint:
+      'Die Datei wird vom Server gelöscht. Sie können ein neues erstellen, höchstens drei pro Tag.',
+    bookStale:
+      'Seitdem wurde ein Foto entfernt oder eine Bildunterschrift geändert: Dieses Fotobuch ist nicht mehr verfügbar. Erstellen Sie es neu, damit es aktuell ist.',
+    bookFailed: 'Das Fotobuch konnte nicht erstellt werden. Versuchen Sie es gleich noch einmal.',
+    bookFailedTooLarge: 'Das Album ist zu groß für ein einzelnes Fotobuch.',
     // Spec 08, step 2: the highlight video.
     reelTitle: 'Highlight-Video',
     reelHint: 'Ein Diashow-Video Ihrer Favoriten, das älteste zuerst.',

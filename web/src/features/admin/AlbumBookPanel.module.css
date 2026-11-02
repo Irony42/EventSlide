@@ -1,0 +1,38 @@
+.status {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.status:empty {
+  display: none;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* A link to a streamed file, with a target a thumb can hit; full width on a phone. */
+.download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding-inline: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 30rem) {
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
