@@ -627,6 +627,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       events: adapters.events,
       memberships: adapters.memberships,
       media: adapters.media,
+      bookFiles: adapters.bookFiles,
     }),
     // Built here, with the others, since the route module composed them from `deps` until now
     // (HTTP-M-05): a logger, an audit line or a clock added to the rest reaches these three too, and a
@@ -644,6 +645,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     purgeExpiredEvents: makePurgeExpiredEvents({
       events: adapters.events,
       media: adapters.media,
+      bookFiles: adapters.bookFiles,
       clock: adapters.clock,
       capNoticeDays: policy.retention.capNoticeDays,
     }),

@@ -1,6 +1,7 @@
 import type { EventId } from '../../../domain/shared/ids'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { BookFileStore } from '../../ports/bookFileStore'
 import type { MediaStore } from '../../ports/mediaStore'
 
 /**
@@ -32,6 +33,8 @@ export interface PurgeExpiredEventsDeps {
    * retention ceiling was lowered; on a box with no clients it is read and changes nothing.
    */
   readonly capNoticeDays: number
+  /** The photo book's PDF, outside the event's folder (spec 04): deleted explicitly. */
+  readonly bookFiles?: Pick<BookFileStore, 'delete'>
 }
 
 /**
@@ -43,7 +46,13 @@ export interface PurgeExpiredEventsDeps {
 export type PurgeExpiredEvents = () => Promise<PurgeExpiredEventsReport>
 
 export const makePurgeExpiredEvents =
-  ({ events, media, clock, capNoticeDays }: PurgeExpiredEventsDeps): PurgeExpiredEvents =>
+  ({
+    events,
+    media,
+    clock,
+    capNoticeDays,
+    bookFiles,
+  }: PurgeExpiredEventsDeps): PurgeExpiredEvents =>
   async () => {
     const due = await events.listDueForPurge(clock.now(), { capNoticeDays })
 
@@ -62,6 +71,7 @@ export const makePurgeExpiredEvents =
         // happened since. A failure of the second step leaves bytes with no row, which
         // `sweepOrphanedMedia` collects once they are old enough; it is reported as failed.
         if (!(await events.deleteUnlessHeld(event.id))) continue
+        await bookFiles?.delete(event.id).catch(() => undefined)
         try {
           await media.deleteEvent(event.id)
         } catch {
