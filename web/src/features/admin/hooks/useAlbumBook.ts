@@ -2,7 +2,8 @@ import { useCallback, useEffect } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
-import type { AlbumBookDto, RequestBookBody } from '../../../lib/api/dto'
+import type { AlbumBookInput } from '../../../lib/api/client'
+import type { AlbumBookDto } from '../../../lib/api/dto'
 import { useAction, type ActionState } from './useAction'
 import { useRevalidateWhenVisible } from './useRevalidateWhenVisible'
 
@@ -54,10 +55,10 @@ export const useAlbumBook = (slug: string): LoaderState<AlbumBookRead> => {
   return state
 }
 
-export const useRequestAlbumBook = (): ActionState<[string, RequestBookBody], AlbumBookDto> => {
+export const useRequestAlbumBook = (): ActionState<[string, AlbumBookInput], AlbumBookDto> => {
   const api = useApi()
   return useAction(
-    useCallback((slug: string, body: RequestBookBody) => api.requestAlbumBook(slug, body), [api]),
+    useCallback((slug: string, body: AlbumBookInput) => api.requestAlbumBook(slug, body), [api]),
   )
 }
 

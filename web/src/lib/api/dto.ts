@@ -499,15 +499,6 @@ export type AlbumBookDto =
       readonly staleReason: string | null
     }
 
-/** What the host chose in the book form. */
-export interface RequestBookBody {
-  readonly title: string
-  readonly subtitle: string
-  readonly layout: 'one' | 'four'
-  readonly showAuthors: boolean
-  readonly showCaptions: boolean
-}
-
 /** The best-of panel's read: how many favourites can be exported (spec 08). */
 export interface HighlightsDto {
   readonly count: number

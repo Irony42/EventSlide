@@ -32,7 +32,6 @@ import type {
   MissionScope,
   AlbumBookDto,
   HighlightsDto,
-  RequestBookBody,
   ReelDto,
   ModerationDecision,
   ModerationQueueResponse,
@@ -226,6 +225,15 @@ export interface ShareLinkInput {
  * the language the invitation is mailed in. No password and no name — the person chooses
  * both when they accept (roadmap §10.3).
  */
+/** What the host chose in the book form. */
+export interface AlbumBookInput {
+  readonly title: string
+  readonly subtitle: string
+  readonly layout: 'one' | 'four'
+  readonly showAuthors: boolean
+  readonly showCaptions: boolean
+}
+
 export interface ModeratorInvitationInput {
   readonly email: string
   readonly locale: Locale
@@ -766,7 +774,7 @@ export const createApi = (transport: Transport) => ({
   albumBook: (slug: string, signal?: AbortSignal): Promise<AlbumBookDto> =>
     transport.get(`/api/events/${encode(slug)}/book`, undefined, signal),
 
-  requestAlbumBook: (slug: string, body: RequestBookBody): Promise<AlbumBookDto> =>
+  requestAlbumBook: (slug: string, body: AlbumBookInput): Promise<AlbumBookDto> =>
     transport.post(`/api/events/${encode(slug)}/book`, body),
 
   deleteAlbumBook: (slug: string): Promise<void> =>
