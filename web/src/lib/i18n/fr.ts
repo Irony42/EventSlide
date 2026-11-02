@@ -1050,7 +1050,7 @@ export const fr = {
      * arriving first.
      */
     moderationAutoWarning:
-      'Les photos et les vidéos apparaîtront à l’écran sans validation. À réserver aux évènements entre proches.',
+      'Les photos, les vidéos et les messages du livre d’or apparaîtront à l’écran sans validation. À réserver aux évènements entre proches.',
     allowCaptions: 'Autoriser les légendes',
     allowReactions: 'Autoriser les réactions',
     /**
@@ -1069,6 +1069,12 @@ export const fr = {
     allowClips: 'Autoriser les vidéos',
     allowClipsHint:
       'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Quand la case est décochée, les vidéos sont refusées : parce que vous l’avez décochée, parce que le modèle choisi à la création l’a réglé ainsi, ou parce que l’évènement est antérieur à cette fonctionnalité. Cochez-la pour les autoriser.',
+    allowGuestbook: 'Ouvrir le livre d’or',
+    allowGuestbookHint:
+      'Les invités laissent un court message. Décoché : le livre d’or est fermé, les messages déjà écrits sont conservés.',
+    guestbookOnWall: 'Afficher les messages sur l’écran de la salle',
+    guestbookOnWallHint:
+      'Décoché : les messages publiés restent dans le livre d’or mais n’apparaissent pas à l’écran.',
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
 
     /* ---- The language the room's screen speaks (roadmap 1.5). ---- */
@@ -1531,6 +1537,27 @@ export const fr = {
     customKept:
       'Votre choix est conservé tel que vous l’avez laissé : modifiez-le, puis enregistrez à nouveau.',
     customSaved: 'Votre ambiance est enregistrée.',
+  },
+
+  /** The guestbook, host side (spec 01). What guests write is never translated. */
+  guestbookHost: {
+    title: 'Livre d’or',
+    hint: 'Les mots laissés par vos invités. Ils s’affichent à l’écran selon vos réglages.',
+    empty: 'Aucun message pour l’instant.',
+    anonymous: 'Invité sans nom',
+    pending: (count: number) =>
+      t.count(count, {
+        one: '1 en attente',
+        other: `${t.number(count)} en attente`,
+      }),
+    statusPending: 'En attente',
+    statusPublished: 'À l’écran',
+    statusRejected: 'Non retenu',
+    statusHidden: 'Retiré de l’écran',
+    copyId: 'Copier l’identifiant',
+    idCopied: 'Identifiant copié.',
+    copyFailed: 'Copie impossible : sélectionnez l’identifiant à la main.',
+    decided: 'Décision enregistrée.',
   },
 
   auth: {

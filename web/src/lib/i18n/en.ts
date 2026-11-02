@@ -913,12 +913,18 @@ export const en: UiText = {
     moderationManual: 'Approve every photo',
     moderationAuto: 'Publish automatically',
     moderationAutoWarning:
-      'Photos and videos will appear on the screen with nobody having approved them. Keep this for events among people you know well.',
+      'Photos, videos and guestbook messages will appear on the screen with nobody having approved them. Keep this for events among people you know well.',
     allowCaptions: 'Allow captions',
     allowReactions: 'Allow reactions',
     allowClips: 'Allow videos',
     allowClipsHint:
       'Guests can send short videos as well as photos. When the box is unticked, videos are refused: because you unticked it, because the template chosen when the event was created set it that way, or because the event is older than this feature. Tick it to allow them.',
+    allowGuestbook: 'Open the guestbook',
+    allowGuestbookHint:
+      'Guests leave a short message. Unticked: the guestbook is closed; messages already written are kept.',
+    guestbookOnWall: 'Show messages on the room screen',
+    guestbookOnWallHint:
+      'Unticked: published messages stay in the guestbook but do not appear on the screen.',
     allowGuestSelfDelete: 'Allow guests to delete their photos',
 
     wallLanguage: 'Language of the screen in the room',
@@ -1273,6 +1279,27 @@ export const en: UiText = {
     customPreviewAuthor: 'Lea',
     customKept: 'Your choice is kept as you left it: change it, then save again.',
     customSaved: 'Your ambiance is saved.',
+  },
+
+  /** The guestbook, host side (spec 01). What guests write is never translated. */
+  guestbookHost: {
+    title: 'Guestbook',
+    hint: 'The messages your guests leave. They reach the screen according to your settings.',
+    empty: 'No messages yet.',
+    anonymous: 'Guest with no name',
+    pending: (count: number) =>
+      t.count(count, {
+        one: '1 waiting',
+        other: `${t.number(count)} waiting`,
+      }),
+    statusPending: 'Waiting',
+    statusPublished: 'On screen',
+    statusRejected: 'Not kept',
+    statusHidden: 'Taken off screen',
+    copyId: 'Copy the identifier',
+    idCopied: 'Identifier copied.',
+    copyFailed: 'Could not copy: select the identifier by hand.',
+    decided: 'Decision saved.',
   },
 
   auth: {

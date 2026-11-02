@@ -378,6 +378,8 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   allowCaptions: true,
   allowReactions: true,
   allowClips: true,
+  allowGuestbook: true,
+  guestbookOnWall: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 300,
   retentionDays: null,

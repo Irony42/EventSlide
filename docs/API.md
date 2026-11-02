@@ -1715,6 +1715,27 @@ Every change to the guestbook (a message written, removed, erased with its guest
 `{ "type": "guestbook.changed" }` signal on the event's stream: an invalidation without data, like
 `mission.changed`, that makes the host's panel and the wall re-read.
 
+### `GET /api/events/:slug/guestbook`
+
+The host's reading of the guestbook. **Any moderator** of the event (a moderator of another event, a guest and an
+anonymous caller are refused like every moderator route). Query: `limit` (default 500, at most 500). Not paged: a
+book holds 500 messages at most.
+
+**200** — `{ "items": [...], "pendingCount": 2 }`. Items are ordered **pending first**, then newest first; each is
+`{ id, text, authorName, status, createdAt, allowedDecisions }`. `authorName` is `null` when the guest gave none or
+their row is gone. `allowedDecisions` is the status machine's answer for this message (`publish`, `hide`,
+`reject`): the panel offers those buttons and works out nothing. `pendingCount` is the whole book's, not the page's.
+A message the operator took down is not listed. `Cache-Control: no-store`.
+
+### `PATCH /api/events/:slug/guestbook/:entryId/status`
+
+Decide on a message. Any moderator. Body `{ "decision": "publish" | "hide" | "reject" }`, the photograph's vocabulary
+and the photograph's transitions.
+
+**204**. **Errors** — `404 guestbook.notFound` (another event's id included); the status machine's conflict for a
+move it does not allow; `409 event.notModeratable` (an archived event); `400 request.invalid`. One
+`guestbook.changed` signal on success.
+
 ### `GET /api/events/:slug/privacy-notice`
 
 The privacy notice in force at this event, and whether **this device** has read it

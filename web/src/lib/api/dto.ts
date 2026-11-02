@@ -523,9 +523,9 @@ export interface EventSettingsDto {
    * exactly the events it exists for.
    */
   readonly allowClips: boolean
-  /** Optional until the host panel reads it (spec 01): an older server does not send it. */
-  readonly allowGuestbook?: boolean
-  readonly guestbookOnWall?: boolean
+  /** The guestbook (spec 01): open for guests, and whether its published messages reach the wall. */
+  readonly allowGuestbook: boolean
+  readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

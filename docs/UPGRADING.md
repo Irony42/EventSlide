@@ -680,7 +680,10 @@ people on the night.
   archive.
 - **Two new event settings, `allowGuestbook` and `guestbookOnWall`.** An event created before this version reads
   the first as **off** and the second as **on**: an upgrade opens no free-text channel onto a room whose host was
-  never asked. Nothing changes for an existing event until its host switches the guestbook on.
+  never asked. Nothing changes for an existing event until its host switches the guestbook on. **A new event, on
+  the other hand, is created with the guestbook open** (and, in manual moderation, every message waits for the
+  host): a host who does not want one unticks the box on the settings page. The host's event page gains a
+  guestbook panel, where messages are read and decided on like photographs.
 - **Additions to existing responses** (all optional for a client, none removed): `allowGuestbook` and
   `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
   settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`. A new `guestbook.changed` signal

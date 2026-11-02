@@ -21,6 +21,7 @@ import { LifecycleConfirmDialog } from './components/LifecycleConfirmDialog'
 import { StorageMeter } from './components/StorageMeter'
 import { SupportCard } from './components/SupportCard'
 import { GuestListPanel } from './GuestListPanel'
+import { GuestbookPanel } from './GuestbookPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
@@ -274,6 +275,10 @@ export function EventPage() {
             host sets the prompts up before the evening rather than during it (roadmap
             §2.1). A moderator may read the list — `GET` allows it — but a panel whose
             every affordance is refused is worse than no panel. */}
+        {/* Any moderator: deciding on a message is moderation, like deciding on a photo (spec 01). */}
+        {event.settings.allowGuestbook ? (
+          <GuestbookPanel slug={event.slug} canDecide={allowsModeration(event.status)} />
+        ) : null}
         {isOwner ? <MissionsPanel slug={event.slug} /> : null}
         {/* Owner-only, like every endpoint behind it: sending the album beyond the room
             is a decision about the whole event (roadmap §4.1). */}

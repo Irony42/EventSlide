@@ -318,6 +318,28 @@ describe('EventSettingsPage', () => {
     )
   })
 
+  it('saves the guestbook switches, and greys the wall one while the book is closed', async () => {
+    const api = fakeApi({
+      getEvent: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ allowGuestbook: false, guestbookOnWall: true }) }),
+      ),
+    })
+
+    renderPage(api)
+    const onWall = await screen.findByLabelText(fr.admin.guestbookOnWall)
+    expect(onWall).toBeDisabled()
+
+    await userEvent.click(screen.getByLabelText(fr.admin.allowGuestbook))
+    expect(onWall).toBeEnabled()
+    await userEvent.click(onWall)
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      'camille-et-sacha',
+      expect.objectContaining({ allowGuestbook: true, guestbookOnWall: false }),
+    )
+  })
+
   it('saves the event’s look as one theme rather than three loose fields', async () => {
     // Roadmap 2.2. The endpoint refuses half a theme — the legibility rule judges the
     // three together — so the form has to send all of them whichever one the host moved.

@@ -105,6 +105,8 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.allowCaptions,
     settings.allowReactions,
     settings.allowClips,
+    settings.allowGuestbook,
+    settings.guestbookOnWall,
     settings.allowGuestSelfDelete,
     settings.guestSelfDeleteGraceSeconds,
     settings.retentionDays,
@@ -385,6 +387,22 @@ export function EventSettingsPage() {
           checked={settings.allowClips}
           disabled={readOnly}
           onChange={(allowClips) => update({ allowClips })}
+        />
+
+        <CheckboxField
+          label={t.admin.allowGuestbook}
+          hint={t.admin.allowGuestbookHint}
+          checked={settings.allowGuestbook}
+          disabled={readOnly}
+          onChange={(allowGuestbook) => update({ allowGuestbook })}
+        />
+
+        <CheckboxField
+          label={t.admin.guestbookOnWall}
+          hint={t.admin.guestbookOnWallHint}
+          checked={settings.guestbookOnWall}
+          disabled={readOnly || !settings.allowGuestbook}
+          onChange={(guestbookOnWall) => update({ guestbookOnWall })}
         />
 
         <CheckboxField
