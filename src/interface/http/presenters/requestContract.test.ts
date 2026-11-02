@@ -655,6 +655,9 @@ const probe = (keys: Iterable<string>): Record<string, unknown> =>
  * file would otherwise report it as covered by saying nothing about it.
  */
 const NO_CLIENT_CALLER: Readonly<Record<string, string>> = {
+  // `POST /api/events/:slug/book` (spec 04): the route ships in PR 4 and the panel that sends it in
+  // PR 5 (#311), which removes this line.
+  requestBookBody: 'POST /api/events/:eventSlug/book has no client method until the book panel',
   // `GET /api/events/:slug/photos` — the host's full gallery. Implemented and tested at
   // ring 4, but nothing in `web/src` calls it yet; the console reads the moderation
   // queue instead. `dtoContract.test.ts` records the same gap from the response side.

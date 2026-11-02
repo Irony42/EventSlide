@@ -2105,8 +2105,10 @@ told at once: each photograph announces `photo.deleted` and the operation ends w
 wall re-reads on any signal but a reaction, the moderation queue on each `photo.*`), so a slide leaves the projector
 and the host's queue without a reload; the guest list and the guest feed show it on their next read.
 
+**What it reaches**: the event's photo book, a file the server keeps (it goes stale and is deleted before the bytes of the photographs).
+
 **What it cannot reach**, (the phone's confirmation names the first and the screenshots): a copy the host already exported (the album archive is
-streamed, never kept), a download from the shared gallery link, a screenshot, and the hourly backup, which holds a deleted
+streamed, never kept; a downloaded book PDF is the same), a download from the shared gallery link, a screenshot, and the hourly backup, which holds a deleted
 photograph for the retention the privacy notice states. A queued clip whose bytes another guest also sent shares one job (the dedupe is per event), so erasing the first sender removes it for both. A photograph that was a **duplicate** of an earlier one in the
 same event (the same bytes sent twice) is one row owned by its first sender, so the second sender's erasure does not
 remove it and the first one's does.
@@ -2252,6 +2254,46 @@ failureCode?, updatedAt }`; no photograph id travels.
 
 The moderation rows (`GET /moderation`, `GET /photos`) carry `highlighted: boolean`; no guest, wall
 or gallery payload does.
+
+### The photo book (spec 04)
+
+A PDF of the published album, made in the background (one at a time, behind video transcodes) and
+kept for `BOOK_TTL_DAYS`. Every route is a moderator of the event, like `album.zip`; none is
+reachable by a guest or the public, and nothing in them names a path.
+
+| Method   | Path                         | Answers                                                                                                                                                                                                                                                                                                                                                                    |
+| -------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/events/:slug/book`     | `202` + the book (`queued`). Body, strict: `title` (1 to 80 once cleaned), `subtitle` (0 to 80), `layout` (`one`/`four`), `showAuthors`, `showCaptions`, optional `language` (the event's wall language by default).                                                                                                                                                       |
+| `GET`    | `/api/events/:slug/book`     | `200` `{ "status": "none" }` or the book: `status` (`queued`, `running`, `done`, `failed`, `stale`), `options`, `requestedAt`, `doneAt`, `photoCount`, `skippedCount`, `pageCount`, `byteSize`, `expiresAt`, `failureCode` (`unavailable`, `tooLarge`, `empty`, `unexpected`), `staleReason` (`photoRemoved`, `captionChanged`, `fileMissing`). `Cache-Control: no-store`. |
+| `GET`    | `/api/events/:slug/book.pdf` | `200 application/pdf` as an attachment named `<slug>-livre.pdf` (the slug, never the title), `Content-Length` known, `Range` accepted (`206`, `416`), `no-store`, `nosniff`.                                                                                                                                                                                               |
+| `DELETE` | `/api/events/:slug/book`     | `204`, idempotent: the row and the file.                                                                                                                                                                                                                                                                                                                                   |
+
+Refusals of `POST`: `400 request.invalid` (or `book.titleEmpty` / `book.titleTooLong` / `book.subtitleTooLong`),
+`401`, `404 event.notFound` (not a member, or taken down by the operator), `403 client.suspended`,
+`403 book.notAllowed` (the client's `booksAllowed` switch is off), `409 book.alreadyRunning`,
+`409 book.empty` (nothing published), `429 book.dailyLimitReached` (three books per event per
+rolling day, counted apart from the book so deleting it does not reset it; `Retry-After` is the
+wait until the oldest request leaves the day), `429 rate.limited` (twenty requests an hour per
+account), `503 book.unavailable` (`BOOK_ENABLED=off`). A book too large (`BOOK_MAX_PHOTOS`,
+`BOOK_MAX_BYTES`) is decided by the worker, which reads the album: it ends `failed` with
+`failureCode: "tooLarge"`, because the count at request time includes videos the book leaves out.
+
+`GET book.pdf` answers **one** `404 book.notFound` for every reason there is nothing to give (never
+made, not finished, stale, expired, file gone, a draft), `403 client.suspended` with the file kept,
+and `404 event.notFound` for an event the operator took down. Thirty downloads a minute per account
+(`429`).
+
+**Privacy.** The book is a copy, so a photograph that leaves the evening retires it: a deletion by
+the host or by a guest within the grace window, a guest's erasure, a moderation to `rejected` or
+`hidden` of a published photograph, the operator's takedown of a photograph, and a caption edit when
+the book prints captions. The row goes `stale` and the file is deleted **before** the photograph's
+bytes (the hook is awaited, not a signal on the bus), and the host rebuilds it. A book being
+rendered at that moment ends `stale` instead of `done`. The purge of an event deletes the file
+(it lives in `MEDIA_ROOT/.books/`, outside the event's folder, so the hourly backup never holds
+one). A copy the host already downloaded is out of reach, as with the ZIP.
+
+`book.changed` is a signal for the host's screen only: the moderation stream carries it, the
+wall's stream never does, replay included.
 
 ---
 
@@ -2777,6 +2819,10 @@ event_, never "is logged in".
 | `GET`    | `/api/events/:slug/highlights/reel.mp4`       | moderator | 200 | The highlight video (Range)                     |
 | `GET`    | `/api/events/:slug/best-of.zip`               | moderator | 200 | The favourites as a ZIP                         |
 | `GET`    | `/api/events/:slug/stats`                     | moderator | 200 | Statistics of the evening, derived              |
+| `POST`   | `/api/events/:slug/book`                      | moderator | 202 | Ask for the photo book (PDF)                    |
+| `GET`    | `/api/events/:slug/book`                      | moderator | 200 | The book's state, or `none`                     |
+| `GET`    | `/api/events/:slug/book.pdf`                  | moderator | 200 | The finished book, Range accepted               |
+| `DELETE` | `/api/events/:slug/book`                      | moderator | 204 | Throw the book away; idempotent                 |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and

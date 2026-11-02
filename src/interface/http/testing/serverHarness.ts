@@ -45,6 +45,10 @@ const notWired = (name: string) => async (): Promise<never> => {
  */
 export const notWiredUseCases = (): HttpUseCases => ({
   authenticateUser: notWired('authenticateUser'),
+  requestAlbumBook: notWired('requestAlbumBook'),
+  getAlbumBook: notWired('getAlbumBook'),
+  downloadAlbumBook: notWired('downloadAlbumBook'),
+  deleteAlbumBook: notWired('deleteAlbumBook'),
   changePassword: notWired('changePassword'),
   deleteOwnAccount: notWired('deleteOwnAccount'),
   revokeOtherSessions: notWired('revokeOtherSessions'),

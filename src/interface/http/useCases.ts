@@ -84,6 +84,10 @@ import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
 import type { GetReelMedia } from '../../application/usecases/highlights/getReelMedia'
 import type { RequestReel } from '../../application/usecases/highlights/requestReel'
 import type { ExportHighlights } from '../../application/usecases/highlights/exportHighlights'
+import type { DeleteAlbumBook } from '../../application/usecases/book/deleteAlbumBook'
+import type { DownloadAlbumBook } from '../../application/usecases/book/downloadAlbumBook'
+import type { GetAlbumBook } from '../../application/usecases/book/getAlbumBook'
+import type { RequestAlbumBook } from '../../application/usecases/book/requestAlbumBook'
 import type { GetHighlights } from '../../application/usecases/highlights/getHighlights'
 import type { PreselectHighlights } from '../../application/usecases/highlights/preselectHighlights'
 import type { SetPhotoHighlight } from '../../application/usecases/highlights/setPhotoHighlight'
@@ -244,6 +248,12 @@ export interface HttpUseCases {
   // the host's favourites and best-of (spec 08)
   readonly setPhotoHighlight: SetPhotoHighlight
   readonly preselectHighlights: PreselectHighlights
+  // the photo book (spec 04)
+  readonly requestAlbumBook: RequestAlbumBook
+  readonly getAlbumBook: GetAlbumBook
+  readonly downloadAlbumBook: DownloadAlbumBook
+  readonly deleteAlbumBook: DeleteAlbumBook
+
   readonly getHighlights: GetHighlights
   readonly exportHighlights: ExportHighlights
   readonly requestReel: RequestReel

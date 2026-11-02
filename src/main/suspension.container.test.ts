@@ -402,6 +402,12 @@ describe('a suspended client, through the real composition root', () => {
     { method: 'put', path: '/api/events/:eventSlug/photos/:photoId/highlight', body: {} },
     { method: 'delete', path: '/api/events/:eventSlug/photos/:photoId/highlight', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/highlights/preselect', body: { limit: 5 } },
+    {
+      method: 'post',
+      path: '/api/events/:eventSlug/book',
+      body: { title: 'Livre', layout: 'one', showAuthors: true, showCaptions: true },
+    },
+    { method: 'delete', path: '/api/events/:eventSlug/book', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/highlights/reel', body: {} },
     { method: 'post', path: '/api/events/:eventSlug/share-link', body: {} },
     { method: 'delete', path: '/api/events/:eventSlug/share-link', body: {} },
