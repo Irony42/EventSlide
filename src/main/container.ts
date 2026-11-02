@@ -67,6 +67,13 @@ import type { HttpConfig, HttpDeps } from '../interface/http/types'
 import type { PresenterContext } from '../interface/http/presenters/presenters'
 import { buildUseCases, type Adapters, type UseCases } from './usecases'
 import { createClipWorker, type ClipWorker } from './clipWorker'
+import { createAlbumBookWorker, type AlbumBookWorker } from './albumBookWorker'
+import { SqliteAlbumBookRepository } from '../infrastructure/db/sqliteAlbumBookRepository'
+import { createFsBookFileStore } from '../infrastructure/media/fsBookFileStore'
+import { createPdfBookRenderer } from '../infrastructure/media/pdfBookRenderer'
+import { makeBuildNextAlbumBook } from '../application/usecases/book/buildNextAlbumBook'
+import { makeRecoverAlbumBooks } from '../application/usecases/book/recoverAlbumBooks'
+import { makeSweepAlbumBooks } from '../application/usecases/book/sweepAlbumBooks'
 import { clipUploadTempDir } from '../interface/http/routes/clipRoutes'
 import {
   createMediaSweeper,
@@ -130,6 +137,8 @@ export interface Container {
    * queue of clips nobody can process into a queue that empties and tells the guests why.
    */
   readonly clipWorker: ClipWorker
+  /** The photo book's renderer (spec 04); `null` when `BOOK_ENABLED` is off. */
+  readonly albumBookWorker: AlbumBookWorker | null
   /**
    * The reservation reaper, built here and started by `index.ts` like the rest.
    *
@@ -417,6 +426,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     photos: new SqlitePhotoRepository(db),
     clips: new SqliteClipJobRepository(db),
     reels: new SqliteReelRepository(db),
+    books: new SqliteAlbumBookRepository(db),
+    bookFiles: createFsBookFileStore(mediaRoot),
     reelRenderer,
     guests: new SqliteGuestRepository(db),
     reactions: new SqliteReactionRepository(db),
@@ -471,6 +482,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     auditRetentionDays: config.audit.retentionDays,
     newClientDefaults: config.newClientCeilings,
     reel: config.reel,
+    book: { enabled: config.books.enabled, maxPerEventPerDay: config.books.maxPerEventPerDay },
     operatorName: config.operator.name,
     termsOfUse: config.termsOfUse,
     mfaIssuer: config.operator.name ?? 'EventSlide',
@@ -629,6 +641,49 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     clock: adapters.clock,
     intervalMs: CLIP_WORKER_INTERVAL_MS,
   })
+
+  // ------------------------------------------------------------ photo books --
+
+  // Spec 04. Built only when the function is on: a box that switched it off pays for nothing.
+  const { books, bookFiles } = adapters
+  const albumBookWorker: AlbumBookWorker | null = config.books.enabled
+    ? createAlbumBookWorker({
+        buildNext: makeBuildNextAlbumBook({
+          events: adapters.events,
+          clients: adapters.clients,
+          guests: adapters.guests,
+          photos: adapters.photos,
+          media: adapters.media,
+          books,
+          bookFiles,
+          renderer: createPdfBookRenderer({}),
+          clips: adapters.clips,
+          bus,
+          clock: adapters.clock,
+          logger,
+          policy: {
+            maxPhotos: config.books.maxPhotos,
+            maxBytes: config.books.maxBytes,
+            ttlDays: config.books.ttlDays,
+            maxTotalBytes: config.books.maxTotalBytes,
+            maxWaitMs: config.books.maxWaitMs,
+            capNoticeDays: config.retention.capNoticeDays,
+          },
+          diskHasRoom: async () => {
+            const free = await Promise.all(
+              diskSpacePaths.map((path) => statfsDiskSpaceChecker.freeBytes(path)),
+            )
+            return evaluateDiskSpace(free, config.storage.minFreeDiskBytes).sufficient
+          },
+        }),
+        recover: makeRecoverAlbumBooks({ books, logger }),
+        sweep: makeSweepAlbumBooks({ books, bookFiles, bus, clock: adapters.clock, logger }),
+        bus,
+        logger,
+        clock: adapters.clock,
+        intervalMs: CLIP_WORKER_INTERVAL_MS,
+      })
+    : null
 
   // ------------------------------------------------------------- first run --
 
@@ -802,6 +857,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     reservationReaper,
     schedule,
     clipWorker,
+    albumBookWorker,
     readiness,
     dispose: async () => {
       // First: a sweep that started after the database was closed would log a failure
@@ -812,6 +868,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
       reservationReaper.stop()
       schedule?.stop()
       clipWorker.stop()
+      albumBookWorker?.stop()
       // **Then the encoder itself.** `stop()` above abandons the drain, which leaves the
       // ffmpeg process it started running: a container stop orphans a child rather than
       // stopping it, so a new container would start the same job while the old encoder

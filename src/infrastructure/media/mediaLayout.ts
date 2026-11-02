@@ -35,6 +35,8 @@ export const CONTENT_TYPE: Readonly<Record<MediaVariant, string>> = {
   source: 'application/octet-stream',
   // A host's venue photograph, always re-encoded to WebP by `setVenuePhoto`.
   ground: 'image/webp',
+  // A host's logo, always re-encoded to WebP (alpha kept) by `setEventLogo`.
+  logo: 'image/webp',
   // The host's highlight reel (spec 08), served only by its own route.
   reel: 'video/mp4',
 }
@@ -47,6 +49,7 @@ export const EXTENSION: Readonly<Record<MediaVariant, string>> = {
   poster: 'jpg',
   source: 'bin',
   ground: 'webp',
+  logo: 'webp',
   reel: 'mp4',
 }
 

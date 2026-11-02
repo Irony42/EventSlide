@@ -14,6 +14,8 @@ import type { PhotoRepository } from '../../ports/photoRepository'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { isHighlightable } from '../../../domain/highlights/highlightEligibility'
 import type { InvalidateReel } from '../highlights/invalidateReel'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
+import { isInBook } from '../../../domain/book/isInBook'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
 
 /**
@@ -41,6 +43,11 @@ export interface ModeratePhotosBulkDeps {
   readonly clock: Clock
   /** Retires the highlight reel when photographs leave the wall, once for the batch (spec 08). */
   readonly invalidateReel?: InvalidateReel
+  /**
+   * Retires the photo book that holds photographs that leave the wall, once for the batch (spec 04), awaited and before anything goes: a book
+   * must never still hold what was removed.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export interface BulkModerationOutcome {
@@ -75,6 +82,7 @@ export const makeModeratePhotosBulk =
     bus,
     clock,
     invalidateReel,
+    invalidateBook,
   }: ModeratePhotosBulkDeps): ModeratePhotosBulk =>
   async ({ eventId, photoIds, decision, actor }) => {
     const event = await events.findById(eventId)
@@ -107,6 +115,13 @@ export const makeModeratePhotosBulk =
     // One statement, one transaction. 1.0 fired an update per row through `Promise.all`
     // and a failure part-way left the selection half decided.
     if (!isHighlightable(status)) await invalidateReel?.(eventId, partition.applicable)
+
+    // Only a photograph that was in the book can spoil it: moving a pending one is not a removal.
+    const leaving = found.some(
+      (photo) =>
+        photo !== null && partition.applicable.includes(photo.id) && isInBook(photo.status),
+    )
+    if (leaving && !isInBook(status)) await invalidateBook?.(eventId, 'photoRemoved')
 
     const changed = await photos.updateStatuses(eventId, partition.applicable, status, review)
 

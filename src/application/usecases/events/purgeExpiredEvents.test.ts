@@ -8,6 +8,7 @@ import { CallLog } from '../../testing/callLog'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { makePurgeExpiredEvents, type PurgeExpiredEvents } from './purgeExpiredEvents'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -54,6 +55,36 @@ describe('purgeExpiredEvents', () => {
       clock,
       capNoticeDays: 30,
     })
+  })
+
+  it('deletes the photo book file of a purged event and keeps the one of an event that stays (spec 04)', async () => {
+    seedExpiredWedding()
+    events.seed(anEvent({ id: GALA, slug: 'gala-annuel', joinCode: 'Z3N9PT', status: 'live' }))
+    const bookFiles = new FakeBookFileStore()
+    bookFiles.seed(WEDDING, Uint8Array.of(1))
+    bookFiles.seed(GALA, Uint8Array.of(1))
+
+    await makePurgeExpiredEvents({ events, media, clock, capNoticeDays: 30, bookFiles })()
+
+    expect(await bookFiles.list()).toEqual([GALA])
+  })
+
+  it('still purges when a book file cannot be deleted', async () => {
+    seedExpiredWedding()
+    const bookFiles = new FakeBookFileStore()
+    bookFiles.delete = async () => {
+      throw new Error('disk gone')
+    }
+
+    const report = await makePurgeExpiredEvents({
+      events,
+      media,
+      clock,
+      capNoticeDays: 30,
+      bookFiles,
+    })()
+
+    expect(report.purged).toEqual([WEDDING])
   })
 
   const seedExpiredWedding = (): void => {

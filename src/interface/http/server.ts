@@ -19,6 +19,7 @@ import { aboutRoutes } from './routes/aboutRoutes'
 import { authRoutes } from './routes/authRoutes'
 import { clientRoutes } from './routes/clientRoutes'
 import { invitationRoutes } from './routes/invitationRoutes'
+import { bookRoutes } from './routes/bookRoutes'
 import { clipRoutes } from './routes/clipRoutes'
 import { eventRoutes } from './routes/eventRoutes'
 import { galleryHeaders, galleryRoutes, setGalleryHeaders } from './routes/galleryRoutes'
@@ -326,6 +327,8 @@ export const buildServer = ({
   app.use('/api', shareLinkRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
   app.use('/api', highlightRoutes(routeDeps))
+  // The photo book (spec 04): a moderator's PDF of the published album.
+  app.use('/api', bookRoutes(routeDeps))
   // After the guest router, which owns 'missions/mine' on the same path prefix, and
   // before the event router for no reason other than reading order: the four routes here
   // are all 'events/:eventSlug/missions' and none of them collides with anything above.

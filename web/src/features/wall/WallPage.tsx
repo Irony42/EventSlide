@@ -385,6 +385,7 @@ export function WallPage() {
           join={join}
           acceptsGuests={acceptsGuests}
           welcomeMessage={wall.brand?.welcomeMessage ?? null}
+          logoUrl={wall.brand?.logoUrl ?? null}
         />
       ) : (
         <WallLayouts

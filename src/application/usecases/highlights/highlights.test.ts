@@ -9,6 +9,12 @@ import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../testing/fakeReactionRepository'
+import { ContentHash } from '../../../domain/photos/contentHash'
+import { FakeClientRepository } from '../../testing/fakeClientRepository'
+import { FakeReelRepository } from '../../testing/fakeReelRepository'
+import { FakeReelRenderer } from '../../testing/fakeReelRenderer'
+import { RecordingEventBus } from '../../testing/recordingEventBus'
+import { makeRequestReel } from './requestReel'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { MEDIA_VARIANTS } from '../../ports/mediaStore'
 import { makeExportHighlights } from './exportHighlights'
@@ -26,6 +32,7 @@ describe('the host favourites use cases', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
   let reactions: FakeReactionRepository
+  let reels: FakeReelRepository
   let media: InMemoryMediaStore
   let archive: FakeArchiveWriter
   let logger: CapturingLogger
@@ -48,6 +55,7 @@ describe('the host favourites use cases', () => {
     )
     photos = new FakePhotoRepository()
     reactions = new FakeReactionRepository()
+    reels = new FakeReelRepository(photos)
     media = new InMemoryMediaStore()
     archive = new FakeArchiveWriter()
     logger = new CapturingLogger()
@@ -221,7 +229,7 @@ describe('the host favourites use cases', () => {
 
   describe('getHighlights', () => {
     const get = (eventId = EVENT, source = events) =>
-      makeGetHighlights({ events: source, photos })({ eventId })
+      makeGetHighlights({ events: source, photos, reels, media, secondsPerPhoto: 4 })({ eventId })
 
     it('counts only the favourites that can still be exported', async () => {
       seed('p1', 'published')
@@ -234,6 +242,111 @@ describe('the host favourites use cases', () => {
       const result = await get()
 
       expect(result.ok && result.value.count).toBe(1)
+    })
+
+    describe('the montage it reports', () => {
+      const queue = async (): Promise<void> => {
+        for (const id of ['a', 'b', 'c']) {
+          seed(id, 'published', id.charCodeAt(0))
+          await star(id)
+        }
+        await makeRequestReel({
+          events,
+          clients: new FakeClientRepository(),
+          photos,
+          reels,
+          renderer: new FakeReelRenderer(),
+          media,
+          bus: new RecordingEventBus(),
+          clock,
+          logger,
+          policy: {
+            enabled: true,
+            maxPhotos: 5,
+            secondsPerPhoto: 4,
+            maxOutputBytes: 1_000,
+            maxQueued: 2,
+          },
+        })({ eventId: EVENT })
+      }
+      const finish = async (hash: ContentHash, durationMs = 12_000): Promise<void> => {
+        const job = await reels.claimNext(AT)
+        if (job === null) throw new Error('fixture')
+        await reels.finish(
+          job,
+          { hash, byteSize: 7, durationMs },
+          { quotaBytes: 1e9, clientBytes: null },
+          AT,
+        )
+      }
+      const montageHash = (() => {
+        const made = ContentHash.create('ab'.repeat(32))
+        if (!made.ok) throw new Error('fixture')
+        return made.value
+      })()
+
+      it('says there is none before one is asked for', async () => {
+        const result = await get()
+
+        expect(result.ok && result.value.reel).toBeNull()
+      })
+
+      it('says queued, with the number of photographs asked for and no size yet', async () => {
+        await queue()
+
+        const result = await get()
+
+        expect(result.ok && result.value.reel).toMatchObject({
+          status: 'queued',
+          photoCount: 3,
+          durationMs: null,
+          byteSize: null,
+          failureCode: null,
+        })
+      })
+
+      it('says done with its length, size and the photographs it really holds', async () => {
+        await queue()
+        await media.put(EVENT, montageHash, 'reel', Uint8Array.of(1))
+        await finish(montageHash, 8_000)
+
+        const result = await get()
+
+        expect(result.ok && result.value.reel).toMatchObject({
+          status: 'done',
+          photoCount: 2,
+          durationMs: 8_000,
+          byteSize: 7,
+        })
+      })
+
+      it('reads a finished montage whose file is gone as stale, never as ready', async () => {
+        await queue()
+        await finish(montageHash)
+
+        const result = await get()
+
+        expect(result.ok && result.value.reel).toMatchObject({
+          status: 'stale',
+          durationMs: null,
+          byteSize: null,
+        })
+      })
+
+      it('carries the failure code of a failed montage, and only of a failed one', async () => {
+        await queue()
+        const job = await reels.claimNext(AT)
+        const failed = job?.fail('reel.notEnoughPhotos', AT)
+        if (failed === undefined || !failed.ok) throw new Error('fixture')
+        await reels.save(failed.value)
+
+        const result = await get()
+
+        expect(result.ok && result.value.reel).toMatchObject({
+          status: 'failed',
+          failureCode: 'reel.notEnoughPhotos',
+        })
+      })
     })
 
     it('reads an archived event, and refuses unknown, taken-down and suspended ones', async () => {

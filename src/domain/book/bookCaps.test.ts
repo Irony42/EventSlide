@@ -6,6 +6,7 @@ import {
   checkBookDailyLimit,
   bookRetryAfterSeconds,
   checkBookSize,
+  estimateBookBytes,
 } from './bookCaps'
 
 const code = (r: { ok: boolean; error?: { code: string } }): string | null =>
@@ -55,5 +56,13 @@ describe('book daily limit', () => {
     const now = new Date('2026-11-02T12:00:00Z')
     expect(bookWindowStart(now).getTime()).toBe(now.getTime() - BOOK_WINDOW_MS)
     expect(BOOK_WINDOW_MS).toBe(86_400_000)
+  })
+})
+
+describe('estimateBookBytes', () => {
+  it('is half of what the renditions weigh, rounded up', () => {
+    expect(estimateBookBytes(1_000)).toBe(500)
+    expect(estimateBookBytes(1_001)).toBe(501)
+    expect(estimateBookBytes(0)).toBe(0)
   })
 })

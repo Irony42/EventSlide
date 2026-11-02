@@ -142,6 +142,31 @@ reelRendererContract('ffmpeg', async () => ({
   frames: [landscape, landscape, landscape],
 }))
 
+describe('the stored display variants', () => {
+  it('renders a progressive mozjpeg picture, as the pipeline stores it', async () => {
+    const noisy = Buffer.alloc(1200 * 900 * 3, 0)
+    for (let i = 0; i < noisy.length; i += 1) noisy[i] = (i * 7 + (i >> 9) * 13) & 255
+    const picture = new Uint8Array(
+      await sharp(noisy, { raw: { width: 1200, height: 900, channels: 3 } })
+        .jpeg({ progressive: true, mozjpeg: true })
+        .toBuffer(),
+    )
+
+    const made = await renderer.render([picture, picture, picture], SPEC)
+
+    expect(made.ok).toBe(true)
+  }, 120_000)
+
+  it.each(['webp', 'png'] as const)('renders a %s picture, as the pipeline stores it', async (format) => {
+    const base = sharp({ create: { width: 640, height: 360, channels: 3, background: '#cc3366' } })
+    const picture = new Uint8Array(await base[format]().toBuffer())
+
+    const made = await renderer.render([picture, landscape, picture], SPEC)
+
+    expect(made.ok).toBe(true)
+  }, 120_000)
+})
+
 describe('the file the encoder makes', () => {
   it('is 1280x720 H.264 with one video stream, no audio, and a duration that follows the spec', async () => {
     const made = await renderer.render([landscape, landscape, landscape], SPEC)

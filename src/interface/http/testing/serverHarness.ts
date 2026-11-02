@@ -45,6 +45,10 @@ const notWired = (name: string) => async (): Promise<never> => {
  */
 export const notWiredUseCases = (): HttpUseCases => ({
   authenticateUser: notWired('authenticateUser'),
+  requestAlbumBook: notWired('requestAlbumBook'),
+  getAlbumBook: notWired('getAlbumBook'),
+  downloadAlbumBook: notWired('downloadAlbumBook'),
+  deleteAlbumBook: notWired('deleteAlbumBook'),
   changePassword: notWired('changePassword'),
   deleteOwnAccount: notWired('deleteOwnAccount'),
   revokeOtherSessions: notWired('revokeOtherSessions'),
@@ -102,6 +106,9 @@ export const notWiredUseCases = (): HttpUseCases => ({
   setVenuePhoto: notWired('setVenuePhoto'),
   removeVenuePhoto: notWired('removeVenuePhoto'),
   getVenuePhotoMedia: notWired('getVenuePhotoMedia'),
+  setEventLogo: notWired('setEventLogo'),
+  removeEventLogo: notWired('removeEventLogo'),
+  getEventLogoMedia: notWired('getEventLogoMedia'),
   listModerators: notWired('listModerators'),
   revokeModerator: notWired('revokeModerator'),
 
@@ -128,6 +135,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   preselectHighlights: notWired('preselectHighlights'),
   getHighlights: notWired('getHighlights'),
   exportHighlights: notWired('exportHighlights'),
+  requestReel: notWired('requestReel'),
+  getReelMedia: notWired('getReelMedia'),
 
   getModerationQueue: notWired('getModerationQueue'),
   moderatePhoto: notWired('moderatePhoto'),

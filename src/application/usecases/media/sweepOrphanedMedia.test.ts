@@ -246,6 +246,42 @@ describe('sweepOrphanedMedia', () => {
       expect(await media.exists(EVENT, hashOf('9a2'), 'ground')).toBe(true)
     })
 
+    it('keeps the logo an event’s settings name, which no photo row does', async () => {
+      // Spec 03: named by the settings alone, so without the `settings.logo` line this pass
+      // would delete a host's logo an hour after they sent it.
+      events.seed(anEvent({ id: 'event-1', settings: { logo: hashOf('9b1') } }))
+      await media.put(EVENT, hashOf('9b1'), 'logo', Uint8Array.of(1, 2, 3))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ scanned: 1, collected: 0 })
+      expect(await media.exists(EVENT, hashOf('9b1'), 'logo')).toBe(true)
+    })
+
+    it('collects the logo a host replaced, which the settings no longer name', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { logo: hashOf('9b2') } }))
+      await media.put(EVENT, hashOf('9b1'), 'logo', Uint8Array.of(1, 2, 3))
+      await media.put(EVENT, hashOf('9b2'), 'logo', Uint8Array.of(4))
+
+      const report = await sweep()
+
+      expect(report).toMatchObject({ scanned: 2, collected: 1 })
+      expect(await media.exists(EVENT, hashOf('9b1'), 'logo')).toBe(false)
+    })
+
+    it('does not collect a logo a host chose after the listing was taken', async () => {
+      events.seed(anEvent({ id: 'event-1' }))
+      await media.put(EVENT, hashOf('9b1'), 'logo', Uint8Array.of(1))
+      const realReferencing = photos.findIdsReferencing.bind(photos)
+      photos.findIdsReferencing = async (eventId, hash) => {
+        await events.save(anEvent({ id: 'event-1', settings: { logo: hashOf('9b1') } }))
+        return realReferencing(eventId, hash)
+      }
+
+      expect((await sweep()).collected).toBe(0)
+      expect(await media.exists(EVENT, hashOf('9b1'), 'logo')).toBe(true)
+    })
+
     it('collects a ground when the event that named it is gone', async () => {
       await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1))
 
@@ -275,6 +311,20 @@ describe('sweepOrphanedMedia', () => {
       // would also save it, so only the count of questions can tell the bulk set is doing its job.
       events.seed(anEvent({ id: 'event-1', settings: { venuePhoto: hashOf('9a1') } }))
       await media.put(EVENT, hashOf('9a1'), 'ground', Uint8Array.of(1))
+      const calls = new CallLog()
+      photos = calls.watch('photos', photos)
+      build()
+
+      await sweep()
+
+      expect(calls.sequenceOf('photos.findIdsReferencing')).toEqual([])
+    })
+
+    it('does not so much as ask about a logo the settings name, which the bulk pass settles', async () => {
+      // The confirmation would also save it, so only the count of questions can tell that the bulk
+      // set names the logo (the mutant that drops it from the set survives every other test).
+      events.seed(anEvent({ id: 'event-1', settings: { logo: hashOf('9b1') } }))
+      await media.put(EVENT, hashOf('9b1'), 'logo', Uint8Array.of(1))
       const calls = new CallLog()
       photos = calls.watch('photos', photos)
       build()
