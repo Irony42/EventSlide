@@ -393,6 +393,11 @@ describe('a suspended client, through the real composition root', () => {
       body: { decision: 'publish' },
     },
     {
+      method: 'patch',
+      path: '/api/events/:eventSlug/guestbook/:entryId/status',
+      body: { decision: 'publish' },
+    },
+    {
       method: 'post',
       path: '/api/events/:eventSlug/moderation/bulk',
       body: { photoIds: [ANY], decision: 'publish' },
