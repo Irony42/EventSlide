@@ -2233,8 +2233,19 @@ client.
   moderation decision). A photo that leaves `published` loses its star.
 - `POST /api/events/:slug/highlights/preselect` with `{ "limit": 1..120 }`: stars the most
   reacted-to published photos, never removes a star, answers `{ "added": n }`.
-- `GET /api/events/:slug/highlights`: `{ "count": n }`, the same predicate as the ZIP. Readable on
-  an archived event.
+- `GET /api/events/:slug/highlights`: `{ "count": n, "reel": ReelDto | null }`, the same predicate
+  as the ZIP. Readable on an archived event.
+- `POST /api/events/:slug/highlights/reel`: no body; asks for the montage of the favourites as they
+  are now. `202` with `ReelDto`. `409 reel.alreadyRunning`, `409 reel.notEnoughPhotos` (details
+  `count`, `min`), `409 reel.tooManyPhotos` (`count`, `max`), `403 reel.notAllowed`, `429
+reel.queueFull`, `500 reel.transcoderUnavailable`.
+- `GET /api/events/:slug/highlights/reel.mp4`: the finished montage, `Range` supported,
+  `Cache-Control: no-store`. Every request re-checks the photographs first: a montage that lost one
+  is retired and answers `404 reel.notReady`.
+
+`ReelDto` is `{ status: queued|running|done|failed|stale, photoCount, durationMs?, byteSize?,
+failureCode?, updatedAt }`; no photograph id travels.
+
 - `GET /api/events/:slug/best-of.zip`: streamed like `album.zip` (same headers, filename
   `<slug>-best-of.zip`), oldest photo first, one folder `<slug>-best-of/`. `409 highlight.empty`
   before any header when there is no favourite.
@@ -2761,7 +2772,9 @@ event_, never "is logged in".
 | `PUT`    | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Star a published photo (best-of); idempotent    |
 | `DELETE` | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Take the star off; idempotent                   |
 | `POST`   | `/api/events/:slug/highlights/preselect`      | moderator | 200 | Star the `limit` most liked; `{ added }`        |
-| `GET`    | `/api/events/:slug/highlights`                | moderator | 200 | `{ count }` of exportable favourites            |
+| `GET`    | `/api/events/:slug/highlights`                | moderator | 200 | `{ count, reel }`: favourites and the montage   |
+| `POST`   | `/api/events/:slug/highlights/reel`           | moderator | 202 | Ask for the highlight video; `ReelDto`          |
+| `GET`    | `/api/events/:slug/highlights/reel.mp4`       | moderator | 200 | The highlight video (Range)                     |
 | `GET`    | `/api/events/:slug/best-of.zip`               | moderator | 200 | The favourites as a ZIP                         |
 | `GET`    | `/api/events/:slug/stats`                     | moderator | 200 | Statistics of the evening, derived              |
 

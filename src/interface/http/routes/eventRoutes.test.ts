@@ -371,6 +371,8 @@ const buildWorld = ({
         preselectHighlights: absent('preselectHighlights'),
         getHighlights: absent('getHighlights'),
         exportHighlights: absent('exportHighlights'),
+        requestReel: absent('requestReel'),
+        getReelMedia: absent('getReelMedia'),
         getEventStats: makeGetEventStats({
           events,
           memberships,
