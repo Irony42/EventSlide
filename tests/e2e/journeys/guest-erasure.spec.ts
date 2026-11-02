@@ -50,7 +50,9 @@ test('a guest deletes everything they sent: the wall and the host lose it at onc
   // --- Two taps, and the second one is a different, labelled button.
   await guest.getByRole('button', { name: fr.upload.eraseOpen }).click()
   const dialog = guest.getByRole('dialog', { name: fr.upload.eraseTitle })
-  await expect(dialog).toContainText(fr.upload.eraseBody)
+  // A new event opens the guestbook (spec 01), so the confirmation names the guestbook messages too:
+  // the assertion was about the wording without one, which no new event has any more.
+  await expect(dialog).toContainText(fr.guestbook.eraseBody)
   await dialog.getByRole('button', { name: fr.upload.eraseConfirm }).click()
 
   await expect(guest.getByRole('heading', { name: fr.upload.eraseDoneTitle })).toBeVisible()
