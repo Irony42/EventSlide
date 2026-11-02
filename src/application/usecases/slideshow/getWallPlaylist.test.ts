@@ -6,6 +6,7 @@ import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
 import { aGuest, aMission, anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
@@ -58,6 +59,7 @@ describe('getWallPlaylist', () => {
   let photos: FakePhotoRepository
   let guests: FakeGuestRepository
   let missions: FakeMissionRepository
+  let guestbook: FakeGuestbookRepository
   let getWallPlaylist: GetWallPlaylist
 
   beforeEach(() => {
@@ -65,7 +67,8 @@ describe('getWallPlaylist', () => {
     photos = new FakePhotoRepository()
     guests = new FakeGuestRepository()
     missions = new FakeMissionRepository(photos)
-    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests, missions })
+    guestbook = new FakeGuestbookRepository()
+    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests, missions, guestbook })
   })
 
   const ask = (
@@ -122,6 +125,7 @@ describe('getWallPlaylist', () => {
       photos: recording,
       guests,
       missions: new FakeMissionRepository(recording),
+      guestbook: new FakeGuestbookRepository(),
     })
 
     await recorded({
@@ -471,7 +475,13 @@ describe('getWallPlaylist', () => {
       ),
     )
     const recorded = recording(guests)
-    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests: recorded.repo, missions })
+    getWallPlaylist = makeGetWallPlaylist({
+      events,
+      photos,
+      guests: recorded.repo,
+      missions,
+      guestbook: new FakeGuestbookRepository(),
+    })
 
     const result = await ask()
 
@@ -530,6 +540,7 @@ describe('getWallPlaylist and "Première photo de …"', () => {
       photos,
       guests,
       missions: new FakeMissionRepository(photos),
+      guestbook: new FakeGuestbookRepository(),
     })
     events.seed(wedding)
     guests.seed(
@@ -654,6 +665,7 @@ describe('getWallPlaylist and the mission panel', () => {
       photos,
       guests: new FakeGuestRepository(),
       missions,
+      guestbook: new FakeGuestbookRepository(),
     })
     events.seed(wedding)
   })

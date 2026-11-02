@@ -319,6 +319,8 @@ export interface WallResponse {
    * means the same thing**, and is what nearly every event sends.
    */
   readonly missions?: readonly WallMissionDto[]
+  /** The guestbook for the room (spec 01); absent when there is nothing to show or an older server. */
+  readonly guestbook?: WallGuestbookDto
   /**
    * The language this screen renders its own words in (roadmap 1.5).
    *
@@ -338,6 +340,18 @@ export interface WallResponse {
  * drawn with a tick, a per-guest one with `completedByGuests`, because a tick would be
  * wrong for something two hundred people can each answer.
  */
+export interface WallGuestbookMessageDto {
+  readonly id: string
+  readonly text: string
+  readonly authorName: string | null
+  readonly displayMs: number
+}
+
+export interface WallGuestbookDto {
+  readonly everyNth: number
+  readonly messages: readonly WallGuestbookMessageDto[]
+}
+
 export interface WallMissionDto {
   readonly id: string
   readonly prompt: string

@@ -12,11 +12,17 @@ import {
   type WallLayout,
   type WallLayoutSpec,
 } from '../../../domain/slideshow/wallLayout'
+import {
+  GUESTBOOK_WALL_EVERY_NTH,
+  GUESTBOOK_WALL_MAX_MESSAGES,
+  messageDisplayMs,
+} from '../../../domain/guestbook/guestbookWall'
 import { DomainError } from '../../../domain/shared/errors'
 import type { GuestId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
@@ -50,6 +56,9 @@ const DEFAULT_WINDOW_SIZE = 200
  */
 const MAX_CANDIDATES = 500
 
+/** A book holds 500 messages at most (the event ceiling), so this reads it whole. */
+const MAX_BOOK_ROWS = 500
+
 /** Letterboxed on black, one photo at a time: nobody's head is cropped by default. */
 const DEFAULT_LAYOUT: WallLayout = 'spotlight'
 
@@ -72,6 +81,7 @@ export interface GetWallPlaylistDeps {
   readonly photos: PhotoRepository
   readonly guests: GuestRepository
   readonly missions: MissionRepository
+  readonly guestbook: GuestbookRepository
 }
 
 /**
@@ -95,6 +105,21 @@ export interface WallMissionStanding {
   readonly mission: Mission
   readonly progress: MissionProgress
   readonly achieved: boolean
+}
+
+/** One guestbook message as the wall shows it: no guest id, only the name the guest gave. */
+export interface WallGuestbookMessage {
+  readonly id: string
+  readonly text: string
+  /** `null` for a guest who gave no name or whose row is gone: the client words that. */
+  readonly authorName: string | null
+  readonly displayMs: number
+}
+
+/** What the wall carries of the guestbook; absent when the room is not to show it. */
+export interface WallGuestbook {
+  readonly everyNth: number
+  readonly messages: readonly WallGuestbookMessage[]
 }
 
 export interface WallPlaylistView {
@@ -140,6 +165,8 @@ export interface WallPlaylistView {
    * drawing a panel at all.
    */
   readonly missions: readonly WallMissionStanding[]
+  /** `null` unless the guestbook is open and its messages are for the wall, or there is none yet. */
+  readonly guestbook: WallGuestbook | null
 }
 
 export type GetWallPlaylist = (
@@ -181,8 +208,40 @@ const resolveAuthorNames = async (
   return byPhoto
 }
 
+/**
+ * The published messages the room may show: only when the host switched the guestbook on **and**
+ * its messages for the wall (a closed book is not read out loud), the newest 100, oldest
+ * first among them. `published` is the only status the wall ever reads; the repository leaves
+ * out what the operator took down.
+ */
+const readGuestbook = async (
+  guestbook: GuestbookRepository,
+  guests: GuestRepository,
+  event: Event,
+): Promise<WallGuestbook | null> => {
+  if (!event.settings.allowGuestbook || !event.settings.guestbookOnWall) return null
+
+  const published = await guestbook.listByStatuses(event.id, ['published'], MAX_BOOK_ROWS)
+  if (published.length === 0) return null
+
+  const shown = published.slice(-GUESTBOOK_WALL_MAX_MESSAGES)
+  const names = await guests.findNamesByIds(event.id, [
+    ...new Set(shown.map((entry) => entry.guestId)),
+  ])
+
+  return {
+    everyNth: GUESTBOOK_WALL_EVERY_NTH,
+    messages: shown.map((entry) => ({
+      id: entry.id,
+      text: entry.text.value,
+      authorName: names.get(entry.guestId) ?? null,
+      displayMs: messageDisplayMs(entry.text.length),
+    })),
+  }
+}
+
 export const makeGetWallPlaylist =
-  ({ events, photos, guests, missions }: GetWallPlaylistDeps): GetWallPlaylist =>
+  ({ events, photos, guests, missions, guestbook }: GetWallPlaylistDeps): GetWallPlaylist =>
   async ({ slug, layout, slideIntervalMs, windowSize }) => {
     const event = await events.findBySlug(slug)
     // An event that does not serve its wall is answered exactly as one that does not
@@ -243,6 +302,8 @@ export const makeGetWallPlaylist =
     // per prompt per guest who joins.
     const standings = await missions.listWithProgress(event.id)
 
+    const book = await readGuestbook(guestbook, guests, event)
+
     return ok({
       event,
       playlist: playlist.value,
@@ -254,5 +315,6 @@ export const makeGetWallPlaylist =
       layout: chosenLayout,
       layoutSpec: wallLayoutSpec(chosenLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
+      guestbook: book,
     })
   }
