@@ -158,11 +158,8 @@ describe('the stored display variants', () => {
   }, 120_000)
 
   it.each(['webp', 'png'] as const)('renders a %s picture, as the pipeline stores it', async (format) => {
-    const picture = new Uint8Array(
-      await sharp({ create: { width: 640, height: 360, channels: 3, background: '#cc3366' } })
-        [format]()
-        .toBuffer(),
-    )
+    const base = sharp({ create: { width: 640, height: 360, channels: 3, background: '#cc3366' } })
+    const picture = new Uint8Array(await base[format]().toBuffer())
 
     const made = await renderer.render([picture, landscape, picture], SPEC)
 
