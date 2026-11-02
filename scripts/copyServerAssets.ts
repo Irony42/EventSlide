@@ -1,6 +1,6 @@
 import { cp } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 /**
  * `tsc` emits JavaScript and nothing else, so the files the compiled server reads at run time
@@ -30,14 +30,18 @@ export const copyServerAssets = async (
   return copied
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void copyServerAssets().then(
-    (copied) => {
-      console.log(`Copied ${copied.join(', ')} to dist/server/`)
-    },
-    (cause: unknown) => {
-      console.error(cause instanceof Error ? cause.message : String(cause))
-      process.exitCode = 1
-    },
-  )
+/** What the `build:api` step runs (`tsx -e`, so this module has no entry point of its own to leave uncovered): the exit code is what the build reads, the line is what a person reads. */
+export const runCli = async (
+  copy: () => Promise<readonly string[]>,
+  log: (line: string) => void,
+  fail: (line: string) => void,
+): Promise<number> => {
+  try {
+    const copied = await copy()
+    log(`Copied ${copied.join(', ')} to dist/server/`)
+    return 0
+  } catch (cause) {
+    fail(cause instanceof Error ? cause.message : String(cause))
+    return 1
+  }
 }
