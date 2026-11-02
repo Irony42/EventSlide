@@ -2,6 +2,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { EventRepository } from '../../ports/eventRepository'
+import type { BookFileStore } from '../../ports/bookFileStore'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { MembershipRepository } from '../../ports/userRepository'
 import { requireEventRole, requireWritable } from '../shared/eventRole'
@@ -22,12 +23,17 @@ export interface PurgeEventDeps {
   readonly events: EventRepository
   readonly memberships: MembershipRepository
   readonly media: MediaStore
+  /**
+   * The photo book's PDF lives in `MEDIA_ROOT/.books`, outside the event's folder, so
+   * `media.deleteEvent` does not reach it (spec 04): the purge deletes it explicitly.
+   */
+  readonly bookFiles?: Pick<BookFileStore, 'delete'>
 }
 
 export type PurgeEvent = (input: PurgeEventInput) => Promise<Result<void, DomainError>>
 
 export const makePurgeEvent =
-  ({ events, memberships, media }: PurgeEventDeps): PurgeEvent =>
+  ({ events, memberships, media, bookFiles }: PurgeEventDeps): PurgeEvent =>
   async ({ eventId, actorId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -53,6 +59,9 @@ export const makePurgeEvent =
     // guests, reactions and memberships in the same transaction.
     if (!(await events.deleteUnlessHeld(event.id))) return unavailable()
 
+    // The book first and on its own: a failure here only leaves a file no row names, which the
+    // book sweep collects, and must not hide whether the photographs themselves went.
+    await bookFiles?.delete(event.id).catch(() => undefined)
     try {
       await media.deleteEvent(event.id)
     } catch {

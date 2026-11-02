@@ -10,7 +10,9 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { useEvent } from './hooks/useEventData'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
+import { isEventLogoUrl } from '../../lib/brand'
 import { PrintSheet } from './print/PrintSheet'
+import { useImageReady } from './print/useImageReady'
 import { usePrintPageRule } from './print/usePrintPageRule'
 import {
   DEFAULT_PRINT_FORMAT,
@@ -72,17 +74,22 @@ export function PrintKitPage() {
   }
 
   usePrintPageRule()
+  const eventLogo = event?.settings.brand?.logoUrl
+  const availableLogo = isEventLogoUrl(eventLogo) ? eventLogo : null
+  const wantsLogo = preferences.logo === true && availableLogo !== null
+  const logoState = useImageReady(wantsLogo ? availableLogo : null)
   useRevalidateWhenVisible(reload)
 
   // The print waits for the reload it asked for, and never happens when that reload failed.
   useEffect(() => {
-    if (!printWanted.current || loading) return
+    // A logo still on its way would print as an empty centre in a code encoded for it.
+    if (!printWanted.current || loading || logoState === 'loading') return
     printWanted.current = false
     if (error !== null) return
     // The effect runs after the commit that drew the reloaded sheet, so the dialog sees it.
     // Some in-app browsers ship no `print()`.
     if (typeof window.print === 'function') window.print()
-  }, [loading, error])
+  }, [loading, error, logoState])
 
   const handlePrint = () => {
     printWanted.current = true
@@ -90,7 +97,7 @@ export function PrintKitPage() {
   }
 
   const update = useCallback(
-    (patch: { format?: PrintFormat; language?: Locale; ink?: PrintInk }) => {
+    (patch: { format?: PrintFormat; language?: Locale; ink?: PrintInk; logo?: boolean }) => {
       const next = { ...preferences, ...patch }
       setPreferences(next)
       writePrintPreferences(slug, next)
@@ -205,6 +212,18 @@ export function PrintKitPage() {
               ))}
             </fieldset>
 
+            {availableLogo === null ? null : (
+              <label className={styles['radio']}>
+                <input
+                  type="checkbox"
+                  checked={wantsLogo}
+                  onChange={(changed) => update({ logo: changed.target.checked })}
+                />
+                {t.admin.printKitLogo}
+              </label>
+            )}
+            {wantsLogo ? <p className={styles['help']}>{t.admin.printKitLogoHint}</p> : null}
+
             {totalModules !== null && isQrTooSmall(format, totalModules) ? (
               <Notice tone="warning" role="status" variant="boxed">
                 {t.admin.printKitLongLink}
@@ -226,6 +245,7 @@ export function PrintKitPage() {
               locale={language}
               ink={ink}
               accentHue={event.settings.theme.accentHue}
+              logoUrl={wantsLogo && logoState === 'ready' ? availableLogo : null}
               onQrModules={setTotalModules}
             />
           </section>

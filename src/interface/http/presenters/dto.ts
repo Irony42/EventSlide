@@ -67,6 +67,8 @@ import type { WallLayout } from '../../../domain/slideshow/wallLayout'
  */
 export interface EventBrandDto {
   readonly welcomeMessage: string | null
+  /** Where the host's logo is served, or `null`: `/api/events/<slug>/logo/<digest>`. */
+  readonly logoUrl: string | null
 }
 
 export interface EventThemeDto {
@@ -1311,9 +1313,55 @@ export type OperatorPasswordResetDto =
 
 // ---------------------------------------------------------------- best-of (spec 08) --
 
-/** `GET /events/:eventSlug/highlights`: how many favourites can be exported. */
+/**
+ * `GET /events/:eventSlug/book` and the `202` of `POST` (spec 04): the event's photo book.
+ * `none` when the host never asked for one. No guest text, no path: the title and subtitle are
+ * the host's own words, `failureCode` and `staleReason` are closed lists.
+ */
+export type AlbumBookDto =
+  | { readonly status: 'none' }
+  | {
+      readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
+      readonly options: {
+        readonly title: string
+        readonly subtitle: string
+        readonly language: string
+        readonly layout: 'one' | 'four'
+        readonly showAuthors: boolean
+        readonly showCaptions: boolean
+      }
+      readonly requestedAt: string
+      readonly doneAt: string | null
+      readonly photoCount: number | null
+      readonly skippedCount: number | null
+      readonly pageCount: number | null
+      readonly byteSize: number | null
+      readonly expiresAt: string | null
+      readonly failureCode: string | null
+      readonly staleReason: string | null
+    }
+
+/**
+ * The host's highlight reel as the panel reads it (spec 08). Numbers and a state: never a photo id
+ * or a hash, and `stale` has no reason (the host must not learn that the operator acted).
+ * `durationMs` and `byteSize` only on a montage that can be played, `failureCode` only on a
+ * failed one.
+ */
+export type ReelStatusDto = 'queued' | 'running' | 'done' | 'failed' | 'stale'
+
+export interface ReelDto {
+  readonly status: ReelStatusDto
+  readonly photoCount: number
+  readonly durationMs?: number
+  readonly byteSize?: number
+  readonly failureCode?: string
+  readonly updatedAt: string
+}
+
+/** `GET /events/:eventSlug/highlights`: how many favourites can be exported, and the montage. */
 export interface HighlightsDto {
   readonly count: number
+  readonly reel: ReelDto | null
 }
 
 /** `POST /events/:eventSlug/highlights/preselect`: how many stars it put. */

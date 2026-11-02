@@ -16,6 +16,7 @@ import { Transform, type TransformCallback } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { z } from 'zod'
 import {
+  EVENT_LOGO,
   MEDIA_VARIANTS,
   REEL_VARIANT,
   STAGED_SOURCE,
@@ -511,6 +512,7 @@ const readSnapshot = (
   photos: PhotoRow[]
   stagedClips: StagedClipRow[]
   venuePhotos: VenuePhotoRow[]
+  logos: VenuePhotoRow[]
 } => {
   const db = openDatabase({ path, readonly: true })
   try {
@@ -557,10 +559,20 @@ const readSnapshot = (
       )
       .all() as VenuePhotoRow[]
 
+    // A host's logo (spec 03) is named by settings too, and would otherwise be reported as unreferenced.
+    const logos = db
+      .prepare(
+        `SELECT id AS eventId, json_extract(settings, '$.logo') AS hash
+           FROM events
+          WHERE json_extract(settings, '$.logo') IS NOT NULL`,
+      )
+      .all() as VenuePhotoRow[]
+
     return {
       integrityCheck: verdict,
       stagedClips,
       venuePhotos,
+      logos,
       migrations: migrationRows,
       counts: {
         users: countRows(db, 'users'),
@@ -814,6 +826,10 @@ const writeArchive = async ({
   // The host's own venue photographs, named by an event's settings (ADR 0010).
   for (const venue of snapshot.venuePhotos) {
     expected.add(mediaObjectPath(venue.eventId, venue.hash, VENUE_GROUND))
+  }
+
+  for (const logo of snapshot.logos) {
+    expected.add(mediaObjectPath(logo.eventId, logo.hash, EVENT_LOGO))
   }
 
   const unreferencedMediaFiles = entries.filter((entry) => !expected.has(entry.path)).length

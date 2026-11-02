@@ -344,7 +344,7 @@ describe('POST /api/join', () => {
           ambiance: 'eventslide',
           groundUrl: null,
         },
-        brand: { welcomeMessage: null },
+        brand: { welcomeMessage: null, logoUrl: null },
       },
       privacyNotice: {
         notice: {

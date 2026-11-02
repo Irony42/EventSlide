@@ -1,5 +1,6 @@
 import { expect, signInAsHost, test } from '../fixtures/app'
 import { joinAndUpload } from '../fixtures/guest'
+import { aPhoto, hasEncoder } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
 
 /**
@@ -60,4 +61,71 @@ test('a host stars a photo, downloads the favourites as a ZIP, and loses the sta
     .click()
   await host.goto(app.url(`/admin/events/${event.slug}`))
   await expect(host.getByText(fr.admin.bestOfNone)).toBeVisible()
+})
+
+/**
+ * Step 2 (spec 08): the highlight video. Three published favourites are montaged by the real
+ * worker with the real encoder, the host plays it, and taking one photo off the wall makes the
+ * file stop being served at once (the route re-checks the photographs on every request).
+ */
+test('a host makes the highlight video from three favourites, and loses it when one leaves the wall', async ({
+  app,
+  surfaces,
+}) => {
+  test.skip(!hasEncoder(), 'no ffmpeg on this machine: the montage cannot be rendered')
+  test.setTimeout(180_000)
+  const { guest, host } = surfaces
+  const event = await app.seedEvent({ slug: 'mariage-video', name: 'Camille & Sacha' })
+  await signInAsHost(host, app)
+
+  await joinAndUpload(guest, app, event.joinCode, { displayName: 'Léa' })
+  for (const width of [1100, 1000]) {
+    await guest.reload()
+    await guest.getByTestId('photo-input').setInputFiles(await aPhoto('journey', width, 800))
+    await guest.getByRole('button', { name: /Envoyer/i }).click()
+    await expect(guest.getByTestId('upload-item-0')).toHaveAttribute('data-state', 'done')
+  }
+
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  for (let left = 3; left > 0; left -= 1) {
+    await host
+      .getByTestId('moderation-card')
+      .first()
+      .getByRole('button', { name: /Publier/i })
+      .click()
+    await expect(host.getByTestId('moderation-card')).toHaveCount(left - 1)
+  }
+  await host.getByRole('button', { name: fr.moderation.filterPublished }).click()
+  await expect(host.getByTestId('moderation-card')).toHaveCount(3)
+  for (let index = 0; index < 3; index += 1) {
+    const star = host
+      .getByTestId('moderation-card')
+      .nth(index)
+      .getByRole('button', { name: fr.moderation.highlight })
+    await star.click()
+    await expect(star).toHaveAttribute('aria-pressed', 'true')
+  }
+
+  await host.goto(app.url(`/admin/events/${event.slug}`))
+  await host.getByRole('button', { name: fr.admin.reelCreate }).click()
+  await expect(host.getByText(fr.admin.reelReady(3))).toBeVisible({ timeout: 120_000 })
+
+  const file = await host.request.get(app.url(`/api/events/${event.slug}/highlights/reel.mp4`))
+  expect(file.status()).toBe(200)
+  expect(file.headers()['content-type']).toBe('video/mp4')
+  expect(file.headers()['cache-control']).toBe('private, no-store')
+  // An ISO base media file: "ftyp" at byte 4.
+  expect((await file.body()).subarray(4, 8).toString('latin1')).toBe('ftyp')
+  await expect(host.locator('video')).toBeVisible()
+
+  // One photo leaves the wall: the file is no longer served, whatever the worker has done yet.
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  await host.getByRole('button', { name: fr.moderation.filterPublished }).click()
+  await host
+    .getByTestId('moderation-card')
+    .first()
+    .getByRole('button', { name: /Retirer de l.écran/i })
+    .click()
+  const gone = await host.request.get(app.url(`/api/events/${event.slug}/highlights/reel.mp4`))
+  expect(gone.status()).toBe(404)
 })

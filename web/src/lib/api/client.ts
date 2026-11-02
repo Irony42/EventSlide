@@ -31,7 +31,9 @@ import type {
   MissionDto,
   MissionListResponse,
   MissionScope,
+  AlbumBookDto,
   HighlightsDto,
+  ReelDto,
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
@@ -224,6 +226,15 @@ export interface ShareLinkInput {
  * the language the invitation is mailed in. No password and no name — the person chooses
  * both when they accept (roadmap §10.3).
  */
+/** What the host chose in the book form. */
+export interface AlbumBookInput {
+  readonly title: string
+  readonly subtitle: string
+  readonly layout: 'one' | 'four'
+  readonly showAuthors: boolean
+  readonly showCaptions: boolean
+}
+
 export interface ModeratorInvitationInput {
   readonly email: string
   readonly locale: Locale
@@ -691,6 +702,21 @@ export const createApi = (transport: Transport) => ({
   removeVenuePhoto: (slug: string): Promise<EventDto> =>
     transport.del(`/api/events/${encode(slug)}/venue-photo`),
 
+  /**
+   * Sends, or replaces, the event's logo (spec 03): a multipart `PUT` with one part, `file`, that
+   * answers the event, whose `brand.logoUrl` is then the stored file. The name and type the browser
+   * attaches are the server's to ignore; the format is identified from the bytes.
+   */
+  putEventLogo: (slug: string, file: File): Promise<EventDto> => {
+    const form = new FormData()
+    form.append('file', file)
+    return transport.put(`/api/events/${encode(slug)}/logo`, form)
+  },
+
+  /** Takes the logo down. Idempotent. */
+  removeEventLogo: (slug: string): Promise<EventDto> =>
+    transport.del(`/api/events/${encode(slug)}/logo`),
+
   setEventStatus: (slug: string, status: EventStatus): Promise<EventDto> =>
     transport.post(`/api/events/${encode(slug)}/status`, { status }),
 
@@ -758,8 +784,22 @@ export const createApi = (transport: Transport) => ({
   preselectHighlights: (slug: string, limit: number): Promise<PreselectHighlightsResponse> =>
     transport.post(`/api/events/${encode(slug)}/highlights/preselect`, { limit }),
 
+  /** The photo book (spec 04): its state, a request for one, and throwing it away. */
+  albumBook: (slug: string, signal?: AbortSignal): Promise<AlbumBookDto> =>
+    transport.get(`/api/events/${encode(slug)}/book`, undefined, signal),
+
+  requestAlbumBook: (slug: string, body: AlbumBookInput): Promise<AlbumBookDto> =>
+    transport.post(`/api/events/${encode(slug)}/book`, body),
+
+  deleteAlbumBook: (slug: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/book`),
+
   highlights: (slug: string, signal?: AbortSignal): Promise<HighlightsDto> =>
     transport.get(`/api/events/${encode(slug)}/highlights`, undefined, signal),
+
+  /** Asks for the montage of the favourites (spec 08): `202`, then the panel reads its state. */
+  requestReel: (slug: string): Promise<ReelDto> =>
+    transport.post(`/api/events/${encode(slug)}/highlights/reel`),
 
   topPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly TopPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/top-photos`, undefined, signal),
@@ -871,7 +911,13 @@ export const createApi = (transport: Transport) => ({
   /** Built here so the ZIP link and the wall link cannot drift from the API doc. */
   albumUrl: (slug: string): string => `/api/events/${encode(slug)}/album.zip`,
 
+  /** The finished photo book (spec 04). */
+  albumBookUrl: (slug: string): string => `/api/events/${encode(slug)}/book.pdf`,
+
   /** The favourites as a ZIP (spec 08). */
+  /** The finished montage, streamed with `Range`; every request is re-checked by the server. */
+  reelUrl: (slug: string): string => `/api/events/${encode(slug)}/highlights/reel.mp4`,
+
   bestOfUrl: (slug: string): string => `/api/events/${encode(slug)}/best-of.zip`,
 
   /** The wall's channel. Public, because a projector has nobody to sign it in. */

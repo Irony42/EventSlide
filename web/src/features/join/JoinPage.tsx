@@ -13,6 +13,7 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { fromOf, useJoin } from './hooks/useJoin'
 import styles from './JoinPage.module.css'
 import { HostGreeting } from '../guest-upload/components/HostGreeting'
+import { HostLogo } from '../guest-upload/components/HostLogo'
 import { AmbianceMarker } from '../../design-system/components/AmbianceMarker'
 
 /**
@@ -153,6 +154,7 @@ export function JoinPage() {
           groundUrl={event.theme.groundUrl}
         />
         <Card as="h1" title={t.join.welcome(event.name)} className={styles['card']}>
+          <HostLogo url={event.brand?.logoUrl} eventName={event.name} />
           <HostGreeting message={event.brand?.welcomeMessage} />
           <form className={styles['form']} onSubmit={handleSubmit} noValidate>
             {/*

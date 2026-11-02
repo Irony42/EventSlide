@@ -20,6 +20,7 @@ import type { PendingInvitation } from '../../../application/usecases/clients/li
 import type { EventLimits } from '../../../application/usecases/events/getEventLimits'
 import type { NoticeForGuest, PrivacyNotice } from '../../../domain/privacy/privacyNotice'
 import type {
+  AlbumBookDto,
   CreatedGuestbookEntryDto,
   GuestbookQueueItemDto,
   GuestbookEntryDto,
@@ -31,6 +32,7 @@ import type {
   ClientUsageDto,
   ClipJobDto,
   CurrentUserDto,
+  ReelDto,
   EventDto,
   EventSettingsDto,
   EventSummaryDto,
@@ -80,6 +82,7 @@ import type {
   WallMissionDto,
   WallResponseDto,
 } from './dto'
+
 import type { ModerationQueueRow } from '../../../application/usecases/moderation/getModerationQueue'
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import type { ReactionCounts } from '../../../domain/reactions/reactionTally'
@@ -97,6 +100,7 @@ import type {
   WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
 import type { PhotoId } from '../../../domain/shared/ids'
+import type { ReelView } from '../../../application/usecases/highlights/reelView'
 import type { MembershipWithUser } from '../../../application/ports/userRepository'
 import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
 import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
@@ -112,6 +116,7 @@ import type {
 } from '../../../application/usecases/gallery/listGalleryPhotos'
 import type { GalleryView } from '../../../application/usecases/gallery/openGallery'
 import type { EventStats } from '../../../application/usecases/stats/getEventStats'
+import type { AlbumBook } from '../../../domain/book/albumBook'
 import { canOperateSite, type SiteRole } from '../../../domain/users/siteRole'
 
 /**
@@ -155,8 +160,39 @@ export interface PresenterContext {
   }
 }
 
+/**
+ * The montage as the host's panel reads it (spec 08). Optional fields are left out rather than
+ * sent as `null`, and nothing here can carry an id: the view has none.
+ */
+export const toReelDto = (view: ReelView): ReelDto => ({
+  status: view.status,
+  photoCount: view.photoCount,
+  ...(view.durationMs === null ? {} : { durationMs: view.durationMs }),
+  ...(view.byteSize === null ? {} : { byteSize: view.byteSize }),
+  ...(view.failureCode === null ? {} : { failureCode: view.failureCode }),
+  updatedAt: view.updatedAt.toISOString(),
+})
+
 const iso = (date: Date): string => date.toISOString()
 const isoOrNull = (date: Date | null): string | null => (date === null ? null : date.toISOString())
+
+/** The photo book as the host's screen reads it (spec 04); `none` when none was ever asked for. */
+export const toAlbumBookDto = (book: AlbumBook | null): AlbumBookDto =>
+  book === null
+    ? { status: 'none' }
+    : {
+        status: book.status,
+        options: { ...book.options },
+        requestedAt: iso(book.requestedAt),
+        doneAt: isoOrNull(book.doneAt),
+        photoCount: book.photoCount,
+        skippedCount: book.skippedCount,
+        pageCount: book.pageCount,
+        byteSize: book.byteSize,
+        expiresAt: isoOrNull(book.expiresAt),
+        failureCode: book.failureCode,
+        staleReason: book.staleReason,
+      }
 
 export const mediaUrl = (slug: string, photoId: string, variant: MediaVariant): string =>
   `/api/events/${encodeURIComponent(slug)}/photos/${encodeURIComponent(photoId)}/${variant}`
@@ -265,9 +301,20 @@ export const venueGroundUrl = (settings: EventSettings, slug: string | null): st
  * What the host says to their guests, copied field for field. Takes only the settings: nothing of a
  * guest can reach it (spec 03, section 7).
  */
-export const toEventBrandDto = (settings: EventSettings): EventBrandDto => ({
+export const toEventBrandDto = (settings: EventSettings, slug: string | null): EventBrandDto => ({
   welcomeMessage: settings.welcomeMessage,
+  logoUrl: eventLogoUrl(settings, slug),
 })
+
+/**
+ * Where the host's logo is served, or `null`. The digest is in the path, so the URL changes when
+ * the logo does and the route's year-long cache is safe. Built here, never from anything a client sent;
+ * `null` for a surface that cannot read it (no slug).
+ */
+export const eventLogoUrl = (settings: EventSettings, slug: string | null): string | null =>
+  slug === null || settings.logo === null
+    ? null
+    : `/api/events/${encodeURIComponent(slug)}/logo/${settings.logo.value}`
 
 export const toEventSettingsDto = (settings: EventSettings, slug: string): EventSettingsDto => ({
   moderation: settings.moderation,
@@ -281,7 +328,7 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   retentionDays: settings.retentionDays,
   maxPhotosPerGuest: settings.maxPhotosPerGuest,
   theme: toEventThemeDto(settings, slug),
-  brand: toEventBrandDto(settings),
+  brand: toEventBrandDto(settings, slug),
   wallLanguage: settings.wallLanguage,
 })
 
@@ -322,7 +369,7 @@ export const toPublicEventDto = (
   // Unlike the switches above, this is not a permission: it is what the host's event
   // looks like, and the guest's screen is one of the three places it looks like it.
   theme: toEventThemeDto(event.settings, event.slug.value),
-  brand: toEventBrandDto(event.settings),
+  brand: toEventBrandDto(event.settings, event.slug.value),
 })
 
 /**
@@ -802,7 +849,7 @@ export const toWallResponseDto = (
     // screen: two projectors in the same room must agree about the colour even when one
     // of them is showing a mosaic and the other a spotlight.
     theme: toEventThemeDto(view.event.settings, view.event.slug.value),
-    brand: toEventBrandDto(view.event.settings),
+    brand: toEventBrandDto(view.event.settings, view.event.slug.value),
     // The same argument as the theme, one step further: the language is a property of the
     // event and not of the screen, so two projectors in one room agree about it even when
     // one of them was launched from a laptop set to English. `?layout=` is the deliberate

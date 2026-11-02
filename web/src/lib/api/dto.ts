@@ -92,6 +92,7 @@ export type MissionScope = 'guest' | 'event'
 /** What the host says to their guests (spec 03): content, shown as written. */
 export interface EventBrandDto {
   readonly welcomeMessage: string | null
+  readonly logoUrl: string | null
 }
 
 export interface EventThemeDto {
@@ -502,9 +503,51 @@ export interface ModerationPhotoDto {
   readonly highlighted?: boolean
 }
 
+/**
+ * The event's photo book (spec 04): `none` when the host never asked for one. Transcribed from
+ * `AlbumBookDto` on the server, which the web app cannot import. No guest text: the title and
+ * subtitle are the host's own, `failureCode` and `staleReason` are closed lists.
+ */
+export type AlbumBookDto =
+  | { readonly status: 'none' }
+  | {
+      readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
+      readonly options: {
+        readonly title: string
+        readonly subtitle: string
+        readonly language: string
+        readonly layout: 'one' | 'four'
+        readonly showAuthors: boolean
+        readonly showCaptions: boolean
+      }
+      readonly requestedAt: string
+      readonly doneAt: string | null
+      readonly photoCount: number | null
+      readonly skippedCount: number | null
+      readonly pageCount: number | null
+      readonly byteSize: number | null
+      readonly expiresAt: string | null
+      readonly failureCode: string | null
+      readonly staleReason: string | null
+    }
+
 /** The best-of panel's read: how many favourites can be exported (spec 08). */
 export interface HighlightsDto {
   readonly count: number
+  /** The montage of the favourites; `null` when none was ever asked for. Optional: older server. */
+  readonly reel?: ReelDto | null
+}
+
+export type ReelStatusDto = 'queued' | 'running' | 'done' | 'failed' | 'stale'
+
+/** The montage's state. The photograph ids never travel: only how many, and how long. */
+export interface ReelDto {
+  readonly status: ReelStatusDto
+  readonly photoCount: number
+  readonly durationMs?: number
+  readonly byteSize?: number
+  readonly failureCode?: string
+  readonly updatedAt: string
 }
 
 export interface PreselectHighlightsResponse {
