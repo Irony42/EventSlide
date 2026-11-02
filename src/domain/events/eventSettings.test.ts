@@ -15,6 +15,14 @@ describe('EventSettings defaults', () => {
     expect(EventSettings.default().moderation).toBe('manual')
   })
 
+  it('opens the guestbook for a new event and shows its messages on the wall', () => {
+    // Pierre, spec 01 Q1: on for new events. An event that exists is read back as off, which the
+    // SQLite repository test holds (`settingsBooleanAddedLater`).
+    const settings = EventSettings.default()
+
+    expect([settings.allowGuestbook, settings.guestbookOnWall]).toEqual([true, true])
+  })
+
   it('lets a guest caption, react and take back their own photo', () => {
     const settings = EventSettings.default()
 
@@ -122,6 +130,7 @@ describe('EventSettings.create', () => {
       wallLanguage: 'de',
       venuePhoto: null,
       welcomeMessage: null,
+      logo: null,
     })
   })
 
@@ -538,5 +547,28 @@ describe('the wall language', () => {
 
     expect(result.ok).toBe(false)
     expect(!result.ok && result.error.code).toBe('eventSettings.wallLanguageInvalid')
+  })
+})
+
+describe('EventSettings logo', () => {
+  const digest = ContentHash.create('ef'.repeat(32))
+  if (!digest.ok) throw new Error('fixture digest')
+
+  it('holds no logo until one is named, and names and clears it without touching any other setting', () => {
+    const before = unwrap(EventSettings.create({ retentionDays: 30, welcomeMessage: 'Salut' }))
+    expect(before.logo).toBeNull()
+
+    const named = before.withLogo(digest.value)
+    const cleared = named.withLogo(null)
+
+    expect(named.logo?.value).toBe(digest.value.value)
+    expect({ ...named.toProps(), logo: null }).toEqual(before.toProps())
+    expect(cleared.toProps()).toEqual(before.toProps())
+  })
+
+  it('keeps the logo across a settings patch that does not mention it', () => {
+    const named = EventSettings.default().withLogo(digest.value)
+
+    expect(unwrap(named.with({ allowCaptions: false })).logo?.value).toBe(digest.value.value)
   })
 })

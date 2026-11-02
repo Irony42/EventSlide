@@ -1198,6 +1198,12 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
       "completedByGuests": 12
     }
   ],
+  "guestbook": {
+    "everyNth": 6,
+    "messages": [
+      { "id": "…", "text": "Une belle soirée", "authorName": "Léa", "displayMs": 6600 }
+    ]
+  },
   "wallLanguage": "fr"
 }
 ```
@@ -1206,6 +1212,15 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
 is what stops the wall drawing a panel at all. It rides here rather than behind a second
 request for the reason `theme` does: a projector runs unattended, and one fetch that either
 arrives or does not beats two that can half-arrive.
+
+`guestbook` (spec 01) is **absent** unless the host switched the guestbook on **and** its messages for the
+wall, and at least one message is published. It is `{ "everyNth": 6, "messages": [{ "id", "text", "authorName",
+"displayMs" }] }`: the newest 100 published messages, oldest first. A `pending`, `rejected` or `hidden` message,
+one the operator took down, and another event's never appear, and no guest id does either. `authorName` is `null`
+for a guest who gave no name (the wall words that). `everyNth` and each `displayMs` are the server's: the wall
+shows a card after that many photograph changes, for that long (6 s plus 60 ms a character, at most 20 s), and
+holds the photographs while it is up. `revision` does **not** cover it, so a wall compares `guestbook` message by
+message, like `missions`; a `guestbook.changed` signal makes it read again.
 
 Each row carries what the room draws and nothing else. `achieved` is true once **one
 published photograph** names the mission — counted on every read, never stored, so a
@@ -1727,6 +1742,27 @@ Every change to the guestbook (a message written, removed, erased with its guest
 `{ "type": "guestbook.changed" }` signal on the event's stream: an invalidation without data, like
 `mission.changed`, that makes the host's panel and the wall re-read.
 
+### `GET /api/events/:slug/guestbook`
+
+The host's reading of the guestbook. **Any moderator** of the event (a moderator of another event, a guest and an
+anonymous caller are refused like every moderator route). Query: `limit` (default 500, at most 500). Not paged: a
+book holds 500 messages at most.
+
+**200** — `{ "items": [...], "pendingCount": 2 }`. Items are ordered **pending first**, then newest first; each is
+`{ id, text, authorName, status, createdAt, allowedDecisions }`. `authorName` is `null` when the guest gave none or
+their row is gone. `allowedDecisions` is the status machine's answer for this message (`publish`, `hide`,
+`reject`): the panel offers those buttons and works out nothing. `pendingCount` is the whole book's, not the page's.
+A message the operator took down is not listed. `Cache-Control: no-store`.
+
+### `PATCH /api/events/:slug/guestbook/:entryId/status`
+
+Decide on a message. Any moderator. Body `{ "decision": "publish" | "hide" | "reject" }`, the photograph's vocabulary
+and the photograph's transitions.
+
+**204**. **Errors** — `404 guestbook.notFound` (another event's id included); the status machine's conflict for a
+move it does not allow; `409 event.notModeratable` (an archived event); `400 request.invalid`. One
+`guestbook.changed` signal on success.
+
 ### `GET /api/events/:slug/privacy-notice`
 
 The privacy notice in force at this event, and whether **this device** has read it
@@ -2117,8 +2153,10 @@ told at once: each photograph announces `photo.deleted` and the operation ends w
 wall re-reads on any signal but a reaction, the moderation queue on each `photo.*`), so a slide leaves the projector
 and the host's queue without a reload; the guest list and the guest feed show it on their next read.
 
+**What it reaches**: the event's photo book, a file the server keeps (it goes stale and is deleted before the bytes of the photographs).
+
 **What it cannot reach**, (the phone's confirmation names the first and the screenshots): a copy the host already exported (the album archive is
-streamed, never kept), a download from the shared gallery link, a screenshot, and the hourly backup, which holds a deleted
+streamed, never kept; a downloaded book PDF is the same), a download from the shared gallery link, a screenshot, and the hourly backup, which holds a deleted
 photograph for the retention the privacy notice states. A queued clip whose bytes another guest also sent shares one job (the dedupe is per event), so erasing the first sender removes it for both. A photograph that was a **duplicate** of an earlier one in the
 same event (the same bytes sent twice) is one row owned by its first sender, so the second sender's erasure does not
 remove it and the first one's does.
@@ -2245,14 +2283,65 @@ client.
   moderation decision). A photo that leaves `published` loses its star.
 - `POST /api/events/:slug/highlights/preselect` with `{ "limit": 1..120 }`: stars the most
   reacted-to published photos, never removes a star, answers `{ "added": n }`.
-- `GET /api/events/:slug/highlights`: `{ "count": n }`, the same predicate as the ZIP. Readable on
-  an archived event.
+- `GET /api/events/:slug/highlights`: `{ "count": n, "reel": ReelDto | null }`, the same predicate
+  as the ZIP. Readable on an archived event.
+- `POST /api/events/:slug/highlights/reel`: no body; asks for the montage of the favourites as they
+  are now. `202` with `ReelDto`. `409 reel.alreadyRunning`, `409 reel.notEnoughPhotos` (details
+  `count`, `min`), `409 reel.tooManyPhotos` (`count`, `max`), `403 reel.notAllowed`, `429
+reel.queueFull`, `500 reel.transcoderUnavailable`.
+- `GET /api/events/:slug/highlights/reel.mp4`: the finished montage, `Range` supported,
+  `Cache-Control: no-store`. Every request re-checks the photographs first: a montage that lost one
+  is retired and answers `404 reel.notReady`.
+
+`ReelDto` is `{ status: queued|running|done|failed|stale, photoCount, durationMs?, byteSize?,
+failureCode?, updatedAt }`; no photograph id travels.
+
 - `GET /api/events/:slug/best-of.zip`: streamed like `album.zip` (same headers, filename
   `<slug>-best-of.zip`), oldest photo first, one folder `<slug>-best-of/`. `409 highlight.empty`
   before any header when there is no favourite.
 
 The moderation rows (`GET /moderation`, `GET /photos`) carry `highlighted: boolean`; no guest, wall
 or gallery payload does.
+
+### The photo book (spec 04)
+
+A PDF of the published album, made in the background (one at a time, behind video transcodes) and
+kept for `BOOK_TTL_DAYS`. Every route is a moderator of the event, like `album.zip`; none is
+reachable by a guest or the public, and nothing in them names a path.
+
+| Method   | Path                         | Answers                                                                                                                                                                                                                                                                                                                                                                    |
+| -------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/events/:slug/book`     | `202` + the book (`queued`). Body, strict: `title` (1 to 80 once cleaned), `subtitle` (0 to 80), `layout` (`one`/`four`), `showAuthors`, `showCaptions`, optional `language` (the event's wall language by default).                                                                                                                                                       |
+| `GET`    | `/api/events/:slug/book`     | `200` `{ "status": "none" }` or the book: `status` (`queued`, `running`, `done`, `failed`, `stale`), `options`, `requestedAt`, `doneAt`, `photoCount`, `skippedCount`, `pageCount`, `byteSize`, `expiresAt`, `failureCode` (`unavailable`, `tooLarge`, `empty`, `unexpected`), `staleReason` (`photoRemoved`, `captionChanged`, `fileMissing`). `Cache-Control: no-store`. |
+| `GET`    | `/api/events/:slug/book.pdf` | `200 application/pdf` as an attachment named `<slug>-livre.pdf` (the slug, never the title), `Content-Length` known, `Range` accepted (`206`, `416`), `no-store`, `nosniff`.                                                                                                                                                                                               |
+| `DELETE` | `/api/events/:slug/book`     | `204`, idempotent: the row and the file.                                                                                                                                                                                                                                                                                                                                   |
+
+Refusals of `POST`: `400 request.invalid` (or `book.titleEmpty` / `book.titleTooLong` / `book.subtitleTooLong`),
+`401`, `404 event.notFound` (not a member, or taken down by the operator), `403 client.suspended`,
+`403 book.notAllowed` (the client's `booksAllowed` switch is off), `409 book.alreadyRunning`,
+`409 book.empty` (nothing published), `429 book.dailyLimitReached` (three books per event per
+rolling day, counted apart from the book so deleting it does not reset it; `Retry-After` is the
+wait until the oldest request leaves the day), `429 rate.limited` (twenty requests an hour per
+account), `503 book.unavailable` (`BOOK_ENABLED=off`). A book too large (`BOOK_MAX_PHOTOS`,
+`BOOK_MAX_BYTES`) is decided by the worker, which reads the album: it ends `failed` with
+`failureCode: "tooLarge"`, because the count at request time includes videos the book leaves out.
+
+`GET book.pdf` answers **one** `404 book.notFound` for every reason there is nothing to give (never
+made, not finished, stale, expired, file gone, a draft), `403 client.suspended` with the file kept,
+and `404 event.notFound` for an event the operator took down. Thirty downloads a minute per account
+(`429`).
+
+**Privacy.** The book is a copy, so a photograph that leaves the evening retires it: a deletion by
+the host or by a guest within the grace window, a guest's erasure, a moderation to `rejected` or
+`hidden` of a published photograph, the operator's takedown of a photograph, and a caption edit when
+the book prints captions. The row goes `stale` and the file is deleted **before** the photograph's
+bytes (the hook is awaited, not a signal on the bus), and the host rebuilds it. A book being
+rendered at that moment ends `stale` instead of `done`. The purge of an event deletes the file
+(it lives in `MEDIA_ROOT/.books/`, outside the event's folder, so the hourly backup never holds
+one). A copy the host already downloaded is out of reach, as with the ZIP.
+
+`book.changed` is a signal for the host's screen only: the moderation stream carries it, the
+wall's stream never does, replay included.
 
 ---
 
@@ -2753,6 +2842,8 @@ event_, never "is logged in".
 | `PATCH`  | `/api/events/:slug/settings`                  | owner     | 200 | Settings; answers the full event                |
 | `PUT`    | `/api/events/:slug/venue-photo`               | owner     | 200 | Own venue photograph; answers the full event    |
 | `DELETE` | `/api/events/:slug/venue-photo`               | owner     | 200 | Back to the bundled one; answers the full event |
+| `PUT`    | `/api/events/:slug/logo`                      | owner     | 200 | Own logo; answers the full event                |
+| `DELETE` | `/api/events/:slug/logo`                      | owner     | 200 | Take the logo down; answers the full event      |
 | `POST`   | `/api/events/:slug/status`                    | owner     | 200 | `{ "status": "live" }`; answers the full event  |
 | `PATCH`  | `/api/events/:slug/schedule`                  | owner     | 200 | Scheduled open/close; answers the full event    |
 | `POST`   | `/api/events/:slug/join-code`                 | owner     | 200 | Rotate; answers the full event, new code        |
@@ -2771,9 +2862,15 @@ event_, never "is logged in".
 | `PUT`    | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Star a published photo (best-of); idempotent    |
 | `DELETE` | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Take the star off; idempotent                   |
 | `POST`   | `/api/events/:slug/highlights/preselect`      | moderator | 200 | Star the `limit` most liked; `{ added }`        |
-| `GET`    | `/api/events/:slug/highlights`                | moderator | 200 | `{ count }` of exportable favourites            |
+| `GET`    | `/api/events/:slug/highlights`                | moderator | 200 | `{ count, reel }`: favourites and the montage   |
+| `POST`   | `/api/events/:slug/highlights/reel`           | moderator | 202 | Ask for the highlight video; `ReelDto`          |
+| `GET`    | `/api/events/:slug/highlights/reel.mp4`       | moderator | 200 | The highlight video (Range)                     |
 | `GET`    | `/api/events/:slug/best-of.zip`               | moderator | 200 | The favourites as a ZIP                         |
 | `GET`    | `/api/events/:slug/stats`                     | moderator | 200 | Statistics of the evening, derived              |
+| `POST`   | `/api/events/:slug/book`                      | moderator | 202 | Ask for the photo book (PDF)                    |
+| `GET`    | `/api/events/:slug/book`                      | moderator | 200 | The book's state, or `none`                     |
+| `GET`    | `/api/events/:slug/book.pdf`                  | moderator | 200 | The finished book, Range accepted               |
+| `DELETE` | `/api/events/:slug/book`                      | moderator | 204 | Throw the book away; idempotent                 |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and
@@ -3153,6 +3250,45 @@ and `Range` is honoured (`206`, `416`) by the same code as a photograph's. **Eve
 same `404 venuePhoto.notFound`**: an unknown slug, a malformed digest, another event's digest and a
 draft are indistinguishable, so the route is not an oracle for which events or digests exist.
 
+### `PUT /api/events/:slug/logo` and `DELETE`
+
+The host's logo (spec 03), shown on the guests' join page and on the empty wall. **Owner only**, with
+the venue photograph's answers: `401 auth.required`, `404 event.notFound`, `403 auth.forbidden` for a
+moderator, `403 client.suspended`, `409 event.immutable` on an archived event. All of it is decided
+before a byte is buffered.
+
+`PUT` takes `multipart/form-data` with **one** file part named `file` and no text part. **PNG, JPEG
+or WebP only**, identified from the bytes (the filename and `Content-Type` are never read): an SVG,
+an AVIF, a HEIF or a GIF is `400 image.unsupportedFormat`. It answers the full event, whose
+`brand.logoUrl` is now the logo's URL.
+
+| Status | `error.code`                | When                                                           |
+| ------ | --------------------------- | -------------------------------------------------------------- |
+| 400    | `upload.noFiles`            | no `file` part                                                 |
+| 400    | `image.unsupportedFormat`   | `image.corrupt`                                                | `image.animated`                                                  | not one still PNG, JPEG or WebP |
+| 413    | `upload.tooLarge`           | above **2 MiB** on the wire (not `MAX_UPLOAD_BYTES`)           |
+| 413    | `photo.pixelBudgetExceeded` | `logo.tooLarge`                                                | header pixels over `MAX_IMAGE_PIXELS`; rendered file over 256 KiB |
+| 413    | `storage.boxFull`           | the disk guard                                                 |
+| 429    | `rate.limited`              | more than ten logos an hour from one account (its own counter) |
+| 500    | `logo.saveFailed`           | `photo.mediaWriteFailed`                                       | a failed save; **also** `PUT` and `DELETE` under a purge hold     |
+
+The stored file is the pipeline's output: rotated upright, **every metadata block stripped**, at most
+640 by 320 (never enlarged) and re-encoded as WebP at quality 85 **with its transparency kept**, named
+by the SHA-256 of those bytes under the event. Not counted against the byte quota (one file per
+event, at most 256 KiB). `event.settingsChanged` is published. `DELETE` answers the full event with
+`logoUrl: null` and is **idempotent**.
+
+`logo` is **not** a settings key: `PATCH /settings` answers `400` for it, and a `brand` key in its body
+is read and ignored.
+
+### `GET /api/events/:slug/logo/:hash`
+
+The venue photograph's route, for the logo: the bytes, through the application, readable by the
+projector and a guest while the event serves its wall and by a moderator at any time, only for the
+digest the event's settings name right now. `Content-Type: image/webp`, `nosniff`, `inline`, ETag
+`"<hash>-logo"`, `Cache-Control: private, max-age=31536000, immutable`, `Range` honoured. **Every
+refusal is the same `404 logo.notFound`**, including a masked event and a suspended client.
+
 ### `PATCH /api/events/:slug/settings`
 
 A **partial** update. Every field is optional, and an absent key means "leave it alone" —
@@ -3227,7 +3363,7 @@ rather than behind one of its own.
 
 #### `brand` — the host's words to their guests (spec 03)
 
-`brand: { welcomeMessage: string | null }` is on `PublicEventDto` (the join response), on the wall response, on `GET /events/:slug/photos/mine` (read per request, so a guest sees a message changed after they joined on their next open) and, for the host, inside `settings`. It is **content**: shown as written and never translated. It is absent from the shared gallery. A client may send it back inside `settings`; the server ignores it, and the message is written only by the top-level `welcomeMessage` key.
+`brand: { welcomeMessage: string | null, logoUrl: string | null }` is on `PublicEventDto` (the join response), on the wall response, on `GET /events/:slug/photos/mine` (read per request, so a guest sees a message changed after they joined on their next open) and, for the host, inside `settings`. It is **content**: shown as written and never translated. It is absent from the shared gallery. A client may send it back inside `settings`; the server ignores it, and the message is written only by the top-level `welcomeMessage` key.
 
 #### `wallLanguage` — what language the room's screen speaks
 

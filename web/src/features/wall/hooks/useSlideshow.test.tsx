@@ -34,9 +34,10 @@ interface ProbeProps {
   readonly intervalMs?: number
   /** The wall has had its answer. Absent means it has, as on every wall but a page loading. */
   readonly loaded?: boolean
+  readonly hold?: boolean
 }
 
-function Probe({ items, intervalMs = INTERVAL_MS, loaded = true }: ProbeProps) {
+function Probe({ items, intervalMs = INTERVAL_MS, loaded = true, hold = false }: ProbeProps) {
   const {
     current,
     next,
@@ -50,7 +51,7 @@ function Probe({ items, intervalMs = INTERVAL_MS, loaded = true }: ProbeProps) {
     // What the slide clock is actually running on, which is what a layout animating
     // across a slide has to time itself from.
     intervalMs: cadenceMs,
-  } = useSlideshow({ items, intervalMs, loaded })
+  } = useSlideshow({ items, intervalMs, loaded, hold })
 
   return (
     <div>
@@ -110,6 +111,22 @@ describe('useSlideshow', () => {
 
     expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
 
+    tick(INTERVAL_MS)
+
+    expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+  })
+
+  it('waits while something covers the photographs, without saying it is paused', () => {
+    const items = [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau')]
+    const { rerender } = renderProbe({ items, hold: true })
+
+    tick(3 * INTERVAL_MS)
+
+    expect(screen.getByText(/à l’écran Les confettis/)).toBeInTheDocument()
+    expect(screen.getByText('en cours')).toBeInTheDocument()
+    expect(screen.getByText('cadence 0')).toBeInTheDocument()
+
+    rerender(<Probe items={items} hold={false} />)
     tick(INTERVAL_MS)
 
     expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()

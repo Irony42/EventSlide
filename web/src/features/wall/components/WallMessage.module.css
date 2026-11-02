@@ -1,0 +1,42 @@
+/**
+ * Full frame, over the layouts, on the event's own ground: the card replaces the photographs for
+ * a few seconds rather than competing with them. Inside the overscan inset like every wall text.
+ */
+.card {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-wall-caption);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-5);
+  padding: var(--wall-safe);
+  margin: 0;
+  background: var(--wall-ground);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.quote {
+  quotes: auto;
+  margin: 0;
+  max-inline-size: var(--wall-message-measure);
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3.2vw, 4rem);
+  line-height: var(--leading-tight);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.quote::before {
+  content: open-quote;
+}
+
+.quote::after {
+  content: close-quote;
+}
+
+.author {
+  font-size: var(--text-xl);
+  color: var(--text-secondary);
+}

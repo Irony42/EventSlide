@@ -6,6 +6,7 @@ import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { makePurgeEvent, type PurgeEvent } from './purgeEvent'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
+import { FakeBookFileStore } from '../../testing/fakeBookFileStore'
 
 const WEDDING = asEventId('evt-wedding')
 const GALA = asEventId('evt-gala')
@@ -86,6 +87,36 @@ describe('purgeEvent', () => {
       'events.deleteUnlessHeld',
       'media.deleteEvent',
     ])
+  })
+
+  // ----------------------------------------------------- the photo book (spec 04) --
+
+  it('deletes the photo book file of the purged event, and only that one', async () => {
+    const bookFiles = new FakeBookFileStore()
+    bookFiles.seed(WEDDING, Uint8Array.of(1, 2))
+    bookFiles.seed(GALA, Uint8Array.of(1, 2))
+
+    await makePurgeEvent({ events, memberships, media, bookFiles })({
+      eventId: WEDDING,
+      actorId: OWNER,
+    })
+
+    expect(await bookFiles.list()).toEqual([GALA])
+  })
+
+  it('still answers for the photographs when the book file could not be deleted', async () => {
+    const bookFiles = new FakeBookFileStore()
+    bookFiles.delete = async () => {
+      throw new Error('disk gone')
+    }
+
+    const result = await makePurgeEvent({ events, memberships, media, bookFiles })({
+      eventId: WEDDING,
+      actorId: OWNER,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(await media.usedBytes(WEDDING)).toBe(0)
   })
 
   // ---------------------------------------------------------- a disk that fails --

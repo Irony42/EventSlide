@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EVENT_THEME } from '../../../design-system/eventTheme'
-import { aWallMission, aWallResponse } from '../../../testing/renderWithProviders'
+import {
+  aWallGuestbookMessage,
+  aWallMission,
+  aWallResponse,
+} from '../../../testing/renderWithProviders'
 import { SETTINGS_EXEMPT, sameSettings } from './useWallPlaylist'
-import type { EventThemeDto, WallMissionDto } from '../../../lib/api/dto'
+import type { EventThemeDto, WallGuestbookMessageDto, WallMissionDto } from '../../../lib/api/dto'
 
 /**
  * The guard on the guard.
@@ -55,13 +59,27 @@ describe('every field of the wall response is accounted for', () => {
     // changed on the empty wall the host is looking at moves no photograph and so no `revision`.
     const withMessage = (welcomeMessage: string | null) => ({
       ...aWallResponse(),
-      brand: { welcomeMessage },
+      brand: { welcomeMessage, logoUrl: null },
     })
 
     expect(sameSettings(withMessage(null), withMessage('Bienvenue'))).toBe(false)
     expect(sameSettings(withMessage('Bienvenue'), withMessage('Autre'))).toBe(false)
     expect(sameSettings(withMessage('Bienvenue'), withMessage(null))).toBe(false)
     expect(sameSettings(withMessage('Bienvenue'), withMessage('Bienvenue'))).toBe(true)
+  })
+
+  it('notices the host uploading, replacing or removing the logo', () => {
+    const withLogo = (logoUrl: string | null) => ({
+      ...aWallResponse(),
+      brand: { welcomeMessage: null, logoUrl },
+    })
+    const one = `/api/events/soiree/logo/${'a'.repeat(64)}`
+    const two = `/api/events/soiree/logo/${'b'.repeat(64)}`
+
+    expect(sameSettings(withLogo(null), withLogo(one))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(two))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(null))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(one))).toBe(true)
   })
 
   it('notices the host replacing or removing the venue photo', () => {
@@ -141,6 +159,42 @@ describe('every field of the wall response is accounted for', () => {
 
     expect(sameSettings(none, one)).toBe(false)
     expect(sameSettings(one, none)).toBe(false)
+  })
+
+  it.each(Object.keys(aWallGuestbookMessage()))(
+    'notices a change to guestbook.messages[].%s',
+    (key) => {
+      const book = { everyNth: 6, messages: [aWallGuestbookMessage()] }
+      const row: Record<string, unknown> = { ...aWallGuestbookMessage() }
+      const current: unknown = row[key]
+      row[key] = typeof current === 'number' ? current + 1 : `${String(current)}-moved`
+
+      const changed = {
+        everyNth: 6,
+        messages: [row as unknown as WallGuestbookMessageDto],
+      }
+
+      expect(
+        sameSettings(
+          { ...aWallResponse(), guestbook: book },
+          { ...aWallResponse(), guestbook: changed },
+        ),
+      ).toBe(false)
+    },
+  )
+
+  it('notices a message published or taken off, and a change of rhythm', () => {
+    const none = aWallResponse()
+    const one = {
+      ...aWallResponse(),
+      guestbook: { everyNth: 6, messages: [aWallGuestbookMessage()] },
+    }
+    const slower = { ...one, guestbook: { everyNth: 9, messages: one.guestbook.messages } }
+
+    expect(sameSettings(none, one)).toBe(false)
+    expect(sameSettings(one, none)).toBe(false)
+    expect(sameSettings(one, slower)).toBe(false)
+    expect(sameSettings(one, { ...one })).toBe(true)
   })
 
   it('says nothing changed when nothing did', () => {

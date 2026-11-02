@@ -156,7 +156,7 @@ describe('toPublicEventDto', () => {
       maxUploadBytes: 25_000_000,
       maxFilesPerUpload: 20,
       allowClips: true,
-      allowGuestbook: false,
+      allowGuestbook: true,
       guestbookMaxLength: 500,
       maxClipBytes: 80_000_000,
       maxClipSeconds: 15,
@@ -169,7 +169,7 @@ describe('toPublicEventDto', () => {
         ambiance: 'eventslide',
         groundUrl: null,
       },
-      brand: { welcomeMessage: null },
+      brand: { welcomeMessage: null, logoUrl: null },
     })
   })
 
@@ -376,7 +376,7 @@ describe('toEventSettingsDto', () => {
         groundUrl: null,
       },
       wallLanguage: 'es',
-      brand: { welcomeMessage: null },
+      brand: { welcomeMessage: null, logoUrl: null },
     })
   })
 
@@ -673,9 +673,25 @@ describe('the host’s venue photograph on the wire (ADR 0010)', () => {
 })
 
 describe('toEventBrandDto', () => {
-  it('has exactly the message, so nothing of a guest can be added to it unnoticed', () => {
-    const event = anEvent({ settings: { welcomeMessage: 'Bienvenue' } })
+  const logo = ContentHash.create('ab'.repeat(32))
+  if (!logo.ok) throw new Error('fixture digest')
 
-    expect(toEventBrandDto(event.settings)).toEqual({ welcomeMessage: 'Bienvenue' })
+  it('has exactly the message and the logo URL, so nothing of a guest can be added unnoticed', () => {
+    const event = anEvent({ settings: { welcomeMessage: 'Bienvenue', logo: logo.value } })
+
+    const brand = toEventBrandDto(event.settings, 'camille-et-sacha')
+
+    expect(Object.keys(brand).sort()).toEqual(['logoUrl', 'welcomeMessage'])
+    expect(brand).toEqual({
+      welcomeMessage: 'Bienvenue',
+      logoUrl: `/api/events/camille-et-sacha/logo/${'ab'.repeat(32)}`,
+    })
+  })
+
+  it('has no logo URL without a logo, nor on a surface that cannot read the file', () => {
+    const named = anEvent({ settings: { logo: logo.value } })
+
+    expect(toEventBrandDto(anEvent().settings, 'camille-et-sacha').logoUrl).toBeNull()
+    expect(toEventBrandDto(named.settings, null).logoUrl).toBeNull()
   })
 })

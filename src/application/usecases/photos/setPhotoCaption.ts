@@ -7,6 +7,8 @@ import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import { isInBook } from '../../../domain/book/isInBook'
+import type { InvalidateBook } from '../book/invalidateAlbumBook'
 
 /**
  * Write or clear the line projected under a photo.
@@ -33,6 +35,11 @@ export interface SetPhotoCaptionDeps {
   readonly photos: PhotoRepository
   readonly bus: EventBus
   readonly clock: Clock
+  /**
+   * Retires a photo book that prints captions when a published photograph's caption changes
+   * (spec 04): a guest may take a caption back for a privacy reason, and the book is a copy.
+   */
+  readonly invalidateBook?: InvalidateBook
 }
 
 export type SetPhotoCaption = (
@@ -44,6 +51,7 @@ export const makeSetPhotoCaption = ({
   photos,
   bus,
   clock,
+  invalidateBook,
 }: SetPhotoCaptionDeps): SetPhotoCaption => {
   return async ({ eventId, photoId, actor, caption }) => {
     const event = await events.findById(eventId)
@@ -64,6 +72,7 @@ export const makeSetPhotoCaption = ({
       return err(DomainError.forbidden('event.captionsNotAllowed'))
     }
 
+    if (isInBook(photo.status)) await invalidateBook?.(eventId, 'captionChanged')
     await photos.save(photo.withCaption(parsed.value))
 
     bus.publish({ type: 'photo.captionChanged', eventId, photoId })

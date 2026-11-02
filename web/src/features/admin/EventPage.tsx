@@ -21,9 +21,11 @@ import { LifecycleConfirmDialog } from './components/LifecycleConfirmDialog'
 import { StorageMeter } from './components/StorageMeter'
 import { SupportCard } from './components/SupportCard'
 import { GuestListPanel } from './GuestListPanel'
+import { GuestbookPanel } from './GuestbookPanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
+import { AlbumBookPanel } from './AlbumBookPanel'
 import { BestOfPanel } from './BestOfPanel'
 import { ShareLinkPanel } from './ShareLinkPanel'
 import {
@@ -270,10 +272,16 @@ export function EventPage() {
         <GuestListPanel slug={event.slug} canRevoke={allowsModeration(event.status)} />
         {/* Any moderator: starring and the ZIP are moderation, and the routes allow it (spec 08). */}
         <BestOfPanel slug={event.slug} canStar={allowsModeration(event.status)} />
+        {/* The photo book (spec 04): any moderator, like the ZIP; the server answers for the rest. */}
+        <AlbumBookPanel slug={event.slug} defaultTitle={event.name} />
         {/* Owner-only for the reason below, and mounted above the moderators because a
             host sets the prompts up before the evening rather than during it (roadmap
             §2.1). A moderator may read the list — `GET` allows it — but a panel whose
             every affordance is refused is worse than no panel. */}
+        {/* Any moderator: deciding on a message is moderation, like deciding on a photo (spec 01). */}
+        {event.settings.allowGuestbook ? (
+          <GuestbookPanel slug={event.slug} canDecide={allowsModeration(event.status)} />
+        ) : null}
         {isOwner ? <MissionsPanel slug={event.slug} /> : null}
         {/* Owner-only, like every endpoint behind it: sending the album beyond the room
             is a decision about the whole event (roadmap §4.1). */}

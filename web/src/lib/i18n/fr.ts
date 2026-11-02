@@ -98,6 +98,7 @@ export const fr = {
     submit: 'Rejoindre',
     submitting: 'Connexion…',
     welcome: (eventName: string) => `Bienvenue à ${eventName}`,
+    logoAlt: (eventName: string) => `Logo de ${eventName}`,
     anonymous: 'Rester anonyme',
     /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
     notYourEvening: 'Ce n’est pas votre soirée ?',
@@ -904,6 +905,9 @@ export const fr = {
     videoBy: (name: string) => `Vidéo envoyée par ${name}`,
     videoByAnonymous: 'Vidéo envoyée par un invité',
 
+    /** The signature under a guestbook card (spec 01) when the guest gave no name. */
+    guestbookAnonymous: 'Un invité',
+
     /* ---- Added by photo missions (ROADMAP 2.1). Keep additions inside this block. ---- */
 
     /**
@@ -1050,7 +1054,7 @@ export const fr = {
      * arriving first.
      */
     moderationAutoWarning:
-      'Les photos et les vidéos apparaîtront à l’écran sans validation. À réserver aux évènements entre proches.',
+      'Les photos, les vidéos et les messages du livre d’or apparaîtront à l’écran sans validation. À réserver aux évènements entre proches.',
     allowCaptions: 'Autoriser les légendes',
     allowReactions: 'Autoriser les réactions',
     /**
@@ -1069,6 +1073,12 @@ export const fr = {
     allowClips: 'Autoriser les vidéos',
     allowClipsHint:
       'Les invités peuvent envoyer de courtes vidéos, en plus des photos. Quand la case est décochée, les vidéos sont refusées : parce que vous l’avez décochée, parce que le modèle choisi à la création l’a réglé ainsi, ou parce que l’évènement est antérieur à cette fonctionnalité. Cochez-la pour les autoriser.',
+    allowGuestbook: 'Ouvrir le livre d’or',
+    allowGuestbookHint:
+      'Les invités laissent un court message. Décoché : le livre d’or est fermé, les messages déjà écrits sont conservés.',
+    guestbookOnWall: 'Afficher les messages sur l’écran de la salle',
+    guestbookOnWallHint:
+      'Décoché : les messages publiés restent dans le livre d’or mais n’apparaissent pas à l’écran.',
     allowGuestSelfDelete: 'Autoriser les invités à supprimer leurs photos',
 
     /* ---- The language the room's screen speaks (roadmap 1.5). ---- */
@@ -1225,6 +1235,9 @@ export const fr = {
     printKitInk: 'Couleur du QR',
     printInkBlack: 'Noir (le plus sûr)',
     printInkEvent: 'Couleur de l’évènement',
+    printKitLogo: 'Logo de l’évènement au centre du QR',
+    printKitLogoHint:
+      'Le QR code passe en correction d’erreurs maximale : il reste lisible, mais il est un peu plus dense.',
     printFormatA4: 'Affiche A4 (1 par feuille)',
     printFormatA5: 'Affiche A5 (2 par feuille)',
     printFormatCard: 'Cartes de table A6 (4 par feuille)',
@@ -1469,6 +1482,44 @@ export const fr = {
     bestOfPreselectNothing:
       'Aucune photo à ajouter : les plus aimées sont déjà en favori, ou personne n’a encore réagi.',
     bestOfDownload: 'Télécharger les favoris (ZIP)',
+    // Spec 04: the photo book (a PDF of the published album) on the event page.
+    book: 'Livre photo',
+    bookHint: 'Un PDF de vos photos publiées, à garder ou à imprimer.',
+    bookTitle: 'Titre',
+    bookSubtitle: 'Sous-titre',
+    bookLayout: 'Mise en page',
+    bookLayoutOne: 'Une photo par page',
+    bookLayoutFour: 'Quatre photos par page',
+    bookShowAuthors: 'Afficher le prénom de l’invité sous chaque photo',
+    bookShowCaptions: 'Afficher les légendes',
+    bookCreate: 'Créer le livre',
+    bookRebuild: 'Refaire le livre',
+    bookWorking:
+      'Votre livre est en préparation. Vous pouvez quitter cette page, il sera prêt dans quelques minutes.',
+    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
+      `Votre livre est prêt : ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}, ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${size}.${until === null ? '' : ` Disponible jusqu’au ${until}.`}`,
+    bookDownload: 'Télécharger le livre (PDF)',
+    bookDelete: 'Supprimer le livre',
+    bookDeleteTitle: 'Supprimer le livre ?',
+    bookDeleteHint:
+      'Le fichier est effacé du serveur. Vous pourrez en refaire un, dans la limite de trois par jour.',
+    bookStale:
+      'Une photo a été retirée ou une légende a changé depuis : ce livre n’est plus disponible. Refaites-le pour qu’il soit à jour.',
+    bookFailed: 'Le livre n’a pas pu être fait. Réessayez dans un moment.',
+    bookFailedTooLarge: 'L’album est trop volumineux pour un seul livre.',
+    // Spec 08, step 2: the highlight video.
+    reelTitle: 'Montage vidéo',
+    reelHint: 'Un diaporama vidéo de vos favoris, du plus ancien au plus récent.',
+    reelCreate: 'Créer le montage vidéo',
+    reelRedo: 'Recréer le montage',
+    reelQueued: 'Montage en attente de son tour…',
+    reelRunning: 'Montage en cours, cela peut prendre quelques minutes…',
+    reelFailed: 'Le montage a échoué.',
+    reelStale: 'Vos favoris ont changé : ce montage n’est plus à jour. Recréez-le.',
+    reelDownload: 'Télécharger le montage (MP4)',
+    reelPlayer: 'Aperçu du montage vidéo',
+    reelAsked: 'Le montage est lancé.',
+    reelReady: (count: number) => `Montage prêt, ${t.number(count)} photos.`,
     shareLinkUrl: 'Adresse du lien',
     shareLinkCopy: 'Copier le lien',
     shareLinkCopied: 'Lien copié.',
@@ -1502,6 +1553,17 @@ export const fr = {
       'Bienvenue ! Prenez des photos, on les verra sur l’écran dans la salle.',
     welcomeMessageClear: 'Effacer le message',
     welcomeMessageCount: (count: number, max: number): string => `${count} / ${max}`,
+    logo: 'Logo de l’évènement',
+    logoHint:
+      'Un logo ou un monogramme, de préférence en PNG sur fond transparent (PNG, JPEG ou WebP). Il apparaît sur la page de vos invités et sur l’écran, jamais sur les photos.',
+    logoPreviewAlt: 'Aperçu du logo de l’évènement',
+    logoNone: 'Aucun logo pour le moment.',
+    logoChoose: 'Choisir un logo',
+    logoReplace: 'Remplacer le logo',
+    logoRemove: 'Retirer le logo',
+    logoBusy: 'Envoi du logo…',
+    logoSaved: 'Le logo est enregistré.',
+    logoRemoved: 'Le logo est retiré.',
     customAmbianceCreate: 'Créer mon ambiance (Sur mesure)',
     customAmbianceEdit: 'Modifier mon ambiance',
     customAmbianceEntryHint:
@@ -1531,6 +1593,27 @@ export const fr = {
     customKept:
       'Votre choix est conservé tel que vous l’avez laissé : modifiez-le, puis enregistrez à nouveau.',
     customSaved: 'Votre ambiance est enregistrée.',
+  },
+
+  /** The guestbook, host side (spec 01). What guests write is never translated. */
+  guestbookHost: {
+    title: 'Livre d’or',
+    hint: 'Les mots laissés par vos invités. Ils s’affichent à l’écran selon vos réglages.',
+    empty: 'Aucun message pour l’instant.',
+    anonymous: 'Invité sans nom',
+    pending: (count: number) =>
+      t.count(count, {
+        one: '1 en attente',
+        other: `${t.number(count)} en attente`,
+      }),
+    statusPending: 'En attente',
+    statusPublished: 'À l’écran',
+    statusRejected: 'Non retenu',
+    statusHidden: 'Retiré de l’écran',
+    copyId: 'Copier l’identifiant',
+    idCopied: 'Identifiant copié.',
+    copyFailed: 'Copie impossible : sélectionnez l’identifiant à la main.',
+    decided: 'Décision enregistrée.',
   },
 
   auth: {
@@ -1784,6 +1867,28 @@ export const fr = {
     'photo.illegalTransition': 'Cette action n’est pas possible sur cette photo.',
     'highlight.notPublished': 'Seule une photo publiée peut être mise en favori.',
     'highlight.empty': 'Aucun favori pour l’instant.',
+    'book.alreadyRunning': 'Un livre est déjà en préparation.',
+    'book.empty': 'Aucune photo publiée pour l’instant : il n’y a pas de livre à faire.',
+    'book.dailyLimitReached':
+      'Vous avez atteint la limite de livres pour aujourd’hui. Réessayez demain.',
+    'book.unavailable': 'Les livres photo sont indisponibles pour le moment.',
+    'book.notAllowed': 'Votre espace n’inclut pas les livres photo.',
+    'book.notFound': 'Ce livre n’est plus disponible. Refaites-le.',
+    'book.titleEmpty': 'Donnez un titre au livre.',
+    'book.titleTooLong': 'Ce titre est trop long.',
+    'book.subtitleTooLong': 'Ce sous-titre est trop long.',
+    'reel.notEnoughPhotos': 'Il faut au moins trois favoris publiés pour faire un montage.',
+    'reel.tooManyPhotos': 'Trop de favoris pour un montage : retirez-en quelques-uns.',
+    'reel.alreadyRunning': 'Un montage est déjà en cours.',
+    'reel.queueFull': 'Beaucoup de montages sont en attente. Réessayez dans quelques minutes.',
+    'reel.notAllowed': 'Le montage vidéo n’est pas inclus dans votre offre.',
+    'reel.transcoderUnavailable': 'Le montage vidéo n’est pas disponible sur ce serveur.',
+    'reel.notReady': 'Le montage n’est pas prêt.',
+    'reel.eventUnavailable': 'Cet évènement n’est plus disponible.',
+    'reel.renderFailed': 'Le montage n’a pas pu être fait. Réessayez.',
+    'reel.storageFailed': 'Le montage n’a pas pu être enregistré. Réessayez.',
+    'reel.timedOut': 'Le montage a pris trop de temps. Réessayez.',
+    'reel.cancelled': 'Le montage a été interrompu. Réessayez.',
 
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',
@@ -1814,6 +1919,9 @@ export const fr = {
     'slug.malformed':
       'L’adresse n’accepte que des lettres sans accent, des chiffres et des tirets.',
     'slug.reserved': 'Cette adresse est réservée. Choisissez-en une autre.',
+    'logo.tooLarge': 'Ce logo est trop lourd, même réduit. Essayez-en un autre.',
+    'logo.notFound': 'Ce logo n’existe plus.',
+    'logo.saveFailed': 'Le logo n’a pas pu être enregistré. Réessayez.',
     'eventSettings.welcomeInvalid': 'Ce message n’est pas valide.',
     'eventSettings.welcomeTooLong': 'Ce message est trop long.',
     'eventSettings.welcomeTooManyLines': 'Ce message compte trop de lignes.',

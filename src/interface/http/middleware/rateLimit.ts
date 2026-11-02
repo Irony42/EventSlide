@@ -348,6 +348,38 @@ export const VENUE_PHOTOS_PER_ACCOUNT_PER_HOUR = 10
 export const venuePhotoLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
 
+// -------------------------------------------------------------- photo book --
+
+/**
+ * How many book requests one **account** may send per hour, whatever the answer. The real ceiling
+ * is the event's three a day, counted in the database; this one only stops a script from
+ * hammering a route that reads and writes rows. Keyed by account for `eventCreationLimiter`'s
+ * reason, and placed after `requireRole`.
+ */
+export const BOOK_REQUESTS_PER_ACCOUNT_PER_HOUR = 20
+
+export const bookRequestLimiter = (perHour: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
+
+/**
+ * Downloads of the finished PDF per account per minute. A phone on a bad network resumes with
+ * `Range` requests, so the budget is generous; a PDF is up to 300 MB, so it is not unlimited.
+ */
+export const BOOK_DOWNLOADS_PER_ACCOUNT_PER_MINUTE = 30
+
+export const bookDownloadLimiter = (perMinute: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60_000, limit: perMinute, code: 'rate.limited', key: accountKey })
+
+/**
+ * How many logos one **account** may send per hour: the venue photograph's reasoning, with a
+ * counter of its own so a host who is choosing their photograph cannot lock themselves out of
+ * their logo (each call builds its own store).
+ */
+export const LOGOS_PER_ACCOUNT_PER_HOUR = 10
+
+export const logoLimiter = (perHour: number): RateLimitRequestHandler =>
+  windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
+
 // ------------------------------------------------------------ second factor --
 
 /**

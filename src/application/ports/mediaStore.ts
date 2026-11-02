@@ -11,6 +11,7 @@ import type { EventId } from '../../domain/shared/ids'
 export {
   ALL_MEDIA_VARIANTS,
   CLIP_VARIANTS,
+  EVENT_LOGO,
   MEDIA_VARIANTS,
   REEL_VARIANT,
   SERVED_VARIANTS,

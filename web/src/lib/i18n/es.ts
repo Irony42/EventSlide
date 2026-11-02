@@ -50,6 +50,7 @@ export const es: UiText = {
     submit: 'Unirse',
     submitting: 'Conectando…',
     welcome: (eventName: string) => `Le damos la bienvenida a ${eventName}`,
+    logoAlt: (eventName: string) => `Logo de ${eventName}`,
     anonymous: 'Mantener el anonimato',
     /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
     notYourEvening: '¿No es su fiesta?',
@@ -426,6 +427,27 @@ export const es: UiText = {
     'photo.illegalTransition': 'Esta acción no es posible en esta foto.',
     'highlight.notPublished': 'Solo una foto publicada puede ser favorita.',
     'highlight.empty': 'Todavía no hay favoritas.',
+    'book.alreadyRunning': 'Ya se está preparando un libro.',
+    'book.empty': 'Todavía no hay fotos publicadas: no hay libro que hacer.',
+    'book.dailyLimitReached': 'Has alcanzado el límite de libros de hoy. Inténtalo mañana.',
+    'book.unavailable': 'Los libros de fotos no están disponibles por ahora.',
+    'book.notAllowed': 'Tu espacio no incluye libros de fotos.',
+    'book.notFound': 'Este libro ya no está disponible. Rehazlo.',
+    'book.titleEmpty': 'Ponle un título al libro.',
+    'book.titleTooLong': 'Este título es demasiado largo.',
+    'book.subtitleTooLong': 'Este subtítulo es demasiado largo.',
+    'reel.notEnoughPhotos': 'Hacen falta al menos tres favoritas publicadas para hacer un vídeo.',
+    'reel.tooManyPhotos': 'Demasiadas favoritas para un vídeo: quite algunas.',
+    'reel.alreadyRunning': 'Ya se está haciendo un vídeo.',
+    'reel.queueFull': 'Hay muchos vídeos en espera. Inténtelo de nuevo en unos minutos.',
+    'reel.notAllowed': 'El vídeo no está incluido en su plan.',
+    'reel.transcoderUnavailable': 'El vídeo no está disponible en este servidor.',
+    'reel.notReady': 'El vídeo no está listo.',
+    'reel.eventUnavailable': 'Este evento ya no está disponible.',
+    'reel.renderFailed': 'No se ha podido hacer el vídeo. Inténtelo de nuevo.',
+    'reel.storageFailed': 'No se ha podido guardar el vídeo. Inténtelo de nuevo.',
+    'reel.timedOut': 'El vídeo ha tardado demasiado. Inténtelo de nuevo.',
+    'reel.cancelled': 'El vídeo se ha interrumpido. Inténtelo de nuevo.',
 
     'image.unsupportedFormat':
       'Este archivo no es una foto. Formatos aceptados: JPEG, PNG, HEIC, WebP.',
@@ -454,6 +476,9 @@ export const es: UiText = {
     'slug.tooLong': 'Esta dirección es demasiado larga.',
     'slug.malformed': 'La dirección solo admite letras sin acento, números y guiones.',
     'slug.reserved': 'Esta dirección está reservada. Elija otra.',
+    'logo.tooLarge': 'Este logotipo pesa demasiado, incluso reducido. Pruebe con otro.',
+    'logo.notFound': 'Este logotipo ya no existe.',
+    'logo.saveFailed': 'No se ha podido guardar el logotipo. Inténtelo de nuevo.',
     'eventSettings.welcomeInvalid': 'Este mensaje no es válido.',
     'eventSettings.welcomeTooLong': 'Este mensaje es demasiado largo.',
     'eventSettings.welcomeTooManyLines': 'Este mensaje tiene demasiadas líneas.',
@@ -838,6 +863,9 @@ export const es: UiText = {
     videoBy: (name: string) => `Vídeo enviado por ${name}`,
     videoByAnonymous: 'Vídeo enviado por un invitado',
 
+    /** The signature under a guestbook card (spec 01) when the guest gave no name. */
+    guestbookAnonymous: 'Un invitado',
+
     missionsTitle: 'Misiones',
     missionDone: 'Hecho',
     missionGuests: (count: number) =>
@@ -960,12 +988,18 @@ export const es: UiText = {
      * nobody having watched it. A warning, not a description.
      */
     moderationAutoWarning:
-      'Las fotos y los vídeos aparecerán en la pantalla sin aprobación. Resérvelo para eventos entre personas de confianza.',
+      'Las fotos, los vídeos y los mensajes del libro de visitas aparecerán en la pantalla sin aprobación. Resérvelo para eventos entre personas de confianza.',
     allowCaptions: 'Permitir los pies de foto',
     allowReactions: 'Permitir las reacciones',
     allowClips: 'Permitir los vídeos',
     allowClipsHint:
       'Los invitados pueden enviar vídeos cortos, además de fotos. Cuando la casilla está desmarcada, los vídeos se rechazan: porque usted la ha desmarcado, porque la plantilla elegida al crear el evento lo dejó así, o porque el evento es anterior a esta función. Márquela para permitirlos.',
+    allowGuestbook: 'Abrir el libro de visitas',
+    allowGuestbookHint:
+      'Los invitados dejan un mensaje corto. Desmarcado: el libro está cerrado y se conservan los mensajes ya escritos.',
+    guestbookOnWall: 'Mostrar los mensajes en la pantalla de la sala',
+    guestbookOnWallHint:
+      'Desmarcado: los mensajes publicados siguen en el libro pero no aparecen en la pantalla.',
     allowGuestSelfDelete: 'Permitir que los invitados eliminen sus fotos',
 
     /**
@@ -1070,6 +1104,9 @@ export const es: UiText = {
     printKitInk: 'Color del código QR',
     printInkBlack: 'Negro (el más seguro)',
     printInkEvent: 'Color del evento',
+    printKitLogo: 'Logotipo del evento en el centro del QR',
+    printKitLogoHint:
+      'El código QR pasa a la corrección de errores máxima: sigue siendo legible, pero algo más denso.',
     printFormatA4: 'Cartel A4 (1 por hoja)',
     printFormatA5: 'Cartel A5 (2 por hoja)',
     printFormatCard: 'Tarjetas de mesa A6 (4 por hoja)',
@@ -1268,6 +1305,44 @@ export const es: UiText = {
     bestOfPreselectNothing:
       'Nada que añadir: las más queridas ya son favoritas, o todavía nadie ha reaccionado.',
     bestOfDownload: 'Descargar las favoritas (ZIP)',
+    // Spec 04: the photo book (a PDF of the published album) on the event page.
+    book: 'Libro de fotos',
+    bookHint: 'Un PDF con tus fotos publicadas, para guardar o imprimir.',
+    bookTitle: 'Título',
+    bookSubtitle: 'Subtítulo',
+    bookLayout: 'Maquetación',
+    bookLayoutOne: 'Una foto por página',
+    bookLayoutFour: 'Cuatro fotos por página',
+    bookShowAuthors: 'Mostrar el nombre del invitado bajo cada foto',
+    bookShowCaptions: 'Mostrar los pies de foto',
+    bookCreate: 'Crear el libro',
+    bookRebuild: 'Rehacer el libro',
+    bookWorking:
+      'Tu libro se está preparando. Puedes salir de esta página, estará listo en unos minutos.',
+    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
+      `Tu libro está listo: ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} fotos` })}, ${t.count(pages, { one: `${t.number(pages)} página`, other: `${t.number(pages)} páginas` })}, ${size}.${until === null ? '' : ` Disponible hasta el ${until}.`}`,
+    bookDownload: 'Descargar el libro (PDF)',
+    bookDelete: 'Eliminar el libro',
+    bookDeleteTitle: '¿Eliminar el libro?',
+    bookDeleteHint: 'El archivo se borra del servidor. Podrás hacer otro, hasta tres al día.',
+    bookStale:
+      'Desde entonces se quitó una foto o cambió un pie de foto: este libro ya no está disponible. Rehazlo para ponerlo al día.',
+    bookFailed: 'No se pudo hacer el libro. Inténtalo de nuevo en un momento.',
+    bookFailedTooLarge: 'El álbum es demasiado grande para un solo libro.',
+    // Spec 08, step 2: the highlight video.
+    reelTitle: 'Vídeo de lo mejor',
+    reelHint:
+      'Un vídeo con las favoritas en pase de diapositivas, de la más antigua a la más reciente.',
+    reelCreate: 'Crear el vídeo',
+    reelRedo: 'Crearlo de nuevo',
+    reelQueued: 'El vídeo espera su turno…',
+    reelRunning: 'El vídeo se está haciendo, puede tardar unos minutos…',
+    reelFailed: 'No se ha podido hacer el vídeo.',
+    reelStale: 'Sus favoritas han cambiado: este vídeo está desfasado. Créelo de nuevo.',
+    reelDownload: 'Descargar el vídeo (MP4)',
+    reelPlayer: 'Vista previa del vídeo',
+    reelAsked: 'El vídeo se ha puesto en marcha.',
+    reelReady: (count: number) => `Vídeo listo, ${t.number(count)} fotos.`,
     shareLinkUrl: 'Dirección del enlace',
     shareLinkCopy: 'Copiar el enlace',
     shareLinkCopied: 'Enlace copiado.',
@@ -1300,6 +1375,17 @@ export const es: UiText = {
     welcomeMessagePlaceholder: '¡Bienvenidos! Hagan fotos, las veremos en la pantalla de la sala.',
     welcomeMessageClear: 'Borrar el mensaje',
     welcomeMessageCount: (count, max) => `${count} / ${max}`,
+    logo: 'Logotipo del evento',
+    logoHint:
+      'Un logotipo o monograma, preferiblemente un PNG con fondo transparente (PNG, JPEG o WebP). Aparece en la página de sus invitados y en la pantalla, nunca en las fotos.',
+    logoPreviewAlt: 'Vista previa del logotipo del evento',
+    logoNone: 'Todavía no hay logotipo.',
+    logoChoose: 'Elegir un logotipo',
+    logoReplace: 'Sustituir el logotipo',
+    logoRemove: 'Quitar el logotipo',
+    logoBusy: 'Enviando el logotipo…',
+    logoSaved: 'El logotipo está guardado.',
+    logoRemoved: 'Se ha quitado el logotipo.',
     customAmbianceCreate: 'Crear mi ambiente (A medida)',
     customAmbianceEdit: 'Modificar mi ambiente',
     customAmbianceEntryHint:
@@ -1328,6 +1414,27 @@ export const es: UiText = {
     customPreviewAuthor: 'Lea',
     customKept: 'Su elección se conserva tal como la dejó: modifíquela y guarde de nuevo.',
     customSaved: 'Su ambiente está guardado.',
+  },
+
+  /** The guestbook, host side (spec 01). What guests write is never translated. */
+  guestbookHost: {
+    title: 'Libro de visitas',
+    hint: 'Los mensajes que dejan sus invitados. Llegan a la pantalla según sus ajustes.',
+    empty: 'Aún no hay mensajes.',
+    anonymous: 'Invitado sin nombre',
+    pending: (count: number) =>
+      t.count(count, {
+        one: '1 en espera',
+        other: `${t.number(count)} en espera`,
+      }),
+    statusPending: 'En espera',
+    statusPublished: 'En pantalla',
+    statusRejected: 'No aceptado',
+    statusHidden: 'Retirado de la pantalla',
+    copyId: 'Copiar el identificador',
+    idCopied: 'Identificador copiado.',
+    copyFailed: 'No se pudo copiar: seleccione el identificador a mano.',
+    decided: 'Decisión guardada.',
   },
 
   auth: {

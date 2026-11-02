@@ -25,6 +25,25 @@ Prompts are content, not interface: you write them in the language of your eveni
 they are shown exactly as typed. There is no leaderboard and no per-guest score — a guest
 sees their own checklist and nothing about anybody else's.
 
+## Photo book
+
+The **Photo book** panel on the event page makes a PDF of the published album: a cover, one or
+four photographs a page, first names and captions if the host wants them, and a closing page.
+It is made in the background, one at a time and behind video transcodes, so a wedding that sends
+videos all evening delays it (at most `BOOK_MAX_WAIT_MINUTES`). A render takes about 250 MB of
+memory for 300 photographs, and a few seconds of one core.
+
+- **Where it lives.** `MEDIA_ROOT/.books/<event>.pdf`, outside the event's folder: the hourly
+  backup never holds it and the event's disk quota never counts it. After a restore, a book whose
+  file is gone turns `stale` and the host makes it again.
+- **How long.** `BOOK_TTL_DAYS` (7), never past the album's purge date; the sweep deletes the
+  expired ones and any file no row names. `BOOK_MAX_TOTAL_BYTES` caps the box's total.
+- **Who.** Any moderator of the event, like the album ZIP; the client can be switched off
+  (`booksAllowed`), and an event gets three books a day (`BOOK_MAX_PER_EVENT_PER_DAY`).
+  `BOOK_ENABLED=false` (restart needed) turns the function off for the box.
+- **Privacy.** A photograph removed afterwards, by anyone, retires the book at once: the file is
+  deleted and the host is told to make it again. A copy already downloaded is out of reach.
+
 ## Shared gallery
 
 The morning after, the same question arrives from everybody, one at a time: can you send

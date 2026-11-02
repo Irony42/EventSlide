@@ -15,6 +15,7 @@ import { EraseEverything } from './components/EraseEverything'
 import { GuestbookCard } from './components/GuestbookCard'
 import { MyMessages } from './components/MyMessages'
 import { HostGreeting } from './components/HostGreeting'
+import { HostLogo } from './components/HostLogo'
 import { MyPhotos } from './components/MyPhotos'
 import { Notice } from '../../design-system/components/Notice'
 import { OfflineNotice } from './components/OfflineNotice'
@@ -414,6 +415,11 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           {publication === 'immediate' ? t.upload.introImmediate : t.upload.intro}
         </p>
         {/* The host's own words, from the fresh read when there is one: a message changed after the guest joined shows on the next open. */}
+        <HostLogo
+          url={(mine.brand ?? event.brand)?.logoUrl}
+          eventName={event.name}
+          variant="compact"
+        />
         <HostGreeting message={(mine.brand ?? event.brand)?.welcomeMessage} variant="compact" />
         <p className={styles['signature']}>
           {displayName === null ? t.upload.signedAnonymous : t.upload.signedAs(displayName)}
@@ -535,6 +541,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
           onDismiss={dismissInstall}
         />
       </div>
+      {/* The guestbook card sits above the composer, in the page flow, never inside the pinned pane:
+          the pane's height is a one-thumb budget (e2e guest-upload-pane), and a written word is not
+          what a guest opens the page for. Locked behind the notice like the picker, and only while the
+          server says the page is served. */}
+      {bookOpen && !mine.unavailable && !(gated && notice.state !== null) ? (
+        <GuestbookCard
+          writer={writer}
+          maxLength={event.guestbookMaxLength}
+          publication={publication ?? 'afterReview'}
+        />
+      ) : null}
 
       {/* Everything to press, kept together at the bottom of the screen: a control in
           the top half of a phone needs a second hand, and the guest is holding a
@@ -600,25 +617,17 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               </p>
               <p className={styles['endedBody']}>{t.upload.endedAlbum}</p>
             </section>
-            {/* A closed evening still takes a written word for a while (spec 01, Q4): the server's
-              `accepting` says so, and the notice still comes first. */}
-            {bookOpen ? (
-              gated && notice.state !== null ? (
-                <PrivacyNoticeCard
-                  ref={noticeCard}
-                  state={notice.state}
-                  onAcknowledge={() => {
-                    setNoticeOpen(false)
-                    notice.acknowledge()
-                  }}
-                />
-              ) : (
-                <GuestbookCard
-                  writer={writer}
-                  maxLength={event.guestbookMaxLength}
-                  publication={publication ?? 'afterReview'}
-                />
-              )
+            {/* The written word of a closed evening (spec 01, Q4) is the card above the composer; only the
+                notice, which locks it, shows here. */}
+            {bookOpen && gated && notice.state !== null ? (
+              <PrivacyNoticeCard
+                ref={noticeCard}
+                state={notice.state}
+                onAcknowledge={() => {
+                  setNoticeOpen(false)
+                  notice.acknowledge()
+                }}
+              />
             ) : null}
           </>
         ) : notice.state !== null && gated ? (
@@ -649,13 +658,6 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               selected={missions.selected}
               onToggle={missions.toggle}
             />
-            {bookOpen ? (
-              <GuestbookCard
-                writer={writer}
-                maxLength={event.guestbookMaxLength}
-                publication={publication ?? 'afterReview'}
-              />
-            ) : null}
             <PhotoPicker onPick={queue.add} libraryRef={libraryInput} />
             {/* The caption and the video, as labelled buttons that unfold in place: shown in full
                 they took half of a phone before a photo was chosen. The host's settings, from the

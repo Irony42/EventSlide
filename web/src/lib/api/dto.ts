@@ -92,6 +92,7 @@ export type MissionScope = 'guest' | 'event'
 /** What the host says to their guests (spec 03): content, shown as written. */
 export interface EventBrandDto {
   readonly welcomeMessage: string | null
+  readonly logoUrl: string | null
 }
 
 export interface EventThemeDto {
@@ -319,6 +320,8 @@ export interface WallResponse {
    * means the same thing**, and is what nearly every event sends.
    */
   readonly missions?: readonly WallMissionDto[]
+  /** The guestbook for the room (spec 01); absent when there is nothing to show or an older server. */
+  readonly guestbook?: WallGuestbookDto
   /**
    * The language this screen renders its own words in (roadmap 1.5).
    *
@@ -338,6 +341,18 @@ export interface WallResponse {
  * drawn with a tick, a per-guest one with `completedByGuests`, because a tick would be
  * wrong for something two hundred people can each answer.
  */
+export interface WallGuestbookMessageDto {
+  readonly id: string
+  readonly text: string
+  readonly authorName: string | null
+  readonly displayMs: number
+}
+
+export interface WallGuestbookDto {
+  readonly everyNth: number
+  readonly messages: readonly WallGuestbookMessageDto[]
+}
+
 export interface WallMissionDto {
   readonly id: string
   readonly prompt: string
@@ -379,6 +394,24 @@ export interface ErasedContributionDto {
   readonly clips: number
   /** Guestbook messages removed with them; absent from an older server. */
   readonly messages?: number
+}
+
+/** One message in the host's reading of the guestbook (spec 01). */
+export interface GuestbookQueueItemDto {
+  readonly id: string
+  readonly text: string
+  /** `null` for a guest who gave no name or whose row is gone; the client words that. */
+  readonly authorName: string | null
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The decisions this message may take now, from the status machine: the buttons the panel shows. */
+  readonly allowedDecisions: readonly ModerationDecision[]
+}
+
+export interface GuestbookQueueDto {
+  readonly items: readonly GuestbookQueueItemDto[]
+  /** The whole book's, not the page's: the badge on the panel. */
+  readonly pendingCount: number
 }
 
 /** One of the guest's own guestbook messages (spec 01). */
@@ -470,9 +503,51 @@ export interface ModerationPhotoDto {
   readonly highlighted?: boolean
 }
 
+/**
+ * The event's photo book (spec 04): `none` when the host never asked for one. Transcribed from
+ * `AlbumBookDto` on the server, which the web app cannot import. No guest text: the title and
+ * subtitle are the host's own, `failureCode` and `staleReason` are closed lists.
+ */
+export type AlbumBookDto =
+  | { readonly status: 'none' }
+  | {
+      readonly status: 'queued' | 'running' | 'done' | 'failed' | 'stale'
+      readonly options: {
+        readonly title: string
+        readonly subtitle: string
+        readonly language: string
+        readonly layout: 'one' | 'four'
+        readonly showAuthors: boolean
+        readonly showCaptions: boolean
+      }
+      readonly requestedAt: string
+      readonly doneAt: string | null
+      readonly photoCount: number | null
+      readonly skippedCount: number | null
+      readonly pageCount: number | null
+      readonly byteSize: number | null
+      readonly expiresAt: string | null
+      readonly failureCode: string | null
+      readonly staleReason: string | null
+    }
+
 /** The best-of panel's read: how many favourites can be exported (spec 08). */
 export interface HighlightsDto {
   readonly count: number
+  /** The montage of the favourites; `null` when none was ever asked for. Optional: older server. */
+  readonly reel?: ReelDto | null
+}
+
+export type ReelStatusDto = 'queued' | 'running' | 'done' | 'failed' | 'stale'
+
+/** The montage's state. The photograph ids never travel: only how many, and how long. */
+export interface ReelDto {
+  readonly status: ReelStatusDto
+  readonly photoCount: number
+  readonly durationMs?: number
+  readonly byteSize?: number
+  readonly failureCode?: string
+  readonly updatedAt: string
 }
 
 export interface PreselectHighlightsResponse {
@@ -505,9 +580,9 @@ export interface EventSettingsDto {
    * exactly the events it exists for.
    */
   readonly allowClips: boolean
-  /** Optional until the host panel reads it (spec 01): an older server does not send it. */
-  readonly allowGuestbook?: boolean
-  readonly guestbookOnWall?: boolean
+  /** The guestbook (spec 01): open for guests, and whether its published messages reach the wall. */
+  readonly allowGuestbook: boolean
+  readonly guestbookOnWall: boolean
   readonly allowGuestSelfDelete: boolean
   readonly guestSelfDeleteGraceSeconds: number
   readonly retentionDays: number | null

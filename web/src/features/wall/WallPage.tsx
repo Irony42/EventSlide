@@ -20,6 +20,7 @@ import { AMBIANCE_LAYOUT } from './ambianceLayout'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
+import { WallMessage } from './components/WallMessage'
 import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
@@ -27,6 +28,7 @@ import { useLayoutParam } from './hooks/useLayoutParam'
 import { useIdleCursor } from './hooks/useIdleCursor'
 import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
+import { useWallGuestbook } from './hooks/useWallGuestbook'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
 import { useWakeLock } from './hooks/useWakeLock'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
@@ -175,11 +177,18 @@ export function WallPage() {
   const budget = useFrameBudget()
 
   const items = wall?.items ?? NO_ITEMS
+  // The guestbook card is up while this is true, and the slideshow waits underneath it.
+  const [cardUp, setCardUp] = useState(false)
   const slideshow = useSlideshow({
     items,
     intervalMs: wall?.slideIntervalMs ?? 0,
     loaded: wall !== null,
+    hold: cardUp,
   })
+  const { message: guestbookMessage } = useWallGuestbook(wall?.guestbook, slideshow.generation)
+  // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
+  // below it, and an effect would let one photograph go by under a card that just appeared.
+  if (cardUp !== (guestbookMessage !== null)) setCardUp(guestbookMessage !== null)
 
   /**
    * The invitation, or nothing — never half of it.
@@ -385,6 +394,7 @@ export function WallPage() {
           join={join}
           acceptsGuests={acceptsGuests}
           welcomeMessage={wall.brand?.welcomeMessage ?? null}
+          logoUrl={wall.brand?.logoUrl ?? null}
         />
       ) : (
         <WallLayouts
@@ -397,6 +407,10 @@ export function WallPage() {
       )}
 
       {showsMissions ? <WallMissions missions={missions} /> : null}
+
+      {guestbookMessage !== null && items.length > 0 ? (
+        <WallMessage message={guestbookMessage} />
+      ) : null}
 
       {showsOverlay && invitation !== null ? (
         <WallOverlay join={invitation} onDismiss={() => setQrHidden(true)} />

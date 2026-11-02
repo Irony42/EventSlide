@@ -318,6 +318,9 @@ const buildWorld = ({
         setVenuePhoto: absent('setVenuePhoto'),
         removeVenuePhoto: absent('removeVenuePhoto'),
         getVenuePhotoMedia: absent('getVenuePhotoMedia'),
+        setEventLogo: absent('setEventLogo'),
+        removeEventLogo: absent('removeEventLogo'),
+        getEventLogoMedia: absent('getEventLogoMedia'),
         listModerators: makeListModerators({ memberships }),
         revokeModerator: makeRevokeModerator({ events, memberships }),
 
@@ -352,6 +355,8 @@ const buildWorld = ({
         createGuestbookEntry: absent('createGuestbookEntry'),
         listMyGuestbookEntries: absent('listMyGuestbookEntries'),
         deleteGuestbookEntry: absent('deleteGuestbookEntry'),
+        listGuestbookQueue: absent('listGuestbookQueue'),
+        moderateGuestbookEntry: absent('moderateGuestbookEntry'),
 
         createShareLink: absent('createShareLink'),
         getShareLink: absent('getShareLink'),
@@ -368,8 +373,14 @@ const buildWorld = ({
         getTopPhotos: absent('getTopPhotos'),
         setPhotoHighlight: absent('setPhotoHighlight'),
         preselectHighlights: absent('preselectHighlights'),
+        requestAlbumBook: absent('requestAlbumBook'),
+        getAlbumBook: absent('getAlbumBook'),
+        downloadAlbumBook: absent('downloadAlbumBook'),
+        deleteAlbumBook: absent('deleteAlbumBook'),
         getHighlights: absent('getHighlights'),
         exportHighlights: absent('exportHighlights'),
+        requestReel: absent('requestReel'),
+        getReelMedia: absent('getReelMedia'),
         getEventStats: makeGetEventStats({
           events,
           memberships,
@@ -1278,7 +1289,7 @@ describe('the host event routes', () => {
           groundUrl: null,
         },
         wallLanguage: 'en',
-        brand: { welcomeMessage: null },
+        brand: { welcomeMessage: null, logoUrl: null },
       })
     })
 
@@ -1292,7 +1303,7 @@ describe('the host event routes', () => {
         .send({ welcomeMessage: '  Bienvenue !\n\nUne photo du gâteau ?  ' })
 
       expect(response.status).toBe(200)
-      expect(response.body.settings.brand).toEqual({
+      expect(response.body.settings.brand).toMatchObject({
         welcomeMessage: 'Bienvenue !\nUne photo du gâteau ?',
       })
     })

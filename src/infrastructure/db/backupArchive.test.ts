@@ -393,6 +393,30 @@ describe('backup and restore', () => {
       expect((await verify()).ok).toBe(true)
     })
 
+    it('accounts for a host’s logo, which an event’s settings name and no row does', async () => {
+      // Spec 03: without the `logos` read, every backup taken after a host sent one reported it
+      // as an unreferenced file.
+      const db = openLive()
+      insertOwner(db)
+      insertEvent(db)
+      const logoHash = hashOf('a-logo')
+      db.prepare('UPDATE events SET settings = json_set(settings, ?, ?) WHERE id = ?').run(
+        '$.logo',
+        logoHash,
+        EVENT,
+      )
+      db.close()
+
+      await writeMedia(EVENT, logoHash, 'logo', 'the logo, as a WebP')
+      await writeMedia(EVENT, hashOf('an-old-logo'), 'logo', 'a replaced logo')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(2)
+      expect(manifest.unreferencedMediaFiles).toBe(1)
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('says nothing about a source a finished job has already given back', async () => {
       // The other side of it. A `done` job's bytes are gone on purpose, and naming them
       // would turn a correct archive into a `missingMedia` report about a clip that was
@@ -440,6 +464,19 @@ describe('backup and restore', () => {
       // a file that is not a regular file, a name no archive path can hold.
       expect(manifest.skipped.join('\n')).not.toContain('.scratch')
       expect(manifest.skipped.join('\n')).not.toContain('.uploads')
+      expect((await verify()).ok).toBe(true)
+    })
+
+    it('leaves the finished photo books out of the archive: the host can make them again (spec 04)', async () => {
+      await seedAnEvening()
+      await mkdir(join(mediaRoot, '.books'), { recursive: true })
+      await writeFile(join(mediaRoot, '.books', `${EVENT}.pdf`), 'a finished book')
+
+      const { manifest } = await backup()
+
+      expect(manifest.counts.mediaFiles).toBe(3)
+      expect(manifest.media.entries.some((entry) => entry.path.includes('.books'))).toBe(false)
+      expect(manifest.skipped.join(' ')).not.toContain('.books')
       expect((await verify()).ok).toBe(true)
     })
 

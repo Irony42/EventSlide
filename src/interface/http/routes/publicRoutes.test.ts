@@ -11,6 +11,7 @@ import {
   makeGetWallPlaylist,
   type WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
+import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { SequentialIdGenerator } from '../../../application/testing/sequentialIdGenerator'
@@ -20,6 +21,7 @@ import {
   aPhoto,
   anEvent,
   anEventSettings,
+  aGuestbookEntry,
   atPlus,
 } from '../../../application/testing/builders'
 import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
@@ -59,6 +61,7 @@ interface World {
   readonly subject: Harness
   readonly photos: FakePhotoRepository
   readonly missions: FakeMissionRepository
+  readonly guestbook: FakeGuestbookRepository
 }
 
 /**
@@ -75,6 +78,7 @@ const world = (
 ): World => {
   const photos = new FakePhotoRepository()
   const missions = new FakeMissionRepository(photos)
+  const guestbook = new FakeGuestbookRepository()
   const ids = new SequentialIdGenerator()
 
   const subject = buildHarness({
@@ -102,6 +106,7 @@ const world = (
               photos,
               guests: base.guests,
               missions,
+              guestbook,
             }),
           },
         }),
@@ -141,7 +146,7 @@ const world = (
     }),
   )
 
-  return { subject, photos, missions }
+  return { subject, photos, missions, guestbook }
 }
 
 /** `set-cookie` is an array at runtime and loosely typed; narrow it once, here. */
@@ -328,7 +333,7 @@ describe('POST /api/join', () => {
         maxUploadBytes: 25_000_000,
         maxFilesPerUpload: 20,
         allowClips: true,
-        allowGuestbook: false,
+        allowGuestbook: true,
         guestbookMaxLength: 500,
         maxClipBytes: 80_000_000,
         maxClipSeconds: 15,
@@ -339,16 +344,17 @@ describe('POST /api/join', () => {
           ambiance: 'eventslide',
           groundUrl: null,
         },
-        brand: { welcomeMessage: null },
+        brand: { welcomeMessage: null, logoUrl: null },
       },
       privacyNotice: {
         notice: {
           revision:
-            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900;selfErase=phone',
+            'publication=afterReview;audiences=wall+guestFeed+organisers+sharedGallery;retention=none;selfRemoval=900;selfErase=phone;guestbook=on',
           publication: 'afterReview',
           audiences: ['wall', 'guestFeed', 'organisers', 'sharedGallery'],
           retentionDays: null,
           selfRemovalSeconds: 900,
+          guestbook: true,
         },
         acknowledgement: 'none',
       },
@@ -1120,6 +1126,7 @@ describe('toWallResponseDto', () => {
       layout: 'spotlight',
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
+      guestbook: null,
     }
 
     const dto = toWallResponseDto(view, presenter)
@@ -1145,6 +1152,7 @@ describe('toWallResponseDto', () => {
       layout: 'spotlight',
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
+      guestbook: null,
     }
 
     const dto = toWallResponseDto(view, { ...presenter, publicUrl: 'https://photos.example.com' })
@@ -1196,6 +1204,32 @@ describe('GET /api/events/:eventSlug/wall — the mission panel', () => {
     const response = await request(subject.app).get('/api/events/mariage/wall')
 
     expect(response.body.missions[0]).toMatchObject({ achieved: false, completedByGuests: 0 })
+  })
+
+  it('sends the published guestbook messages to the wall, and no guest id with them', async () => {
+    const { subject, guestbook } = world()
+    guestbook.seed(
+      aGuestbookEntry({ id: 'e-pending', eventId: WEDDING, moderation: 'manual' }),
+      aGuestbookEntry({ id: 'e-shown', eventId: WEDDING, text: 'Bravo', moderation: 'auto' }),
+      aGuestbookEntry({ id: 'e-other', eventId: GALA, moderation: 'auto' }),
+    )
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.guestbook.everyNth).toBe(6)
+    expect(response.body.guestbook.messages).toEqual([
+      { id: 'e-shown', text: 'Bravo', authorName: null, displayMs: 6300 },
+    ])
+    expect(JSON.stringify(response.body.guestbook)).not.toContain('guest-1')
+  })
+
+  it('leaves the guestbook field out when nothing is published', async () => {
+    const { subject, guestbook } = world()
+    guestbook.seed(aGuestbookEntry({ eventId: WEDDING, moderation: 'manual' }))
+
+    const response = await request(subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body).not.toHaveProperty('guestbook')
   })
 
   it('never sends another event"s prompts to this wall', async () => {

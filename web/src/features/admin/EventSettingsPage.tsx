@@ -14,6 +14,7 @@ import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
 import { VenuePhotoField } from './components/VenuePhotoField'
+import { LogoField } from './components/LogoField'
 import { WelcomeMessageField } from './components/WelcomeMessageField'
 import { isMutable } from './eventLifecycle'
 import { toSettingsPatch } from './settingsPayload'
@@ -105,6 +106,8 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.allowCaptions,
     settings.allowReactions,
     settings.allowClips,
+    settings.allowGuestbook,
+    settings.guestbookOnWall,
     settings.allowGuestSelfDelete,
     settings.guestSelfDeleteGraceSeconds,
     settings.retentionDays,
@@ -388,6 +391,22 @@ export function EventSettingsPage() {
         />
 
         <CheckboxField
+          label={t.admin.allowGuestbook}
+          hint={t.admin.allowGuestbookHint}
+          checked={settings.allowGuestbook}
+          disabled={readOnly}
+          onChange={(allowGuestbook) => update({ allowGuestbook })}
+        />
+
+        <CheckboxField
+          label={t.admin.guestbookOnWall}
+          hint={t.admin.guestbookOnWallHint}
+          checked={settings.guestbookOnWall}
+          disabled={readOnly || !settings.allowGuestbook}
+          onChange={(guestbookOnWall) => update({ guestbookOnWall })}
+        />
+
+        <CheckboxField
           label={t.admin.allowGuestSelfDelete}
           checked={settings.allowGuestSelfDelete}
           disabled={readOnly}
@@ -472,7 +491,17 @@ export function EventSettingsPage() {
         <WelcomeMessageField
           value={settings.brand?.welcomeMessage ?? null}
           disabled={readOnly}
-          onChange={(welcomeMessage) => update({ brand: { welcomeMessage } })}
+          onChange={(welcomeMessage) =>
+            update({ brand: { welcomeMessage, logoUrl: settings.brand?.logoUrl ?? null } })
+          }
+        />
+
+        {/* The host's logo (spec 03): its own request, and the preview is the file the server stored. */}
+        <LogoField
+          slug={slug}
+          logoUrl={event.settings.brand?.logoUrl}
+          disabled={readOnly}
+          onChanged={replace}
         />
 
         {failure === null ? null : (

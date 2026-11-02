@@ -1,5 +1,6 @@
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { joinHost } from '../joinHost'
+import { HostLogo } from '../../guest-upload/components/HostLogo'
 import { JoinQr } from './JoinQr'
 import styles from './WallEmptyState.module.css'
 
@@ -23,6 +24,8 @@ export interface WallEmptyStateProps {
   readonly acceptsGuests?: boolean
   /** The host's own words (spec 03), shown under the event name. Content, never translated. */
   readonly welcomeMessage?: string | null
+  /** The host's logo (spec 03): only ever on this empty wall, gone once photographs arrive. */
+  readonly logoUrl?: string | null
 }
 
 /**
@@ -38,6 +41,7 @@ export function WallEmptyState({
   join,
   acceptsGuests = true,
   welcomeMessage = null,
+  logoUrl = null,
 }: WallEmptyStateProps) {
   const text = useTranslations()
   const invites = acceptsGuests
@@ -48,6 +52,7 @@ export function WallEmptyState({
     <section className={styles['empty']} data-testid="wall-empty">
       <div className={styles['copy']} data-testid="wall-empty-copy">
         {invites ? <p className={styles['prompt']}>{text.wall.joinPrompt}</p> : null}
+        <HostLogo url={logoUrl} eventName={eventName} variant="wall" />
         <h1 className={styles['name']}>{eventName}</h1>
         {welcomeMessage === null ? null : (
           <p className={styles['welcome']} dir="auto" data-testid="wall-welcome">

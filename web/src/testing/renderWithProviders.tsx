@@ -40,6 +40,7 @@ import type {
   SessionResponse,
   ShareLinkDto,
   WallItemDto,
+  WallGuestbookMessageDto,
   WallMissionDto,
   WallResponse,
 } from '../lib/api/dto'
@@ -158,6 +159,16 @@ export const aShareLink = (overrides: Partial<ShareLinkDto> = {}): ShareLinkDto 
 })
 
 /** One of the host's prompts, as the room sees it. Unanswered by default. */
+export const aWallGuestbookMessage = (
+  overrides: Partial<WallGuestbookMessageDto> = {},
+): WallGuestbookMessageDto => ({
+  id: 'entry-1',
+  text: 'Une soirée merveilleuse',
+  authorName: 'Léa',
+  displayMs: 8_000,
+  ...overrides,
+})
+
 export const aWallMission = (overrides: Partial<WallMissionDto> = {}): WallMissionDto => ({
   id: 'mission-1',
   prompt: 'un selfie avec les mariés',
@@ -378,6 +389,8 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   allowCaptions: true,
   allowReactions: true,
   allowClips: true,
+  allowGuestbook: true,
+  guestbookOnWall: true,
   allowGuestSelfDelete: true,
   guestSelfDeleteGraceSeconds: 300,
   retentionDays: null,
@@ -600,12 +613,16 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   updateSettings: vi.fn(async () => anEventDto()),
   putVenuePhoto: vi.fn(async () => anEventDto()),
   removeVenuePhoto: vi.fn(async () => anEventDto()),
+  putEventLogo: vi.fn(async () => anEventDto()),
+  removeEventLogo: vi.fn(async () => anEventDto()),
   setEventStatus: vi.fn(async () => anEventDto()),
   setSchedule: vi.fn(async () => anEventDto()),
   rotateJoinCode: vi.fn(async () => anEventDto()),
   purgeEvent: vi.fn(async () => undefined),
 
   moderationQueue: vi.fn(async () => ({ items: [], pendingCount: 0, nextCursor: null })),
+  guestbookQueue: vi.fn(async () => ({ items: [], pendingCount: 0 })),
+  decideGuestbookEntry: vi.fn(async () => undefined),
   moderate: vi.fn(async () => undefined),
   moderateBulk: vi.fn(async () => ({ applied: [], skipped: [] })),
   topPhotos: vi.fn(async () => ({ items: [] })),
@@ -613,6 +630,14 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   unhighlightPhoto: vi.fn(async () => undefined),
   preselectHighlights: vi.fn(async () => ({ added: 0 })),
   highlights: vi.fn(async () => ({ count: 0 })),
+  albumBook: vi.fn(async () => ({ status: 'none' as const })),
+  requestAlbumBook: vi.fn(async () => ({ status: 'none' as const })),
+  deleteAlbumBook: vi.fn(async () => undefined),
+  requestReel: vi.fn(async () => ({
+    status: 'queued' as const,
+    photoCount: 3,
+    updatedAt: '2026-11-02T10:00:00.000Z',
+  })),
 
   listGuests: vi.fn(async () => ({ items: [], activeCount: 0 })),
   getEventStats: vi.fn(async () => anEventStats()),
@@ -647,7 +672,9 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   })),
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
+  reelUrl: vi.fn((slug: string) => `/api/events/${slug}/highlights/reel.mp4`),
   bestOfUrl: vi.fn((slug: string) => `/api/events/${slug}/best-of.zip`),
+  albumBookUrl: vi.fn((slug: string) => `/api/events/${slug}/book.pdf`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),
   moderationStreamUrl: vi.fn((slug: string) => `/api/events/${slug}/moderation/stream`),
 

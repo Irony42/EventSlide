@@ -71,6 +71,9 @@ import { makePurgeEvent } from '../application/usecases/events/purgeEvent'
 import { makeRenameEvent } from '../application/usecases/events/renameEvent'
 import { makeRevokeModerator } from '../application/usecases/events/revokeModerator'
 import { makePurgeExpiredEvents } from '../application/usecases/events/purgeExpiredEvents'
+import { makeGetEventLogoMedia } from '../application/usecases/brand/getEventLogoMedia'
+import { makeRemoveEventLogo } from '../application/usecases/brand/removeEventLogo'
+import { makeSetEventLogo } from '../application/usecases/brand/setEventLogo'
 import { makeGetVenuePhotoMedia } from '../application/usecases/venue/getVenuePhotoMedia'
 import { makeRemoveVenuePhoto } from '../application/usecases/venue/removeVenuePhoto'
 import { makeSetVenuePhoto } from '../application/usecases/venue/setVenuePhoto'
@@ -96,7 +99,15 @@ import { makeModeratePhoto } from '../application/usecases/moderation/moderatePh
 import { makeModeratePhotosBulk } from '../application/usecases/moderation/moderatePhotosBulk'
 
 import { makeDeletePhoto } from '../application/usecases/photos/deletePhoto'
+import { makeGetReelMedia } from '../application/usecases/highlights/getReelMedia'
 import { makeInvalidateReel } from '../application/usecases/highlights/invalidateReel'
+import type { AlbumBookRepository } from '../application/ports/albumBookRepository'
+import type { BookFileStore } from '../application/ports/bookFileStore'
+import { makeDeleteAlbumBook } from '../application/usecases/book/deleteAlbumBook'
+import { makeDownloadAlbumBook } from '../application/usecases/book/downloadAlbumBook'
+import { makeGetAlbumBook } from '../application/usecases/book/getAlbumBook'
+import { makeInvalidateAlbumBook } from '../application/usecases/book/invalidateAlbumBook'
+import { makeRequestAlbumBook } from '../application/usecases/book/requestAlbumBook'
 import { makeRecoverReels } from '../application/usecases/highlights/recoverReels'
 import { makeRequestReel } from '../application/usecases/highlights/requestReel'
 import { makeTranscodeNextReel } from '../application/usecases/highlights/transcodeNextReel'
@@ -129,7 +140,9 @@ import { makeGetWallPlaylist } from '../application/usecases/slideshow/getWallPl
 
 import { makeCreateGuestbookEntry } from '../application/usecases/guestbook/createGuestbookEntry'
 import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/deleteGuestbookEntry'
+import { makeListGuestbookQueue } from '../application/usecases/guestbook/listGuestbookQueue'
 import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
+import { makeModerateGuestbookEntry } from '../application/usecases/guestbook/moderateGuestbookEntry'
 import { makeCreateMission } from '../application/usecases/missions/createMission'
 import { makeDeleteMission } from '../application/usecases/missions/deleteMission'
 import { makeGetGuestChecklist } from '../application/usecases/missions/getGuestChecklist'
@@ -193,6 +206,9 @@ export interface Adapters {
   readonly clips: ClipJobRepository
   /** The event's highlight reel (spec 08). */
   readonly reels: ReelRepository
+  /** The event's photo book (spec 04): its row, and the PDF file it names. */
+  readonly books: AlbumBookRepository
+  readonly bookFiles: BookFileStore
   /** The reel's encoder, or the Null Object when this box has no ffmpeg. */
   readonly reelRenderer: ReelRenderer
   readonly guests: GuestRepository
@@ -294,6 +310,8 @@ export interface UseCasePolicy {
    * it does not fail open: the test that boots the real container holds it to the config.
    */
   readonly termsOfUse: TermsOfUse | null
+  /** `BOOK_ENABLED` and `BOOK_MAX_PER_EVENT_PER_DAY` (spec 04). */
+  readonly book: { readonly enabled: boolean; readonly maxPerEventPerDay: number }
   /** `REEL_*` and `MAX_QUEUED_REELS` (spec 08). */
   readonly reel: {
     readonly enabled: boolean
@@ -408,6 +426,19 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
   const invalidateReel = makeInvalidateReel({
     reels: adapters.reels,
     media: adapters.media,
+    clock: adapters.clock,
+    logger: adapters.logger,
+  })
+
+  /**
+   * **One hook for every way a photograph leaves the evening, or a caption changes, for the photo
+   * book** (spec 04): awaited by the use cases that remove or un-publish one, before the bytes go.
+   * `bookInvalidation.guard.test.ts` fails the build when a new path forgets it.
+   */
+  const invalidateBook = makeInvalidateAlbumBook({
+    books: adapters.books,
+    bookFiles: adapters.bookFiles,
+    bus: adapters.bus,
     clock: adapters.clock,
     logger: adapters.logger,
   })
@@ -604,6 +635,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       events: adapters.events,
       memberships: adapters.memberships,
       media: adapters.media,
+      bookFiles: adapters.bookFiles,
     }),
     // Built here, with the others, since the route module composed them from `deps` until now
     // (HTTP-M-05): a logger, an audit line or a clock added to the rest reaches these three too, and a
@@ -621,6 +653,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     purgeExpiredEvents: makePurgeExpiredEvents({
       events: adapters.events,
       media: adapters.media,
+      bookFiles: adapters.bookFiles,
       clock: adapters.clock,
       capNoticeDays: policy.retention.capNoticeDays,
     }),
@@ -648,6 +681,25 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       logger: adapters.logger,
     }),
     getVenuePhotoMedia: makeGetVenuePhotoMedia({ media: adapters.media }),
+    // The host's logo (spec 03), beside the venue photograph and by the same pipeline.
+    setEventLogo: makeSetEventLogo({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      media: adapters.media,
+      imageProcessor: adapters.imageProcessor,
+      hasher: adapters.contentHasher,
+      bus: adapters.bus,
+      logger: adapters.logger,
+      limits: { maxPixels: policy.maxImagePixels },
+    }),
+    removeEventLogo: makeRemoveEventLogo({
+      events: adapters.events,
+      memberships: adapters.memberships,
+      media: adapters.media,
+      bus: adapters.bus,
+      logger: adapters.logger,
+    }),
+    getEventLogoMedia: makeGetEventLogoMedia({ media: adapters.media }),
     sweepOrphanedMedia: makeSweepOrphanedMedia({
       events: adapters.events,
       photos: adapters.photos,
@@ -696,6 +748,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     renameGuest: makeRenameGuest({ guests: adapters.guests, events: adapters.events }),
     eraseGuestContribution: makeEraseGuestContribution({
       invalidateReel,
+      invalidateBook,
       events: adapters.events,
       guests: adapters.guests,
       photos: adapters.photos,
@@ -757,6 +810,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     listGuestPhotos: makeListGuestPhotos({ events: adapters.events, photos: adapters.photos }),
     deletePhoto: makeDeletePhoto({
       invalidateReel,
+      invalidateBook,
       events: adapters.events,
       photos: adapters.photos,
       clips: adapters.clips,
@@ -769,6 +823,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       bus: adapters.bus,
       clock: adapters.clock,
+      invalidateBook,
     }),
     getPhotoMedia: makeGetPhotoMedia({ photos: adapters.photos, media: adapters.media }),
     identifyMediaViewer: makeIdentifyMediaViewer({
@@ -785,6 +840,31 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       media: adapters.media,
       archive: adapters.archive,
       logger: adapters.logger,
+    }),
+
+    // ------------------------------------------------ photo book (spec 04) --
+    invalidateBook,
+    requestAlbumBook: makeRequestAlbumBook({
+      events: adapters.events,
+      clients: adapters.clients,
+      photos: adapters.photos,
+      books: adapters.books,
+      bus: adapters.bus,
+      clock: adapters.clock,
+      policy: policy.book,
+    }),
+    getAlbumBook: makeGetAlbumBook({ events: adapters.events, books: adapters.books }),
+    downloadAlbumBook: makeDownloadAlbumBook({
+      events: adapters.events,
+      books: adapters.books,
+      bookFiles: adapters.bookFiles,
+      clock: adapters.clock,
+    }),
+    deleteAlbumBook: makeDeleteAlbumBook({
+      events: adapters.events,
+      books: adapters.books,
+      bookFiles: adapters.bookFiles,
+      bus: adapters.bus,
     }),
 
     // -------------------------------------------- highlight reel (spec 08) --
@@ -836,7 +916,20 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       reactions: adapters.reactions,
       clock: adapters.clock,
     }),
-    getHighlights: makeGetHighlights({ events: adapters.events, photos: adapters.photos }),
+    getHighlights: makeGetHighlights({
+      events: adapters.events,
+      photos: adapters.photos,
+      reels: adapters.reels,
+      media: adapters.media,
+      secondsPerPhoto: policy.reel.secondsPerPhoto,
+    }),
+    getReelMedia: makeGetReelMedia({
+      events: adapters.events,
+      photos: adapters.photos,
+      reels: adapters.reels,
+      media: adapters.media,
+      invalidateReel,
+    }),
     exportHighlights: makeExportHighlights({
       events: adapters.events,
       photos: adapters.photos,
@@ -926,6 +1019,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     moderatePhoto: makeModeratePhoto({
       invalidateReel,
+      invalidateBook,
       events: adapters.events,
       photos: adapters.photos,
       memberships: adapters.memberships,
@@ -934,6 +1028,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     moderatePhotosBulk: makeModeratePhotosBulk({
       invalidateReel,
+      invalidateBook,
       events: adapters.events,
       photos: adapters.photos,
       memberships: adapters.memberships,
@@ -947,6 +1042,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       photos: adapters.photos,
       guests: adapters.guests,
       missions: adapters.missions,
+      guestbook: adapters.guestbook,
     }),
 
     // -------------------------------------------------------------- guestbook --
@@ -965,6 +1061,19 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     deleteGuestbookEntry: makeDeleteGuestbookEntry({
       events: adapters.events,
       guestbook: adapters.guestbook,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    listGuestbookQueue: makeListGuestbookQueue({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      guests: adapters.guests,
+      memberships: adapters.memberships,
+    }),
+    moderateGuestbookEntry: makeModerateGuestbookEntry({
+      events: adapters.events,
+      guestbook: adapters.guestbook,
+      memberships: adapters.memberships,
       bus: adapters.bus,
       clock: adapters.clock,
     }),
@@ -1174,6 +1283,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     setPhotoTakedown: makeSetPhotoTakedown({
       invalidateReel,
+      invalidateBook,
       photos: adapters.photos,
       audit: adapters.audit,
       bus: adapters.bus,

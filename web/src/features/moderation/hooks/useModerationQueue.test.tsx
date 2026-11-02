@@ -324,6 +324,24 @@ describe('useModerationQueue', () => {
     expect(api.moderate).not.toHaveBeenCalled()
   })
 
+  it('ignores a signal it has never heard of, such as the photo book changing (spec 04)', async () => {
+    // `book.changed` travels on this channel and concerns no photograph of the queue: reading the
+    // queue again for it would be a request per book state change, and an unknown type from a
+    // newer server must never be an error either.
+    const moderationQueue = vi.fn(async () => queueOf([aModerationPhoto({ id: 'photo-1' })]))
+    const { result } = mount(fakeApi({ moderationQueue }))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    emitSignal('book.changed')
+    emitSignal('something.from.a.newer.server')
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(moderationQueue).toHaveBeenCalledTimes(1)
+    expect(result.current.items).toHaveLength(1)
+  })
+
   it('stays usable after a decision on a photo that has vanished', async () => {
     // The failure this guards against is a wedged console: a decision that returns
     // early must still leave `busy` down, or every later keystroke is ignored and the

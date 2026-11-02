@@ -12,6 +12,7 @@ import type { UiText } from '../../lib/i18n/translations'
 import type { WallItemDto, WallLayout, WallResponse } from '../../lib/api/dto'
 import {
   aWallItem,
+  aWallGuestbookMessage,
   aWallMission,
   aWallResponse,
   fakeApi,
@@ -1525,6 +1526,74 @@ describe('WallPage', () => {
       await streamSignals('mission.changed')
 
       expect(await screen.findByText(fr.wall.missionGuests(3))).toBeVisible()
+    })
+  })
+
+  describe('WallPage, the guestbook cards (spec 01)', () => {
+    const book = (everyNth = 2) => ({
+      everyNth,
+      messages: [
+        aWallGuestbookMessage({ id: 'g1', text: 'Une soirée merveilleuse', authorName: 'Zoé' }),
+        aWallGuestbookMessage({ id: 'g2', text: 'Longue vie aux mariés', authorName: null }),
+      ],
+    })
+
+    it('shows a message card every Nth photograph change, signed, and holds the photographs under it', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ items: somePhotos(4), guestbook: book() })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('{ArrowRight}')
+      expect(screen.queryByText('Une soirée merveilleuse')).not.toBeInTheDocument()
+
+      await userEvent.keyboard('{ArrowRight}')
+      expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
+      expect(screen.getByText('Zoé')).toBeVisible()
+    })
+
+    it('signs a message whose guest gave no name with the wall’s own words', async () => {
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({
+            items: somePhotos(4),
+            guestbook: { everyNth: 2, messages: [aWallGuestbookMessage({ authorName: null })] },
+          }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+
+      expect(screen.getByText(fr.wall.guestbookAnonymous)).toBeVisible()
+    })
+
+    it('shows no card on a wall whose response carries no guestbook', async () => {
+      const api = fakeApi({ wall: wallSequence(aPopulatedWall({ items: somePhotos(4) })) })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+
+      expect(document.querySelector('[data-wall-message]')).toBeNull()
+    })
+
+    it('re-reads on a guestbook.changed signal, and shows the message that appeared', async () => {
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ items: somePhotos(4) }),
+          aPopulatedWall({ items: somePhotos(4), guestbook: book() }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await streamSignals('guestbook.changed')
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+
+      expect(await screen.findByText('Une soirée merveilleuse')).toBeVisible()
     })
   })
 
