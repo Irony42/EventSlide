@@ -98,6 +98,7 @@ export const fr = {
     submit: 'Rejoindre',
     submitting: 'Connexion…',
     welcome: (eventName: string) => `Bienvenue à ${eventName}`,
+    logoAlt: (eventName: string) => `Logo de ${eventName}`,
     anonymous: 'Rester anonyme',
     /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
     notYourEvening: 'Ce n’est pas votre soirée ?',
