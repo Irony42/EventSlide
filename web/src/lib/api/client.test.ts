@@ -391,6 +391,31 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.highlights(SLUG),
   },
   {
+    name: 'albumBook',
+    verb: 'get',
+    path: `/api/events/${SLUG}/book`,
+    invoke: (client) => client.albumBook(SLUG),
+  },
+  {
+    name: 'requestAlbumBook',
+    verb: 'post',
+    path: `/api/events/${SLUG}/book`,
+    invoke: (client) =>
+      client.requestAlbumBook(SLUG, {
+        title: 'Mariage',
+        subtitle: '',
+        layout: 'four',
+        showAuthors: true,
+        showCaptions: false,
+      }),
+  },
+  {
+    name: 'deleteAlbumBook',
+    verb: 'del',
+    path: `/api/events/${SLUG}/book`,
+    invoke: (client) => client.deleteAlbumBook(SLUG),
+  },
+  {
     name: 'topPhotos',
     verb: 'get',
     path: `/api/events/${SLUG}/top-photos`,
@@ -719,7 +744,13 @@ describe('every endpoint addresses the documented method and path', () => {
 
     // The link builders return a string rather than making a request, so they are
     // pinned in their own block below instead.
-    expect(missing).toEqual(['albumUrl', 'bestOfUrl', 'moderationStreamUrl', 'streamUrl'])
+    expect(missing).toEqual([
+      'albumBookUrl',
+      'albumUrl',
+      'bestOfUrl',
+      'moderationStreamUrl',
+      'streamUrl',
+    ])
   })
 })
 
@@ -1128,6 +1159,29 @@ describe('links the app builds rather than requests', () => {
     expect(subject().bestOfUrl(SLUG)).toBe(`/api/events/${SLUG}/best-of.zip`)
   })
 
+  it('posts the book form in a body, never in the address', async () => {
+    await subject().requestAlbumBook(SLUG, {
+      title: 'Mariage',
+      subtitle: '',
+      layout: 'four',
+      showAuthors: true,
+      showCaptions: false,
+    })
+
+    expect(only().body).toEqual({
+      title: 'Mariage',
+      subtitle: '',
+      layout: 'four',
+      showAuthors: true,
+      showCaptions: false,
+    })
+    expect(only().path).toBe(`/api/events/${SLUG}/book`)
+  })
+
+  it('points the photo book download at the documented PDF endpoint', () => {
+    expect(subject().albumBookUrl(SLUG)).toBe(`/api/events/${SLUG}/book.pdf`)
+  })
+
   it('points the stream at the documented SSE endpoint', () => {
     // `useEventStream` hands this straight to `EventSource`; a wrong path shows as a
     // wall that never updates rather than as an error anybody sees.
@@ -1142,7 +1196,7 @@ describe('links the app builds rather than requests', () => {
     expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
   })
 
-  it.each(['albumUrl', 'bestOfUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
+  it.each(['albumUrl', 'albumBookUrl', 'bestOfUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
     'escapes a slug in %s too',
     (method) => {
       expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')

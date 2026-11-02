@@ -608,6 +608,9 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   unhighlightPhoto: vi.fn(async () => undefined),
   preselectHighlights: vi.fn(async () => ({ added: 0 })),
   highlights: vi.fn(async () => ({ count: 0 })),
+  albumBook: vi.fn(async () => ({ status: 'none' as const })),
+  requestAlbumBook: vi.fn(async () => ({ status: 'none' as const })),
+  deleteAlbumBook: vi.fn(async () => undefined),
 
   listGuests: vi.fn(async () => ({ items: [], activeCount: 0 })),
   getEventStats: vi.fn(async () => anEventStats()),
@@ -643,6 +646,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
 
   albumUrl: vi.fn((slug: string) => `/api/events/${slug}/album.zip`),
   bestOfUrl: vi.fn((slug: string) => `/api/events/${slug}/best-of.zip`),
+  albumBookUrl: vi.fn((slug: string) => `/api/events/${slug}/book.pdf`),
   streamUrl: vi.fn((slug: string) => `/api/events/${slug}/stream`),
   moderationStreamUrl: vi.fn((slug: string) => `/api/events/${slug}/moderation/stream`),
 

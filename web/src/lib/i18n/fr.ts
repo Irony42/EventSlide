@@ -1469,6 +1469,31 @@ export const fr = {
     bestOfPreselectNothing:
       'Aucune photo à ajouter : les plus aimées sont déjà en favori, ou personne n’a encore réagi.',
     bestOfDownload: 'Télécharger les favoris (ZIP)',
+    // Spec 04: the photo book (a PDF of the published album) on the event page.
+    book: 'Livre photo',
+    bookHint: 'Un PDF de vos photos publiées, à garder ou à imprimer.',
+    bookTitle: 'Titre',
+    bookSubtitle: 'Sous-titre',
+    bookLayout: 'Mise en page',
+    bookLayoutOne: 'Une photo par page',
+    bookLayoutFour: 'Quatre photos par page',
+    bookShowAuthors: 'Afficher le prénom de l’invité sous chaque photo',
+    bookShowCaptions: 'Afficher les légendes',
+    bookCreate: 'Créer le livre',
+    bookRebuild: 'Refaire le livre',
+    bookWorking:
+      'Votre livre est en préparation. Vous pouvez quitter cette page, il sera prêt dans quelques minutes.',
+    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
+      `Votre livre est prêt : ${t.count(photos, { one: `${t.number(photos)} photo`, other: `${t.number(photos)} photos` })}, ${t.count(pages, { one: `${t.number(pages)} page`, other: `${t.number(pages)} pages` })}, ${size}.${until === null ? '' : ` Disponible jusqu’au ${until}.`}`,
+    bookDownload: 'Télécharger le livre (PDF)',
+    bookDelete: 'Supprimer le livre',
+    bookDeleteTitle: 'Supprimer le livre ?',
+    bookDeleteHint:
+      'Le fichier est effacé du serveur. Vous pourrez en refaire un, dans la limite de trois par jour.',
+    bookStale:
+      'Une photo a été retirée ou une légende a changé depuis : ce livre n’est plus disponible. Refaites-le pour qu’il soit à jour.',
+    bookFailed: 'Le livre n’a pas pu être fait. Réessayez dans un moment.',
+    bookFailedTooLarge: 'L’album est trop volumineux pour un seul livre.',
     shareLinkUrl: 'Adresse du lien',
     shareLinkCopy: 'Copier le lien',
     shareLinkCopied: 'Lien copié.',
@@ -1784,6 +1809,16 @@ export const fr = {
     'photo.illegalTransition': 'Cette action n’est pas possible sur cette photo.',
     'highlight.notPublished': 'Seule une photo publiée peut être mise en favori.',
     'highlight.empty': 'Aucun favori pour l’instant.',
+    'book.alreadyRunning': 'Un livre est déjà en préparation.',
+    'book.empty': 'Aucune photo publiée pour l’instant : il n’y a pas de livre à faire.',
+    'book.dailyLimitReached':
+      'Vous avez atteint la limite de livres pour aujourd’hui. Réessayez demain.',
+    'book.unavailable': 'Les livres photo sont indisponibles pour le moment.',
+    'book.notAllowed': 'Votre espace n’inclut pas les livres photo.',
+    'book.notFound': 'Ce livre n’est plus disponible. Refaites-le.',
+    'book.titleEmpty': 'Donnez un titre au livre.',
+    'book.titleTooLong': 'Ce titre est trop long.',
+    'book.subtitleTooLong': 'Ce sous-titre est trop long.',
 
     'image.unsupportedFormat':
       'Ce fichier n’est pas une photo. Formats acceptés : JPEG, PNG, HEIC, WebP.',

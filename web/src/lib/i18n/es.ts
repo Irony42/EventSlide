@@ -426,6 +426,15 @@ export const es: UiText = {
     'photo.illegalTransition': 'Esta acción no es posible en esta foto.',
     'highlight.notPublished': 'Solo una foto publicada puede ser favorita.',
     'highlight.empty': 'Todavía no hay favoritas.',
+    'book.alreadyRunning': 'Ya se está preparando un libro.',
+    'book.empty': 'Todavía no hay fotos publicadas: no hay libro que hacer.',
+    'book.dailyLimitReached': 'Has alcanzado el límite de libros de hoy. Inténtalo mañana.',
+    'book.unavailable': 'Los libros de fotos no están disponibles por ahora.',
+    'book.notAllowed': 'Tu espacio no incluye libros de fotos.',
+    'book.notFound': 'Este libro ya no está disponible. Rehazlo.',
+    'book.titleEmpty': 'Ponle un título al libro.',
+    'book.titleTooLong': 'Este título es demasiado largo.',
+    'book.subtitleTooLong': 'Este subtítulo es demasiado largo.',
 
     'image.unsupportedFormat':
       'Este archivo no es una foto. Formatos aceptados: JPEG, PNG, HEIC, WebP.',
@@ -1268,6 +1277,30 @@ export const es: UiText = {
     bestOfPreselectNothing:
       'Nada que añadir: las más queridas ya son favoritas, o todavía nadie ha reaccionado.',
     bestOfDownload: 'Descargar las favoritas (ZIP)',
+    // Spec 04: the photo book (a PDF of the published album) on the event page.
+    book: 'Libro de fotos',
+    bookHint: 'Un PDF con tus fotos publicadas, para guardar o imprimir.',
+    bookTitle: 'Título',
+    bookSubtitle: 'Subtítulo',
+    bookLayout: 'Maquetación',
+    bookLayoutOne: 'Una foto por página',
+    bookLayoutFour: 'Cuatro fotos por página',
+    bookShowAuthors: 'Mostrar el nombre del invitado bajo cada foto',
+    bookShowCaptions: 'Mostrar los pies de foto',
+    bookCreate: 'Crear el libro',
+    bookRebuild: 'Rehacer el libro',
+    bookWorking:
+      'Tu libro se está preparando. Puedes salir de esta página, estará listo en unos minutos.',
+    bookDone: (photos: number, pages: number, size: string, until: string | null) =>
+      `Tu libro está listo: ${t.count(photos, { one: `${t.number(photos)} foto`, other: `${t.number(photos)} fotos` })}, ${t.count(pages, { one: `${t.number(pages)} página`, other: `${t.number(pages)} páginas` })}, ${size}.${until === null ? '' : ` Disponible hasta el ${until}.`}`,
+    bookDownload: 'Descargar el libro (PDF)',
+    bookDelete: 'Eliminar el libro',
+    bookDeleteTitle: '¿Eliminar el libro?',
+    bookDeleteHint: 'El archivo se borra del servidor. Podrás hacer otro, hasta tres al día.',
+    bookStale:
+      'Desde entonces se quitó una foto o cambió un pie de foto: este libro ya no está disponible. Rehazlo para ponerlo al día.',
+    bookFailed: 'No se pudo hacer el libro. Inténtalo de nuevo en un momento.',
+    bookFailedTooLarge: 'El álbum es demasiado grande para un solo libro.',
     shareLinkUrl: 'Dirección del enlace',
     shareLinkCopy: 'Copiar el enlace',
     shareLinkCopied: 'Enlace copiado.',

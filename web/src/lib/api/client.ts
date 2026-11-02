@@ -30,7 +30,9 @@ import type {
   MissionDto,
   MissionListResponse,
   MissionScope,
+  AlbumBookDto,
   HighlightsDto,
+  RequestBookBody,
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
@@ -744,6 +746,16 @@ export const createApi = (transport: Transport) => ({
   preselectHighlights: (slug: string, limit: number): Promise<PreselectHighlightsResponse> =>
     transport.post(`/api/events/${encode(slug)}/highlights/preselect`, { limit }),
 
+  /** The photo book (spec 04): its state, a request for one, and throwing it away. */
+  albumBook: (slug: string, signal?: AbortSignal): Promise<AlbumBookDto> =>
+    transport.get(`/api/events/${encode(slug)}/book`, undefined, signal),
+
+  requestAlbumBook: (slug: string, body: RequestBookBody): Promise<AlbumBookDto> =>
+    transport.post(`/api/events/${encode(slug)}/book`, body),
+
+  deleteAlbumBook: (slug: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/book`),
+
   highlights: (slug: string, signal?: AbortSignal): Promise<HighlightsDto> =>
     transport.get(`/api/events/${encode(slug)}/highlights`, undefined, signal),
 
@@ -856,6 +868,9 @@ export const createApi = (transport: Transport) => ({
 
   /** Built here so the ZIP link and the wall link cannot drift from the API doc. */
   albumUrl: (slug: string): string => `/api/events/${encode(slug)}/album.zip`,
+
+  /** The finished photo book (spec 04). */
+  albumBookUrl: (slug: string): string => `/api/events/${encode(slug)}/book.pdf`,
 
   /** The favourites as a ZIP (spec 08). */
   bestOfUrl: (slug: string): string => `/api/events/${encode(slug)}/best-of.zip`,
