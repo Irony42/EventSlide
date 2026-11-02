@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings'
+import { ContentHash } from '../../../domain/photos/contentHash'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { AT, aClient, anEvent } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
@@ -436,6 +437,72 @@ describe('updateEventSettings', () => {
 
       expect(same.ok && same.value.settings.welcomeMessage).toBe('Bienvenue')
       expect(same.ok && same.value.settings.moderation).toBe('auto')
+    })
+  })
+
+  describe('a save that races another write to the same event', () => {
+    const LOGO = ContentHash.create('ab'.repeat(32))
+
+    /** A membership check that waits until the test lets it through: the window the race lives in. */
+    const gated = () => {
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const waiting = new (class extends FakeMembershipRepository {
+        override async roleFor(...args: Parameters<FakeMembershipRepository['roleFor']>) {
+          await gate
+          return super.roleFor(...args)
+        }
+      })()
+      return { waiting, release }
+    }
+
+    it('does not erase a logo written after the settings were read, and keeps the patch', async () => {
+      if (!LOGO.ok) throw new Error('fixture digest')
+      const { waiting, release } = gated()
+      await waiting.grant({ eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT })
+      const racing = makeUpdateEventSettings({ events, clients, memberships: waiting, bus })
+
+      const pending = racing({ eventId: WEDDING, actorId: OWNER, patch: { moderation: 'auto' } })
+      // The logo lands while the save is still waiting on its role check.
+      const stored = await events.findById(WEDDING)
+      if (stored === null) throw new Error('fixture event')
+      const withLogo = stored.withSettings(stored.settings.withLogo(LOGO.value))
+      if (!withLogo.ok) throw new Error('fixture event')
+      await events.save(withLogo.value)
+      release()
+      const result = await pending
+
+      expect(result.ok && result.value.settings.logo?.value).toBe(LOGO.value.value)
+      expect((await events.findById(WEDDING))?.settings.logo?.value).toBe(LOGO.value.value)
+      expect((await events.findById(WEDDING))?.settings.moderation).toBe('auto')
+    })
+
+    it('answers not found when the event is gone by the time it saves', async () => {
+      const { waiting, release } = gated()
+      await waiting.grant({ eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT })
+      const racing = makeUpdateEventSettings({ events, clients, memberships: waiting, bus })
+
+      const pending = racing({ eventId: WEDDING, actorId: OWNER, patch: { moderation: 'auto' } })
+      await events.delete(WEDDING)
+      release()
+
+      const result = await pending
+      expect(!result.ok && result.error.code).toBe('event.notFound')
+    })
+
+    it('refuses when the event was archived by the time it saves', async () => {
+      const { waiting, release } = gated()
+      await waiting.grant({ eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT })
+      const racing = makeUpdateEventSettings({ events, clients, memberships: waiting, bus })
+
+      const pending = racing({ eventId: WEDDING, actorId: OWNER, patch: { moderation: 'auto' } })
+      events.seed(anEvent({ id: WEDDING, ownerId: OWNER, status: 'archived' }))
+      release()
+
+      const result = await pending
+      expect(!result.ok && result.error.code).toBe('event.immutable')
     })
   })
 })
