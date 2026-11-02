@@ -29,10 +29,12 @@ import { SqliteAccountHoldings } from '../../../infrastructure/db/sqliteAccountH
 import { makeSetClientCeilings } from '../../../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../../../application/usecases/clients/suspendClient'
 import { makeGetSiteEventState } from '../../../application/usecases/site/getSiteEventState'
+import { makeGetSiteGuestbookState } from '../../../application/usecases/site/getSiteGuestbookState'
 import { makeGetSitePhotoState } from '../../../application/usecases/site/getSitePhotoState'
 import { makeLookupSiteEvents } from '../../../application/usecases/site/lookupSiteEvents'
 import { makeSetEventPurgeHold } from '../../../application/usecases/site/setEventPurgeHold'
 import { makeSetEventTakedown } from '../../../application/usecases/site/setEventTakedown'
+import { makeSetGuestbookTakedown } from '../../../application/usecases/site/setGuestbookTakedown'
 import { makeSetPhotoTakedown } from '../../../application/usecases/site/setPhotoTakedown'
 import { makeListSiteAccounts } from '../../../application/usecases/site/listSiteAccounts'
 import { makeListSiteAudit } from '../../../application/usecases/site/listSiteAudit'
@@ -55,6 +57,7 @@ import { SqliteClientRepository } from '../../../infrastructure/db/sqliteClientR
 import { SqliteEventRepository } from '../../../infrastructure/db/sqliteEventRepository'
 import { SqliteInvitationAcceptance } from '../../../infrastructure/db/sqliteInvitationAcceptance'
 import { SqliteMembershipRepository } from '../../../infrastructure/db/sqliteMembershipRepository'
+import { SqliteGuestbookRepository } from '../../../infrastructure/db/sqliteGuestbookRepository'
 import { SqlitePhotoRepository } from '../../../infrastructure/db/sqlitePhotoRepository'
 import { SqliteSecondFactorRepository } from '../../../infrastructure/db/sqliteSecondFactorRepository'
 import { SqliteSiteOverview } from '../../../infrastructure/db/sqliteSiteOverview'
@@ -185,6 +188,7 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
   const events = new SqliteEventRepository(db)
   const memberships = new SqliteMembershipRepository(db)
   const photos = new SqlitePhotoRepository(db)
+  const guestbook = new SqliteGuestbookRepository(db)
   const tokens = new SqliteAccountTokenRepository(db)
   const audit = new SqliteAuditLog(db)
   const overview = new SqliteSiteOverview(db)
@@ -255,6 +259,8 @@ export const buildSiteHarness = (options: SiteHarnessOptions = {}): SiteHarness 
       lookupSiteEvents: makeLookupSiteEvents({ events }),
       getSiteEventState: makeGetSiteEventState({ events }),
       getSitePhotoState: makeGetSitePhotoState({ photos }),
+      getSiteGuestbookState: makeGetSiteGuestbookState({ guestbook }),
+      setGuestbookTakedown: makeSetGuestbookTakedown({ guestbook, audit, bus, clock }),
       setEventTakedown: makeSetEventTakedown({ events, audit, bus, clock }),
       setEventPurgeHold: makeSetEventPurgeHold({ events, audit, clock }),
       offboardClient: makeOffboardClient({ clients, events, audit, clock }),

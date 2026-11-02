@@ -1145,6 +1145,13 @@ export interface SitePhotoStateDto {
   readonly takenDownAt: string | null
 }
 
+/** A guestbook message named by its id: which event holds it and whether it is down. Never its text. */
+export interface SiteGuestbookStateDto {
+  readonly id: string
+  readonly eventId: string
+  readonly takenDownAt: string | null
+}
+
 /** One event of a client, as shapes and sizes: no name, no slug, no join code, no photograph. */
 export interface SiteEventDto {
   readonly id: string

@@ -84,4 +84,27 @@ export interface GuestbookRepository {
 
   /** How many of this guest's messages the operator took down, which every read leaves out. */
   countTakenDownBy(eventId: EventId, guestId: GuestId): Promise<number>
+
+  /**
+   * Which event holds this message, **across every event**: the one read in this port that is not
+   * scoped by `eventId`, and the documented exception for the operator's take-down, who is told
+   * "message <id>" and has no event to name (the same exception `PhotoRepository.locate` is). It
+   * answers an id and an instant and never the text, and it sees a taken-down row, which every
+   * other read leaves out. `null` for an id no row holds.
+   */
+  locate(entryId: GuestbookEntryId): Promise<GuestbookLocation | null>
+
+  /**
+   * Takes a message down (`at`) or puts it back (`null`), for the operator. Scoped by event and
+   * idempotent. `save` never writes this column, so the host's moderation cannot undo it, and a
+   * taken-down row stays counted for its guest's ceiling and is skipped by the guest's erasure.
+   */
+  setTakenDown(eventId: EventId, entryId: GuestbookEntryId, at: Date | null): Promise<void>
+}
+
+/** Where a message lives, and nothing else: ids and an instant, never the text or the author. */
+export interface GuestbookLocation {
+  readonly eventId: EventId
+  /** When the operator took it down, or `null` while it is up. */
+  readonly takenDownAt: Date | null
 }

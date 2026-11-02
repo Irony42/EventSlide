@@ -266,6 +266,15 @@ const OPERATOR_ROUTES: Readonly<Record<string, string>> = {
     'what it changes is what every other router reads of a photograph, not what it holds',
   'post /api/site/photos/:photoId/restore':
     'puts that photograph back (`setPhotoTakedown`): the same one column and one line',
+  'get /api/site/guestbook-entries/:entryId':
+    'where a guestbook message is and whether it is down (`getSiteGuestbookState`, spec 01): an event id and an instant ' +
+    'from `locate`, never the text',
+  'post /api/site/guestbook-entries/:entryId/take-down':
+    'takes one guestbook message down by its id, blind (`setGuestbookTakedown`, spec 01): one column of the ' +
+    'guestbook_entries table and one audit line; it reads no text (`locate` answers an event id and an instant), the ' +
+    'answer is `204`',
+  'post /api/site/guestbook-entries/:entryId/restore':
+    'puts that message back (`setGuestbookTakedown`): the same one column and one line',
   'post /api/site/events/:eventId/take-down':
     'takes a whole event down by its id (`setEventTakedown`): one column of the events table and one audit line; no ' +
     'photograph and no name is read, and the answer is `204`',

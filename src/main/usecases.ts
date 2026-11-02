@@ -161,10 +161,12 @@ import { makeResumeClient } from '../application/usecases/clients/resumeClient'
 import { makeSetClientCeilings } from '../application/usecases/clients/setClientCeilings'
 import { makeSuspendClient } from '../application/usecases/clients/suspendClient'
 import { makeGetSiteEventState } from '../application/usecases/site/getSiteEventState'
+import { makeGetSiteGuestbookState } from '../application/usecases/site/getSiteGuestbookState'
 import { makeGetSitePhotoState } from '../application/usecases/site/getSitePhotoState'
 import { makeLookupSiteEvents } from '../application/usecases/site/lookupSiteEvents'
 import { makeSetEventPurgeHold } from '../application/usecases/site/setEventPurgeHold'
 import { makeSetEventTakedown } from '../application/usecases/site/setEventTakedown'
+import { makeSetGuestbookTakedown } from '../application/usecases/site/setGuestbookTakedown'
 import { makeSetPhotoTakedown } from '../application/usecases/site/setPhotoTakedown'
 import { makeListSiteAccounts } from '../application/usecases/site/listSiteAccounts'
 import { makeListSiteAudit } from '../application/usecases/site/listSiteAudit'
@@ -1163,6 +1165,13 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     lookupSiteEvents: makeLookupSiteEvents({ events: adapters.events }),
     getSiteEventState: makeGetSiteEventState({ events: adapters.events }),
     getSitePhotoState: makeGetSitePhotoState({ photos: adapters.photos }),
+    getSiteGuestbookState: makeGetSiteGuestbookState({ guestbook: adapters.guestbook }),
+    setGuestbookTakedown: makeSetGuestbookTakedown({
+      guestbook: adapters.guestbook,
+      audit: adapters.audit,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
     setPhotoTakedown: makeSetPhotoTakedown({
       invalidateReel,
       photos: adapters.photos,

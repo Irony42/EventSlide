@@ -28,6 +28,8 @@ const CANNOT_SPOIL_A_REEL: Readonly<Record<string, string>> = {
   'photos/setPhotoCaption.ts': 'it saves a caption: the status and the file do not change',
   'photos/removePhotoRecord.ts':
     'the helper the two removing paths call; both of them retire the montage first',
+  'site/setGuestbookTakedown.ts':
+    'it takes a guestbook message down, which is text: no photograph and no montage is involved',
   'site/setEventTakedown.ts':
     'it hides the whole event: the reel is served only through the event, so none is reachable and the photographs are unchanged on restoring it',
 }

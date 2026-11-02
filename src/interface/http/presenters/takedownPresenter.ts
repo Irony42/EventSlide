@@ -1,8 +1,14 @@
 import type {
   SiteEventState,
+  SiteGuestbookState,
   SitePhotoState,
 } from '../../../application/usecases/site/takedownState'
-import type { SiteEventLookupDto, SiteEventStateDto, SitePhotoStateDto } from './dto'
+import type {
+  SiteEventLookupDto,
+  SiteEventStateDto,
+  SiteGuestbookStateDto,
+  SitePhotoStateDto,
+} from './dto'
 
 const isoOrNull = (at: Date | null): string | null => (at === null ? null : at.toISOString())
 
@@ -21,6 +27,12 @@ export const toSiteEventLookupDto = (states: readonly SiteEventState[]): SiteEve
 })
 
 export const toSitePhotoStateDto = (state: SitePhotoState): SitePhotoStateDto => ({
+  id: state.id,
+  eventId: state.eventId,
+  takenDownAt: isoOrNull(state.takenDownAt),
+})
+
+export const toSiteGuestbookStateDto = (state: SiteGuestbookState): SiteGuestbookStateDto => ({
   id: state.id,
   eventId: state.eventId,
   takenDownAt: isoOrNull(state.takenDownAt),

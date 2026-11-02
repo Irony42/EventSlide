@@ -13,6 +13,7 @@ import {
 } from '../../domain/shared/ids'
 import type {
   GuestbookAdmission,
+  GuestbookLocation,
   GuestbookRepository,
 } from '../../application/ports/guestbookRepository'
 import type { Db } from './connection'
@@ -239,6 +240,25 @@ export class SqliteGuestbookRepository implements GuestbookRepository {
           WHERE event_id = ? AND guest_id = ? AND taken_down_at IS NULL`,
       )
       .run(eventId, guestId).changes
+  }
+
+  async locate(entryId: GuestbookEntryId): Promise<GuestbookLocation | null> {
+    const row = this.db
+      .prepare<[string], { readonly event_id: string; readonly taken_down_at: string | null }>(
+        `SELECT event_id, taken_down_at FROM guestbook_entries WHERE id = ?`,
+      )
+      .get(entryId)
+    return row === undefined
+      ? null
+      : { eventId: asEventId(row.event_id), takenDownAt: fromNullableIsoText(row.taken_down_at) }
+  }
+
+  async setTakenDown(eventId: EventId, entryId: GuestbookEntryId, at: Date | null): Promise<void> {
+    this.db
+      .prepare<[string | null, string, string]>(
+        `UPDATE guestbook_entries SET taken_down_at = ? WHERE event_id = ? AND id = ?`,
+      )
+      .run(at === null ? null : toIsoText(at), eventId, entryId)
   }
 
   async countTakenDownBy(eventId: EventId, guestId: GuestId): Promise<number> {

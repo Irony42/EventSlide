@@ -1,7 +1,11 @@
 import { GuestbookEntry, type EntryStatus } from '../../domain/guestbook/guestbookEntry'
 import { DUPLICATE_WINDOW_MS, guestbookRefusalFor } from '../../domain/guestbook/guestbookLimits'
 import type { EventId, GuestId, GuestbookEntryId } from '../../domain/shared/ids'
-import type { GuestbookAdmission, GuestbookRepository } from '../ports/guestbookRepository'
+import type {
+  GuestbookAdmission,
+  GuestbookLocation,
+  GuestbookRepository,
+} from '../ports/guestbookRepository'
 import { compareIds } from './ordering'
 
 /**
@@ -33,7 +37,7 @@ export class FakeGuestbookRepository implements GuestbookRepository {
    * Test infrastructure for the operator's takedown, which only a later change writes through the
    * port: the instant is set directly, as `UPDATE ... SET taken_down_at` does in the SQLite suite.
    */
-  takeDown(eventId: EventId, entryId: GuestbookEntryId, at: Date): void {
+  takeDown(eventId: EventId, entryId: GuestbookEntryId, at: Date | null): void {
     const row = this.rows.get(key(eventId, entryId))
     if (row === undefined) return
     this.rows.set(
@@ -120,6 +124,17 @@ export class FakeGuestbookRepository implements GuestbookRepository {
     const doomed = this.visibleOf(eventId).filter((row) => row.guestId === guestId)
     for (const row of doomed) this.rows.delete(key(eventId, row.id))
     return doomed.length
+  }
+
+  async locate(entryId: GuestbookEntryId): Promise<GuestbookLocation | null> {
+    for (const row of this.rows.values()) {
+      if (row.id === entryId) return { eventId: row.eventId, takenDownAt: row.takenDownAt }
+    }
+    return null
+  }
+
+  async setTakenDown(eventId: EventId, entryId: GuestbookEntryId, at: Date | null): Promise<void> {
+    this.takeDown(eventId, entryId, at)
   }
 
   async countTakenDownBy(eventId: EventId, guestId: GuestId): Promise<number> {
