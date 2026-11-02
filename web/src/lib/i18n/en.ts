@@ -42,6 +42,7 @@ export const en: UiText = {
     submit: 'Join',
     submitting: 'Connecting…',
     welcome: (eventName: string) => `Welcome to ${eventName}`,
+    logoAlt: (eventName: string) => `Logo of ${eventName}`,
     anonymous: 'Stay anonymous',
     /* Navigation pass, batch A: leaving a wrong event, a code that opens nothing, the way to the organiser area. */
     notYourEvening: 'Not your event?',

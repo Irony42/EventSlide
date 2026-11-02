@@ -75,3 +75,37 @@ test('a host sends a logo: the preview is the stored file, location-free, and re
   await expect(preview).toBeHidden()
   expect((await host.request.get(app.url(url))).status()).toBe(404)
 })
+
+/**
+ * Spec 03, PR 3: the logo reaches the guest's join page, and the empty wall of a projector that
+ * is already running, with no reload; removing it takes it off both.
+ */
+test('a host sends a logo and the join page and the empty wall show it, then lose it', async ({
+  app,
+  surfaces,
+}) => {
+  const { host, guest, projector } = surfaces
+  const event = await app.seedEvent({ slug: 'logo-affiche', name: 'Camille & Sacha' })
+
+  await projector.goto(app.url(`/e/${event.slug}/display`))
+  await expect(projector.getByTestId('wall-empty')).toBeVisible()
+  await expect(projector.getByTestId('host-logo')).toHaveCount(0)
+
+  await host.goto(app.url(`/admin/events/${event.slug}/settings`))
+  await host.getByTestId('logo-input').setInputFiles(await jpegWithLocation('logo'))
+  await expect(host.getByRole('img', { name: 'Aperçu du logo de l’évènement' })).toBeVisible()
+
+  const wallLogo = projector.getByRole('img', { name: 'Logo de Camille & Sacha' })
+  await expect(wallLogo).toBeVisible()
+  expect(await wallLogo.getAttribute('src')).toMatch(/\/logo\/[0-9a-f]{64}$/)
+
+  await guest.setViewportSize({ width: 320, height: 568 })
+  await guest.goto(app.url(`/join/${event.joinCode}`))
+  await expect(guest.getByRole('img', { name: 'Logo de Camille & Sacha' })).toBeVisible()
+  expect(
+    await guest.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true)
+
+  await host.getByRole('button', { name: 'Retirer le logo' }).click()
+  await expect(projector.getByTestId('host-logo')).toHaveCount(0)
+})

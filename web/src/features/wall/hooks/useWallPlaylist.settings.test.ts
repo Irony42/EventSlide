@@ -64,6 +64,20 @@ describe('every field of the wall response is accounted for', () => {
     expect(sameSettings(withMessage('Bienvenue'), withMessage('Bienvenue'))).toBe(true)
   })
 
+  it('notices the host uploading, replacing or removing the logo', () => {
+    const withLogo = (logoUrl: string | null) => ({
+      ...aWallResponse(),
+      brand: { welcomeMessage: null, logoUrl },
+    })
+    const one = `/api/events/soiree/logo/${'a'.repeat(64)}`
+    const two = `/api/events/soiree/logo/${'b'.repeat(64)}`
+
+    expect(sameSettings(withLogo(null), withLogo(one))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(two))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(null))).toBe(false)
+    expect(sameSettings(withLogo(one), withLogo(one))).toBe(true)
+  })
+
   it('notices the host replacing or removing the venue photo', () => {
     // `groundUrl` is not a key of DEFAULT_EVENT_THEME, so the sweep below cannot see it.
     const kept = aWallResponse()

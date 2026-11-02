@@ -63,6 +63,21 @@ describe('WallEmptyState', () => {
     expect(screen.getByText(JOIN.code)).toBeVisible()
   })
 
+  it('draws the host logo above the name, and nothing when there is none', () => {
+    const url = `/api/events/camille/logo/${'c'.repeat(64)}`
+    const { rerender } = render(
+      <WallEmptyState eventName="Camille & Sacha" join={JOIN} logoUrl={url} />,
+    )
+
+    expect(screen.getByRole('img', { name: 'Logo de Camille & Sacha' }).getAttribute('src')).toBe(
+      url,
+    )
+
+    rerender(<WallEmptyState eventName="Camille & Sacha" join={JOIN} />)
+
+    expect(screen.queryByTestId('host-logo')).toBeNull()
+  })
+
   describe('once the host has closed the event (MUR-3)', () => {
     it('prints neither the QR nor the code nor the address, and thanks the room instead', () => {
       render(<WallEmptyState eventName="Camille & Sacha" join={JOIN} acceptsGuests={false} />)
