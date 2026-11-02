@@ -234,6 +234,8 @@ const buildWorld = ({
         setClientCeilings: absent('setClientCeilings'),
         suspendClient: absent('suspendClient'),
         setPhotoTakedown: absent('setPhotoTakedown'),
+        setGuestbookTakedown: absent('setGuestbookTakedown'),
+        getSiteGuestbookState: absent('getSiteGuestbookState'),
         lookupSiteEvents: absent('lookupSiteEvents'),
         getSiteEventState: absent('getSiteEventState'),
         getSitePhotoState: absent('getSitePhotoState'),

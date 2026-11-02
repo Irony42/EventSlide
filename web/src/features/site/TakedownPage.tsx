@@ -1,6 +1,7 @@
 import { Notice } from '../../design-system/components/Notice'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { EventTakedownCard } from './components/EventTakedownCard'
+import { GuestbookTakedownCard } from './components/GuestbookTakedownCard'
 import { PhotoTakedownCard } from './components/PhotoTakedownCard'
 import styles from './TakedownPage.module.css'
 
@@ -25,6 +26,7 @@ export function TakedownPage() {
       </Notice>
       <EventTakedownCard />
       <PhotoTakedownCard />
+      <GuestbookTakedownCard />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import type request from 'supertest'
-import { aPhoto } from '../../../application/testing/builders'
+import { aGuest, aGuestbookEntry, aPhoto } from '../../../application/testing/builders'
 import { describe, expect, it } from 'vitest'
 import { STEP_UP_LIFETIME_MS } from '../../../domain/users/secondFactor'
 import { asUserId } from '../../../domain/shared/ids'
@@ -43,6 +43,11 @@ const box = async (options: SiteHarnessOptions = {}) => {
   await made.site.world.addPhoto(
     aPhoto({ id: A_PHOTO, eventId: ID.eventK, author: { kind: 'host', id: ID.owner } }),
   )
+  // The take-down routes also name a guestbook message, under the same id.
+  await made.site.world.addGuest(aGuest({ id: 'guest-1', eventId: ID.eventK }))
+  await made.site.repos.guestbook.admit(
+    aGuestbookEntry({ id: A_PHOTO, eventId: ID.eventK, guestId: 'guest-1' }),
+  )
   return made
 }
 
@@ -55,6 +60,12 @@ const ROUTES: readonly SiteRoute[] = [
   { method: 'get', path: `/api/site/events/lookup?q=${A_PHOTO}`, success: 200, write: false },
   { method: 'get', path: `/api/site/events/${ID.eventL}`, success: 200, write: false },
   { method: 'get', path: `/api/site/photos/${A_PHOTO}`, success: 200, write: false },
+  {
+    method: 'get',
+    path: `/api/site/guestbook-entries/${A_PHOTO}`,
+    success: 200,
+    write: false,
+  },
   {
     method: 'post',
     path: '/api/site/clients',
@@ -91,6 +102,13 @@ const ROUTES: readonly SiteRoute[] = [
   ...(['take-down', 'restore'] as const).map((verb): SiteRoute => ({
     method: 'post',
     path: `/api/site/photos/${A_PHOTO}/${verb}`,
+    body: { reason: 'Retrait conservatoire' },
+    success: 204,
+    write: true,
+  })),
+  ...(['take-down', 'restore'] as const).map((verb): SiteRoute => ({
+    method: 'post',
+    path: `/api/site/guestbook-entries/${A_PHOTO}/${verb}`,
     body: { reason: 'Retrait conservatoire' },
     success: 204,
     write: true,
@@ -180,6 +198,7 @@ describe('the table below is the route table', () => {
         .replace(/\/clients\/[0-9a-f-]{36}/, '/clients/:clientId')
         .replace(/\/accounts\/[0-9a-f-]{36}/, '/accounts/:userId')
         .replace(/\/photos\/[0-9a-f-]{36}/, '/photos/:photoId')
+        .replace(/\/guestbook-entries\/[0-9a-f-]{36}/, '/guestbook-entries/:entryId')
         .replace(/\/events\/[0-9a-f-]{36}/, '/events/:eventId')
         .replace(/\?.*$/, '')
       return `${route.method} ${pattern}`

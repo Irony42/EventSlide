@@ -688,6 +688,7 @@ people on the night.
   `guestbookMaxLength` on the `event` of `POST /api/join`, `allowGuestbook` and `guestbookOnWall` in the event's
   settings, and `messages` in the answer of `DELETE /api/events/:slug/guests/me`, and `guestbook` in `GET /api/events/:slug/wall` (the published messages the room reads). A new `guestbook.changed` signal
   appears on the event stream. A phone or a wall left open across the upgrade ignores them until it is reloaded.
+- **Migration 023, `audit_subject_guestbook`** (operator take-down of one message, `SITE_ADMIN=on` boxes only use it): it rebuilds the append-only `audit_log` table to widen its subject-type list with `guestbook`. Every row, its sequence number and the three append-only triggers are carried over; on a very large log the copy takes a moment at boot. Take the usual backup first.
 - **Nothing to set in `.env`.** The guestbook adds no variable; its ceilings (3 messages per guest, 500 per event)
   are fixed.
 

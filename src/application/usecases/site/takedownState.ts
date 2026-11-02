@@ -1,6 +1,6 @@
 import type { Event } from '../../../domain/events/event'
 import type { EventStatus } from '../../../domain/events/eventStatus'
-import type { ClientId, EventId, PhotoId } from '../../../domain/shared/ids'
+import type { ClientId, EventId, GuestbookEntryId, PhotoId } from '../../../domain/shared/ids'
 
 /**
  * What the operator reads of an event it is about to take down, hold or restore (launch review
@@ -30,6 +30,13 @@ export const siteEventStateOf = (event: Event): SiteEventState => ({
 /** What the operator reads of a photograph named by its id: where it is and whether it is down. */
 export interface SitePhotoState {
   readonly id: PhotoId
+  readonly eventId: EventId
+  readonly takenDownAt: Date | null
+}
+
+/** Where a guestbook message is and whether it is down: ids and an instant, never its text. */
+export interface SiteGuestbookState {
+  readonly id: GuestbookEntryId
   readonly eventId: EventId
   readonly takenDownAt: Date | null
 }

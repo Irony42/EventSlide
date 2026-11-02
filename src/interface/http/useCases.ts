@@ -31,10 +31,12 @@ import type { OffboardClient } from '../../application/usecases/clients/offboard
 import type { SetClientCeilings } from '../../application/usecases/clients/setClientCeilings'
 import type { SuspendClient } from '../../application/usecases/clients/suspendClient'
 import type { GetSiteEventState } from '../../application/usecases/site/getSiteEventState'
+import type { GetSiteGuestbookState } from '../../application/usecases/site/getSiteGuestbookState'
 import type { GetSitePhotoState } from '../../application/usecases/site/getSitePhotoState'
 import type { LookupSiteEvents } from '../../application/usecases/site/lookupSiteEvents'
 import type { SetEventPurgeHold } from '../../application/usecases/site/setEventPurgeHold'
 import type { SetEventTakedown } from '../../application/usecases/site/setEventTakedown'
+import type { SetGuestbookTakedown } from '../../application/usecases/site/setGuestbookTakedown'
 import type { SetPhotoTakedown } from '../../application/usecases/site/setPhotoTakedown'
 import type { ListSiteAccounts } from '../../application/usecases/site/listSiteAccounts'
 import type { ListSiteAudit } from '../../application/usecases/site/listSiteAudit'
@@ -191,6 +193,8 @@ export interface HttpUseCases {
   readonly resumeClient: ResumeClient
   // the operator's "remove without viewing" levers, by id (launch review S5)
   readonly setPhotoTakedown: SetPhotoTakedown
+  readonly setGuestbookTakedown: SetGuestbookTakedown
+  readonly getSiteGuestbookState: GetSiteGuestbookState
   readonly lookupSiteEvents: LookupSiteEvents
   readonly getSiteEventState: GetSiteEventState
   readonly getSitePhotoState: GetSitePhotoState

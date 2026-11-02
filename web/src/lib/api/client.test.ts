@@ -657,8 +657,16 @@ const ENDPOINTS: readonly EndpointCase[] = [
     path: `/api/site/photos/${CLIENT}`,
     invoke: (client) => client.sitePhotoState(CLIENT),
   },
+  {
+    name: 'siteGuestbookState',
+    verb: 'get',
+    path: `/api/site/guestbook-entries/${CLIENT}`,
+    invoke: (client) => client.siteGuestbookState(CLIENT),
+  },
   ...(
     [
+      ['siteTakeDownGuestbookEntry', 'guestbook-entries', 'take-down'],
+      ['siteRestoreGuestbookEntry', 'guestbook-entries', 'restore'],
       ['siteTakeDownPhoto', 'photos', 'take-down'],
       ['siteRestorePhoto', 'photos', 'restore'],
       ['siteTakeDownEvent', 'events', 'take-down'],

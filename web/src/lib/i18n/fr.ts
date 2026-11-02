@@ -2642,6 +2642,16 @@ export const fr = {
     takedownPhotoOf: (id: string) => `Dans l’évènement ${id}`,
     takedownPhotoDown: 'Retirer la photo',
     takedownPhotoUp: 'Remettre la photo',
+    takedownGuestbookTitle: 'Un message du livre d’or',
+    takedownGuestbookIntro:
+      'Collez l’identifiant du message tel que le signalement le donne. Vous ne voyez que l’évènement auquel il appartient et son état, jamais son texte.',
+    takedownGuestbookLabel: 'Identifiant du message',
+    takedownGuestbookAction: 'Chercher le message',
+    takedownGuestbookNone: 'Aucun message ne porte cet identifiant.',
+    takedownGuestbookHeading: (id: string) => `Message ${id}`,
+    takedownGuestbookOf: (id: string) => `Dans l’évènement ${id}`,
+    takedownGuestbookDown: 'Retirer le message',
+    takedownGuestbookUp: 'Remettre le message',
     takedownReason: 'Motif',
     takedownReasonHint:
       'Une phrase sur une seule ligne, de 200 caractères au plus, sans adresse e-mail. Elle est écrite au journal de l’instance.',
@@ -2678,6 +2688,16 @@ export const fr = {
         title: 'Remettre cette photo ?',
         body: 'Elle reparaît avec l’état que l’hôte lui avait donné.',
         confirm: 'Remettre la photo',
+      },
+      guestbookDown: {
+        title: 'Retirer ce message ?',
+        body: 'Il disparaît à l’instant du mur, de la file de l’hôte et de la liste de son auteur, et les écrans ouverts l’oublient. Le texte est conservé. L’hôte ne peut pas le remettre, et son auteur ne retrouve pas la place qu’il occupait.',
+        confirm: 'Retirer le message',
+      },
+      guestbookUp: {
+        title: 'Remettre ce message ?',
+        body: 'Il reparaît avec l’état que l’hôte lui avait donné.',
+        confirm: 'Remettre le message',
       },
     },
   },

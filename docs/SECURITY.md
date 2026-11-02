@@ -3637,7 +3637,7 @@ for is the one where the operator is told a photograph is illegal and must act *
 3.3 the only lever was suspending a whole client, which left its host reading the photographs, and the only way to
 stop a purge was `RETENTION_SWEEP_INTERVAL_MINUTES=off` for every event on the box. The routes are in API.md §1.
 
-**What the operator can do, by id.** Take one photograph down (`POST /api/site/photos/:photoId/take-down`), take a
+**What the operator can do, by id.** Take one guestbook message down the same way (`POST /api/site/guestbook-entries/:entryId/take-down`, spec 01: `GuestbookRepository.locate` answers an event id and an instant and is, with the photograph's, one of the reads not scoped by event; the audit subject type `guestbook` was added by migration 023). Take one photograph down (`POST /api/site/photos/:photoId/take-down`), take a
 whole event down (`/api/site/events/:eventId/take-down`), hold an event's purge (`.../purge-hold`), and undo each.
 Every write has the operator gate, the second factor and a step-up (§22), a **mandatory reason** (the one bounded
 free-text detail of the log, §17, now declared by these six actions as well as by a ceiling's change) and answers

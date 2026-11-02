@@ -31,6 +31,9 @@ export const eventIdParams = z.object({ eventId: z.guid() })
 /** `/api/site/photos/:photoId/...`: a photograph named by its id alone. */
 export const photoIdParams = z.object({ photoId: z.guid() })
 
+/** `/api/site/guestbook-entries/:entryId/...`: a guestbook message named by its id alone. */
+export const guestbookEntryIdParams = z.object({ entryId: z.guid() })
+
 /**
  * `GET /api/site/events/lookup?q=`: what a report gave the operator, a slug, a join code, an address
  * or an exact name. Its bounds and meaning are the use case's (`lookupSiteEvents`): the schema only

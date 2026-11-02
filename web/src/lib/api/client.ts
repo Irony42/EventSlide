@@ -62,6 +62,7 @@ import type {
   SiteEventLookupDto,
   SiteEventPageDto,
   SiteEventStateDto,
+  SiteGuestbookStateDto,
   SitePhotoStateDto,
   TopPhotoDto,
   TotpEnrolmentDto,
@@ -589,6 +590,10 @@ export const createApi = (transport: Transport) => ({
   sitePhotoState: (photoId: string, signal?: AbortSignal): Promise<SitePhotoStateDto> =>
     transport.get(`/api/site/photos/${encode(photoId)}`, undefined, signal),
 
+  /** Where a guestbook message is and whether it is down, by its id alone: never its text. */
+  siteGuestbookState: (entryId: string, signal?: AbortSignal): Promise<SiteGuestbookStateDto> =>
+    transport.get(`/api/site/guestbook-entries/${encode(entryId)}`, undefined, signal),
+
   /** What a client is given when the form leaves a ceiling alone: the box's `NEW_CLIENT_*`. */
   siteClientDefaults: (signal?: AbortSignal): Promise<ClientDefaultsDto> =>
     transport.get('/api/site/client-defaults', undefined, signal),
@@ -619,6 +624,12 @@ export const createApi = (transport: Transport) => ({
 
   siteRestorePhoto: (photoId: string, reason: string): Promise<void> =>
     transport.post(`/api/site/photos/${encode(photoId)}/restore`, { reason }),
+
+  siteTakeDownGuestbookEntry: (entryId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/guestbook-entries/${encode(entryId)}/take-down`, { reason }),
+
+  siteRestoreGuestbookEntry: (entryId: string, reason: string): Promise<void> =>
+    transport.post(`/api/site/guestbook-entries/${encode(entryId)}/restore`, { reason }),
 
   siteTakeDownEvent: (eventId: string, reason: string): Promise<void> =>
     transport.post(`/api/site/events/${encode(eventId)}/take-down`, { reason }),

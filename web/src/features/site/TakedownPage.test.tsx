@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { fr } from '../../lib/i18n/fr'
 import { ApiError } from '../../lib/http'
 import type { Api } from '../../lib/api/client'
-import type { SiteEventStateDto, SitePhotoStateDto } from '../../lib/api/dto'
+import type { SiteEventStateDto, SiteGuestbookStateDto, SitePhotoStateDto } from '../../lib/api/dto'
 import { CLIENT_ID, EVENT_ID } from '../../testing/siteFixtures'
 import {
   callsOutsideTheConsole,
@@ -404,6 +404,96 @@ describe('acting on a photograph, by its id', () => {
 
     await userEvent.type(await screen.findByLabelText(fr.site.takedownPhotoLabel), PHOTO_ID)
     await userEvent.click(screen.getByRole('button', { name: fr.site.takedownPhotoAction }))
+
+    expect(await screen.findByRole('alert')).toBeVisible()
+  })
+})
+
+describe('acting on a guestbook message, by its id (spec 01)', () => {
+  const aMessage = (overrides: Partial<SiteGuestbookStateDto> = {}): SiteGuestbookStateDto => ({
+    id: PHOTO_ID,
+    eventId: EVENT_ID,
+    takenDownAt: null,
+    ...overrides,
+  })
+
+  const findMessage = async () => {
+    await userEvent.type(await screen.findByLabelText(fr.site.takedownGuestbookLabel), PHOTO_ID)
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownGuestbookAction }))
+    return screen.findByRole('heading', { name: fr.site.takedownGuestbookHeading(PHOTO_ID) })
+  }
+
+  it('shows where it is and that it is up, with no text, and takes it down with a reason', async () => {
+    const siteTakeDownGuestbookEntry = vi.fn<Api['siteTakeDownGuestbookEntry']>(
+      async () => undefined,
+    )
+    const siteGuestbookState = vi
+      .fn<Api['siteGuestbookState']>()
+      .mockResolvedValueOnce(aMessage())
+      .mockResolvedValue(aMessage({ takenDownAt: AT }))
+    open(consoleApi({ siteGuestbookState, siteTakeDownGuestbookEntry }))
+
+    await findMessage()
+    expect(screen.getByText(fr.site.takedownGuestbookOf(EVENT_ID))).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownGuestbookDown }))
+    const confirmation = await dialog(fr.site.takedownOps.guestbookDown.title)
+    await userEvent.type(within(confirmation).getByLabelText(fr.site.takedownReason), REASON)
+    await userEvent.click(
+      within(confirmation).getByRole('button', { name: fr.site.takedownOps.guestbookDown.confirm }),
+    )
+
+    expect(await screen.findByRole('button', { name: fr.site.takedownGuestbookUp })).toBeVisible()
+    expect(siteGuestbookState).toHaveBeenCalledWith(PHOTO_ID)
+    expect(siteTakeDownGuestbookEntry).toHaveBeenCalledWith(PHOTO_ID, REASON)
+  })
+
+  it('puts a taken-down message back, with its own request', async () => {
+    const siteRestoreGuestbookEntry = vi.fn<Api['siteRestoreGuestbookEntry']>(async () => undefined)
+    open(
+      consoleApi({
+        siteGuestbookState: vi.fn(async () => aMessage({ takenDownAt: AT })),
+        siteRestoreGuestbookEntry,
+      }),
+    )
+
+    await findMessage()
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownGuestbookUp }))
+    const confirmation = await dialog(fr.site.takedownOps.guestbookUp.title)
+    await userEvent.type(within(confirmation).getByLabelText(fr.site.takedownReason), REASON)
+    await userEvent.click(
+      within(confirmation).getByRole('button', { name: fr.site.takedownOps.guestbookUp.confirm }),
+    )
+
+    await waitFor(() => expect(siteRestoreGuestbookEntry).toHaveBeenCalledWith(PHOTO_ID, REASON))
+  })
+
+  it('says that no message has that id, in words and not as a failure', async () => {
+    open(
+      consoleApi({
+        siteGuestbookState: vi.fn(async () => {
+          throw new ApiError(404, 'guestbook.notFound')
+        }),
+      }),
+    )
+
+    await userEvent.type(await screen.findByLabelText(fr.site.takedownGuestbookLabel), PHOTO_ID)
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownGuestbookAction }))
+
+    expect(await screen.findByText(fr.site.takedownGuestbookNone)).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('says what the server said for any other failure', async () => {
+    open(
+      consoleApi({
+        siteGuestbookState: vi.fn(async () => {
+          throw new ApiError(500, 'unknown')
+        }),
+      }),
+    )
+
+    await userEvent.type(await screen.findByLabelText(fr.site.takedownGuestbookLabel), PHOTO_ID)
+    await userEvent.click(screen.getByRole('button', { name: fr.site.takedownGuestbookAction }))
 
     expect(await screen.findByRole('alert')).toBeVisible()
   })

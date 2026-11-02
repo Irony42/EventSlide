@@ -578,6 +578,11 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   sitePhotoState: vi.fn(async () => {
     throw new Error('sitePhotoState: a test states its own answer')
   }),
+  siteGuestbookState: vi.fn(async () => {
+    throw new Error('siteGuestbookState: a test states its own answer')
+  }),
+  siteTakeDownGuestbookEntry: vi.fn(async () => undefined),
+  siteRestoreGuestbookEntry: vi.fn(async () => undefined),
   siteTakeDownPhoto: vi.fn(async () => undefined),
   siteRestorePhoto: vi.fn(async () => undefined),
   siteTakeDownEvent: vi.fn(async () => undefined),
