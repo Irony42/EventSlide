@@ -391,6 +391,12 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.highlights(SLUG),
   },
   {
+    name: 'requestReel',
+    verb: 'post',
+    path: `/api/events/${SLUG}/highlights/reel`,
+    invoke: (client) => client.requestReel(SLUG),
+  },
+  {
     name: 'topPhotos',
     verb: 'get',
     path: `/api/events/${SLUG}/top-photos`,
@@ -719,7 +725,13 @@ describe('every endpoint addresses the documented method and path', () => {
 
     // The link builders return a string rather than making a request, so they are
     // pinned in their own block below instead.
-    expect(missing).toEqual(['albumUrl', 'bestOfUrl', 'moderationStreamUrl', 'streamUrl'])
+    expect(missing).toEqual([
+      'albumUrl',
+      'bestOfUrl',
+      'moderationStreamUrl',
+      'reelUrl',
+      'streamUrl',
+    ])
   })
 })
 
@@ -1128,6 +1140,10 @@ describe('links the app builds rather than requests', () => {
     expect(subject().bestOfUrl(SLUG)).toBe(`/api/events/${SLUG}/best-of.zip`)
   })
 
+  it('points the montage player at the documented MP4 endpoint', () => {
+    expect(subject().reelUrl(SLUG)).toBe(`/api/events/${SLUG}/highlights/reel.mp4`)
+  })
+
   it('points the stream at the documented SSE endpoint', () => {
     // `useEventStream` hands this straight to `EventSource`; a wrong path shows as a
     // wall that never updates rather than as an error anybody sees.
@@ -1142,7 +1158,7 @@ describe('links the app builds rather than requests', () => {
     expect(subject().moderationStreamUrl(SLUG)).not.toBe(subject().streamUrl(SLUG))
   })
 
-  it.each(['albumUrl', 'bestOfUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
+  it.each(['albumUrl', 'bestOfUrl', 'reelUrl', 'streamUrl', 'moderationStreamUrl'] as const)(
     'escapes a slug in %s too',
     (method) => {
       expect(subject()[method]('gala/autre')).toContain('gala%2Fautre')

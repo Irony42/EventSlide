@@ -95,3 +95,102 @@ describe('BestOfPanel', () => {
     expect(await screen.findByText(fr.errors['event.notFound'])).toBeVisible()
   })
 })
+
+describe('BestOfPanel, the highlight video', () => {
+  const reel = (status: string, extra = {}) => ({
+    status,
+    photoCount: 5,
+    updatedAt: '2026-11-02T10:00:00.000Z',
+    ...extra,
+  })
+  const withReel = (r: unknown, more: Partial<Api> = {}) =>
+    fakeApi({ highlights: vi.fn(async () => ({ count: 5, reel: r })), ...more } as Partial<Api>)
+
+  it('offers no video without a favourite', async () => {
+    render(fakeApi())
+    await screen.findByText(fr.admin.bestOfNone)
+    expect(screen.queryByText(fr.admin.reelTitle)).toBeNull()
+  })
+
+  it('asks for the video and says it was started', async () => {
+    const requestReel = vi.fn(async () => reel('queued'))
+    render(withReel(null, { requestReel } as Partial<Api>))
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.reelCreate }))
+
+    await waitFor(() => expect(requestReel).toHaveBeenCalledWith(SLUG))
+    expect(await screen.findByText(fr.admin.reelAsked)).toBeVisible()
+  })
+
+  it.each([
+    ['queued', fr.admin.reelQueued],
+    ['running', fr.admin.reelRunning],
+    ['stale', fr.admin.reelStale],
+  ])('says the video is %s', async (status, text) => {
+    render(withReel(reel(status)))
+    expect(await screen.findByText(text)).toBeVisible()
+  })
+
+  it('disables the button while the video is made', async () => {
+    render(withReel(reel('running')))
+    await screen.findByText(fr.admin.reelRunning)
+    expect(screen.getByRole('button', { name: fr.admin.reelRedo })).toBeDisabled()
+  })
+
+  it('reads the state again every three seconds while it is made', async () => {
+    const visible = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    try {
+      const highlights = vi.fn(async () => ({ count: 5, reel: reel('running') }))
+      render(fakeApi({ highlights } as Partial<Api>))
+      await screen.findByText(fr.admin.reelRunning)
+      await waitFor(() => expect(highlights.mock.calls.length).toBeGreaterThan(1), {
+        timeout: 5000,
+      })
+    } finally {
+      visible.mockRestore()
+    }
+  }, 10000)
+
+  it('explains a failure with its own code, and a generic sentence for an unknown one', async () => {
+    const { unmount } = render(withReel(reel('failed', { failureCode: 'reel.timedOut' })))
+    expect(await screen.findByText(fr.errors['reel.timedOut'])).toBeVisible()
+    unmount()
+    render(withReel(reel('failed', { failureCode: 'who.knows' })))
+    expect(await screen.findByText(fr.admin.reelFailed)).toBeVisible()
+  })
+
+  it('plays and links the finished video', async () => {
+    const { container } = render(withReel(reel('done', { durationMs: 20000, byteSize: 9 })))
+
+    expect(await screen.findByText(fr.admin.reelReady(5))).toBeVisible()
+    expect(container.querySelector('video')).toHaveAttribute(
+      'src',
+      `/api/events/${SLUG}/highlights/reel.mp4`,
+    )
+    expect(screen.getByRole('link', { name: fr.admin.reelDownload })).toBeVisible()
+  })
+
+  it('says why a refusal happened', async () => {
+    render(
+      withReel(null, {
+        requestReel: vi.fn(async () => {
+          throw new ApiError(409, 'reel.notEnoughPhotos')
+        }),
+      } as Partial<Api>),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.reelCreate }))
+    expect(await screen.findByText(fr.errors['reel.notEnoughPhotos'])).toBeVisible()
+  })
+
+  it('removes the video step when the server has no transcoder', async () => {
+    render(
+      withReel(null, {
+        requestReel: vi.fn(async () => {
+          throw new ApiError(500, 'reel.transcoderUnavailable')
+        }),
+      } as Partial<Api>),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: fr.admin.reelCreate }))
+    await waitFor(() => expect(screen.queryByText(fr.admin.reelTitle)).toBeNull())
+  })
+})

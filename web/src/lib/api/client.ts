@@ -31,6 +31,7 @@ import type {
   MissionListResponse,
   MissionScope,
   HighlightsDto,
+  ReelDto,
   ModerationDecision,
   ModerationQueueResponse,
   ModeratorDto,
@@ -747,6 +748,10 @@ export const createApi = (transport: Transport) => ({
   highlights: (slug: string, signal?: AbortSignal): Promise<HighlightsDto> =>
     transport.get(`/api/events/${encode(slug)}/highlights`, undefined, signal),
 
+  /** Asks for the montage of the favourites (spec 08): `202`, then the panel reads its state. */
+  requestReel: (slug: string): Promise<ReelDto> =>
+    transport.post(`/api/events/${encode(slug)}/highlights/reel`),
+
   topPhotos: (slug: string, signal?: AbortSignal): Promise<{ items: readonly TopPhotoDto[] }> =>
     transport.get(`/api/events/${encode(slug)}/top-photos`, undefined, signal),
 
@@ -858,6 +863,9 @@ export const createApi = (transport: Transport) => ({
   albumUrl: (slug: string): string => `/api/events/${encode(slug)}/album.zip`,
 
   /** The favourites as a ZIP (spec 08). */
+  /** The finished montage, streamed with `Range`; every request is re-checked by the server. */
+  reelUrl: (slug: string): string => `/api/events/${encode(slug)}/highlights/reel.mp4`,
+
   bestOfUrl: (slug: string): string => `/api/events/${encode(slug)}/best-of.zip`,
 
   /** The wall's channel. Public, because a projector has nobody to sign it in. */
