@@ -9,6 +9,7 @@ import { DEFAULT_OPERATOR_RESET_LINKS } from '../../domain/clients/operatorGuard
 import {
   blankAsAbsent,
   boolish,
+  boolishWithDefault,
   choice,
   positiveInt,
   retentionSweepInterval,
@@ -42,6 +43,7 @@ import {
   mfaEncryptionKey,
   newClientCeiling,
   newClientClipsAllowed,
+  newClientBooksAllowed,
   operatorResetLinks,
   requireOperator2fa,
   siteAdmin,
@@ -222,6 +224,23 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * what a multi-event cell asks for.
        */
       MAX_QUEUED_CLIPS_PER_EVENT: positiveInt(20, 500),
+      /**
+       * The host's highlight reel, an MP4 montage of their favourites (spec 08). Off, no montage can
+       * be asked for; the favourites and their ZIP stay. The operator's switch if the box suffers:
+       * an environment variable, so changing it is a restart, not a button.
+       */
+      REEL_ENABLED: boolishWithDefault('true'),
+      /** The most photographs one montage may hold. Past it the host is told to remove some. */
+      REEL_MAX_PHOTOS: positiveInt(60, 120),
+      /** How long each photograph is shown, in seconds. */
+      REEL_SECONDS_PER_PHOTO: z.coerce.number().int().min(2).max(8).default(4),
+      /** The largest file a montage may become. Admission leaves this much room, in the quota. */
+      REEL_MAX_OUTPUT_BYTES: positiveInt(150_000_000),
+      /**
+       * Montages that may be waiting or rendering across the box. One per event is guaranteed by the
+       * schema; this is the box-wide cap, judged in the admission transaction like the clips'.
+       */
+      MAX_QUEUED_REELS: positiveInt(2, 50),
       /** The projected height of a clip. 720p reads well at 3 m and encodes quickly. */
       CLIP_MAX_HEIGHT: positiveInt(720, 2_160),
       /**
@@ -233,6 +252,25 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
        * (7680x4320, 33 MP) and refuses the 16000x16000 container that is 380 MB a frame.
        */
       MAX_CLIP_PIXELS: positiveInt(33_177_600),
+
+      /**
+       * The photo book (PDF of the published album). Box-level limits that sit **on top of**
+       * the per-client switch `NEW_CLIENT_BOOKS_ALLOWED` and the three books per event per day.
+       * `BOOK_ENABLED=false` turns the function off for the box (read once at boot: a restart).
+       */
+      BOOK_ENABLED: boolishWithDefault('true'),
+      /** Most photographs in one book. Inclusive: a book of exactly this many is allowed. */
+      BOOK_MAX_PHOTOS: positiveInt(300, 5_000),
+      /** Most bytes in one finished book (default 300 MB), judged before rendering. */
+      BOOK_MAX_BYTES: positiveInt(300 * 1024 * 1024),
+      /** Days a finished book can be downloaded (never past the album's purge date). */
+      BOOK_TTL_DAYS: positiveInt(7, 365),
+      /** Most bytes of finished books kept on the box at once (default 2 GB). */
+      BOOK_MAX_TOTAL_BYTES: positiveInt(2 * 1024 * 1024 * 1024),
+      /** How long a book waits behind video transcodes before it starts anyway. */
+      BOOK_MAX_WAIT_MINUTES: positiveInt(10, 1_440),
+      /** Books one event may have generated in a rolling day (decision of 01/11/2026). */
+      BOOK_MAX_PER_EVENT_PER_DAY: positiveInt(3, 100),
 
       /**
        * How many upload requests — photos and clips together — may be in flight at
@@ -547,6 +585,7 @@ const buildSchema = ({ secretsRequiredInProduction }: SchemaOptions) =>
         CLIENT_MAX_LIVE_DAYS,
       ),
       NEW_CLIENT_CLIPS_ALLOWED: newClientClipsAllowed,
+      NEW_CLIENT_BOOKS_ALLOWED: newClientBooksAllowed,
 
       /** See {@link smtpUrl}. Absent means no mail: the composition root wires `NullMailer`. */
       SMTP_URL: smtpUrl,

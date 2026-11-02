@@ -35,6 +35,8 @@ export interface MyGuestbookEntry {
 export interface MyGuestbook {
   readonly items: readonly MyGuestbookEntry[]
   readonly accepting: boolean
+  /** Whether published messages are shown on the wall: what "published" means to the author. */
+  readonly onWall: boolean
 }
 
 export interface ListMyGuestbookEntriesDeps {
@@ -69,5 +71,6 @@ export const makeListMyGuestbookEntries =
           }) === 'allowed',
       })),
       accepting: event.settings.allowGuestbook && acceptsGuestbookEntries(event, now),
+      onWall: event.settings.guestbookOnWall,
     })
   }

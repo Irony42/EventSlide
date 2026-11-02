@@ -354,6 +354,7 @@ describe('GET /api/events/:eventSlug/guestbook/mine', () => {
         },
       ],
       accepting: true,
+      onWall: true,
     })
   })
 

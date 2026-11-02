@@ -64,7 +64,7 @@ describe('the ports catalogue of docs/ARCHITECTURE.md §4', () => {
    * An interface with a method that has no adapter and needs no row: a seam between two fakes.
    * `FakePhotoRepository` is given one so that an event's byte total can see the clip queue.
    */
-  const NOT_PORTS = new Set(['StagedByteSource'])
+  const NOT_PORTS = new Set(['StagedByteSource', 'ReelByteSource'])
 
   const portsIn = (file: string): string[] => {
     const text = read('src', 'application', 'ports', file)

@@ -4,6 +4,7 @@ import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
 import { EVENT_TEMPLATE_KEYS } from '../../../domain/events/eventTemplate'
+import { MAX_PRESELECT_LIMIT } from '../../../domain/highlights/highlightEligibility'
 import { MISSION_SCOPES } from '../../../domain/missions/missionScope'
 import { MODERATION_DECISIONS } from '../../../domain/moderation/moderationDecision'
 import { SERVED_VARIANTS } from '../../../domain/photos/mediaVariant'
@@ -480,6 +481,21 @@ export const updateSettingsBody = z.strictObject({
    * accepted by the use case and refused here, with neither build noticing.
    */
   wallLanguage: z.enum(EVENT_LANGUAGES).optional(),
+  /**
+   * The host's welcome message (spec 03). Absent leaves it alone, `null` clears it. The wire bound is
+   * wide on purpose: the real rule (280 characters, 4 lines) is the domain's, and answers with its own codes.
+   */
+  welcomeMessage: z.string().max(2_000).nullable().optional(),
+  /**
+   * **Read and ignored.** `GET` answers the brand in `settings`, so a tab that sends settings back
+   * as it received them must not get a 400. The route never forwards it: it cannot set a logo.
+   */
+  brand: z
+    .strictObject({
+      welcomeMessage: z.string().nullable().optional(),
+      logoUrl: z.string().max(200).nullable().optional(),
+    })
+    .optional(),
 })
 
 export const eventStatusBody = z.strictObject({
@@ -607,6 +623,9 @@ export const moderationQueueQuery = z.strictObject({
  */
 export const guestListQuery = z.strictObject({})
 
+/** The statistics page takes no parameter; sending one is a 400, as for the guest list. */
+export const eventStatsQuery = z.strictObject({})
+
 /**
  * The display timing overrides the Playwright suite drives, so a visual test does not
  * wait ten real seconds per slide.
@@ -638,6 +657,10 @@ export const wallQuery = z.strictObject({
  * of forty photos is not a podium. The default is what the client asks for when it
  * sends no query at all.
  */
+export const preselectHighlightsBody = z.strictObject({
+  limit: z.number().int().min(1).max(MAX_PRESELECT_LIMIT),
+})
+
 export const topPhotosQuery = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 })

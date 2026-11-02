@@ -97,6 +97,7 @@ const aClientRow = (): SiteClientRow => ({
     maxEventQuotaBytes: null,
     maxRetentionDays: 90,
     clipsAllowed: true,
+    booksAllowed: true,
     liveAllowed: true,
     maxLiveDays: null,
     maxEventsPerPeriod: null,

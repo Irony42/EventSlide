@@ -28,6 +28,7 @@ import { mediaRoutes } from './routes/mediaRoutes'
 import { meRoutes } from './routes/meRoutes'
 import { guestbookRoutes } from './routes/guestbookRoutes'
 import { missionRoutes } from './routes/missionRoutes'
+import { highlightRoutes } from './routes/highlightRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
 import { privacyNoticeRoutes } from './routes/privacyNoticeRoutes'
 import { publicRoutes } from './routes/publicRoutes'
@@ -324,6 +325,7 @@ export const buildServer = ({
   app.use('/api', galleryRoutes({ deps, usecases, limits: config.rateLimits }))
   app.use('/api', shareLinkRoutes(routeDeps))
   app.use('/api', moderationRoutes(routeDeps))
+  app.use('/api', highlightRoutes(routeDeps))
   // After the guest router, which owns 'missions/mine' on the same path prefix, and
   // before the event router for no reason other than reading order: the four routes here
   // are all 'events/:eventSlug/missions' and none of them collides with anything above.

@@ -76,6 +76,17 @@ describe('describeCeilingsChange', () => {
     ])
   })
 
+  it('records the photo book switch turned off, and shows both sides of it', () => {
+    const before = aClientWith({ booksAllowed: true })
+    const after = aClientWith({ booksAllowed: false })
+
+    expect(describeCeilingsChange(before, after, REASON)[0]?.details).toEqual({
+      before: expect.objectContaining({ booksAllowed: true }),
+      after: expect.objectContaining({ booksAllowed: false }),
+      reason: REASON,
+    })
+  })
+
   it('records an instant as the text toISOString writes, never as a Date', () => {
     const before = aClientWith({ periodStartedAt: null })
     const after = aClientWith({ periodStartedAt: AT })
@@ -125,6 +136,7 @@ describe('describeCeilingsChange', () => {
     maxEventQuotaBytes: 3,
     maxRetentionDays: 4,
     clipsAllowed: true,
+    booksAllowed: true,
     liveAllowed: true,
     maxLiveDays: 6,
     maxEventsPerPeriod: 7,
@@ -137,6 +149,7 @@ describe('describeCeilingsChange', () => {
     maxEventQuotaBytes: 13,
     maxRetentionDays: 14,
     clipsAllowed: false,
+    booksAllowed: false,
     liveAllowed: false,
     maxLiveDays: 16,
     maxEventsPerPeriod: 17,
@@ -153,6 +166,7 @@ describe('describeCeilingsChange', () => {
         maxEventQuotaBytes: 3,
         maxRetentionDays: 4,
         clipsAllowed: true,
+        booksAllowed: true,
         liveAllowed: true,
         maxLiveDays: 6,
         maxEventsPerPeriod: 7,
@@ -164,6 +178,7 @@ describe('describeCeilingsChange', () => {
         maxEventQuotaBytes: 13,
         maxRetentionDays: 14,
         clipsAllowed: false,
+        booksAllowed: false,
         liveAllowed: false,
         maxLiveDays: 16,
         maxEventsPerPeriod: 17,
@@ -232,6 +247,7 @@ describe('describeClientCreation', () => {
         maxEventQuotaBytes: null,
         maxRetentionDays: null,
         clipsAllowed: true,
+        booksAllowed: true,
         liveAllowed: true,
         maxLiveDays: null,
         maxEventsPerPeriod: 6,

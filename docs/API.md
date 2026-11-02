@@ -307,6 +307,7 @@ query does not have is `400 request.invalid`.
         "maxEventQuotaBytes": null,
         "maxRetentionDays": null,
         "clipsAllowed": true,
+        "booksAllowed": true,
         "liveAllowed": true,
         "maxLiveDays": null,
         "maxEventsPerPeriod": null,
@@ -616,15 +617,17 @@ box, and `403 auth.secondFactorRequired` where a second factor is required and n
     "maxEventQuotaBytes": 5000000000,
     "maxRetentionDays": 30,
     "maxLiveDays": 3,
-    "clipsAllowed": true
+    "clipsAllowed": true,
+    "booksAllowed": true
   }
 }
 ```
 
 A number is a ceiling and `null` is none; `clipsAllowed` is `true` unless `NEW_CLIENT_CLIPS_ALLOWED`
-says otherwise. A box that set no `NEW_CLIENT_*` answers `null` for the six numbers and `"clipsAllowed": true`,
-which is what every client of such a box has. These are seven of
-a client's nine ceilings: `liveAllowed` has no default (a new client may open), and the period's
+says otherwise, and `booksAllowed` (the photo book) unless `NEW_CLIENT_BOOKS_ALLOWED` does. A box that set
+no `NEW_CLIENT_*` answers `null` for the six numbers and `true` for both switches,
+which is what every client of such a box has. These are eight of
+a client's ten ceilings: `liveAllowed` has no default (a new client may open), and the period's
 start is the day the client is provisioned.
 
 ### CSRF
@@ -1681,7 +1684,8 @@ The guest's own messages, newest first, at most three, every status but what the
       "canDelete": true
     }
   ],
-  "accepting": true
+  "accepting": true,
+  "onWall": true
 }
 ```
 
@@ -1689,7 +1693,8 @@ The guest's own messages, newest first, at most three, every status but what the
 the photograph's rule, not one of its own — the host's `allowGuestSelfDelete` switch, then the author, inside
 `guestSelfDeleteGraceSeconds`, while the message is `pending` or `rejected`. `accepting` is the rule the
 write route applies (`allowGuestbook`, the event's state, the seven-day window), so the card can disappear
-instead of offering a form the server will refuse.
+instead of offering a form the server will refuse. `onWall` is `guestbookOnWall`: when false the author is
+told a published message is "published, not shown on the screen".
 
 **Errors** — `401 auth.required` / `401 guestToken.*`; `403 guest.revoked`; `404 event.notFound`.
 
@@ -1743,6 +1748,7 @@ guest's language, so the notice cannot promise something the configuration contr
 | `retentionDays`      | `retentionDays`, lowered to the client's `max_retention_days` — see below | days after the gallery **closes**; `null` — nothing deletes the album on its own                                                                                                                                                                                                                                                                                                                                                                                        |
 | `selfRemovalSeconds` | `allowGuestSelfDelete`, `guestSelfDeleteGraceSeconds`, `moderation`       | how long a guest may take a photo back; `null` when they cannot — including under `auto`, where nothing is ever off the wall to take back                                                                                                                                                                                                                                                                                                                               |
 | `operator`           | `OPERATOR_NAME` (not the event)                                           | who hosts the photograph, said as "Hébergé par <name>" (roadmap G2-17). **Absent** — the key is not there, and the revision is unchanged — on a box whose operator set none, which is every self-hosted box                                                                                                                                                                                                                                                             |
+| `guestbook`          | `allowGuestbook`                                                          | **Present (`true`) only when guests may leave guestbook messages** (spec 01): the notice then reads for a message too, and `revision` gains `guestbook=on`. Absent otherwise, so a box without a guestbook asks nobody to read the notice again                                                                                                                                                                                                                         |
 | `revision`           | all of the above                                                          | opaque; two notices with the same revision say the same thing                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **The retention is the one the box applies.** For an event that belongs to a client, `retentionDays`
@@ -2213,6 +2219,28 @@ Unlike the media route above, this one is behind `requireRole('moderator')` and 
 rather than appending JSON — a truncated ZIP that looked complete is how a host deletes
 an album they do not actually hold. The photographs are written one at a time, and a host
 who closes the tab part-way leaves nothing open on the server.
+
+### Best-of: the host's favourites (spec 08)
+
+A favourite is a **published** photograph the host starred (`photos.highlighted_at`). Moderator or
+above on every route below: `401 auth.required` with no session, `404 event.notFound` for a caller
+with no membership (and for an event the operator took down), `403 client.suspended` for a suspended
+client.
+
+- `PUT` / `DELETE /api/events/:slug/photos/:photoId/highlight`: `204`, idempotent.
+  `404 photo.notFound` (a photo of another event included), `409 highlight.notPublished` when the
+  photo is not `published`, `409 event.notModeratable` on an archived event (starring is a
+  moderation decision). A photo that leaves `published` loses its star.
+- `POST /api/events/:slug/highlights/preselect` with `{ "limit": 1..120 }`: stars the most
+  reacted-to published photos, never removes a star, answers `{ "added": n }`.
+- `GET /api/events/:slug/highlights`: `{ "count": n }`, the same predicate as the ZIP. Readable on
+  an archived event.
+- `GET /api/events/:slug/best-of.zip`: streamed like `album.zip` (same headers, filename
+  `<slug>-best-of.zip`), oldest photo first, one folder `<slug>-best-of/`. `409 highlight.empty`
+  before any header when there is no favourite.
+
+The moderation rows (`GET /moderation`, `GET /photos`) carry `highlighted: boolean`; no guest, wall
+or gallery payload does.
 
 ---
 
@@ -2704,30 +2732,36 @@ The account budget is what bounds a distributed guesser against six digits.
 `:slug` scopes the role check: `requireRole('moderator')` means _moderator of this
 event_, never "is logged in".
 
-| Method   | Path                                       | Role      | OK  |                                                 |
-| -------- | ------------------------------------------ | --------- | --- | ----------------------------------------------- |
-| `GET`    | `/api/events`                              | any       | 200 | Dashboard summaries                             |
-| `POST`   | `/api/events`                              | any       | 201 | Create; the creator becomes owner               |
-| `GET`    | `/api/events/:slug`                        | moderator | 200 | Full event including settings                   |
-| `PATCH`  | `/api/events/:slug`                        | owner     | 200 | Rename; answers the full event                  |
-| `PATCH`  | `/api/events/:slug/settings`               | owner     | 200 | Settings; answers the full event                |
-| `PUT`    | `/api/events/:slug/venue-photo`            | owner     | 200 | Own venue photograph; answers the full event    |
-| `DELETE` | `/api/events/:slug/venue-photo`            | owner     | 200 | Back to the bundled one; answers the full event |
-| `POST`   | `/api/events/:slug/status`                 | owner     | 200 | `{ "status": "live" }`; answers the full event  |
-| `PATCH`  | `/api/events/:slug/schedule`               | owner     | 200 | Scheduled open/close; answers the full event    |
-| `POST`   | `/api/events/:slug/join-code`              | owner     | 200 | Rotate; answers the full event, new code        |
-| `DELETE` | `/api/events/:slug`                        | owner     | 204 | Purge: media first, then rows                   |
-| `GET`    | `/api/events/:slug/photos`                 | moderator | 200 | Paginated, filterable                           |
-| `GET`    | `/api/events/:slug/moderation`             | moderator | 200 | Queue + `pendingCount`                          |
-| `PATCH`  | `/api/events/:slug/photos/:photoId/status` | moderator | 204 | `{ "decision": "publish" }`                     |
-| `POST`   | `/api/events/:slug/moderation/bulk`        | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }`   |
-| `DELETE` | `/api/events/:slug/photos/:photoId`        | moderator | 204 | Delete any photo                                |
-| `GET`    | `/api/events/:slug/guests`                 | moderator | 200 | Guest list + active count                       |
-| `POST`   | `/api/events/:slug/guests/:guestId/revoke` | moderator | 204 | Remove a disruptive guest; idempotent           |
-| `GET`    | `/api/events/:slug/moderators`             | owner     | 200 | Memberships                                     |
-| `POST`   | `/api/events/:slug/moderators`             | owner     | 201 | Invite **by link**; `{ "email" }`, no password  |
-| `DELETE` | `/api/events/:slug/moderators/:userId`     | owner     | 204 | Revoke; never the last owner                    |
-| `GET`    | `/api/events/:slug/top-photos`             | moderator | 200 | Photo of the night                              |
+| Method   | Path                                          | Role      | OK  |                                                 |
+| -------- | --------------------------------------------- | --------- | --- | ----------------------------------------------- |
+| `GET`    | `/api/events`                                 | any       | 200 | Dashboard summaries                             |
+| `POST`   | `/api/events`                                 | any       | 201 | Create; the creator becomes owner               |
+| `GET`    | `/api/events/:slug`                           | moderator | 200 | Full event including settings                   |
+| `PATCH`  | `/api/events/:slug`                           | owner     | 200 | Rename; answers the full event                  |
+| `PATCH`  | `/api/events/:slug/settings`                  | owner     | 200 | Settings; answers the full event                |
+| `PUT`    | `/api/events/:slug/venue-photo`               | owner     | 200 | Own venue photograph; answers the full event    |
+| `DELETE` | `/api/events/:slug/venue-photo`               | owner     | 200 | Back to the bundled one; answers the full event |
+| `POST`   | `/api/events/:slug/status`                    | owner     | 200 | `{ "status": "live" }`; answers the full event  |
+| `PATCH`  | `/api/events/:slug/schedule`                  | owner     | 200 | Scheduled open/close; answers the full event    |
+| `POST`   | `/api/events/:slug/join-code`                 | owner     | 200 | Rotate; answers the full event, new code        |
+| `DELETE` | `/api/events/:slug`                           | owner     | 204 | Purge: media first, then rows                   |
+| `GET`    | `/api/events/:slug/photos`                    | moderator | 200 | Paginated, filterable                           |
+| `GET`    | `/api/events/:slug/moderation`                | moderator | 200 | Queue + `pendingCount`                          |
+| `PATCH`  | `/api/events/:slug/photos/:photoId/status`    | moderator | 204 | `{ "decision": "publish" }`                     |
+| `POST`   | `/api/events/:slug/moderation/bulk`           | moderator | 200 | `{ "photoIds": [...], "decision": "reject" }`   |
+| `DELETE` | `/api/events/:slug/photos/:photoId`           | moderator | 204 | Delete any photo                                |
+| `GET`    | `/api/events/:slug/guests`                    | moderator | 200 | Guest list + active count                       |
+| `POST`   | `/api/events/:slug/guests/:guestId/revoke`    | moderator | 204 | Remove a disruptive guest; idempotent           |
+| `GET`    | `/api/events/:slug/moderators`                | owner     | 200 | Memberships                                     |
+| `POST`   | `/api/events/:slug/moderators`                | owner     | 201 | Invite **by link**; `{ "email" }`, no password  |
+| `DELETE` | `/api/events/:slug/moderators/:userId`        | owner     | 204 | Revoke; never the last owner                    |
+| `GET`    | `/api/events/:slug/top-photos`                | moderator | 200 | Photo of the night                              |
+| `PUT`    | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Star a published photo (best-of); idempotent    |
+| `DELETE` | `/api/events/:slug/photos/:photoId/highlight` | moderator | 204 | Take the star off; idempotent                   |
+| `POST`   | `/api/events/:slug/highlights/preselect`      | moderator | 200 | Star the `limit` most liked; `{ added }`        |
+| `GET`    | `/api/events/:slug/highlights`                | moderator | 200 | `{ count }` of exportable favourites            |
+| `GET`    | `/api/events/:slug/best-of.zip`               | moderator | 200 | The favourites as a ZIP                         |
+| `GET`    | `/api/events/:slug/stats`                     | moderator | 200 | Statistics of the evening, derived              |
 
 Five routes answer the **whole event** rather than `204`, and that is worth stating
 because it is not obvious from the verb: rename, settings, status, schedule and
@@ -3148,6 +3182,7 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                                                                         |
 | `theme`                       | object — all five keys required, plus `custom` when the ambiance is `custom`, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`) |
 | `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                                                                 |
+| `welcomeMessage`              | string up to 280 code points and 4 lines, or `null` to clear; absent leaves it alone. Cleaned by the server; **400** `eventSettings.welcomeInvalid`                                                                                              | `welcomeTooLong` | `welcomeTooManyLines`. Changing it under a purge hold is **500** `eventSettings.saveFailed`. `brand` (what `GET` answers) is **read and ignored**. |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
 **refused** where creation reduces — shortening what a host just typed would tell them they got
@@ -3177,6 +3212,10 @@ the feature exists for. Note also that the first save of **any** setting on such
 writes `allowClips: false` into its blob, after which it is indistinguishable from a host
 who chose no — which is why the checkbox ships in the same form as every other setting
 rather than behind one of its own.
+
+#### `brand` — the host's words to their guests (spec 03)
+
+`brand: { welcomeMessage: string | null }` is on `PublicEventDto` (the join response), on the wall response, on `GET /events/:slug/photos/mine` (read per request, so a guest sees a message changed after they joined on their next open) and, for the host, inside `settings`. It is **content**: shown as written and never translated. It is absent from the shared gallery. A client may send it back inside `settings`; the server ignores it, and the message is written only by the top-level `welcomeMessage` key.
 
 #### `wallLanguage` — what language the room's screen speaks
 
@@ -3793,6 +3832,57 @@ Only the thumb is offered: the panel is a podium of small tiles beside the wall,
 second full-size URL per entry would have the projector fetch megabytes it never renders.
 `Cache-Control: no-store`.
 
+### `GET /api/events/:slug/stats`
+
+The host's statistics page ("how did the evening go?"). Moderator or owner, any event status.
+Takes no parameter: a query string is `400 request.invalid`.
+
+Everything is **derived** from the photographs, guests and reactions as they are when you ask, never
+from a counter, so an erased guest or a deleted photograph is gone on the next read. A photograph the
+operator took down is in no figure, reactions included. "Photos" here means **sends**, photographs and
+videos alike.
+
+**200**
+
+```json
+{
+  "uploads": {
+    "total": 412,
+    "byQuarter": [{ "start": "2026-06-20T19:15:00.000Z", "count": 12 }]
+  },
+  "photos": { "pending": 0, "published": 380, "rejected": 18, "hidden": 14 },
+  "guests": { "joined": 86, "contributors": 51, "revoked": 1, "activeNow": 74 },
+  "reactions": {
+    "total": 940,
+    "byKind": { "love": 400, "laugh": 210, "wow": 120, "cheers": 130, "clap": 80 }
+  },
+  "topContributors": [{ "displayName": "Léa", "photos": 22, "reactions": 71 }],
+  "anonymousContributors": { "guests": 9, "photos": 31 },
+  "engagement": {
+    "since": "2026-11-14",
+    "galleryViews": 57,
+    "galleryArchiveDownloads": 12
+  }
+}
+```
+
+- `byQuarter`: sends per **15-minute UTC slot**, sparse (empty slots are absent), in time order. The
+  client regroups into the reader's local hours; every real time zone is a whole number of quarters
+  from UTC, so that is exact where UTC hours would shift a half-hour zone's bars.
+- Invariant: `uploads.total` = the four statuses = the sum of `byQuarter`.
+- `guests.joined` counts every guest row, the ones the host removed included; `activeNow` is the same
+  five-minute window as the guest list and excludes removed guests. A guest the operator's takedown
+  left nameless stays counted in `joined` (and never appears below).
+- `topContributors`: at most ten guests with a first name and at least one **published** send, most
+  sends first, then most reactions received **on those sends**, then guest id. Removed guests are left
+  out. Guests without a first name are folded into `anonymousContributors`, never listed.
+- `engagement`: `null` until a first open of the album link or launch of its ZIP was counted, then `{ "since": "2026-11-14", "galleryViews": 57, "galleryArchiveDownloads": 12 }`: the sums over the days, `since` being the first day counted (nothing was measured before it). A view is a **served** load of the album page (a revoked, expired or locked link, or a wrong password, counts nothing); a ZIP is counted at launch, finished or not. Integers per event and UTC day: no identity is stored.
+
+`Cache-Control: no-store`.
+
+**Errors** — `401` without a session, `404 event.notFound` (not a member, or the operator took the event
+down), `403 client.suspended` (the page shows first names), `400 request.invalid` on any parameter.
+
 ### `PATCH /api/events/:slug/photos/:photoId/status`
 
 ```json
@@ -3976,6 +4066,7 @@ nobody wrote.
         "maxEventQuotaBytes": null,
         "maxRetentionDays": 30,
         "clipsAllowed": true,
+        "booksAllowed": true,
         "liveAllowed": true,
         "maxLiveDays": 3,
         "maxEventsPerPeriod": 6,

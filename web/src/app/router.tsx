@@ -78,8 +78,15 @@ const MobileModerationPage = lazy(async () => ({
   default: (await import('../features/moderation/MobileModerationPage')).MobileModerationPage,
 }))
 
+const EventStatsPage = lazy(async () => ({
+  default: (await import('../features/admin/EventStatsPage')).EventStatsPage,
+}))
 const EventSettingsPage = lazy(async () => ({
   default: (await import('../features/admin/EventSettingsPage')).EventSettingsPage,
+}))
+
+const PrintKitPage = lazy(async () => ({
+  default: (await import('../features/admin/PrintKitPage')).PrintKitPage,
 }))
 
 const CustomAmbiancePage = lazy(async () => ({
@@ -458,6 +465,10 @@ export function AppRoutes() {
                 element={titled('mobileModeration', <MobileModerationPage />)}
               />
               <Route
+                path="/admin/events/:slug/stats"
+                element={titled('stats', <EventStatsPage />)}
+              />
+              <Route
                 path="/admin/events/:slug/settings"
                 element={titled('settings', <EventSettingsPage />)}
               />
@@ -465,6 +476,7 @@ export function AppRoutes() {
                 path="/admin/events/:slug/settings/ambiance"
                 element={titled('customAmbiance', <CustomAmbiancePage />)}
               />
+              <Route path="/admin/events/:slug/print" element={titled('print', <PrintKitPage />)} />
               {siteAdmin ? (
                 <Route path="/admin/client" element={titled('clientSpace', <ClientSpacePage />)} />
               ) : null}

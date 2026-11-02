@@ -5,7 +5,7 @@ import { rememberEventTheme } from '../../../lib/guestSession'
 import { ApiError, isAbortError } from '../../../lib/http'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import type { EventThemeDto, GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
+import type { EventBrandDto, EventThemeDto, GuestPhotoDto, PhotoStatus } from '../../../lib/api/dto'
 import { POLL_SLOW_AFTER_MS, pollDelayMs } from './pollCadence'
 
 /**
@@ -56,6 +56,8 @@ export interface MyPhotosState {
    * not a refusal, so the theme the guest already has stands.
    */
   readonly theme: EventThemeDto | null
+  /** The host's welcome message as the server last said it, or `null` until it has (spec 03). */
+  readonly brand: EventBrandDto | null
   /**
    * The server no longer serves this gallery to this guest (`404 event.notFound`): the
    * event is gone, or its account is suspended. Sending is pointless and every upload would
@@ -146,6 +148,7 @@ interface Loaded {
   readonly arrival: Arrival | null
   readonly acceptingUploads: boolean
   readonly theme: EventThemeDto | null
+  readonly brand: EventBrandDto | null
   readonly loading: boolean
   readonly failure: Failure | null
 }
@@ -158,6 +161,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     arrival: null,
     acceptingUploads: true,
     theme: null,
+    brand: null,
     loading: true,
     failure: null,
   })
@@ -258,6 +262,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
           acceptingUploads: response.acceptingUploads ?? true,
           // A later read that carries none does not take the theme back: what was learned stands.
           theme: theme ?? previous.theme,
+          brand: response.brand ?? previous.brand,
           loading: false,
           failure: null,
         }))
@@ -413,6 +418,7 @@ export const useMyPhotos = (slug: string): MyPhotosState => {
     arrival: state.arrival,
     acceptingUploads: state.acceptingUploads,
     theme: state.theme,
+    brand: state.brand,
     unavailable: state.failure?.kind === 'gone',
     signedOut: state.failure?.kind === 'signedOut',
     revoked: state.failure?.kind === 'revoked',

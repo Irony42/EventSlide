@@ -5,7 +5,7 @@ import type { Photo } from '../../../domain/photos/photo'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { EventId } from '../../../domain/shared/ids'
 import type { ArchiveEntry } from '../../ports/archiveWriter'
-import type { PhotoPage, PhotoRepository } from '../../ports/photoRepository'
+import type { PhotoPage, PhotoQuery, PhotoRepository } from '../../ports/photoRepository'
 
 /**
  * The entries of an album archive, for the host's own export and for the shared gallery's.
@@ -47,6 +47,8 @@ export interface AlbumEntriesSource {
   /** The event's canonical slug: the archive's folder, never anything a guest typed. */
   readonly slug: string
   readonly statuses: readonly PhotoStatus[]
+  /** Narrows or reorders the listing (the best-of's favourites, oldest first); none for an album. */
+  readonly filter?: Pick<PhotoQuery, 'highlightedOnly' | 'oldestFirst'>
   /** The bytes of one row's download, or `null` when the file is not there and the row is skipped. */
   readonly open: (
     photo: Photo,
@@ -62,6 +64,7 @@ export const albumEntries = async function* ({
   eventId,
   slug,
   statuses,
+  filter,
   open,
   skipped,
 }: AlbumEntriesSource): AsyncIterable<ArchiveEntry> {
@@ -70,6 +73,7 @@ export const albumEntries = async function* ({
   do {
     const page: PhotoPage = await photos.list(eventId, {
       statuses,
+      ...filter,
       limit: ALBUM_PAGE_SIZE,
       ...(cursor === null ? {} : { cursor }),
     })

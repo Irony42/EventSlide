@@ -64,6 +64,7 @@ import type { UpdateEventSettings } from '../../application/usecases/events/upda
 import type { AcknowledgePrivacyNotice } from '../../application/usecases/guests/acknowledgePrivacyNotice'
 import type { GetPrivacyNotice } from '../../application/usecases/guests/getPrivacyNotice'
 import type { JoinEvent } from '../../application/usecases/guests/joinEvent'
+import type { GetEventStats } from '../../application/usecases/stats/getEventStats'
 import type { ListGuests } from '../../application/usecases/guests/listGuests'
 import type { EraseGuestContribution } from '../../application/usecases/guests/eraseGuestContribution'
 import type { RenameGuest } from '../../application/usecases/guests/renameGuest'
@@ -77,6 +78,10 @@ import type { GetClipJob } from '../../application/usecases/clips/getClipJob'
 import type { UploadClip } from '../../application/usecases/clips/uploadClip'
 
 import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
+import type { ExportHighlights } from '../../application/usecases/highlights/exportHighlights'
+import type { GetHighlights } from '../../application/usecases/highlights/getHighlights'
+import type { PreselectHighlights } from '../../application/usecases/highlights/preselectHighlights'
+import type { SetPhotoHighlight } from '../../application/usecases/highlights/setPhotoHighlight'
 import type { ExportAlbum } from '../../application/usecases/photos/exportAlbum'
 import type { GetPhotoMedia } from '../../application/usecases/photos/getPhotoMedia'
 import type { IdentifyMediaViewer } from '../../application/usecases/photos/identifyMediaViewer'
@@ -214,6 +219,7 @@ export interface HttpUseCases {
   readonly eraseGuestContribution: EraseGuestContribution
   readonly revokeGuest: RevokeGuest
   readonly listGuests: ListGuests
+  readonly getEventStats: GetEventStats
   readonly getPrivacyNotice: GetPrivacyNotice
   readonly acknowledgePrivacyNotice: AcknowledgePrivacyNotice
 
@@ -227,6 +233,12 @@ export interface HttpUseCases {
   /** Who is asking for the bytes: the media route's one answer to "who is this" (HTTP-H-02). */
   readonly identifyMediaViewer: IdentifyMediaViewer
   readonly exportAlbum: ExportAlbum
+
+  // the host's favourites and best-of (spec 08)
+  readonly setPhotoHighlight: SetPhotoHighlight
+  readonly preselectHighlights: PreselectHighlights
+  readonly getHighlights: GetHighlights
+  readonly exportHighlights: ExportHighlights
 
   // clips
   readonly uploadClip: UploadClip

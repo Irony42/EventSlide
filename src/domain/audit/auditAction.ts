@@ -33,7 +33,7 @@ export interface AuditActionSpec {
  * The nine ceilings of `ClientCeilings`, as a snapshot: every key present, `null` meaning
  * "no ceiling". A full snapshot rather than a diff keeps the reader's job simple (the entry
  * says everything that was true) and the validator's too (no key is ever optional). The
- * keys are held equal to `ClientCeilingsProps` by `auditAction.test.ts`, so a tenth ceiling
+ * keys are held equal to `ClientCeilingsProps` by `auditAction.test.ts`, so an eleventh ceiling
  * cannot be added without this table, and a change to it, noticing.
  */
 const CEILINGS_SNAPSHOT = detail.object({
@@ -42,6 +42,7 @@ const CEILINGS_SNAPSHOT = detail.object({
   maxEventQuotaBytes: detail.nullable(detail.integer),
   maxRetentionDays: detail.nullable(detail.integer),
   clipsAllowed: detail.boolean,
+  booksAllowed: detail.boolean,
   liveAllowed: detail.boolean,
   maxLiveDays: detail.nullable(detail.integer),
   maxEventsPerPeriod: detail.nullable(detail.integer),

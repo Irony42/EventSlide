@@ -528,3 +528,27 @@ describe('Photo facets', () => {
     ])
   })
 })
+
+describe('Photo favourites', () => {
+  const STARRED = new Date('2026-06-13T20:10:00.000Z')
+  const starred = (): Photo =>
+    Photo.restore({ ...aPublishedPhoto().toProps(), highlightedAt: STARRED })
+
+  it('is not a favourite until the repository says so', () => {
+    expect(aPublishedPhoto().isHighlighted).toBe(false)
+    expect(aPublishedPhoto().highlightedAt).toBeNull()
+    expect(starred().highlightedAt).toEqual(STARRED)
+  })
+
+  it.each(['hide', 'reject'] as const)('loses its star when the host chooses to %s it', (verb) => {
+    const result = starred()[verb](byTheHost, DECIDED_AT)
+
+    expect(result.ok && result.value.isHighlighted).toBe(false)
+  })
+
+  it('keeps its star through a no-op publish', () => {
+    const result = starred().publish(byTheHost, DECIDED_AT)
+
+    expect(result.ok && result.value.highlightedAt).toEqual(STARRED)
+  })
+})

@@ -29,6 +29,8 @@ export interface ModerationShortcutHandlers {
   readonly onReject: () => void
   /** H — take off the screen. */
   readonly onHide: () => void
+  /** F — star the focused photo as a favourite (spec 08). */
+  readonly onHighlight: () => void
   /** Z — undo the last decision. */
   readonly onUndo: () => void
   /** Space — add the focused photo to the selection. */
@@ -131,6 +133,9 @@ export const useModerationShortcuts = (
           return
         case 'h':
           actions.onHide()
+          return
+        case 'f':
+          actions.onHighlight()
           return
         case 'z':
           actions.onUndo()

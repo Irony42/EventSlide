@@ -89,6 +89,11 @@ export type MissionScope = 'guest' | 'event'
  * the product holding a raw colour. `design-system/eventTheme.ts` applies it as
  * `--accent-hue` on the surface that carries it.
  */
+/** What the host says to their guests (spec 03): content, shown as written. */
+export interface EventBrandDto {
+  readonly welcomeMessage: string | null
+}
+
 export interface EventThemeDto {
   /** Degrees on the oklch hue circle, 0-359. The server refuses one it cannot read. */
   readonly accentHue: number
@@ -141,6 +146,8 @@ export interface PublicEventDto {
    * round trip later, under their thumb.
    */
   readonly theme: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
 }
 
 /**
@@ -178,6 +185,8 @@ export interface PrivacyNoticeDto {
    * to read this one.
    */
   readonly operator?: string
+  /** Present only when guests may leave guestbook messages (spec 01): the notice reads for a message too. */
+  readonly guestbook?: true
 }
 
 /** A notice and where this device stands with it: the answer of every notice route. */
@@ -295,6 +304,8 @@ export interface WallResponse {
    * theming leaves the projector on the default look rather than crashing it.
    */
   readonly theme?: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
    *
@@ -358,6 +369,8 @@ export interface MyPhotosDto {
    * Absent from a server build that predates it, and then the stored theme stands.
    */
   readonly theme?: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
 }
 
 /** What `DELETE /api/events/:slug/guests/me` removed. */
@@ -368,6 +381,7 @@ export interface ErasedContributionDto {
   readonly messages?: number
 }
 
+<<<<<<< HEAD
 /** One message in the host's reading of the guestbook (spec 01). */
 export interface GuestbookQueueItemDto {
   readonly id: string
@@ -384,6 +398,34 @@ export interface GuestbookQueueDto {
   readonly items: readonly GuestbookQueueItemDto[]
   /** The whole book's, not the page's: the badge on the panel. */
   readonly pendingCount: number
+=======
+/** One of the guest's own guestbook messages (spec 01). */
+export interface GuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** The server's verdict: the phone never recomputes it. */
+  readonly canDelete: boolean
+}
+
+export interface MyGuestbookDto {
+  readonly items: readonly GuestbookEntryDto[]
+  /** Whether a new message would be taken now: the switch, the event's state and the window. */
+  readonly accepting: boolean
+  /** Whether published messages appear on the wall: said to their authors in the status. */
+  readonly onWall: boolean
+}
+
+/** What a message just written answers. */
+export interface CreatedGuestbookEntryDto {
+  readonly id: string
+  readonly text: string
+  readonly status: 'pending' | 'published' | 'rejected' | 'hidden'
+  readonly createdAt: string
+  /** True when this was the same message sent a moment ago: nothing new was stored. */
+  readonly duplicate: boolean
+>>>>>>> origin/main
 }
 
 export interface GuestPhotoDto {
@@ -440,6 +482,20 @@ export interface ModerationPhotoDto {
    * the click then ends in `photo.illegalTransition`.
    */
   readonly allowedDecisions: readonly ModerationDecision[]
+  /**
+   * The host's star (spec 08). Optional: a server older than this field omits it, and the
+   * console then shows every photo as not starred rather than failing.
+   */
+  readonly highlighted?: boolean
+}
+
+/** The best-of panel's read: how many favourites can be exported (spec 08). */
+export interface HighlightsDto {
+  readonly count: number
+}
+
+export interface PreselectHighlightsResponse {
+  readonly added: number
 }
 
 export interface ModerationQueueResponse {
@@ -477,6 +533,8 @@ export interface EventSettingsDto {
   readonly maxPhotosPerGuest: number | null
   /** The host's own copy: what the picker on the settings form is showing. */
   readonly theme: EventThemeDto
+  /** The host's welcome message (spec 03). Optional: a server build that predates it sends none. */
+  readonly brand?: EventBrandDto
   /**
    * The language the projected wall speaks (roadmap 1.5). Here and deliberately **not** on
    * `PublicEventDto`: a client that preferred it over a guest's own choice would be doing
@@ -837,6 +895,7 @@ export interface CeilingsDto {
   readonly maxEventQuotaBytes: number | null
   readonly maxRetentionDays: number | null
   readonly clipsAllowed: boolean
+  readonly booksAllowed: boolean
   readonly liveAllowed: boolean
   readonly maxLiveDays: number | null
   readonly maxEventsPerPeriod: number | null
@@ -1036,6 +1095,7 @@ export interface ClientDefaultsDto {
     readonly maxRetentionDays: number | null
     readonly maxLiveDays: number | null
     readonly clipsAllowed: boolean
+    readonly booksAllowed: boolean
   }
 }
 
@@ -1100,4 +1160,60 @@ export type SiteCeilingsPatch = Partial<CeilingsDto>
 export interface ClientCeilingsChangedDto {
   readonly ceilings: CeilingsDto
   readonly eventsCreatedInPeriod: number
+}
+
+// ------------------------------------------------------------------- statistics --
+
+/** A non-empty 15-minute slot, `start` an ISO instant in UTC. The browser regroups into local hours. */
+export interface StatsQuarterDto {
+  readonly start: string
+  readonly count: number
+}
+
+/** One of the ten guests the page names. A first name is content: shown as written. */
+export interface StatsContributorDto {
+  readonly displayName: string
+  readonly photos: number
+  readonly reactions: number
+}
+
+/** What the after-party counters hold, summed over the days; `since` is the first day counted. */
+export interface EngagementDto {
+  readonly since: string
+  readonly galleryViews: number
+  readonly galleryArchiveDownloads: number
+}
+
+/**
+ * The host statistics page (spec 05). Everything is derived from the album at read time.
+ * `photos` means sends, photographs and videos alike. `engagement` is `null` until a first
+ * open of the album link or ZIP was counted.
+ */
+export interface EventStatsResponse {
+  readonly uploads: {
+    readonly total: number
+    readonly byQuarter: readonly StatsQuarterDto[]
+  }
+  readonly photos: {
+    readonly pending: number
+    readonly published: number
+    readonly rejected: number
+    readonly hidden: number
+  }
+  readonly guests: {
+    readonly joined: number
+    readonly contributors: number
+    readonly revoked: number
+    readonly activeNow: number
+  }
+  readonly reactions: {
+    readonly total: number
+    readonly byKind: ReactionCounts
+  }
+  readonly topContributors: readonly StatsContributorDto[]
+  readonly anonymousContributors: {
+    readonly guests: number
+    readonly photos: number
+  }
+  readonly engagement: EngagementDto | null
 }

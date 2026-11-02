@@ -50,6 +50,20 @@ describe('every field of the wall response is accounted for', () => {
    * photograph moved `revision` — which on the empty wall a host is looking at while they
    * choose is never.
    */
+  it('notices the host writing, changing or clearing the welcome message', () => {
+    // `brand` is not in `aWallResponse`'s shape, so the sweep above cannot see it, and a message
+    // changed on the empty wall the host is looking at moves no photograph and so no `revision`.
+    const withMessage = (welcomeMessage: string | null) => ({
+      ...aWallResponse(),
+      brand: { welcomeMessage },
+    })
+
+    expect(sameSettings(withMessage(null), withMessage('Bienvenue'))).toBe(false)
+    expect(sameSettings(withMessage('Bienvenue'), withMessage('Autre'))).toBe(false)
+    expect(sameSettings(withMessage('Bienvenue'), withMessage(null))).toBe(false)
+    expect(sameSettings(withMessage('Bienvenue'), withMessage('Bienvenue'))).toBe(true)
+  })
+
   it('notices the host replacing or removing the venue photo', () => {
     // `groundUrl` is not a key of DEFAULT_EVENT_THEME, so the sweep below cannot see it.
     const kept = aWallResponse()

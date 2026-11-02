@@ -67,6 +67,14 @@ export class FakeReactionRepository implements ReactionRepository {
     return [...this.rows.values()].filter((reaction) => reaction.eventId === eventId)
   }
 
+  /**
+   * Every reaction of one event, unordered. **Test infrastructure, not a port method**: the
+   * statistics fake counts reactions through the photographs they sit on, the way the adapter joins.
+   */
+  ofEvent(eventId: EventId): readonly Reaction[] {
+    return this.forEvent(eventId)
+  }
+
   async findOne(
     eventId: EventId,
     photoId: PhotoId,

@@ -339,6 +339,7 @@ describe('POST /api/join', () => {
           ambiance: 'eventslide',
           groundUrl: null,
         },
+        brand: { welcomeMessage: null },
       },
       privacyNotice: {
         notice: {
@@ -587,6 +588,7 @@ describe('POST /api/join', () => {
       'allowClips',
       'allowGuestbook',
       'allowReactions',
+      'brand',
       'guestbookMaxLength',
       'maxClipBytes',
       'maxClipSeconds',

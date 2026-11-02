@@ -130,6 +130,7 @@ const NO_DEFAULTS: NewClientDefaults = {
   maxRetentionDays: null,
   maxLiveDays: null,
   clipsAllowed: true,
+  booksAllowed: true,
 }
 
 export interface SiteHarness {

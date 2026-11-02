@@ -62,10 +62,30 @@ export type ServedVariant = PhotoVariant | ClipVariant
  */
 export const VENUE_GROUND = 'ground'
 
-export type MediaVariant = ServedVariant | typeof STAGED_SOURCE | typeof VENUE_GROUND
+/**
+ * An event's highlight reel: the host's best-of montage, an MP4 made from stills (spec 08).
+ *
+ * Outside {@link SERVED_VARIANTS} like the staged source: the photo route takes a `ServedVariant`,
+ * so nothing a client puts in that URL reaches it, and `removePhotoRecord` (which walks the
+ * served variants of a photograph) never looks for a file that is the media of no photograph.
+ * It has a route of its own, which re-checks the montage's photographs on every request. It is in
+ * {@link ALL_MEDIA_VARIANTS}, so the sweeps, `usedBytes` and an event's deletion cover it.
+ */
+export const REEL_VARIANT = 'reel'
+
+export type MediaVariant =
+  | ServedVariant
+  | typeof STAGED_SOURCE
+  | typeof VENUE_GROUND
+  | typeof REEL_VARIANT
 
 /** Everything the store can hold, for the operations that must cover all of it. */
-export const ALL_MEDIA_VARIANTS = [...SERVED_VARIANTS, STAGED_SOURCE, VENUE_GROUND] as const
+export const ALL_MEDIA_VARIANTS = [
+  ...SERVED_VARIANTS,
+  STAGED_SOURCE,
+  VENUE_GROUND,
+  REEL_VARIANT,
+] as const
 
 /**
  * Which renditions a row of each kind actually has.

@@ -12,6 +12,7 @@ import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { MediaStore } from '../../ports/mediaStore'
 import type { PhotoRepository } from '../../ports/photoRepository'
 import type { ReactionRepository } from '../../ports/reactionRepository'
+import type { InvalidateReel } from '../highlights/invalidateReel'
 import { makeRemovePhotoRecord } from '../photos/removePhotoRecord'
 
 /**
@@ -77,6 +78,11 @@ export interface EraseGuestContributionDeps {
   readonly media: MediaStore
   readonly bus: EventBus
   readonly clock: Clock
+  /**
+   * Retires the highlight reel that holds any of this guest's photographs (spec 08): one call
+   * with all of them, before anything is removed and before the guest's row goes.
+   */
+  readonly invalidateReel?: InvalidateReel
 }
 
 export type EraseGuestContribution = (
@@ -96,6 +102,7 @@ export const makeEraseGuestContribution = ({
   media,
   bus,
   clock,
+  invalidateReel,
 }: EraseGuestContributionDeps): EraseGuestContribution => {
   const removePhotoRecord = makeRemovePhotoRecord({ photos, media, clock })
 
@@ -137,6 +144,12 @@ export const makeEraseGuestContribution = ({
         else erasedPhotos += 1
       }
     }
+    // One call, for every photograph of this guest, before anything is removed (spec 08): a montage
+    // holding any of them stops being served first, and the guest's row is still there.
+    await invalidateReel?.(
+      eventId,
+      (await authoredBy(eventId, guestId)).map((photo) => photo.id),
+    )
     await removeAll()
 
     // Clips with no photograph yet: reserved, queued or running. Their staged source is the

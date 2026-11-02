@@ -33,6 +33,17 @@ describe('openGallery', () => {
     expect(result.ok && result.value.link.id).toBe(link.id)
   })
 
+  it('counts one open, on the day it was served, and nothing about who opened it', async () => {
+    const { token } = world.seedLink()
+
+    await open(token)
+    await open(token)
+
+    expect(await world.stats.readCounters(WEDDING)).toEqual([
+      { metric: 'galleryViews', day: '2026-06-20', value: 2 },
+    ])
+  })
+
   it('counts only what the wall shows', async () => {
     const { token } = world.seedLink()
     world.photos.seed(
@@ -132,6 +143,7 @@ describe('openGallery', () => {
       const result = await open(token)
 
       expect(result.ok).toBe(false)
+      expect(await world.stats.readCounters(WEDDING)).toEqual([])
       if (result.ok) return
       expect({
         kind: result.error.kind,
@@ -147,6 +159,15 @@ describe('openGallery', () => {
 
   describe('a link with a password', () => {
     const PASSWORD = 'hash:les mariés de juin'
+
+    it('does not count a visit that was asked for the password, nor one with an unlock that ran out', async () => {
+      const { token } = world.seedLink({ passwordHash: PASSWORD })
+
+      await open(token)
+      await open(token, 'not-an-unlock')
+
+      expect(await world.stats.readCounters(WEDDING)).toEqual([])
+    })
 
     it('asks for the password before it says anything about the album', async () => {
       const { token } = world.seedLink({ passwordHash: PASSWORD })

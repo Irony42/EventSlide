@@ -1,0 +1,23 @@
+/* The host's own words. Four lines at most, whatever was stored (the domain says 4 as well). */
+.full,
+.compact {
+  margin: 0;
+  color: var(--text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+.full {
+  font-size: var(--text-base);
+  margin-block-end: var(--space-4);
+}
+
+.compact {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

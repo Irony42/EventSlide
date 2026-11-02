@@ -231,6 +231,21 @@ Reaction tallies and `rankedPhotos` already exist.
 wall is the only screen everyone is already looking at, so it is the right place to
 announce something, and hosts currently do it by shouting.
 
+### 2.9 Host brand (P2, effort S then M, risk: low)
+
+The host's own words and logo on what guests and the room see (spec 03). **Message first**: a free
+text of at most 280 characters on the join page, the upload page and the empty wall (shipped with
+`welcomeMessage`). Then the logo (PNG, JPEG or WebP, re-encoded; SVG refused), on the same three
+surfaces. No fixed ornament over photographs on the wall; a recurring welcome card in the loop is
+left to be specified once with 2.4 and 2.8.
+
+### 2.10 Printable table cards and poster (P3, effort M, risk: low)
+
+Spec 02. `/admin/events/:slug/print` draws A6 cards (4 per sheet), an A5 or an A4 poster from the
+server's join link, in the language of the evening, and hands it to the browser's own print
+dialog ("Save as PDF" included): no server PDF, no new route. Numbered 2.10 because spec 03's
+host brand took 2.9.
+
 ---
 
 ## 3. Host control
@@ -346,8 +361,9 @@ a family home — does not exist, because the stored `original` is ingest's re-e
 every metadata block dropped. The end-to-end journey downloads through a real browser and
 reads the bytes to hold that, rather than trusting it.
 
-Deliberately not built: per-guest links, several links per event, download counts or any
-tracking of who opened what (the product keeps no telemetry, [SECURITY.md](SECURITY.md) §9), author names on the tiles — a first
+Counted since 3.5 (decision of 1 November 2026): how many times the link was opened and how many ZIPs were launched, as **one integer per event and UTC day**, shown to the host on the statistics page and never tied to an address, an agent, a link or a person. That is a count, not a record of who opened what, and it leaves the box nowhere (the product keeps no telemetry, [SECURITY.md](SECURITY.md) §9).
+
+Deliberately not built: per-guest links, several links per event, tracking of who opened what or of which photograph was downloaded, author names on the tiles — a first
 name was shown in the room, and a forwarded link is a wider audience — and a clip player in
 the viewer: the gallery is for keeping the evening, and a clip downloads as its transcode.
 The guest's own photographs are §4.2, which this does not replace.
