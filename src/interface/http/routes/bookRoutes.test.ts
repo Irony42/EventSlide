@@ -58,7 +58,7 @@ const world = (): World => {
   const state = { enabled: true }
 
   const harness = buildHarness({
-    routes: (app, deps) => {
+    routes: (app, deps, base) => {
       app.post('/sign-in/owner', signInAs({ userId: OWNER, email: 'hote@example.test' }))
       app.post(
         '/sign-in/moderator',
@@ -70,7 +70,7 @@ const world = (): World => {
         requestAlbumBook: (input) =>
           makeRequestAlbumBook({
             events: deps.events,
-            clients: deps.clients,
+            clients: base.clients,
             photos,
             books,
             bus: deps.bus,
