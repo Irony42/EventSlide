@@ -381,7 +381,6 @@ export interface ErasedContributionDto {
   readonly messages?: number
 }
 
-<<<<<<< HEAD
 /** One message in the host's reading of the guestbook (spec 01). */
 export interface GuestbookQueueItemDto {
   readonly id: string
@@ -398,7 +397,8 @@ export interface GuestbookQueueDto {
   readonly items: readonly GuestbookQueueItemDto[]
   /** The whole book's, not the page's: the badge on the panel. */
   readonly pendingCount: number
-=======
+}
+
 /** One of the guest's own guestbook messages (spec 01). */
 export interface GuestbookEntryDto {
   readonly id: string
@@ -425,7 +425,6 @@ export interface CreatedGuestbookEntryDto {
   readonly createdAt: string
   /** True when this was the same message sent a moment ago: nothing new was stored. */
   readonly duplicate: boolean
->>>>>>> origin/main
 }
 
 export interface GuestPhotoDto {

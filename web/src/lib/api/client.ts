@@ -21,12 +21,9 @@ import type {
   EventStatsResponse,
   GuestListResponse,
   GuestMissionListResponse,
-<<<<<<< HEAD
   GuestbookQueueDto,
-=======
   CreatedGuestbookEntryDto,
   MyGuestbookDto,
->>>>>>> origin/main
   MyPhotosDto,
   InvitationAcceptedDto,
   InvitationPreviewDto,
