@@ -14,6 +14,7 @@ import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
 import { VenuePhotoField } from './components/VenuePhotoField'
+import { LogoField } from './components/LogoField'
 import { WelcomeMessageField } from './components/WelcomeMessageField'
 import { isMutable } from './eventLifecycle'
 import { toSettingsPatch } from './settingsPayload'
@@ -472,7 +473,17 @@ export function EventSettingsPage() {
         <WelcomeMessageField
           value={settings.brand?.welcomeMessage ?? null}
           disabled={readOnly}
-          onChange={(welcomeMessage) => update({ brand: { welcomeMessage } })}
+          onChange={(welcomeMessage) =>
+            update({ brand: { welcomeMessage, logoUrl: settings.brand?.logoUrl ?? null } })
+          }
+        />
+
+        {/* The host's logo (spec 03): its own request, and the preview is the file the server stored. */}
+        <LogoField
+          slug={slug}
+          logoUrl={event.settings.brand?.logoUrl}
+          disabled={readOnly}
+          onChanged={replace}
         />
 
         {failure === null ? null : (

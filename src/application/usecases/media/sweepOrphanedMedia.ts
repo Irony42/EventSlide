@@ -146,8 +146,12 @@ export const makeSweepOrphanedMedia = ({
     for (const digest of await reels.listReferencedDigests(eventId)) named.add(digest)
     // The host's venue photograph is named by the event's settings and by no row of either
     // kind (ADR 0010), so without this the sweep would collect it an hour after it was set.
-    const venue = (await events.findById(eventId))?.settings.venuePhoto ?? null
+    // The logo (spec 03) is named the same way, by the settings and by no row.
+    const settings = (await events.findById(eventId))?.settings
+    const venue = settings?.venuePhoto ?? null
     if (venue !== null) named.add(venue.value)
+    const logo = settings?.logo ?? null
+    if (logo !== null) named.add(logo.value)
     return named
   }
 
@@ -179,7 +183,9 @@ export const makeSweepOrphanedMedia = ({
 
     // And the settings, asked again for the same reason: a host replacing their photograph
     // between the snapshot and the unlink has just made this digest the one in use.
-    if ((await events.findById(eventId))?.settings.venuePhoto?.equals(hash) === true) return false
+    const settings = (await events.findById(eventId))?.settings
+    if (settings?.venuePhoto?.equals(hash) === true) return false
+    if (settings?.logo?.equals(hash) === true) return false
 
     if ((await reels.listReferencedDigests(eventId)).has(hash.value)) return false
 

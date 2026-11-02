@@ -316,6 +316,9 @@ const buildWorld = ({
         setVenuePhoto: absent('setVenuePhoto'),
         removeVenuePhoto: absent('removeVenuePhoto'),
         getVenuePhotoMedia: absent('getVenuePhotoMedia'),
+        setEventLogo: absent('setEventLogo'),
+        removeEventLogo: absent('removeEventLogo'),
+        getEventLogoMedia: absent('getEventLogoMedia'),
         listModerators: makeListModerators({ memberships }),
         revokeModerator: makeRevokeModerator({ events, memberships }),
 
@@ -372,6 +375,8 @@ const buildWorld = ({
         deleteAlbumBook: absent('deleteAlbumBook'),
         getHighlights: absent('getHighlights'),
         exportHighlights: absent('exportHighlights'),
+        requestReel: absent('requestReel'),
+        getReelMedia: absent('getReelMedia'),
         getEventStats: makeGetEventStats({
           events,
           memberships,
@@ -1280,7 +1285,7 @@ describe('the host event routes', () => {
           groundUrl: null,
         },
         wallLanguage: 'en',
-        brand: { welcomeMessage: null },
+        brand: { welcomeMessage: null, logoUrl: null },
       })
     })
 
@@ -1294,7 +1299,7 @@ describe('the host event routes', () => {
         .send({ welcomeMessage: '  Bienvenue !\n\nUne photo du gâteau ?  ' })
 
       expect(response.status).toBe(200)
-      expect(response.body.settings.brand).toEqual({
+      expect(response.body.settings.brand).toMatchObject({
         welcomeMessage: 'Bienvenue !\nUne photo du gâteau ?',
       })
     })

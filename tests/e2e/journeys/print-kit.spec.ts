@@ -1,5 +1,6 @@
 import { BinaryBitmap, HybridBinarizer, QRCodeReader, RGBLuminanceSource } from '@zxing/library'
 import sharp from 'sharp'
+import { jpegWithLocation } from '../fixtures/media'
 import { expect, test } from '../fixtures/app'
 import type { Locator } from '@playwright/test'
 
@@ -120,4 +121,46 @@ test('the event colour reaches the QR ink as a dark colour, the black ink stays 
   expect(await decodeQr(qr)).toBe(joinUrl)
   // Chromium keeps an oklch() colour as written: lightness 0.3, the event's own hue.
   expect(coloured).toMatch(/^oklch\(0\.3 0\.1 305(deg)?\)$/)
+})
+
+test('the event logo sits at the centre of the QR at level H, and the reader still finds the link', async ({
+  app,
+  surfaces,
+}) => {
+  const { host } = surfaces
+  const event = await app.seedEvent({ slug: 'impression-logo', name: 'Camille & Sacha' })
+  const read = await host.request.get(app.url(`/api/events/${event.slug}`))
+  const { joinUrl } = (await read.json()) as { joinUrl: string }
+
+  // The host's logo, sent on the settings page as in spec 03.
+  await host.goto(app.url(`/admin/events/${event.slug}/settings`))
+  await host.getByTestId('logo-input').setInputFiles(await jpegWithLocation('logo'))
+  await expect(host.getByRole('img', { name: 'Aperçu du logo de l’évènement' })).toBeVisible()
+
+  await host.goto(app.url(`/admin/events/${event.slug}/print`))
+  await host.getByRole('radio', { name: 'Affiche A4 (1 par feuille)' }).check()
+  const qr = host.locator('[data-format]').getByRole('img', { name: /QR/ }).first()
+  const plain = await pathOf(qr)
+  await host.getByRole('checkbox', { name: 'Logo de l’évènement au centre du QR' }).check()
+  const logo = qr.locator('image')
+  await expect(logo).toHaveCount(1)
+  // The logo takes at most a fifth of the QR's side, and sits at its centre.
+  const box = await qr.boundingBox()
+  const logoBox = await logo.boundingBox()
+  expect(logoBox?.width ?? Infinity).toBeLessThanOrEqual((box?.width ?? 0) * 0.2 + 1)
+  const centreOf = (b: { x: number; width: number } | null) => (b?.x ?? 0) + (b?.width ?? 0) / 2
+  expect(Math.abs(centreOf(logoBox) - centreOf(box))).toBeLessThan(2)
+  expect(await pathOf(qr)).not.toBe(plain)
+  // The picture is really drawn before the screenshot: a blank centre would still decode.
+  await host.waitForFunction(
+    (src) => {
+      const image = document.querySelector<SVGImageElement>(`image[href="${src}"]`)
+      return image !== null && image.getBoundingClientRect().width > 0
+    },
+    await logo.getAttribute('href'),
+  )
+
+  await host.emulateMedia({ media: 'print' })
+  // Whatever the logo hides, the correction level gives the link back.
+  expect(await decodeQr(qr)).toBe(joinUrl)
 })

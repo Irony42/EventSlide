@@ -50,6 +50,9 @@ import type { CreateEvent } from '../../application/usecases/events/createEvent'
 import type { GetEventBySlug } from '../../application/usecases/events/getEventBySlug'
 import type { ListEventsForHost } from '../../application/usecases/events/listEventsForHost'
 import type { ListModerators } from '../../application/usecases/events/listModerators'
+import type { GetEventLogoMedia } from '../../application/usecases/brand/getEventLogoMedia'
+import type { RemoveEventLogo } from '../../application/usecases/brand/removeEventLogo'
+import type { SetEventLogo } from '../../application/usecases/brand/setEventLogo'
 import type { GetVenuePhotoMedia } from '../../application/usecases/venue/getVenuePhotoMedia'
 import type { RemoveVenuePhoto } from '../../application/usecases/venue/removeVenuePhoto'
 import type { SetVenuePhoto } from '../../application/usecases/venue/setVenuePhoto'
@@ -78,6 +81,8 @@ import type { GetClipJob } from '../../application/usecases/clips/getClipJob'
 import type { UploadClip } from '../../application/usecases/clips/uploadClip'
 
 import type { DeletePhoto } from '../../application/usecases/photos/deletePhoto'
+import type { GetReelMedia } from '../../application/usecases/highlights/getReelMedia'
+import type { RequestReel } from '../../application/usecases/highlights/requestReel'
 import type { ExportHighlights } from '../../application/usecases/highlights/exportHighlights'
 import type { DeleteAlbumBook } from '../../application/usecases/book/deleteAlbumBook'
 import type { DownloadAlbumBook } from '../../application/usecases/book/downloadAlbumBook'
@@ -212,6 +217,10 @@ export interface HttpUseCases {
   readonly setVenuePhoto: SetVenuePhoto
   readonly removeVenuePhoto: RemoveVenuePhoto
   readonly getVenuePhotoMedia: GetVenuePhotoMedia
+  // the host's logo (spec 03)
+  readonly setEventLogo: SetEventLogo
+  readonly removeEventLogo: RemoveEventLogo
+  readonly getEventLogoMedia: GetEventLogoMedia
   readonly listModerators: ListModerators
   readonly revokeModerator: RevokeModerator
 
@@ -247,6 +256,8 @@ export interface HttpUseCases {
 
   readonly getHighlights: GetHighlights
   readonly exportHighlights: ExportHighlights
+  readonly requestReel: RequestReel
+  readonly getReelMedia: GetReelMedia
 
   // clips
   readonly uploadClip: UploadClip
