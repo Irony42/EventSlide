@@ -62,5 +62,8 @@ export const wallChanges = (
   if (draft.slideIntervalMs !== loaded.slideIntervalMs) {
     changes.slideIntervalMs = draft.slideIntervalMs
   }
+  if (draft.soundEnabled !== loaded.soundEnabled) changes.soundEnabled = draft.soundEnabled
+  if (draft.soundTone !== loaded.soundTone) changes.soundTone = draft.soundTone
+  if (draft.soundVolume !== loaded.soundVolume) changes.soundVolume = draft.soundVolume
   return Object.keys(changes).length === 0 ? undefined : changes
 }

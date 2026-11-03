@@ -1109,6 +1109,19 @@ export const fr = {
       intervalDefault: 'Par défaut (une photo toutes les 8 s)',
       intervalSeconds: (n: number) => `Une photo toutes les ${n} s`,
     },
+    wallSound: {
+      title: 'Son',
+      hint: 'Un court son quand une photo ou un clip est publié sur le mur. Éteint par défaut.',
+      enable: 'Un son à chaque nouvelle photo',
+      enableHint:
+        'Chaque écran doit aussi être activé sur place : un clic sur le mur (ou la touche S) suffit.',
+      tone: 'Son',
+      toneNames: { chime: 'Carillon', bell: 'Cloche', drop: 'Goutte', pop: 'Pop' },
+      volume: 'Volume',
+      volumeValue: (n: number) => `Volume ${n} %`,
+      test: 'Tester',
+      testHint: 'Joue le son choisi sur cet ordinateur, à ce volume.',
+    },
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
             because a single choice with four options does not deserve four strings. ---- */

@@ -10,6 +10,7 @@ import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../..
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { CheckboxField } from './components/CheckboxField'
+import { WallSoundFields } from './components/WallSoundFields'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
@@ -130,6 +131,10 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     // The wall group (spec 13), for the same reason.
     settings.wall.layout ?? '',
     settings.wall.slideIntervalMs ?? '',
+    // Spec 12.
+    settings.wall.soundEnabled,
+    settings.wall.soundTone,
+    settings.wall.soundVolume,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -519,6 +524,11 @@ export function EventSettingsPage() {
             onChange={(value) =>
               update({ wall: { ...settings.wall, slideIntervalMs: numberOrNull(value) } })
             }
+          />
+          <WallSoundFields
+            wall={settings.wall}
+            disabled={readOnly}
+            onChange={(patch) => update({ wall: { ...settings.wall, ...patch } })}
           />
         </fieldset>
 

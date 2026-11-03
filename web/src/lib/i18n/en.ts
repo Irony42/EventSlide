@@ -972,6 +972,19 @@ export const en: UiText = {
       intervalDefault: 'Default (one photo every 8 s)',
       intervalSeconds: (n: number) => `One photo every ${n} s`,
     },
+    wallSound: {
+      title: 'Sound',
+      hint: 'A short sound when a photo or clip is published on the wall. Off by default.',
+      enable: 'A sound for each new photo',
+      enableHint:
+        'Each screen must also be switched on in the room: one click on the wall (or the S key) is enough.',
+      tone: 'Sound',
+      toneNames: { chime: 'Chime', bell: 'Bell', drop: 'Drop', pop: 'Pop' },
+      volume: 'Volume',
+      volumeValue: (n: number) => `Volume ${n}%`,
+      test: 'Test',
+      testHint: 'Plays the chosen sound on this computer, at this volume.',
+    },
 
     theme: 'Appearance',
     themeHint:
