@@ -1,0 +1,281 @@
+import { act, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '../../lib/http'
+import { fr } from '../../lib/i18n/fr'
+import {
+  aWallItem,
+  aWallResponse,
+  anEventDto,
+  eventSettings,
+  fakeApi,
+  renderWithProviders,
+} from '../../testing/renderWithProviders'
+import { SAVE_DEBOUNCE_MS } from './panel/usePanelSettings'
+import { PANEL_IDLE_MS } from './panel/WallSettingsPanel'
+import { WallPage } from './WallPage'
+
+/**
+ * The owner's controls on the projected wall (spec 13).
+ *
+ * The rule under test is that the panel is a convenience for the person who holds the owner's
+ * session and does not exist for anyone else: not hidden, absent. The server is the barrier
+ * (`PATCH /settings` is owner-only and CSRF-protected, tested in the route tests).
+ */
+
+const ROUTE = '/e/camille-et-sacha/display'
+const PATH = '/e/:slug/display'
+
+const wall = () => aWallResponse({ items: [aWallItem()] })
+
+const asOwner = () => anEventDto({ role: 'owner' })
+
+const unauthenticated = () => {
+  throw new ApiError(401, 'auth.required')
+}
+
+const renderWall = (overrides: Parameters<typeof fakeApi>[0] = {}) => {
+  const api = fakeApi({ wall: vi.fn(async () => wall()), ...overrides })
+  renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+  return api
+}
+
+const barButton = (name: string) => screen.findByRole('button', { name })
+
+const panelLabel = fr.wall.panel.panelLabel
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('the settings panel is absent without the owner session', () => {
+  it('has no controls, no panel and an inert R key for an anonymous browser', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => unauthenticated()) })
+    await screen.findByTestId('wall-slide')
+    await waitFor(() => expect(api.getEvent).toHaveBeenCalled())
+
+    await userEvent.keyboard('r')
+
+    expect(screen.queryByRole('group', { name: fr.wall.panel.barLabel })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: fr.wall.panel.open })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: panelLabel })).not.toBeInTheDocument()
+  })
+
+  it('has none for a moderator, who cannot write the settings', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) })
+    await screen.findByTestId('wall-slide')
+    await waitFor(() => expect(api.getEvent).toHaveBeenCalled())
+
+    await userEvent.keyboard('r')
+
+    expect(screen.queryByRole('button', { name: fr.wall.panel.open })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: panelLabel })).not.toBeInTheDocument()
+  })
+
+  it('offers the way to sign in in the help, and no button anywhere', async () => {
+    renderWall({ getEvent: vi.fn(async () => unauthenticated()) })
+    await screen.findByTestId('wall-slide')
+
+    await userEvent.keyboard('?')
+
+    expect(await screen.findByRole('link', { name: fr.wall.panel.signInToSet })).toBeVisible()
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(fr.wall.panel.openHint)
+  })
+
+  it('asks who is there once, and only after the wall has something to show', async () => {
+    const api = renderWall()
+    await screen.findByTestId('wall-slide')
+
+    await waitFor(() => expect(api.getEvent).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('the owner bar and panel', () => {
+  it('opens from the bar, in its own chunk, and says which group is which', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+
+    await userEvent.click(await barButton(fr.wall.panel.open))
+
+    expect(await screen.findByRole('dialog', { name: panelLabel })).toBeVisible()
+    expect(screen.getByText(fr.wall.panel.forAll)).toBeVisible()
+    expect(screen.getByText(fr.wall.panel.thisScreen)).toBeVisible()
+  })
+
+  it('opens with R', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await barButton(fr.wall.panel.open)
+
+    await userEvent.keyboard('r')
+
+    expect(await screen.findByRole('dialog', { name: panelLabel })).toBeVisible()
+  })
+
+  it('lists R in the shortcuts help for the owner', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await barButton(fr.wall.panel.open)
+
+    await userEvent.keyboard('?')
+
+    expect(await screen.findByRole('dialog', { name: fr.wall.shortcuts })).toHaveTextContent(
+      fr.wall.panel.openHint,
+    )
+  })
+
+  it('closes on Escape without hiding the QR card, and gives the focus back to the button', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    const opener = await barButton(fr.wall.panel.open)
+    await userEvent.keyboard('r')
+    await screen.findByRole('dialog', { name: panelLabel })
+
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: panelLabel })).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('H7K2QM')).toBeVisible()
+    expect(opener).toHaveFocus()
+  })
+
+  it('closes on Escape from the wall too, when no control has focus, and still keeps the QR', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await barButton(fr.wall.panel.open)
+    await userEvent.keyboard('r')
+    await screen.findByRole('dialog', { name: panelLabel })
+    act(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    })
+
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: panelLabel })).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('H7K2QM')).toBeVisible()
+  })
+
+  it('closes by itself after a minute with nobody touching it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PANEL_IDLE_MS - 1_000)
+    })
+    expect(screen.getByRole('dialog', { name: panelLabel })).toBeVisible()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    expect(screen.queryByRole('dialog', { name: panelLabel })).not.toBeInTheDocument()
+  })
+
+  it('pauses and resumes this screen from the bar', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+
+    await userEvent.click(await barButton(fr.wall.panel.pause))
+    expect(screen.getByText(fr.wall.paused)).toBeVisible()
+
+    await userEvent.click(await barButton(fr.wall.panel.resume))
+    expect(screen.queryByText(fr.wall.paused)).not.toBeInTheDocument()
+  })
+})
+
+describe('what the panel writes', () => {
+  const open = async () => {
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+  }
+
+  it('sends only the field that changed, once, after the debounce, and says it is saved', async () => {
+    const updated = anEventDto({ settings: eventSettings({ wallLanguage: 'de' }) })
+    const api = renderWall({
+      getEvent: vi.fn(async () => asOwner()),
+      updateSettings: vi.fn(async () => updated),
+    })
+    await open()
+
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallLanguage), 'en')
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallLanguage), 'de')
+
+    expect(screen.getByLabelText(fr.admin.wallLanguage)).toHaveValue('de')
+    expect(api.updateSettings).not.toHaveBeenCalled()
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1), {
+      timeout: SAVE_DEBOUNCE_MS * 4,
+    })
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', { wallLanguage: 'de' })
+    expect(await screen.findByText(fr.wall.panel.saved)).toBeVisible()
+  })
+
+  it('goes back to the saved value and says why when the server refuses', async () => {
+    const api = renderWall({
+      getEvent: vi.fn(async () => asOwner()),
+      updateSettings: vi.fn(async () => {
+        throw new ApiError(500, 'unknown')
+      }),
+    })
+    await open()
+
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallLanguage), 'it')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.panel.saveFailed)
+    expect(api.updateSettings).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText(fr.admin.wallLanguage)).toHaveValue('fr')
+  })
+
+  it('tells an expired session apart, with the way back in', async () => {
+    renderWall({
+      getEvent: vi.fn(async () => asOwner()),
+      updateSettings: vi.fn(async () => unauthenticated()),
+    })
+    await open()
+
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallLanguage), 'it')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(fr.wall.panel.sessionExpired)
+    expect(screen.getByRole('link', { name: fr.wall.panel.signIn })).toBeVisible()
+  })
+
+  it('writes the guestbook switch alone', async () => {
+    const api = renderWall({
+      getEvent: vi.fn(async () =>
+        anEventDto({ settings: eventSettings({ allowGuestbook: true }) }),
+      ),
+    })
+    await open()
+
+    await userEvent.click(screen.getByLabelText(fr.admin.guestbookOnWall))
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', { guestbookOnWall: false })
+  })
+
+  it('writes the ambiance with the other theme choices, and links to the custom one', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.themeAmbiance), 'guinguette')
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+    expect(sent?.theme?.ambiance).toBe('guinguette')
+    expect(sent).not.toHaveProperty('wallLanguage')
+    expect(screen.getByRole('link', { name: fr.admin.customAmbianceCreate })).toBeVisible()
+  })
+
+  it('never offers moderation, retention or guest rights', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    for (const label of [
+      fr.admin.moderationMode,
+      fr.admin.retention,
+      fr.admin.allowCaptions,
+      fr.admin.allowReactions,
+      fr.admin.allowClips,
+      fr.admin.maxPhotosPerGuest,
+    ]) {
+      expect(screen.queryByLabelText(label)).not.toBeInTheDocument()
+    }
+  })
+})

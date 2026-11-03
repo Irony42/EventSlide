@@ -66,7 +66,11 @@ export default function WallSettingsPanel({
       aria-label={text.panelLabel}
       onPointerMove={(event: PointerEvent) => event.stopPropagation()}
       onPointerDown={touch}
-      onKeyDown={touch}
+      onKeyDown={(event) => {
+        // The window's key handler ignores keys typed in a control, and focus lives in one here.
+        if (event.key === 'Escape') onClose()
+        else touch()
+      }}
       onFocus={touch}
     >
       <IconButton

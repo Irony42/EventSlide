@@ -45,6 +45,8 @@ function AmbianceSection({ slug, settings, save }: WallPanelContext) {
   )
 }
 
+// A section file exports its descriptor, which the registry collects; the component is not the export.
+// eslint-disable-next-line react-refresh/only-export-components
 export const section: WallPanelSection = {
   id: 'ambiance',
   order: 20,
