@@ -267,6 +267,20 @@ export const challengeRepositoryContract = (
       expect(await count()).toBe(0)
     })
 
+    it('does not count another event photograph even when it carries this mission id', async () => {
+      await photos.save(
+        aPhoto({
+          id: 'p-forged',
+          eventId: 'evt-gala',
+          status: 'published',
+          missionId: 'm1',
+          createdAt: atPlus(10 * SECOND),
+        }),
+      )
+
+      expect(await count()).toBe(0)
+    })
+
     it('counts from the start instant, and not a second before', async () => {
       await answer('p-early', { createdAt: new Date(AT.getTime() - 1) })
       await answer('p-start', { createdAt: AT })

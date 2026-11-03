@@ -1,4 +1,4 @@
-import { Challenge, hasRoomForChallenge } from '../../domain/challenges/challenge'
+import { hasRoomForChallenge, type Challenge } from '../../domain/challenges/challenge'
 import type { Photo } from '../../domain/photos/photo'
 import type { EventId } from '../../domain/shared/ids'
 import type { ChallengeRepository, StartOutcome } from '../ports/challengeRepository'
