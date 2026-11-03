@@ -13,10 +13,10 @@ describe('the wall sounds (spec 12)', () => {
   it('ships one mp3 per tone of the closed list', () => {
     for (const file of files) {
       expect(existsSync(file), file).toBe(true)
-      const head = readFileSync(file).subarray(0, 2)
-      // An mp3 frame starts with the 11-bit sync word.
-      expect(head[0]).toBe(0xff)
-      expect(head[1]! & 0xe0).toBe(0xe0)
+      // Either an ID3 tag ('ID3') or straight into an mp3 frame (11-bit sync word).
+      const head = readFileSync(file).subarray(0, 3)
+      const frame = head[0] === 0xff && (head[1]! & 0xe0) === 0xe0
+      expect(frame || head.toString('latin1') === 'ID3', file).toBe(true)
     }
   })
 
