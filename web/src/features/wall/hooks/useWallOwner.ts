@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { useApi } from '../../../app/useApi'
 import type { EventDto } from '../../../lib/api/dto'
+import { useLoader } from '../../../lib/useLoader'
 
 /**
  * Whether this browser holds an **owner** session on the event, and the event's settings if so.
@@ -11,8 +12,9 @@ import type { EventDto } from '../../../lib/api/dto'
  * (anonymous), a `404` (no part in the event), a failure or a slow answer all leave `null`, so the
  * panel is **absent by default** and a guest on `/display` never has its DOM.
  *
- * It runs **once**, and only after the wall has something to show (`enabled`), so it has no effect
- * on the first render of a projector that runs for eight hours. A moderator reads `role:
+ * It reads **once**, through `useLoader`, and only after the wall has something to show
+ * (`enabled`: until then the request never settles and nothing is asked), so it has no effect on
+ * the first render of a projector that runs for eight hours. A moderator reads `role:
  * 'moderator'` and gets no panel: only the owner may write the settings.
  */
 export interface WallOwner {
@@ -23,19 +25,12 @@ export interface WallOwner {
 
 export const useWallOwner = (slug: string, enabled: boolean): WallOwner | null => {
   const api = useApi()
-  const [event, setEvent] = useState<EventDto | null>(null)
+  const load = useCallback(
+    (signal: AbortSignal): Promise<EventDto> =>
+      enabled && slug !== '' ? api.getEvent(slug, signal) : new Promise<EventDto>(() => undefined),
+    [api, slug, enabled],
+  )
+  const { data, replace } = useLoader(load)
 
-  useEffect(() => {
-    if (!enabled || slug === '') return
-    const controller = new AbortController()
-    api.getEvent(slug, controller.signal).then(
-      (found) => {
-        if (!controller.signal.aborted && found.role === 'owner') setEvent(found)
-      },
-      () => undefined,
-    )
-    return () => controller.abort()
-  }, [api, slug, enabled])
-
-  return event === null ? null : { event, replace: setEvent }
+  return data !== null && data.role === 'owner' ? { event: data, replace } : null
 }
