@@ -25,7 +25,7 @@ describe('every field of the wall response is accounted for', () => {
   it.each(
     Object.keys(aWallResponse()).filter(
       // `joinCard` is an object the generic walk cannot move; its three fields are walked below.
-      (key) => !SETTINGS_EXEMPT.includes(key) && key !== 'joinCard',
+      (key) => !SETTINGS_EXEMPT.includes(key) && key !== 'joinCard' && key !== 'sound',
     ),
   )('notices a change to %s', (key) => {
     const kept = aWallResponse()
@@ -125,6 +125,17 @@ describe('every field of the wall response is accounted for', () => {
     const kept = aWallResponse()
 
     expect(sameSettings(kept, { ...aWallResponse(), joinCard: moved })).toBe(false)
+    expect(sameSettings(kept, aWallResponse())).toBe(true)
+  })
+
+  it.each([
+    ['enabled', { enabled: true, tone: 'chime', volume: 50 }],
+    ['tone', { enabled: false, tone: 'pop', volume: 50 }],
+    ['volume', { enabled: false, tone: 'chime', volume: 51 }],
+  ] as const)('notices a change to sound.%s (spec 12)', (_key, moved) => {
+    const kept = aWallResponse()
+
+    expect(sameSettings(kept, { ...aWallResponse(), sound: moved })).toBe(false)
     expect(sameSettings(kept, aWallResponse())).toBe(true)
   })
 

@@ -204,6 +204,9 @@ export const eventRepositoryContract = (
               qrVisible: false,
               qrScale: 1.25,
               qrPlacement: 'top-start',
+              soundEnabled: true,
+              soundTone: 'drop',
+              soundVolume: 80,
             },
           },
         }),
@@ -238,6 +241,9 @@ export const eventRepositoryContract = (
           qrVisible: false,
           qrScale: 1.25,
           qrPlacement: 'top-start',
+          soundEnabled: true,
+          soundTone: 'drop',
+          soundVolume: 80,
         },
       })
     })

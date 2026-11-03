@@ -138,6 +138,9 @@ describe('EventSettings.create', () => {
         qrVisible: true,
         qrScale: 1,
         qrPlacement: 'bottom-end',
+        soundEnabled: false,
+        soundTone: 'chime',
+        soundVolume: 50,
       },
     })
   })

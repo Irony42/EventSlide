@@ -272,6 +272,13 @@ export const eventRoutes = ({
                   ...(body.wall.qrPlacement === undefined
                     ? {}
                     : { qrPlacement: body.wall.qrPlacement }),
+                  ...(body.wall.soundEnabled === undefined
+                    ? {}
+                    : { soundEnabled: body.wall.soundEnabled }),
+                  ...(body.wall.soundTone === undefined ? {} : { soundTone: body.wall.soundTone }),
+                  ...(body.wall.soundVolume === undefined
+                    ? {}
+                    : { soundVolume: body.wall.soundVolume }),
                 },
               }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.

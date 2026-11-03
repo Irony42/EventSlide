@@ -8,7 +8,14 @@ import {
 } from './eventWallSettings'
 import { EventSettings } from './eventSettings'
 
-const QR = { qrVisible: true, qrScale: DEFAULT_WALL_QR_SCALE, qrPlacement: 'bottom-end' } as const
+const QR = {
+  qrVisible: true,
+  qrScale: DEFAULT_WALL_QR_SCALE,
+  qrPlacement: 'bottom-end',
+  soundEnabled: false,
+  soundTone: 'chime',
+  soundVolume: 50,
+} as const
 
 describe('the wall settings group (spec 13)', () => {
   it('defaults to today’s behaviour: nothing chosen, the 8 s rhythm', () => {

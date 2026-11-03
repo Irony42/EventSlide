@@ -809,11 +809,22 @@ describe('SqliteEventRepository', () => {
         qrVisible: true,
         qrScale: 1,
         qrPlacement: 'bottom-end',
+        soundEnabled: false,
+        soundTone: 'chime',
+        soundVolume: 50,
       })
 
       db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
         json({
-          wall: { layout: 'carousel', slideIntervalMs: 'fast', qrScale: 9, qrPlacement: 'x' },
+          wall: {
+            layout: 'carousel',
+            slideIntervalMs: 'fast',
+            qrScale: 9,
+            qrPlacement: 'x',
+            soundEnabled: 1,
+            soundTone: 'klaxon',
+            soundVolume: 1000,
+          },
         }),
         'evt-1',
       )
@@ -823,6 +834,9 @@ describe('SqliteEventRepository', () => {
         qrVisible: true,
         qrScale: 1,
         qrPlacement: 'bottom-end',
+        soundEnabled: false,
+        soundTone: 'chime',
+        soundVolume: 50,
       })
     })
 

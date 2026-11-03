@@ -382,6 +382,15 @@ export interface WallResponseDto {
     readonly scale: number
     readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
   }
+  /**
+   * The sound the wall may play for a new photo (spec 12). Optional, like `theme`, so an older
+   * client ignores it. Public: it is what the room hears, and holds nothing sensitive.
+   */
+  readonly sound?: {
+    readonly enabled: boolean
+    readonly tone: 'bell' | 'chime' | 'drop' | 'pop'
+    readonly volume: number
+  }
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -527,6 +536,9 @@ export interface EventSettingsDto {
     readonly qrVisible: boolean
     readonly qrScale: number
     readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+    readonly soundEnabled: boolean
+    readonly soundTone: 'bell' | 'chime' | 'drop' | 'pop'
+    readonly soundVolume: number
   }
 }
 
