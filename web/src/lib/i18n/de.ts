@@ -867,6 +867,10 @@ export const de: UiText = {
       'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung, Q blendet den QR-Code aus oder ein.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Zum Verlassen: Esc oder F beenden den Vollbildmodus, danach den Tab schließen.',
+    /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
+    soundActivate: 'Ton auf diesem Bildschirm aktivieren',
+    soundShortcutHint:
+      'S aktiviert den Ton auf diesem Bildschirm, falls er in den Einstellungen eingeschaltet ist.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `Erstes Foto von ${name}`,
 

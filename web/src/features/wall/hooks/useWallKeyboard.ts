@@ -15,6 +15,8 @@ export interface WallShortcuts {
   readonly onDismiss: () => void
   /** `Q`: put the corner QR away, or bring it back. */
   readonly onToggleQr: () => void
+  /** `S` (spec 12): this screen carries the speakers. A key press is the gesture a browser wants. */
+  readonly onActivateSound?: () => void
 }
 
 /** A control the browser already operates with these keys owns them. */
@@ -90,6 +92,10 @@ export const useWallKeyboard = (shortcuts: WallShortcuts): void => {
         case 'q':
           event.preventDefault()
           handlers.onToggleQr()
+          return
+        case 's':
+          event.preventDefault()
+          handlers.onActivateSound?.()
           return
         default:
           return
