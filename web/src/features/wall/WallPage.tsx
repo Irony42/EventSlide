@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { wallBudgetProps } from '../../design-system/budget'
+import { affords, wallBudgetProps } from '../../design-system/budget'
 import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
 import { useRootGroundHue } from '../../design-system/useRootGroundHue'
@@ -29,6 +29,8 @@ import { useIdleCursor } from './hooks/useIdleCursor'
 import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useWallGuestbook } from './hooks/useWallGuestbook'
+import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion'
+import { useWallPhase } from './hooks/useWallPhase'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
 import { useWakeLock } from './hooks/useWakeLock'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
@@ -108,6 +110,36 @@ function WallNotice({ tone, text }: WallNoticeProps) {
   )
 }
 
+interface WallSceneProps {
+  readonly alternating: boolean
+  readonly fading: boolean
+  readonly transitionMs: number | null
+  readonly children: ReactNode
+}
+
+/**
+ * The layouts, and only them, wrapped so the mixed wall can fade the scene through black between
+ * its two phases (spec 09, rule 9). Not wrapped at all when the wall is not alternating: that wall
+ * renders the DOM it always rendered.
+ */
+function WallScene({ alternating, fading, transitionMs, children }: WallSceneProps) {
+  if (!alternating) return <>{children}</>
+  return (
+    <div
+      className={styles['scene']}
+      data-fading={fading ? 'true' : undefined}
+      // `?e2e_transition=` reaches the scene the way it reaches the layouts.
+      style={
+        transitionMs === null
+          ? undefined
+          : ({ '--wall-transition': `${transitionMs}ms` } as CSSProperties)
+      }
+    >
+      {children}
+    </div>
+  )
+}
+
 const toggleFullscreen = (): void => {
   const root = document.documentElement
 
@@ -142,8 +174,17 @@ export function WallPage() {
   const { slug } = useParams()
   const eventSlug = slug ?? ''
 
-  const { wall, loading, error, notServed, offline, readFailing, reactionPulse, refresh } =
-    useWallPlaylist(eventSlug)
+  const {
+    wall,
+    loading,
+    error,
+    notServed,
+    offline,
+    readFailing,
+    reactionPulse,
+    refresh,
+    serverClock,
+  } = useWallPlaylist(eventSlug)
   const text = useTranslations()
   // A stream that is down says nothing about the network while the wall's own reads keep
   // coming back: a proxy that buffers event streams leaves it down all night. The room is told
@@ -172,7 +213,7 @@ export function WallPage() {
     if (wallLocale !== null) announceLocale(wallLocale)
   }, [wallLocale, announceLocale])
 
-  const { transitionMs } = useTimingOverrides()
+  const { transitionMs, phaseMs } = useTimingOverrides()
   const urlLayout = useLayoutParam()
   const budget = useFrameBudget()
 
@@ -184,6 +225,17 @@ export function WallPage() {
     intervalMs: wall?.slideIntervalMs ?? 0,
     loaded: wall !== null,
     hold: cardUp,
+  })
+  // The mixed wall (spec 09): which half the room is on, from the server's clock. One slideshow
+  // cursor serves both halves; the phase never touches it (rule 7).
+  const reducedMotion = usePrefersReducedMotion()
+  const phaseView = useWallPhase({
+    mixed: wall?.mixed,
+    clock: serverClock,
+    paused: slideshow.paused,
+    instant: reducedMotion || !affords(budget, 'crossfade'),
+    fadeMs: transitionMs,
+    phaseMsOverride: phaseMs,
   })
   const { message: guestbookMessage } = useWallGuestbook(wall?.guestbook, slideshow.generation)
   // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
@@ -250,7 +302,9 @@ export function WallPage() {
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   const showsOverlay = invitation !== null && !qrHidden && items.length > 0
-  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}`
+  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}${
+    wall?.mixed == null ? '' : ` ${text.wall.mixedHint}`
+  }`
 
   /**
    * What the room is looking at, named on the wall element itself.
@@ -260,7 +314,17 @@ export function WallPage() {
    * showing" — and that is the question a second projector is compared on, and the one a
    * wall that quietly fell back to the spotlight answers wrongly.
    */
-  const layout = layoutOverride ?? urlLayout ?? ambianceLayout ?? serverLayout ?? null
+  // The mixed wall comes after the screen's own choices (`L`, `?layout=`): a screen that names its
+  // layout leaves the alternation until it is reloaded (spec 09, rule 8).
+  const mixedLayout =
+    phaseView.phase === null || wall?.mixed == null
+      ? undefined
+      : phaseView.phase === 'slideshow'
+        ? 'spotlight'
+        : wall.mixed.layout
+  const followsPhase = layoutOverride === null && urlLayout === null && mixedLayout !== undefined
+  const layout =
+    layoutOverride ?? urlLayout ?? mixedLayout ?? ambianceLayout ?? serverLayout ?? null
 
   useWallKeyboard({
     onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
@@ -268,7 +332,9 @@ export function WallPage() {
     onToggleFullscreen: toggleFullscreen,
     onCycleLayout: () =>
       setLayoutOverride((current) =>
-        nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
+        nextLayout(
+          current ?? urlLayout ?? mixedLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight',
+        ),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
     // Escape closes the help and nothing else; leaving fullscreen is the browser's own.
@@ -325,6 +391,10 @@ export function WallPage() {
       {...wallBudgetProps(budget)}
       className={styles['wall']}
       data-wall-layout={layout ?? undefined}
+      // Absent when the wall is not alternating, and when this screen left the alternation.
+      data-wall-phase={
+        followsPhase ? (phaseView.phase === 'slideshow' ? 'slideshow' : 'wall') : undefined
+      }
       // The bottom-right corner is spoken for while the invitation is up, and a layout
       // that would otherwise centre a caption under it lays out inside what is left.
       // The card is chrome and the caption is the guest's words, so the card is what the
@@ -397,13 +467,19 @@ export function WallPage() {
           logoUrl={wall.brand?.logoUrl ?? null}
         />
       ) : (
-        <WallLayouts
-          layout={layout ?? wall.layout}
-          items={items}
-          slideshow={slideshow}
-          kenBurnsDurationMs={wall.kenBurnsDurationMs}
+        <WallScene
+          fading={followsPhase && phaseView.fading}
+          alternating={followsPhase}
           transitionMs={transitionMs}
-        />
+        >
+          <WallLayouts
+            layout={layout ?? wall.layout}
+            items={items}
+            slideshow={slideshow}
+            kenBurnsDurationMs={wall.kenBurnsDurationMs}
+            transitionMs={transitionMs}
+          />
+        </WallScene>
       )}
 
       {showsMissions ? <WallMissions missions={missions} /> : null}

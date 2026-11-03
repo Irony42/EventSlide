@@ -6,6 +6,8 @@ export interface TimingOverrides {
   readonly intervalMs: number | null
   /** Crossfade length, or `null` to use `--duration-slow`. `0` means cut. */
   readonly transitionMs: number | null
+  /** Both phases of the mixed wall last this long, or `null` for the event's durations. */
+  readonly phaseMs: number | null
 }
 
 const readMs = (raw: string | null): number | null => {
@@ -18,9 +20,9 @@ const readMs = (raw: string | null): number | null => {
 }
 
 /**
- * The two timing hooks the end-to-end suite drives the wall with.
+ * The timing hooks the end-to-end suite drives the wall with.
  *
- * `?e2e_interval=250&e2e_transition=0` is what makes a projector journey assertable in
+ * `?e2e_interval=250&e2e_transition=0` (and `?e2e_phase_ms=` for the mixed wall) is what makes a projector journey assertable in
  * a second instead of forty: without them a Playwright test would have to wait real
  * slide intervals, and the alternative — mocking the clock inside the browser — would
  * stop testing the thing that actually runs at the venue.
@@ -34,9 +36,15 @@ export const useTimingOverrides = (): TimingOverrides => {
   const [params] = useSearchParams()
   const interval = params.get('e2e_interval')
   const transition = params.get('e2e_transition')
+  const phase = params.get('e2e_phase_ms')
 
   return useMemo(
-    () => ({ intervalMs: readMs(interval), transitionMs: readMs(transition) }),
-    [interval, transition],
+    () => ({
+      intervalMs: readMs(interval),
+      transitionMs: readMs(transition),
+      // Zero would be a boundary every millisecond: refused like any unusable value.
+      phaseMs: ((ms) => (ms === 0 ? null : ms))(readMs(phase)),
+    }),
+    [interval, transition, phase],
   )
 }
