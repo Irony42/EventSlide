@@ -301,6 +301,8 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // `docs/API.md` while three arguments in this change rest on that arithmetic.
   kenBurnsDurationMs: 8_800,
   layout: 'spotlight',
+  // Present for the reason `theme` is: the sweep in `useWallPlaylist.settings.test.ts` must see it.
+  layoutChosen: false,
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
   // renders the DOM it rendered before theming existed, and every negative assertion about
@@ -400,6 +402,8 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   // and what a host who has not touched the control still has. A test that wants the
   // projector in another language overrides it.
   wallLanguage: 'fr',
+  // Nothing chosen on the wall: today's behaviour (spec 13).
+  wall: { layout: null, slideIntervalMs: null },
   ...overrides,
 })
 

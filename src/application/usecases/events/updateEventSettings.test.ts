@@ -64,6 +64,35 @@ describe('updateEventSettings', () => {
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
   })
 
+  it('merges the wall group key by key, without touching the rest (spec 13)', async () => {
+    await updateEventSettings({
+      eventId: WEDDING,
+      actorId: OWNER,
+      patch: { wall: { layout: 'mosaic' } },
+    })
+    const result = await updateEventSettings({
+      eventId: WEDDING,
+      actorId: OWNER,
+      patch: { wall: { slideIntervalMs: 12_000 } },
+    })
+
+    expect(result.ok && result.value.settings.wall).toEqual({
+      layout: 'mosaic',
+      slideIntervalMs: 12_000,
+    })
+    expect(result.ok && result.value.settings.allowCaptions).toBe(true)
+  })
+
+  it('refuses a rhythm outside the domain bounds', async () => {
+    const result = await updateEventSettings({
+      eventId: WEDDING,
+      actorId: OWNER,
+      patch: { wall: { slideIntervalMs: 100 } },
+    })
+
+    expect(!result.ok && result.error.code).toBe('slideInterval.tooShort')
+  })
+
   it('persists the change, so the next upload is moderated by the new rule', async () => {
     await updateEventSettings({
       eventId: WEDDING,
