@@ -15,6 +15,7 @@ export interface WallPanelContext {
   readonly slug: string
   readonly settings: EventSettingsDto
   readonly save: (patch: EventSettingsPatch) => void
+  readonly screen: ScreenControls
 }
 
 /**
@@ -41,6 +42,8 @@ export interface ScreenControls {
   /** The layout this screen shows now, in the room's language, and the `L` key's own action. */
   readonly layoutName: string
   readonly onCycleLayout: () => void
+  /** Set while the `L` key has put this screen on a layout of its own; `onReset` goes back to the event's. */
+  readonly localLayout: { readonly onReset: () => void } | null
   /** `null` when there is no corner card to put away (closed event, empty wall, no invitation). */
   readonly qr: { readonly hidden: boolean; readonly onToggle: () => void } | null
 }

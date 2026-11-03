@@ -85,7 +85,7 @@ export default function WallSettingsPanel({
         {WALL_PANEL_SECTIONS.map(({ id, title, Component }) => (
           <details key={id} className={styles['section']} open>
             <summary>{title(t)}</summary>
-            <Component slug={slug} settings={settings} save={save} />
+            <Component slug={slug} settings={settings} save={save} screen={screen} />
           </details>
         ))}
         <ThisScreenBlock screen={screen} />

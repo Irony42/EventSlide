@@ -877,6 +877,8 @@ export const es: UiText = {
       thisScreenHint:
         'Estos controles solo cambian esta pantalla y se pierden al recargar la página.',
       screenLayout: (name: string) => `Disposición de esta pantalla: ${name} (tecla L)`,
+      screenShows: (name: string) => `Esta pantalla muestra ${name} (tecla L)`,
+      backToEvent: 'Volver al ajuste del evento',
       hideQr: 'Ocultar la tarjeta QR',
       showQr: 'Mostrar la tarjeta QR',
       saving: 'Guardando…',

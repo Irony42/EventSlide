@@ -875,6 +875,8 @@ export const it: UiText = {
       thisScreenHint:
         'Questi comandi cambiano solo questo schermo e si perdono al ricaricamento della pagina.',
       screenLayout: (name: string) => `Disposizione di questo schermo: ${name} (tasto L)`,
+      screenShows: (name: string) => `Questo schermo mostra ${name} (tasto L)`,
+      backToEvent: 'Torna all’impostazione dell’evento',
       hideQr: 'Nascondi la scheda QR',
       showQr: 'Mostra la scheda QR',
       saving: 'Salvataggio…',

@@ -279,3 +279,59 @@ describe('what the panel writes', () => {
     }
   })
 })
+
+describe('layout and rhythm (spec 13, PR 3)', () => {
+  const open = async () => {
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+  }
+  const layoutOf = () =>
+    document.querySelector('[data-wall-layout]')?.getAttribute('data-wall-layout')
+
+  it('shows the layout the host chose for the event, and lets this screen own key beat it', async () => {
+    renderWall({
+      wall: vi.fn(async () =>
+        aWallResponse({ items: [aWallItem()], layout: 'polaroid', layoutChosen: true }),
+      ),
+      getEvent: vi.fn(async () => asOwner()),
+    })
+    await barButton(fr.wall.panel.open)
+    expect(layoutOf()).toBe('polaroid')
+
+    await userEvent.keyboard('l')
+    expect(layoutOf()).toBe('filmstrip')
+    await open()
+    expect(screen.getByRole('status')).toHaveTextContent('Pellicule')
+
+    await userEvent.click(screen.getByRole('button', { name: fr.wall.panel.backToEvent }))
+    expect(layoutOf()).toBe('polaroid')
+    expect(
+      screen.queryByRole('button', { name: fr.wall.panel.backToEvent }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('sends one request holding both keys the host changed, and nothing else of the wall group', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.layout), 'mosaic')
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '12000')
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { layout: 'mosaic', slideIntervalMs: 12_000 },
+    })
+  })
+
+  it('sends only the rhythm when only the rhythm changed', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '4000')
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { slideIntervalMs: 4_000 },
+    })
+  })
+})

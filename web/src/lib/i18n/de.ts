@@ -897,6 +897,8 @@ export const de: UiText = {
       thisScreenHint:
         'Diese Schaltflächen ändern nur diesen Bildschirm und gehen beim Neuladen der Seite verloren.',
       screenLayout: (name: string) => `Anordnung dieses Bildschirms: ${name} (Taste L)`,
+      screenShows: (name: string) => `Dieser Bildschirm zeigt ${name} (Taste L)`,
+      backToEvent: 'Zurück zur Einstellung der Veranstaltung',
       hideQr: 'QR-Karte ausblenden',
       showQr: 'QR-Karte anzeigen',
       saving: 'Wird gespeichert…',
