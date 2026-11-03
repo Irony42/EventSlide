@@ -20,6 +20,8 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--wall-safe);
+  /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
+  padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
   grid-template-columns: repeat(4, 1fr);
@@ -102,6 +104,8 @@
   align-items: center;
   gap: var(--space-5);
   padding: var(--wall-safe);
+  /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
+  padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
   /* The pile shares the wall with the invitation. Each print's caption is centred in its
      own mat, so the third one ran under the join card and was cut mid-word — measured at
      362px of overlap. The row lays out inside what the corner leaves free instead, and
@@ -196,6 +200,8 @@
   align-content: center;
   overflow: hidden;
   padding-block: var(--wall-safe);
+  /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
+  padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
 }
@@ -308,6 +314,8 @@
   gap: var(--space-2);
   align-content: start;
   padding: var(--wall-safe);
+  /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
+  padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
 }
@@ -353,6 +361,8 @@
   display: grid;
   align-content: center;
   padding-block: var(--wall-safe);
+  /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
+  padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
   overflow: hidden;
@@ -484,6 +494,8 @@
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
   padding: var(--wall-safe);
+  /* Below the challenge banner while there is one (spec 10); nothing otherwise. */
+  padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
   /* Both panes narrow together, so the pair stays a pair. Centring each caption under its
      own pane put the right one under the join card, cut mid-word — measured at 42px of
      overlap on a 1920 screen. This layout is for ultra-wide walls, where the same card is

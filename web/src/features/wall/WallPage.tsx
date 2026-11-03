@@ -21,6 +21,7 @@ import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMessage } from './components/WallMessage'
+import { WallChallenge } from './components/WallChallenge'
 import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
@@ -142,8 +143,17 @@ export function WallPage() {
   const { slug } = useParams()
   const eventSlug = slug ?? ''
 
-  const { wall, loading, error, notServed, offline, readFailing, reactionPulse, refresh } =
-    useWallPlaylist(eventSlug)
+  const {
+    wall,
+    loading,
+    error,
+    notServed,
+    offline,
+    readFailing,
+    reactionPulse,
+    serverOffsetMs,
+    refresh,
+  } = useWallPlaylist(eventSlug)
   const text = useTranslations()
   // A stream that is down says nothing about the network while the wall's own reads keep
   // coming back: a proxy that buffers event streams leaves it down all night. The room is told
@@ -249,7 +259,33 @@ export function WallPage() {
   const ambianceLayout = eventTheme === null ? null : AMBIANCE_LAYOUT[eventTheme.ambiance]
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
-  const showsOverlay = invitation !== null && !qrHidden && items.length > 0
+  /**
+   * The timed challenge (spec 10), in every phase of the wall and on the empty wall too: it is a
+   * call to take photographs, so it is withheld only when the room can no longer send any (the
+   * rule `showsMissions` follows). `challengeGone` is the banner saying it has shown "Défi
+   * terminé" for its ten seconds, which is when the room it reserved is given back.
+   */
+  const challenge = wall?.challenge ?? null
+  const [challengeGone, setChallengeGone] = useState<string | null>(null)
+  // Stable, so the banner's ten-second timer is not restarted by every render of the wall.
+  const challengeId = challenge?.id ?? null
+  const leaveChallenge = useCallback(() => setChallengeGone(challengeId), [challengeId])
+  const showsChallenge = acceptsGuests && challenge !== null && challengeGone !== challenge.id
+  const challengeRunning = showsChallenge && challenge.state === 'running'
+  /**
+   * The join card comes back when a challenge starts, even if `Q` put it away: a challenge with
+   * no way to join it means nothing, and the return is the same one the timer makes. Adjusted
+   * while rendering, once per challenge, so the host can still put it away afterwards (it is
+   * held on screen while the challenge runs, whatever the state says).
+   */
+  const [seenChallenge, setSeenChallenge] = useState<string | null>(null)
+  const startedId = challengeRunning ? challenge.id : null
+  if (startedId !== null && startedId !== seenChallenge) {
+    setSeenChallenge(startedId)
+    setQrHidden(false)
+  }
+  const showsOverlay = invitation !== null && (!qrHidden || challengeRunning) && items.length > 0
+  const chrome = cx(showsOverlay && 'corner', showsChallenge && 'top')
   const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}`
 
   /**
@@ -329,7 +365,7 @@ export function WallPage() {
       // that would otherwise centre a caption under it lays out inside what is left.
       // The card is chrome and the caption is the guest's words, so the card is what the
       // wall reserves around rather than what it prints over.
-      data-wall-chrome={showsOverlay ? 'corner' : undefined}
+      data-wall-chrome={chrome === '' ? undefined : chrome}
       // The arrow is taken off the photo after a few idle seconds (MUR-2), and is back at the
       // first movement. An attribute, so the rule that hides it is one selector in CSS.
       data-idle={cursorIdle ? 'true' : undefined}
@@ -407,6 +443,16 @@ export function WallPage() {
       )}
 
       {showsMissions ? <WallMissions missions={missions} /> : null}
+
+      {showsChallenge ? (
+        <WallChallenge
+          key={challenge.id}
+          challenge={challenge}
+          offsetMs={serverOffsetMs}
+          onElapsed={refresh}
+          onLeave={leaveChallenge}
+        />
+      ) : null}
 
       {guestbookMessage !== null && items.length > 0 ? (
         <WallMessage message={guestbookMessage} />

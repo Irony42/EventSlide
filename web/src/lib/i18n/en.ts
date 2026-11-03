@@ -2019,6 +2019,15 @@ export const en: UiText = {
     remaining: (time: string) => `Challenge in progress · ${time}`,
     noMissions: 'Add a mission first to start a challenge.',
     notOpen: 'A challenge can start once the event is open.',
+    ended: 'Challenge over',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo`,
+        other: `${t.number(count)} photos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Photo challenge started: ${prompt}`,
+    announceEnd: 'Photo challenge over',
   },
   titles: {
     print: 'Table cards and poster',

@@ -2084,6 +2084,15 @@ export const es: UiText = {
     remaining: (time: string) => `Reto en curso · ${time}`,
     noMissions: 'Añada primero una misión para lanzar un reto.',
     notOpen: 'Un reto se puede lanzar cuando el evento está abierto.',
+    ended: 'Reto terminado',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto`,
+        other: `${t.number(count)} fotos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Comienza el reto fotográfico: ${prompt}`,
+    announceEnd: 'Fin del reto fotográfico',
   },
   titles: {
     print: 'Tarjetas de mesa y cartel',

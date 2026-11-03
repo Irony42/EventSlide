@@ -33,6 +33,12 @@
    * it already does.
    */
   --wall-chrome-inline-end: 0px;
+  /*
+   * The same for the top edge, while the timed challenge's banner is up (spec 10): the layouts
+   * that fill the screen lay out below it instead of passing underneath. Nothing is reserved
+   * the rest of the time, so a wall with no challenge is the wall it was.
+   */
+  --wall-chrome-block-start: 0px;
 }
 
 /**
@@ -44,8 +50,12 @@
  * taller mat reaches further. The gutter absorbs the lean instead of the pile needing a
  * second number of its own.
  */
-.wall[data-wall-chrome='corner'] {
+.wall[data-wall-chrome~='corner'] {
   --wall-chrome-inline-end: calc(var(--wall-join-card) + var(--space-6));
+}
+
+.wall[data-wall-chrome~='top'] {
+  --wall-chrome-block-start: calc(var(--wall-challenge-height) + var(--space-4));
 }
 
 .centre {

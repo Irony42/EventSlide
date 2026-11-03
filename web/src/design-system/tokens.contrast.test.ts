@@ -807,6 +807,8 @@ describe('the wall reads from the back of the room, over any photograph', () => 
       'features/wall/WallPage.module.css',
       // Every wall caption.
       'features/wall/components/SlideCaption.module.css',
+      // The timed challenge's banner, top centre (spec 10), over the photograph.
+      'features/wall/components/WallChallenge.module.css',
     ])
   })
 

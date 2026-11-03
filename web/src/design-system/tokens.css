@@ -226,6 +226,10 @@
      whose width follows the longest prompt a host happened to type would move every time
      they edited one, and the room would see the photographs shift with it. */
   --wall-mission-panel: 24rem;
+  /* The timed challenge's banner, top centre (spec 10): the room it takes, which the layouts that
+     fill the screen reserve while it is up. Declared for the reason the panel above is: a height
+     that followed a long prompt would move the photographs every time a host reworded one. */
+  --wall-challenge-height: 7.5rem;
   /* The reading width of a guestbook card on the wall (spec 01): about forty words a line is too
      many at ten metres, and the column keeps 500 characters in a handful of lines. */
   --wall-message-measure: 32ch;
