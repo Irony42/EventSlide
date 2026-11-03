@@ -886,6 +886,8 @@ export const fr = {
       thisScreenHint:
         'Ces commandes ne changent que cet écran et sont perdues au rechargement de la page.',
       screenLayout: (name: string) => `Mise en page de cet écran : ${name} (touche L)`,
+      screenShows: (name: string) => `Cet écran affiche ${name} (touche L)`,
+      backToEvent: 'Revenir au réglage de l’évènement',
       hideQr: 'Masquer la carte QR',
       showQr: 'Montrer la carte QR',
       saving: 'Enregistrement…',

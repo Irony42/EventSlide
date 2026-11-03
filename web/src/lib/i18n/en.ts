@@ -841,6 +841,8 @@ export const en: UiText = {
       thisScreen: 'This screen only',
       thisScreenHint: 'These controls only change this screen and are lost when the page reloads.',
       screenLayout: (name: string) => `Layout of this screen: ${name} (L key)`,
+      screenShows: (name: string) => `This screen shows ${name} (L key)`,
+      backToEvent: 'Back to the event setting',
       hideQr: 'Hide the QR card',
       showQr: 'Show the QR card',
       saving: 'Saving…',

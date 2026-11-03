@@ -20,6 +20,12 @@ export interface PanelSettings {
   readonly state: PanelSaveState
 }
 
+const mergePatch = (base: EventSettingsPatch, patch: EventSettingsPatch): EventSettingsPatch => ({
+  ...base,
+  ...patch,
+  ...(patch.wall === undefined ? {} : { wall: { ...base.wall, ...patch.wall } }),
+})
+
 const SESSION_EXPIRED_CODE = 'auth.required'
 
 /**
@@ -67,8 +73,9 @@ export const usePanelSettings = (
 
   const save = useCallback(
     (patch: EventSettingsPatch) => {
-      queued.current = { ...queued.current, ...patch }
-      setPending((current) => ({ ...current, ...patch }))
+      // The wall group is merged key by key, here as on the server: two quick choices are one request.
+      queued.current = mergePatch(queued.current, patch)
+      setPending((current) => mergePatch(current, patch))
       window.clearTimeout(timer.current)
       timer.current = window.setTimeout(flush, SAVE_DEBOUNCE_MS)
     },
@@ -85,6 +92,7 @@ export const usePanelSettings = (
       ...(pending.guestbookOnWall === undefined
         ? {}
         : { guestbookOnWall: pending.guestbookOnWall }),
+      ...(pending.wall === undefined ? {} : { wall: { ...event.settings.wall, ...pending.wall } }),
       ...(pending.theme === undefined
         ? {}
         : { theme: { ...event.settings.theme, ...pending.theme } }),

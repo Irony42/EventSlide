@@ -274,7 +274,10 @@ export function WallPage() {
    * showing" — and that is the question a second projector is compared on, and the one a
    * wall that quietly fell back to the spotlight answers wrongly.
    */
-  const layout = layoutOverride ?? urlLayout ?? ambianceLayout ?? serverLayout ?? null
+  // The event's own choice (spec 13) sits between the screen's URL and the ambiance's suggestion.
+  const eventLayout = wall?.layoutChosen === true ? serverLayout : undefined
+  const layout =
+    layoutOverride ?? urlLayout ?? eventLayout ?? ambianceLayout ?? serverLayout ?? null
 
   useWallKeyboard({
     onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
@@ -282,7 +285,9 @@ export function WallPage() {
     onToggleFullscreen: toggleFullscreen,
     onCycleLayout: () =>
       setLayoutOverride((current) =>
-        nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
+        nextLayout(
+          current ?? urlLayout ?? eventLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight',
+        ),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
     // Escape closes the panel, then the help, and nothing else: it never hides the QR (MUR-5), and
@@ -450,8 +455,17 @@ export function WallPage() {
             layoutName: text.wall.layoutNames[layout ?? wall.layout],
             onCycleLayout: () =>
               setLayoutOverride((current) =>
-                nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
+                nextLayout(
+                  current ??
+                    urlLayout ??
+                    eventLayout ??
+                    ambianceLayout ??
+                    serverLayout ??
+                    'spotlight',
+                ),
               ),
+            localLayout:
+              layoutOverride === null ? null : { onReset: () => setLayoutOverride(null) },
             qr:
               invitation !== null && items.length > 0
                 ? { hidden: qrHidden, onToggle: () => setQrHidden((hidden) => !hidden) }

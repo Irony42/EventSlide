@@ -1,5 +1,8 @@
 import { CheckboxField } from '../../../admin/components/CheckboxField'
 import { SelectField, type SelectOption } from '../../../admin/components/SelectField'
+import { Button } from '../../../../design-system/components/Button'
+import { WALL_UNSET, wallLayoutOptions, wallRhythmOptions } from '../../../admin/wallDisplayOptions'
+import type { WallLayout } from '../../../../lib/api/dto'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale } from '../../../../lib/i18n/locale'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import type { WallPanelContext, WallPanelSection } from '../panelTypes'
@@ -17,11 +20,40 @@ const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale)
  */
 // The file exports a descriptor the registry collects, not its component.
 // eslint-disable-next-line react-refresh/only-export-components
-function DisplaySection({ settings, save }: WallPanelContext) {
+function DisplaySection({ settings, save, screen }: WallPanelContext) {
   const t = useTranslations()
+  const { wall } = settings
 
   return (
     <>
+      <SelectField
+        label={t.admin.wallDisplay.layout}
+        value={wall.layout ?? WALL_UNSET}
+        options={wallLayoutOptions(t)}
+        onChange={(value) => {
+          const known = wallLayoutOptions(t).some((o) => o.value === value && value !== WALL_UNSET)
+          save({ wall: { layout: known ? (value as WallLayout) : null } })
+        }}
+      />
+      {/* This screen's own layout beats the event's until it is released (spec 13, rule 6). */}
+      {screen.localLayout === null ? null : (
+        <p role="status">
+          {t.wall.panel.screenShows(screen.layoutName)}{' '}
+          <Button size="sm" onClick={screen.localLayout.onReset}>
+            {t.wall.panel.backToEvent}
+          </Button>
+        </p>
+      )}
+      <SelectField
+        label={t.admin.wallDisplay.interval}
+        value={wall.slideIntervalMs === null ? WALL_UNSET : String(wall.slideIntervalMs)}
+        options={wallRhythmOptions(t, wall.slideIntervalMs)}
+        onChange={(value) =>
+          save({
+            wall: { slideIntervalMs: value === WALL_UNSET ? null : Number.parseInt(value, 10) },
+          })
+        }
+      />
       <SelectField
         label={t.admin.wallLanguage}
         value={settings.wallLanguage}
