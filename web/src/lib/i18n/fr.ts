@@ -869,6 +869,34 @@ export const fr = {
     // In the shortcuts panel, only when the browser could not keep the screen awake itself.
     keepAwakeHint: 'Désactivez la mise en veille de cet ordinateur.',
 
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Réglages',
+      pause: 'Pause',
+      resume: 'Reprendre',
+      fullscreen: 'Plein écran',
+      barLabel: 'Commandes du mur',
+      panelLabel: 'Réglages du mur',
+      title: 'Réglages',
+      close: 'Fermer les réglages',
+      sectionDisplay: 'Affichage',
+      sectionAmbiance: 'Ambiance',
+      forAll: 'Pour tous les écrans',
+      thisScreen: 'Cet écran seulement',
+      thisScreenHint:
+        'Ces commandes ne changent que cet écran et sont perdues au rechargement de la page.',
+      screenLayout: (name: string) => `Mise en page de cet écran : ${name} (touche L)`,
+      hideQr: 'Masquer la carte QR',
+      showQr: 'Montrer la carte QR',
+      saving: 'Enregistrement…',
+      saved: 'Enregistré',
+      saveFailed: 'Impossible d’enregistrer, réessayez',
+      sessionExpired: 'Votre session a expiré. Reconnectez-vous pour régler le mur.',
+      signIn: 'Se connecter',
+      signInToSet: 'Se connecter pour régler ce mur',
+      openHint: 'R ouvre les réglages du mur.',
+    },
+
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**
      * The dispositions, named for the one person who ever reads them: the host standing

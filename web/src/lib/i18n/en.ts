@@ -825,6 +825,33 @@ export const en: UiText = {
     },
     layoutOrder: (names: readonly string[]) => `Layouts, in order: ${names.join(', ')}.`,
 
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Settings',
+      pause: 'Pause',
+      resume: 'Resume',
+      fullscreen: 'Full screen',
+      barLabel: 'Wall controls',
+      panelLabel: 'Wall settings',
+      title: 'Settings',
+      close: 'Close settings',
+      sectionDisplay: 'Display',
+      sectionAmbiance: 'Ambiance',
+      forAll: 'For every screen',
+      thisScreen: 'This screen only',
+      thisScreenHint: 'These controls only change this screen and are lost when the page reloads.',
+      screenLayout: (name: string) => `Layout of this screen: ${name} (L key)`,
+      hideQr: 'Hide the QR card',
+      showQr: 'Show the QR card',
+      saving: 'Saving…',
+      saved: 'Saved',
+      saveFailed: 'Could not save, try again',
+      sessionExpired: 'Your session has expired. Sign in again to set the wall.',
+      signIn: 'Sign in',
+      signInToSet: 'Sign in to set this wall',
+      openHint: 'R opens the wall settings.',
+    },
+
     videoBy: (name: string) => `Video sent by ${name}`,
     videoByAnonymous: 'Video sent by a guest',
 

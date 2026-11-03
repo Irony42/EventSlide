@@ -120,6 +120,7 @@ export interface EventSettingsPatch {
   readonly allowCaptions?: boolean
   readonly allowReactions?: boolean
   readonly allowClips?: boolean
+  readonly guestbookOnWall?: boolean
   readonly allowGuestSelfDelete?: boolean
   readonly guestSelfDeleteGraceSeconds?: number
   readonly retentionDays?: number | null

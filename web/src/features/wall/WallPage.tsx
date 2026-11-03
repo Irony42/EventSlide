@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { wallBudgetProps } from '../../design-system/budget'
 import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
@@ -19,6 +19,7 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AMBIANCE_LAYOUT } from './ambianceLayout'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
+import { WallControls } from './components/WallControls'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMessage } from './components/WallMessage'
 import { WallMissions } from './components/WallMissions'
@@ -30,6 +31,7 @@ import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useWallGuestbook } from './hooks/useWallGuestbook'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
+import { useWallOwner } from './hooks/useWallOwner'
 import { useWakeLock } from './hooks/useWakeLock'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
 import { useWallPlaylist } from './hooks/useWallPlaylist'
@@ -151,6 +153,15 @@ export function WallPage() {
   const outage = useOutageStage(offline && readFailing)
   const awake = useWakeLock()
   const cursorIdle = useIdleCursor()
+  /**
+   * The owner's session, if this browser has one (spec 13). Asked once, after the wall has
+   * something to show, and `null` for everybody else: the controls and the panel exist only
+   * for the owner, and the `R` key does nothing without it.
+   */
+  const owner = useWallOwner(eventSlug, wall !== null)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const panelOpener = useRef<HTMLButtonElement>(null)
+  const closePanel = useCallback(() => setPanelOpen(false), [])
 
   /**
    * The language the room is in, told to the shell above this page. It is the **event's**,
@@ -250,7 +261,10 @@ export function WallPage() {
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   const showsOverlay = invitation !== null && !qrHidden && items.length > 0
-  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}`
+  // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
+  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}${
+    owner === null ? '' : ` ${text.wall.panel.openHint}`
+  }`
 
   /**
    * What the room is looking at, named on the wall element itself.
@@ -271,8 +285,10 @@ export function WallPage() {
         nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
-    // Escape closes the help and nothing else; leaving fullscreen is the browser's own.
-    onDismiss: closeHelp,
+    // Escape closes the panel, then the help, and nothing else: it never hides the QR (MUR-5), and
+    // leaving fullscreen is the browser's own.
+    onDismiss: () => (panelOpen ? closePanel() : closeHelp()),
+    onOpenPanel: owner === null ? undefined : () => setPanelOpen(true),
     onToggleQr: () => {
       // Nothing to put away on a closed event, with no invitation from the server, or on the
       // empty wall (whose full-screen invitation this key does not touch): flipping the flag
@@ -418,6 +434,32 @@ export function WallPage() {
 
       <ReactionBurst pulse={reactionPulse} />
 
+      {owner === null || wall === null ? null : (
+        <WallControls
+          slug={eventSlug}
+          owner={owner}
+          active={!cursorIdle}
+          panelOpen={panelOpen}
+          onOpenPanel={() => setPanelOpen(true)}
+          onClosePanel={closePanel}
+          openerRef={panelOpener}
+          screen={{
+            paused: slideshow.paused,
+            onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
+            onToggleFullscreen: toggleFullscreen,
+            layoutName: text.wall.layoutNames[layout ?? wall.layout],
+            onCycleLayout: () =>
+              setLayoutOverride((current) =>
+                nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
+              ),
+            qr:
+              invitation !== null && items.length > 0
+                ? { hidden: qrHidden, onToggle: () => setQrHidden((hidden) => !hidden) }
+                : null,
+          }}
+        />
+      )}
+
       <Dialog
         open={helpOpen}
         title={text.wall.shortcuts}
@@ -429,7 +471,14 @@ export function WallPage() {
         // own computer is then the one thing left that can turn the projector off.
         description={awake ? shortcutsHelp : `${shortcutsHelp} ${text.wall.keepAwakeHint}`}
         onClose={closeHelp}
-      />
+      >
+        {/* The way in for a projector nobody is signed in on: in the help only, never a floating button. */}
+        {owner === null ? (
+          <Link to="/login" state={{ from: `/e/${encodeURIComponent(eventSlug)}/display` }}>
+            {text.wall.panel.signInToSet}
+          </Link>
+        ) : null}
+      </Dialog>
     </div>
   )
 }
