@@ -124,6 +124,8 @@ export interface EventSettingsPatch {
   readonly guestSelfDeleteGraceSeconds?: number
   readonly retentionDays?: number | null
   readonly maxPhotosPerGuest?: number | null
+  /** Only the keys changed (spec 13): the server merges the group per key. */
+  readonly wall?: Partial<EventSettingsDto['wall']>
   readonly theme?: EventThemeDto
   readonly brand?: EventBrandDto
   readonly wallLanguage?: EventSettingsDto['wallLanguage']

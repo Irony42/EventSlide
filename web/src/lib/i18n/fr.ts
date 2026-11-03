@@ -1095,6 +1095,21 @@ export const fr = {
     wallLanguageHint:
       'Les mots de l’écran de la salle : « Rejoignez la soirée », « Missions », les messages d’attente. Ce que vous et vos invités écrivez — le nom de l’évènement, les légendes, les consignes — s’affiche tel quel et n’est jamais traduit. Vos invités choisissent leur propre langue sur leur téléphone ; ce réglage ne les concerne pas.',
 
+    /* ---- Wall display block of the settings page (spec 13). Keep additions to it inside this block. ---- */
+    wallDisplay: {
+      title: 'Affichage du mur',
+      forAll: 'Pour tous les écrans',
+      hint: 'Ces choix sont enregistrés pour l’évènement : tous les écrans de la salle les suivent.',
+      layout: 'Mise en page',
+      layoutHint:
+        'Une touche L, ou une adresse avec ?layout=, garde la priorité sur l’écran concerné.',
+      layoutUnset: 'Au choix de chaque écran',
+      interval: 'Rythme',
+      intervalHint: 'Le temps pendant lequel chaque photo reste à l’écran.',
+      intervalDefault: 'Par défaut (une photo toutes les 8 s)',
+      intervalSeconds: (n: number) => `Une photo toutes les ${n} s`,
+    },
+
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
             because a single choice with four options does not deserve four strings. ---- */
     theme: 'Apparence',

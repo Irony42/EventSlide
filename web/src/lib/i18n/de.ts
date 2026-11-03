@@ -1015,6 +1015,21 @@ export const de: UiText = {
     wallLanguageHint:
       'Die Wörter auf der Leinwand im Saal: „Treten Sie der Feier bei“, „Missionen“, die Wartemeldungen. Was Sie und Ihre Gäste schreiben — der Name der Veranstaltung, die Bildunterschriften, die Aufgaben — erscheint unverändert und wird nie übersetzt. Ihre Gäste wählen ihre eigene Sprache auf ihrem Telefon; diese Einstellung betrifft sie nicht.',
 
+    /* ---- Wall display block of the settings page (spec 13). Keep additions to it inside this block. ---- */
+    wallDisplay: {
+      title: 'Anzeige der Wand',
+      forAll: 'Für alle Bildschirme',
+      hint: 'Diese Einstellungen gelten für die Veranstaltung: jeder Bildschirm im Raum folgt ihnen.',
+      layout: 'Anordnung',
+      layoutHint:
+        'Die Taste L oder eine Adresse mit ?layout= hat auf dem jeweiligen Bildschirm weiterhin Vorrang.',
+      layoutUnset: 'Jeder Bildschirm entscheidet selbst',
+      interval: 'Tempo',
+      intervalHint: 'Wie lange jedes Foto auf dem Bildschirm bleibt.',
+      intervalDefault: 'Standard (ein Foto alle 8 s)',
+      intervalSeconds: (n: number) => `Ein Foto alle ${n} s`,
+    },
+
     theme: 'Erscheinungsbild',
     themeHint:
       'Sichtbar für Ihre Gäste und auf der Leinwand im Saal. Die angebotenen Farben bleiben auf zehn Meter lesbar.',

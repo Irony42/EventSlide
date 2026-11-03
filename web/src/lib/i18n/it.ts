@@ -992,6 +992,21 @@ export const it: UiText = {
     wallLanguage: 'Lingua dello schermo in sala',
     wallLanguageHint:
       'Le parole dello schermo in sala: «Entri nella serata», «Missioni», i messaggi di attesa. Quello che lei e i suoi invitati scrivono — il nome dell’evento, le didascalie, le consegne — appare così com’è e non viene mai tradotto. I suoi invitati scelgono la propria lingua sul telefono; questa impostazione non li riguarda.',
+
+    /* ---- Wall display block of the settings page (spec 13). Keep additions to it inside this block. ---- */
+    wallDisplay: {
+      title: 'Schermo del muro',
+      forAll: 'Per tutti gli schermi',
+      hint: 'Queste scelte sono salvate per l’evento: tutti gli schermi della sala le seguono.',
+      layout: 'Disposizione',
+      layoutHint:
+        'Il tasto L, o un indirizzo con ?layout=, ha ancora la precedenza su quello schermo.',
+      layoutUnset: 'Ogni schermo decide',
+      interval: 'Ritmo',
+      intervalHint: 'Per quanto tempo ogni foto resta sullo schermo.',
+      intervalDefault: 'Predefinito (una foto ogni 8 s)',
+      intervalSeconds: (n: number) => `Una foto ogni ${n} s`,
+    },
     theme: 'Aspetto',
     themeHint:
       'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',
