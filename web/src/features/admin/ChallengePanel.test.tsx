@@ -150,12 +150,12 @@ describe('ChallengePanel', () => {
   })
 
   it('stops ticking when it is unmounted', async () => {
-    const clear = vi.spyOn(globalThis, 'clearInterval')
     const view = render(apiWith({ getChallenge: vi.fn(async () => running(60_000)) }))
     await screen.findByText(fr.challenge.remaining('1:00'))
+    expect(vi.getTimerCount()).toBe(1)
 
     view.unmount()
 
-    expect(clear).toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
