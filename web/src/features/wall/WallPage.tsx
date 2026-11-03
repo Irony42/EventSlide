@@ -522,7 +522,6 @@ export function WallPage() {
               ),
             localLayout:
               layoutOverride === null ? null : { onReset: () => setLayoutOverride(null) },
-            qr:
             qr: cardEnabled
               ? { hidden: qrHidden, onToggle: () => setQrHidden((hidden) => !hidden) }
               : null,
