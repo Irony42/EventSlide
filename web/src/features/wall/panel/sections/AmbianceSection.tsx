@@ -8,6 +8,8 @@ import type { WallPanelContext, WallPanelSection } from '../panelTypes'
  * "Ambiance" (order 20): the drawn ambiances. « Sur mesure » is made on its own page, so it is
  * listed only while it is the current one, and the link leads there.
  */
+// The file exports a descriptor the registry collects, not its component.
+// eslint-disable-next-line react-refresh/only-export-components
 function AmbianceSection({ slug, settings, save }: WallPanelContext) {
   const t = useTranslations()
   const { theme } = settings
@@ -45,8 +47,6 @@ function AmbianceSection({ slug, settings, save }: WallPanelContext) {
   )
 }
 
-// A section file exports its descriptor, which the registry collects; the component is not the export.
-// eslint-disable-next-line react-refresh/only-export-components
 export const section: WallPanelSection = {
   id: 'ambiance',
   order: 20,

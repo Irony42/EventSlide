@@ -15,6 +15,8 @@ const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale)
  * the wall, both settings that already exist. Layout, rhythm, fresh photos, tilt and time arrive
  * with PR 3 to 5, in this same file; spec 09 adds its alternation rows here too.
  */
+// The file exports a descriptor the registry collects, not its component.
+// eslint-disable-next-line react-refresh/only-export-components
 function DisplaySection({ settings, save }: WallPanelContext) {
   const t = useTranslations()
 
@@ -41,8 +43,6 @@ function DisplaySection({ settings, save }: WallPanelContext) {
   )
 }
 
-// A section file exports its descriptor, which the registry collects; the component is not the export.
-// eslint-disable-next-line react-refresh/only-export-components
 export const section: WallPanelSection = {
   id: 'display',
   order: 10,
