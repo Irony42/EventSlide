@@ -986,6 +986,20 @@ export const en: UiText = {
     wallLanguageHint:
       'The words on the screen in the room: “Join the event”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
 
+    /* ---- Wall display block of the settings page (spec 13). Keep additions to it inside this block. ---- */
+    wallDisplay: {
+      title: 'Wall display',
+      forAll: 'For every screen',
+      hint: 'These choices are saved for the event: every screen in the room follows them.',
+      layout: 'Layout',
+      layoutHint: 'An L key press, or an address with ?layout=, still wins on that one screen.',
+      layoutUnset: 'Each screen decides',
+      interval: 'Pace',
+      intervalHint: 'How long each photo stays on screen.',
+      intervalDefault: 'Default (one photo every 8 s)',
+      intervalSeconds: (n: number) => `One photo every ${n} s`,
+    },
+
     theme: 'Appearance',
     themeHint:
       'Visible to your guests and on the screen in the room. The colours offered stay readable at ten metres.',

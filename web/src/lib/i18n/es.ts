@@ -1039,6 +1039,21 @@ export const es: UiText = {
     wallLanguageHint:
       'Las palabras de la pantalla de la sala: «Únase a la fiesta», «Misiones», los mensajes de espera. Lo que usted y sus invitados escriben — el nombre del evento, los pies de foto, los textos de las misiones — se muestra tal cual y nunca se traduce. Sus invitados eligen su propio idioma en su teléfono; este ajuste no les afecta.',
 
+    /* ---- Wall display block of the settings page (spec 13). Keep additions to it inside this block. ---- */
+    wallDisplay: {
+      title: 'Pantalla del muro',
+      forAll: 'Para todas las pantallas',
+      hint: 'Estos ajustes se guardan para el evento: todas las pantallas de la sala los siguen.',
+      layout: 'Disposición',
+      layoutHint:
+        'La tecla L, o una dirección con el parámetro layout, sigue teniendo prioridad en esa pantalla.',
+      layoutUnset: 'Cada pantalla decide',
+      interval: 'Ritmo',
+      intervalHint: 'Cuánto tiempo permanece cada foto en pantalla.',
+      intervalDefault: 'Por defecto (una foto cada 8 s)',
+      intervalSeconds: (n: number) => `Una foto cada ${n} s`,
+    },
+
     theme: 'Apariencia',
     themeHint:
       'Visible para sus invitados y en la pantalla de la sala. Los colores propuestos siguen siendo legibles a diez metros.',

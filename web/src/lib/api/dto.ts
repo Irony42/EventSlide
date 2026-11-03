@@ -292,7 +292,10 @@ export interface WallResponse {
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number
   readonly kenBurnsDurationMs: number
+  /** The effective layout: the event's choice if it made one, else the default (spec 13). */
   readonly layout: WallLayout
+  /** Whether `layout` is the host's choice for the event. Optional: an older server sends none. */
+  readonly layoutChosen?: boolean
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -597,6 +600,11 @@ export interface EventSettingsDto {
    * the single thing this field must never do.
    */
   readonly wallLanguage: EventLanguage
+  /** How the wall behaves for every screen (spec 13): `null` is "not chosen". Merged per key. */
+  readonly wall: {
+    readonly layout: WallLayout | null
+    readonly slideIntervalMs: number | null
+  }
 }
 
 export interface EventSummaryDto {

@@ -186,8 +186,10 @@ describe('EventSettingsPage', () => {
     await userEvent.selectOptions(screen.getByLabelText(fr.admin.retention), '90')
     await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
 
+    // No `wall`: the group is sent only when the host changed a key of it.
+    const { wall: _wall, ...unchanged } = eventSettings()
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
-      ...eventSettings(),
+      ...unchanged,
       allowCaptions: false,
       retentionDays: 90,
     })
@@ -772,6 +774,80 @@ describe('EventSettingsPage', () => {
 
       await screen.findByRole('heading', { name: fr.admin.schedule })
       expect(screen.queryByText(/n’a pas pu s’appliquer/)).toBeNull()
+    })
+  })
+
+  describe('the wall display block (spec 13)', () => {
+    it('shows what the event is set to, and the default when nothing is chosen', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({
+            settings: eventSettings({ wall: { layout: 'polaroid', slideIntervalMs: 12_000 } }),
+          }),
+        ),
+      })
+
+      renderPage(api)
+
+      expect(await screen.findByLabelText(fr.admin.wallDisplay.layout)).toHaveValue('polaroid')
+      expect(screen.getByLabelText(fr.admin.wallDisplay.interval)).toHaveValue('12000')
+    })
+
+    it('shows a rhythm outside the steps as it is, instead of rewriting it', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            anEventDto({
+              settings: eventSettings({ wall: { layout: null, slideIntervalMs: 45_000 } }),
+            }),
+          ),
+        }),
+      )
+
+      expect(await screen.findByLabelText(fr.admin.wallDisplay.interval)).toHaveValue('45000')
+    })
+
+    it('sends only the wall keys it changed, so the wall panel’s own choices are not erased', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      await userEvent.selectOptions(
+        await screen.findByLabelText(fr.admin.wallDisplay.layout),
+        'mosaic',
+      )
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent?.wall).toEqual({ layout: 'mosaic' })
+    })
+
+    it('sends no wall group at all when the host changed none of it', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      await userEvent.selectOptions(await screen.findByLabelText(fr.admin.wallLanguage), 'de')
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent).not.toHaveProperty('wall')
+    })
+
+    it('goes back to nothing chosen, and to the default rhythm', async () => {
+      const api = fakeApi({
+        getEvent: vi.fn(async () =>
+          anEventDto({
+            settings: eventSettings({ wall: { layout: 'polaroid', slideIntervalMs: 12_000 } }),
+          }),
+        ),
+      })
+
+      renderPage(api)
+      await userEvent.selectOptions(await screen.findByLabelText(fr.admin.wallDisplay.layout), '')
+      await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '')
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent?.wall).toEqual({ layout: null, slideIntervalMs: null })
     })
   })
 

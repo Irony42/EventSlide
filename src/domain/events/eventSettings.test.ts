@@ -106,6 +106,7 @@ describe('EventSettings.create', () => {
           ambiance: 'guinguette',
         },
         wallLanguage: 'de',
+        wall: { layout: 'mosaic', slideIntervalMs: 12_000 },
       }),
     )
 
@@ -131,6 +132,7 @@ describe('EventSettings.create', () => {
       venuePhoto: null,
       welcomeMessage: null,
       logo: null,
+      wall: { layout: 'mosaic', slideIntervalMs: 12_000 },
     })
   })
 
