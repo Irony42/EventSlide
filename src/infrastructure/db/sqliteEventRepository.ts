@@ -10,6 +10,7 @@ import type { ClientCeilings } from '../../domain/clients/clientCeilings'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { Event } from '../../domain/events/event'
 import { EventName, foldName } from '../../domain/events/eventName'
+import { restoreWallSettings } from '../../domain/events/eventWallSettings'
 import { restoreWelcomeMessage } from '../../domain/events/welcomeMessage'
 import {
   EventSettings,
@@ -488,6 +489,13 @@ const settingsOf = (raw: string): EventSettings => {
     welcomeMessage: restoreWelcomeMessage(decoded['welcomeMessage']),
     /** Added by spec 03, read like the venue photograph: anything that is not a digest is none. */
     logo: settingsVenuePhotoAddedLater(decoded['logo']),
+    /**
+     * Added by spec 13, and the **only** group read tolerantly: a field that is absent or
+     * unreadable takes today's behaviour and nothing throws `corrupt`. The other fields above are
+     * policy, where a silent default is the failure; these are display preferences, and one that
+     * cannot be read must not be able to take the wall down (same principle as `useLayoutParam`).
+     */
+    wall: restoreWallSettings(decoded['wall']),
   }
 
   // `restore`, not `create`: a stored theme is judged on its shape and not on the

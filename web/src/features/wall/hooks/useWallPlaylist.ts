@@ -194,6 +194,8 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.slideIntervalMs === fresh.slideIntervalMs &&
   kept.kenBurnsDurationMs === fresh.kenBurnsDurationMs &&
   kept.layout === fresh.layout &&
+  // Whether that layout is the host's choice (spec 13): it decides who wins against the ambiance.
+  kept.layoutChosen === fresh.layoutChosen &&
   kept.reactionsEnabled === fresh.reactionsEnabled &&
   kept.event.name === fresh.event.name &&
   kept.theme?.accentHue === fresh.theme?.accentHue &&

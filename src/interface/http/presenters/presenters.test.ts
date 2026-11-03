@@ -354,6 +354,7 @@ describe('toEventSettingsDto', () => {
           ambiance: 'guinguette',
         },
         wallLanguage: 'es',
+        wall: { layout: 'collage', slideIntervalMs: 20_000 },
       },
     })
 
@@ -377,6 +378,7 @@ describe('toEventSettingsDto', () => {
       },
       wallLanguage: 'es',
       brand: { welcomeMessage: null, logoUrl: null },
+      wall: { layout: 'collage', slideIntervalMs: 20_000 },
     })
   })
 

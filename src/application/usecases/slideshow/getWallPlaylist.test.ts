@@ -301,6 +301,40 @@ describe('getWallPlaylist', () => {
     expect(result.ok && result.value.kenBurnsDurationMs).toBe(12_800)
   })
 
+  it('reads the rhythm and the layout the host chose for the event (spec 13)', async () => {
+    events.seed(
+      anEvent({
+        id: 'event-1',
+        settings: { wall: { layout: 'polaroid', slideIntervalMs: 12_000 } },
+      }),
+    )
+
+    const result = await ask()
+
+    expect(result.ok && result.value.slideIntervalMs).toBe(12_000)
+    // Derived from the interval, never read from the settings.
+    expect(result.ok && result.value.kenBurnsDurationMs).toBe(12_800)
+    expect(result.ok && result.value.layout).toBe('polaroid')
+    expect(result.ok && result.value.layoutChosen).toBe(true)
+  })
+
+  it('lets the screen own choice beat the event one, and says nothing was chosen by default', async () => {
+    events.seed(
+      anEvent({
+        id: 'event-1',
+        settings: { wall: { layout: 'polaroid', slideIntervalMs: 12_000 } },
+      }),
+    )
+
+    const own = await ask({ layout: 'mosaic', slideIntervalMs: 4_000 })
+    expect(own.ok && own.value.layout).toBe('mosaic')
+    expect(own.ok && own.value.slideIntervalMs).toBe(4_000)
+
+    events.seed(wedding)
+    const none = await ask()
+    expect(none.ok && none.value.layoutChosen).toBe(false)
+  })
+
   it('refuses a slide interval the room could not follow', async () => {
     events.seed(wedding)
 

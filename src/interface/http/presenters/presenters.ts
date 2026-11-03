@@ -330,6 +330,7 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   theme: toEventThemeDto(settings, slug),
   brand: toEventBrandDto(settings, slug),
   wallLanguage: settings.wallLanguage,
+  wall: { layout: settings.wall.layout, slideIntervalMs: settings.wall.slideIntervalMs },
 })
 
 /**
@@ -841,6 +842,7 @@ export const toWallResponseDto = (
     slideIntervalMs: view.slideIntervalMs,
     kenBurnsDurationMs: view.kenBurnsDurationMs,
     layout: view.layout,
+    layoutChosen: view.layoutChosen,
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.

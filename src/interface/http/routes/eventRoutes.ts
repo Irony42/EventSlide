@@ -258,6 +258,17 @@ export const eventRoutes = ({
                 },
               }),
           ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),
+          // Only the keys the body names: the domain merges them into the stored group.
+          ...(body.wall === undefined
+            ? {}
+            : {
+                wall: {
+                  ...(body.wall.layout === undefined ? {} : { layout: body.wall.layout }),
+                  ...(body.wall.slideIntervalMs === undefined
+                    ? {}
+                    : { slideIntervalMs: body.wall.slideIntervalMs }),
+                },
+              }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.
           ...(body.welcomeMessage === undefined ? {} : { welcomeMessage: body.welcomeMessage }),
         },
