@@ -354,7 +354,15 @@ describe('toEventSettingsDto', () => {
           ambiance: 'guinguette',
         },
         wallLanguage: 'es',
-        wall: { layout: 'collage', slideIntervalMs: 20_000, freshLane: false, tilt: false },
+        wall: {
+          layout: 'collage',
+          slideIntervalMs: 20_000,
+          qrVisible: false,
+          freshLane: false,
+          tilt: false,
+          qrScale: 1.3,
+          qrPlacement: 'top-end',
+        },
       },
     })
 
@@ -378,7 +386,15 @@ describe('toEventSettingsDto', () => {
       },
       wallLanguage: 'es',
       brand: { welcomeMessage: null, logoUrl: null },
-      wall: { layout: 'collage', slideIntervalMs: 20_000, freshLane: false, tilt: false },
+      wall: {
+        layout: 'collage',
+        slideIntervalMs: 20_000,
+        qrVisible: false,
+        freshLane: false,
+        tilt: false,
+        qrScale: 1.3,
+        qrPlacement: 'top-end',
+      },
     })
   })
 

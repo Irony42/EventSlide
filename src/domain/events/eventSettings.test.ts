@@ -106,7 +106,7 @@ describe('EventSettings.create', () => {
           ambiance: 'guinguette',
         },
         wallLanguage: 'de',
-        wall: { layout: 'mosaic', slideIntervalMs: 12_000, freshLane: true, tilt: true },
+        wall: { layout: 'mosaic', slideIntervalMs: 12_000 },
       }),
     )
 
@@ -132,7 +132,15 @@ describe('EventSettings.create', () => {
       venuePhoto: null,
       welcomeMessage: null,
       logo: null,
-      wall: { layout: 'mosaic', slideIntervalMs: 12_000, freshLane: true, tilt: true },
+      wall: {
+        layout: 'mosaic',
+        slideIntervalMs: 12_000,
+        qrVisible: true,
+        freshLane: true,
+        tilt: true,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
+      },
     })
   })
 

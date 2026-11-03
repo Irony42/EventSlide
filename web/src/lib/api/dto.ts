@@ -299,6 +299,15 @@ export interface WallResponse {
   /** Optional: an older server sends none, and the wall then behaves as before (true). */
   readonly freshLane?: boolean
   readonly tilt?: boolean
+  /**
+   * The invitation card (spec 14): shown on a populated wall, its scale (0.8 to 1.5, 1 = as it
+   * always was) and corner. Optional: an older server sends none and the wall takes the defaults.
+   */
+  readonly joinCard?: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -609,6 +618,9 @@ export interface EventSettingsDto {
     readonly slideIntervalMs: number | null
     readonly freshLane: boolean
     readonly tilt: boolean
+    readonly qrVisible: boolean
+    readonly qrScale: number
+    readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
   }
 }
 
