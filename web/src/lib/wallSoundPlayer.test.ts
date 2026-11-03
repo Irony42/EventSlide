@@ -16,7 +16,13 @@ interface Fake {
 }
 
 const fakeContext = (initial: AudioContextState = 'suspended'): Fake => {
-  const fake = { state: initial, resumes: 0, starts: 0, peaks: [], resumeFails: false } as unknown as Fake
+  const fake = {
+    state: initial,
+    resumes: 0,
+    starts: 0,
+    peaks: [],
+    resumeFails: false,
+  } as unknown as Fake
   const param = {
     setValueAtTime: vi.fn(),
     linearRampToValueAtTime: (value: number) => fake.peaks.push(value),
