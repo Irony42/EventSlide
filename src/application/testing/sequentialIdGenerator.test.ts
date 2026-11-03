@@ -77,19 +77,28 @@ describe('SequentialIdGenerator', () => {
     ])
   })
 
+  it('numbers challenges from one, on a counter of their own', async () => {
+    const ids = new SequentialIdGenerator()
+    ids.missionId()
+
+    expect([ids.challengeId(), ids.challengeId()]).toEqual(['challenge-1', 'challenge-2'])
+  })
+
   it('starts over on reset', async () => {
     const ids = new SequentialIdGenerator()
     ids.eventId()
     ids.clientId()
     ids.accountTokenId()
+    ids.challengeId()
     ids.bytes(6)
 
     ids.reset()
 
-    expect([ids.eventId(), ids.clientId(), ids.accountTokenId(), [...ids.bytes(2)]]).toEqual([
+    expect([ids.eventId(), ids.clientId(), ids.accountTokenId(), ids.challengeId(), [...ids.bytes(2)]]).toEqual([
       'event-1',
       'client-1',
       'account-token-1',
+      'challenge-1',
       [0, 1],
     ])
   })
