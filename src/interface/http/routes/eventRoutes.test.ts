@@ -351,6 +351,8 @@ const buildWorld = ({
         createMission: absent('createMission'),
         updateMission: absent('updateMission'),
         deleteMission: absent('deleteMission'),
+        startChallenge: absent('startChallenge'),
+        stopChallenge: absent('stopChallenge'),
         getGuestChecklist: absent('getGuestChecklist'),
         createGuestbookEntry: absent('createGuestbookEntry'),
         listMyGuestbookEntries: absent('listMyGuestbookEntries'),
