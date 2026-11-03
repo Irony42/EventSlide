@@ -267,6 +267,11 @@ export const eventRoutes = ({
                   ...(body.wall.slideIntervalMs === undefined
                     ? {}
                     : { slideIntervalMs: body.wall.slideIntervalMs }),
+                  ...(body.wall.qrVisible === undefined ? {} : { qrVisible: body.wall.qrVisible }),
+                  ...(body.wall.qrScale === undefined ? {} : { qrScale: body.wall.qrScale }),
+                  ...(body.wall.qrPlacement === undefined
+                    ? {}
+                    : { qrPlacement: body.wall.qrPlacement }),
                 },
               }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.
