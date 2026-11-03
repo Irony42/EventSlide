@@ -2027,6 +2027,8 @@ export const en: UiText = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Photo challenge started: ${prompt}`,
+    /** The phone's button: it chooses the challenge's mission for the next photograph. */
+    takeUp: 'Take up the challenge',
     announceEnd: 'Photo challenge over',
   },
   titles: {
