@@ -6,6 +6,7 @@ import {
   messageDisplayMs,
 } from '../../../domain/guestbook/guestbookWall'
 import { aGuest, aGuestbookEntry, anEvent, atPlus } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -26,6 +27,7 @@ describe('getWallPlaylist — the guestbook', () => {
     guestbook = new FakeGuestbookRepository()
     const photos = new FakePhotoRepository()
     getWallPlaylist = makeGetWallPlaylist({
+      clock: new FakeClock(),
       events,
       photos,
       guests,

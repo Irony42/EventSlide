@@ -403,7 +403,13 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   // projector in another language overrides it.
   wallLanguage: 'fr',
   // Nothing chosen on the wall: today's behaviour (spec 13).
-  wall: { layout: null, slideIntervalMs: null },
+  wall: {
+    layout: null,
+    slideIntervalMs: null,
+    mixedEnabled: false,
+    mixedWallSeconds: 180,
+    mixedSlideshowSeconds: 60,
+  },
   ...overrides,
 })
 

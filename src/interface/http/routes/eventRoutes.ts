@@ -267,6 +267,16 @@ export const eventRoutes = ({
                   ...(body.wall.slideIntervalMs === undefined
                     ? {}
                     : { slideIntervalMs: body.wall.slideIntervalMs }),
+                  // Spec 09. `mixedAnchorMs` is never forwarded: the use case sets it.
+                  ...(body.wall.mixedEnabled === undefined
+                    ? {}
+                    : { mixedEnabled: body.wall.mixedEnabled }),
+                  ...(body.wall.mixedWallSeconds === undefined
+                    ? {}
+                    : { mixedWallSeconds: body.wall.mixedWallSeconds }),
+                  ...(body.wall.mixedSlideshowSeconds === undefined
+                    ? {}
+                    : { mixedSlideshowSeconds: body.wall.mixedSlideshowSeconds }),
                 },
               }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.

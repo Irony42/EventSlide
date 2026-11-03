@@ -4,6 +4,7 @@ import type { DomainError } from '../../../domain/shared/errors'
 import { asEventId, asMissionId, asPhotoId, asUserId } from '../../../domain/shared/ids'
 import type { Result } from '../../../domain/shared/result'
 import { AT, anEvent } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { makeRegisterModerator } from '../auth/registerModerator'
@@ -114,7 +115,13 @@ const CASES: readonly Case[] = [
     name: 'updateEventSettings',
     member: 'owner',
     ask: ({ events, memberships }, actorId) =>
-      makeUpdateEventSettings({ events, memberships, clients: gone(), bus: gone() })({
+      makeUpdateEventSettings({
+        clock: new FakeClock(),
+        events,
+        memberships,
+        clients: gone(),
+        bus: gone(),
+      })({
         eventId: EVENT,
         actorId,
         patch: {},
@@ -278,7 +285,13 @@ const INVALID_INPUTS: readonly Pick<Case, 'name' | 'ask'>[] = [
   {
     name: 'updateEventSettings',
     ask: ({ events, memberships }, actorId) =>
-      makeUpdateEventSettings({ events, memberships, clients: gone(), bus: gone() })({
+      makeUpdateEventSettings({
+        clock: new FakeClock(),
+        events,
+        memberships,
+        clients: gone(),
+        bus: gone(),
+      })({
         eventId: EVENT,
         actorId,
         patch: { retentionDays: -5 },

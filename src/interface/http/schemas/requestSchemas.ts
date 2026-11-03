@@ -498,6 +498,11 @@ export const updateSettingsBody = z.strictObject({
     .strictObject({
       layout: z.enum(WALL_LAYOUTS).nullable().optional(),
       slideIntervalMs: z.number().int().nullable().optional(),
+      // The mixed wall (spec 09). The anchor is deliberately absent: only the use case sets it.
+      // The bounds are the domain's, with its own codes (`wallMixed.wallTooShort`, ...).
+      mixedEnabled: z.boolean().optional(),
+      mixedWallSeconds: z.number().optional(),
+      mixedSlideshowSeconds: z.number().optional(),
     })
     .optional(),
   /**

@@ -1,4 +1,5 @@
 import type { Event } from '../../../domain/events/event'
+import type { EventWallSettings } from '../../../domain/events/eventWallSettings'
 import type { Mission } from '../../../domain/missions/mission'
 import { isAchieved, type MissionProgress } from '../../../domain/missions/missionProgress'
 import type { Photo } from '../../../domain/photos/photo'
@@ -21,6 +22,8 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { GuestId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
+import { mixedWallLayout } from '../../../domain/slideshow/wallPhase'
+import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
@@ -85,6 +88,8 @@ export interface GetWallPlaylistDeps {
   readonly guests: GuestRepository
   readonly missions: MissionRepository
   readonly guestbook: GuestbookRepository
+  /** For `serverNowMs`: the one clock of the application. */
+  readonly clock: Clock
 }
 
 /**
@@ -164,6 +169,15 @@ export interface WallPlaylistView {
   /** Whether the host chose a layout for the event (spec 13); `layout` is the default otherwise. */
   readonly layoutChosen: boolean
   readonly layoutSpec: WallLayoutSpec
+  /** The server's time at the read, in whole milliseconds (spec 09, shared with spec 10). */
+  readonly serverNowMs: number
+  /** The mixed wall's schedule; `null` when the host has not turned it on. */
+  readonly mixed: {
+    readonly wallMs: number
+    readonly slideshowMs: number
+    readonly layout: WallLayout
+    readonly anchorMs: number
+  } | null
   /**
    * The host's prompts and how the room is answering them. Empty for the overwhelming
    * majority of events, which set none — and an empty list is what stops the wall
@@ -245,8 +259,26 @@ const readGuestbook = async (
   }
 }
 
+/**
+ * The mixed wall's schedule as the wall reads it. `null` when it is off; an enabled wall whose
+ * anchor was never written (hand-edited settings) is read as off too: there is no phase to
+ * derive, and the wall is exactly the one it was.
+ */
+const mixedScheduleOf = (
+  wall: EventWallSettings,
+  eventLayout: WallLayout | null,
+): WallPlaylistView['mixed'] =>
+  !wall.mixedEnabled || wall.mixedAnchorMs === null
+    ? null
+    : {
+        wallMs: wall.mixedWallSeconds * 1000,
+        slideshowMs: wall.mixedSlideshowSeconds * 1000,
+        layout: mixedWallLayout(eventLayout),
+        anchorMs: wall.mixedAnchorMs,
+      }
+
 export const makeGetWallPlaylist =
-  ({ events, photos, guests, missions, guestbook }: GetWallPlaylistDeps): GetWallPlaylist =>
+  ({ events, photos, guests, missions, guestbook, clock }: GetWallPlaylistDeps): GetWallPlaylist =>
   async ({ slug, layout, slideIntervalMs, windowSize }) => {
     const event = await events.findBySlug(slug)
     // An event that does not serve its wall is answered exactly as one that does not
@@ -322,6 +354,8 @@ export const makeGetWallPlaylist =
       layout: chosenLayout,
       layoutChosen: eventLayout !== null,
       layoutSpec: wallLayoutSpec(chosenLayout),
+      serverNowMs: clock.now().getTime(),
+      mixed: mixedScheduleOf(event.settings.wall, eventLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,
     })

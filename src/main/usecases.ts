@@ -612,6 +612,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
     updateEventSettings: makeUpdateEventSettings({
+      clock: adapters.clock,
       events: adapters.events,
       clients: adapters.clients,
       memberships: adapters.memberships,
@@ -1043,6 +1044,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       guests: adapters.guests,
       missions: adapters.missions,
       guestbook: adapters.guestbook,
+      clock: adapters.clock,
     }),
 
     // -------------------------------------------------------------- guestbook --

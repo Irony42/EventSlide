@@ -22,6 +22,8 @@ import type { EventDto } from '../../lib/api/dto'
  * the test body, because TypeScript's control-flow analysis narrows a `let` assigned
  * only inside a callback to `null` at every later use in the same scope.
  */
+const MIXED_OFF = { mixedEnabled: false, mixedWallSeconds: 180, mixedSlideshowSeconds: 60 }
+
 const deferredEvent = () => {
   let release: ((event: EventDto) => void) | null = null
   return {
@@ -782,7 +784,9 @@ describe('EventSettingsPage', () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>
           anEventDto({
-            settings: eventSettings({ wall: { layout: 'polaroid', slideIntervalMs: 12_000 } }),
+            settings: eventSettings({
+              wall: { layout: 'polaroid', slideIntervalMs: 12_000, ...MIXED_OFF },
+            }),
           }),
         ),
       })
@@ -798,7 +802,9 @@ describe('EventSettingsPage', () => {
         fakeApi({
           getEvent: vi.fn(async () =>
             anEventDto({
-              settings: eventSettings({ wall: { layout: null, slideIntervalMs: 45_000 } }),
+              settings: eventSettings({
+                wall: { layout: null, slideIntervalMs: 45_000, ...MIXED_OFF },
+              }),
             }),
           ),
         }),
@@ -836,7 +842,9 @@ describe('EventSettingsPage', () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>
           anEventDto({
-            settings: eventSettings({ wall: { layout: 'polaroid', slideIntervalMs: 12_000 } }),
+            settings: eventSettings({
+              wall: { layout: 'polaroid', slideIntervalMs: 12_000, ...MIXED_OFF },
+            }),
           }),
         ),
       })

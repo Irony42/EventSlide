@@ -5,6 +5,7 @@ import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
 import { aGuest, aMission, anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
@@ -68,7 +69,14 @@ describe('getWallPlaylist', () => {
     guests = new FakeGuestRepository()
     missions = new FakeMissionRepository(photos)
     guestbook = new FakeGuestbookRepository()
-    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests, missions, guestbook })
+    getWallPlaylist = makeGetWallPlaylist({
+      clock: new FakeClock(),
+      events,
+      photos,
+      guests,
+      missions,
+      guestbook,
+    })
   })
 
   const ask = (
@@ -121,6 +129,7 @@ describe('getWallPlaylist', () => {
       }
     })()
     const recorded = makeGetWallPlaylist({
+      clock: new FakeClock(),
       events,
       photos: recording,
       guests,
@@ -318,6 +327,60 @@ describe('getWallPlaylist', () => {
     expect(result.ok && result.value.layoutChosen).toBe(true)
   })
 
+  it('answers the server time and no mixed schedule while the mode is off (spec 09)', async () => {
+    events.seed(wedding)
+
+    const result = await ask()
+
+    expect(result.ok && result.value.serverNowMs).toBe(AT.getTime())
+    expect(result.ok && result.value.mixed).toBeNull()
+  })
+
+  it('answers the mixed schedule in milliseconds, the wall phase on the event layout', async () => {
+    events.seed(
+      anEvent({
+        id: 'event-1',
+        settings: {
+          wall: {
+            layout: 'collage',
+            mixedEnabled: true,
+            mixedWallSeconds: 120,
+            mixedSlideshowSeconds: 30,
+            mixedAnchorMs: 42,
+          },
+        },
+      }),
+    )
+
+    const result = await ask()
+
+    expect(result.ok && result.value.mixed).toEqual({
+      wallMs: 120_000,
+      slideshowMs: 30_000,
+      layout: 'collage',
+      anchorMs: 42,
+    })
+  })
+
+  it('gives the overview to the wall phase when no layout, or spotlight, was chosen', async () => {
+    const mixed = { mixedEnabled: true, mixedAnchorMs: 1 }
+    events.seed(anEvent({ id: 'event-1', settings: { wall: mixed } }))
+    const none = await ask()
+    expect(none.ok && none.value.mixed?.layout).toBe('mosaic')
+
+    events.seed(anEvent({ id: 'event-1', settings: { wall: { ...mixed, layout: 'spotlight' } } }))
+    const spotlight = await ask()
+    expect(spotlight.ok && spotlight.value.mixed?.layout).toBe('mosaic')
+  })
+
+  it('reads an enabled mode with no anchor as off', async () => {
+    events.seed(anEvent({ id: 'event-1', settings: { wall: { mixedEnabled: true } } }))
+
+    const result = await ask()
+
+    expect(result.ok && result.value.mixed).toBeNull()
+  })
+
   it('lets the screen own choice beat the event one, and says nothing was chosen by default', async () => {
     events.seed(
       anEvent({
@@ -510,6 +573,7 @@ describe('getWallPlaylist', () => {
     )
     const recorded = recording(guests)
     getWallPlaylist = makeGetWallPlaylist({
+      clock: new FakeClock(),
       events,
       photos,
       guests: recorded.repo,
@@ -570,6 +634,7 @@ describe('getWallPlaylist and "Première photo de …"', () => {
     photos = new FakePhotoRepository()
     guests = new FakeGuestRepository()
     getWallPlaylist = makeGetWallPlaylist({
+      clock: new FakeClock(),
       events,
       photos,
       guests,
@@ -695,6 +760,7 @@ describe('getWallPlaylist and the mission panel', () => {
     photos = new FakePhotoRepository()
     missions = new FakeMissionRepository(photos)
     getWallPlaylist = makeGetWallPlaylist({
+      clock: new FakeClock(),
       events,
       photos,
       guests: new FakeGuestRepository(),

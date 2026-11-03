@@ -288,6 +288,7 @@ const buildWorld = ({
         resolveJoinCode: absent('resolveJoinCode'),
         identifyMediaViewer: absent('identifyMediaViewer'),
         updateEventSettings: makeUpdateEventSettings({
+          clock: deps.clock,
           events,
           clients,
           memberships,
@@ -1244,7 +1245,53 @@ describe('the host event routes', () => {
         .send({ wall: { slideIntervalMs: 12_000 } })
 
       expect(response.status).toBe(200)
-      expect(response.body.settings.wall).toEqual({ layout: 'mosaic', slideIntervalMs: 12_000 })
+      expect(response.body.settings.wall).toEqual({
+        layout: 'mosaic',
+        slideIntervalMs: 12_000,
+        mixedEnabled: false,
+        mixedWallSeconds: 180,
+        mixedSlideshowSeconds: 60,
+      })
+    })
+
+    it('turns the mixed wall on, refuses a bad duration, and never takes an anchor (spec 09)', async () => {
+      const agent = await signedIn(world, 'owner')
+      const patch = (wall: unknown) => agent.patch(`/api/events/${SLUG}/settings`).send({ wall })
+
+      const on = await patch({
+        mixedEnabled: true,
+        mixedWallSeconds: 90,
+        mixedSlideshowSeconds: 20,
+      })
+      expect(on.status).toBe(200)
+      expect(on.body.settings.wall).toMatchObject({
+        mixedEnabled: true,
+        mixedWallSeconds: 90,
+        mixedSlideshowSeconds: 20,
+      })
+      expect(on.body.settings.wall).not.toHaveProperty('mixedAnchorMs')
+
+      expect((await patch({ mixedAnchorMs: 1 })).status).toBe(400)
+      const tooShort = await patch({ mixedWallSeconds: 29 })
+      expect(tooShort.status).toBe(400)
+      expect(tooShort.body.error.code).toBe('wallMixed.wallTooShort')
+      expect((await patch({ mixedSlideshowSeconds: 1801 })).body.error.code).toBe(
+        'wallMixed.slideshowTooLong',
+      )
+      expect((await patch({ mixedEnabled: 'yes' })).status).toBe(400)
+    })
+
+    it('refuses the mixed wall to a moderator and to a stranger (spec 09, named security test)', async () => {
+      const moderator = await signedIn(world, 'moderator')
+      const response = await moderator
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { mixedEnabled: true } })
+      expect(response.status).toBe(403)
+
+      const anonymous = await request(world.app)
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { mixedEnabled: true } })
+      expect([401, 403, 404]).toContain(anonymous.status)
     })
 
     it('refuses an unknown wall key, a bad layout and an out-of-range rhythm with 400', async () => {
@@ -1325,7 +1372,13 @@ describe('the host event routes', () => {
         },
         wallLanguage: 'en',
         brand: { welcomeMessage: null, logoUrl: null },
-        wall: { layout: null, slideIntervalMs: null },
+        wall: {
+          layout: null,
+          slideIntervalMs: null,
+          mixedEnabled: false,
+          mixedWallSeconds: 180,
+          mixedSlideshowSeconds: 60,
+        },
       })
     })
 

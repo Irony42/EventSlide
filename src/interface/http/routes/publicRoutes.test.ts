@@ -102,6 +102,7 @@ const world = (
             }),
             resolveJoinCode: makeResolveJoinCode({ events: deps.events }),
             getWallPlaylist: makeGetWallPlaylist({
+              clock: deps.clock,
               events: deps.events,
               photos,
               guests: base.guests,
@@ -1126,6 +1127,8 @@ describe('toWallResponseDto', () => {
       layout: 'spotlight',
       layoutChosen: false,
       layoutSpec: wallLayoutSpec('spotlight'),
+      serverNowMs: 1_700_000_000_000,
+      mixed: null,
       missions: [],
       guestbook: null,
     }
@@ -1153,6 +1156,8 @@ describe('toWallResponseDto', () => {
       layout: 'spotlight',
       layoutChosen: false,
       layoutSpec: wallLayoutSpec('spotlight'),
+      serverNowMs: 1_700_000_000_000,
+      mixed: null,
       missions: [],
       guestbook: null,
     }

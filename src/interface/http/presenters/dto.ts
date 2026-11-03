@@ -373,6 +373,23 @@ export interface WallResponseDto {
    * ambiance's suggestion (and to let the screen's own `L` and `?layout=` beat it).
    */
   readonly layoutChosen: boolean
+  /**
+   * Server time in whole milliseconds, read when the response was built. The browser derives its
+   * offset from it, so the mixed wall's phase does not depend on the machine's clock (spec 09).
+   * Changes on every read: the wall's `sameSettings` leaves it out.
+   */
+  readonly serverNowMs: number
+  /**
+   * The mixed wall's schedule, or `null` when it is off: a wall that has not been asked to
+   * alternate says nothing about it. `layout` is the "wall" phase's (the other phase is
+   * always `spotlight`).
+   */
+  readonly mixed: {
+    readonly wallMs: number
+    readonly slideshowMs: number
+    readonly layout: WallLayout
+    readonly anchorMs: number
+  } | null
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -515,6 +532,9 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly mixedEnabled: boolean
+    readonly mixedWallSeconds: number
+    readonly mixedSlideshowSeconds: number
   }
 }
 
