@@ -64,6 +64,16 @@ function DisplaySection({ settings, save, screen }: WallPanelContext) {
           if (chosen !== null) save({ wallLanguage: chosen })
         }}
       />
+      <CheckboxField
+        label={t.admin.wallDisplay.freshLane}
+        checked={wall.freshLane}
+        onChange={(freshLane) => save({ wall: { freshLane } })}
+      />
+      <CheckboxField
+        label={t.admin.wallDisplay.tilt}
+        checked={wall.tilt}
+        onChange={(tilt) => save({ wall: { tilt } })}
+      />
       {/* Only meaningful once the guestbook is open, as on the settings page. */}
       <CheckboxField
         label={t.admin.guestbookOnWall}

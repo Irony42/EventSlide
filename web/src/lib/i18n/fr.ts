@@ -1138,6 +1138,10 @@ export const fr = {
       intervalHint: 'Le temps pendant lequel chaque photo reste à l’écran.',
       intervalDefault: 'Par défaut (une photo toutes les 8 s)',
       intervalSeconds: (n: number) => `Une photo toutes les ${n} s`,
+      freshLane: 'Nouvelles photos en priorité',
+      freshLaneHint: 'Une photo publiée prend la diapositive suivante, trois de suite au plus.',
+      tilt: 'Photos légèrement inclinées',
+      tiltHint: 'Polaroïds et corde à linge : un angle fixe de quelques degrés.',
     },
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,

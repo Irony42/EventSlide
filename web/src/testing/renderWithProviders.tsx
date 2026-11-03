@@ -303,6 +303,8 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   layout: 'spotlight',
   // Present for the reason `theme` is: the sweep in `useWallPlaylist.settings.test.ts` must see it.
   layoutChosen: false,
+  freshLane: true,
+  tilt: true,
   joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
@@ -414,6 +416,8 @@ export const eventSettings = (
     wall: {
       layout: null,
       slideIntervalMs: null,
+      freshLane: true,
+      tilt: true,
       qrVisible: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',

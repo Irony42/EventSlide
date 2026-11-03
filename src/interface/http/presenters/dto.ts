@@ -373,6 +373,10 @@ export interface WallResponseDto {
    * ambiance's suggestion (and to let the screen's own `L` and `?layout=` beat it).
    */
   readonly layoutChosen: boolean
+  /** Whether a published photo takes the next slide (spec 13). */
+  readonly freshLane: boolean
+  /** Whether prints lean a few degrees (spec 13). */
+  readonly tilt: boolean
   /**
    * The invitation card (spec 14): whether it shows on a populated wall, its scale (0.8 to 1.5, 1
    * is the card as it always was) and its corner. Public like the rest; carries no secret.
@@ -524,6 +528,8 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly freshLane: boolean
+    readonly tilt: boolean
     readonly qrVisible: boolean
     readonly qrScale: number
     readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'

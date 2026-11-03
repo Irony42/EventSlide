@@ -8,7 +8,13 @@ import {
 } from './eventWallSettings'
 import { EventSettings } from './eventSettings'
 
-const QR = { qrVisible: true, qrScale: DEFAULT_WALL_QR_SCALE, qrPlacement: 'bottom-end' } as const
+const QR = {
+  qrVisible: true,
+  qrScale: DEFAULT_WALL_QR_SCALE,
+  qrPlacement: 'bottom-end',
+  freshLane: true,
+  tilt: true,
+} as const
 
 describe('the wall settings group (spec 13)', () => {
   it('defaults to today’s behaviour: nothing chosen, the 8 s rhythm', () => {
@@ -58,6 +64,16 @@ describe('the wall settings group (spec 13)', () => {
     expect(EventSettings.create({ wall: { slideIntervalMs: 1_500 } }).ok).toBe(false)
   })
 
+  it('defaults the display switches to today’s behaviour and merges them key by key', () => {
+    expect(DEFAULT_WALL_SETTINGS).toMatchObject({ freshLane: true, tilt: true })
+    const merged = mergeWallSettings(DEFAULT_WALL_SETTINGS, { tilt: false })
+    expect(merged).toEqual({ ...DEFAULT_WALL_SETTINGS, tilt: false })
+    expect(mergeWallSettings(merged, { freshLane: false })).toMatchObject({
+      freshLane: false,
+      tilt: false,
+    })
+  })
+
   it('reads a stored group tolerantly: an unreadable field takes its default, nothing throws', () => {
     expect(restoreWallSettings(undefined)).toEqual(DEFAULT_WALL_SETTINGS)
     expect(restoreWallSettings('x')).toEqual(DEFAULT_WALL_SETTINGS)
@@ -69,6 +85,11 @@ describe('the wall settings group (spec 13)', () => {
       layout: 'filmstrip',
       slideIntervalMs: null,
       ...QR,
+    })
+    expect(restoreWallSettings({ freshLane: 'no', tilt: 0 })).toEqual(DEFAULT_WALL_SETTINGS)
+    expect(restoreWallSettings({ freshLane: false, tilt: false })).toMatchObject({
+      freshLane: false,
+      tilt: false,
     })
     expect(restoreWallSettings({ layout: 'collage', slideIntervalMs: 30_000 })).toEqual({
       layout: 'collage',
@@ -92,6 +113,8 @@ describe('the wall settings group (spec 13)', () => {
       qrScale: 1.3,
       qrPlacement: 'top-start',
       qrVisible: false,
+      freshLane: true,
+      tilt: true,
     })
   })
 

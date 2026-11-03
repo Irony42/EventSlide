@@ -22,6 +22,8 @@ interface LayoutViewProps {
   /** From the wall response. Only the spotlight animates. */
   readonly kenBurnsDurationMs: number
   readonly transitionMs: number | null
+  /** The host's switch for the lean of prints (spec 13). Off: angle 0. Default on. */
+  readonly tilt?: boolean
   /**
    * Whether a clip in this layout plays or shows its poster frame.
    *
@@ -38,8 +40,7 @@ export interface WallLayoutsProps extends Omit<LayoutViewProps, 'plays'> {
   /**
    * The layout to render, already resolved by `WallPage`. In order of precedence: the
    * `L` key's local override, then the display URL's `?layout=`, then the wall
-   * response's default. Not "the host's choice" — there is no per-event layout setting;
-   * the layout belongs to the screen, not to the event.
+   * response (the event's own choice when the host made one, spec 13).
    */
   readonly layout: WallLayout
 }
@@ -383,7 +384,13 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
  * likely to trigger the symptom the preference exists for. So it is declined here
  * outright rather than left to a global `!important` to defuse.
  */
-function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+function PolaroidLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  tilt: leans = true,
+}: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const prints = rotatingSlots(items, slideshow, POLAROID_PRINTS)
@@ -395,7 +402,7 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
       data-motion={reducedMotion ? 'still' : 'landing'}
     >
       {prints.map((item, slot) => {
-        const tilt: TiltStyle = { '--wall-tilt': `${tiltFor(item.id)}deg` }
+        const tilt: TiltStyle = { '--wall-tilt': `${leans ? tiltFor(item.id) : 0}deg` }
 
         return (
           <figure
@@ -450,7 +457,13 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
  * wall that is not advancing is held still as well — the strip's rule, and what makes a
  * baseline of this layout the print at rest rather than the frame the shutter reached.
  */
-function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+function ClotheslineLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  tilt: leans = true,
+}: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const prints = rotatingSlots(items, slideshow, CLOTHESLINE_PRINTS)
@@ -465,7 +478,7 @@ function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutView
     >
       <div className={styles['line']}>
         {prints.map((item, slot) => {
-          const tilt: TiltStyle = { '--wall-tilt': `${tiltFor(item.id)}deg` }
+          const tilt: TiltStyle = { '--wall-tilt': `${leans ? tiltFor(item.id) : 0}deg` }
 
           return (
             <figure

@@ -196,6 +196,9 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.layout === fresh.layout &&
   // Whether that layout is the host's choice (spec 13): it decides who wins against the ambiance.
   kept.layoutChosen === fresh.layoutChosen &&
+  // Fresh photos first and tilted prints (spec 13): display choices that move no photograph.
+  kept.freshLane === fresh.freshLane &&
+  kept.tilt === fresh.tilt &&
   // The invitation card (spec 14): a size or a corner changed mid-evening moves no photograph.
   kept.joinCard?.visible === fresh.joinCard?.visible &&
   kept.joinCard?.scale === fresh.joinCard?.scale &&

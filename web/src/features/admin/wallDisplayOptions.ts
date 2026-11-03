@@ -62,5 +62,7 @@ export const wallChanges = (
   if (draft.slideIntervalMs !== loaded.slideIntervalMs) {
     changes.slideIntervalMs = draft.slideIntervalMs
   }
+  if (draft.freshLane !== loaded.freshLane) changes.freshLane = draft.freshLane
+  if (draft.tilt !== loaded.tilt) changes.tilt = draft.tilt
   return Object.keys(changes).length === 0 ? undefined : changes
 }

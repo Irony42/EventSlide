@@ -499,6 +499,8 @@ export const updateSettingsBody = z.strictObject({
     .strictObject({
       layout: z.enum(WALL_LAYOUTS).nullable().optional(),
       slideIntervalMs: z.number().int().nullable().optional(),
+      freshLane: z.boolean().optional(),
+      tilt: z.boolean().optional(),
       // Spec 14. The scale's range and grid are the domain's (`eventSettings.wallQrScaleInvalid`).
       qrVisible: z.boolean().optional(),
       qrScale: z.number().optional(),

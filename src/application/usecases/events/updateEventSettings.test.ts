@@ -80,6 +80,8 @@ describe('updateEventSettings', () => {
       layout: 'mosaic',
       slideIntervalMs: 12_000,
       qrVisible: true,
+      freshLane: true,
+      tilt: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',
     })

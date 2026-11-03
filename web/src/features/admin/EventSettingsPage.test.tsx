@@ -782,7 +782,9 @@ describe('EventSettingsPage', () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>
           anEventDto({
-            settings: eventSettings({ wall: { layout: 'polaroid', slideIntervalMs: 12_000 } }),
+            settings: eventSettings({
+              wall: { layout: 'polaroid', slideIntervalMs: 12_000, freshLane: true, tilt: true },
+            }),
           }),
         ),
       })
@@ -798,7 +800,9 @@ describe('EventSettingsPage', () => {
         fakeApi({
           getEvent: vi.fn(async () =>
             anEventDto({
-              settings: eventSettings({ wall: { layout: null, slideIntervalMs: 45_000 } }),
+              settings: eventSettings({
+                wall: { layout: null, slideIntervalMs: 45_000, freshLane: true, tilt: true },
+              }),
             }),
           ),
         }),
@@ -832,11 +836,23 @@ describe('EventSettingsPage', () => {
       expect(sent).not.toHaveProperty('wall')
     })
 
+    it('sends only the switch the host flipped', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.admin.wallDisplay.tilt))
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.wall).toEqual({ tilt: false })
+    })
+
     it('goes back to nothing chosen, and to the default rhythm', async () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>
           anEventDto({
-            settings: eventSettings({ wall: { layout: 'polaroid', slideIntervalMs: 12_000 } }),
+            settings: eventSettings({
+              wall: { layout: 'polaroid', slideIntervalMs: 12_000, freshLane: true, tilt: true },
+            }),
           }),
         ),
       })

@@ -29,6 +29,10 @@ export interface EventWallSettings {
   readonly layout: WallLayout | null
   /** `null`: the {@link SlideInterval} default. Otherwise 2 s to 10 min. Ken Burns stays derived. */
   readonly slideIntervalMs: number | null
+  /** A published photo takes the next slide, at most three in a row (the existing fresh lane). */
+  readonly freshLane: boolean
+  /** Prints and the clothesline lean a few degrees, statically (the existing `tiltFor`). */
+  readonly tilt: boolean
   /** The invitation card on a populated wall (spec 14). `false` hides it for good; `Q` stays temporary. */
   readonly qrVisible: boolean
   /** The card's scale, 0.8 to 1.5 in steps of 0.05; 1 is today's card (decision 14-6). */
@@ -41,6 +45,8 @@ export type EventWallSettingsPatch = Partial<EventWallSettings>
 export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   layout: null,
   slideIntervalMs: null,
+  freshLane: true,
+  tilt: true,
   qrVisible: true,
   qrScale: DEFAULT_WALL_QR_SCALE,
   qrPlacement: DEFAULT_WALL_QR_PLACEMENT,
@@ -57,6 +63,8 @@ export const mergeWallSettings = (
   layout: patch?.layout === undefined ? base.layout : patch.layout,
   slideIntervalMs:
     patch?.slideIntervalMs === undefined ? base.slideIntervalMs : patch.slideIntervalMs,
+  freshLane: patch?.freshLane === undefined ? base.freshLane : patch.freshLane,
+  tilt: patch?.tilt === undefined ? base.tilt : patch.tilt,
   qrVisible: patch?.qrVisible === undefined ? base.qrVisible : patch.qrVisible,
   qrScale: patch?.qrScale === undefined ? base.qrScale : patch.qrScale,
   qrPlacement: patch?.qrPlacement === undefined ? base.qrPlacement : patch.qrPlacement,
@@ -93,6 +101,11 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
       typeof interval === 'number' && SlideInterval.create(interval).ok
         ? interval
         : DEFAULT_WALL_SETTINGS.slideIntervalMs,
+    freshLane:
+      typeof record['freshLane'] === 'boolean'
+        ? record['freshLane']
+        : DEFAULT_WALL_SETTINGS.freshLane,
+    tilt: typeof record['tilt'] === 'boolean' ? record['tilt'] : DEFAULT_WALL_SETTINGS.tilt,
     qrVisible:
       typeof record['qrVisible'] === 'boolean'
         ? record['qrVisible']

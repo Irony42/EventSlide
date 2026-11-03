@@ -1036,6 +1036,11 @@ export const it: UiText = {
       intervalHint: 'Per quanto tempo ogni foto resta sullo schermo.',
       intervalDefault: 'Predefinito (una foto ogni 8 s)',
       intervalSeconds: (n: number) => `Una foto ogni ${n} s`,
+      freshLane: 'Foto nuove per prime',
+      freshLaneHint:
+        'Una foto pubblicata prende la diapositiva successiva, al massimo tre di fila.',
+      tilt: 'Foto leggermente inclinate',
+      tiltHint: 'Polaroid e filo del bucato: un angolo fisso di pochi gradi.',
     },
     theme: 'Aspetto',
     themeHint:

@@ -1248,6 +1248,8 @@ describe('the host event routes', () => {
         layout: 'mosaic',
         slideIntervalMs: 12_000,
         qrVisible: true,
+        freshLane: true,
+        tilt: true,
         qrScale: 1,
         qrPlacement: 'bottom-end',
       })
@@ -1344,6 +1346,8 @@ describe('the host event routes', () => {
           layout: null,
           slideIntervalMs: null,
           qrVisible: true,
+          freshLane: true,
+          tilt: true,
           qrScale: 1,
           qrPlacement: 'bottom-end',
         },
@@ -1361,6 +1365,8 @@ describe('the host event routes', () => {
       expect(response.status).toBe(200)
       expect(response.body.settings.wall).toMatchObject({
         qrVisible: false,
+        freshLane: true,
+        tilt: true,
         qrScale: 1.35,
         qrPlacement: 'top-start',
       })

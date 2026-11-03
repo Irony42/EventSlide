@@ -130,6 +130,8 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     // The wall group (spec 13), for the same reason.
     settings.wall.layout ?? '',
     settings.wall.slideIntervalMs ?? '',
+    settings.wall.freshLane,
+    settings.wall.tilt,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -519,6 +521,20 @@ export function EventSettingsPage() {
             onChange={(value) =>
               update({ wall: { ...settings.wall, slideIntervalMs: numberOrNull(value) } })
             }
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.freshLane}
+            hint={t.admin.wallDisplay.freshLaneHint}
+            checked={settings.wall.freshLane}
+            disabled={readOnly}
+            onChange={(freshLane) => update({ wall: { ...settings.wall, freshLane } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.tilt}
+            hint={t.admin.wallDisplay.tiltHint}
+            checked={settings.wall.tilt}
+            disabled={readOnly}
+            onChange={(tilt) => update({ wall: { ...settings.wall, tilt } })}
           />
         </fieldset>
 
