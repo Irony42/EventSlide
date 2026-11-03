@@ -296,6 +296,9 @@ export interface WallResponse {
   readonly layout: WallLayout
   /** Whether `layout` is the host's choice for the event. Optional: an older server sends none. */
   readonly layoutChosen?: boolean
+  /** Optional: an older server sends none, and the wall then behaves as before (true). */
+  readonly freshLane?: boolean
+  readonly tilt?: boolean
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -604,6 +607,8 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly freshLane: boolean
+    readonly tilt: boolean
   }
 }
 

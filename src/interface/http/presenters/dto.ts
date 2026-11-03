@@ -373,6 +373,10 @@ export interface WallResponseDto {
    * ambiance's suggestion (and to let the screen's own `L` and `?layout=` beat it).
    */
   readonly layoutChosen: boolean
+  /** Whether a published photo takes the next slide (spec 13). */
+  readonly freshLane: boolean
+  /** Whether prints lean a few degrees (spec 13). */
+  readonly tilt: boolean
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -515,6 +519,8 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly freshLane: boolean
+    readonly tilt: boolean
   }
 }
 

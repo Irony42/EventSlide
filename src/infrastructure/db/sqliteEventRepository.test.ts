@@ -806,6 +806,8 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
         layout: null,
         slideIntervalMs: null,
+        freshLane: true,
+        tilt: true,
       })
 
       db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
@@ -815,6 +817,8 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
         layout: null,
         slideIntervalMs: null,
+        freshLane: true,
+        tilt: true,
       })
     })
 

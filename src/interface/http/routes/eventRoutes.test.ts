@@ -1244,7 +1244,12 @@ describe('the host event routes', () => {
         .send({ wall: { slideIntervalMs: 12_000 } })
 
       expect(response.status).toBe(200)
-      expect(response.body.settings.wall).toEqual({ layout: 'mosaic', slideIntervalMs: 12_000 })
+      expect(response.body.settings.wall).toEqual({
+        layout: 'mosaic',
+        slideIntervalMs: 12_000,
+        freshLane: true,
+        tilt: true,
+      })
     })
 
     it('refuses an unknown wall key, a bad layout and an out-of-range rhythm with 400', async () => {
@@ -1325,7 +1330,7 @@ describe('the host event routes', () => {
         },
         wallLanguage: 'en',
         brand: { welcomeMessage: null, logoUrl: null },
-        wall: { layout: null, slideIntervalMs: null },
+        wall: { layout: null, slideIntervalMs: null, freshLane: true, tilt: true },
       })
     })
 

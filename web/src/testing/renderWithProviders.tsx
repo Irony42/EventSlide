@@ -303,6 +303,8 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   layout: 'spotlight',
   // Present for the reason `theme` is: the sweep in `useWallPlaylist.settings.test.ts` must see it.
   layoutChosen: false,
+  freshLane: true,
+  tilt: true,
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
   // renders the DOM it rendered before theming existed, and every negative assertion about
@@ -403,7 +405,7 @@ export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventS
   // projector in another language overrides it.
   wallLanguage: 'fr',
   // Nothing chosen on the wall: today's behaviour (spec 13).
-  wall: { layout: null, slideIntervalMs: null },
+  wall: { layout: null, slideIntervalMs: null, freshLane: true, tilt: true },
   ...overrides,
 })
 

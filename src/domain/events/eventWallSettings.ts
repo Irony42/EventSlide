@@ -22,6 +22,10 @@ export interface EventWallSettings {
   readonly layout: WallLayout | null
   /** `null`: the {@link SlideInterval} default. Otherwise 2 s to 10 min. Ken Burns stays derived. */
   readonly slideIntervalMs: number | null
+  /** A published photo takes the next slide, at most three in a row (the existing fresh lane). */
+  readonly freshLane: boolean
+  /** Prints and the clothesline lean a few degrees, statically (the existing `tiltFor`). */
+  readonly tilt: boolean
 }
 
 export type EventWallSettingsPatch = Partial<EventWallSettings>
@@ -29,6 +33,8 @@ export type EventWallSettingsPatch = Partial<EventWallSettings>
 export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   layout: null,
   slideIntervalMs: null,
+  freshLane: true,
+  tilt: true,
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>
@@ -42,6 +48,8 @@ export const mergeWallSettings = (
   layout: patch?.layout === undefined ? base.layout : patch.layout,
   slideIntervalMs:
     patch?.slideIntervalMs === undefined ? base.slideIntervalMs : patch.slideIntervalMs,
+  freshLane: patch?.freshLane === undefined ? base.freshLane : patch.freshLane,
+  tilt: patch?.tilt === undefined ? base.tilt : patch.tilt,
 })
 
 /** The refusal of a host's choice, with the interval's own codes (`slideInterval.tooShort`, ...). */
@@ -71,5 +79,10 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
       typeof interval === 'number' && SlideInterval.create(interval).ok
         ? interval
         : DEFAULT_WALL_SETTINGS.slideIntervalMs,
+    freshLane:
+      typeof record['freshLane'] === 'boolean'
+        ? record['freshLane']
+        : DEFAULT_WALL_SETTINGS.freshLane,
+    tilt: typeof record['tilt'] === 'boolean' ? record['tilt'] : DEFAULT_WALL_SETTINGS.tilt,
   }
 }
