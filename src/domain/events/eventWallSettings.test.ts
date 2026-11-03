@@ -14,19 +14,27 @@ describe('the wall settings group (spec 13)', () => {
   })
 
   it('merges field by field: a patch naming one key leaves the other alone', () => {
-    const base = { layout: 'mosaic', slideIntervalMs: 12_000, freshLane: true, tilt: true } as const
+    const base = {
+      layout: 'mosaic',
+      slideIntervalMs: 12_000,
+      freshLane: true,
+      tilt: true,
+      showTime: false,
+    } as const
 
     expect(mergeWallSettings(base, { slideIntervalMs: 4_000 })).toEqual({
       layout: 'mosaic',
       slideIntervalMs: 4_000,
       freshLane: true,
       tilt: true,
+      showTime: false,
     })
     expect(mergeWallSettings(base, { layout: null })).toEqual({
       layout: null,
       slideIntervalMs: 12_000,
       freshLane: true,
       tilt: true,
+      showTime: false,
     })
     expect(mergeWallSettings(base, undefined)).toEqual(base)
     expect(mergeWallSettings(base, {})).toEqual(base)
@@ -71,13 +79,20 @@ describe('the wall settings group (spec 13)', () => {
   })
 
   it('defaults the display switches to today’s behaviour and merges them key by key', () => {
-    expect(DEFAULT_WALL_SETTINGS).toMatchObject({ freshLane: true, tilt: true })
+    expect(DEFAULT_WALL_SETTINGS).toMatchObject({ freshLane: true, tilt: true, showTime: false })
     const merged = mergeWallSettings(DEFAULT_WALL_SETTINGS, { tilt: false })
     expect(merged).toEqual({ ...DEFAULT_WALL_SETTINGS, tilt: false })
     expect(mergeWallSettings(merged, { freshLane: false })).toMatchObject({
       freshLane: false,
       tilt: false,
     })
+  })
+
+  it('keeps the time under photos off by default and merges it like the rest', () => {
+    expect(DEFAULT_WALL_SETTINGS.showTime).toBe(false)
+    expect(mergeWallSettings(DEFAULT_WALL_SETTINGS, { showTime: true }).showTime).toBe(true)
+    expect(restoreWallSettings({ showTime: 'yes' }).showTime).toBe(false)
+    expect(restoreWallSettings({ showTime: true }).showTime).toBe(true)
   })
 
   it('reads a stored group tolerantly: an unreadable field takes its default, nothing throws', () => {
@@ -92,9 +107,10 @@ describe('the wall settings group (spec 13)', () => {
       slideIntervalMs: null,
       freshLane: true,
       tilt: true,
+      showTime: false,
     })
     expect(restoreWallSettings({ freshLane: 'no', tilt: 0 })).toEqual(DEFAULT_WALL_SETTINGS)
-    expect(restoreWallSettings({ freshLane: false, tilt: false })).toMatchObject({
+    expect(restoreWallSettings({ freshLane: false, tilt: false, showTime: false })).toMatchObject({
       freshLane: false,
       tilt: false,
     })
@@ -103,6 +119,7 @@ describe('the wall settings group (spec 13)', () => {
       slideIntervalMs: 30_000,
       freshLane: true,
       tilt: true,
+      showTime: false,
     })
   })
 })

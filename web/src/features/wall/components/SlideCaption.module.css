@@ -145,3 +145,17 @@
      the credit rendered as the heaviest thing on the print. Ink alone here. */
   font-weight: 400;
 }
+
+/* The time the photo was sent (spec 13). Same size as the credit, for the same reason: nothing
+   below --text-xl reads from the back of the room. */
+.time {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.print .time {
+  color: var(--text-print-secondary);
+}

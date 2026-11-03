@@ -335,6 +335,7 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
     slideIntervalMs: settings.wall.slideIntervalMs,
     freshLane: settings.wall.freshLane,
     tilt: settings.wall.tilt,
+    showTime: settings.wall.showTime,
   },
 })
 
@@ -850,6 +851,7 @@ export const toWallResponseDto = (
     layoutChosen: view.layoutChosen,
     freshLane: view.event.settings.wall.freshLane,
     tilt: view.event.settings.wall.tilt,
+    showTime: view.event.settings.wall.showTime,
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.

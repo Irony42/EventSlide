@@ -1004,6 +1004,8 @@ export const en: UiText = {
       freshLaneHint: 'A published photo takes the next slide, three in a row at most.',
       tilt: 'Slightly tilted photos',
       tiltHint: 'Polaroids and clothesline: a fixed angle of a few degrees.',
+      showTime: 'Send time under the photo',
+      showTimeHint: 'The time the photo was sent, on the clock of the screen in the room.',
     },
 
     theme: 'Appearance',

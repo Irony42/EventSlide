@@ -500,6 +500,7 @@ export const updateSettingsBody = z.strictObject({
       slideIntervalMs: z.number().int().nullable().optional(),
       freshLane: z.boolean().optional(),
       tilt: z.boolean().optional(),
+      showTime: z.boolean().optional(),
     })
     .optional(),
   /**

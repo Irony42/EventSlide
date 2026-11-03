@@ -299,6 +299,7 @@ export interface WallResponse {
   /** Optional: an older server sends none, and the wall then behaves as before (true). */
   readonly freshLane?: boolean
   readonly tilt?: boolean
+  readonly showTime?: boolean
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -609,6 +610,7 @@ export interface EventSettingsDto {
     readonly slideIntervalMs: number | null
     readonly freshLane: boolean
     readonly tilt: boolean
+    readonly showTime: boolean
   }
 }
 

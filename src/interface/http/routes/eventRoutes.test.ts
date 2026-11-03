@@ -1249,6 +1249,7 @@ describe('the host event routes', () => {
         slideIntervalMs: 12_000,
         freshLane: true,
         tilt: true,
+        showTime: false,
       })
     })
 
@@ -1330,7 +1331,7 @@ describe('the host event routes', () => {
         },
         wallLanguage: 'en',
         brand: { welcomeMessage: null, logoUrl: null },
-        wall: { layout: null, slideIntervalMs: null, freshLane: true, tilt: true },
+        wall: { layout: null, slideIntervalMs: null, freshLane: true, tilt: true, showTime: false },
       })
     })
 

@@ -1041,6 +1041,9 @@ export const it: UiText = {
         'Una foto pubblicata prende la diapositiva successiva, al massimo tre di fila.',
       tilt: 'Foto leggermente inclinate',
       tiltHint: 'Polaroid e filo del bucato: un angolo fisso di pochi gradi.',
+      showTime: 'Ora di invio sotto la foto',
+      showTimeHint:
+        'L’ora in cui la foto è stata inviata, secondo l’orologio dello schermo della sala.',
     },
     theme: 'Aspetto',
     themeHint:

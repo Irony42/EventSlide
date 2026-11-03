@@ -269,6 +269,7 @@ export const eventRoutes = ({
                     : { slideIntervalMs: body.wall.slideIntervalMs }),
                   ...(body.wall.freshLane === undefined ? {} : { freshLane: body.wall.freshLane }),
                   ...(body.wall.tilt === undefined ? {} : { tilt: body.wall.tilt }),
+                  ...(body.wall.showTime === undefined ? {} : { showTime: body.wall.showTime }),
                 },
               }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.

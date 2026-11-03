@@ -26,6 +26,8 @@ export interface EventWallSettings {
   readonly freshLane: boolean
   /** Prints and the clothesline lean a few degrees, statically (the existing `tiltFor`). */
   readonly tilt: boolean
+  /** The time a photo was sent, under it (the browser's time zone, spec 13). Off by default. */
+  readonly showTime: boolean
 }
 
 export type EventWallSettingsPatch = Partial<EventWallSettings>
@@ -35,6 +37,7 @@ export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   slideIntervalMs: null,
   freshLane: true,
   tilt: true,
+  showTime: false,
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>
@@ -50,6 +53,7 @@ export const mergeWallSettings = (
     patch?.slideIntervalMs === undefined ? base.slideIntervalMs : patch.slideIntervalMs,
   freshLane: patch?.freshLane === undefined ? base.freshLane : patch.freshLane,
   tilt: patch?.tilt === undefined ? base.tilt : patch.tilt,
+  showTime: patch?.showTime === undefined ? base.showTime : patch.showTime,
 })
 
 /** The refusal of a host's choice, with the interval's own codes (`slideInterval.tooShort`, ...). */
@@ -84,5 +88,7 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
         ? record['freshLane']
         : DEFAULT_WALL_SETTINGS.freshLane,
     tilt: typeof record['tilt'] === 'boolean' ? record['tilt'] : DEFAULT_WALL_SETTINGS.tilt,
+    showTime:
+      typeof record['showTime'] === 'boolean' ? record['showTime'] : DEFAULT_WALL_SETTINGS.showTime,
   }
 }

@@ -808,6 +808,7 @@ describe('SqliteEventRepository', () => {
         slideIntervalMs: null,
         freshLane: true,
         tilt: true,
+        showTime: false,
       })
 
       db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
@@ -819,6 +820,7 @@ describe('SqliteEventRepository', () => {
         slideIntervalMs: null,
         freshLane: true,
         tilt: true,
+        showTime: false,
       })
     })
 

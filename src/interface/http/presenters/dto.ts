@@ -377,6 +377,7 @@ export interface WallResponseDto {
   readonly freshLane: boolean
   /** Whether prints lean a few degrees (spec 13). */
   readonly tilt: boolean
+  readonly showTime: boolean
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -521,6 +522,7 @@ export interface EventSettingsDto {
     readonly slideIntervalMs: number | null
     readonly freshLane: boolean
     readonly tilt: boolean
+    readonly showTime: boolean
   }
 }
 

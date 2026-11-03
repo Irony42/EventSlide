@@ -81,6 +81,7 @@ describe('updateEventSettings', () => {
       slideIntervalMs: 12_000,
       freshLane: true,
       tilt: true,
+      showTime: false,
     })
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
   })

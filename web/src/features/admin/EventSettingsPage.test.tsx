@@ -783,7 +783,13 @@ describe('EventSettingsPage', () => {
         getEvent: vi.fn(async () =>
           anEventDto({
             settings: eventSettings({
-              wall: { layout: 'polaroid', slideIntervalMs: 12_000, freshLane: true, tilt: true },
+              wall: {
+                layout: 'polaroid',
+                slideIntervalMs: 12_000,
+                freshLane: true,
+                tilt: true,
+                showTime: false,
+              },
             }),
           }),
         ),
@@ -801,7 +807,13 @@ describe('EventSettingsPage', () => {
           getEvent: vi.fn(async () =>
             anEventDto({
               settings: eventSettings({
-                wall: { layout: null, slideIntervalMs: 45_000, freshLane: true, tilt: true },
+                wall: {
+                  layout: null,
+                  slideIntervalMs: 45_000,
+                  freshLane: true,
+                  tilt: true,
+                  showTime: false,
+                },
               }),
             }),
           ),
@@ -851,7 +863,13 @@ describe('EventSettingsPage', () => {
         getEvent: vi.fn(async () =>
           anEventDto({
             settings: eventSettings({
-              wall: { layout: 'polaroid', slideIntervalMs: 12_000, freshLane: true, tilt: true },
+              wall: {
+                layout: 'polaroid',
+                slideIntervalMs: 12_000,
+                freshLane: true,
+                tilt: true,
+                showTime: false,
+              },
             }),
           }),
         ),

@@ -1063,6 +1063,9 @@ export const de: UiText = {
       freshLaneHint: 'Ein veröffentlichtes Foto kommt als nächstes, höchstens drei hintereinander.',
       tilt: 'Leicht geneigte Fotos',
       tiltHint: 'Polaroids und Wäscheleine: ein fester Winkel von wenigen Grad.',
+      showTime: 'Sendezeit unter dem Foto',
+      showTimeHint:
+        'Die Uhrzeit, zu der das Foto gesendet wurde, nach der Uhr des Bildschirms im Raum.',
     },
 
     theme: 'Erscheinungsbild',

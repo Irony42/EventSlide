@@ -199,6 +199,7 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   // Fresh photos first and tilted prints (spec 13): display choices that move no photograph.
   kept.freshLane === fresh.freshLane &&
   kept.tilt === fresh.tilt &&
+  kept.showTime === fresh.showTime &&
   kept.reactionsEnabled === fresh.reactionsEnabled &&
   kept.event.name === fresh.event.name &&
   kept.theme?.accentHue === fresh.theme?.accentHue &&
