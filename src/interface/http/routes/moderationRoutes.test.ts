@@ -201,6 +201,7 @@ const usecasesFor = (
     deleteMission: notWired,
     startChallenge: notWired,
     stopChallenge: notWired,
+    getChallenge: notWired,
     getGuestChecklist: notWired,
     createGuestbookEntry: notWired,
     listMyGuestbookEntries: notWired,

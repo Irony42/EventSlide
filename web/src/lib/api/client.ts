@@ -20,7 +20,9 @@ import type {
   GalleryPage,
   EventStatsResponse,
   GuestListResponse,
+  ChallengeDto,
   GuestMissionListResponse,
+  HostChallengeResponse,
   GuestbookQueueDto,
   CreatedGuestbookEntryDto,
   MyGuestbookDto,
@@ -210,6 +212,12 @@ export interface ClipUploadInput {
 export interface MissionInput {
   readonly prompt: string
   readonly scope: MissionScope
+}
+
+/** A timed photo challenge as the host launches it (spec 10). */
+export interface ChallengeInput {
+  readonly missionId: string
+  readonly durationSeconds: number
 }
 
 /**
@@ -872,6 +880,20 @@ export const createApi = (transport: Transport) => ({
   /** Removes the prompt. Every photograph filed under it stays, unfiled. */
   deleteMission: (slug: string, missionId: string): Promise<void> =>
     transport.del(`/api/events/${encode(slug)}/missions/${encode(missionId)}`),
+
+  // ------------------------------------------------------ timed photo challenge --
+
+  /** What the console draws "Lancer" or "Arrêter" from: the running challenge, and the server's clock. */
+  getChallenge: (slug: string, signal?: AbortSignal): Promise<HostChallengeResponse> =>
+    transport.get(`/api/events/${encode(slug)}/challenge`, undefined, signal),
+
+  /** Launches one of the event's missions for `durationSeconds` (15 to 1800). A moderator's. */
+  startChallenge: (slug: string, input: ChallengeInput): Promise<ChallengeDto> =>
+    transport.post(`/api/events/${encode(slug)}/challenge`, input),
+
+  /** Stops the running challenge; `204` with nothing running, too. */
+  stopChallenge: (slug: string): Promise<void> =>
+    transport.del(`/api/events/${encode(slug)}/challenge`),
 
   // ---------------------------------------------------------- shared gallery --
 
