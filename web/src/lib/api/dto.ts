@@ -300,6 +300,24 @@ export interface WallResponse {
   readonly souvenirCount?: number | null
   readonly souvenirCounter?: boolean
   readonly newPhotoSignal?: boolean
+  /**
+   * The invitation card (spec 14): shown on a populated wall, its scale (0.8 to 1.5, 1 = as it
+   * always was) and corner. Optional: an older server sends none and the wall takes the defaults.
+   */
+  readonly joinCard?: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
+  /**
+   * The sound the wall may play for a new photo (spec 12). Optional: an older server sends none
+   * and the wall stays silent.
+   */
+  readonly sound?: {
+    readonly enabled: boolean
+    readonly tone: 'bell' | 'chime' | 'drop' | 'pop'
+    readonly volume: number
+  }
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -610,6 +628,12 @@ export interface EventSettingsDto {
     readonly slideIntervalMs: number | null
     readonly souvenirCounter: boolean
     readonly newPhotoSignal: boolean
+    readonly qrVisible: boolean
+    readonly qrScale: number
+    readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+    readonly soundEnabled: boolean
+    readonly soundTone: 'bell' | 'chime' | 'drop' | 'pop'
+    readonly soundVolume: number
   }
 }
 

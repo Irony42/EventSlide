@@ -335,6 +335,12 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
     slideIntervalMs: settings.wall.slideIntervalMs,
     souvenirCounter: settings.wall.souvenirCounter,
     newPhotoSignal: settings.wall.newPhotoSignal,
+    qrVisible: settings.wall.qrVisible,
+    qrScale: settings.wall.qrScale,
+    qrPlacement: settings.wall.qrPlacement,
+    soundEnabled: settings.wall.soundEnabled,
+    soundTone: settings.wall.soundTone,
+    soundVolume: settings.wall.soundVolume,
   },
 })
 
@@ -851,6 +857,12 @@ export const toWallResponseDto = (
     souvenirCount: view.souvenirCount,
     souvenirCounter: view.souvenirCounter,
     newPhotoSignal: view.newPhotoSignal,
+    joinCard: view.joinCard,
+    sound: {
+      enabled: view.event.settings.wall.soundEnabled,
+      tone: view.event.settings.wall.soundTone,
+      volume: view.event.settings.wall.soundVolume,
+    },
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.

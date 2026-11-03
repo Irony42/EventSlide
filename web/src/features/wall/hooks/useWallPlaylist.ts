@@ -201,6 +201,14 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.souvenirCount === fresh.souvenirCount &&
   kept.souvenirCounter === fresh.souvenirCounter &&
   kept.newPhotoSignal === fresh.newPhotoSignal &&
+  // The invitation card (spec 14): a size or a corner changed mid-evening moves no photograph.
+  kept.joinCard?.visible === fresh.joinCard?.visible &&
+  kept.joinCard?.scale === fresh.joinCard?.scale &&
+  kept.joinCard?.placement === fresh.joinCard?.placement &&
+  // The sound (spec 12): the host switching it off must silence every wall without a reload.
+  kept.sound?.enabled === fresh.sound?.enabled &&
+  kept.sound?.tone === fresh.sound?.tone &&
+  kept.sound?.volume === fresh.sound?.volume &&
   kept.reactionsEnabled === fresh.reactionsEnabled &&
   kept.event.name === fresh.event.name &&
   kept.theme?.accentHue === fresh.theme?.accentHue &&

@@ -1049,6 +1049,19 @@ export const de: UiText = {
       newPhotoSignalHint:
         'Eine kurze Meldung oben in der Mitte, wenn ein Foto oder Video gerade auf der Wand erschienen ist. Nie der Name des Gastes.',
     },
+    wallSound: {
+      title: 'Ton',
+      hint: 'Ein kurzer Ton, wenn ein Foto oder Clip an der Wand erscheint. Standardmäßig aus.',
+      enable: 'Ein Ton bei jedem neuen Foto',
+      enableHint:
+        'Jeder Bildschirm muss vor Ort zusätzlich aktiviert werden: ein Klick auf die Wand (oder die Taste S) genügt.',
+      tone: 'Ton',
+      toneNames: { chime: 'Glockenspiel', bell: 'Glocke', drop: 'Tropfen', pop: 'Pop' },
+      volume: 'Lautstärke',
+      volumeValue: (n: number) => `Lautstärke ${n} %`,
+      test: 'Testen',
+      testHint: 'Spielt den gewählten Ton auf diesem Computer in dieser Lautstärke ab.',
+    },
 
     theme: 'Erscheinungsbild',
     themeHint:

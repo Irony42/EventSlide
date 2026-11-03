@@ -1249,6 +1249,12 @@ describe('the host event routes', () => {
         slideIntervalMs: 12_000,
         souvenirCounter: false,
         newPhotoSignal: false,
+        qrVisible: true,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
+        soundEnabled: false,
+        soundTone: 'chime',
+        soundVolume: 50,
       })
     })
 
@@ -1284,6 +1290,15 @@ describe('the host event routes', () => {
       const patch = (wall: unknown) => agent.patch(`/api/events/${SLUG}/settings`).send({ wall })
 
       expect((await patch({ qrSize: 'large' })).status).toBe(400)
+      expect((await patch({ qrPlacement: 'center' })).status).toBe(400)
+      expect((await patch({ qrVisible: 'yes' })).status).toBe(400)
+      const offGrid = await patch({ qrScale: 1.02 })
+      expect(offGrid.status).toBe(400)
+      expect(offGrid.body.error.code).toBe('eventSettings.wallQrScaleInvalid')
+      expect((await patch({ qrScale: 0.5 })).body.error.code).toBe(
+        'eventSettings.wallQrScaleInvalid',
+      )
+      expect((await patch({ qrScale: 2 })).body.error.code).toBe('eventSettings.wallQrScaleInvalid')
       expect((await patch({ layout: 'carousel' })).status).toBe(400)
       const tooShort = await patch({ slideIntervalMs: 500 })
       expect(tooShort.status).toBe(400)
@@ -1300,6 +1315,33 @@ describe('the host event routes', () => {
         .send({ wall: { layout: 'mosaic' } })
 
       expect(response.status).toBe(403)
+    })
+
+    it('merges the sound keys one by one, refuses bad values, and keeps them from a moderator (spec 12)', async () => {
+      const agent = await signedIn(world, 'owner')
+      const patch = (wall: unknown) => agent.patch(`/api/events/${SLUG}/settings`).send({ wall })
+
+      await patch({ soundEnabled: true, soundTone: 'drop' })
+      const response = await patch({ soundVolume: 80 })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.wall).toMatchObject({
+        soundEnabled: true,
+        soundTone: 'drop',
+        soundVolume: 80,
+      })
+      expect((await patch({ soundTone: 'klaxon' })).status).toBe(400)
+      expect((await patch({ soundEnabled: 'yes' })).status).toBe(400)
+      for (const volume of [-1, 101, 50.5]) {
+        const bad = await patch({ soundVolume: volume })
+        expect(bad.status).toBe(400)
+        expect(bad.body.error.code).toBe('eventSettings.wallSoundVolumeInvalid')
+      }
+      const moderator = await signedIn(world, 'moderator')
+      const refused = await moderator
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { soundEnabled: false } })
+      expect(refused.status).toBe(403)
     })
 
     it('clears retention when the host sends null', async () => {
@@ -1362,7 +1404,29 @@ describe('the host event routes', () => {
           slideIntervalMs: null,
           souvenirCounter: false,
           newPhotoSignal: false,
+          qrVisible: true,
+          qrScale: 1,
+          qrPlacement: 'bottom-end',
+          soundEnabled: false,
+          soundTone: 'chime',
+          soundVolume: 50,
         },
+      })
+    })
+
+    it('merges the invitation card keys one by one and answers them (spec 14)', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ wall: { qrScale: 1.35 } })
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { qrPlacement: 'top-start', qrVisible: false } })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.wall).toMatchObject({
+        qrVisible: false,
+        qrScale: 1.35,
+        qrPlacement: 'top-start',
       })
     })
 

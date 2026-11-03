@@ -1,6 +1,20 @@
 import { DomainError } from '../shared/errors'
 import { SlideInterval } from '../slideshow/slideInterval'
 import { WALL_LAYOUTS, type WallLayout } from '../slideshow/wallLayout'
+import {
+  DEFAULT_WALL_QR_PLACEMENT,
+  DEFAULT_WALL_QR_SCALE,
+  isWallQrPlacement,
+  isWallQrScale,
+  type WallQrPlacement,
+} from './wallJoinCard'
+import {
+  DEFAULT_WALL_SOUND,
+  isWallSoundTone,
+  isWallSoundVolume,
+  readWallSound,
+  type WallSoundTone,
+} from './wallSound'
 
 /**
  * What the host decides about how the projected wall behaves, for every screen of the event
@@ -27,14 +41,24 @@ export interface EventWallSettings {
   readonly souvenirCounter: boolean
   /** Announce, briefly, that photos or clips have just become visible on the wall. */
   readonly newPhotoSignal: boolean
+  /** The invitation card on a populated wall (spec 14). `false` hides it for good; `Q` stays temporary. */
+  readonly qrVisible: boolean
+  /** The card's scale, 0.8 to 1.5 in steps of 0.05; 1 is today's card (decision 14-6). */
+  readonly qrScale: number
+  readonly qrPlacement: WallQrPlacement
+  /** Spec 12. Off by default, always: the wall plays nothing unless the host turned it on. */
+  readonly soundEnabled: boolean
+  readonly soundTone: WallSoundTone
+  /** A whole number, 0 to 100. */
+  readonly soundVolume: number
 }
 
 /**
  * Whether the wall's read must pay for the total of visible souvenirs (spec 11, shared with the
- * arrival sound of spec 12, which adds its own switch here). Off for every switch: no query.
+ * arrival sound of spec 12, whose switch is the third here). Off for every switch: no query.
  */
 export const wallNeedsSouvenirCount = (wall: EventWallSettings): boolean =>
-  wall.souvenirCounter || wall.newPhotoSignal
+  wall.souvenirCounter || wall.newPhotoSignal || wall.soundEnabled
 
 export type EventWallSettingsPatch = Partial<EventWallSettings>
 
@@ -43,6 +67,12 @@ export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   slideIntervalMs: null,
   souvenirCounter: false,
   newPhotoSignal: false,
+  qrVisible: true,
+  qrScale: DEFAULT_WALL_QR_SCALE,
+  qrPlacement: DEFAULT_WALL_QR_PLACEMENT,
+  soundEnabled: DEFAULT_WALL_SOUND.enabled,
+  soundTone: DEFAULT_WALL_SOUND.tone,
+  soundVolume: DEFAULT_WALL_SOUND.volume,
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>
@@ -58,12 +88,27 @@ export const mergeWallSettings = (
     patch?.slideIntervalMs === undefined ? base.slideIntervalMs : patch.slideIntervalMs,
   souvenirCounter: patch?.souvenirCounter ?? base.souvenirCounter,
   newPhotoSignal: patch?.newPhotoSignal ?? base.newPhotoSignal,
+  qrVisible: patch?.qrVisible === undefined ? base.qrVisible : patch.qrVisible,
+  qrScale: patch?.qrScale === undefined ? base.qrScale : patch.qrScale,
+  qrPlacement: patch?.qrPlacement === undefined ? base.qrPlacement : patch.qrPlacement,
+  soundEnabled: patch?.soundEnabled === undefined ? base.soundEnabled : patch.soundEnabled,
+  soundTone: patch?.soundTone === undefined ? base.soundTone : patch.soundTone,
+  soundVolume: patch?.soundVolume === undefined ? base.soundVolume : patch.soundVolume,
 })
 
 /** The refusal of a host's choice, with the interval's own codes (`slideInterval.tooShort`, ...). */
 export const wallSettingsViolation = (wall: EventWallSettings): DomainError | null => {
   if (wall.layout !== null && !isWallLayout(wall.layout)) {
     return DomainError.invalid('eventSettings.wallLayoutInvalid')
+  }
+  if (!isWallQrScale(wall.qrScale)) return DomainError.invalid('eventSettings.wallQrScaleInvalid')
+  if (!isWallQrPlacement(wall.qrPlacement)) {
+    return DomainError.invalid('eventSettings.wallQrPlacementInvalid')
+  }
+  if (!isWallSoundTone(wall.soundTone))
+    return DomainError.invalid('eventSettings.wallSoundToneInvalid')
+  if (!isWallSoundVolume(wall.soundVolume)) {
+    return DomainError.invalid('eventSettings.wallSoundVolumeInvalid')
   }
   if (wall.slideIntervalMs === null) return null
   const interval = SlideInterval.create(wall.slideIntervalMs)
@@ -90,5 +135,19 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
     // Only a stored `true` turns them on: absent or unreadable is off, as before spec 11.
     souvenirCounter: record['souvenirCounter'] === true,
     newPhotoSignal: record['newPhotoSignal'] === true,
+    qrVisible:
+      typeof record['qrVisible'] === 'boolean'
+        ? record['qrVisible']
+        : DEFAULT_WALL_SETTINGS.qrVisible,
+    qrScale: isWallQrScale(record['qrScale']) ? record['qrScale'] : DEFAULT_WALL_SETTINGS.qrScale,
+    qrPlacement: isWallQrPlacement(record['qrPlacement'])
+      ? record['qrPlacement']
+      : DEFAULT_WALL_SETTINGS.qrPlacement,
+    ...restoreSound(record),
   }
+}
+
+const restoreSound = (record: Record<string, unknown>) => {
+  const sound = readWallSound(record)
+  return { soundEnabled: sound.enabled, soundTone: sound.tone, soundVolume: sound.volume }
 }

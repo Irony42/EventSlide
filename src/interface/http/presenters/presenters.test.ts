@@ -359,6 +359,12 @@ describe('toEventSettingsDto', () => {
           slideIntervalMs: 20_000,
           souvenirCounter: false,
           newPhotoSignal: false,
+          qrVisible: false,
+          qrScale: 1.3,
+          qrPlacement: 'top-end',
+          soundEnabled: true,
+          soundTone: 'bell',
+          soundVolume: 30,
         },
       },
     })
@@ -388,6 +394,12 @@ describe('toEventSettingsDto', () => {
         slideIntervalMs: 20_000,
         souvenirCounter: false,
         newPhotoSignal: false,
+        qrVisible: false,
+        qrScale: 1.3,
+        qrPlacement: 'top-end',
+        soundEnabled: true,
+        soundTone: 'bell',
+        soundVolume: 30,
       },
     })
   })

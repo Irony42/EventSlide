@@ -713,6 +713,27 @@ describe('GET /api/events/:eventSlug/wall', () => {
     ])
   })
 
+  it('tells the public wall its sound: off for an event that never chose one, the host’s choice otherwise (spec 12)', async () => {
+    const { subject, photos } = world()
+    seedWall(photos)
+
+    const none = await request(subject.app).get('/api/events/mariage/wall')
+    expect(none.body.sound).toEqual({ enabled: false, tone: 'chime', volume: 50 })
+
+    subject.events.seed(
+      anEvent({
+        id: WEDDING,
+        slug: 'mariage',
+        name: 'Camille & Sacha',
+        joinCode: 'H7K2QM',
+        status: 'live',
+        settings: { wall: { soundEnabled: true, soundTone: 'bell', soundVolume: 20 } },
+      }),
+    )
+    const chosen = await request(subject.app).get('/api/events/mariage/wall')
+    expect(chosen.body.sound).toEqual({ enabled: true, tone: 'bell', volume: 20 })
+  })
+
   it('presents the timings the domain derived, not two independent settings', async () => {
     // The Ken Burns duration is the slide interval plus the crossfade. 1.0 shipped a 20s
     // zoom against a 10s slide and every image snapped back to its start scale.
@@ -1125,6 +1146,7 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutChosen: false,
+      joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
       guestbook: null,
@@ -1155,6 +1177,7 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutChosen: false,
+      joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
       guestbook: null,

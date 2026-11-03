@@ -1027,6 +1027,18 @@ export const it: UiText = {
       newPhotoSignalHint:
         'Un breve messaggio, in alto al centro, quando una foto o un video è appena comparso sul muro. Mai il nome dell’ospite.',
     },
+    wallSound: {
+      title: 'Suono',
+      hint: 'Un suono breve quando una foto o un clip viene pubblicato sul muro. Disattivato di default.',
+      enable: 'Un suono a ogni nuova foto',
+      enableHint: 'Ogni schermo va attivato anche in sala: basta un clic sul muro (o il tasto S).',
+      tone: 'Suono',
+      toneNames: { chime: 'Carillon', bell: 'Campana', drop: 'Goccia', pop: 'Pop' },
+      volume: 'Volume',
+      volumeValue: (n: number) => `Volume ${n}%`,
+      test: 'Prova',
+      testHint: 'Riproduce il suono scelto su questo computer, a questo volume.',
+    },
     theme: 'Aspetto',
     themeHint:
       'Visibile ai suoi invitati e sullo schermo in sala. I colori proposti restano leggibili a dieci metri.',

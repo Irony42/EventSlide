@@ -81,6 +81,12 @@ describe('updateEventSettings', () => {
       slideIntervalMs: 12_000,
       souvenirCounter: false,
       newPhotoSignal: false,
+      qrVisible: true,
+      qrScale: 1,
+      qrPlacement: 'bottom-end',
+      soundEnabled: false,
+      soundTone: 'chime',
+      soundVolume: 50,
     })
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
   })

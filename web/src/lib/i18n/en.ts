@@ -992,6 +992,19 @@ export const en: UiText = {
       newPhotoSignalHint:
         'A brief message at the top centre when a photo or video has just appeared on the wall. Never the guest’s name.',
     },
+    wallSound: {
+      title: 'Sound',
+      hint: 'A short sound when a photo or clip is published on the wall. Off by default.',
+      enable: 'A sound for each new photo',
+      enableHint:
+        'Each screen must also be switched on in the room: one click on the wall (or the S key) is enough.',
+      tone: 'Sound',
+      toneNames: { chime: 'Chime', bell: 'Bell', drop: 'Drop', pop: 'Pop' },
+      volume: 'Volume',
+      volumeValue: (n: number) => `Volume ${n}%`,
+      test: 'Test',
+      testHint: 'Plays the chosen sound on this computer, at this volume.',
+    },
 
     theme: 'Appearance',
     themeHint:

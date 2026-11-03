@@ -319,6 +319,29 @@ describe('getWallPlaylist', () => {
     expect(result.ok && result.value.layoutChosen).toBe(true)
   })
 
+  it('hands the invitation card settings to the wall, defaults first (spec 14)', async () => {
+    events.seed(wedding)
+    const none = await ask()
+    expect(none.ok && none.value.joinCard).toEqual({
+      visible: true,
+      scale: 1,
+      placement: 'bottom-end',
+    })
+
+    events.seed(
+      anEvent({
+        id: 'event-1',
+        settings: { wall: { qrVisible: false, qrScale: 1.3, qrPlacement: 'top-start' } },
+      }),
+    )
+    const chosen = await ask()
+    expect(chosen.ok && chosen.value.joinCard).toEqual({
+      visible: false,
+      scale: 1.3,
+      placement: 'top-start',
+    })
+  })
+
   it('lets the screen own choice beat the event one, and says nothing was chosen by default', async () => {
     events.seed(
       anEvent({
@@ -873,6 +896,15 @@ describe('getWallPlaylist and the mission panel', () => {
 
       expect(result.ok && result.value.souvenirCount).toBe(1)
       expect(result.ok && result.value.newPhotoSignal).toBe(true)
+    })
+
+    it('is also computed when only the arrival sound is on, which needs it for the same guard (spec 12)', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { wall: { soundEnabled: true } } }))
+      photos.seed(aPhoto({ id: 'p-1', eventId: 'event-1', status: 'published', createdAt: AT }))
+
+      const result = await ask()
+
+      expect(result.ok && result.value.souvenirCount).toBe(1)
     })
   })
 })
