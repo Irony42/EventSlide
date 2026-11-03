@@ -12,6 +12,20 @@ import type { WallLayout } from './wallLayout'
  * client does not import from `src/`; `wallPhaseContract.test.ts` keeps the two equal.
  */
 
+/** The wall phase lasts 30 s to 60 min, the slideshow phase 15 s to 30 min (whole seconds). */
+export const MIXED_WALL_SECONDS = { min: 30, max: 3600, default: 180 } as const
+export const MIXED_SLIDESHOW_SECONDS = { min: 15, max: 1800, default: 60 } as const
+
+/**
+ * The layout of the "wall" phase: the event's own choice, or the overview (`mosaic`) when there
+ * is none or when it is `spotlight`, which is the other phase: the wall cannot alternate with
+ * itself, and a host who chose `spotlight` for the event is not blocked, only given the overview.
+ */
+export const mixedWallLayout = (eventLayout: WallLayout | null): WallLayout =>
+  eventLayout === null || eventLayout === 'spotlight' ? 'mosaic' : eventLayout
+
+// ---------------------------------------------------------------- shared body ----
+
 export type WallPhase = 'wall' | 'slideshow'
 
 export interface WallPhaseSchedule {
@@ -27,10 +41,6 @@ export interface WallPhaseState {
   readonly endsInMs: number
 }
 
-/** The wall phase lasts 30 s to 60 min, the slideshow phase 15 s to 30 min (whole seconds). */
-export const MIXED_WALL_SECONDS = { min: 30, max: 3600, default: 180 } as const
-export const MIXED_SLIDESHOW_SECONDS = { min: 15, max: 1800, default: 60 } as const
-
 /**
  * Which phase `nowMs` falls in. A clock before the anchor (a screen running ahead of the
  * server's stamp) is read as the start of the first wall phase, never as a negative position.
@@ -43,11 +53,3 @@ export const wallPhaseAt = (schedule: WallPhaseSchedule, nowMs: number): WallPha
     ? { phase: 'wall', endsInMs: schedule.wallMs - position }
     : { phase: 'slideshow', endsInMs: cycleMs - position }
 }
-
-/**
- * The layout of the "wall" phase: the event's own choice, or the overview (`mosaic`) when there
- * is none or when it is `spotlight`, which is the other phase: the wall cannot alternate with
- * itself, and a host who chose `spotlight` for the event is not blocked, only given the overview.
- */
-export const mixedWallLayout = (eventLayout: WallLayout | null): WallLayout =>
-  eventLayout === null || eventLayout === 'spotlight' ? 'mosaic' : eventLayout
