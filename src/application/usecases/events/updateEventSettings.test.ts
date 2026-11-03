@@ -79,6 +79,9 @@ describe('updateEventSettings', () => {
     expect(result.ok && result.value.settings.wall).toEqual({
       layout: 'mosaic',
       slideIntervalMs: 12_000,
+      qrVisible: true,
+      qrScale: 1,
+      qrPlacement: 'bottom-end',
     })
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
   })
