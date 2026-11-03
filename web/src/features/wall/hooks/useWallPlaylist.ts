@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createServerClock, type ServerClock } from '../../../lib/serverClock'
+import { createWallServerClock, type WallServerClock } from './wallServerClock'
 import { useApi } from '../../../app/useApi'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
@@ -38,7 +38,7 @@ export interface WallPlaylistState {
   readonly reactionPulse: number
   readonly refresh: () => void
   /** The server's clock as read off the last responses (spec 09): the mixed wall's phase uses it. */
-  readonly serverClock: ServerClock
+  readonly serverClock: WallServerClock
 }
 
 /** While the mixed wall is on, the wall is read again at least this often, to recalibrate the clock. */
@@ -290,7 +290,7 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
   const [state, setState] = useState<Fetched>(INITIAL)
   const [attempt, setAttempt] = useState(0)
   const [reactionPulse, setReactionPulse] = useState(0)
-  const [serverClock] = useState(createServerClock)
+  const [serverClock] = useState(createWallServerClock)
 
   /**
    * A refresh does not raise `loading`.

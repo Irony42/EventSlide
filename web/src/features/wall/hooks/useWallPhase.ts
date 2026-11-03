@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { WallResponse } from '../../../lib/api/dto'
-import type { ServerClock } from '../../../lib/serverClock'
+import type { WallServerClock } from './wallServerClock'
 import { PHASE_FADE_MS, wallPhaseAt, type WallPhase } from '../wallPhase'
 
 export interface WallPhaseView {
@@ -15,7 +15,7 @@ export interface WallPhaseView {
 
 export interface WallPhaseOptions {
   readonly mixed: WallResponse['mixed']
-  readonly clock: ServerClock
+  readonly clock: WallServerClock
   /** Space, or a hidden tab: the phase holds where it was, and catches up on resume. */
   readonly paused: boolean
   /** Reduced motion, or a budget with no cross-fade left: a hard cut, no dark gap. */

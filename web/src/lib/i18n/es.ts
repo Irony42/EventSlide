@@ -839,7 +839,7 @@ export const es: UiText = {
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Para salir: Esc o F salen de la pantalla completa; después cierre la pestaña.',
     mixedHint:
-      'El muro alterna una vista general y una foto grande: L (o ?layout=) fija un diseño en esta pantalla y detiene la alternancia hasta recargar la página.',
+      'El muro alterna una vista general y una foto grande: la tecla L (o la dirección de la pantalla con layout) fija un diseño en esta pantalla y detiene la alternancia hasta recargar la página.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `Primera foto de ${name}`,
 
