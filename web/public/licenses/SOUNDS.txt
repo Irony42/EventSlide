@@ -1,0 +1,16 @@
+Sounds bundled with EventSlide (spec 12, "a sound on each new photo")
+
+web/public/sounds/chime.mp3   Carillon
+web/public/sounds/bell.mp3    Cloche
+web/public/sounds/drop.mp3    Goutte
+web/public/sounds/pop.mp3     Pop
+
+Made for EventSlide by its maintainers, from nothing: each file is a sum of sine waves under
+exponential envelopes, computed by tools/sounds/generate.mjs and encoded to mono 44.1 kHz
+64 kbit/s mp3 by ffmpeg. No sample, no recording and no third-party sound is used, so there is
+nothing to attribute.
+
+Licence: CC0 1.0 Universal (public domain dedication),
+https://creativecommons.org/publicdomain/zero/1.0/
+
+To rebuild them: node tools/sounds/generate.mjs
