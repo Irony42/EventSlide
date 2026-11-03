@@ -94,13 +94,13 @@ describe('SequentialIdGenerator', () => {
 
     ids.reset()
 
-    expect([ids.eventId(), ids.clientId(), ids.accountTokenId(), ids.challengeId(), [...ids.bytes(2)]]).toEqual([
-      'event-1',
-      'client-1',
-      'account-token-1',
-      'challenge-1',
-      [0, 1],
-    ])
+    expect([
+      ids.eventId(),
+      ids.clientId(),
+      ids.accountTokenId(),
+      ids.challengeId(),
+      [...ids.bytes(2)],
+    ]).toEqual(['event-1', 'client-1', 'account-token-1', 'challenge-1', [0, 1]])
   })
 
   it('returns itself from reset, so a beforeEach reads in one line', async () => {
