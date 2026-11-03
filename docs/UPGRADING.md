@@ -747,3 +747,17 @@ absent means allowed) is the default a client created on a hosted box starts wit
 `NEW_CLIENT_CLIPS_ALLOWED`; the operator console shows it per client (« Livres photo (PDF)
 autorisés »). Existing clients keep the function on. On top of it, one event gets at most
 `BOOK_MAX_PER_EVENT_PER_DAY` books in a rolling day.
+
+## Upgrading to 3.6 (not released yet)
+
+### Timed photo challenge (spec 10)
+
+- **One migration, `024_event_challenges`**, applied at boot on every box: a new, empty table. No existing row
+  changes. It only goes forward, so take the usual backup first ([above](#upgrading-with-docker)); going back is
+  the restore of that archive.
+- **Nothing changes for an existing event.** A challenge exists only when a host launches one, from the
+  missions list of the console; there is no setting to switch on and no challenge is ever started on its own.
+- **Two new routes**, `POST` and `DELETE /api/events/:slug/challenge` (a moderator or the owner), and a new
+  public `challenge.changed` signal on the event stream. A wall or a phone left open across the upgrade ignores
+  them until it is reloaded.
+- **Nothing to set in `.env`.**
