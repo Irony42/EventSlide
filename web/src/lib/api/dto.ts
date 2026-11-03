@@ -604,6 +604,8 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly souvenirCounter: boolean
+    readonly newPhotoSignal: boolean
   }
 }
 

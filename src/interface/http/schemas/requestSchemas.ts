@@ -498,6 +498,8 @@ export const updateSettingsBody = z.strictObject({
     .strictObject({
       layout: z.enum(WALL_LAYOUTS).nullable().optional(),
       slideIntervalMs: z.number().int().nullable().optional(),
+      souvenirCounter: z.boolean().optional(),
+      newPhotoSignal: z.boolean().optional(),
     })
     .optional(),
   /**

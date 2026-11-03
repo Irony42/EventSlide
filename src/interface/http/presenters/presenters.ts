@@ -330,7 +330,12 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   theme: toEventThemeDto(settings, slug),
   brand: toEventBrandDto(settings, slug),
   wallLanguage: settings.wallLanguage,
-  wall: { layout: settings.wall.layout, slideIntervalMs: settings.wall.slideIntervalMs },
+  wall: {
+    layout: settings.wall.layout,
+    slideIntervalMs: settings.wall.slideIntervalMs,
+    souvenirCounter: settings.wall.souvenirCounter,
+    newPhotoSignal: settings.wall.newPhotoSignal,
+  },
 })
 
 /**

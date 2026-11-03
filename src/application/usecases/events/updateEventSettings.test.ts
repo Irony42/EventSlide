@@ -79,6 +79,8 @@ describe('updateEventSettings', () => {
     expect(result.ok && result.value.settings.wall).toEqual({
       layout: 'mosaic',
       slideIntervalMs: 12_000,
+      souvenirCounter: false,
+      newPhotoSignal: false,
     })
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
   })

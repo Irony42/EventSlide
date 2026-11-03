@@ -806,6 +806,8 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
         layout: null,
         slideIntervalMs: null,
+        souvenirCounter: false,
+        newPhotoSignal: false,
       })
 
       db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
@@ -815,6 +817,28 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
         layout: null,
         slideIntervalMs: null,
+        souvenirCounter: false,
+        newPhotoSignal: false,
+      })
+    })
+
+    it('reads the spec 11 keys: absent or not exactly true is off, true is on', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      const read = async (wall: unknown) => {
+        db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(json({ wall }), 'evt-1')
+        return (await repo.findById(asEventId('evt-1')))?.settings.wall
+      }
+      expect(await read({ layout: 'mosaic' })).toMatchObject({
+        souvenirCounter: false,
+        newPhotoSignal: false,
+      })
+      expect(await read({ souvenirCounter: 'yes', newPhotoSignal: 1 })).toMatchObject({
+        souvenirCounter: false,
+        newPhotoSignal: false,
+      })
+      expect(await read({ souvenirCounter: true, newPhotoSignal: true })).toMatchObject({
+        souvenirCounter: true,
+        newPhotoSignal: true,
       })
     })
 

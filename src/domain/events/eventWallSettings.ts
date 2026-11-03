@@ -22,6 +22,11 @@ export interface EventWallSettings {
   readonly layout: WallLayout | null
   /** `null`: the {@link SlideInterval} default. Otherwise 2 s to 10 min. Ken Burns stays derived. */
   readonly slideIntervalMs: number | null
+  /* ---- Spec 11: the souvenir counter and the new-photo signal. Both off unless the host asks. ---- */
+  /** Show « n souvenirs partagés » at the top centre of the wall. */
+  readonly souvenirCounter: boolean
+  /** Announce, briefly, that photos or clips have just become visible on the wall. */
+  readonly newPhotoSignal: boolean
 }
 
 export type EventWallSettingsPatch = Partial<EventWallSettings>
@@ -29,6 +34,8 @@ export type EventWallSettingsPatch = Partial<EventWallSettings>
 export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   layout: null,
   slideIntervalMs: null,
+  souvenirCounter: false,
+  newPhotoSignal: false,
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>
@@ -42,6 +49,8 @@ export const mergeWallSettings = (
   layout: patch?.layout === undefined ? base.layout : patch.layout,
   slideIntervalMs:
     patch?.slideIntervalMs === undefined ? base.slideIntervalMs : patch.slideIntervalMs,
+  souvenirCounter: patch?.souvenirCounter ?? base.souvenirCounter,
+  newPhotoSignal: patch?.newPhotoSignal ?? base.newPhotoSignal,
 })
 
 /** The refusal of a host's choice, with the interval's own codes (`slideInterval.tooShort`, ...). */
@@ -71,5 +80,8 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
       typeof interval === 'number' && SlideInterval.create(interval).ok
         ? interval
         : DEFAULT_WALL_SETTINGS.slideIntervalMs,
+    // Only a stored `true` turns them on: absent or unreadable is off, as before spec 11.
+    souvenirCounter: record['souvenirCounter'] === true,
+    newPhotoSignal: record['newPhotoSignal'] === true,
   }
 }

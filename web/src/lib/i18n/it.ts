@@ -1006,6 +1006,14 @@ export const it: UiText = {
       intervalHint: 'Per quanto tempo ogni foto resta sullo schermo.',
       intervalDefault: 'Predefinito (una foto ogni 8 s)',
       intervalSeconds: (n: number) => `Una foto ogni ${n} s`,
+      // Spec 11.
+      onScreen: 'Sullo schermo',
+      souvenirCounter: 'Mostra il contatore dei ricordi',
+      souvenirCounterHint:
+        'Un contatore discreto, in alto al centro: «17 ricordi condivisi». Conta le foto e i video visibili sul muro.',
+      newPhotoSignal: 'Segnala le nuove foto',
+      newPhotoSignalHint:
+        'Un breve messaggio, in alto al centro, quando una foto o un video è appena comparso sul muro. Mai il nome dell’ospite.',
     },
     theme: 'Aspetto',
     themeHint:

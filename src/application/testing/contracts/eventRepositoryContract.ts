@@ -198,7 +198,12 @@ export const eventRepositoryContract = (
             welcomeMessage: 'Bienvenue !',
             logo: logoDigest,
             // Off the default (null, null) so a store that dropped the group is caught (spec 13).
-            wall: { layout: 'polaroid', slideIntervalMs: 12_000 },
+            wall: {
+              layout: 'polaroid',
+              slideIntervalMs: 12_000,
+              souvenirCounter: false,
+              newPhotoSignal: false,
+            },
           },
         }),
       )
@@ -226,7 +231,12 @@ export const eventRepositoryContract = (
         venuePhoto: venueDigest,
         welcomeMessage: 'Bienvenue !',
         logo: logoDigest,
-        wall: { layout: 'polaroid', slideIntervalMs: 12_000 },
+        wall: {
+          layout: 'polaroid',
+          slideIntervalMs: 12_000,
+          souvenirCounter: false,
+          newPhotoSignal: false,
+        },
       })
     })
 

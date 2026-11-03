@@ -1244,7 +1244,39 @@ describe('the host event routes', () => {
         .send({ wall: { slideIntervalMs: 12_000 } })
 
       expect(response.status).toBe(200)
-      expect(response.body.settings.wall).toEqual({ layout: 'mosaic', slideIntervalMs: 12_000 })
+      expect(response.body.settings.wall).toEqual({
+        layout: 'mosaic',
+        slideIntervalMs: 12_000,
+        souvenirCounter: false,
+        newPhotoSignal: false,
+      })
+    })
+
+    it('saves the two spec 11 switches key by key, off by default, owner only', async () => {
+      const agent = await signedIn(world, 'owner')
+      const first = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { souvenirCounter: true } })
+      expect(first.body.settings.wall).toMatchObject({
+        souvenirCounter: true,
+        newPhotoSignal: false,
+      })
+      const second = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { newPhotoSignal: true } })
+      expect(second.body.settings.wall).toMatchObject({
+        souvenirCounter: true,
+        newPhotoSignal: true,
+      })
+      const bad = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { souvenirCounter: 'yes' } })
+      expect(bad.status).toBe(400)
+      const moderator = await signedIn(world, 'moderator')
+      const refused = await moderator
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { souvenirCounter: false } })
+      expect(refused.status).toBeGreaterThanOrEqual(400)
     })
 
     it('refuses an unknown wall key, a bad layout and an out-of-range rhythm with 400', async () => {
@@ -1325,7 +1357,12 @@ describe('the host event routes', () => {
         },
         wallLanguage: 'en',
         brand: { welcomeMessage: null, logoUrl: null },
-        wall: { layout: null, slideIntervalMs: null },
+        wall: {
+          layout: null,
+          slideIntervalMs: null,
+          souvenirCounter: false,
+          newPhotoSignal: false,
+        },
       })
     })
 

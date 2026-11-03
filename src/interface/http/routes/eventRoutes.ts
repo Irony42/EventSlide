@@ -267,6 +267,12 @@ export const eventRoutes = ({
                   ...(body.wall.slideIntervalMs === undefined
                     ? {}
                     : { slideIntervalMs: body.wall.slideIntervalMs }),
+                  ...(body.wall.souvenirCounter === undefined
+                    ? {}
+                    : { souvenirCounter: body.wall.souvenirCounter }),
+                  ...(body.wall.newPhotoSignal === undefined
+                    ? {}
+                    : { newPhotoSignal: body.wall.newPhotoSignal }),
                 },
               }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.

@@ -62,5 +62,9 @@ export const wallChanges = (
   if (draft.slideIntervalMs !== loaded.slideIntervalMs) {
     changes.slideIntervalMs = draft.slideIntervalMs
   }
+  if (draft.souvenirCounter !== loaded.souvenirCounter) {
+    changes.souvenirCounter = draft.souvenirCounter
+  }
+  if (draft.newPhotoSignal !== loaded.newPhotoSignal) changes.newPhotoSignal = draft.newPhotoSignal
   return Object.keys(changes).length === 0 ? undefined : changes
 }
