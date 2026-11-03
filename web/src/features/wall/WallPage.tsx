@@ -21,12 +21,14 @@ import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMessage } from './components/WallMessage'
+import { NewPhotoSignal } from './components/NewPhotoSignal'
 import { SouvenirCounter } from './components/SouvenirCounter'
 import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
 import { useLayoutParam } from './hooks/useLayoutParam'
 import { useIdleCursor } from './hooks/useIdleCursor'
+import { useNewPhotoSignal } from './hooks/useNewPhotoSignal'
 import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useWallGuestbook } from './hooks/useWallGuestbook'
@@ -143,8 +145,9 @@ export function WallPage() {
   const { slug } = useParams()
   const eventSlug = slug ?? ''
 
+  const newPhotoSignal = useNewPhotoSignal()
   const { wall, loading, error, notServed, offline, readFailing, reactionPulse, refresh } =
-    useWallPlaylist(eventSlug)
+    useWallPlaylist(eventSlug, newPhotoSignal.observe)
   const text = useTranslations()
   // A stream that is down says nothing about the network while the wall's own reads keep
   // coming back: a proxy that buffers event streams leaves it down all night. The room is told
@@ -417,6 +420,9 @@ export function WallPage() {
       {guestbookMessage !== null && items.length > 0 ? (
         <WallMessage message={guestbookMessage} />
       ) : null}
+
+      {/* Spec 11: only a host-enabled signal ever produces a bubble. */}
+      <NewPhotoSignal bubble={newPhotoSignal.bubble} />
 
       {showsOverlay && invitation !== null ? (
         <WallOverlay join={invitation} onDismiss={() => setQrHidden(true)} />

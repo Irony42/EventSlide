@@ -846,6 +846,11 @@ export const de: UiText = {
         one: `${t.number(count)} Erinnerung geteilt`,
         other: `${t.number(count)} Erinnerungen geteilt`,
       }),
+    arrivalPhoto: 'Neues Foto hinzugefügt',
+    arrivalClip: 'Neues Video hinzugefügt',
+    arrivalPhotos: (count: number) => `${t.number(count)} neue Fotos`,
+    arrivalClips: (count: number) => `${t.number(count)} neue Videos`,
+    arrivalMixed: (count: number) => `${t.number(count)} neue Erinnerungen`,
 
     codeLabel: 'Code der Feier',
     qrTitle: 'QR-Code für den Beitritt zur Feier',

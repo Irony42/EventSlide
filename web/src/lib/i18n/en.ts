@@ -790,6 +790,11 @@ export const en: UiText = {
         one: `${t.number(count)} memory shared`,
         other: `${t.number(count)} memories shared`,
       }),
+    arrivalPhoto: 'New photo added',
+    arrivalClip: 'New video added',
+    arrivalPhotos: (count: number) => `${t.number(count)} new photos`,
+    arrivalClips: (count: number) => `${t.number(count)} new videos`,
+    arrivalMixed: (count: number) => `${t.number(count)} new memories`,
 
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall

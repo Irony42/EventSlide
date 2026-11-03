@@ -822,6 +822,11 @@ export const es: UiText = {
         one: `${t.number(count)} recuerdo compartido`,
         other: `${t.number(count)} recuerdos compartidos`,
       }),
+    arrivalPhoto: 'Nueva foto añadida',
+    arrivalClip: 'Nuevo vídeo añadido',
+    arrivalPhotos: (count: number) => `${t.number(count)} fotos nuevas`,
+    arrivalClips: (count: number) => `${t.number(count)} vídeos nuevos`,
+    arrivalMixed: (count: number) => `${t.number(count)} recuerdos nuevos`,
 
     codeLabel: 'Código de la fiesta',
     // Read by nothing in the room: the wall is also opened on a laptop while a host

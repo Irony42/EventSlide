@@ -842,6 +842,11 @@ export const fr = {
         one: `${t.number(count)} souvenir partagé`,
         other: `${t.number(count)} souvenirs partagés`,
       }),
+    arrivalPhoto: 'Nouvelle photo ajoutée',
+    arrivalClip: 'Nouvelle vidéo ajoutée',
+    arrivalPhotos: (count: number) => `${t.number(count)} nouvelles photos`,
+    arrivalClips: (count: number) => `${t.number(count)} nouvelles vidéos`,
+    arrivalMixed: (count: number) => `${t.number(count)} nouveaux souvenirs`,
 
     /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Code de la soirée',
