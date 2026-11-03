@@ -195,6 +195,7 @@ export function WallPage() {
     intervalMs: wall?.slideIntervalMs ?? 0,
     loaded: wall !== null,
     hold: cardUp,
+    freshLane: wall?.freshLane !== false,
   })
   const { message: guestbookMessage } = useWallGuestbook(wall?.guestbook, slideshow.generation)
   // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
@@ -424,6 +425,7 @@ export function WallPage() {
           slideshow={slideshow}
           kenBurnsDurationMs={wall.kenBurnsDurationMs}
           transitionMs={transitionMs}
+          tilt={wall.tilt !== false}
         />
       )}
 

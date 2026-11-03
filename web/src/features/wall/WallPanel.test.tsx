@@ -335,3 +335,37 @@ describe('layout and rhythm (spec 13, PR 3)', () => {
     })
   })
 })
+
+describe('fresh photos first and tilt (spec 13, PR 4)', () => {
+  it('writes each switch alone, from the panel', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.tilt))
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.freshLane))
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { tilt: false, freshLane: false },
+    })
+  })
+
+  it('lays the prints flat on the wall when the event turned the tilt off', async () => {
+    renderWall({
+      wall: vi.fn(async () =>
+        aWallResponse({
+          items: [aWallItem(), aWallItem({ id: 'photo-2' })],
+          layout: 'polaroid',
+          layoutChosen: true,
+          tilt: false,
+        }),
+      ),
+    })
+
+    const prints = await screen.findAllByTestId('wall-slide')
+    for (const print of prints) {
+      expect(print.style.getPropertyValue('--wall-tilt')).toBe('0deg')
+    }
+  })
+})

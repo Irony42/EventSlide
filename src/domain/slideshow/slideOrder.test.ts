@@ -140,6 +140,21 @@ describe('the first photo of an evening', () => {
   })
 })
 
+describe('the host’s switch for the fresh lane (spec 13)', () => {
+  const items = list('d', 'c', 'b', 'a')
+  const cursor = startCursor(list('c', 'b', 'a'))
+
+  it('lets a new photo take the next slide by default, as always', () => {
+    expect(nextSlide(items, cursor)?.slide).toEqual({ id: 'd', fresh: true })
+  })
+
+  it('keeps the wall in its rotation when the lane is off, and plans the same way', () => {
+    expect(nextSlide(items, cursor, false)?.slide).toEqual({ id: 'b', fresh: false })
+    expect(upcomingSlides(items, cursor, 2, false).map((slide) => slide.id)).toEqual(['b', 'a'])
+    expect(upcomingSlides(items, cursor, 1)[0]).toEqual({ id: 'd', fresh: true })
+  })
+})
+
 describe('keeping the cursor consistent with the playlist', () => {
   it('leaves a cursor alone when the list is empty', () => {
     const cursor = startCursor(list('a'))

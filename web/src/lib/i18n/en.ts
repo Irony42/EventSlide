@@ -1000,6 +1000,10 @@ export const en: UiText = {
       intervalHint: 'How long each photo stays on screen.',
       intervalDefault: 'Default (one photo every 8 s)',
       intervalSeconds: (n: number) => `One photo every ${n} s`,
+      freshLane: 'New photos first',
+      freshLaneHint: 'A published photo takes the next slide, three in a row at most.',
+      tilt: 'Slightly tilted photos',
+      tiltHint: 'Polaroids and clothesline: a fixed angle of a few degrees.',
     },
 
     theme: 'Appearance',
