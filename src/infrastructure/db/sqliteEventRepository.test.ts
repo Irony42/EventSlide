@@ -806,15 +806,23 @@ describe('SqliteEventRepository', () => {
       expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
         layout: null,
         slideIntervalMs: null,
+        qrVisible: true,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
       })
 
       db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
-        json({ wall: { layout: 'carousel', slideIntervalMs: 'fast' } }),
+        json({
+          wall: { layout: 'carousel', slideIntervalMs: 'fast', qrScale: 9, qrPlacement: 'x' },
+        }),
         'evt-1',
       )
       expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
         layout: null,
         slideIntervalMs: null,
+        qrVisible: true,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
       })
     })
 

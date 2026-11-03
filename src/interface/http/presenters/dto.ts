@@ -373,6 +373,15 @@ export interface WallResponseDto {
    * ambiance's suggestion (and to let the screen's own `L` and `?layout=` beat it).
    */
   readonly layoutChosen: boolean
+  /**
+   * The invitation card (spec 14): whether it shows on a populated wall, its scale (0.8 to 1.5, 1
+   * is the card as it always was) and its corner. Public like the rest; carries no secret.
+   */
+  readonly joinCard: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -515,6 +524,9 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly qrVisible: boolean
+    readonly qrScale: number
+    readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
   }
 }
 

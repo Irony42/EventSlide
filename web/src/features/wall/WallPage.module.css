@@ -33,6 +33,16 @@
    * it already does.
    */
   --wall-chrome-inline-end: 0px;
+  --wall-chrome-inline-start: 0px;
+  /* The card caption makes way for when the card sits bottom-start (spec 14). */
+  --wall-chrome-caption-start: 0px;
+  /* The host's scale of the invitation card (spec 14): 1 is the card as it always was. The
+     width is capped at 40% of the wall (never under today's card) so no choice can eat the rows beside it. */
+  --wall-join-scale: 1;
+  --wall-join-width: min(
+    calc(var(--wall-join-card) * var(--wall-join-scale)),
+    max(var(--wall-join-card), 40vw)
+  );
 }
 
 /**
@@ -45,7 +55,47 @@
  * second number of its own.
  */
 .wall[data-wall-chrome='corner'] {
-  --wall-chrome-inline-end: calc(var(--wall-join-card) + var(--space-6));
+  --wall-chrome-inline-end: calc(var(--wall-join-width) + var(--space-6));
+}
+
+/* The reservation follows the side of the corner, never the height: top and bottom of one side
+   reserve the same column (spec 14, rule 6). */
+.wall[data-wall-chrome='corner'][data-wall-join-corner$='start'] {
+  --wall-chrome-inline-start: calc(var(--wall-join-width) + var(--space-6));
+  --wall-chrome-inline-end: 0px;
+}
+
+.wall[data-wall-chrome='corner'][data-wall-join-corner='bottom-start'] {
+  --wall-chrome-caption-start: calc(var(--wall-join-width) + var(--space-6));
+}
+
+/**
+ * A top corner is a column (spec 14, rule 8): the invitation card first, then what that corner
+ * already held (the missions at the start, the notices at the end). Stacked in flow, they cannot
+ * overlap. The top centre is never used: the challenge banner and the counter own it.
+ */
+.cornerStack {
+  position: absolute;
+  inset-block-start: var(--wall-safe);
+  z-index: var(--z-wall-caption);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cornerStart {
+  inset-inline-start: var(--wall-safe);
+  align-items: flex-start;
+}
+
+.cornerEnd {
+  inset-inline-end: var(--wall-safe);
+  align-items: flex-end;
+}
+
+/* The notices region, in the flow of the top-end column instead of at the edge. */
+.notices.noticesStacked {
+  position: static;
 }
 
 .centre {

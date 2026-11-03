@@ -1184,6 +1184,7 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
   "kenBurnsDurationMs": 8800,
   "layout": "spotlight",
   "layoutChosen": false,
+  "joinCard": { "visible": true, "scale": 1, "placement": "bottom-end" },
   "reactionsEnabled": true,
   "theme": {
     "accentHue": 345,
@@ -1215,6 +1216,12 @@ event's choice beat the ambiance's suggestion (a screen's own `L` key or `?layou
 `slideIntervalMs` is the event's rhythm when the host set one (`wall.slideIntervalMs`), 8000 otherwise, and
 `kenBurnsDurationMs` is still derived from it, never read from the settings. The handler still passes no
 screen-level value, so a request cannot change either.
+
+`joinCard` (spec 14) is the invitation card's setting, public like the rest and free of secrets: `visible`
+(false hides the card on a populated wall for good; the empty wall keeps its large QR, and `joinCode` and
+`joinUrl` stay present), `scale` (0.8 to 1.5 in steps of 0.05, 1 is the card as it always was) and
+`placement` (`bottom-end`, `bottom-start`, `top-end` or `top-start`). Defaults: `true`, `1`, `bottom-end`.
+Optional for a client: an older server sends none and the wall takes the defaults.
 
 `missions` is the host's prompt list (roadmap §2.1) and is **empty for most events**, which
 is what stops the wall drawing a panel at all. It rides here rather than behind a second
@@ -3339,8 +3346,8 @@ domain. `retentionDays: null` clears retention; `retentionDays` absent does not 
 | `maxPhotosPerGuest`           | integer 1..10000, or `null` for "no cap"                                                                                                                                                                                                                                                                                                            |
 | `theme`                       | object — all five keys required, plus `custom` when the ambiance is `custom`, see below; `groundUrl` is **read and ignored** (it is what `GET` answers, so a client echoing the theme back is not refused; it is set only by `PUT /venue-photo`)                                                                                                    |
 | `wallLanguage`                | `fr` \| `de` \| `en` \| `es` \| `it` — see below                                                                                                                                                                                                                                                                                                    |
-| `wall`                        | object, **strict and partial**, merged **key by key** into the stored group (never replaced whole, unlike `theme`): `layout` is a layout name or `null` (nothing chosen for the event), `slideIntervalMs` is an integer 2000..600000 or `null` (8 s). An unknown key is **400**; an interval outside the bounds is **400** `slideInterval.tooShort` | `slideInterval.tooLong`. `GET` answers the whole group in `settings.wall` (spec 13) |
-| `welcomeMessage`              | string up to 280 code points and 4 lines, or `null` to clear; absent leaves it alone. Cleaned by the server; **400** `eventSettings.welcomeInvalid`                                                                                                                                                                                                 | `welcomeTooLong`                                                                    | `welcomeTooManyLines`. Changing it under a purge hold is **500** `eventSettings.saveFailed`. `brand` (what `GET` answers) is **read and ignored**. |
+| `wall`                        | object, **strict and partial**, merged **key by key** into the stored group (never replaced whole, unlike `theme`): `layout` is a layout name or `null` (nothing chosen for the event), `slideIntervalMs` is an integer 2000..600000 or `null` (8 s). An unknown key is **400**; an interval outside the bounds is **400** `slideInterval.tooShort` | `slideInterval.tooLong`. `GET` answers the whole group in `settings.wall` (spec 13). Spec 14 adds `qrVisible` (boolean), `qrScale` (number 0.8..1.5 on a 0.05 grid, 1 = today; **400** `eventSettings.wallQrScaleInvalid` otherwise) and `qrPlacement` (`bottom-end`, `bottom-start`, `top-end` or `top-start`; anything else is **400**), all optional |
+| `welcomeMessage`              | string up to 280 code points and 4 lines, or `null` to clear; absent leaves it alone. Cleaned by the server; **400** `eventSettings.welcomeInvalid`                                                                                                                                                                                                 | `welcomeTooLong`                                                                                                                                                                                                                                                                                                                                        | `welcomeTooManyLines`. Changing it under a purge hold is **500** `eventSettings.saveFailed`. `brand` (what `GET` answers) is **read and ignored**. |
 
 **A client's ceilings (roadmap §10.5 / G2-05).** For an event that belongs to a client, an edit is
 **refused** where creation reduces — shortening what a host just typed would tell them they got
