@@ -848,6 +848,9 @@ export const toWallResponseDto = (
     kenBurnsDurationMs: view.kenBurnsDurationMs,
     layout: view.layout,
     layoutChosen: view.layoutChosen,
+    souvenirCount: view.souvenirCount,
+    souvenirCounter: view.souvenirCounter,
+    newPhotoSignal: view.newPhotoSignal,
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.

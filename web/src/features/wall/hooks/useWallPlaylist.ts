@@ -196,6 +196,11 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.layout === fresh.layout &&
   // Whether that layout is the host's choice (spec 13): it decides who wins against the ambiance.
   kept.layoutChosen === fresh.layoutChosen &&
+  // Spec 11: a souvenir published beyond the window, or one taken down, moves no `revision`, so
+  // without these lines the counter would stay wrong until the next photograph.
+  kept.souvenirCount === fresh.souvenirCount &&
+  kept.souvenirCounter === fresh.souvenirCounter &&
+  kept.newPhotoSignal === fresh.newPhotoSignal &&
   kept.reactionsEnabled === fresh.reactionsEnabled &&
   kept.event.name === fresh.event.name &&
   kept.theme?.accentHue === fresh.theme?.accentHue &&

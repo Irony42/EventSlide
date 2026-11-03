@@ -821,6 +821,13 @@ export const it: UiText = {
     joinPrompt: 'Entri nella serata',
     offline: 'Nuove foto in attesa della rete',
     paused: 'Presentazione in pausa',
+
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} ricordo condiviso`,
+        other: `${t.number(count)} ricordi condivisi`,
+      }),
     codeLabel: 'Codice della serata',
     qrTitle: 'Codice QR per entrare nella serata',
     photoBy: (name: string) => `Foto inviata da ${name}`,

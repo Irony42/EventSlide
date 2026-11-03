@@ -29,6 +29,13 @@ export interface EventWallSettings {
   readonly newPhotoSignal: boolean
 }
 
+/**
+ * Whether the wall's read must pay for the total of visible souvenirs (spec 11, shared with the
+ * arrival sound of spec 12, which adds its own switch here). Off for every switch: no query.
+ */
+export const wallNeedsSouvenirCount = (wall: EventWallSettings): boolean =>
+  wall.souvenirCounter || wall.newPhotoSignal
+
 export type EventWallSettingsPatch = Partial<EventWallSettings>
 
 export const DEFAULT_WALL_SETTINGS: EventWallSettings = {

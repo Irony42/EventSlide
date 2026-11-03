@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { makeGetWallPlaylist, type GetWallPlaylist } from './getWallPlaylist'
 import { Event } from '../../../domain/events/event'
+import { asEventId, asPhotoId } from '../../../domain/shared/ids'
 import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
@@ -783,5 +784,95 @@ describe('getWallPlaylist and the mission panel', () => {
     missions.seed(aMission({ id: 'm-gala', eventId: 'event-2' }))
 
     expect(await standings()).toEqual([])
+  })
+
+  describe('the souvenir total (spec 11)', () => {
+    const withCounter = anEvent({
+      id: 'event-1',
+      settings: { wall: { souvenirCounter: true } },
+    })
+
+    it('counts the published photos and clips, and nothing a host has not let through', async () => {
+      events.seed(withCounter)
+      photos.seed(
+        aPhoto({ id: 'p-1', eventId: 'event-1', status: 'published', createdAt: AT }),
+        aPhoto({ id: 'p-2', eventId: 'event-1', status: 'published', createdAt: atPlus(1) }),
+        aPhoto({
+          id: 'c-1',
+          eventId: 'event-1',
+          status: 'published',
+          createdAt: atPlus(2),
+          clip: {},
+        }),
+        aPhoto({ id: 'p-3', eventId: 'event-1', status: 'pending', createdAt: atPlus(3) }),
+        aPhoto({ id: 'p-4', eventId: 'event-1', status: 'rejected', createdAt: atPlus(4) }),
+        aPhoto({ id: 'p-5', eventId: 'event-1', status: 'hidden', createdAt: atPlus(5) }),
+        aPhoto({ id: 'p-6', eventId: 'event-1', status: 'published', createdAt: atPlus(6) }),
+        aPhoto({ id: 'other', eventId: 'event-2', status: 'published', createdAt: atPlus(7) }),
+      )
+      await photos.setTakenDown(asEventId('event-1'), asPhotoId('p-6'), AT)
+
+      const result = await ask()
+
+      expect(result.ok && result.value.souvenirCount).toBe(3)
+    })
+
+    it('is the server’s total, not the length of a window of two hundred', async () => {
+      events.seed(withCounter)
+      photos.seed(
+        ...Array.from({ length: 230 }, (_, i) =>
+          aPhoto({ id: `p-${i}`, eventId: 'event-1', status: 'published', createdAt: atPlus(i) }),
+        ),
+      )
+
+      const result = await ask()
+
+      expect(result.ok && result.value.playlist.items).toHaveLength(200)
+      expect(result.ok && result.value.souvenirCount).toBe(230)
+    })
+
+    it('reads no counts and answers null when neither switch is on', async () => {
+      events.seed(wedding)
+      let reads = 0
+      const counting = new (class extends FakePhotoRepository {
+        override async countsByStatus(
+          ...args: Parameters<FakePhotoRepository['countsByStatus']>
+        ): ReturnType<FakePhotoRepository['countsByStatus']> {
+          reads += 1
+          return super.countsByStatus(...args)
+        }
+      })()
+      const recorded = makeGetWallPlaylist({
+        events,
+        photos: counting,
+        guests: new FakeGuestRepository(),
+        missions: new FakeMissionRepository(counting),
+        guestbook: new FakeGuestbookRepository(),
+      })
+
+      const result = await recorded({
+        slug: wedding.slug,
+        layout: null,
+        slideIntervalMs: null,
+        windowSize: null,
+      })
+
+      expect(result.ok && result.value.souvenirCount).toBeNull()
+      expect(result.ok && [result.value.souvenirCounter, result.value.newPhotoSignal]).toEqual([
+        false,
+        false,
+      ])
+      expect(reads).toBe(0)
+    })
+
+    it('is also computed when only the new-photo signal is on, which needs it for its guard', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { wall: { newPhotoSignal: true } } }))
+      photos.seed(aPhoto({ id: 'p-1', eventId: 'event-1', status: 'published', createdAt: AT }))
+
+      const result = await ask()
+
+      expect(result.ok && result.value.souvenirCount).toBe(1)
+      expect(result.ok && result.value.newPhotoSignal).toBe(true)
+    })
   })
 })

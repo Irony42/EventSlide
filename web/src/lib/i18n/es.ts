@@ -816,6 +816,13 @@ export const es: UiText = {
     offline: 'Nuevas fotos a la espera de la red',
     paused: 'Presentación en pausa',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} recuerdo compartido`,
+        other: `${t.number(count)} recuerdos compartidos`,
+      }),
+
     codeLabel: 'Código de la fiesta',
     // Read by nothing in the room: the wall is also opened on a laptop while a host
     // sets the projector up.

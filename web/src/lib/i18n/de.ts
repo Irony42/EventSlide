@@ -840,6 +840,13 @@ export const de: UiText = {
     offline: 'Neue Fotos warten auf das Netzwerk',
     paused: 'Diashow angehalten',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Erinnerung geteilt`,
+        other: `${t.number(count)} Erinnerungen geteilt`,
+      }),
+
     codeLabel: 'Code der Feier',
     qrTitle: 'QR-Code für den Beitritt zur Feier',
     photoBy: (name: string) => `Foto, gesendet von ${name}`,

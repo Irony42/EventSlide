@@ -21,6 +21,7 @@ import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMessage } from './components/WallMessage'
+import { SouvenirCounter } from './components/SouvenirCounter'
 import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
 import { useFrameBudget } from './hooks/useFrameBudget'
@@ -407,6 +408,11 @@ export function WallPage() {
       )}
 
       {showsMissions ? <WallMissions missions={missions} /> : null}
+
+      {/* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */}
+      {wall?.souvenirCounter === true && typeof wall.souvenirCount === 'number' ? (
+        <SouvenirCounter count={wall.souvenirCount} />
+      ) : null}
 
       {guestbookMessage !== null && items.length > 0 ? (
         <WallMessage message={guestbookMessage} />

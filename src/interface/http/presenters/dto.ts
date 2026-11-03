@@ -373,6 +373,16 @@ export interface WallResponseDto {
    * ambiance's suggestion (and to let the screen's own `L` and `?layout=` beat it).
    */
   readonly layoutChosen: boolean
+  /**
+   * The souvenirs visible on the wall (spec 11): the server's total of published photos and clips,
+   * not the length of `items`. `null` when neither wall switch below is on. Compared by the wall
+   * apart from `revision`: a photo published beyond the window or a take-down moves only this.
+   */
+  readonly souvenirCount: number | null
+  /** The host's switch for the counter « n souvenirs partagés » (spec 11). */
+  readonly souvenirCounter: boolean
+  /** The host's switch for the brief « nouvelle photo » signal (spec 11). */
+  readonly newPhotoSignal: boolean
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
