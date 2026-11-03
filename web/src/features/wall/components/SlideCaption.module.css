@@ -11,7 +11,8 @@
 /* Bottom-left, inside the 4% overscan inset: consumer projectors crop the outer few
    percent of the frame, and a caption is the first thing to be eaten. */
 .spotlight {
-  inset-inline-start: var(--wall-safe);
+  /* Makes way for the invitation card when the host puts it bottom-start (spec 14). */
+  inset-inline-start: calc(var(--wall-safe) + var(--wall-chrome-caption-start, 0px));
   inset-block-end: var(--wall-safe);
   max-inline-size: var(--container-guest);
 }

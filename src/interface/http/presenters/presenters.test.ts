@@ -357,9 +357,12 @@ describe('toEventSettingsDto', () => {
         wall: {
           layout: 'collage',
           slideIntervalMs: 20_000,
+          qrVisible: false,
           freshLane: false,
           tilt: false,
-          showTime: false,
+          showTime: true,
+          qrScale: 1.3,
+          qrPlacement: 'top-end',
         },
       },
     })
@@ -387,9 +390,12 @@ describe('toEventSettingsDto', () => {
       wall: {
         layout: 'collage',
         slideIntervalMs: 20_000,
+        qrVisible: false,
         freshLane: false,
         tilt: false,
-        showTime: false,
+        showTime: true,
+        qrScale: 1.3,
+        qrPlacement: 'top-end',
       },
     })
   })

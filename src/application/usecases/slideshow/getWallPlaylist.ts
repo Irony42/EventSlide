@@ -1,4 +1,5 @@
 import type { Event } from '../../../domain/events/event'
+import type { WallQrPlacement } from '../../../domain/events/wallJoinCard'
 import type { Mission } from '../../../domain/missions/mission'
 import { isAchieved, type MissionProgress } from '../../../domain/missions/missionProgress'
 import type { Photo } from '../../../domain/photos/photo'
@@ -163,6 +164,12 @@ export interface WallPlaylistView {
   readonly layout: WallLayout
   /** Whether the host chose a layout for the event (spec 13); `layout` is the default otherwise. */
   readonly layoutChosen: boolean
+  /** The invitation card's settings, as the host chose them (spec 14). */
+  readonly joinCard: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: WallQrPlacement
+  }
   readonly layoutSpec: WallLayoutSpec
   /**
    * The host's prompts and how the room is answering them. Empty for the overwhelming
@@ -321,6 +328,11 @@ export const makeGetWallPlaylist =
       kenBurnsDurationMs: kenBurnsDurationMs(interval.value),
       layout: chosenLayout,
       layoutChosen: eventLayout !== null,
+      joinCard: {
+        visible: event.settings.wall.qrVisible,
+        scale: event.settings.wall.qrScale,
+        placement: event.settings.wall.qrPlacement,
+      },
       layoutSpec: wallLayoutSpec(chosenLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,

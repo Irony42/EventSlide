@@ -378,6 +378,15 @@ export interface WallResponseDto {
   /** Whether prints lean a few degrees (spec 13). */
   readonly tilt: boolean
   readonly showTime: boolean
+  /**
+   * The invitation card (spec 14): whether it shows on a populated wall, its scale (0.8 to 1.5, 1
+   * is the card as it always was) and its corner. Public like the rest; carries no secret.
+   */
+  readonly joinCard: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -523,6 +532,9 @@ export interface EventSettingsDto {
     readonly freshLane: boolean
     readonly tilt: boolean
     readonly showTime: boolean
+    readonly qrVisible: boolean
+    readonly qrScale: number
+    readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
   }
 }
 

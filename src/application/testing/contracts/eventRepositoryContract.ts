@@ -201,9 +201,12 @@ export const eventRepositoryContract = (
             wall: {
               layout: 'polaroid',
               slideIntervalMs: 12_000,
+              qrVisible: false,
               freshLane: false,
               tilt: false,
-              showTime: false,
+              showTime: true,
+              qrScale: 1.25,
+              qrPlacement: 'top-start',
             },
           },
         }),
@@ -235,9 +238,12 @@ export const eventRepositoryContract = (
         wall: {
           layout: 'polaroid',
           slideIntervalMs: 12_000,
+          qrVisible: false,
           freshLane: false,
           tilt: false,
-          showTime: false,
+          showTime: true,
+          qrScale: 1.25,
+          qrPlacement: 'top-start',
         },
       })
     })

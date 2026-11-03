@@ -1,6 +1,13 @@
 import { DomainError } from '../shared/errors'
 import { SlideInterval } from '../slideshow/slideInterval'
 import { WALL_LAYOUTS, type WallLayout } from '../slideshow/wallLayout'
+import {
+  DEFAULT_WALL_QR_PLACEMENT,
+  DEFAULT_WALL_QR_SCALE,
+  isWallQrPlacement,
+  isWallQrScale,
+  type WallQrPlacement,
+} from './wallJoinCard'
 
 /**
  * What the host decides about how the projected wall behaves, for every screen of the event
@@ -28,6 +35,11 @@ export interface EventWallSettings {
   readonly tilt: boolean
   /** The time a photo was sent, under it (the browser's time zone, spec 13). Off by default. */
   readonly showTime: boolean
+  /** The invitation card on a populated wall (spec 14). `false` hides it for good; `Q` stays temporary. */
+  readonly qrVisible: boolean
+  /** The card's scale, 0.8 to 1.5 in steps of 0.05; 1 is today's card (decision 14-6). */
+  readonly qrScale: number
+  readonly qrPlacement: WallQrPlacement
 }
 
 export type EventWallSettingsPatch = Partial<EventWallSettings>
@@ -38,6 +50,9 @@ export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   freshLane: true,
   tilt: true,
   showTime: false,
+  qrVisible: true,
+  qrScale: DEFAULT_WALL_QR_SCALE,
+  qrPlacement: DEFAULT_WALL_QR_PLACEMENT,
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>
@@ -54,12 +69,19 @@ export const mergeWallSettings = (
   freshLane: patch?.freshLane === undefined ? base.freshLane : patch.freshLane,
   tilt: patch?.tilt === undefined ? base.tilt : patch.tilt,
   showTime: patch?.showTime === undefined ? base.showTime : patch.showTime,
+  qrVisible: patch?.qrVisible === undefined ? base.qrVisible : patch.qrVisible,
+  qrScale: patch?.qrScale === undefined ? base.qrScale : patch.qrScale,
+  qrPlacement: patch?.qrPlacement === undefined ? base.qrPlacement : patch.qrPlacement,
 })
 
 /** The refusal of a host's choice, with the interval's own codes (`slideInterval.tooShort`, ...). */
 export const wallSettingsViolation = (wall: EventWallSettings): DomainError | null => {
   if (wall.layout !== null && !isWallLayout(wall.layout)) {
     return DomainError.invalid('eventSettings.wallLayoutInvalid')
+  }
+  if (!isWallQrScale(wall.qrScale)) return DomainError.invalid('eventSettings.wallQrScaleInvalid')
+  if (!isWallQrPlacement(wall.qrPlacement)) {
+    return DomainError.invalid('eventSettings.wallQrPlacementInvalid')
   }
   if (wall.slideIntervalMs === null) return null
   const interval = SlideInterval.create(wall.slideIntervalMs)
@@ -90,5 +112,13 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
     tilt: typeof record['tilt'] === 'boolean' ? record['tilt'] : DEFAULT_WALL_SETTINGS.tilt,
     showTime:
       typeof record['showTime'] === 'boolean' ? record['showTime'] : DEFAULT_WALL_SETTINGS.showTime,
+    qrVisible:
+      typeof record['qrVisible'] === 'boolean'
+        ? record['qrVisible']
+        : DEFAULT_WALL_SETTINGS.qrVisible,
+    qrScale: isWallQrScale(record['qrScale']) ? record['qrScale'] : DEFAULT_WALL_SETTINGS.qrScale,
+    qrPlacement: isWallQrPlacement(record['qrPlacement'])
+      ? record['qrPlacement']
+      : DEFAULT_WALL_SETTINGS.qrPlacement,
   }
 }
