@@ -863,6 +863,8 @@ export const de: UiText = {
       'Leertaste hält an, die Pfeiltasten wechseln das Foto, F schaltet auf Vollbild, L wechselt die Anordnung, Q blendet den QR-Code aus oder ein.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Zum Verlassen: Esc oder F beenden den Vollbildmodus, danach den Tab schließen.',
+    mixedHint:
+      'Die Wand wechselt zwischen Übersicht und großem Foto: L (oder ?layout=) legt auf diesem Bildschirm ein Layout fest und beendet das Wechseln, bis die Seite neu geladen wird.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `Erstes Foto von ${name}`,
 

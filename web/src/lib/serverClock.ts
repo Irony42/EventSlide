@@ -12,8 +12,12 @@
  */
 
 export interface ServerClock {
-  /** Server time, in milliseconds, as of this instant. `null` until a reading has been taken. */
-  now(): number | null
+  /**
+   * Server time, in milliseconds, as of this instant. Until a reading has been taken it is this
+   * machine's own clock, the best guess there is (a wall always has one reading before it needs
+   * a phase, because the schedule arrives in the same response as the stamp).
+   */
+  now(): number
   /** Records a reading: `serverNowMs` from a response, and the monotonic times around its request. */
   sync(serverNowMs: number, sentAt: number, receivedAt: number): void
 }
@@ -21,6 +25,8 @@ export interface ServerClock {
 export interface ServerClockSources {
   /** Monotonic milliseconds (`performance.now`). */
   readonly monotonic: () => number
+  /** Local epoch milliseconds (`Date.now`), the answer before the first reading. */
+  readonly local: () => number
 }
 
 /** The offset to add to a monotonic reading to get server time. */
@@ -28,11 +34,14 @@ export const serverOffsetMs = (serverNowMs: number, sentAt: number, receivedAt: 
   serverNowMs - (sentAt + receivedAt) / 2
 
 export const createServerClock = (
-  sources: ServerClockSources = { monotonic: () => performance.now() },
+  sources: ServerClockSources = {
+    monotonic: () => performance.now(),
+    local: () => Date.now(),
+  },
 ): ServerClock => {
   let offset: number | null = null
   return {
-    now: () => (offset === null ? null : sources.monotonic() + offset),
+    now: () => (offset === null ? sources.local() : sources.monotonic() + offset),
     sync: (serverNowMs, sentAt, receivedAt) => {
       offset = serverOffsetMs(serverNowMs, sentAt, receivedAt)
     },

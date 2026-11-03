@@ -6,13 +6,13 @@ describe('the server clock', () => {
     expect(serverOffsetMs(10_000, 100, 300)).toBe(9_800)
   })
 
-  it('knows nothing before the first reading', () => {
-    expect(createServerClock({ monotonic: () => 5 }).now()).toBeNull()
+  it('answers the machine clock before the first reading', () => {
+    expect(createServerClock({ monotonic: () => 5, local: () => 777 }).now()).toBe(777)
   })
 
   it('advances with the monotonic clock, not the machine date', () => {
     let monotonic = 100
-    const clock = createServerClock({ monotonic: () => monotonic })
+    const clock = createServerClock({ monotonic: () => monotonic, local: () => 0 })
     clock.sync(50_000, 90, 110)
     expect(clock.now()).toBe(50_000)
     monotonic = 4_100
@@ -21,7 +21,7 @@ describe('the server clock', () => {
 
   it('takes the latest reading', () => {
     let monotonic = 0
-    const clock = createServerClock({ monotonic: () => monotonic })
+    const clock = createServerClock({ monotonic: () => monotonic, local: () => 0 })
     clock.sync(1_000, 0, 0)
     monotonic = 10
     clock.sync(9_000, 10, 10)

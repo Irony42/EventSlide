@@ -6,7 +6,12 @@ import {
   aWallResponse,
 } from '../../../testing/renderWithProviders'
 import { SETTINGS_EXEMPT, sameSettings } from './useWallPlaylist'
-import type { EventThemeDto, WallGuestbookMessageDto, WallMissionDto } from '../../../lib/api/dto'
+import type {
+  EventThemeDto,
+  WallGuestbookMessageDto,
+  WallMissionDto,
+  WallResponse,
+} from '../../../lib/api/dto'
 
 /**
  * The guard on the guard.
@@ -199,5 +204,44 @@ describe('every field of the wall response is accounted for', () => {
 
   it('says nothing changed when nothing did', () => {
     expect(sameSettings(aWallResponse(), aWallResponse())).toBe(true)
+  })
+})
+
+describe('the mixed wall in the wall response (spec 09)', () => {
+  const schedule = {
+    wallMs: 180_000,
+    slideshowMs: 60_000,
+    layout: 'mosaic',
+    anchorMs: 1_000,
+  } as const
+  const withMixed = (mixed: NonNullable<WallResponse['mixed']> | null) => ({
+    ...aWallResponse(),
+    mixed,
+  })
+
+  it('ignores the server time, which changes on every read', () => {
+    expect(
+      sameSettings({ ...aWallResponse(), serverNowMs: 1 }, { ...aWallResponse(), serverNowMs: 2 }),
+    ).toBe(true)
+  })
+
+  it('notices the mode turned on or off mid-evening', () => {
+    expect(sameSettings(withMixed(null), withMixed(schedule))).toBe(false)
+    expect(sameSettings(withMixed(schedule), withMixed(null))).toBe(false)
+    expect(sameSettings(withMixed(null), withMixed(null))).toBe(true)
+    expect(sameSettings(aWallResponse(), withMixed(null))).toBe(true)
+  })
+
+  it.each([
+    ['the wall duration', { wallMs: 90_000 }],
+    ['the slideshow duration', { slideshowMs: 30_000 }],
+    ['the layout of the wall phase', { layout: 'collage' }],
+    ['the anchor', { anchorMs: 2_000 }],
+  ] as const)('notices a change to %s', (_name, change) => {
+    expect(sameSettings(withMixed(schedule), withMixed({ ...schedule, ...change }))).toBe(false)
+  })
+
+  it('keeps the same schedule as the same', () => {
+    expect(sameSettings(withMixed(schedule), withMixed({ ...schedule }))).toBe(true)
   })
 })

@@ -302,6 +302,9 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   kenBurnsDurationMs: 8_800,
   layout: 'spotlight',
   // Present for the reason `theme` is: the sweep in `useWallPlaylist.settings.test.ts` must see it.
+  // Present, like every field the server always sends (spec 09). `mixed` is left out: off, and an
+  // absent key reads the same, so the walk in useWallPlaylist.settings.test covers it by hand.
+  serverNowMs: 1_790_000_000_000,
   layoutChosen: false,
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this

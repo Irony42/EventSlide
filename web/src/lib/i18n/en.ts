@@ -805,6 +805,8 @@ export const en: UiText = {
       'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout, Q hides or shows the QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
+    mixedHint:
+      'The wall alternates an overview and one large photo: L (or ?layout=) fixes a layout on this screen and stops the alternation until the page is reloaded.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `First photo from ${name}`,
 

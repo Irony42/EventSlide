@@ -856,6 +856,8 @@ export const fr = {
       'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition, Q masque ou affiche le QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Pour quitter : Échap ou F sortent du plein écran, puis fermez l’onglet.',
+    mixedHint:
+      'Le mur alterne vue d’ensemble et photo en grand : L (ou ?layout=) fixe une mise en page sur cet écran et arrête l’alternance jusqu’au rechargement de la page.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `Première photo ${deBefore(name)}`,
 
