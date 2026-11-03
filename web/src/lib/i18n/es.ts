@@ -860,6 +860,34 @@ export const es: UiText = {
     },
     layoutOrder: (names: readonly string[]) => `Disposiciones, en orden: ${names.join(', ')}.`,
 
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Ajustes',
+      pause: 'Pausa',
+      resume: 'Reanudar',
+      fullscreen: 'Pantalla completa',
+      barLabel: 'Controles del muro',
+      panelLabel: 'Ajustes del muro',
+      title: 'Ajustes',
+      close: 'Cerrar los ajustes',
+      sectionDisplay: 'Visualización',
+      sectionAmbiance: 'Ambiente',
+      forAll: 'Para todas las pantallas',
+      thisScreen: 'Solo esta pantalla',
+      thisScreenHint:
+        'Estos controles solo cambian esta pantalla y se pierden al recargar la página.',
+      screenLayout: (name: string) => `Disposición de esta pantalla: ${name} (tecla L)`,
+      hideQr: 'Ocultar la tarjeta QR',
+      showQr: 'Mostrar la tarjeta QR',
+      saving: 'Guardando…',
+      saved: 'Guardado',
+      saveFailed: 'No se pudo guardar, inténtelo de nuevo',
+      sessionExpired: 'Su sesión ha caducado. Vuelva a iniciar sesión para ajustar el muro.',
+      signIn: 'Iniciar sesión',
+      signInToSet: 'Iniciar sesión para ajustar este muro',
+      openHint: 'R abre los ajustes del muro.',
+    },
+
     videoBy: (name: string) => `Vídeo enviado por ${name}`,
     videoByAnonymous: 'Vídeo enviado por un invitado',
 

@@ -1,0 +1,24 @@
+/**
+ * Bottom centre, inside the overscan inset, above the caption and the corner card.
+ * Shown by opacity alone and with no transition: nothing here animates, so it asks nothing of
+ * the frame budget (roadmap 11.3) and nothing of `prefers-reduced-motion`.
+ */
+.bar {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: var(--wall-safe);
+  margin-inline: auto;
+  inline-size: max-content;
+  max-inline-size: 90%;
+  z-index: calc(var(--z-wall-caption) + 10);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  opacity: 0;
+}
+
+.bar[data-visible='true'],
+.bar:focus-within {
+  opacity: 1;
+}

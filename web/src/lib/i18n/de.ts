@@ -880,6 +880,35 @@ export const de: UiText = {
     layoutOrder: (names: readonly string[]) =>
       `Anordnungen, in dieser Reihenfolge: ${names.join(', ')}.`,
 
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Einstellungen',
+      pause: 'Pause',
+      resume: 'Fortsetzen',
+      fullscreen: 'Vollbild',
+      barLabel: 'Steuerung der Wand',
+      panelLabel: 'Einstellungen der Wand',
+      title: 'Einstellungen',
+      close: 'Einstellungen schließen',
+      sectionDisplay: 'Anzeige',
+      sectionAmbiance: 'Ambiente',
+      forAll: 'Für alle Bildschirme',
+      thisScreen: 'Nur dieser Bildschirm',
+      thisScreenHint:
+        'Diese Schaltflächen ändern nur diesen Bildschirm und gehen beim Neuladen der Seite verloren.',
+      screenLayout: (name: string) => `Anordnung dieses Bildschirms: ${name} (Taste L)`,
+      hideQr: 'QR-Karte ausblenden',
+      showQr: 'QR-Karte anzeigen',
+      saving: 'Wird gespeichert…',
+      saved: 'Gespeichert',
+      saveFailed: 'Speichern nicht möglich, bitte erneut versuchen',
+      sessionExpired:
+        'Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um die Wand einzustellen.',
+      signIn: 'Anmelden',
+      signInToSet: 'Anmelden, um diese Wand einzustellen',
+      openHint: 'R öffnet die Einstellungen der Wand.',
+    },
+
     videoBy: (name: string) => `Video, gesendet von ${name}`,
     videoByAnonymous: 'Video, gesendet von einem Gast',
 
