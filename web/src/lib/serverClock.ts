@@ -1,49 +1,45 @@
 /**
- * The server's clock as this browser can read it (specs 09 and 10).
+ * Counting down against the server's clock rather than the machine's.
  *
- * A projector's own clock may be minutes off, and two projectors in one room must still agree on
- * a phase or a countdown. The server stamps `serverNowMs` on what it sends; this keeps the
- * offset between that stamp and the machine and answers "what time is it on the server" from it.
+ * A projector, a phone and a laptop each have their own idea of "now", and a mini PC that was never
+ * set right can be minutes off. A countdown that subtracts its own `Date.now()` from an instant the
+ * server chose would show a different time on every screen. So a response that needs one carries
+ * `serverNowMs` (the server's clock when it answered), and the client keeps the **offset** between
+ * the two clocks and applies it every second: `ends - (localNow + offset)`.
  *
- * **The offset is read at the middle of the round trip** (the stamp was taken about halfway
- * between the request leaving and the answer arriving), and time then advances with
- * `performance.now()`, which is monotonic: a machine whose wall clock is set back at 22:00 does
- * not move the phase.
+ * The offset is re-measured at every read, so it follows the machine's clock if it is corrected
+ * mid-evening. It is corrected by half the round trip, because the server's instant was taken
+ * somewhere in the middle of it.
+ *
+ * Shared by every surface that counts down (spec 10 here, spec 09 for the wall's phases).
  */
 
-export interface ServerClock {
-  /**
-   * Server time, in milliseconds, as of this instant. Until a reading has been taken it is this
-   * machine's own clock, the best guess there is (a wall always has one reading before it needs
-   * a phase, because the schedule arrives in the same response as the stamp).
-   */
-  now(): number
-  /** Records a reading: `serverNowMs` from a response, and the monotonic times around its request. */
-  sync(serverNowMs: number, sentAt: number, receivedAt: number): void
-}
+/**
+ * `serverNowMs - localNowMs`, as it was when the answer came back.
+ *
+ * @param serverNowMs the server's clock, from the response
+ * @param sentAtMs the local clock when the request left
+ * @param receivedAtMs the local clock when the response arrived
+ */
+export const serverOffsetMs = (
+  serverNowMs: number,
+  sentAtMs: number,
+  receivedAtMs: number,
+): number => serverNowMs - (sentAtMs + (receivedAtMs - sentAtMs) / 2)
 
-export interface ServerClockSources {
-  /** Monotonic milliseconds (`performance.now`). */
-  readonly monotonic: () => number
-  /** Local epoch milliseconds (`Date.now`), the answer before the first reading. */
-  readonly local: () => number
-}
+/** The server's clock now, from this machine's clock and the offset measured at the last read. */
+export const serverNowFrom = (localNowMs: number, offsetMs: number): number => localNowMs + offsetMs
 
-/** The offset to add to a monotonic reading to get server time. */
-export const serverOffsetMs = (serverNowMs: number, sentAt: number, receivedAt: number): number =>
-  serverNowMs - (sentAt + receivedAt) / 2
+/** Milliseconds left until `endsAtMs`, never negative. */
+export const remainingMs = (endsAtMs: number, localNowMs: number, offsetMs: number): number =>
+  Math.max(0, endsAtMs - serverNowFrom(localNowMs, offsetMs))
 
-export const createServerClock = (
-  sources: ServerClockSources = {
-    monotonic: () => performance.now(),
-    local: () => Date.now(),
-  },
-): ServerClock => {
-  let offset: number | null = null
-  return {
-    now: () => (offset === null ? sources.local() : sources.monotonic() + offset),
-    sync: (serverNowMs, sentAt, receivedAt) => {
-      offset = serverOffsetMs(serverNowMs, sentAt, receivedAt)
-    },
-  }
+/**
+ * `m:ss`, rounding **up** to the whole second: "0:00" appears only when the time is truly out, so
+ * a countdown never says zero while there is still a second on it.
+ */
+export const formatCountdown = (ms: number): string => {
+  const seconds = Math.max(0, Math.ceil(ms / 1000))
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}:${String(seconds % 60).padStart(2, '0')}`
 }

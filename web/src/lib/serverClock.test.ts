@@ -1,36 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { createServerClock, serverOffsetMs } from './serverClock'
+import { formatCountdown, remainingMs, serverNowFrom, serverOffsetMs } from './serverClock'
 
-describe('the server clock', () => {
-  it('reads the stamp at the middle of the round trip', () => {
-    expect(serverOffsetMs(10_000, 100, 300)).toBe(9_800)
+describe('serverOffsetMs', () => {
+  it('is zero when the two clocks agree and the round trip was instant', () => {
+    expect(serverOffsetMs(10_000, 10_000, 10_000)).toBe(0)
   })
 
-  it('answers the machine clock before the first reading', () => {
-    expect(createServerClock({ monotonic: () => 5, local: () => 777 }).now()).toBe(777)
+  it('corrects by half the round trip', () => {
+    // Sent at 10 000, back at 10 400: the server answered around 10 200 on this machine's clock.
+    expect(serverOffsetMs(50_200, 10_000, 10_400)).toBe(40_000)
   })
 
-  it('advances with the monotonic clock, not the machine date', () => {
-    let monotonic = 100
-    const clock = createServerClock({ monotonic: () => monotonic, local: () => 0 })
-    clock.sync(50_000, 90, 110)
-    expect(clock.now()).toBe(50_000)
-    monotonic = 4_100
-    expect(clock.now()).toBe(54_000)
+  it('is negative for a machine whose clock runs ahead', () => {
+    expect(serverOffsetMs(10_000, 190_000, 190_000)).toBe(-180_000)
+  })
+})
+
+describe('remainingMs', () => {
+  const ENDS = 1_000_000
+
+  it('shows the same time on a machine three minutes ahead as on one that is right', () => {
+    const right = remainingMs(ENDS, 940_000, serverOffsetMs(940_000, 940_000, 940_000))
+    const ahead = remainingMs(ENDS, 1_120_000, serverOffsetMs(940_000, 1_120_000, 1_120_000))
+
+    expect(right).toBe(60_000)
+    expect(ahead).toBe(60_000)
   })
 
-  it('takes the latest reading', () => {
-    let monotonic = 0
-    const clock = createServerClock({ monotonic: () => monotonic, local: () => 0 })
-    clock.sync(1_000, 0, 0)
-    monotonic = 10
-    clock.sync(9_000, 10, 10)
-    expect(clock.now()).toBe(9_000)
+  it('never goes negative', () => {
+    expect(remainingMs(ENDS, 2_000_000, 0)).toBe(0)
   })
 
-  it('uses performance.now by default', () => {
-    const clock = createServerClock()
-    clock.sync(1_000, 0, 0)
-    expect(clock.now()).toBeGreaterThanOrEqual(1_000)
+  it('applies the offset to the local clock', () => {
+    expect(serverNowFrom(100, 25)).toBe(125)
+  })
+})
+
+describe('formatCountdown', () => {
+  it.each([
+    [102_000, '1:42'],
+    [60_000, '1:00'],
+    [59_001, '1:00'],
+    [9_000, '0:09'],
+    [1, '0:01'],
+    [0, '0:00'],
+    [-5, '0:00'],
+    [600_000, '10:00'],
+  ])('writes %i ms as %s', (ms, text) => {
+    expect(formatCountdown(ms)).toBe(text)
   })
 })
