@@ -70,7 +70,10 @@ const FRESH_FIRST = true
 
 export interface GetWallPlaylistInput {
   readonly slug: Slug
-  /** The projector's own settings. `null` on each takes the default. */
+  /**
+   * The projector's own settings. `null` on each takes the event's choice (spec 13), and the
+   * default where the event made none.
+   */
   readonly layout: WallLayout | null
   readonly slideIntervalMs: number | null
   readonly windowSize: number | null
@@ -158,6 +161,8 @@ export interface WallPlaylistView {
    */
   readonly kenBurnsDurationMs: number
   readonly layout: WallLayout
+  /** Whether the host chose a layout for the event (spec 13); `layout` is the default otherwise. */
+  readonly layoutChosen: boolean
   readonly layoutSpec: WallLayoutSpec
   /**
    * The host's prompts and how the room is answering them. Empty for the overwhelming
@@ -263,11 +268,13 @@ export const makeGetWallPlaylist =
     })
     if (!playlist.ok) return playlist
 
+    const wantedMs = slideIntervalMs ?? event.settings.wall.slideIntervalMs
     const interval =
-      slideIntervalMs === null ? ok(SlideInterval.default()) : SlideInterval.create(slideIntervalMs)
+      wantedMs === null ? ok(SlideInterval.default()) : SlideInterval.create(wantedMs)
     if (!interval.ok) return interval
 
-    const chosenLayout = layout ?? DEFAULT_LAYOUT
+    const eventLayout = event.settings.wall.layout
+    const chosenLayout = layout ?? eventLayout ?? DEFAULT_LAYOUT
 
     // Last, and only once the request is known to be answerable: a refused interval or
     // an impossible window must not have cost a second query first.
@@ -313,6 +320,7 @@ export const makeGetWallPlaylist =
       slideIntervalMs: interval.value.ms,
       kenBurnsDurationMs: kenBurnsDurationMs(interval.value),
       layout: chosenLayout,
+      layoutChosen: eventLayout !== null,
       layoutSpec: wallLayoutSpec(chosenLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,

@@ -366,7 +366,13 @@ export interface WallResponseDto {
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number
   readonly kenBurnsDurationMs: number
+  /** The effective layout: the event's choice if it made one, else the default (spec 13). */
   readonly layout: WallLayout
+  /**
+   * Whether `layout` is the host's choice for the event, so the wall knows to let it beat the
+   * ambiance's suggestion (and to let the screen's own `L` and `?layout=` beat it).
+   */
+  readonly layoutChosen: boolean
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -502,6 +508,14 @@ export interface EventSettingsDto {
    * to prefer it over the guest's own choice, the single thing this field must never do.
    */
   readonly wallLanguage: EventLanguage
+  /**
+   * How the wall behaves for every screen (spec 13), as stored: `null` is "not chosen for the
+   * event". The settings page and the wall's panel read and write this group.
+   */
+  readonly wall: {
+    readonly layout: WallLayout | null
+    readonly slideIntervalMs: number | null
+  }
 }
 
 export interface EventSummaryDto {

@@ -1235,6 +1235,41 @@ describe('the host event routes', () => {
       })
     })
 
+    it('merges the wall group key by key, never replacing it whole (spec 13)', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ wall: { layout: 'mosaic' } })
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { slideIntervalMs: 12_000 } })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.wall).toEqual({ layout: 'mosaic', slideIntervalMs: 12_000 })
+    })
+
+    it('refuses an unknown wall key, a bad layout and an out-of-range rhythm with 400', async () => {
+      const agent = await signedIn(world, 'owner')
+      const patch = (wall: unknown) => agent.patch(`/api/events/${SLUG}/settings`).send({ wall })
+
+      expect((await patch({ qrSize: 'large' })).status).toBe(400)
+      expect((await patch({ layout: 'carousel' })).status).toBe(400)
+      const tooShort = await patch({ slideIntervalMs: 500 })
+      expect(tooShort.status).toBe(400)
+      expect(tooShort.body.error.code).toBe('slideInterval.tooShort')
+      const tooLong = await patch({ slideIntervalMs: 700_000 })
+      expect(tooLong.body.error.code).toBe('slideInterval.tooLong')
+    })
+
+    it('refuses the wall group to a moderator, as every other setting (spec 13)', async () => {
+      const agent = await signedIn(world, 'moderator')
+
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { layout: 'mosaic' } })
+
+      expect(response.status).toBe(403)
+    })
+
     it('clears retention when the host sends null', async () => {
       const agent = await signedIn(world, 'owner')
 
@@ -1290,6 +1325,7 @@ describe('the host event routes', () => {
         },
         wallLanguage: 'en',
         brand: { welcomeMessage: null, logoUrl: null },
+        wall: { layout: null, slideIntervalMs: null },
       })
     })
 
