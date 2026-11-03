@@ -486,6 +486,12 @@ export const es: UiText = {
     'eventSettings.graceSecondsInvalid': 'Este plazo de eliminación no se admite.',
     'eventSettings.retentionDaysInvalid': 'Este plazo de conservación no se admite.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Este número de fotos por invitado no se admite.',
+    'wallMixed.wallTooShort': 'El tiempo en el muro debe estar entre 30 segundos y 60 minutos.',
+    'wallMixed.wallTooLong': 'El tiempo en el muro debe estar entre 30 segundos y 60 minutos.',
+    'wallMixed.slideshowTooShort':
+      'El tiempo del pase de fotos debe estar entre 15 segundos y 30 minutos.',
+    'wallMixed.slideshowTooLong':
+      'El tiempo del pase de fotos debe estar entre 15 segundos y 30 minutos.',
     'eventSettings.wallLanguageInvalid': 'Este idioma no está disponible. Elija uno de la lista.',
     'email.malformed': 'Esta dirección de correo no es válida.',
     'user.notFound': 'Ninguna cuenta corresponde a esta dirección de correo.',
@@ -1024,6 +1030,10 @@ export const es: UiText = {
       intervalHint: 'Cuánto tiempo permanece cada foto en pantalla.',
       intervalDefault: 'Por defecto (una foto cada 8 s)',
       intervalSeconds: (n: number) => `Una foto cada ${n} s`,
+      mixed: 'Alternar muro y pase de fotos',
+      mixedHint: 'El muro muestra una vista general y después una foto grande, por turnos.',
+      mixedWall: 'Tiempo en el muro',
+      mixedSlideshow: 'Tiempo en el pase de fotos',
     },
 
     theme: 'Apariencia',

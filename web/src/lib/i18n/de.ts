@@ -504,6 +504,14 @@ export const de: UiText = {
     'eventSettings.graceSecondsInvalid': 'Diese Löschfrist ist nicht zulässig.',
     'eventSettings.retentionDaysInvalid': 'Diese Aufbewahrungsdauer ist nicht zulässig.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Diese Anzahl an Fotos pro Gast ist nicht zulässig.',
+    'wallMixed.wallTooShort':
+      'Die Zeit auf der Wand muss zwischen 30 Sekunden und 60 Minuten liegen.',
+    'wallMixed.wallTooLong':
+      'Die Zeit auf der Wand muss zwischen 30 Sekunden und 60 Minuten liegen.',
+    'wallMixed.slideshowTooShort':
+      'Die Zeit der Diashow muss zwischen 15 Sekunden und 30 Minuten liegen.',
+    'wallMixed.slideshowTooLong':
+      'Die Zeit der Diashow muss zwischen 15 Sekunden und 30 Minuten liegen.',
     'eventSettings.wallLanguageInvalid':
       'Diese Sprache ist nicht verfügbar. Wählen Sie eine aus der Liste.',
     'email.malformed': 'Diese E-Mail-Adresse ist nicht gültig.',
@@ -1028,6 +1036,10 @@ export const de: UiText = {
       intervalHint: 'Wie lange jedes Foto auf dem Bildschirm bleibt.',
       intervalDefault: 'Standard (ein Foto alle 8 s)',
       intervalSeconds: (n: number) => `Ein Foto alle ${n} s`,
+      mixed: 'Wand und Diashow abwechseln',
+      mixedHint: 'Die Wand zeigt abwechselnd eine Übersicht und ein großes Foto.',
+      mixedWall: 'Zeit auf der Wand',
+      mixedSlideshow: 'Zeit in der Diashow',
     },
 
     theme: 'Erscheinungsbild',
