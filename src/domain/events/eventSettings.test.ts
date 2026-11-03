@@ -132,7 +132,13 @@ describe('EventSettings.create', () => {
       venuePhoto: null,
       welcomeMessage: null,
       logo: null,
-      wall: { layout: 'mosaic', slideIntervalMs: 12_000 },
+      wall: {
+        layout: 'mosaic',
+        slideIntervalMs: 12_000,
+        qrVisible: true,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
+      },
     })
   })
 

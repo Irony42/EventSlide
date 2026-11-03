@@ -18,7 +18,7 @@
  */
 .overlay {
   position: absolute;
-  inline-size: var(--wall-join-card);
+  inline-size: var(--wall-join-width, var(--wall-join-card));
   inset-inline-end: var(--wall-safe);
   inset-block-end: var(--wall-safe);
   z-index: var(--z-wall-caption);
@@ -30,6 +30,19 @@
   background-image: var(--wall-card-texture);
   color: var(--wall-card-ink);
   border-radius: var(--radius-sm);
+}
+
+/* Bottom-start (spec 14): the other bottom corner, still inside the safe area. */
+.overlay.bottomStart {
+  inset-inline-end: auto;
+  inset-inline-start: var(--wall-safe);
+}
+
+/* Top corners are a column (WallPage's `.cornerStack`): the card comes first and the corner's
+   usual occupant under it, so no two rectangles can meet. In the flow, not at an edge. */
+.overlay.stacked {
+  position: static;
+  inset: auto;
 }
 
 .overlay button {
@@ -45,7 +58,7 @@
 .prompt {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: var(--text-xl);
+  font-size: calc(var(--text-xl) * var(--wall-join-scale, 1));
   line-height: var(--leading-tight);
   color: var(--wall-card-ink);
 }
@@ -53,7 +66,7 @@
 .code {
   font-family: var(--font-mono);
   letter-spacing: 0.14em;
-  font-size: var(--text-xl);
+  font-size: calc(var(--text-xl) * var(--wall-join-scale, 1));
   line-height: var(--leading-tight);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -67,7 +80,7 @@
  * footprint the layouts reserve around it (`--wall-join-card`).
  */
 .address {
-  font-size: var(--text-lg);
+  font-size: calc(var(--text-lg) * var(--wall-join-scale, 1));
   line-height: var(--leading-snug);
   color: var(--wall-card-ink-2);
   text-align: center;
