@@ -6,6 +6,7 @@ import type {
   GuestId,
   GuestbookEntryId,
   MissionId,
+  ChallengeId,
   PhotoId,
   ReactionId,
   ShareLinkId,
@@ -43,6 +44,9 @@ export interface IdGenerator {
   missionId(): MissionId
 
   guestbookEntryId(): GuestbookEntryId
+
+  /** One timed photo challenge (spec 10). */
+  challengeId(): ChallengeId
 
   /**
    * A shared gallery link (roadmap §4.1). The row's name, which signed media URLs carry;

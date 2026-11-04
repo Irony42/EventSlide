@@ -10,7 +10,12 @@ describe('signal audience', () => {
     expect([...MODERATION_ONLY_SIGNALS]).toEqual(['book.changed'])
   })
   it('lets every other signal through to both channels', () => {
-    for (const type of ['photo.uploaded', 'event.statusChanged', 'mission.changed']) {
+    for (const type of [
+      'photo.uploaded',
+      'event.statusChanged',
+      'mission.changed',
+      'challenge.changed',
+    ]) {
       expect(canReceiveSignal(type, 'public')).toBe(true)
       expect(canReceiveSignal(type, 'moderation')).toBe(true)
     }

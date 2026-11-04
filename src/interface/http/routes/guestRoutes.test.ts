@@ -14,6 +14,7 @@ import {
   aReaction,
   anEvent,
 } from '../../../application/testing/builders'
+import { FakeChallengeRepository } from '../../../application/testing/fakeChallengeRepository'
 import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeReactionRepository } from '../../../application/testing/fakeReactionRepository'
@@ -40,7 +41,16 @@ import { makeEraseGuestContribution } from '../../../application/usecases/guests
 import { makeRenameGuest } from '../../../application/usecases/guests/renameGuest'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
 import { DomainError } from '../../../domain/shared/errors'
-import { asEventId, asGuestId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import { Challenge } from '../../../domain/challenges/challenge'
+import { MissionPrompt } from '../../../domain/missions/missionPrompt'
+import {
+  asChallengeId,
+  asEventId,
+  asGuestId,
+  asMissionId,
+  asPhotoId,
+  asUserId,
+} from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import { InMemoryMediaStore } from '../../../application/testing/inMemoryMediaStore'
 
@@ -156,6 +166,7 @@ interface Subject {
   readonly reactions: FakeReactionRepository
   readonly media: InMemoryMediaStore
   readonly missions: FakeMissionRepository
+  readonly challenges: FakeChallengeRepository
   readonly upload: ScriptedUploadPhotos
   /** Paths the stand-in moderator handler answered, so a deferral is observable. */
   readonly hostHandlerReached: readonly string[]
@@ -184,6 +195,7 @@ interface SubjectOptions {
 const buildSubject = (options: SubjectOptions = {}): Subject => {
   const photos = new FakePhotoRepository()
   const missions = new FakeMissionRepository(photos)
+  const challenges = new FakeChallengeRepository(photos)
   const reactions = new FakeReactionRepository()
   const media = new InMemoryMediaStore().forbidEnumeration('the guest surface')
   const upload = new ScriptedUploadPhotos()
@@ -241,7 +253,12 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               clock: deps.clock,
             }),
             getPhotoReactions: makeGetPhotoReactions({ photos, reactions }),
-            getGuestChecklist: makeGetGuestChecklist({ events: deps.events, missions }),
+            getGuestChecklist: makeGetGuestChecklist({
+              events: deps.events,
+              missions,
+              challenges,
+              clock: deps.clock,
+            }),
           },
         }),
       )
@@ -330,6 +347,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
     reactions,
     media,
     missions,
+    challenges,
     upload,
     hostHandlerReached,
     token: harness.issueGuestToken(WEDDING, GUEST),
@@ -2286,6 +2304,51 @@ describe('GET /api/events/:eventSlug/missions/mine', () => {
     expect(response.body.items).toEqual([
       { id: 'm1', prompt: 'un selfie', scope: 'guest', done: false },
     ])
+  })
+
+  it('carries the server clock and no challenge when none was launched', async () => {
+    const subject = buildSubject()
+    subject.missions.seed(aMission({ id: 'm1', eventId: WEDDING }))
+
+    const response = await request(subject.app)
+      .get(`${BASE}/missions/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.body.challenge).toBeNull()
+    expect(response.body.serverNowMs).toBe(subject.harness.clock.now().getTime())
+  })
+
+  it('carries the running challenge with the mission to preselect, and no count of answers', async () => {
+    const subject = buildSubject()
+    subject.missions.seed(aMission({ id: 'm1', eventId: WEDDING, prompt: 'un selfie' }))
+    const prompt = MissionPrompt.create('un selfie avec votre voisin')
+    if (!prompt.ok) throw new Error('fixture')
+    const now = subject.harness.clock.now()
+    const started = Challenge.start(
+      {
+        eventId: asEventId(WEDDING),
+        missionId: asMissionId('m1'),
+        prompt: prompt.value,
+        durationSeconds: 120,
+        createdBy: asUserId('user-host'),
+      },
+      asChallengeId('c1'),
+      now,
+    )
+    if (!started.ok) throw new Error('fixture')
+    await subject.challenges.tryStart(started.value, now)
+
+    const response = await request(subject.app)
+      .get(`${BASE}/missions/mine`)
+      .set('Cookie', cookie(subject.token))
+
+    expect(response.body.challenge).toEqual({
+      id: 'c1',
+      missionId: 'm1',
+      prompt: 'un selfie avec votre voisin',
+      endsAt: new Date(now.getTime() + 120_000).toISOString(),
+      state: 'running',
+    })
   })
 
   it('carries no count of what anybody else has done', async () => {

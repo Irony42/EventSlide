@@ -22,6 +22,7 @@ import { migration020 } from './020_photo_highlights'
 import { migration021 } from './021_highlight_reels'
 import { migration022 } from './022_album_books'
 import { migration023 } from './023_audit_subject_guestbook'
+import { migration024 } from './024_event_challenges'
 
 /**
  * The ordering contract, written out rather than globbed.
@@ -54,4 +55,5 @@ export const migrations: readonly Migration[] = [
   migration021,
   migration022,
   migration023,
+  migration024,
 ]

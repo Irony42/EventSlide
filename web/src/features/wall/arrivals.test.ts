@@ -121,6 +121,39 @@ describe('reduceSignal', () => {
 
     expect(reduceSignal(shown, { type: 'reset' }, 1_000)).toEqual(INITIAL_SIGNAL)
   })
+
+  it('holds a signal that arrives with the challenge banner, and drops nothing', () => {
+    let state = reduceSignal(INITIAL_SIGNAL, { type: 'hold', held: true }, 0)
+    state = reduceSignal(state, { type: 'arrive', arrivals: one }, 1_000)
+
+    expect(state.visible).toBeNull()
+    expect(state.reserve).toEqual(one)
+    expect(nextWakeMs(state, 1_000)).toBeNull()
+
+    state = reduceSignal(state, { type: 'hold', held: false }, 5_000)
+
+    expect(state.visible).toEqual({ photos: 1, clips: 0, until: 5_000 + TOAST_VISIBLE_MS })
+    expect(state.reserve).toEqual(NO_ARRIVALS)
+  })
+
+  it('takes a bubble already on screen back into the reserve when the banner goes up', () => {
+    let state = reduceSignal(INITIAL_SIGNAL, { type: 'arrive', arrivals: one }, 0)
+
+    state = reduceSignal(state, { type: 'hold', held: true }, 1_000)
+
+    expect(state.visible).toBeNull()
+    expect(state.reserve).toEqual(one)
+  })
+
+  it('announces what was held together with what arrived meanwhile, once released', () => {
+    let state = reduceSignal(INITIAL_SIGNAL, { type: 'hold', held: true }, 0)
+    state = reduceSignal(state, { type: 'arrive', arrivals: one }, 1_000)
+    state = reduceSignal(state, { type: 'arrive', arrivals: { photos: 0, clips: 1 } }, 2_000)
+
+    state = reduceSignal(state, { type: 'hold', held: false }, 3_000)
+
+    expect(state.visible).toMatchObject({ photos: 1, clips: 1 })
+  })
 })
 
 describe('nextWakeMs', () => {

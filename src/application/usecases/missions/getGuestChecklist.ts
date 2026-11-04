@@ -2,8 +2,11 @@ import { isDoneForGuest } from '../../../domain/missions/missionProgress'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { ChallengeRepository } from '../../ports/challengeRepository'
+import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MissionRepository, MissionWithProgress } from '../../ports/missionRepository'
+import { readChallenge, type ChallengeReading } from '../challenges/readChallenge'
 
 /**
  * The guest's checklist: the host's prompts, and which of them *this* guest has left.
@@ -35,29 +38,49 @@ export interface ChecklistItem extends MissionWithProgress {
 export interface GetGuestChecklistDeps {
   readonly events: EventRepository
   readonly missions: MissionRepository
+  readonly challenges: ChallengeRepository
+  readonly clock: Clock
+}
+
+/**
+ * The checklist and, beside it, the timed challenge the host launched on one of its prompts
+ * (spec 10), with the server's clock so the phone counts down with the wall.
+ *
+ * The challenge is only read when the list is not empty: a challenge always names a mission, and
+ * deleting the last mission stops it, so an empty list has none, and a phone that reads this every
+ * twenty seconds is spared the second query.
+ */
+export interface GuestChecklist {
+  readonly items: readonly ChecklistItem[]
+  readonly challenge: ChallengeReading | null
+  readonly serverNowMs: number
 }
 
 export type GetGuestChecklist = (
   input: GetGuestChecklistInput,
-) => Promise<Result<readonly ChecklistItem[], DomainError>>
+) => Promise<Result<GuestChecklist, DomainError>>
 
 export const makeGetGuestChecklist =
-  ({ events, missions }: GetGuestChecklistDeps): GetGuestChecklist =>
+  ({ events, missions, challenges, clock }: GetGuestChecklistDeps): GetGuestChecklist =>
   async ({ eventId, guestId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
+    const now = clock.now()
+    const serverNowMs = now.getTime()
     const listed = await missions.listWithProgress(eventId)
     // Skipped entirely when the host has set no prompts, which is most events: the
     // checklist is then empty and there is nothing to ask the second question about.
-    if (listed.length === 0) return ok([])
+    if (listed.length === 0) return ok({ items: [], challenge: null, serverNowMs })
 
     const mine = await missions.completedByGuest(eventId, guestId)
 
-    return ok(
-      listed.map((row) => ({
+    return ok({
+      items: listed.map((row) => ({
         ...row,
         done: isDoneForGuest(row.mission.scope, row.progress, mine.has(row.mission.id)),
       })),
-    )
+      challenge: await readChallenge(challenges, eventId, now),
+      serverNowMs,
+    })
   }

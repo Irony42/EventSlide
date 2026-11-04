@@ -11,6 +11,7 @@ import {
   makeGetWallPlaylist,
   type WallPlaylistView,
 } from '../../../application/usecases/slideshow/getWallPlaylist'
+import { FakeChallengeRepository } from '../../../application/testing/fakeChallengeRepository'
 import { FakeGuestbookRepository } from '../../../application/testing/fakeGuestbookRepository'
 import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
@@ -23,10 +24,13 @@ import {
   anEventSettings,
   aGuestbookEntry,
   atPlus,
+  AT,
 } from '../../../application/testing/builders'
 import { FakeClientRepository } from '../../../application/testing/fakeClientRepository'
 import type { Photo } from '../../../domain/photos/photo'
-import { asEventId } from '../../../domain/shared/ids'
+import { Challenge } from '../../../domain/challenges/challenge'
+import { MissionPrompt } from '../../../domain/missions/missionPrompt'
+import { asChallengeId, asEventId, asMissionId, asUserId } from '../../../domain/shared/ids'
 import { CROSSFADE_MS } from '../../../domain/slideshow/kenBurns'
 import { buildPlaylist, type Playlist } from '../../../domain/slideshow/playlist'
 import { wallLayoutSpec } from '../../../domain/slideshow/wallLayout'
@@ -62,6 +66,7 @@ interface World {
   readonly photos: FakePhotoRepository
   readonly missions: FakeMissionRepository
   readonly guestbook: FakeGuestbookRepository
+  readonly challenges: FakeChallengeRepository
 }
 
 /**
@@ -79,6 +84,7 @@ const world = (
   const photos = new FakePhotoRepository()
   const missions = new FakeMissionRepository(photos)
   const guestbook = new FakeGuestbookRepository()
+  const challenges = new FakeChallengeRepository(photos)
   const ids = new SequentialIdGenerator()
 
   const subject = buildHarness({
@@ -107,6 +113,8 @@ const world = (
               guests: base.guests,
               missions,
               guestbook,
+              challenges,
+              clock: deps.clock,
             }),
           },
         }),
@@ -146,7 +154,7 @@ const world = (
     }),
   )
 
-  return { subject, photos, missions, guestbook }
+  return { subject, photos, missions, guestbook, challenges }
 }
 
 /** `set-cookie` is an array at runtime and loosely typed; narrow it once, here. */
@@ -670,6 +678,106 @@ const seedWall = (photos: FakePhotoRepository): void => {
   )
 }
 
+describe('GET /api/events/:eventSlug/wall, the timed challenge (spec 10)', () => {
+  const launch = async (
+    w: ReturnType<typeof world>,
+    seconds = 120,
+    missionId = 'mission-1',
+  ): Promise<Challenge> => {
+    const prompt = MissionPrompt.create('un selfie avec votre voisin')
+    if (!prompt.ok) throw new Error('fixture')
+    const started = Challenge.start(
+      {
+        eventId: asEventId(WEDDING),
+        missionId: asMissionId(missionId),
+        prompt: prompt.value,
+        durationSeconds: seconds,
+        createdBy: asUserId('user-host'),
+      },
+      asChallengeId('c1'),
+      w.subject.clock.now(),
+    )
+    if (!started.ok) throw new Error('fixture')
+    await w.challenges.tryStart(started.value, w.subject.clock.now())
+    return started.value
+  }
+
+  it('carries the server clock and no challenge when none was launched', async () => {
+    const w = world()
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.challenge).toBeNull()
+    expect(response.body.serverNowMs).toBe(w.subject.clock.now().getTime())
+  })
+
+  it('serves the running challenge, with no count of answers', async () => {
+    const w = world()
+    await launch(w)
+    w.photos.seed(
+      aPhoto({ id: 'p1', eventId: WEDDING, status: 'published', missionId: 'mission-1' }),
+    )
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.challenge).toEqual({
+      id: 'c1',
+      prompt: 'un selfie avec votre voisin',
+      startedAt: AT.toISOString(),
+      endsAt: new Date(AT.getTime() + 120_000).toISOString(),
+      state: 'running',
+      answers: null,
+    })
+  })
+
+  it('counts only published answers once it is over, and drops it after twenty seconds', async () => {
+    const w = world()
+    await launch(w, 60)
+    for (const [id, status] of [
+      ['p1', 'published'],
+      ['p2', 'pending'],
+      ['p3', 'rejected'],
+    ] as const) {
+      w.photos.seed(
+        aPhoto({
+          id,
+          eventId: WEDDING,
+          status,
+          missionId: 'mission-1',
+          createdAt: new Date(AT.getTime() + 10_000),
+        }),
+      )
+    }
+    w.subject.clock.advance(60_000)
+
+    const ended = await request(w.subject.app).get('/api/events/mariage/wall')
+    w.subject.clock.advance(20_000)
+    const gone = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(ended.body.challenge).toMatchObject({ state: 'ended', answers: 1 })
+    expect(gone.body.challenge).toBeNull()
+  })
+
+  it('serves no answers when nobody answered', async () => {
+    const w = world()
+    await launch(w, 60)
+    w.subject.clock.advance(60_000)
+
+    const response = await request(w.subject.app).get('/api/events/mariage/wall')
+
+    expect(response.body.challenge).toMatchObject({ state: 'ended', answers: null })
+  })
+
+  it('never serves another event challenge', async () => {
+    const w = world()
+    await launch(w)
+
+    const response = await request(w.subject.app).get('/api/events/gala/wall')
+
+    expect(response.body.challenge).toBeNull()
+  })
+})
+
 describe('GET /api/events/:eventSlug/wall', () => {
   it('serves the published photos of a live event, newest first', async () => {
     const { subject, photos } = world()
@@ -1150,6 +1258,8 @@ describe('toWallResponseDto', () => {
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
       guestbook: null,
+      challenge: null,
+      serverNowMs: 0,
       souvenirCount: null,
       souvenirCounter: false,
       newPhotoSignal: false,
@@ -1181,6 +1291,8 @@ describe('toWallResponseDto', () => {
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
       guestbook: null,
+      challenge: null,
+      serverNowMs: 0,
       souvenirCount: null,
       souvenirCounter: false,
       newPhotoSignal: false,

@@ -1,10 +1,12 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import { serverOffsetMs } from '../../../lib/serverClock'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
 import type {
   EventDto,
   EventSummaryDto,
   GuestListResponse,
+  HostChallengeResponse,
   MissionDto,
   ModeratorDto,
   ShareLinkResponse,
@@ -69,6 +71,30 @@ export const useMissions = (slug: string): LoaderState<readonly MissionDto[]> =>
     [api, slug],
   )
   return useLoader(load)
+}
+
+/**
+ * The event's timed photo challenge as the console reads it (spec 10), with the server's clock.
+ * Re-read by the panel after every action and when the countdown reaches zero: the end of a
+ * challenge is derived from the clock and announces nothing.
+ */
+export const useChallenge = (
+  slug: string,
+): LoaderState<HostChallengeResponse> & { readonly offsetMs: number } => {
+  const api = useApi()
+  // The gap between this machine's clock and the server's, measured at each read (half the round
+  // trip is taken off), so the countdown here agrees with the wall's.
+  const [offsetMs, setOffsetMs] = useState(0)
+  const load = useCallback(
+    async (signal: AbortSignal) => {
+      const sentAt = Date.now()
+      const response = await api.getChallenge(slug, signal)
+      setOffsetMs(serverOffsetMs(response.serverNowMs, sentAt, Date.now()))
+      return response
+    },
+    [api, slug],
+  )
+  return { ...useLoader(load), offsetMs }
 }
 
 /**

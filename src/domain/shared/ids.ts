@@ -43,6 +43,8 @@ export type ReelId = Branded<string, 'ReelId'>
  */
 export type MissionId = Branded<string, 'MissionId'>
 export type GuestbookEntryId = Branded<string, 'GuestbookEntryId'>
+/** One timed photo challenge of an event (spec 10): a mission and a window of time. */
+export type ChallengeId = Branded<string, 'ChallengeId'>
 /**
  * One shared gallery link (docs/ROADMAP.md §4.1).
  *
@@ -78,6 +80,7 @@ export const asReactionId = (value: string): ReactionId => value as ReactionId
 export const asClipJobId = (value: string): ClipJobId => value as ClipJobId
 export const asReelId = (value: string): ReelId => value as ReelId
 export const asMissionId = (value: string): MissionId => value as MissionId
+export const asChallengeId = (value: string): ChallengeId => value as ChallengeId
 export const asGuestbookEntryId = (value: string): GuestbookEntryId => value as GuestbookEntryId
 export const asShareLinkId = (value: string): ShareLinkId => value as ShareLinkId
 export const asClientId = (value: string): ClientId => value as ClientId
