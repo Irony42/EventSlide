@@ -827,13 +827,9 @@ export const fr = {
       }),
     messagesEmpty: 'Aucun message à valider pour l’instant.',
     messagesEmptyHint: 'Les mots laissés par vos invités arrivent ici automatiquement.',
-    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
-      ({
-        publish: `Message de ${author} publié.`,
-        reject: `Message de ${author} refusé.`,
-        hide: `Message de ${author} retiré de l’écran.`,
-      })[decision],
-    openMessages: 'Modérer les messages',
+    messagePublished: (author: string) => `Message de ${author} publié.`,
+    messageRejected: (author: string) => `Message de ${author} refusé.`,
+    messageHidden: (author: string) => `Message de ${author} retiré de l’écran.`,
     messagesListLabel: 'Messages du livre d’or',
     messagesLoadFailed: 'Les messages n’ont pas pu être chargés.',
   },

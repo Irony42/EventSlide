@@ -819,13 +819,9 @@ export const it: UiText = {
       }),
     messagesEmpty: 'Nessun messaggio da rivedere per ora.',
     messagesEmptyHint: 'I biglietti lasciati dai vostri ospiti arrivano qui automaticamente.',
-    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
-      ({
-        publish: `Messaggio di ${author} pubblicato.`,
-        reject: `Messaggio di ${author} rifiutato.`,
-        hide: `Messaggio di ${author} tolto dallo schermo.`,
-      })[decision],
-    openMessages: 'Modera i messaggi',
+    messagePublished: (author: string) => `Messaggio di ${author} pubblicato.`,
+    messageRejected: (author: string) => `Messaggio di ${author} rifiutato.`,
+    messageHidden: (author: string) => `Messaggio di ${author} tolto dallo schermo.`,
     messagesListLabel: 'Messaggi del libro degli ospiti',
     messagesLoadFailed: 'Impossibile caricare i messaggi.',
   },

@@ -841,13 +841,9 @@ export const de: UiText = {
       }),
     messagesEmpty: 'Im Moment ist nichts zu prüfen.',
     messagesEmptyHint: 'Die Zeilen Ihrer Gäste erscheinen hier automatisch.',
-    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
-      ({
-        publish: `Nachricht von ${author} veröffentlicht.`,
-        reject: `Nachricht von ${author} abgelehnt.`,
-        hide: `Nachricht von ${author} vom Bildschirm genommen.`,
-      })[decision],
-    openMessages: 'Nachrichten moderieren',
+    messagePublished: (author: string) => `Nachricht von ${author} veröffentlicht.`,
+    messageRejected: (author: string) => `Nachricht von ${author} abgelehnt.`,
+    messageHidden: (author: string) => `Nachricht von ${author} vom Bildschirm genommen.`,
     messagesListLabel: 'Gästebuch-Nachrichten',
     messagesLoadFailed: 'Die Nachrichten konnten nicht geladen werden.',
   },

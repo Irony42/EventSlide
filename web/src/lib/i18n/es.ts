@@ -813,13 +813,9 @@ export const es: UiText = {
       }),
     messagesEmpty: 'Nada que revisar por ahora.',
     messagesEmptyHint: 'Las notas de sus invitados llegan aquí automáticamente.',
-    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
-      ({
-        publish: `Mensaje de ${author} publicado.`,
-        reject: `Mensaje de ${author} rechazado.`,
-        hide: `Mensaje de ${author} retirado de la pantalla.`,
-      })[decision],
-    openMessages: 'Moderar los mensajes',
+    messagePublished: (author: string) => `Mensaje de ${author} publicado.`,
+    messageRejected: (author: string) => `Mensaje de ${author} rechazado.`,
+    messageHidden: (author: string) => `Mensaje de ${author} retirado de la pantalla.`,
     messagesListLabel: 'Mensajes del libro de oro',
     messagesLoadFailed: 'No se pudieron cargar los mensajes.',
   },

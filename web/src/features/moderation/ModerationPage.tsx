@@ -203,7 +203,13 @@ export function ModerationPage() {
       }
     }
     const author = item.authorName ?? t.guestbookHost.anonymous
-    setDecisionNote(t.moderation.messageDecided(author, decision))
+    setDecisionNote(
+      {
+        publish: t.moderation.messagePublished,
+        reject: t.moderation.messageRejected,
+        hide: t.moderation.messageHidden,
+      }[decision](author),
+    )
     void guestbook.decide(entryId, decision)
     if (viaKey) messageSelection.moveFocus(1)
   }

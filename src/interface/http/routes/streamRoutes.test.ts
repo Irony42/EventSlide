@@ -358,6 +358,21 @@ describe('streamRoutes', () => {
 
       await host.waitFor((text) => text.includes('"type":"book.changed"'), 'the book signal')
     })
+
+    // Spec 15: the console's guestbook tab lives on this signal. It is not private (the wall
+    // reads it too), so it reaches both channels.
+    it('delivers guestbook.changed to the moderation channel and to the wall', async () => {
+      const cookie = await consoleCookie()
+      const host = await open('/api/events/mariage/moderation/stream', { cookie })
+      const wall = await open('/api/events/mariage/stream')
+      await host.waitFor((text) => text.includes(': connected'), 'the console')
+      await wall.waitFor((text) => text.includes(': connected'), 'the wall')
+
+      subject.deps.bus.publish({ type: 'guestbook.changed', eventId: asEventId(WEDDING) })
+
+      await host.waitFor((text) => text.includes('guestbook.changed'), 'the console frame')
+      await wall.waitFor((text) => text.includes('guestbook.changed'), 'the wall frame')
+    })
   })
 
   it('keeps no replay buffer for an event whose last client has left', async () => {

@@ -779,13 +779,9 @@ export const en: UiText = {
       }),
     messagesEmpty: 'No message to review right now.',
     messagesEmptyHint: 'The notes your guests leave arrive here automatically.',
-    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
-      ({
-        publish: `Message from ${author} published.`,
-        reject: `Message from ${author} rejected.`,
-        hide: `Message from ${author} taken off the screen.`,
-      })[decision],
-    openMessages: 'Moderate the messages',
+    messagePublished: (author: string) => `Message from ${author} published.`,
+    messageRejected: (author: string) => `Message from ${author} rejected.`,
+    messageHidden: (author: string) => `Message from ${author} taken off the screen.`,
     messagesListLabel: 'Guestbook messages',
     messagesLoadFailed: 'The messages could not be loaded.',
   },
