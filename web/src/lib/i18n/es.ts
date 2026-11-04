@@ -872,6 +872,36 @@ export const es: UiText = {
     },
     layoutOrder: (names: readonly string[]) => `Disposiciones, en orden: ${names.join(', ')}.`,
 
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Ajustes',
+      pause: 'Pausa',
+      resume: 'Reanudar',
+      fullscreen: 'Pantalla completa',
+      barLabel: 'Controles del muro',
+      panelLabel: 'Ajustes del muro',
+      title: 'Ajustes',
+      close: 'Cerrar los ajustes',
+      sectionDisplay: 'Visualización',
+      sectionAmbiance: 'Ambiente',
+      forAll: 'Para todas las pantallas',
+      thisScreen: 'Solo esta pantalla',
+      thisScreenHint:
+        'Estos controles solo cambian esta pantalla y se pierden al recargar la página.',
+      screenLayout: (name: string) => `Disposición de esta pantalla: ${name} (tecla L)`,
+      screenShows: (name: string) => `Esta pantalla muestra ${name} (tecla L)`,
+      backToEvent: 'Volver al ajuste del evento',
+      hideQr: 'Ocultar la tarjeta QR',
+      showQr: 'Mostrar la tarjeta QR',
+      saving: 'Guardando…',
+      saved: 'Guardado',
+      saveFailed: 'No se pudo guardar, inténtelo de nuevo',
+      sessionExpired: 'Su sesión ha caducado. Vuelva a iniciar sesión para ajustar el muro.',
+      signIn: 'Iniciar sesión',
+      signInToSet: 'Iniciar sesión para ajustar este muro',
+      openHint: 'R abre los ajustes del muro.',
+    },
+
     videoBy: (name: string) => `Vídeo enviado por ${name}`,
     videoByAnonymous: 'Vídeo enviado por un invitado',
 
@@ -1036,6 +1066,13 @@ export const es: UiText = {
       intervalHint: 'Cuánto tiempo permanece cada foto en pantalla.',
       intervalDefault: 'Por defecto (una foto cada 8 s)',
       intervalSeconds: (n: number) => `Una foto cada ${n} s`,
+      freshLane: 'Fotos nuevas primero',
+      freshLaneHint:
+        'Una foto publicada ocupa la diapositiva siguiente, tres seguidas como máximo.',
+      tilt: 'Fotos ligeramente inclinadas',
+      tiltHint: 'Polaroids y cuerda de ropa: un ángulo fijo de unos grados.',
+      showTime: 'Hora de envío bajo la foto',
+      showTimeHint: 'La hora a la que se envió la foto, según el reloj de la pantalla de la sala.',
       // Spec 11.
       onScreen: 'En pantalla',
       souvenirCounter: 'Mostrar el contador de recuerdos',

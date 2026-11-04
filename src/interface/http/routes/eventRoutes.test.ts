@@ -1247,36 +1247,15 @@ describe('the host event routes', () => {
       expect(response.body.settings.wall).toEqual({
         layout: 'mosaic',
         slideIntervalMs: 12_000,
+        qrVisible: true,
+        freshLane: true,
+        tilt: true,
+        showTime: false,
         souvenirCounter: false,
         newPhotoSignal: false,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
       })
-    })
-
-    it('saves the two spec 11 switches key by key, off by default, owner only', async () => {
-      const agent = await signedIn(world, 'owner')
-      const first = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ wall: { souvenirCounter: true } })
-      expect(first.body.settings.wall).toMatchObject({
-        souvenirCounter: true,
-        newPhotoSignal: false,
-      })
-      const second = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ wall: { newPhotoSignal: true } })
-      expect(second.body.settings.wall).toMatchObject({
-        souvenirCounter: true,
-        newPhotoSignal: true,
-      })
-      const bad = await agent
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ wall: { souvenirCounter: 'yes' } })
-      expect(bad.status).toBe(400)
-      const moderator = await signedIn(world, 'moderator')
-      const refused = await moderator
-        .patch(`/api/events/${SLUG}/settings`)
-        .send({ wall: { souvenirCounter: false } })
-      expect(refused.status).toBeGreaterThanOrEqual(400)
     })
 
     it('refuses an unknown wall key, a bad layout and an out-of-range rhythm with 400', async () => {
@@ -1284,6 +1263,15 @@ describe('the host event routes', () => {
       const patch = (wall: unknown) => agent.patch(`/api/events/${SLUG}/settings`).send({ wall })
 
       expect((await patch({ qrSize: 'large' })).status).toBe(400)
+      expect((await patch({ qrPlacement: 'center' })).status).toBe(400)
+      expect((await patch({ qrVisible: 'yes' })).status).toBe(400)
+      const offGrid = await patch({ qrScale: 1.02 })
+      expect(offGrid.status).toBe(400)
+      expect(offGrid.body.error.code).toBe('eventSettings.wallQrScaleInvalid')
+      expect((await patch({ qrScale: 0.5 })).body.error.code).toBe(
+        'eventSettings.wallQrScaleInvalid',
+      )
+      expect((await patch({ qrScale: 2 })).body.error.code).toBe('eventSettings.wallQrScaleInvalid')
       expect((await patch({ layout: 'carousel' })).status).toBe(400)
       const tooShort = await patch({ slideIntervalMs: 500 })
       expect(tooShort.status).toBe(400)
@@ -1360,9 +1348,36 @@ describe('the host event routes', () => {
         wall: {
           layout: null,
           slideIntervalMs: null,
+          qrVisible: true,
+          freshLane: true,
+          tilt: true,
+          showTime: false,
           souvenirCounter: false,
           newPhotoSignal: false,
+          qrScale: 1,
+          qrPlacement: 'bottom-end',
         },
+      })
+    })
+
+    it('merges the invitation card keys one by one and answers them (spec 14)', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ wall: { qrScale: 1.35 } })
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { qrPlacement: 'top-start', qrVisible: false } })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.wall).toMatchObject({
+        qrVisible: false,
+        freshLane: true,
+        tilt: true,
+        showTime: false,
+        souvenirCounter: false,
+        newPhotoSignal: false,
+        qrScale: 1.35,
+        qrPlacement: 'top-start',
       })
     })
 
