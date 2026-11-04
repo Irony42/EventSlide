@@ -11,6 +11,7 @@ import {
   type ClipLimits,
   type ClipRefusal,
 } from '../clipFile'
+import { cutContainer } from '../cutContainer'
 import { defaultTrim, type TrimRange } from '../clipTrim'
 import { probeClipDuration } from './probeClipDuration'
 import type { NoticePublication } from '../../../lib/api/dto'
@@ -105,6 +106,11 @@ export interface UseClipUploadOptions {
    * the only reason this hook can be tested at all; the default is the real thing.
    */
   readonly probe?: (file: File) => Promise<number | null>
+  /**
+   * Cuts the kept part out of the container on the phone (spec 16, PR 3). Injected because
+   * jsdom has no media and a test should not load the real library.
+   */
+  readonly cut?: typeof cutContainer
   /** Milliseconds between polls of the job. Injected so a test does not wait. */
   readonly pollIntervalMs?: number
 }
@@ -200,6 +206,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
     onArrived,
     publication = 'afterReview',
     probe = probeClipDuration,
+    cut = cutContainer,
     pollIntervalMs,
   } = options
   const t = useTranslations()
@@ -278,6 +285,21 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
           message: refusalMessage(refusal, limits, t),
           retryable: false,
         })
+        // Too heavy is no longer the end for a recording that is also too long: the part the
+        // guest keeps is cut out on the phone, and only that goes up. If the cut cannot be
+        // made, `send` says "too large" then, with the same sentence.
+        if (refusal === 'tooLarge') {
+          void probe(file).then((durationMs) => {
+            if (chosen.current !== file) return
+            if (durationMs === null || refuseClipDuration(durationMs, limits) === null) return
+            setState({
+              ...IDLE,
+              file,
+              stage: 'ready',
+              trim: { durationMs, ...defaultTrim(durationMs, limits.maxSeconds * 1_000) },
+            })
+          })
+        }
         return
       }
       setState({ ...IDLE, file, stage: 'ready' })
@@ -489,10 +511,33 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
 
       void (async () => {
         try {
+          // The part kept is cut out on the phone when it can be: only that goes up, and a
+          // recording over the byte limit becomes possible at all. If it cannot be cut, the
+          // whole file goes with the range when it fits, and is refused when it does not.
+          let toSend = file
+          let range = trim === null ? null : { startMs: trim.startMs, endMs: trim.endMs }
+          if (trim !== null) {
+            const cutOut = await cut(file, trim.startMs, trim.endMs)
+            if (run.current !== mine) return
+            if (cutOut !== null) {
+              toSend = new File([cutOut.blob], file.name, { type: 'video/mp4' })
+              range = { startMs: cutOut.startMs, endMs: cutOut.endMs }
+            }
+            if (toSend.size > limits.maxBytes) {
+              setState((previous) => ({
+                ...previous,
+                stage: 'failed',
+                progress: 0,
+                message: refusalMessage('tooLarge', limits, t),
+                retryable: false,
+              }))
+              return
+            }
+          }
           const job = await api.uploadClip(slug, {
-            file,
+            file: toSend,
             caption,
-            ...(trim === null ? {} : { trim: { startMs: trim.startMs, endMs: trim.endMs } }),
+            ...(range === null ? {} : { trim: range }),
             onProgress: (progress) => {
               if (run.current !== mine) return
               setState((previous) => ({ ...previous, progress: progress.percent }))
@@ -566,7 +611,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
         // run.
       })()
     },
-    [abandon, api, beginWait, slug, state.file, state.stage, state.trim, t, watch],
+    [abandon, api, beginWait, cut, limits, slug, state.file, state.stage, state.trim, t, watch],
   )
 
   const cancel = useCallback(() => {

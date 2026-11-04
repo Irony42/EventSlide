@@ -240,7 +240,8 @@ export const es: UiText = {
     clipTrimPause: 'Pausa',
     clipTrimNoPreview:
       'No hay vista previa en este dispositivo. El fragmento se recortará igualmente.',
-    clipTrimWholeFileSent: 'Se envía el vídeo entero; solo se conserva el fragmento elegido.',
+    clipTrimWholeFileSent:
+      'Solo se conserva el fragmento elegido. Si este teléfono no puede recortarlo, se envía el vídeo entero y luego se recorta.',
     clipSendTrimmed: 'Enviar este fragmento',
     clipUploading: 'Enviando el vídeo…',
     clipQueued: 'En la cola…',

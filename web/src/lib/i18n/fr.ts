@@ -392,7 +392,8 @@ export const fr = {
     clipTrimPlay: 'Lire l’extrait',
     clipTrimPause: 'Pause',
     clipTrimNoPreview: 'Aperçu indisponible sur cet appareil. L’extrait sera bien découpé.',
-    clipTrimWholeFileSent: 'La vidéo entière est envoyée ; seul l’extrait choisi est conservé.',
+    clipTrimWholeFileSent:
+      'Seul l’extrait choisi est conservé. Si ce téléphone ne sait pas le découper, la vidéo entière est envoyée avant d’être coupée.',
     clipSendTrimmed: 'Envoyer cet extrait',
     /**
      * The four states the job actually has, in the guest's words.

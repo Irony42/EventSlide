@@ -244,7 +244,8 @@ export const it: UiText = {
     clipTrimPause: 'Pausa',
     clipTrimNoPreview:
       'Nessuna anteprima su questo dispositivo. L’estratto verrà comunque tagliato.',
-    clipTrimWholeFileSent: 'Viene inviato l’intero video; solo l’estratto scelto viene conservato.',
+    clipTrimWholeFileSent:
+      'Viene conservato solo l’estratto scelto. Se questo telefono non riesce a tagliarlo, viene inviato l’intero video e poi tagliato.',
     clipSendTrimmed: 'Invia questo estratto',
     clipUploading: 'Invio del video…',
     clipQueued: 'In coda…',

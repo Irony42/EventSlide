@@ -226,7 +226,8 @@ export const en: UiText = {
     clipTrimPlay: 'Play the clip',
     clipTrimPause: 'Pause',
     clipTrimNoPreview: 'No preview on this device. The clip will still be cut.',
-    clipTrimWholeFileSent: 'The whole video is sent; only the part you chose is kept.',
+    clipTrimWholeFileSent:
+      'Only the part you chose is kept. If this phone cannot cut it, the whole video is sent and then cut.',
     clipSendTrimmed: 'Send this clip',
     clipUploading: 'Sending the video…',
     clipQueued: 'In the queue…',
