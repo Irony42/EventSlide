@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
+import { Icon } from '../../../design-system/components/Icon'
+import { IconButton } from '../../../design-system/components/IconButton'
 import { Button } from '../../../design-system/components/Button'
 import type { EventSettingsDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -6,6 +8,7 @@ import {
   createWallSoundPlayer,
   WALL_SOUND_TONES,
   type WallSoundPlayer,
+  type WallSoundTone,
 } from '../../../lib/wallSoundPlayer'
 import { CheckboxField } from './CheckboxField'
 import styles from './WallSoundFields.module.css'
@@ -16,6 +19,8 @@ export interface WallSoundFieldsProps {
   readonly wall: WallSettings
   readonly onChange: (patch: Partial<WallSettings>) => void
   readonly disabled?: boolean
+  /** Each tone with its own play button, and the volume beside a speaker: the wall's drawer (spec 17). */
+  readonly visual?: boolean
 }
 
 /**
@@ -23,7 +28,12 @@ export interface WallSoundFieldsProps {
  * volume, and a "Test" that plays the chosen tone on **this** computer (a click is the gesture a
  * browser wants). Controlled: the page owns the draft and saves it with the rest.
  */
-export function WallSoundFields({ wall, onChange, disabled = false }: WallSoundFieldsProps) {
+export function WallSoundFields({
+  wall,
+  onChange,
+  disabled = false,
+  visual = false,
+}: WallSoundFieldsProps) {
   const t = useTranslations().admin.wallSound
   const group = useId()
   const player = useRef<WallSoundPlayer | null>(null)
@@ -36,14 +46,15 @@ export function WallSoundFields({ wall, onChange, disabled = false }: WallSoundF
     [],
   )
 
-  const test = () => {
+  const play = (tone: WallSoundTone) => {
     player.current ??= createWallSoundPlayer()
     const active = player.current
     void active.activate().then(async () => {
-      await active.load(wall.soundTone)
-      active.play(wall.soundTone, wall.soundVolume)
+      await active.load(tone)
+      active.play(tone, wall.soundVolume)
     })
   }
+  const test = () => play(wall.soundTone)
 
   return (
     <fieldset className={styles['root']}>
@@ -58,21 +69,32 @@ export function WallSoundFields({ wall, onChange, disabled = false }: WallSoundF
       />
       <div role="radiogroup" aria-label={t.tone}>
         {WALL_SOUND_TONES.map((tone) => (
-          <label key={tone} className={styles['choice']}>
-            <input
-              type="radio"
-              className={styles['radio']}
-              name={`${group}-tone`}
-              value={tone}
-              checked={wall.soundTone === tone}
-              disabled={disabled}
-              onChange={() => onChange({ soundTone: tone })}
-            />
-            {t.toneNames[tone]}
-          </label>
+          <div key={tone} className={visual ? styles['tone'] : undefined}>
+            <label className={styles['choice']}>
+              <input
+                type="radio"
+                className={styles['radio']}
+                name={`${group}-tone`}
+                value={tone}
+                checked={wall.soundTone === tone}
+                disabled={disabled}
+                onChange={() => onChange({ soundTone: tone })}
+              />
+              {t.toneNames[tone]}
+            </label>
+            {visual ? (
+              <IconButton
+                aria-label={t.tonePlay(t.toneNames[tone])}
+                icon={<Icon name="play" size="sm" />}
+                disabled={disabled}
+                onClick={() => play(tone)}
+              />
+            ) : null}
+          </div>
         ))}
       </div>
       <div className={styles['volume']}>
+        {visual ? <Icon name="speaker" /> : null}
         <input
           type="range"
           className={styles['slider']}

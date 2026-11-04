@@ -1,4 +1,4 @@
-import { CheckboxField } from '../../../admin/components/CheckboxField'
+import { OptionCard } from '../controls/OptionCard'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 
@@ -14,12 +14,14 @@ function OnScreenSection({ settings, save }: WallPanelContext) {
 
   return (
     <>
-      <CheckboxField
+      <OptionCard
+        art="counter"
         label={t.admin.wallDisplay.souvenirCounter}
         checked={wall.souvenirCounter}
         onChange={(souvenirCounter) => save({ wall: { souvenirCounter } })}
       />
-      <CheckboxField
+      <OptionCard
+        art="signal"
         label={t.admin.wallDisplay.newPhotoSignal}
         checked={wall.newPhotoSignal}
         onChange={(newPhotoSignal) => save({ wall: { newPhotoSignal } })}
@@ -32,5 +34,13 @@ export const section: WallPanelSection = {
   id: 'on-screen',
   order: 40,
   title: (text) => text.admin.wallDisplay.onScreen,
+  icon: 'eye',
+  summary: (text, { wall }) =>
+    [
+      wall.souvenirCounter ? text.admin.wallDisplay.souvenirCounter : null,
+      wall.newPhotoSignal ? text.admin.wallDisplay.newPhotoSignal : null,
+    ]
+      .filter((label) => label !== null)
+      .join(' · ') || text.wall.panel.summaryNone,
   Component: OnScreenSection,
 }

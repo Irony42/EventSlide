@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Card } from '../../../design-system/components/Card'
-import { CloseIcon } from '../../../design-system/components/CloseIcon'
+import { Icon } from '../../../design-system/components/Icon'
 import { IconButton } from '../../../design-system/components/IconButton'
 import { Notice } from '../../../design-system/components/Notice'
+import { Tooltip } from '../../../design-system/components/Tooltip'
 import { messageForCode } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { WallOwner } from '../hooks/useWallOwner'
@@ -12,6 +12,9 @@ import { ThisScreenBlock } from './ThisScreenBlock'
 import { usePanelSettings } from './usePanelSettings'
 import { WALL_PANEL_SECTIONS } from './wallPanelSections'
 import styles from './WallSettingsPanel.module.css'
+
+/** The anchor of a section, for the drawer's jump row. */
+const sectionId = (id: string): string => `wall-panel-section-${id}`
 
 /** Without a touch for this long the panel closes itself: the room would read the configuration all night. */
 export const PANEL_IDLE_MS = 60_000
@@ -58,6 +61,15 @@ export default function WallSettingsPanel({
 
   const touch = (): void => setTouched((count) => count + 1)
 
+  /** Opens the section and brings it to the top of the drawer, with the focus on its title. */
+  const jumpTo = (id: string): void => {
+    const section = rootRef.current?.querySelector<HTMLDetailsElement>(`#${sectionId(id)}`)
+    if (section === null || section === undefined) return
+    section.open = true
+    section.scrollIntoView?.({ block: 'start' })
+    section.querySelector('summary')?.focus()
+  }
+
   return (
     <div
       ref={rootRef}
@@ -73,26 +85,67 @@ export default function WallSettingsPanel({
       }}
       onFocus={touch}
     >
-      <IconButton
-        ref={closeRef}
-        aria-label={text.close}
-        icon={<CloseIcon />}
-        onClick={onClose}
-        className={styles['close']}
-      />
-      <Card title={text.title} as="h2">
-        <h3 className={styles['groupTitle']}>{text.forAll}</h3>
-        {WALL_PANEL_SECTIONS.map(({ id, title, Component }) => (
-          <details key={id} className={styles['section']} open>
-            <summary>{title(t)}</summary>
-            <Component slug={slug} settings={settings} save={save} screen={screen} />
-          </details>
-        ))}
-        <ThisScreenBlock screen={screen} />
+      <header className={styles['header']}>
+        <span className={styles['badge']}>
+          <Icon name="settings" />
+        </span>
+        <h2 className={styles['title']}>{text.title}</h2>
         <div aria-live="polite" className={styles['status']}>
-          {state.kind === 'saved' ? text.saved : null}
+          {state.kind === 'saved' ? (
+            <>
+              <Icon name="check" size="sm" />
+              {text.saved}
+            </>
+          ) : null}
           {state.kind === 'saving' ? text.saving : null}
         </div>
+        <IconButton
+          ref={closeRef}
+          aria-label={text.close}
+          icon={<Icon name="close" size="sm" />}
+          onClick={onClose}
+        />
+      </header>
+      <nav className={styles['jump']} aria-label={text.sectionJump}>
+        {WALL_PANEL_SECTIONS.map(({ id, title, icon }) => (
+          <Tooltip key={id} text={title(t)} placement="below">
+            {(describedBy) => (
+              <IconButton
+                aria-label={title(t)}
+                aria-describedby={describedBy}
+                icon={<Icon name={icon} size="sm" />}
+                onClick={() => jumpTo(id)}
+              />
+            )}
+          </Tooltip>
+        ))}
+      </nav>
+      <div className={styles['scroll']}>
+        <h3 className={styles['groupTitle']}>
+          <Icon name="globe" size="sm" />
+          {text.forAll}
+        </h3>
+        {WALL_PANEL_SECTIONS.map(({ id, title, icon, summary, Component }) => {
+          const current = summary?.(t, settings) ?? null
+          return (
+            <details key={id} id={sectionId(id)} className={styles['section']} open>
+              <summary className={styles['sectionHead']}>
+                <span className={styles['badge']}>
+                  <Icon name={icon} />
+                </span>
+                <span className={styles['sectionTitle']}>
+                  <strong>{title(t)}</strong>
+                  {current === null ? null : <small>{current}</small>}
+                </span>
+                <Icon name="chevron" size="sm" className={styles['chevron']} />
+              </summary>
+              <div className={styles['sectionBody']}>
+                <Component slug={slug} settings={settings} save={save} screen={screen} />
+              </div>
+            </details>
+          )
+        })}
+        <ThisScreenBlock screen={screen} />
         {state.kind === 'failed' ? (
           <Notice tone="danger" role="alert" variant="boxed">
             {state.sessionExpired ? (
@@ -109,7 +162,7 @@ export default function WallSettingsPanel({
             )}
           </Notice>
         ) : null}
-      </Card>
+      </div>
     </div>
   )
 }

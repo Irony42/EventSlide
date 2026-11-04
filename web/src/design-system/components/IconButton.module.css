@@ -82,3 +82,9 @@
 .lg .glyph {
   font-size: var(--text-xl);
 }
+
+/* The wall owner's bar, read at the projector's distance. */
+.bar {
+  min-width: var(--wall-bar-button);
+  min-height: var(--wall-bar-button);
+}

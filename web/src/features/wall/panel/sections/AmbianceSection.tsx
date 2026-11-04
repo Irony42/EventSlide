@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
-import { SelectField } from '../../../admin/components/SelectField'
-import { THEME_AMBIANCES, isThemeAmbiance } from '../../../../design-system/eventTheme'
+import { AmbianceSwatches } from '../controls/AmbianceSwatches'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
 import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 
@@ -13,18 +12,11 @@ import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 function AmbianceSection({ slug, settings, save }: WallPanelContext) {
   const t = useTranslations()
   const { theme } = settings
-  const options = THEME_AMBIANCES.filter(
-    (value) => value !== 'custom' || theme.ambiance === 'custom',
-  ).map((value) => ({ value, label: t.admin.themeAmbianceNames[value] }))
-
   return (
     <>
-      <SelectField
-        label={t.admin.themeAmbiance}
+      <AmbianceSwatches
         value={theme.ambiance}
-        options={options}
-        onChange={(value) => {
-          if (!isThemeAmbiance(value) || value === 'custom') return
+        onChange={(ambiance) => {
           // The theme is one decision and is replaced whole by the server: sent with its other
           // choices as they are, and without the custom object an ambiance other than `custom`
           // would be refused beside.
@@ -33,7 +25,7 @@ function AmbianceSection({ slug, settings, save }: WallPanelContext) {
               accentHue: theme.accentHue,
               fonts: theme.fonts,
               frame: theme.frame,
-              ambiance: value,
+              ambiance,
             },
           })
         }}
@@ -51,5 +43,7 @@ export const section: WallPanelSection = {
   id: 'ambiance',
   order: 20,
   title: (text) => text.wall.panel.sectionAmbiance,
+  icon: 'palette',
+  summary: (text, { theme }) => text.admin.themeAmbianceNames[theme.ambiance],
   Component: AmbianceSection,
 }

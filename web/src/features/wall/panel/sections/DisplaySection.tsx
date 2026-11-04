@@ -1,17 +1,16 @@
-import { CheckboxField } from '../../../admin/components/CheckboxField'
 import { SelectField, type SelectOption } from '../../../admin/components/SelectField'
 import { Button } from '../../../../design-system/components/Button'
 import {
+  DEFAULT_RHYTHM_SECONDS,
   MIXED_SLIDESHOW_STEPS_SECONDS,
   MIXED_WALL_STEPS_SECONDS,
-  WALL_UNSET,
   mixedDurationOptions,
-  wallLayoutOptions,
-  wallRhythmOptions,
 } from '../../../admin/wallDisplayOptions'
-import type { WallLayout } from '../../../../lib/api/dto'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale } from '../../../../lib/i18n/locale'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
+import { LayoutTiles } from '../controls/LayoutTiles'
+import { OptionCard } from '../controls/OptionCard'
+import { RhythmSteps } from '../controls/RhythmSteps'
 import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 
 /** Endonyms, never translated: the word chosen is the one the room reads. */
@@ -33,15 +32,7 @@ function DisplaySection({ settings, save, screen }: WallPanelContext) {
 
   return (
     <>
-      <SelectField
-        label={t.admin.wallDisplay.layout}
-        value={wall.layout ?? WALL_UNSET}
-        options={wallLayoutOptions(t)}
-        onChange={(value) => {
-          const known = wallLayoutOptions(t).some((o) => o.value === value && value !== WALL_UNSET)
-          save({ wall: { layout: known ? (value as WallLayout) : null } })
-        }}
-      />
+      <LayoutTiles value={wall.layout} onChange={(layout) => save({ wall: { layout } })} />
       {/* This screen's own layout beats the event's until it is released (spec 13, rule 6). */}
       {screen.localLayout === null ? null : (
         <p role="status">
@@ -51,15 +42,9 @@ function DisplaySection({ settings, save, screen }: WallPanelContext) {
           </Button>
         </p>
       )}
-      <SelectField
-        label={t.admin.wallDisplay.interval}
-        value={wall.slideIntervalMs === null ? WALL_UNSET : String(wall.slideIntervalMs)}
-        options={wallRhythmOptions(t, wall.slideIntervalMs)}
-        onChange={(value) =>
-          save({
-            wall: { slideIntervalMs: value === WALL_UNSET ? null : Number.parseInt(value, 10) },
-          })
-        }
+      <RhythmSteps
+        valueMs={wall.slideIntervalMs}
+        onChange={(slideIntervalMs) => save({ wall: { slideIntervalMs } })}
       />
       <SelectField
         label={t.admin.wallLanguage}
@@ -71,23 +56,27 @@ function DisplaySection({ settings, save, screen }: WallPanelContext) {
           if (chosen !== null) save({ wallLanguage: chosen })
         }}
       />
-      <CheckboxField
+      <OptionCard
+        art="fresh"
         label={t.admin.wallDisplay.freshLane}
         checked={wall.freshLane}
         onChange={(freshLane) => save({ wall: { freshLane } })}
       />
-      <CheckboxField
+      <OptionCard
+        art="tilt"
         label={t.admin.wallDisplay.tilt}
         checked={wall.tilt}
         onChange={(tilt) => save({ wall: { tilt } })}
       />
-      <CheckboxField
+      <OptionCard
+        art="time"
         label={t.admin.wallDisplay.showTime}
         checked={wall.showTime}
         onChange={(showTime) => save({ wall: { showTime } })}
       />
       {/* The mixed wall (spec 09): the same rows, bounds and keys as the settings page. */}
-      <CheckboxField
+      <OptionCard
+        art="mixed"
         label={t.admin.wallDisplay.mixed}
         hint={t.admin.wallDisplay.mixedHint}
         checked={wall.mixedEnabled}
@@ -115,7 +104,8 @@ function DisplaySection({ settings, save, screen }: WallPanelContext) {
         </>
       ) : null}
       {/* Only meaningful once the guestbook is open, as on the settings page. */}
-      <CheckboxField
+      <OptionCard
+        art="guestbook"
         label={t.admin.guestbookOnWall}
         checked={settings.guestbookOnWall}
         disabled={!settings.allowGuestbook}
@@ -129,5 +119,15 @@ export const section: WallPanelSection = {
   id: 'display',
   order: 10,
   title: (text) => text.wall.panel.sectionDisplay,
+  icon: 'layout',
+  summary: (text, { wall }) =>
+    [
+      wall.layout === null
+        ? text.admin.wallDisplay.layoutUnset
+        : text.wall.layoutNames[wall.layout],
+      text.wall.panel.summaryRhythm(
+        wall.slideIntervalMs === null ? DEFAULT_RHYTHM_SECONDS : wall.slideIntervalMs / 1_000,
+      ),
+    ].join(' · '),
   Component: DisplaySection,
 }
