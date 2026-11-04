@@ -278,7 +278,12 @@ export function WallPage() {
     fadeMs: transitionMs,
     phaseMsOverride: phaseMs,
   })
-  const { message: guestbookMessage } = useWallGuestbook(wall?.guestbook, slideshow.generation)
+  const { message: guestbookMessage } = useWallGuestbook(
+    wall?.guestbook,
+    slideshow.generation,
+    // Spec 10: the room's attention belongs to a running challenge (the server's state).
+    wall?.challenge?.state === 'running',
+  )
   // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
   // below it, and an effect would let one photograph go by under a card that just appeared.
   if (cardUp !== (guestbookMessage !== null)) setCardUp(guestbookMessage !== null)

@@ -12,14 +12,21 @@ const BOOK: WallGuestbookDto = {
   ],
 }
 
+interface Props {
+  generation: number
+  guestbook: WallGuestbookDto | undefined
+  held?: boolean
+}
+
 describe('useWallGuestbook', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
   const mount = (book: WallGuestbookDto | undefined) =>
-    renderHook(({ generation, guestbook }) => useWallGuestbook(guestbook, generation), {
-      initialProps: { generation: 0, guestbook: book },
-    })
+    renderHook(
+      ({ generation, guestbook, held }: Props) => useWallGuestbook(guestbook, generation, held),
+      { initialProps: { generation: 0, guestbook: book } as Props },
+    )
 
   it('shows nothing until the server’s Nth photograph change', () => {
     const view = mount(BOOK)
@@ -72,5 +79,35 @@ describe('useWallGuestbook', () => {
     view.rerender({ generation: 3, guestbook: { everyNth: 3, messages: [BOOK.messages[1]!] } })
 
     expect(view.result.current.message).toBeNull()
+  })
+
+  describe('while a challenge holds the room’s attention', () => {
+    it('starts no card at the Nth change, and resumes the cadence after the challenge', () => {
+      const view = mount(BOOK)
+
+      view.rerender({ generation: 3, guestbook: BOOK, held: true })
+      expect(view.result.current.message).toBeNull()
+      view.rerender({ generation: 6, guestbook: BOOK, held: true })
+      expect(view.result.current.message).toBeNull()
+
+      view.rerender({ generation: 6, guestbook: BOOK, held: false })
+      expect(view.result.current.message).toBeNull()
+      view.rerender({ generation: 9, guestbook: BOOK, held: false })
+      expect(view.result.current.message?.id).toBe('a')
+    })
+
+    it('lets a card already up end normally, then keeps the cursor where it was', () => {
+      const view = mount(BOOK)
+      view.rerender({ generation: 3, guestbook: BOOK })
+
+      view.rerender({ generation: 3, guestbook: BOOK, held: true })
+      expect(view.result.current.message?.id).toBe('a')
+      act(() => vi.advanceTimersByTime(5_000))
+      expect(view.result.current.message).toBeNull()
+
+      view.rerender({ generation: 6, guestbook: BOOK, held: true })
+      view.rerender({ generation: 9, guestbook: BOOK })
+      expect(view.result.current.message?.id).toBe('b')
+    })
   })
 })

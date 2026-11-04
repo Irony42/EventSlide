@@ -16,21 +16,28 @@ export interface WallGuestbook {
  * rather than the last one forever. A message taken off the wall mid-evening shrinks the list
  * under the cursor, which wraps rather than skipping.
  *
+ * While `held` (a timed challenge is running, spec 10) no new card starts: the change that would
+ * have brought one goes by, the cursor stays, and the cadence resumes at the next Nth change after
+ * the challenge. A card already up ends on its own time.
+ *
  * Nothing at all when there is no guestbook on the response: a wall that does not use the feature
  * is exactly the wall it was.
  */
 export const useWallGuestbook = (
   guestbook: WallGuestbookDto | undefined,
   generation: number,
+  held = false,
 ): WallGuestbook => {
   const [message, setMessage] = useState<WallGuestbookMessageDto | null>(null)
   const seen = useRef(generation)
   const cursor = useRef(0)
   const latest = useRef(guestbook)
+  const heldRef = useRef(held)
 
   useEffect(() => {
     latest.current = guestbook
-  }, [guestbook])
+    heldRef.current = held
+  }, [guestbook, held])
 
   useEffect(() => {
     if (generation === seen.current) return
@@ -39,6 +46,7 @@ export const useWallGuestbook = (
     const book = latest.current
     if (book === undefined || book.messages.length === 0 || book.everyNth <= 0) return
     if (generation % book.everyNth !== 0) return
+    if (heldRef.current) return
 
     const next = book.messages[cursor.current % book.messages.length]
     cursor.current += 1

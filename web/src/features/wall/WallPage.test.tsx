@@ -2347,6 +2347,36 @@ describe('WallPage', () => {
       expect(screen.getByText('H7K2QM')).toBeVisible()
     })
 
+    it('keeps the banner on screen while a guestbook card is up, and starts no new card under it', async () => {
+      const book = {
+        everyNth: 2,
+        messages: [
+          aWallGuestbookMessage({ id: 'g1', text: 'Une soirée merveilleuse', displayMs: 400 }),
+        ],
+      }
+      const photos = { items: somePhotos(6), guestbook: book }
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall(photos),
+          aPopulatedWall({ ...photos, ...running(102_000) }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      expect(await screen.findByText('Une soirée merveilleuse')).toBeVisible()
+
+      await streamSignals('challenge.changed')
+      expect(await screen.findByText('1:42')).toBeVisible()
+      expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
+
+      // The card ends on its own time; the next Nth change (the 4th) puts none up.
+      await waitFor(() => expect(screen.queryByText('Une soirée merveilleuse')).toBeNull())
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      expect(screen.queryByText('Une soirée merveilleuse')).toBeNull()
+      expect(screen.getByText('un selfie avec votre voisin')).toBeVisible()
+    })
+
     it('holds the join card on screen while the challenge runs, whatever Q says', async () => {
       const api = fakeApi({ wall: wallSequence(aPopulatedWall(running(102_000))) })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
