@@ -1126,11 +1126,15 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutChosen: false,
+      joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
       layoutSpec: wallLayoutSpec('spotlight'),
       serverNowMs: 1_700_000_000_000,
       mixed: null,
       missions: [],
       guestbook: null,
+      souvenirCount: null,
+      souvenirCounter: false,
+      newPhotoSignal: false,
     }
 
     const dto = toWallResponseDto(view, presenter)
@@ -1155,11 +1159,15 @@ describe('toWallResponseDto', () => {
       kenBurnsDurationMs: 8_800,
       layout: 'spotlight',
       layoutChosen: false,
+      joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
       layoutSpec: wallLayoutSpec('spotlight'),
       serverNowMs: 1_700_000_000_000,
       mixed: null,
       missions: [],
       guestbook: null,
+      souvenirCount: null,
+      souvenirCounter: false,
+      newPhotoSignal: false,
     }
 
     const dto = toWallResponseDto(view, { ...presenter, publicUrl: 'https://photos.example.com' })

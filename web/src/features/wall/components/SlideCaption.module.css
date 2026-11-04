@@ -11,7 +11,8 @@
 /* Bottom-left, inside the 4% overscan inset: consumer projectors crop the outer few
    percent of the frame, and a caption is the first thing to be eaten. */
 .spotlight {
-  inset-inline-start: var(--wall-safe);
+  /* Makes way for the invitation card when the host puts it bottom-start (spec 14). */
+  inset-inline-start: calc(var(--wall-safe) + var(--wall-chrome-caption-start, 0px));
   inset-block-end: var(--wall-safe);
   max-inline-size: var(--container-guest);
 }
@@ -144,4 +145,18 @@
      on a scrim where both are light on dark. On paper it fought the lighter ink and won:
      the credit rendered as the heaviest thing on the print. Ink alone here. */
   font-weight: 400;
+}
+
+/* The time the photo was sent (spec 13). Same size as the credit, for the same reason: nothing
+   below --text-xl reads from the back of the room. */
+.time {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.print .time {
+  color: var(--text-print-secondary);
 }

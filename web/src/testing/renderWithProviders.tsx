@@ -306,6 +306,14 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // absent key reads the same, so the walk in useWallPlaylist.settings.test covers it by hand.
   serverNowMs: 1_790_000_000_000,
   layoutChosen: false,
+  // Spec 11: present so the sweep in `useWallPlaylist.settings.test.ts` sees them.
+  souvenirCount: null,
+  souvenirCounter: false,
+  newPhotoSignal: false,
+  freshLane: true,
+  tilt: true,
+  showTime: false,
+  joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
   // renders the DOM it rendered before theming existed, and every negative assertion about
@@ -389,32 +397,51 @@ export const aModerationClip = (overrides: Partial<ModerationPhotoDto> = {}): Mo
     ...overrides,
   })
 
-export const eventSettings = (overrides: Partial<EventSettingsDto> = {}): EventSettingsDto => ({
-  moderation: 'manual',
-  allowCaptions: true,
-  allowReactions: true,
-  allowClips: true,
-  allowGuestbook: true,
-  guestbookOnWall: true,
-  allowGuestSelfDelete: true,
-  guestSelfDeleteGraceSeconds: 300,
-  retentionDays: null,
-  maxPhotosPerGuest: null,
-  theme: DEFAULT_EVENT_THEME,
-  // French, which is what an event created before this setting existed reads back as —
-  // and what a host who has not touched the control still has. A test that wants the
-  // projector in another language overrides it.
-  wallLanguage: 'fr',
-  // Nothing chosen on the wall: today's behaviour (spec 13).
-  wall: {
-    layout: null,
-    slideIntervalMs: null,
-    mixedEnabled: false,
-    mixedWallSeconds: 180,
-    mixedSlideshowSeconds: 60,
-  },
-  ...overrides,
-})
+/** `wall` is partial in the overrides and merged key by key, as the server does. */
+export const eventSettings = (
+  overrides: Omit<Partial<EventSettingsDto>, 'wall'> & {
+    wall?: Partial<EventSettingsDto['wall']>
+  } = {},
+): EventSettingsDto => {
+  const { wall, ...rest } = overrides
+  return {
+    moderation: 'manual',
+    allowCaptions: true,
+    allowReactions: true,
+    allowClips: true,
+    allowGuestbook: true,
+    guestbookOnWall: true,
+    allowGuestSelfDelete: true,
+    guestSelfDeleteGraceSeconds: 300,
+    retentionDays: null,
+    maxPhotosPerGuest: null,
+    theme: DEFAULT_EVENT_THEME,
+    // French, which is what an event created before this setting existed reads back as —
+    // and what a host who has not touched the control still has. A test that wants the
+    // projector in another language overrides it.
+    wallLanguage: 'fr',
+    // Nothing chosen on the wall: today's behaviour (spec 13).
+    wall: {
+      layout: null,
+      slideIntervalMs: null,
+      freshLane: true,
+      tilt: true,
+      showTime: false,
+      qrVisible: true,
+      qrScale: 1,
+      qrPlacement: 'bottom-end',
+      // Spec 11: both off until the host asks.
+      souvenirCounter: false,
+      newPhotoSignal: false,
+      // Spec 09: off.
+      mixedEnabled: false,
+      mixedWallSeconds: 180,
+      mixedSlideshowSeconds: 60,
+      ...wall,
+    },
+    ...rest,
+  }
+}
 
 export const anEventDto = (overrides: Partial<EventDto> = {}): EventDto => ({
   id: 'event-1',
