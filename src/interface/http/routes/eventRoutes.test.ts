@@ -1258,6 +1258,9 @@ describe('the host event routes', () => {
         newPhotoSignal: false,
         qrScale: 1,
         qrPlacement: 'bottom-end',
+        soundEnabled: false,
+        soundTone: 'chime',
+        soundVolume: 50,
       })
     })
 
@@ -1291,6 +1294,33 @@ describe('the host event routes', () => {
         .send({ wall: { layout: 'mosaic' } })
 
       expect(response.status).toBe(403)
+    })
+
+    it('merges the sound keys one by one, refuses bad values, and keeps them from a moderator (spec 12)', async () => {
+      const agent = await signedIn(world, 'owner')
+      const patch = (wall: unknown) => agent.patch(`/api/events/${SLUG}/settings`).send({ wall })
+
+      await patch({ soundEnabled: true, soundTone: 'drop' })
+      const response = await patch({ soundVolume: 80 })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.wall).toMatchObject({
+        soundEnabled: true,
+        soundTone: 'drop',
+        soundVolume: 80,
+      })
+      expect((await patch({ soundTone: 'klaxon' })).status).toBe(400)
+      expect((await patch({ soundEnabled: 'yes' })).status).toBe(400)
+      for (const volume of [-1, 101, 50.5]) {
+        const bad = await patch({ soundVolume: volume })
+        expect(bad.status).toBe(400)
+        expect(bad.body.error.code).toBe('eventSettings.wallSoundVolumeInvalid')
+      }
+      const moderator = await signedIn(world, 'moderator')
+      const refused = await moderator
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { soundEnabled: false } })
+      expect(refused.status).toBe(403)
     })
 
     it('clears retention when the host sends null', async () => {
@@ -1359,6 +1389,9 @@ describe('the host event routes', () => {
           newPhotoSignal: false,
           qrScale: 1,
           qrPlacement: 'bottom-end',
+          soundEnabled: false,
+          soundTone: 'chime',
+          soundVolume: 50,
         },
       })
     })

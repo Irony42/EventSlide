@@ -311,6 +311,7 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   tilt: true,
   showTime: false,
   joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
+  sound: { enabled: false, tone: 'chime', volume: 50 },
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
   // renders the DOM it rendered before theming existed, and every negative assertion about
@@ -431,6 +432,9 @@ export const eventSettings = (
       qrVisible: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',
+      soundEnabled: false,
+      soundTone: 'chime',
+      soundVolume: 50,
       // Spec 11: both off until the host asks.
       souvenirCounter: false,
       newPhotoSignal: false,
