@@ -33,13 +33,11 @@ export interface FoldedBarProps {
   /** What the device is holding offline, which a guest on bad Wi-Fi must still see folded. */
   readonly notice?: ReactNode
   readonly onOpen: () => void
-  /** What sits above the send button while photos wait: the challenge box (spec 18). */
-  readonly extra?: ReactNode
   readonly onSend: () => void
 }
 
 export const FoldedBar = forwardRef<HTMLButtonElement, FoldedBarProps>(function FoldedBar(
-  { items, sendableCount, sending, status, controls, notice, onOpen, extra, onSend },
+  { items, sendableCount, sending, status, controls, notice, onOpen, onSend },
   openRef,
 ) {
   const t = useTranslations()
@@ -82,7 +80,6 @@ export const FoldedBar = forwardRef<HTMLButtonElement, FoldedBarProps>(function 
               {waiting.length}
             </span>
           </button>
-          {extra}
           <Button variant="primary" size="lg" block loading={sending} onClick={onSend}>
             {t.upload.sendCount(sendableCount)}
           </Button>

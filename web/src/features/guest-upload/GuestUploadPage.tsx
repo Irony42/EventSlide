@@ -664,7 +664,6 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               />
             }
             onOpen={openPane}
-            extra={participateBox}
             onSend={sendBatch}
           />
         ) : null}

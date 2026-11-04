@@ -192,11 +192,12 @@ describe('GuestUploadPage: folding the pane', () => {
       await userEvent.click(fold())
     }
 
-    it('shows the box checked above the bar send button, and sends the challenge from the bar', async () => {
+    it('sends the challenge from the bar by default, the box itself waiting in the pane', async () => {
       const api = renderWithChallenge()
       await pickAndFold()
 
-      expect(within(bar()).getByRole('checkbox', { name: fr.challenge.participate })).toBeChecked()
+      // The bar keeps its height budget: the choice is in the pane, checked until changed.
+      expect(within(bar()).queryByRole('checkbox')).toBeNull()
       await userEvent.click(within(bar()).getByRole('button', { name: fr.upload.sendCount(1) }))
 
       await vi.waitFor(() =>
@@ -207,11 +208,13 @@ describe('GuestUploadPage: folding the pane', () => {
       )
     })
 
-    it('sends a plain photograph when the box is unchecked on the bar', async () => {
+    it('keeps an unchecked box through a fold: the bar then sends a plain photograph', async () => {
       const api = renderWithChallenge()
-      await pickAndFold()
+      await screen.findByText('un selfie avec votre voisin')
+      await userEvent.upload(screen.getByLabelText(fr.upload.addPhotos), [aPhotoFile('un.jpg')])
+      await userEvent.click(screen.getByRole('checkbox', { name: fr.challenge.participate }))
+      await userEvent.click(fold())
 
-      await userEvent.click(within(bar()).getByRole('checkbox', { name: fr.challenge.participate }))
       await userEvent.click(within(bar()).getByRole('button', { name: fr.upload.sendCount(1) }))
 
       await vi.waitFor(() =>
