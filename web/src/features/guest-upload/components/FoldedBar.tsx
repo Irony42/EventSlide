@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, type ReactNode } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UploadItem } from '../hooks/useUploadQueue'
@@ -30,12 +30,14 @@ export interface FoldedBarProps {
   readonly status: string
   /** `id` of the folded content, for `aria-controls`. */
   readonly controls: string
+  /** What the device is holding offline, which a guest on bad Wi-Fi must still see folded. */
+  readonly notice?: ReactNode
   readonly onOpen: () => void
   readonly onSend: () => void
 }
 
 export const FoldedBar = forwardRef<HTMLButtonElement, FoldedBarProps>(function FoldedBar(
-  { items, sendableCount, sending, status, controls, onOpen, onSend },
+  { items, sendableCount, sending, status, controls, notice, onOpen, onSend },
   openRef,
 ) {
   const t = useTranslations()
@@ -43,6 +45,7 @@ export const FoldedBar = forwardRef<HTMLButtonElement, FoldedBarProps>(function 
 
   return (
     <div className={styles['bar']} data-testid="folded-bar">
+      {notice}
       <div className={styles['status']} role="status">
         {status === '' || waiting.length > 0 ? null : <span>{status}</span>}
       </div>

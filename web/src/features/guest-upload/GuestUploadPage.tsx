@@ -623,6 +623,15 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
                   : ''
             }
             controls={paneContent}
+            notice={
+              <OfflineNotice
+                compact
+                waiting={outbox.waiting}
+                draining={outbox.draining}
+                onSendNow={outbox.drain}
+                canCloseSafely={canCloseSafely}
+              />
+            }
             onOpen={openPane}
             onSend={() =>
               queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
