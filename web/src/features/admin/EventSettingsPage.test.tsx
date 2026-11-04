@@ -858,6 +858,20 @@ describe('EventSettingsPage', () => {
       expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.wall).toEqual({ tilt: false })
     })
 
+    it('shows both « À l’écran » switches off, and sends only the one that was turned on', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      const counter = await screen.findByLabelText(fr.admin.wallDisplay.souvenirCounter)
+      expect(counter).not.toBeChecked()
+      expect(screen.getByLabelText(fr.admin.wallDisplay.newPhotoSignal)).not.toBeChecked()
+      await userEvent.click(counter)
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent?.wall).toEqual({ souvenirCounter: true })
+    })
+
     it('goes back to nothing chosen, and to the default rhythm', async () => {
       const api = fakeApi({
         getEvent: vi.fn(async () =>

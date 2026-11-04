@@ -423,6 +423,9 @@ export const eventSettings = (
       qrVisible: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',
+      // Spec 11: both off until the host asks.
+      souvenirCounter: false,
+      newPhotoSignal: false,
       ...wall,
     },
     ...rest,

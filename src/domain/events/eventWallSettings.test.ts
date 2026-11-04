@@ -15,6 +15,8 @@ const QR = {
   freshLane: true,
   tilt: true,
   showTime: false,
+  souvenirCounter: false,
+  newPhotoSignal: false,
 } as const
 
 describe('the wall settings group (spec 13)', () => {
@@ -159,5 +161,22 @@ describe('the wall settings group (spec 13)', () => {
       DEFAULT_WALL_SETTINGS,
     )
     expect(restoreWallSettings({ qrScale: '1.2' })).toEqual(DEFAULT_WALL_SETTINGS)
+  })
+
+  it('merges the spec 11 switches key by key and reads only a stored true as on', () => {
+    expect(mergeWallSettings(DEFAULT_WALL_SETTINGS, { souvenirCounter: true })).toMatchObject({
+      souvenirCounter: true,
+      newPhotoSignal: false,
+    })
+    expect(
+      mergeWallSettings(
+        { ...DEFAULT_WALL_SETTINGS, souvenirCounter: true },
+        { newPhotoSignal: true },
+      ),
+    ).toMatchObject({ souvenirCounter: true, newPhotoSignal: true })
+    expect(restoreWallSettings({ souvenirCounter: true, newPhotoSignal: 'true' })).toMatchObject({
+      souvenirCounter: true,
+      newPhotoSignal: false,
+    })
   })
 })

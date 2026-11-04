@@ -1061,6 +1061,14 @@ export const es: UiText = {
       tiltHint: 'Polaroids y cuerda de ropa: un ángulo fijo de unos grados.',
       showTime: 'Hora de envío bajo la foto',
       showTimeHint: 'La hora a la que se envió la foto, según el reloj de la pantalla de la sala.',
+      // Spec 11.
+      onScreen: 'En pantalla',
+      souvenirCounter: 'Mostrar el contador de recuerdos',
+      souvenirCounterHint:
+        'Un contador discreto, arriba en el centro: «17 recuerdos compartidos». Cuenta las fotos y los vídeos visibles en el muro.',
+      newPhotoSignal: 'Avisar de las fotos nuevas',
+      newPhotoSignalHint:
+        'Un mensaje breve, arriba en el centro, cuando una foto o un vídeo acaba de aparecer en el muro. Nunca el nombre del invitado.',
     },
 
     theme: 'Apariencia',

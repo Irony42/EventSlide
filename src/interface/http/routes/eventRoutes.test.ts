@@ -1251,6 +1251,8 @@ describe('the host event routes', () => {
         freshLane: true,
         tilt: true,
         showTime: false,
+        souvenirCounter: false,
+        newPhotoSignal: false,
         qrScale: 1,
         qrPlacement: 'bottom-end',
       })
@@ -1350,6 +1352,8 @@ describe('the host event routes', () => {
           freshLane: true,
           tilt: true,
           showTime: false,
+          souvenirCounter: false,
+          newPhotoSignal: false,
           qrScale: 1,
           qrPlacement: 'bottom-end',
         },
@@ -1370,6 +1374,8 @@ describe('the host event routes', () => {
         freshLane: true,
         tilt: true,
         showTime: false,
+        souvenirCounter: false,
+        newPhotoSignal: false,
         qrScale: 1.35,
         qrPlacement: 'top-start',
       })

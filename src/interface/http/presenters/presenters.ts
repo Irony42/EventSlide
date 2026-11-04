@@ -333,6 +333,8 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   wall: {
     layout: settings.wall.layout,
     slideIntervalMs: settings.wall.slideIntervalMs,
+    souvenirCounter: settings.wall.souvenirCounter,
+    newPhotoSignal: settings.wall.newPhotoSignal,
     freshLane: settings.wall.freshLane,
     tilt: settings.wall.tilt,
     showTime: settings.wall.showTime,

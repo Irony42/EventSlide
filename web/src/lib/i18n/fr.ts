@@ -1145,6 +1145,14 @@ export const fr = {
       showTime: 'Heure d’envoi sous la photo',
       showTimeHint:
         'L’heure à laquelle la photo a été envoyée, selon l’horloge de l’écran de la salle.',
+      // Spec 11.
+      onScreen: 'À l’écran',
+      souvenirCounter: 'Afficher le compteur de souvenirs',
+      souvenirCounterHint:
+        'Un compteur discret, en haut au centre : « 17 souvenirs partagés ». Il compte les photos et les vidéos visibles au mur.',
+      newPhotoSignal: 'Signaler les nouvelles photos',
+      newPhotoSignalHint:
+        'Un message bref, en haut au centre, quand une photo ou une vidéo vient d’apparaître au mur. Jamais le nom de l’invité.',
     },
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,

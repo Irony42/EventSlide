@@ -1066,6 +1066,14 @@ export const de: UiText = {
       showTime: 'Sendezeit unter dem Foto',
       showTimeHint:
         'Die Uhrzeit, zu der das Foto gesendet wurde, nach der Uhr des Bildschirms im Raum.',
+      // Spec 11.
+      onScreen: 'Auf dem Bildschirm',
+      souvenirCounter: 'Erinnerungszähler anzeigen',
+      souvenirCounterHint:
+        'Ein dezenter Zähler oben in der Mitte: „17 Erinnerungen geteilt“. Er zählt die auf der Wand sichtbaren Fotos und Videos.',
+      newPhotoSignal: 'Neue Fotos ankündigen',
+      newPhotoSignalHint:
+        'Eine kurze Meldung oben in der Mitte, wenn ein Foto oder Video gerade auf der Wand erschienen ist. Nie der Name des Gastes.',
     },
 
     theme: 'Erscheinungsbild',

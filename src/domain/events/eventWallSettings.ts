@@ -29,6 +29,11 @@ export interface EventWallSettings {
   readonly layout: WallLayout | null
   /** `null`: the {@link SlideInterval} default. Otherwise 2 s to 10 min. Ken Burns stays derived. */
   readonly slideIntervalMs: number | null
+  /* ---- Spec 11: the souvenir counter and the new-photo signal. Both off unless the host asks. ---- */
+  /** Show « n souvenirs partagés » at the top centre of the wall. */
+  readonly souvenirCounter: boolean
+  /** Announce, briefly, that photos or clips have just become visible on the wall. */
+  readonly newPhotoSignal: boolean
   /** A published photo takes the next slide, at most three in a row (the existing fresh lane). */
   readonly freshLane: boolean
   /** Prints and the clothesline lean a few degrees, statically (the existing `tiltFor`). */
@@ -47,6 +52,8 @@ export type EventWallSettingsPatch = Partial<EventWallSettings>
 export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   layout: null,
   slideIntervalMs: null,
+  souvenirCounter: false,
+  newPhotoSignal: false,
   freshLane: true,
   tilt: true,
   showTime: false,
@@ -66,6 +73,8 @@ export const mergeWallSettings = (
   layout: patch?.layout === undefined ? base.layout : patch.layout,
   slideIntervalMs:
     patch?.slideIntervalMs === undefined ? base.slideIntervalMs : patch.slideIntervalMs,
+  souvenirCounter: patch?.souvenirCounter ?? base.souvenirCounter,
+  newPhotoSignal: patch?.newPhotoSignal ?? base.newPhotoSignal,
   freshLane: patch?.freshLane === undefined ? base.freshLane : patch.freshLane,
   tilt: patch?.tilt === undefined ? base.tilt : patch.tilt,
   showTime: patch?.showTime === undefined ? base.showTime : patch.showTime,
@@ -105,6 +114,9 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
       typeof interval === 'number' && SlideInterval.create(interval).ok
         ? interval
         : DEFAULT_WALL_SETTINGS.slideIntervalMs,
+    // Only a stored `true` turns them on: absent or unreadable is off, as before spec 11.
+    souvenirCounter: record['souvenirCounter'] === true,
+    newPhotoSignal: record['newPhotoSignal'] === true,
     freshLane:
       typeof record['freshLane'] === 'boolean'
         ? record['freshLane']

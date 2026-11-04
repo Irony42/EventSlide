@@ -1006,6 +1006,14 @@ export const en: UiText = {
       tiltHint: 'Polaroids and clothesline: a fixed angle of a few degrees.',
       showTime: 'Send time under the photo',
       showTimeHint: 'The time the photo was sent, on the clock of the screen in the room.',
+      // Spec 11.
+      onScreen: 'On screen',
+      souvenirCounter: 'Show the memories counter',
+      souvenirCounterHint:
+        'A discreet counter at the top centre: “17 memories shared”. It counts the photos and videos visible on the wall.',
+      newPhotoSignal: 'Announce new photos',
+      newPhotoSignalHint:
+        'A brief message at the top centre when a photo or video has just appeared on the wall. Never the guest’s name.',
     },
 
     theme: 'Appearance',

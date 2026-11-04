@@ -529,6 +529,8 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly souvenirCounter: boolean
+    readonly newPhotoSignal: boolean
     readonly freshLane: boolean
     readonly tilt: boolean
     readonly showTime: boolean
