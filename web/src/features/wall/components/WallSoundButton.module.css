@@ -1,0 +1,41 @@
+/**
+ * The muted-speaker icon (spec 12). Bottom start, small, and gone with the idle cursor: a wall
+ * is looked at from far away and this is for the one person who walks up to it. The bottom end
+ * belongs to the invitation card.
+ */
+.button {
+  position: absolute;
+  inset-block-end: var(--wall-safe);
+  inset-inline-start: var(--wall-safe);
+  z-index: var(--z-wall-caption);
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-primary);
+  cursor: pointer;
+  animation: button-in var(--duration-base) var(--ease-out) both;
+}
+
+.icon {
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+}
+
+@keyframes button-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The bottom rung of the frame budget: it appears at rest instead of fading in. */
+[data-wall-budget='cut'] .button {
+  animation-duration: 0s;
+}

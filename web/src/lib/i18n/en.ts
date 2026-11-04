@@ -821,6 +821,9 @@ export const en: UiText = {
       'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout, Q hides or shows the QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
+    /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
+    soundActivate: 'Turn the sound on for this screen',
+    soundShortcutHint: 'S turns the sound on for this screen, when it is enabled in the settings.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `First photo from ${name}`,
 
@@ -873,6 +876,9 @@ export const en: UiText = {
       signIn: 'Sign in',
       signInToSet: 'Sign in to set this wall',
       openHint: 'R opens the wall settings.',
+      /* Spec 12: the state of this screen's speakers, in the "Son" section. */
+      soundScreenOn: 'This screen: sound on.',
+      soundScreenOff: 'This screen: sound off.',
     },
 
     videoBy: (name: string) => `Video sent by ${name}`,

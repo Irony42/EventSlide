@@ -20,6 +20,10 @@ the image.
   The steps are [below](#upgrading-with-docker), and the image they pull is
   [described here](#which-image-tag).
 
+## Upgrading to 3.6 (not released yet)
+
+- **A sound for each new photo on the wall (spec 12).** New and **off by default** for every event, old and new: nothing rings until a host turns it on. There is no migration; the three keys live in the `wall` group of the event settings. The four sound files ship in the image (`web/public/sounds/`, CC0). No change to the content security policy.
+
 ## What a version number promises
 
 Versions are `MAJOR.MINOR.PATCH`.
