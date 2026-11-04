@@ -425,6 +425,8 @@ describe('the « À l’écran » section (spec 11)', () => {
       wall: { souvenirCounter: true, newPhotoSignal: true },
     })
   })
+})
+
 describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
   const missions = [
     {
