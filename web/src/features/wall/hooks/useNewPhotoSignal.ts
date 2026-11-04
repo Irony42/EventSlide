@@ -17,6 +17,8 @@ export interface NewPhotoSignal {
   readonly bubble: Bubble | null
   /** Fed with every successful read of the wall, changed or not. Stable. */
   readonly observe: (response: WallResponse) => void
+  /** The challenge banner is up: hold the signal (not drop it) until it is released. Stable. */
+  readonly hold: (held: boolean) => void
 }
 
 /**
@@ -68,6 +70,8 @@ export const useNewPhotoSignal = (): NewPhotoSignal => {
     [run],
   )
 
+  const hold = useCallback((held: boolean) => run({ type: 'hold', held }), [run])
+
   useEffect(
     () => () => {
       if (timer.current !== null) window.clearTimeout(timer.current)
@@ -75,5 +79,5 @@ export const useNewPhotoSignal = (): NewPhotoSignal => {
     [],
   )
 
-  return { bubble, observe }
+  return { bubble, observe, hold }
 }

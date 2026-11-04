@@ -317,6 +317,10 @@ export function WallPage() {
   const placement = joinCard.placement
   const stackStart = cardEnabled && placement === 'top-start'
   const stackEnd = cardEnabled && placement === 'top-end'
+  // Decision 11-4: while the banner is up the counter is hidden and the new-photo signal is held
+  // (its arrivals wait in the reserve and are announced together afterwards).
+  const { hold: holdSignal } = newPhotoSignal
+  useEffect(() => holdSignal(showsChallenge), [showsChallenge, holdSignal])
   const chrome = cx(showsOverlay && 'corner', showsChallenge && 'top')
   // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
   const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}${
@@ -503,7 +507,9 @@ export function WallPage() {
       {showsMissions && !stackStart ? <WallMissions missions={missions} /> : null}
 
       {/* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */}
-      {wall?.souvenirCounter === true && typeof wall.souvenirCount === 'number' ? (
+      {wall?.souvenirCounter === true &&
+      typeof wall.souvenirCount === 'number' &&
+      !showsChallenge ? (
         <SouvenirCounter count={wall.souvenirCount} />
       ) : null}
 
