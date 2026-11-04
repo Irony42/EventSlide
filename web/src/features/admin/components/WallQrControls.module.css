@@ -1,0 +1,63 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+}
+
+.legend {
+  font-weight: 600;
+}
+
+.slider {
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  accent-color: var(--accent);
+}
+
+.marks {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* 44 px targets: a host presses these on a laptop beside a projector, or with a finger. */
+.mark {
+  flex: 1;
+  min-block-size: var(--touch-min);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.mark[aria-pressed='true'] {
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.corners {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.corner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-min);
+  cursor: pointer;
+}
+
+.hint {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

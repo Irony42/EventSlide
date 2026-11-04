@@ -213,6 +213,9 @@ export const eventRepositoryContract = (
               newPhotoSignal: true,
               qrScale: 1.25,
               qrPlacement: 'top-start',
+              soundEnabled: true,
+              soundTone: 'drop',
+              soundVolume: 80,
             },
           },
         }),
@@ -256,6 +259,9 @@ export const eventRepositoryContract = (
           newPhotoSignal: true,
           qrScale: 1.25,
           qrPlacement: 'top-start',
+          soundEnabled: true,
+          soundTone: 'drop',
+          soundVolume: 80,
         },
       })
     })

@@ -9,6 +9,13 @@ import {
   isWallQrScale,
   type WallQrPlacement,
 } from './wallJoinCard'
+import {
+  DEFAULT_WALL_SOUND,
+  isWallSoundTone,
+  isWallSoundVolume,
+  readWallSound,
+  type WallSoundTone,
+} from './wallSound'
 
 /**
  * What the host decides about how the projected wall behaves, for every screen of the event
@@ -60,6 +67,11 @@ export interface EventWallSettings {
   /** The card's scale, 0.8 to 1.5 in steps of 0.05; 1 is today's card (decision 14-6). */
   readonly qrScale: number
   readonly qrPlacement: WallQrPlacement
+  /** Spec 12. Off by default, always: the wall plays nothing unless the host turned it on. */
+  readonly soundEnabled: boolean
+  readonly soundTone: WallSoundTone
+  /** A whole number, 0 to 100. */
+  readonly soundVolume: number
 }
 
 /**
@@ -86,6 +98,9 @@ export const DEFAULT_WALL_SETTINGS: EventWallSettings = {
   qrVisible: true,
   qrScale: DEFAULT_WALL_QR_SCALE,
   qrPlacement: DEFAULT_WALL_QR_PLACEMENT,
+  soundEnabled: DEFAULT_WALL_SOUND.enabled,
+  soundTone: DEFAULT_WALL_SOUND.tone,
+  soundVolume: DEFAULT_WALL_SOUND.volume,
 }
 
 export const isWallLayout = (value: unknown): value is WallLayout =>
@@ -115,6 +130,9 @@ export const mergeWallSettings = (
   qrVisible: patch?.qrVisible === undefined ? base.qrVisible : patch.qrVisible,
   qrScale: patch?.qrScale === undefined ? base.qrScale : patch.qrScale,
   qrPlacement: patch?.qrPlacement === undefined ? base.qrPlacement : patch.qrPlacement,
+  soundEnabled: patch?.soundEnabled === undefined ? base.soundEnabled : patch.soundEnabled,
+  soundTone: patch?.soundTone === undefined ? base.soundTone : patch.soundTone,
+  soundVolume: patch?.soundVolume === undefined ? base.soundVolume : patch.soundVolume,
 })
 
 const outside = (value: number, bounds: { min: number; max: number }): 'short' | 'long' | null =>
@@ -147,6 +165,11 @@ export const wallSettingsViolation = (wall: EventWallSettings): DomainError | nu
   if (!isWallQrScale(wall.qrScale)) return DomainError.invalid('eventSettings.wallQrScaleInvalid')
   if (!isWallQrPlacement(wall.qrPlacement)) {
     return DomainError.invalid('eventSettings.wallQrPlacementInvalid')
+  }
+  if (!isWallSoundTone(wall.soundTone))
+    return DomainError.invalid('eventSettings.wallSoundToneInvalid')
+  if (!isWallSoundVolume(wall.soundVolume)) {
+    return DomainError.invalid('eventSettings.wallSoundVolumeInvalid')
   }
   if (wall.slideIntervalMs === null) return null
   const interval = SlideInterval.create(wall.slideIntervalMs)
@@ -206,5 +229,11 @@ export const restoreWallSettings = (raw: unknown): EventWallSettings => {
     qrPlacement: isWallQrPlacement(record['qrPlacement'])
       ? record['qrPlacement']
       : DEFAULT_WALL_SETTINGS.qrPlacement,
+    ...restoreSound(record),
   }
+}
+
+const restoreSound = (record: Record<string, unknown>) => {
+  const sound = readWallSound(record)
+  return { soundEnabled: sound.enabled, soundTone: sound.tone, soundVolume: sound.volume }
 }

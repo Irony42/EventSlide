@@ -6,7 +6,12 @@ import {
   aWallResponse,
 } from '../../../testing/renderWithProviders'
 import { SETTINGS_EXEMPT, sameSettings } from './useWallPlaylist'
-import type { EventThemeDto, WallGuestbookMessageDto, WallMissionDto } from '../../../lib/api/dto'
+import type {
+  EventThemeDto,
+  WallGuestbookMessageDto,
+  WallMissionDto,
+  WallChallengeDto,
+} from '../../../lib/api/dto'
 
 /**
  * The guard on the guard.
@@ -25,7 +30,7 @@ describe('every field of the wall response is accounted for', () => {
   it.each(
     Object.keys(aWallResponse()).filter(
       // `joinCard` is an object the generic walk cannot move; its three fields are walked below.
-      (key) => !SETTINGS_EXEMPT.includes(key) && key !== 'joinCard',
+      (key) => !SETTINGS_EXEMPT.includes(key) && key !== 'joinCard' && key !== 'sound',
     ),
   )('notices a change to %s', (key) => {
     const kept = aWallResponse()
@@ -128,6 +133,17 @@ describe('every field of the wall response is accounted for', () => {
     expect(sameSettings(kept, aWallResponse())).toBe(true)
   })
 
+  it.each([
+    ['enabled', { enabled: true, tone: 'chime', volume: 50 }],
+    ['tone', { enabled: false, tone: 'pop', volume: 50 }],
+    ['volume', { enabled: false, tone: 'chime', volume: 51 }],
+  ] as const)('notices a change to sound.%s (spec 12)', (_key, moved) => {
+    const kept = aWallResponse()
+
+    expect(sameSettings(kept, { ...aWallResponse(), sound: moved })).toBe(false)
+    expect(sameSettings(kept, aWallResponse())).toBe(true)
+  })
+
   it.each(Object.keys(DEFAULT_EVENT_THEME))('notices a change to theme.%s', (key) => {
     const kept = aWallResponse()
     const theme: Record<string, unknown> = { ...DEFAULT_EVENT_THEME }
@@ -212,5 +228,57 @@ describe('every field of the wall response is accounted for', () => {
 
   it('says nothing changed when nothing did', () => {
     expect(sameSettings(aWallResponse(), aWallResponse())).toBe(true)
+  })
+})
+
+describe('the timed challenge (spec 10)', () => {
+  const challenge = (overrides: Partial<WallChallengeDto> = {}) => ({
+    id: 'c1',
+    prompt: 'un selfie',
+    startedAt: '2026-06-20T21:00:00.000Z',
+    endsAt: '2026-06-20T21:02:00.000Z',
+    state: 'running' as const,
+    answers: null,
+    ...overrides,
+  })
+  const withChallenge = (value: WallChallengeDto | null) => ({
+    ...aWallResponse(),
+    challenge: value,
+  })
+
+  it('notices a challenge starting, ending or being stopped, none of which moves a photograph', () => {
+    expect(sameSettings(withChallenge(null), withChallenge(challenge()))).toBe(false)
+    expect(sameSettings(withChallenge(challenge()), withChallenge(null))).toBe(false)
+    expect(
+      sameSettings(withChallenge(challenge()), withChallenge(challenge({ state: 'ended' }))),
+    ).toBe(false)
+    expect(
+      sameSettings(
+        withChallenge(challenge()),
+        withChallenge(challenge({ endsAt: '2026-06-20T21:00:30.000Z' })),
+      ),
+    ).toBe(false)
+  })
+
+  it('notices the number of answers arriving, and a different challenge or prompt', () => {
+    expect(
+      sameSettings(
+        withChallenge(challenge({ state: 'ended' })),
+        withChallenge(challenge({ state: 'ended', answers: 3 })),
+      ),
+    ).toBe(false)
+    expect(sameSettings(withChallenge(challenge()), withChallenge(challenge({ id: 'c2' })))).toBe(
+      false,
+    )
+    expect(
+      sameSettings(withChallenge(challenge()), withChallenge(challenge({ prompt: 'autre' }))),
+    ).toBe(false)
+  })
+
+  it('does not re-render a running wall for the server clock alone, which moves at every read', () => {
+    const kept = withChallenge(challenge())
+    const fresh = { ...withChallenge(challenge()), serverNowMs: 1_782_000_001_000 }
+
+    expect(sameSettings(kept, fresh)).toBe(true)
   })
 })

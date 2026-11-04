@@ -886,6 +886,7 @@ export const it: UiText = {
       close: 'Chiudi le impostazioni',
       sectionDisplay: 'Visualizzazione',
       sectionAmbiance: 'Ambiente',
+      sectionQr: 'Codice QR',
       forAll: 'Per tutti gli schermi',
       thisScreen: 'Solo questo schermo',
       thisScreenHint:
@@ -1068,6 +1069,39 @@ export const it: UiText = {
       newPhotoSignal: 'Segnala le nuove foto',
       newPhotoSignalHint:
         'Un breve messaggio, in alto al centro, quando una foto o un video è appena comparso sul muro. Mai il nome dell’ospite.',
+      // Spec 14: the invitation card.
+      qrTitle: 'Codice QR',
+      qrVisible: 'Mostra il QR sul muro',
+      qrVisibleHint:
+        'Gli ospiti che arrivano tardi non avranno più il QR. Il muro vuoto conserva il suo invito.',
+      qrSize: 'Dimensione del QR',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100).replace('.', ',')}`,
+      qrSizeSmall: 'Piccolo',
+      qrSizeMedium: 'Medio',
+      qrSizeLarge: 'Grande',
+      qrSizeHint:
+        'Il QR non scende mai sotto una dimensione leggibile: un link lungo lo mantiene più grande.',
+      qrPlacement: 'Posizione',
+      qrCorners: {
+        'top-start': 'In alto a sinistra',
+        'top-end': 'In alto a destra',
+        'bottom-start': 'In basso a sinistra',
+        'bottom-end': 'In basso a destra',
+      },
+      qrPlacementHint:
+        'Nei layout che lasciano spazio alla scheda le foto si stringono; negli altri la scheda sta sopra le foto.',
+    },
+    wallSound: {
+      title: 'Suono',
+      hint: 'Un suono breve quando una foto o un clip viene pubblicato sul muro. Disattivato di default.',
+      enable: 'Un suono a ogni nuova foto',
+      enableHint: 'Ogni schermo va attivato anche in sala: basta un clic sul muro (o il tasto S).',
+      tone: 'Suono',
+      toneNames: { chime: 'Carillon', bell: 'Campana', drop: 'Goccia', pop: 'Pop' },
+      volume: 'Volume',
+      volumeValue: (n: number) => `Volume ${n}%`,
+      test: 'Prova',
+      testHint: 'Riproduce il suono scelto su questo computer, a questo volume.',
     },
     theme: 'Aspetto',
     themeHint:
@@ -2130,6 +2164,17 @@ export const it: UiText = {
     remaining: (time: string) => `Sfida in corso · ${time}`,
     noMissions: 'Aggiunga prima una missione per lanciare una sfida.',
     notOpen: 'Una sfida si può lanciare quando l’evento è aperto.',
+    ended: 'Sfida conclusa',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto`,
+        other: `${t.number(count)} foto`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Inizia la sfida fotografica: ${prompt}`,
+    /** The phone's button: it chooses the challenge's mission for the next photograph. */
+    takeUp: 'Accetta la sfida',
+    announceEnd: 'Fine della sfida fotografica',
   },
   titles: {
     print: 'Segnaposto e locandina',

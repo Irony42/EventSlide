@@ -23,6 +23,7 @@ import { WallEmptyState } from './components/WallEmptyState'
 import { WallControls } from './components/WallControls'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMessage } from './components/WallMessage'
+import { WallChallenge } from './components/WallChallenge'
 import { NewPhotoSignal } from './components/NewPhotoSignal'
 import { SouvenirCounter } from './components/SouvenirCounter'
 import { WallMissions } from './components/WallMissions'
@@ -151,8 +152,17 @@ export function WallPage() {
   const eventSlug = slug ?? ''
 
   const newPhotoSignal = useNewPhotoSignal()
-  const { wall, loading, error, notServed, offline, readFailing, reactionPulse, refresh } =
-    useWallPlaylist(eventSlug, newPhotoSignal.observe)
+  const {
+    wall,
+    loading,
+    error,
+    notServed,
+    offline,
+    readFailing,
+    reactionPulse,
+    serverOffsetMs,
+    refresh,
+  } = useWallPlaylist(eventSlug, newPhotoSignal.observe)
   const text = useTranslations()
   // A stream that is down says nothing about the network while the wall's own reads keep
   // coming back: a proxy that buffers event streams leaves it down all night. The room is told
@@ -269,6 +279,31 @@ export function WallPage() {
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   /**
+   * The timed challenge (spec 10), in every phase of the wall and on the empty wall too: it is a
+   * call to take photographs, so it is withheld only when the room can no longer send any (the
+   * rule `showsMissions` follows). `challengeGone` is the banner saying it has shown "Défi
+   * terminé" for its ten seconds, which is when the room it reserved is given back.
+   */
+  const challenge = wall?.challenge ?? null
+  const [challengeGone, setChallengeGone] = useState<string | null>(null)
+  // Stable, so the banner's ten-second timer is not restarted by every render of the wall.
+  const challengeId = challenge?.id ?? null
+  const leaveChallenge = useCallback(() => setChallengeGone(challengeId), [challengeId])
+  const showsChallenge = acceptsGuests && challenge !== null && challengeGone !== challenge.id
+  const challengeRunning = showsChallenge && challenge.state === 'running'
+  /**
+   * The join card comes back when a challenge starts, even if `Q` put it away: a challenge with
+   * no way to join it means nothing, and the return is the same one the timer makes. Adjusted
+   * while rendering, once per challenge, so the host can still put it away afterwards (it is
+   * held on screen while the challenge runs, whatever the state says).
+   */
+  const [seenChallenge, setSeenChallenge] = useState<string | null>(null)
+  const startedId = challengeRunning ? challenge.id : null
+  if (startedId !== null && startedId !== seenChallenge) {
+    setSeenChallenge(startedId)
+    setQrHidden(false)
+  }
+  /**
    * The host's card settings (spec 14); an older server sends none, and the defaults are the card
    * as it always was. `visible` false is the host's permanent switch: no card on a populated
    * wall, and `Q` has nothing to flip. The empty wall's large invitation ignores it (it is not
@@ -276,12 +311,17 @@ export function WallPage() {
    */
   const joinCard = wall?.joinCard ?? DEFAULT_JOIN_CARD
   const cardEnabled = invitation !== null && joinCard.visible && items.length > 0
-  const showsOverlay = cardEnabled && !qrHidden
+  const showsOverlay = cardEnabled && (!qrHidden || challengeRunning)
   /** The scale drawn: the host's, lifted to the readability floor of this very link. */
   const cardScale = invitation === null ? 1 : joinCardScale(joinCard.scale, invitation.url)
   const placement = joinCard.placement
   const stackStart = cardEnabled && placement === 'top-start'
   const stackEnd = cardEnabled && placement === 'top-end'
+  // Decision 11-4: while the banner is up the counter is hidden and the new-photo signal is held
+  // (its arrivals wait in the reserve and are announced together afterwards).
+  const { hold: holdSignal } = newPhotoSignal
+  useEffect(() => holdSignal(showsChallenge), [showsChallenge, holdSignal])
+  const chrome = cx(showsOverlay && 'corner', showsChallenge && 'top')
   // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
   const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}${
     owner === null ? '' : ` ${text.wall.panel.openHint}`
@@ -396,7 +436,7 @@ export function WallPage() {
       // that would otherwise centre a caption under it lays out inside what is left.
       // The card is chrome and the caption is the guest's words, so the card is what the
       // wall reserves around rather than what it prints over.
-      data-wall-chrome={showsOverlay ? 'corner' : undefined}
+      data-wall-chrome={chrome === '' ? undefined : chrome}
       // Which corner, only when it is not the bottom end the wall always used (spec 14): the
       // reservation follows the side, the caption makes way for a bottom-start card.
       data-wall-join-corner={showsOverlay && placement !== 'bottom-end' ? placement : undefined}
@@ -467,8 +507,20 @@ export function WallPage() {
       {showsMissions && !stackStart ? <WallMissions missions={missions} /> : null}
 
       {/* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */}
-      {wall?.souvenirCounter === true && typeof wall.souvenirCount === 'number' ? (
+      {wall?.souvenirCounter === true &&
+      typeof wall.souvenirCount === 'number' &&
+      !showsChallenge ? (
         <SouvenirCounter count={wall.souvenirCount} />
+      ) : null}
+
+      {showsChallenge ? (
+        <WallChallenge
+          key={challenge.id}
+          challenge={challenge}
+          offsetMs={serverOffsetMs}
+          onElapsed={refresh}
+          onLeave={leaveChallenge}
+        />
       ) : null}
 
       {guestbookMessage !== null && items.length > 0 ? (
