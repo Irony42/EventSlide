@@ -7,6 +7,8 @@ import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
 import { aGuest, aMission, anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
+import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
@@ -69,7 +71,15 @@ describe('getWallPlaylist', () => {
     guests = new FakeGuestRepository()
     missions = new FakeMissionRepository(photos)
     guestbook = new FakeGuestbookRepository()
-    getWallPlaylist = makeGetWallPlaylist({ events, photos, guests, missions, guestbook })
+    getWallPlaylist = makeGetWallPlaylist({
+      events,
+      photos,
+      guests,
+      missions,
+      guestbook,
+      challenges: new FakeChallengeRepository(photos),
+      clock: new FakeClock(AT),
+    })
   })
 
   const ask = (
@@ -127,6 +137,8 @@ describe('getWallPlaylist', () => {
       guests,
       missions: new FakeMissionRepository(recording),
       guestbook: new FakeGuestbookRepository(),
+      challenges: new FakeChallengeRepository(recording),
+      clock: new FakeClock(AT),
     })
 
     await recorded({
@@ -539,6 +551,8 @@ describe('getWallPlaylist', () => {
       guests: recorded.repo,
       missions,
       guestbook: new FakeGuestbookRepository(),
+      challenges: new FakeChallengeRepository(photos),
+      clock: new FakeClock(AT),
     })
 
     const result = await ask()
@@ -599,6 +613,8 @@ describe('getWallPlaylist and "Première photo de …"', () => {
       guests,
       missions: new FakeMissionRepository(photos),
       guestbook: new FakeGuestbookRepository(),
+      challenges: new FakeChallengeRepository(photos),
+      clock: new FakeClock(AT),
     })
     events.seed(wedding)
     guests.seed(
@@ -724,6 +740,8 @@ describe('getWallPlaylist and the mission panel', () => {
       guests: new FakeGuestRepository(),
       missions,
       guestbook: new FakeGuestbookRepository(),
+      challenges: new FakeChallengeRepository(photos),
+      clock: new FakeClock(AT),
     })
     events.seed(wedding)
   })
@@ -871,6 +889,8 @@ describe('getWallPlaylist and the mission panel', () => {
         guests: new FakeGuestRepository(),
         missions: new FakeMissionRepository(counting),
         guestbook: new FakeGuestbookRepository(),
+        challenges: new FakeChallengeRepository(counting),
+        clock: new FakeClock(AT),
       })
 
       const result = await recorded({

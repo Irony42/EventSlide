@@ -1,6 +1,7 @@
 import type { IdGenerator } from '../../application/ports/idGenerator'
 import {
   asAccountTokenId,
+  asChallengeId,
   asClientId,
   asClipJobId,
   asEventId,
@@ -12,6 +13,7 @@ import {
   asShareLinkId,
   asUserId,
   type AccountTokenId,
+  type ChallengeId,
   type ClientId,
   type ClipJobId,
   type EventId,
@@ -79,6 +81,7 @@ type Kind =
   | 'shareLink'
   | 'client'
   | 'accountToken'
+  | 'challenge'
 
 const PREFIX: Record<Kind, string> = {
   event: 'e0000000',
@@ -92,6 +95,7 @@ const PREFIX: Record<Kind, string> = {
   shareLink: '60000000',
   client: '70000000',
   accountToken: '80000000',
+  challenge: '90000000',
 }
 
 export const createSequentialIdGenerator = (): IdGenerator => {
@@ -122,6 +126,7 @@ export const createSequentialIdGenerator = (): IdGenerator => {
     shareLinkId: (): ShareLinkId => asShareLinkId(next('shareLink')),
     clientId: (): ClientId => asClientId(next('client')),
     accountTokenId: (): AccountTokenId => asAccountTokenId(next('accountToken')),
+    challengeId: (): ChallengeId => asChallengeId(next('challenge')),
 
     bytes: (count: number): Uint8Array => {
       if (!Number.isInteger(count) || count < 1) {

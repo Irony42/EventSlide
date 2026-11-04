@@ -12,6 +12,7 @@ import type { MembershipRepository, UserRepository } from '../application/ports/
 import type { MediaStore } from '../application/ports/mediaStore'
 import type { ImageProcessor } from '../application/ports/imageProcessor'
 import type { ClipJobRepository } from '../application/ports/clipJobRepository'
+import type { ChallengeRepository } from '../application/ports/challengeRepository'
 import type { MissionRepository } from '../application/ports/missionRepository'
 import type { GuestbookRepository } from '../application/ports/guestbookRepository'
 import type { VideoTranscoder } from '../application/ports/videoTranscoder'
@@ -143,6 +144,9 @@ import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/dele
 import { makeListGuestbookQueue } from '../application/usecases/guestbook/listGuestbookQueue'
 import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
 import { makeModerateGuestbookEntry } from '../application/usecases/guestbook/moderateGuestbookEntry'
+import { makeGetChallenge } from '../application/usecases/challenges/getChallenge'
+import { makeStartChallenge } from '../application/usecases/challenges/startChallenge'
+import { makeStopChallenge } from '../application/usecases/challenges/stopChallenge'
 import { makeCreateMission } from '../application/usecases/missions/createMission'
 import { makeDeleteMission } from '../application/usecases/missions/deleteMission'
 import { makeGetGuestChecklist } from '../application/usecases/missions/getGuestChecklist'
@@ -216,6 +220,8 @@ export interface Adapters {
   /** The host statistics page: aggregates derived from photos, guests and reactions (spec 05). */
   readonly eventStats: EventStatsRepository
   readonly missions: MissionRepository
+  /** Timed photo challenges (spec 10). */
+  readonly challenges: ChallengeRepository
   readonly guestbook: GuestbookRepository
   readonly users: UserRepository
   readonly memberships: MembershipRepository
@@ -1043,6 +1049,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       guests: adapters.guests,
       missions: adapters.missions,
       guestbook: adapters.guestbook,
+      challenges: adapters.challenges,
+      clock: adapters.clock,
     }),
 
     // -------------------------------------------------------------- guestbook --
@@ -1101,12 +1109,40 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     deleteMission: makeDeleteMission({
       events: adapters.events,
       missions: adapters.missions,
+      challenges: adapters.challenges,
       memberships: adapters.memberships,
       bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+
+    // -------------------------------------------------------------- challenges --
+    startChallenge: makeStartChallenge({
+      events: adapters.events,
+      missions: adapters.missions,
+      challenges: adapters.challenges,
+      memberships: adapters.memberships,
+      ids: adapters.ids,
+      bus: adapters.bus,
+      clock: adapters.clock,
+    }),
+    getChallenge: makeGetChallenge({
+      events: adapters.events,
+      challenges: adapters.challenges,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
+    stopChallenge: makeStopChallenge({
+      events: adapters.events,
+      challenges: adapters.challenges,
+      memberships: adapters.memberships,
+      bus: adapters.bus,
+      clock: adapters.clock,
     }),
     getGuestChecklist: makeGetGuestChecklist({
       events: adapters.events,
       missions: adapters.missions,
+      challenges: adapters.challenges,
+      clock: adapters.clock,
     }),
 
     // --------------------------------------------------------- shared gallery --

@@ -747,3 +747,27 @@ absent means allowed) is the default a client created on a hosted box starts wit
 `NEW_CLIENT_CLIPS_ALLOWED`; the operator console shows it per client (« Livres photo (PDF)
 autorisés »). Existing clients keep the function on. On top of it, one event gets at most
 `BOOK_MAX_PER_EVENT_PER_DAY` books in a rolling day.
+
+## Upgrading to 3.6 (not released yet)
+
+### Timed photo challenge (spec 10)
+
+- **One migration, `024_event_challenges`**, applied at boot on every box: a new, empty table. No existing row
+  changes. It only goes forward, so take the usual backup first ([above](#upgrading-with-docker)); going back is
+  the restore of that archive.
+- **Nothing changes for an existing event.** A challenge exists only when a host launches one, from the
+  missions list of the console; there is no setting to switch on and no challenge is ever started on its own.
+- **Three new routes**, `GET`, `POST` and `DELETE /api/events/:slug/challenge` (a moderator or the owner), and a new
+  public `challenge.changed` signal on the event stream. A wall or a phone left open across the upgrade ignores
+  them until it is reloaded.
+- **Nothing to set in `.env`.**
+- **Additions to existing responses** (optional for a client, none removed): `serverNowMs` and `challenge` in
+  `GET /api/events/:slug/wall` and in `GET /api/events/:slug/missions/mine`.
+- **The wall**: while a challenge runs, a banner ("Défi photo · 1:42" and the mission's sentence) takes the top centre,
+  the layouts that fill the screen lay out below it, and the join card is held on screen. It goes ten seconds after
+  the end. A wall with no challenge is drawn exactly as before.
+- **The guests' phones**: while the host has set missions, the upload screen asks the server again every twenty seconds
+  (about ten reads a second for 200 guests, jittered, only while the page is visible, and when the tab comes
+  back) to learn whether a challenge started. A band "Défi en cours" with a "Relever le défi" button appears above the
+  list and chooses the mission for the next photograph. No sound, no vibration, no notification; the screen of an event
+  with no missions is unchanged and asks nothing more.

@@ -62,6 +62,13 @@ export type DomainEvent =
    */
   | { readonly type: 'guestbook.changed'; readonly eventId: EventId }
   /**
+   * A timed photo challenge started or was stopped (spec 10). An invalidation signal without data,
+   * like `mission.changed`: the wall and the console re-read. **Public**: the wall is a public
+   * surface and shows the challenge (`signalAudience.ts` keeps its default). The end of a challenge
+   * is derived from the clock and announces nothing.
+   */
+  | { readonly type: 'challenge.changed'; readonly eventId: EventId }
+  /**
    * A clip has been staged and is waiting for the transcoder.
    *
    * Two subscribers care, for different reasons. The guest's own view refetches, so

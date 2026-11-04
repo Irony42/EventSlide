@@ -28,6 +28,7 @@ import { healthRoutes, type HealthChecks } from './routes/healthRoutes'
 import { mediaRoutes } from './routes/mediaRoutes'
 import { meRoutes } from './routes/meRoutes'
 import { guestbookRoutes } from './routes/guestbookRoutes'
+import { challengeRoutes } from './routes/challengeRoutes'
 import { missionRoutes } from './routes/missionRoutes'
 import { highlightRoutes } from './routes/highlightRoutes'
 import { moderationRoutes } from './routes/moderationRoutes'
@@ -333,6 +334,8 @@ export const buildServer = ({
   // before the event router for no reason other than reading order: the four routes here
   // are all 'events/:eventSlug/missions' and none of them collides with anything above.
   app.use('/api', missionRoutes(routeDeps))
+  // The timed photo challenge (spec 10): a moderator launches or stops one of the missions.
+  app.use('/api', challengeRoutes(routeDeps))
   app.use(
     '/api',
     eventRoutes({
