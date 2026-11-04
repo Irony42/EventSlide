@@ -1,4 +1,5 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
+import { cx } from '../../../design-system/classNames'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
@@ -77,6 +78,8 @@ export interface UploadQueueProps {
    * gallery is no longer served), and the button is then not offered.
    */
   readonly onViewMine?: (() => void) | undefined
+  /** The pane's "Réduire", on the summary line: the line is there anyway, so it costs no height. */
+  readonly foldControl?: ReactNode
 }
 
 /** The sentence the live region carries while the batch is not finished. */
@@ -100,6 +103,7 @@ export function UploadQueue({
   onRemove,
   onDismiss,
   onViewMine,
+  foldControl,
 }: UploadQueueProps) {
   const t = useTranslations()
   const labels = labelsFor(t)
@@ -133,9 +137,19 @@ export function UploadQueue({
               {t.upload.queueDone(batch.arrived, batch.alreadyThere)}
             </Notice>
           ) : (
-            <p className={styles['summary']}>{progressFor(items, batch, t)}</p>
+            <p
+              className={cx(
+                styles['summary'],
+                // "Nothing selected yet" says what the empty pane already shows, and next to the fold
+                // button it wraps onto a second line on a small phone: spoken, not drawn.
+                items.length === 0 && foldControl !== undefined && 'visually-hidden',
+              )}
+            >
+              {progressFor(items, batch, t)}
+            </p>
           )}
         </div>
+        {foldControl === undefined ? null : <div className={styles['fold']}>{foldControl}</div>}
 
         {batch.settledOk ? (
           <div className={styles['actions']}>

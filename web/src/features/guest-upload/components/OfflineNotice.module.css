@@ -41,3 +41,13 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/* The folded bar's version: one line above the buttons, the message and nothing else. */
+.compact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 1 100%;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
