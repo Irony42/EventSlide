@@ -840,7 +840,14 @@ part of the release changes.
 - **The mosaic layout changes**: six equal cells, and the 2x2 hero tile is gone. A photo keeps the whole picture
   when cropping it to the cell would hide more than 30 % of it. A full screen portrait photo is no longer cropped.
 
-## Upgrading to 3.8 (not released yet)
+## Upgrading to 3.8
+
+3.8.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
+`BREAKING` section. It applies **one migration (026)** and makes every guest's phone read the challenge. Back up
+with the version you run now ([above](#upgrading-with-docker)): the migration only goes forward, and going back
+is the restore of that archive. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or
+[without](#without-docker), with `vX.Y.Z` as `v3.8.0`; the image is `ghcr.io/irony42/eventslide:3.8.0`. The
+sections below say what each part of the release changes.
 
 ### A photo challenge with its own text (spec 18)
 
@@ -854,3 +861,14 @@ part of the release changes.
 - **Deleting a mission no longer stops a running challenge.**
 - **Phones read the challenge on every event** (every twenty seconds while the page is visible), not only on events
   with missions.
+
+### The guest upload pane folds (spec 19)
+
+- **No migration, nothing to set in `.env`.** A "Réduire" button folds the pane into a bar of at most 14 % of the
+  screen, and a guest scroll gesture upwards folds it too. The selection is kept; a tap opens the pane again.
+
+### The wall: arrows, challenge over the guestbook, switches, mixed phases
+
+- **No migration, nothing to set in `.env`.** The arrow keys step through photographs and leave a guestbook card,
+  a running challenge stays above the cards (and no new card comes while it runs), the drawer's switches read on
+  and off at a glance, and the mixed wall changes phase at every boundary.

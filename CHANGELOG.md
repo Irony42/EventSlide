@@ -20,6 +20,83 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.8.0] - 2026-11-04
+
+Everything merged to `main` after the tag `v3.7.0`: pull requests #360, #361, #362, #363, #364, #365, #366,
+#367, #368 and #369. This is a minor release, the third batch of the 3 November specs: a photo challenge that
+has its own text and its own answers, a guest upload pane that folds into a bar, and four fixes on the wall. It
+breaks nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to keep, but
+it applies one migration (026) and makes every guest's phone read the challenge, so read "Behaviour changes to
+check before upgrading" and [Upgrading to 3.8](docs/UPGRADING.md#upgrading-to-38) before you upgrade.
+
+### Guests
+
+- **"Je participe au défi"** (#363, #366). While a challenge runs and a photograph is chosen, a checkbox above
+  "Envoyer" says so, and it is checked by default (it is checked again for every batch), so a guest who does
+  nothing special answers the challenge. Unchecked, the photograph is an ordinary one. The challenge band shows
+  even when the host set no mission, and the "Relever le défi" button is gone. A video does not answer a
+  challenge: the box is not shown while a clip is in hand.
+- **The upload pane folds** (#365). A "Réduire" button on the queue summary line folds the pane into a bar of
+  at most 14 % of the screen: a large "Envoyer une photo", or, once photographs are chosen, their thumbnails,
+  a count and "Envoyer N". The bar also keeps the offline notice and the challenge box. A tap opens the pane
+  again with the selection intact. The pane also folds by itself after a guest scroll gesture upwards (48 px
+  net), never while sending or typing a caption, and never opens by scrolling.
+
+### Hosts
+
+- **A challenge has its own text** (#363, #364). The console's photo challenge card and the wall panel's
+  challenge section have a text box (60 characters, one line, with a counter), six ready-made ideas per
+  language, the event's last five challenge texts, and an optional "Une de mes missions" row that takes a
+  mission's text. Launching stays disabled while the box is empty. A challenge no longer needs a mission, and
+  the answers counted are the photographs that named the challenge, not those filed under its mission.
+- **Deleting a mission no longer stops a running challenge** (#363): the challenge keeps its own frozen text.
+
+### The wall
+
+- **The arrow keys step through photographs and leave a guestbook card** (#360). A press used to count as a
+  change of photograph, so it could summon cards and never left one. Cards now come every Nth automatic change
+  only, and an arrow dismisses the card then moves the photograph underneath.
+- **A running challenge stays above guestbook cards** (#362). The banner used to be covered by a card, and no
+  new card appears while a challenge runs; a card already up ends normally and the rhythm resumes after.
+- **The switches of the settings drawer read on and off at a glance** (#361). 44 by 24 track, a neutral track
+  with a left knob when off, the ambiance's accent with a right knob when on, contrast of at least 3:1 checked
+  in the seven ambiances.
+- **The mixed wall changes phase at every boundary** (#369). The timer that ends a phase could fail to re-arm
+  when two consecutive phases reported the same time left, leaving the wall on one phase until something else
+  rendered.
+
+### Behaviour changes to check before upgrading
+
+- **One migration, applied at boot, 026.** `026_photo_challenge` adds a nullable `challenge_id` column to
+  `photos` and a partial index; it is `NULL` for every existing photograph and nothing is rewritten (#363). It
+  only goes forward; going back is the restore of the archive taken before the upgrade.
+- **`POST /api/events/:slug/challenge` takes `prompt` and an optional `missionId`.** `prompt` is at most 60
+  characters on one line; with neither a text nor a mission, the answer is `400`. The old body (a `missionId`
+  alone) is still valid and the challenge takes the mission's text. `GET /api/events/:slug/challenge` gains
+  `recent`, the five last distinct texts, for the host only.
+- **The photo upload takes an optional `challengeId`.** The server keeps it only if it names the event's latest
+  challenge and the upload was received between its start and a minute after its end; otherwise the photograph
+  is stored plain, with no error.
+- **The count of answers reads `challenge_id`.** A challenge running at the moment of the upgrade loses the
+  answers sent before it (a challenge lasts 30 minutes at most), and a phone left open across the upgrade does
+  not tag its photographs until it is reloaded.
+- **Every guest's phone now reads `GET /api/events/:slug/missions/mine` every twenty seconds while the page is
+  visible, on every event, with missions or not** (#366). Until now an event with no mission was spared it;
+  watch the load at your first large event. No environment variable controls it.
+- **Deleting a mission no longer stops a running challenge** (#363).
+- **A video does not answer a challenge** (#366).
+- **The guest upload pane can fold** (#365). Nothing to set.
+- **No new environment variable.**
+
+### Documentation, tests and dependencies
+
+- `docs/API.md` describes `prompt`, the optional `missionId`, `recent`, the upload's `challengeId` and the
+  challenge read on every event; `docs/UPGRADING.md` has the "Upgrading to 3.8" section.
+- New guards: server mutations on the answer window and the count, a stacking test for the challenge banner, a
+  geometry test for the switches, tests for the fold, an end to end journey for the guestbook cards on the wall
+  (#367), and deterministic clocks for the wall's served-again and mixed-phase tests (#368, #369).
+- No dependency changes.
+
 ## [3.7.0] - 2026-11-04
 
 Everything merged to `main` after the tag `v3.6.0`: pull requests #343, #345, #346, #347, #348, #349, #350,
