@@ -23,7 +23,7 @@
    two space steps wide, the invitation takes a guest-column's worth of the screen. */
 .md {
   /* 224 px at 1080p rather than 128: scannable from a table, inside the declared card. */
-  inline-size: calc(var(--space-10) * 3.5);
+  inline-size: min(calc(var(--space-10) * 3.5 * var(--wall-join-scale, 1)), 100%);
 }
 
 .lg {

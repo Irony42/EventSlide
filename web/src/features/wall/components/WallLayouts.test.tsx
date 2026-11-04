@@ -421,6 +421,23 @@ describe('the polaroid layout', () => {
     expect(tiltOf(second.container)).toEqual(before)
   })
 
+  it('lays prints flat when the host turned the tilt off (spec 13)', () => {
+    for (const layout of ['polaroid', 'clothesline'] as const) {
+      const { container, unmount } = render(
+        <WallLayouts
+          layout={layout}
+          items={somePhotos(5)}
+          slideshow={aSlideshow({ current: somePhotos(5)[0] ?? null }, somePhotos(5))}
+          kenBurnsDurationMs={KEN_BURNS_MS}
+          transitionMs={null}
+          tilt={false}
+        />,
+      )
+      expect(tiltOf(container).every((angle) => angle === 0)).toBe(true)
+      unmount()
+    }
+  })
+
   it('keeps every tilt inside the range that reads as placed rather than as fallen over', () => {
     const { container } = renderWall('polaroid', somePhotos(8))
 

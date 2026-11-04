@@ -335,6 +335,12 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
     slideIntervalMs: settings.wall.slideIntervalMs,
     souvenirCounter: settings.wall.souvenirCounter,
     newPhotoSignal: settings.wall.newPhotoSignal,
+    freshLane: settings.wall.freshLane,
+    tilt: settings.wall.tilt,
+    showTime: settings.wall.showTime,
+    qrVisible: settings.wall.qrVisible,
+    qrScale: settings.wall.qrScale,
+    qrPlacement: settings.wall.qrPlacement,
   },
 })
 
@@ -848,6 +854,10 @@ export const toWallResponseDto = (
     kenBurnsDurationMs: view.kenBurnsDurationMs,
     layout: view.layout,
     layoutChosen: view.layoutChosen,
+    freshLane: view.event.settings.wall.freshLane,
+    tilt: view.event.settings.wall.tilt,
+    showTime: view.event.settings.wall.showTime,
+    joinCard: view.joinCard,
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.

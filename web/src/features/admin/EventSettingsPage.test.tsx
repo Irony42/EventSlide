@@ -786,8 +786,9 @@ describe('EventSettingsPage', () => {
               wall: {
                 layout: 'polaroid',
                 slideIntervalMs: 12_000,
-                souvenirCounter: false,
-                newPhotoSignal: false,
+                freshLane: true,
+                tilt: true,
+                showTime: false,
               },
             }),
           }),
@@ -809,8 +810,9 @@ describe('EventSettingsPage', () => {
                 wall: {
                   layout: null,
                   slideIntervalMs: 45_000,
-                  souvenirCounter: false,
-                  newPhotoSignal: false,
+                  freshLane: true,
+                  tilt: true,
+                  showTime: false,
                 },
               }),
             }),
@@ -846,6 +848,16 @@ describe('EventSettingsPage', () => {
       expect(sent).not.toHaveProperty('wall')
     })
 
+    it('sends only the switch the host flipped', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.admin.wallDisplay.tilt))
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.wall).toEqual({ tilt: false })
+    })
+
     it('shows both « À l’écran » switches off, and sends only the one that was turned on', async () => {
       const api = fakeApi()
 
@@ -868,8 +880,9 @@ describe('EventSettingsPage', () => {
               wall: {
                 layout: 'polaroid',
                 slideIntervalMs: 12_000,
-                souvenirCounter: false,
-                newPhotoSignal: false,
+                freshLane: true,
+                tilt: true,
+                showTime: false,
               },
             }),
           }),

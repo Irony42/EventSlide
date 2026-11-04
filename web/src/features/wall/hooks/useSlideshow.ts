@@ -35,6 +35,8 @@ export interface SlideshowOptions {
    * "paused", and the host's own pause and resume are untouched.
    */
   readonly hold?: boolean
+  /** The host's switch for the fresh lane (spec 13). Default on, as before. */
+  readonly freshLane?: boolean
 }
 
 /** A photo the wall has put on screen lately, and which lane it came from. */
@@ -143,6 +145,7 @@ export const useSlideshow = ({
   intervalMs,
   loaded,
   hold = false,
+  freshLane = true,
 }: SlideshowOptions): Slideshow => {
   const [state, setState] = useState<State>(INITIAL)
   const [manuallyPaused, setManuallyPaused] = useState(false)
@@ -202,10 +205,10 @@ export const useSlideshow = ({
 
   const upcoming = useMemo(
     () =>
-      upcomingSlides(candidates, slide, UPCOMING_SLIDES)
+      upcomingSlides(candidates, slide, UPCOMING_SLIDES, freshLane)
         .map((ahead) => byId.get(ahead.id))
         .filter(present),
-    [candidates, byId, slide],
+    [candidates, byId, slide, freshLane],
   )
   const next = upcoming[0] ?? null
 
@@ -242,7 +245,10 @@ export const useSlideshow = ({
   )
 
   /** The slide clock: the fresh lane and the rotation, by the rule. */
-  const advanceAutomatically = useCallback(() => move(nextSlide), [move])
+  const advanceAutomatically = useCallback(
+    () => move((list, cursor) => nextSlide(list, cursor, freshLane)),
+    [move, freshLane],
+  )
 
   /**
    * The timer calls the latest step through a ref.
