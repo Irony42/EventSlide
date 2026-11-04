@@ -22,7 +22,7 @@ function ChallengeSection({ slug }: WallPanelContext) {
   return (
     <>
       {/* The server refuses a launch on an event that is not open, with its own words. */}
-      <ChallengeControls slug={slug} live onFailure={setFailure} />
+      <ChallengeControls slug={slug} visual live onFailure={setFailure} />
       {failure === null ? null : <p role="alert">{failure}</p>}
     </>
   )

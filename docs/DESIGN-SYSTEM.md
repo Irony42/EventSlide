@@ -198,6 +198,11 @@ token exactly.
   --wall-bar-button: 3.25rem;
   /* The owner's settings drawer on the wall: wide enough for the visual controls, a third of a 16:9 screen at most. */
   --wall-panel-width: 27.5rem;
+  /* A chosen tile, chip or swatch is the accent at this share over a raised surface
+     (`color-mix(in oklch, var(--accent) var(--selected-tint), var(--surface-raised))`), written where it
+     is used so that the event's own accent and ambiance reach it. --text-primary keeps its 7:1 on
+     it; the accent edge and a check glyph say it too: never the tint alone. */
+  --selected-tint: 20%;
 }
 
 /* The accent, derived wherever a hue is in force. Two selectors, one rule — see §12:

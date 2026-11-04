@@ -52,3 +52,11 @@
   color: var(--text-secondary);
   line-height: var(--leading-normal);
 }
+
+/* A tone and its play button, side by side. */
+.tone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

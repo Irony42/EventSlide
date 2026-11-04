@@ -1,4 +1,4 @@
-import { WallQrControls } from '../../../admin/components/WallQrControls'
+import { QrPicker } from '../controls/QrPicker'
 import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 
 /**
@@ -8,13 +8,7 @@ import type { WallPanelContext, WallPanelSection } from '../panelTypes'
 // The file exports a descriptor the registry collects, not its component.
 // eslint-disable-next-line react-refresh/only-export-components
 function QrSection({ settings, save }: WallPanelContext) {
-  return (
-    <WallQrControls
-      wall={settings.wall}
-
-      onChange={(patch) => save({ wall: patch })}
-    />
-  )
+  return <QrPicker wall={settings.wall} onChange={(patch) => save({ wall: patch })} />
 }
 
 export const section: WallPanelSection = {

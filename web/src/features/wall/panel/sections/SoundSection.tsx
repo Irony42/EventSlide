@@ -15,7 +15,7 @@ function SoundSection({ settings, save, screen }: WallPanelContext) {
 
   return (
     <>
-      <WallSoundFields wall={settings.wall} onChange={(patch) => save({ wall: patch })} />
+      <WallSoundFields visual wall={settings.wall} onChange={(patch) => save({ wall: patch })} />
       <p aria-live="polite">
         {screen.sound.active ? t.wall.panel.soundScreenOn : t.wall.panel.soundScreenOff}
       </p>

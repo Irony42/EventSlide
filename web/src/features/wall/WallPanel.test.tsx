@@ -275,9 +275,8 @@ describe('what the panel writes', () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
 
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: fr.admin.themeAmbiance }),
-      'guinguette',
+    await userEvent.click(
+      screen.getByRole('radio', { name: fr.admin.themeAmbianceNames.guinguette }),
     )
 
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
@@ -338,8 +337,8 @@ describe('layout and rhythm (spec 13, PR 3)', () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
 
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.layout), 'mosaic')
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '12000')
+    await userEvent.click(screen.getByRole('radio', { name: fr.wall.layoutNames.mosaic }))
+    await userEvent.click(screen.getByRole('radio', { name: fr.wall.panel.summaryRhythm(12) }))
 
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
@@ -351,7 +350,7 @@ describe('layout and rhythm (spec 13, PR 3)', () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
 
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '4000')
+    await userEvent.click(screen.getByRole('radio', { name: fr.wall.panel.summaryRhythm(4) }))
 
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
@@ -650,5 +649,47 @@ describe('the drawer (spec 17)', () => {
     await userEvent.click(within(jump).getByRole('button', { name: fr.admin.wallSound.title }))
 
     expect(section.open).toBe(true)
+  })
+
+  it('draws the layouts as tiles: one radio per layout, the event’s own choice checked', async () => {
+    renderWall({
+      wall: vi.fn(async () =>
+        aWallResponse({ items: [aWallItem()], layout: 'polaroid', layoutChosen: true }),
+      ),
+      getEvent: vi.fn(async () =>
+        anEventDto({ role: 'owner', settings: eventSettings({ wall: { layout: 'polaroid' } }) }),
+      ),
+    })
+    await open()
+
+    const group = screen.getByRole('group', { name: fr.admin.wallDisplay.layout })
+    expect(within(group).getAllByRole('radio')).toHaveLength(8)
+    expect(within(group).getByRole('radio', { name: fr.wall.layoutNames.polaroid })).toBeChecked()
+  })
+
+  it('moves the QR card on the miniature from the corner radios, one key at a time', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    await userEvent.click(
+      screen.getByRole('radio', { name: fr.admin.wallDisplay.qrCorners['top-start'] }),
+    )
+
+    expect(document.querySelector('[aria-hidden="true"][data-corner="top-start"]')).not.toBeNull()
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { qrPlacement: 'top-start' },
+    })
+  })
+
+  it('gives each tone a play button named after it', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    expect(
+      screen.getByRole('button', {
+        name: fr.admin.wallSound.tonePlay(fr.admin.wallSound.toneNames.bell),
+      }),
+    ).toBeVisible()
   })
 })

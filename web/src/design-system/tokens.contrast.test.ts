@@ -451,6 +451,26 @@ describe('token contrast', () => {
     expect(contrast(token('--text-primary'), token(surface))).toBeGreaterThanOrEqual(12)
   })
 
+  /**
+   * A chosen tile, chip or swatch (spec 17): the accent at `--selected-tint` over `--surface-raised`,
+   * mixed in oklch the way `color-mix` does. Its ink is held to the wall's 7:1 and the accent edge
+   * to the 3:1 of a non-text mark against the surface the control sits on.
+   */
+  it('keeps --text-primary at 7:1 on a chosen tile, and its edge at 3:1', () => {
+    const share = Number(/--selected-tint:\s*([\d.]+)%/.exec(TOKENS)?.[1]) / 100
+    const mix = (a: Oklch, b: Oklch): Oklch => ({
+      l: a.l * (1 - share) + b.l * share,
+      c: a.c * (1 - share) + b.c * share,
+      h: a.h * (1 - share) + b.h * share,
+      alpha: 1,
+    })
+    const chosen = mix(token('--surface-raised'), token('--accent'))
+
+    expect(share).toBeGreaterThan(0)
+    expect(contrast(token('--text-primary'), chosen)).toBeGreaterThanOrEqual(7)
+    expect(contrast(token('--accent'), token('--surface-raised'))).toBeGreaterThanOrEqual(3)
+  })
+
   it.each(SURFACES)('--text-secondary reaches 7:1 on %s', (surface) => {
     // The reason the palette is oklch: `L` tracks apparent brightness, so one
     // --text-secondary holds up across all three surfaces instead of needing a
