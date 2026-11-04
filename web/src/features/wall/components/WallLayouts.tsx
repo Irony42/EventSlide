@@ -7,6 +7,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { photoAlt } from '../../../lib/photoAlt'
 import { wallLayoutPlaysVideo } from '../wallLayoutPlayback'
 import { PhotoPreload } from './PhotoPreload'
+import { SendTimeContext } from './sendTimeContext'
 import { SlideCaption } from './SlideCaption'
 import { SlideLayer } from './SlideLayer'
 import { WallMedia } from './WallMedia'
@@ -22,6 +23,10 @@ interface LayoutViewProps {
   /** From the wall response. Only the spotlight animates. */
   readonly kenBurnsDurationMs: number
   readonly transitionMs: number | null
+  /** The host's switch for the lean of prints (spec 13). Off: angle 0. Default on. */
+  readonly tilt?: boolean
+  /** Print the time a photo was sent in its caption (spec 13). Off by default. */
+  readonly showTime?: boolean
   /**
    * Whether a clip in this layout plays or shows its poster frame.
    *
@@ -38,8 +43,7 @@ export interface WallLayoutsProps extends Omit<LayoutViewProps, 'plays'> {
   /**
    * The layout to render, already resolved by `WallPage`. In order of precedence: the
    * `L` key's local override, then the display URL's `?layout=`, then the wall
-   * response's default. Not "the host's choice" — there is no per-event layout setting;
-   * the layout belongs to the screen, not to the event.
+   * response (the event's own choice when the host made one, spec 13).
    */
   readonly layout: WallLayout
 }
@@ -310,6 +314,7 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs, plays }:
           <SlideCaption
             caption={current.caption}
             authorName={current.authorName}
+            sentAt={current.createdAt}
             firstFromGuest={saysFirstPhoto(current, slideshow)}
           />
         )
@@ -354,7 +359,12 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
             alt={photoAlt(item, text)}
             className={styles['image']}
           />
-          <SlideCaption caption={null} authorName={item.authorName} variant="tile" />
+          <SlideCaption
+            caption={null}
+            authorName={item.authorName}
+            sentAt={item.createdAt}
+            variant="tile"
+          />
         </figure>
       ))}
 
@@ -383,7 +393,13 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
  * likely to trigger the symptom the preference exists for. So it is declined here
  * outright rather than left to a global `!important` to defuse.
  */
-function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+function PolaroidLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  tilt: leans = true,
+}: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const prints = rotatingSlots(items, slideshow, POLAROID_PRINTS)
@@ -395,7 +411,7 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
       data-motion={reducedMotion ? 'still' : 'landing'}
     >
       {prints.map((item, slot) => {
-        const tilt: TiltStyle = { '--wall-tilt': `${tiltFor(item.id)}deg` }
+        const tilt: TiltStyle = { '--wall-tilt': `${leans ? tiltFor(item.id) : 0}deg` }
 
         return (
           <figure
@@ -421,6 +437,7 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
             <SlideCaption
               caption={item.caption}
               authorName={item.authorName}
+              sentAt={item.createdAt}
               firstFromGuest={saysFirstPhoto(item, slideshow)}
               variant="print"
             />
@@ -450,7 +467,13 @@ function PolaroidLayout({ items, slideshow, transitionMs, plays }: LayoutViewPro
  * wall that is not advancing is held still as well — the strip's rule, and what makes a
  * baseline of this layout the print at rest rather than the frame the shutter reached.
  */
-function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps) {
+function ClotheslineLayout({
+  items,
+  slideshow,
+  transitionMs,
+  plays,
+  tilt: leans = true,
+}: LayoutViewProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
   const prints = rotatingSlots(items, slideshow, CLOTHESLINE_PRINTS)
@@ -465,7 +488,7 @@ function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutView
     >
       <div className={styles['line']}>
         {prints.map((item, slot) => {
-          const tilt: TiltStyle = { '--wall-tilt': `${tiltFor(item.id)}deg` }
+          const tilt: TiltStyle = { '--wall-tilt': `${leans ? tiltFor(item.id) : 0}deg` }
 
           return (
             <figure
@@ -491,6 +514,7 @@ function ClotheslineLayout({ items, slideshow, transitionMs, plays }: LayoutView
               <SlideCaption
                 caption={item.caption}
                 authorName={item.authorName}
+                sentAt={item.createdAt}
                 firstFromGuest={saysFirstPhoto(item, slideshow)}
                 variant="print"
               />
@@ -678,6 +702,7 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
           <SlideCaption
             caption={item.caption}
             authorName={item.authorName}
+            sentAt={item.createdAt}
             firstFromGuest={saysFirstPhoto(item, slideshow)}
             variant="pane"
           />
@@ -702,7 +727,15 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
  * answer from the spec too, automatically, instead of from whichever branch somebody
  * copied.
  */
-export function WallLayouts({ layout, ...view }: WallLayoutsProps) {
+export function WallLayouts({ layout, showTime = false, ...view }: WallLayoutsProps) {
+  return (
+    <SendTimeContext.Provider value={showTime}>
+      <LayoutSwitch layout={layout} {...view} />
+    </SendTimeContext.Provider>
+  )
+}
+
+function LayoutSwitch({ layout, ...view }: WallLayoutsProps) {
   const plays = wallLayoutPlaysVideo(layout)
 
   switch (layout) {

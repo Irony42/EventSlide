@@ -8,6 +8,13 @@ import {
   restoreEventTheme,
   type EventThemeProps,
 } from './eventTheme'
+import {
+  DEFAULT_WALL_SETTINGS,
+  mergeWallSettings,
+  wallSettingsViolation,
+  type EventWallSettings,
+  type EventWallSettingsPatch,
+} from './eventWallSettings'
 import { normalizeWelcomeMessage, restoreWelcomeMessage } from './welcomeMessage'
 
 /**
@@ -142,6 +149,11 @@ export interface EventSettingsProps {
    * (`withLogo`); the settings route never forwards it.
    */
   readonly logo: ContentHash | null
+  /**
+   * How the wall behaves for every screen of the event (spec 13): layout and rhythm for now.
+   * Merged field by field, never replaced whole; `eventWallSettings.ts` has the argument.
+   */
+  readonly wall: EventWallSettings
 }
 
 /**
@@ -149,7 +161,10 @@ export interface EventSettingsProps {
  * different intents from the same settings form, which is why
  * `exactOptionalPropertyTypes` is on and why these fields are not merged with `??`.
  */
-export type EventSettingsPatch = Partial<EventSettingsProps>
+export type EventSettingsPatch = Partial<Omit<EventSettingsProps, 'wall'>> & {
+  /** Partial: only the keys present are written (spec 13). */
+  readonly wall?: EventWallSettingsPatch
+}
 
 const DEFAULTS: EventSettingsProps = {
   moderation: 'manual',
@@ -170,6 +185,7 @@ const DEFAULTS: EventSettingsProps = {
   venuePhoto: null,
   welcomeMessage: null,
   logo: null,
+  wall: DEFAULT_WALL_SETTINGS,
 }
 
 const pick = <T>(update: T | undefined, current: T): T => (update === undefined ? current : update)
@@ -299,10 +315,12 @@ export class EventSettings {
       venuePhoto: pick(patch.venuePhoto, base.venuePhoto),
       welcomeMessage: pick(patch.welcomeMessage, base.welcomeMessage),
       logo: pick(patch.logo, base.logo),
+      wall: mergeWallSettings(base.wall, patch.wall),
     }
 
     const failure =
       languageViolation(merged.wallLanguage) ??
+      wallSettingsViolation(merged.wall) ??
       violation(
         merged.guestSelfDeleteGraceSeconds,
         GRACE_SECONDS,
@@ -393,6 +411,10 @@ export class EventSettings {
 
   get logo(): ContentHash | null {
     return this.props.logo
+  }
+
+  get wall(): EventWallSettings {
+    return this.props.wall
   }
 
   /** The same settings with the host's logo named, or cleared with `null`: `withVenuePhoto`'s reasoning. */

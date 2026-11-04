@@ -309,6 +309,7 @@ const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
   'features/guest-upload/components/UploadQueue.module.css': 'no-preference',
   'features/moderation/components/ModerationGrid.module.css': 'no-preference',
   'features/wall/WallPage.module.css': 'survives-collapsed',
+  'features/wall/components/NewPhotoSignal.module.css': 'survives-collapsed',
   'features/wall/components/ReactionBurst.module.css': 'declined-in-javascript',
   'features/wall/components/SlideLayer.module.css': 'declined-in-javascript',
   'features/wall/components/WallLayouts.module.css': 'declined-in-javascript',
@@ -430,6 +431,7 @@ describe('every animation states what it does under prefers-reduced-motion', () 
  */
 const WALL_BUDGET_ANSWERS: Readonly<Record<string, 'still' | 'cut'>> = {
   'features/wall/WallPage.module.css': 'cut',
+  'features/wall/components/NewPhotoSignal.module.css': 'cut',
   'features/wall/components/ReactionBurst.module.css': 'cut',
   'features/wall/components/SlideLayer.module.css': 'still',
   'features/wall/components/WallLayouts.module.css': 'still',
