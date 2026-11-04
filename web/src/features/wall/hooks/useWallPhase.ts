@@ -76,13 +76,16 @@ export const useWallPhase = ({
   const showing = wanted === null ? null : cut ? wanted : (shown ?? wanted)
   const fading = wanted !== null && showing !== wanted
 
-  // One timer, replaced at each render: the next boundary.
+  // One timer, replaced at each boundary: keyed on the phase as well as on the time left, because
+  // two consecutive phases can report the same time left (equal halves, a render at the boundary)
+  // and the timer that just fired would then never be replaced.
   const endsInMs = current?.endsInMs ?? null
+  const currentPhase = current?.phase ?? null
   useEffect(() => {
     if (paused || endsInMs === null) return undefined
     const timer = window.setTimeout(() => setTick((tick) => tick + 1), endsInMs)
     return () => window.clearTimeout(timer)
-  }, [paused, endsInMs])
+  }, [paused, endsInMs, currentPhase])
 
   // The other: the layout changes once the scene has gone dark.
   const halfMs = (fadeMs ?? PHASE_FADE_MS) / 2
