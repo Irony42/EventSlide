@@ -64,6 +64,16 @@ const pinnedShare = (
     share: element.getBoundingClientRect().height / window.innerHeight,
   }))
 
+/**
+ * Scrolling back up through the page folds the pane (spec 19), which is what these journeys do on
+ * purpose to reach the guest's photos: a test that then needs the pane's controls opens it, as a
+ * thumb would.
+ */
+const unfold = async (page: Page): Promise<void> => {
+  const bar = page.getByTestId('folded-bar')
+  if ((await bar.count()) > 0) await bar.getByRole('button').first().click()
+}
+
 type App = Parameters<typeof joinAsGuest>[1]
 
 /** What a host may change about an event, through the API exactly as the settings form does. */
@@ -156,6 +166,7 @@ for (const phone of PHONES) {
 
     // And the controls can still be reached: the picker is the top of the pane, and the send
     // button its bottom — a pane pinned taller than the screen loses the first of them.
+    await unfold(page)
     const picker = page.locator('label').filter({ has: page.getByTestId('photo-input') })
     expect(await reachable(picker), 'Ajouter des photos').toBe(true)
     expect(await reachable(page.getByRole('button', { name: /^Envoyer/i })), 'Envoyer').toBe(true)
@@ -556,6 +567,7 @@ for (const ambiance of ['eventslide', 'guinguette', 'cabaret'] as const)
     await expect(page.getByRole('heading', { level: 2, name: fr.upload.mine })).toBeFocused()
 
     // The rows are one press away, with the word of each state.
+    await unfold(page)
     const details = page.getByRole('button', { name: fr.upload.queueDetails })
     await expect(details).toHaveAttribute('aria-expanded', 'false')
     await details.click()
@@ -671,5 +683,95 @@ test('375x667: a pinned pane is raised above the list under it, and is not once 
   expect(flowing, 'a pane in the flow is not raised').not.toBe(pinned)
   expect(flowing).not.toMatch(/\) 0px -\d+px \d+px/)
 
+  await context.close()
+})
+
+/**
+ * The folded pane (spec 19): one bar, a small share of the screen, still pinned, with the choice
+ * kept and every photo of the guest's still reachable.
+ */
+const FOLDED_MOST = 0.14
+
+for (const phone of PHONES.slice(0, 2))
+  test(`${phone.name}: "Réduire" folds the pane into a bar of at most ${FOLDED_MOST * 100}%, the selection survives, and the bar reopens it`, async ({
+    app,
+    browser,
+  }, testInfo) => {
+    const context = await browser.newContext({
+      viewport: { width: phone.width, height: phone.height },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+      locale: SUITE_LOCALE,
+      baseURL: app.baseUrl,
+    })
+    const page = await context.newPage()
+    await openUploadScreen(page, app, `pane-fold-${testInfo.workerIndex}-${phone.width}`)
+    const pane = page.getByTestId('upload-composer')
+    await expect.poll(async () => (await pinnedShare(pane)).sticky).toBe(true)
+
+    await page.getByRole('button', { name: fr.upload.foldPane }).click()
+    const bar = page.getByTestId('folded-bar')
+    await expect(bar).toBeVisible()
+    await expect.poll(async () => (await pinnedShare(pane)).share).toBeLessThanOrEqual(FOLDED_MOST)
+    expect((await pinnedShare(pane)).sticky).toBe(true)
+    await expect(page.getByRole('button', { name: fr.upload.openPane })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+
+    // Reopen, choose three photos, fold again: thumbnails and a badge, still at most the share.
+    await page.getByRole('button', { name: fr.upload.openPane }).click()
+    const photos = await Promise.all(
+      [1, 2, 3].map((index) => aPhoto(`pane-fold-${index}`, 800, 600)),
+    )
+    await page.getByTestId('photo-input').setInputFiles(photos)
+    await page.getByRole('button', { name: fr.upload.foldPane }).click()
+    await expect(page.getByTestId('folded-badge')).toHaveText('3')
+    await expect.poll(async () => (await pinnedShare(pane)).share).toBeLessThanOrEqual(FOLDED_MOST)
+    expect(
+      await reachable(page.getByRole('button', { name: fr.upload.sendCount(3) })),
+      'Envoyer 3',
+    ).toBe(true)
+
+    await page.getByRole('button', { name: fr.upload.openPaneReady(3) }).click()
+    await expect(page.getByTestId('upload-item-2')).toBeVisible()
+    await context.close()
+  })
+
+test('scrolling up through the page folds the pane, and a scroll down does not open it again', async ({
+  app,
+  browser,
+}, testInfo) => {
+  // A wheel is the scroll a test can make; WebKit's touch emulation has none. The gesture rules are
+  // the component tests' (GuestUploadPage.fold.test.tsx).
+  test.skip(testInfo.project.name.startsWith('webkit'), 'no wheel on touch WebKit')
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 667 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    locale: SUITE_LOCALE,
+    baseURL: app.baseUrl,
+  })
+  const page = await context.newPage()
+  await openUploadScreen(page, app, `pane-scroll-${testInfo.workerIndex}`)
+  const photos = await Promise.all(
+    Array.from({ length: 8 }, (_unused, index) => aPhoto(`pane-scroll-${index}`, 800, 600)),
+  )
+  await page.getByTestId('photo-input').setInputFiles(photos)
+  await page.getByRole('button', { name: /^Envoyer/i }).click()
+  await expect(page.getByText(fr.upload.queueDone(8, 0))).toBeVisible()
+
+  await page.evaluate(() =>
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }),
+  )
+  await expect(page.getByTestId('folded-bar')).toHaveCount(0)
+  await page.mouse.move(100, 100)
+  await page.mouse.wheel(0, -200)
+  await expect(page.getByTestId('folded-bar')).toBeVisible()
+
+  await page.mouse.wheel(0, 600)
+  await expect(page.getByTestId('folded-bar')).toBeVisible()
   await context.close()
 })
