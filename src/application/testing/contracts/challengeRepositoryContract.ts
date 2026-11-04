@@ -53,6 +53,8 @@ const challengeAt = (
     readonly id?: string
     readonly eventId?: string
     readonly missionId?: string
+    readonly withoutMission?: boolean
+    readonly prompt?: string
     readonly startedAt?: Date
     readonly seconds?: number
   } = {},
@@ -60,8 +62,8 @@ const challengeAt = (
   const result = Challenge.start(
     {
       eventId: asEventId(input.eventId ?? 'evt-wedding'),
-      missionId: asMissionId(input.missionId ?? 'm1'),
-      prompt: promptOf('un selfie'),
+      missionId: input.withoutMission === true ? null : asMissionId(input.missionId ?? 'm1'),
+      prompt: promptOf(input.prompt ?? 'un selfie'),
       durationSeconds: input.seconds ?? 120,
       createdBy: HOST,
     },
@@ -97,7 +99,7 @@ export const challengeRepositoryContract = (
       )
     })
 
-    /** A photograph of the wedding naming `m1`, received at `at`, unless a case says otherwise. */
+    /** A photograph of the wedding answering `c1`, received at `at`, unless a case says otherwise. */
     const answer = async (
       id: string,
       overrides: Parameters<typeof aPhoto>[0] = {},
@@ -107,7 +109,7 @@ export const challengeRepositoryContract = (
           id,
           eventId: 'evt-wedding',
           status: 'published',
-          missionId: 'm1',
+          challengeId: 'c1',
           createdAt: atPlus(10 * SECOND),
           ...overrides,
         }),
@@ -217,7 +219,8 @@ export const challengeRepositoryContract = (
 
     // ------------------------------------------------------------ answers (derived) --
 
-    it('counts a published photograph that names the mission inside the window', async () => {
+    it('counts a published photograph that names the challenge', async () => {
+      await repo.tryStart(challengeAt(), AT)
       await answer('p1')
 
       expect(await count()).toBe(1)
@@ -226,6 +229,7 @@ export const challengeRepositoryContract = (
     it.each(['pending', 'rejected', 'hidden'] as const)(
       'does not count a %s photograph, which is what makes a refusal take effect',
       async (status) => {
+        await repo.tryStart(challengeAt(), AT)
         await answer('p1', { status })
 
         expect(await count()).toBe(0)
@@ -233,6 +237,7 @@ export const challengeRepositoryContract = (
     )
 
     it('does not count a photograph the operator took down', async () => {
+      await repo.tryStart(challengeAt(), AT)
       await answer('p1')
       await photos.setTakenDown(WEDDING, asPhotoId('p1'), AT)
 
@@ -240,40 +245,37 @@ export const challengeRepositoryContract = (
     })
 
     it('does not count a photograph that was deleted', async () => {
+      await repo.tryStart(challengeAt(), AT)
       await answer('p1')
       await photos.delete(WEDDING, asPhotoId('p1'))
 
       expect(await count()).toBe(0)
     })
 
-    it('does not count a photograph that names another mission, or none', async () => {
-      await answer('p1', { missionId: 'm2' })
-      await answer('p2', { missionId: null })
+    it('does not count a photograph that names the mission but not the challenge', async () => {
+      await repo.tryStart(challengeAt(), AT)
+      await answer('p1', { challengeId: null, missionId: 'm1' })
 
       expect(await count()).toBe(0)
     })
 
-    it('does not count another event photograph', async () => {
-      await photos.save(
-        aPhoto({
-          id: 'p-gala',
-          eventId: 'evt-gala',
-          status: 'published',
-          missionId: 'm-gala',
-          createdAt: atPlus(10 * SECOND),
-        }),
-      )
+    it('does not count a photograph that answers another challenge', async () => {
+      await repo.tryStart(challengeAt({ id: 'c1', seconds: 60 }), AT)
+      const later = atPlus(120 * SECOND)
+      await repo.tryStart(challengeAt({ id: 'c2', startedAt: later }), later)
+      await answer('p1', { challengeId: 'c2' })
 
-      expect(await count()).toBe(0)
+      expect(await count(challengeAt({ id: 'c1', seconds: 60 }))).toBe(0)
     })
 
-    it('does not count another event photograph even when it carries this mission id', async () => {
+    it('does not count another event photograph, even one that names this challenge id', async () => {
+      await repo.tryStart(challengeAt(), AT)
       await photos.save(
         aPhoto({
           id: 'p-forged',
           eventId: 'evt-gala',
           status: 'published',
-          missionId: 'm1',
+          challengeId: 'c1',
           createdAt: atPlus(10 * SECOND),
         }),
       )
@@ -281,34 +283,36 @@ export const challengeRepositoryContract = (
       expect(await count()).toBe(0)
     })
 
-    it('counts from the start instant, and not a second before', async () => {
-      await answer('p-early', { createdAt: new Date(AT.getTime() - 1) })
-      await answer('p-start', { createdAt: AT })
-
-      expect(await count()).toBe(1)
-    })
-
-    it('counts a photograph received 59 seconds after the end, and not 61', async () => {
-      const challenge = challengeAt({ seconds: 120 })
-      await answer('p-late', { createdAt: atPlus(120 * SECOND + 59 * SECOND) })
-      await answer('p-too-late', { createdAt: atPlus(120 * SECOND + 61 * SECOND) })
-
-      expect(await count(challenge)).toBe(1)
-    })
-
-    it('counts up to a minute after an early stop, and not after', async () => {
-      const stopped = challengeAt({ seconds: 120 }).stop(atPlus(30 * SECOND))
-      await answer('p-in', { createdAt: atPlus(30 * SECOND + 59 * SECOND) })
-      await answer('p-out', { createdAt: atPlus(30 * SECOND + 61 * SECOND) })
-
-      expect(await count(stopped)).toBe(1)
-    })
-
-    it('counts nothing for a challenge whose mission is gone', async () => {
+    it('counts a challenge that has no mission', async () => {
+      const own = challengeAt({ withoutMission: true })
+      await repo.tryStart(own, AT)
       await answer('p1')
-      const orphan = Challenge.restore({ ...challengeAt().toProps(), missionId: null })
 
-      expect(await count(orphan)).toBe(0)
+      expect(await count(own)).toBe(1)
+    })
+
+    it('reads the photograph challenge back', async () => {
+      await repo.tryStart(challengeAt(), AT)
+      await answer('p1')
+
+      expect((await photos.findById(WEDDING, asPhotoId('p1')))?.challengeId).toBe('c1')
+    })
+
+    // -------------------------------------------------------------- recent prompts --
+
+    it('lists the texts of the event challenges, newest first, and no other event text', async () => {
+      await repo.tryStart(challengeAt({ id: 'c1', seconds: 60, prompt: 'premier' }), AT)
+      const later = atPlus(120 * SECOND)
+      await repo.tryStart(
+        challengeAt({ id: 'c2', startedAt: later, seconds: 60, prompt: 'second' }),
+        later,
+      )
+      await repo.tryStart(
+        challengeAt({ id: 'c-gala', eventId: 'evt-gala', missionId: 'm-gala', prompt: 'gala' }),
+        AT,
+      )
+
+      expect(await repo.listPrompts(WEDDING)).toEqual(['second', 'premier'])
     })
   })
 }

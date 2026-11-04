@@ -27,8 +27,8 @@ const accepted = (): Response =>
  */
 const recordingFetch = () => vi.fn<typeof fetch>(async () => accepted())
 
-const requestFrom = (mock: ReturnType<typeof recordingFetch>): RequestInit => {
-  const init = mock.mock.calls[0]?.[1]
+const requestFrom = (mock: ReturnType<typeof recordingFetch>, call = 0): RequestInit => {
+  const init = mock.mock.calls[call]?.[1]
   if (init === undefined) throw new Error('fetch was never called')
   return init
 }
@@ -95,6 +95,15 @@ describe('fetchOutboxSender', () => {
     expect(init.credentials).toBe('same-origin')
     expect((form.get('photos') as File).name).toBe('confettis.jpg')
     expect(form.get('caption')).toBe('Les confettis')
+  })
+
+  it('carries the challenge the photo answers, and omits it when there is none (spec 18)', async () => {
+    const fetch = recordingFetch()
+    await fetchOutboxSender({ fetch, readCsrf })(anEntry({ challengeId: 'c1' }))
+    await fetchOutboxSender({ fetch, readCsrf })(anEntry())
+
+    expect((requestFrom(fetch, 0).body as FormData).get('challengeId')).toBe('c1')
+    expect((requestFrom(fetch, 1).body as FormData).has('challengeId')).toBe(false)
   })
 
   it('omits an absent caption rather than sending an empty one', async () => {

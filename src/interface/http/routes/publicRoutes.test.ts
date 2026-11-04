@@ -743,7 +743,7 @@ describe('GET /api/events/:eventSlug/wall, the timed challenge (spec 10)', () =>
           id,
           eventId: WEDDING,
           status,
-          missionId: 'mission-1',
+          challengeId: 'c1',
           createdAt: new Date(AT.getTime() + 10_000),
         }),
       )

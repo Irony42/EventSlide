@@ -29,10 +29,16 @@ export interface ChallengeRepository {
   save(challenge: Challenge): Promise<void>
 
   /**
-   * How many **published** photographs answer the challenge: they name its mission, they were
-   * received inside {@link Challenge.answerWindow}, and the operator has not taken them down.
-   * Derived on every call, so a photograph that leaves the published state stops counting
-   * with nothing to undo. A challenge whose mission is gone has no answers.
+   * How many **published** photographs answer the challenge: they name it (`challenge_id`,
+   * set at the upload, spec 18) and the operator has not taken them down. Derived on every
+   * call, so a photograph that leaves the published state stops counting with nothing to undo.
+   * The time window is checked once at the upload ({@link Challenge.canAnswer}), not here.
    */
   countAnswers(eventId: EventId, challenge: Challenge): Promise<number>
+
+  /**
+   * The frozen texts of the event's past challenges, newest first (the domain's
+   * `recentPrompts` dedupes and caps them). Only the host is ever shown them.
+   */
+  listPrompts(eventId: EventId): Promise<string[]>
 }

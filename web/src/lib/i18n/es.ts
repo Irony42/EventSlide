@@ -2262,8 +2262,22 @@ export const es: UiText = {
   /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
   challenge: {
     title: 'Reto fotográfico',
-    hint: 'Lance una misión durante unos minutos: la pantalla y los móviles cuentan atrás a la vez.',
-    mission: 'Misión',
+    hint: 'Escriba lo que pide a la sala. El texto solo aparece al lanzar el reto.',
+    prompt: 'Texto del reto',
+    /** The text box's counter: how much of the sixty characters is used. */
+    promptCount: (used: number, max: number) => `${t.number(used)} / ${t.number(max)}`,
+    recent: 'Últimos retos',
+    ideasTitle: 'Ideas',
+    /** Ready-made challenges the host may take as they are or correct; each is at most 60 characters. */
+    ideas: [
+      'Un selfi con su vecino de mesa',
+      'Toda la mesa en la foto',
+      'La mejor sonrisa de la noche',
+      'Una foto de sus pies en la pista',
+      'Un brindis a la cámara',
+      'Una mueca, todos juntos',
+    ],
+    fromMission: 'Una de mis misiones',
     duration: 'Duración',
     minutes: (count: number) =>
       t.count(count, {
@@ -2273,7 +2287,6 @@ export const es: UiText = {
     launch: 'Lanzar como reto',
     stop: 'Detener',
     remaining: (time: string) => `Reto en curso · ${time}`,
-    noMissions: 'Añada primero una misión para lanzar un reto.',
     notOpen: 'Un reto se puede lanzar cuando el evento está abierto.',
     ended: 'Reto terminado',
     answers: (count: number) =>
@@ -2283,8 +2296,8 @@ export const es: UiText = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Comienza el reto fotográfico: ${prompt}`,
-    /** The phone's button: it chooses the challenge's mission for the next photograph. */
-    takeUp: 'Aceptar el reto',
+    /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
+    participate: 'Participo en el reto',
     announceEnd: 'Fin del reto fotográfico',
   },
   titles: {

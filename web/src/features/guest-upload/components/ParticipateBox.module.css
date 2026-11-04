@@ -1,0 +1,31 @@
+/**
+ * The "Je participe au défi" row above "Envoyer" (spec 18). A finger tall, with the label part of
+ * the target, and still: it sits in the composer, where the one machine is also encoding a photo.
+ */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+.box {
+  /* The native control, tinted: the platform's keyboard and high-contrast behaviour come with it. */
+  accent-color: var(--accent);
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  flex: none;
+  cursor: pointer;
+}
+
+.label {
+  font-size: var(--text-base);
+  font-weight: 650;
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}

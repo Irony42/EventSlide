@@ -379,7 +379,7 @@ describe('useUploadQueue', () => {
       await waitFor(() =>
         expect(onSettled).toHaveBeenCalledWith({ allSent: true, caption: 'Légende' }),
       )
-      expect(outbox.enqueue).toHaveBeenCalledWith(expect.anything(), 'Légende', null)
+      expect(outbox.enqueue).toHaveBeenCalledWith(expect.anything(), 'Légende', null, null)
     })
   })
 
@@ -635,7 +635,7 @@ describe('useUploadQueue', () => {
       await waitFor(() => expect(result.current.items[0]?.state).toBe('queued'))
       expect(result.current.items[0]?.error).toBeNull()
       expect(result.current.items[0]?.outboxId).toBe('entry-1')
-      expect(outbox.enqueue).toHaveBeenCalledWith(expect.any(File), 'Les confettis', null)
+      expect(outbox.enqueue).toHaveBeenCalledWith(expect.any(File), 'Les confettis', null, null)
     })
 
     it('does not store a photo the guest took back mid-flight, though its request ended in an abort', async () => {

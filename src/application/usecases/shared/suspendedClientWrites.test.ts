@@ -191,9 +191,7 @@ const CASES: readonly Case[] = [
         events,
         memberships,
         missions: gone(),
-        challenges: gone(),
         bus: gone(),
-        clock: gone(),
       })({
         eventId: EVENT,
         missionId: asMissionId('mission-1'),

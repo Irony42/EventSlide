@@ -1,8 +1,6 @@
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, MissionId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { ChallengeRepository } from '../../ports/challengeRepository'
-import type { Clock } from '../../ports/clock'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
@@ -18,9 +16,9 @@ import { requireEditable, requireEventRole, requireWritable } from '../shared/ev
  * wall exactly as they were. They are ordinary photographs, which is §2.1's own rule
  * about what happens to a mission's photographs afterwards.
  *
- * **It stops that prompt's running challenge** (spec 10, rule 11): a countdown with no
- * mission behind it would go on asking a room for a photograph nobody can file. The challenge
- * row stays, with its frozen prompt, and the stop is announced as a challenge signal.
+ * **It leaves a running challenge alone** (spec 18; spec 10 stopped it): a challenge has its own
+ * frozen text and counts the photographs that name it, so it needs no mission behind it. Its
+ * `mission_id` goes to `NULL` by the foreign key.
  *
  * The lookup before the delete is not ceremony: `delete` is idempotent by contract, so
  * without it a host deleting somebody else's mission id would be answered `204` and
@@ -36,16 +34,14 @@ export interface DeleteMissionInput {
 export interface DeleteMissionDeps {
   readonly events: EventRepository
   readonly missions: MissionRepository
-  readonly challenges: ChallengeRepository
   readonly memberships: MembershipRepository
   readonly bus: EventBus
-  readonly clock: Clock
 }
 
 export type DeleteMission = (input: DeleteMissionInput) => Promise<Result<void, DomainError>>
 
 export const makeDeleteMission =
-  ({ events, missions, challenges, memberships, bus, clock }: DeleteMissionDeps): DeleteMission =>
+  ({ events, missions, memberships, bus }: DeleteMissionDeps): DeleteMission =>
   async ({ eventId, missionId, actorId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -62,16 +58,9 @@ export const makeDeleteMission =
     const mission = await missions.findById(eventId, missionId)
     if (mission === null) return err(DomainError.notFound('mission.notFound'))
 
-    // Stopped before the row goes: `ON DELETE SET NULL` would otherwise make the running
-    // challenge impossible to match to its mission.
-    const now = clock.now()
-    const latest = await challenges.findLatest(eventId)
-    const stopping = latest !== null && latest.missionId === missionId && latest.isRunning(now)
-    if (stopping) await challenges.save(latest.stop(now))
-
+    // A challenge has its own frozen text (spec 18): it goes on when its mission is deleted.
     await missions.delete(eventId, missionId)
     bus.publish({ type: 'mission.changed', eventId })
-    if (stopping) bus.publish({ type: 'challenge.changed', eventId })
 
     return ok(undefined)
   }

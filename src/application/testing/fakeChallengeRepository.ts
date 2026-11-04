@@ -56,16 +56,17 @@ export class FakeChallengeRepository implements ChallengeRepository {
   }
 
   async countAnswers(eventId: EventId, challenge: Challenge): Promise<number> {
-    if (challenge.missionId === null) return 0
-    const { from, to } = challenge.answerWindow()
     return this.photos
       .ofEvent(eventId)
-      .filter(
-        (photo) =>
-          photo.status === 'published' &&
-          photo.missionId === challenge.missionId &&
-          photo.createdAt.getTime() >= from.getTime() &&
-          photo.createdAt.getTime() <= to.getTime(),
-      ).length
+      .filter((photo) => photo.status === 'published' && photo.challengeId === challenge.id).length
+  }
+
+  async listPrompts(eventId: EventId): Promise<string[]> {
+    return this.forEvent(eventId)
+      .sort(
+        (left, right) =>
+          right.startedAt.getTime() - left.startedAt.getTime() || compareIds(right.id, left.id),
+      )
+      .map((row) => row.prompt.value)
   }
 }

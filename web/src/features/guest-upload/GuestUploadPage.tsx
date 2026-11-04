@@ -11,6 +11,8 @@ import { cx } from '../../design-system/classNames'
 import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { ChallengeBand } from './components/ChallengeBand'
+import { ParticipateBox } from './components/ParticipateBox'
+import { isChallengeRunning } from './challengeRunning'
 import { MissionChecklist } from './components/MissionChecklist'
 import { FoldedBar } from './components/FoldedBar'
 import { EraseEverything } from './components/EraseEverything'
@@ -169,6 +171,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
    */
   const notice = usePrivacyNotice(slug, privacyNotice)
   const [noticeOpen, setNoticeOpen] = useState(false)
+  // "Je participe au défi" (spec 18): checked for every batch, so playing costs no tap.
+  const [participate, setParticipate] = useState(true)
   const publication = notice.state?.notice.publication ?? null
   /**
    * The host's prompts, and the one the next send is filed under (roadmap §2.1).
@@ -404,6 +408,33 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
 
   const sending = queue.sending || outbox.draining || clip.stage === 'uploading'
   const trimmedCaption = caption.trim()
+  // One send for the pane's button and the folded bar's: the challenge goes with both.
+  const sendBatch = () => {
+    // The id goes only when the box is checked and the challenge still runs by the
+    // server's clock; the server decides all the same and keeps the photographs.
+    const answering =
+      participate &&
+      missions.challenge !== null &&
+      isChallengeRunning(missions.challenge, missions.offsetMs, Date.now())
+    queue.send(
+      trimmedCaption.length === 0 ? null : trimmedCaption,
+      missions.selected,
+      answering && missions.challenge !== null ? missions.challenge.id : null,
+    )
+    // The next batch starts checked again.
+    setParticipate(true)
+  }
+  // Above "Envoyer", where the thumb is: only with a challenge running, a photo chosen and no
+  // video in hand (a video does not answer a challenge). The same node in the pane and the bar.
+  const participateBox =
+    missions.challenge === null || queue.sendableCount === 0 || clip.stage !== 'idle' ? null : (
+      <ParticipateBox
+        challenge={missions.challenge}
+        offsetMs={missions.offsetMs}
+        checked={participate}
+        onChange={setParticipate}
+      />
+    )
   /**
    * Whether the guest has anything on the server to list or take back (INV-12).
    *
@@ -633,9 +664,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               />
             }
             onOpen={openPane}
-            onSend={() =>
-              queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
-            }
+            onSend={sendBatch}
           />
         ) : null}
         <div id={paneContent} className={styles['paneContent']} hidden={isFolded}>
@@ -757,12 +786,11 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
             */}
               {/* The host's timed challenge (spec 10): one band and one button, nothing for a guest
                 who does not want to play; absent when none runs. */}
-              {missions.challenge === null || missions.missions.length === 0 ? null : (
+              {missions.challenge === null ? null : (
                 <ChallengeBand
                   key={missions.challenge.id}
                   challenge={missions.challenge}
                   offsetMs={missions.offsetMs}
-                  onTakeUp={missions.select}
                 />
               )}
               <MissionChecklist
@@ -782,6 +810,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
                 clip={clip}
                 limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
               />
+              {participateBox}
               <Button
                 ref={sendButton}
                 variant="primary"
@@ -789,9 +818,7 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
                 block
                 loading={queue.sending}
                 disabled={queue.sendableCount === 0}
-                onClick={() =>
-                  queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
-                }
+                onClick={sendBatch}
               >
                 {queue.sendableCount === 0
                   ? t.upload.send

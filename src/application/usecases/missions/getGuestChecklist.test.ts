@@ -80,6 +80,31 @@ describe('getGuestChecklist', () => {
     return started.value
   }
 
+  it('carries a challenge that has its own text when the host set no prompts at all', async () => {
+    const prompt = MissionPrompt.create('un toast à l objectif')
+    if (!prompt.ok) throw new Error('fixture')
+    const started = Challenge.start(
+      {
+        eventId: WEDDING,
+        missionId: null,
+        prompt: prompt.value,
+        durationSeconds: 120,
+        createdBy: asUserId('user-host'),
+      },
+      asChallengeId('c-own'),
+      clock.now(),
+    )
+    if (!started.ok) throw new Error('fixture')
+    await challenges.tryStart(started.value, clock.now())
+
+    const result = await ask()
+
+    expect(result.ok && result.value.items).toEqual([])
+    expect(result.ok && result.value.challenge?.challenge.prompt.value).toBe(
+      'un toast à l objectif',
+    )
+  })
+
   it('carries the server clock, and no challenge, when none was launched', async () => {
     missions.seed(aMission({ id: 'm1', eventId: 'evt-wedding' }))
 

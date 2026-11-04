@@ -1015,6 +1015,7 @@ const toHostChallengeDto = (reading: ChallengeReading): HostChallengeDto => ({
 export const toHostChallengeResponseDto = (view: HostChallengeView): HostChallengeResponseDto => ({
   serverNowMs: view.serverNowMs,
   challenge: view.challenge === null ? null : toHostChallengeDto(view.challenge),
+  recent: view.recent,
 })
 
 export const toGuestMissionDto = (row: ChecklistItem): GuestMissionDto => ({

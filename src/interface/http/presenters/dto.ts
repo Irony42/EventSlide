@@ -970,6 +970,8 @@ export interface HostChallengeDto {
 export interface HostChallengeResponseDto {
   readonly serverNowMs: number
   readonly challenge: HostChallengeDto | null
+  /** The texts of the event's past challenges, newest first, at most five (spec 18). */
+  readonly recent: readonly string[]
 }
 
 /**

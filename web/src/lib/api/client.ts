@@ -186,6 +186,11 @@ export interface UploadInput {
    * on a phone is asking them not to bother.
    */
   readonly missionId?: string | null
+  /**
+   * The timed challenge answered (spec 18): sent only when the guest left "Je participe au
+   * défi" checked. A uuid, so omitted rather than sent empty, like the mission.
+   */
+  readonly challengeId?: string | null
   readonly onProgress?: (progress: UploadProgress) => void
   readonly signal?: AbortSignal
 }
@@ -224,7 +229,10 @@ export interface MissionInput {
 
 /** A timed photo challenge as the host launches it (spec 10). */
 export interface ChallengeInput {
-  readonly missionId: string
+  /** The challenge's own text (spec 18): one line, 60 characters at most. */
+  readonly prompt: string
+  /** The mission it was taken from, if the host chose it there; only a link. */
+  readonly missionId?: string
   readonly durationSeconds: number
 }
 
@@ -317,6 +325,9 @@ export const createApi = (transport: Transport) => ({
     // simply had no mission.
     if (input.missionId !== undefined && input.missionId !== null && input.missionId !== '') {
       form.append('missionId', input.missionId)
+    }
+    if (input.challengeId !== undefined && input.challengeId !== null && input.challengeId !== '') {
+      form.append('challengeId', input.challengeId)
     }
     return transport.upload(`/api/events/${encode(slug)}/photos`, form, {
       ...(input.onProgress ? { onProgress: input.onProgress } : {}),

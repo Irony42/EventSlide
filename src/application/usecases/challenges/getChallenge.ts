@@ -1,3 +1,4 @@
+import { recentPrompts } from '../../../domain/challenges/challenge'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -24,6 +25,8 @@ export interface GetChallengeInput {
 export interface HostChallengeView {
   readonly challenge: ChallengeReading | null
   readonly serverNowMs: number
+  /** The texts of the event's past challenges, newest first, once each (spec 18): the host's only. */
+  readonly recent: string[]
 }
 
 export interface GetChallengeDeps {
@@ -53,5 +56,6 @@ export const makeGetChallenge =
     return ok({
       challenge: await readChallenge(challenges, eventId, now),
       serverNowMs: now.getTime(),
+      recent: recentPrompts(await challenges.listPrompts(eventId)),
     })
   }

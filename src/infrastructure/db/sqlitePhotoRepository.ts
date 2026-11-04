@@ -25,6 +25,7 @@ import type { DomainError } from '../../domain/shared/errors'
 import {
   asEventId,
   asGuestId,
+  asChallengeId,
   asMissionId,
   asPhotoId,
   asUserId,
@@ -63,7 +64,7 @@ const PHOTO_COLUMNS = `
   id, event_id, author_guest_id, author_user_id, status, content_hash,
   width, height, byte_size, caption, created_at,
   review_kind, reviewed_at, reviewed_by_user_id,
-  media_kind, duration_ms, poster_hash, mission_id, highlighted_at
+  media_kind, duration_ms, poster_hash, mission_id, challenge_id, highlighted_at
 `
 
 const INSERT_PHOTO = `
@@ -71,12 +72,12 @@ const INSERT_PHOTO = `
     id, event_id, author_guest_id, author_user_id, status, content_hash,
     width, height, byte_size, caption, created_at,
     review_kind, reviewed_at, reviewed_by_user_id,
-    media_kind, duration_ms, poster_hash, mission_id
+    media_kind, duration_ms, poster_hash, mission_id, challenge_id
   ) VALUES (
     @id, @event_id, @author_guest_id, @author_user_id, @status, @content_hash,
     @width, @height, @byte_size, @caption, @created_at,
     @review_kind, @reviewed_at, @reviewed_by_user_id,
-    @media_kind, @duration_ms, @poster_hash, @mission_id
+    @media_kind, @duration_ms, @poster_hash, @mission_id, @challenge_id
   )
 `
 
@@ -182,6 +183,8 @@ interface PhotoRow {
   readonly poster_hash: string | null
   /** Which of the host's prompts this photograph answers (roadmap §2.1), or `null`. */
   readonly mission_id: string | null
+  /** The timed challenge this photograph answers (spec 18), or `null`. */
+  readonly challenge_id: string | null
   /** The host's star (spec 08). Read here, never written by `save`. */
   readonly highlighted_at: string | null
 }
@@ -206,6 +209,7 @@ interface PhotoBindings {
   readonly duration_ms: number | null
   readonly poster_hash: string | null
   readonly mission_id: string | null
+  readonly challenge_id: string | null
 }
 
 const EMPTY_PAGE: PhotoPage = { items: [], nextCursor: null }
@@ -344,6 +348,7 @@ const toBindings = (photo: Photo): PhotoBindings => {
     duration_ms: facet.durationMs,
     poster_hash: facet.posterHash,
     mission_id: props.missionId,
+    challenge_id: props.challengeId ?? null,
   }
 }
 
@@ -365,6 +370,7 @@ const toPhoto = (row: PhotoRow): Photo =>
     // already carries. There is nothing here a corrupt value could break that the
     // database has not already refused.
     missionId: row.mission_id === null ? null : asMissionId(row.mission_id),
+    challengeId: row.challenge_id === null ? null : asChallengeId(row.challenge_id),
     highlightedAt: fromNullableIsoText(row.highlighted_at),
   })
 

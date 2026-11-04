@@ -839,3 +839,18 @@ part of the release changes.
   (icon buttons, a drawer with a row of sections); the keys (`R`, `Espace`, `F`) and the settings do not change.
 - **The mosaic layout changes**: six equal cells, and the 2x2 hero tile is gone. A photo keeps the whole picture
   when cropping it to the cell would hide more than 30 % of it. A full screen portrait photo is no longer cropped.
+
+## Upgrading to 3.8 (not released yet)
+
+### A photo challenge with its own text (spec 18)
+
+- **One migration (026)**: a nullable `challenge_id` column on `photos` and a partial index. It is `NULL` for every
+  existing photo, and nothing is rewritten. Back up first, as for any upgrade: the migration only goes forward.
+- **Nothing to set in `.env`.** A challenge no longer needs a mission: the host types its text when launching it.
+  `POST /api/events/:slug/challenge` accepts `prompt` (and `missionId` becomes optional); the old body still works.
+- **Answers are counted by challenge, not by mission.** A challenge that is running at the very moment of the
+  upgrade loses the answers sent before it; a challenge lasts 30 minutes at most. A phone left open across the
+  upgrade keeps the old behaviour until it is reloaded: its photographs do not answer the challenge.
+- **Deleting a mission no longer stops a running challenge.**
+- **Phones read the challenge on every event** (every twenty seconds while the page is visible), not only on events
+  with missions.

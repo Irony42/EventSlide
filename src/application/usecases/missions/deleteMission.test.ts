@@ -65,7 +65,7 @@ describe('deleteMission', () => {
     bus = new RecordingEventBus()
     challenges = new FakeChallengeRepository(photos)
     clock = new FakeClock(AT)
-    deleteMission = makeDeleteMission({ events, missions, challenges, memberships, bus, clock })
+    deleteMission = makeDeleteMission({ events, missions, memberships, bus })
 
     events.seed(
       anEvent({ id: WEDDING, ownerId: OWNER, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
@@ -113,35 +113,10 @@ describe('deleteMission', () => {
     expect(bus.published).toEqual([{ type: 'mission.changed', eventId: WEDDING }])
   })
 
-  it('stops the challenge that was running on the prompt, and announces both changes', async () => {
+  it('leaves a running challenge alone: it has its own text and its own answers', async () => {
     const startedAt = clock.now()
     await challenges.tryStart(runningChallenge(startedAt), startedAt)
     clock.advance(30_000)
-
-    await ask()
-
-    expect((await challenges.findLatest(WEDDING))?.endedAt).toEqual(clock.now())
-    expect(bus.published).toEqual([
-      { type: 'mission.changed', eventId: WEDDING },
-      { type: 'challenge.changed', eventId: WEDDING },
-    ])
-  })
-
-  it('leaves a challenge that runs on another prompt alone', async () => {
-    missions.seed(aMission({ id: 'm2', eventId: 'evt-wedding', prompt: 'le gateau' }))
-    const startedAt = clock.now()
-    await challenges.tryStart(runningChallenge(startedAt, 'm2'), startedAt)
-
-    await ask()
-
-    expect((await challenges.findLatest(WEDDING))?.endedAt).toBeNull()
-    expect(bus.published).toEqual([{ type: 'mission.changed', eventId: WEDDING }])
-  })
-
-  it('does not touch a challenge that already ended', async () => {
-    const startedAt = clock.now()
-    await challenges.tryStart(runningChallenge(startedAt), startedAt)
-    clock.advance(121_000)
 
     await ask()
 

@@ -4,6 +4,8 @@ import { Card } from '../../design-system/components/Card'
 import { useToast } from '../../design-system/components/useToast'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { formatCountdown, remainingMs } from '../../lib/serverClock'
+import { Field } from '../../design-system/components/Field'
+import { TextInput } from '../../design-system/components/TextInput'
 import { SelectField } from './components/SelectField'
 import { useChallenge, useMissions } from './hooks/useEventData'
 import { ChoiceChips } from '../../design-system/components/ChoiceChips'
@@ -23,6 +25,36 @@ export interface ChallengeControlsProps {
 export interface ChallengePanelProps {
   readonly slug: string
   readonly live: boolean
+}
+
+/** A challenge's text is a mission's: one line of sixty characters (the domain's `MissionPrompt`). */
+const PROMPT_MAX_LENGTH = 60
+
+interface PromptChipsProps {
+  readonly title: string
+  readonly texts: readonly string[]
+  readonly disabled: boolean
+  readonly onTake: (text: string, index: number) => void
+}
+
+/** A short list of texts to take with one touch; nothing at all when the list is empty. */
+function PromptChips({ title, texts, disabled, onTake }: PromptChipsProps) {
+  if (texts.length === 0) return null
+  return (
+    <div className={styles['chips']} role="group" aria-label={title}>
+      <p className={styles['chipsTitle']}>{title}</p>
+      {texts.map((text, index) => (
+        <Button
+          key={`${index}-${text}`}
+          size="sm"
+          disabled={disabled}
+          onClick={() => onTake(text, index)}
+        >
+          {text}
+        </Button>
+      ))}
+    </div>
+  )
 }
 
 /** What the interface offers; the domain accepts any whole number of seconds from 15 to 1800. */
@@ -52,7 +84,9 @@ export function ChallengeControls({
   const stop = useStopChallenge()
   const { reload } = challenge
 
-  const [missionId, setMissionId] = useState('')
+  // The text the host is typing, and the mission it was taken from while it is still that text.
+  const [prompt, setPrompt] = useState('')
+  const [linkedMission, setLinkedMission] = useState<string | null>(null)
   const [seconds, setSeconds] = useState<number>(DEFAULT_DURATION_SECONDS)
 
   const running = challenge.data?.challenge?.state === 'running' ? challenge.data.challenge : null
@@ -74,15 +108,30 @@ export function ChallengeControls({
   }, [outOfTime, reload])
 
   const list = missions.data ?? []
-  // The first mission until the host picks another one: derived at read, so a mission deleted
-  // meanwhile never leaves a stale id selected.
-  const chosen = list.some((mission) => mission.id === missionId) ? missionId : (list[0]?.id ?? '')
+  const recent = challenge.data?.recent ?? []
+  const typed = prompt.trim()
+
+  // A suggestion, a past text or a mission only fills the box: the host may correct it before
+  // launching, and correcting a mission's text cuts the link to it.
+  const take = (text: string, missionId: string | null = null) => {
+    setPrompt(text)
+    setLinkedMission(missionId)
+  }
+  const type = (text: string) => {
+    setPrompt(text)
+    setLinkedMission(null)
+  }
 
   const launch = () => {
     void start
-      .run('start', slug, { missionId: chosen, durationSeconds: seconds })
+      .run('start', slug, {
+        prompt: typed,
+        ...(linkedMission === null ? {} : { missionId: linkedMission }),
+        durationSeconds: seconds,
+      })
       .then((result) => {
         onFailure(result.ok ? null : result.message)
+        if (result.ok) take('')
         reload()
       })
   }
@@ -100,59 +149,71 @@ export function ChallengeControls({
 
       {running === null ? (
         <div className={styles['form']}>
+          <Field label={t.challenge.prompt}>
+            {(control) => (
+              <TextInput
+                {...control}
+                autoComplete="off"
+                maxLength={PROMPT_MAX_LENGTH}
+                value={prompt}
+                disabled={!live}
+                onChange={(event) => type(event.target.value)}
+              />
+            )}
+          </Field>
+          <p className={styles['count']} aria-hidden="true">
+            {t.challenge.promptCount(prompt.length, PROMPT_MAX_LENGTH)}
+          </p>
+          <PromptChips
+            title={t.challenge.recent}
+            texts={recent}
+            disabled={!live}
+            onTake={(text) => take(text)}
+          />
+          <PromptChips
+            title={t.challenge.ideasTitle}
+            texts={t.challenge.ideas}
+            disabled={!live}
+            onTake={(text) => take(text)}
+          />
+          <PromptChips
+            title={t.challenge.fromMission}
+            texts={list.map((mission) => mission.prompt)}
+            disabled={!live}
+            onTake={(text, index) => take(text, list[index]?.id ?? null)}
+          />
           {visual ? (
-            <>
-              <ChoiceChips
-                legend={t.challenge.mission}
-                value={chosen}
-                options={list.map((mission) => ({ value: mission.id, label: mission.prompt }))}
-                disabled={list.length === 0 || !live}
-                onChange={setMissionId}
-              />
-              <ChoiceChips
-                legend={t.challenge.duration}
-                value={String(seconds)}
-                options={DURATIONS_SECONDS.map((value) => ({
-                  value: String(value),
-                  label: t.challenge.minutes(value / 60),
-                }))}
-                disabled={!live}
-                onChange={(value) => setSeconds(Number(value))}
-              />
-            </>
+            <ChoiceChips
+              legend={t.challenge.duration}
+              value={String(seconds)}
+              options={DURATIONS_SECONDS.map((value) => ({
+                value: String(value),
+                label: t.challenge.minutes(value / 60),
+              }))}
+              disabled={!live}
+              onChange={(value) => setSeconds(Number(value))}
+            />
           ) : (
-            <>
-              <SelectField
-                label={t.challenge.mission}
-                value={chosen}
-                options={list.map((mission) => ({ value: mission.id, label: mission.prompt }))}
-                disabled={list.length === 0 || !live}
-                onChange={setMissionId}
-              />
-              <SelectField
-                label={t.challenge.duration}
-                value={String(seconds)}
-                options={DURATIONS_SECONDS.map((value) => ({
-                  value: String(value),
-                  label: t.challenge.minutes(value / 60),
-                }))}
-                disabled={!live}
-                onChange={(value) => setSeconds(Number(value))}
-              />
-            </>
+            <SelectField
+              label={t.challenge.duration}
+              value={String(seconds)}
+              options={DURATIONS_SECONDS.map((value) => ({
+                value: String(value),
+                label: t.challenge.minutes(value / 60),
+              }))}
+              disabled={!live}
+              onChange={(value) => setSeconds(Number(value))}
+            />
           )}
           <div className={styles['actions']}>
             <Button
               loading={start.busy}
-              disabled={chosen === '' || !live || challenge.loading}
+              disabled={typed === '' || !live || challenge.loading}
               onClick={launch}
             >
               {t.challenge.launch}
             </Button>
           </div>
-          {list.length === 0 && missions.data !== null ? (
-            <p className={styles['hint']}>{t.challenge.noMissions}</p>
-          ) : null}
           {!live ? <p className={styles['hint']}>{t.challenge.notOpen}</p> : null}
         </div>
       ) : (

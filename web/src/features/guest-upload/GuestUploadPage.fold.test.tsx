@@ -29,6 +29,19 @@ const scrollTo = (y: number, byGuest = true): void => {
   })
 }
 
+/** A challenge that runs, with no mission at all (spec 18). */
+const runningChallenge = () => ({
+  items: [],
+  serverNowMs: Date.now(),
+  challenge: {
+    id: 'c1',
+    missionId: null,
+    prompt: 'un selfie avec votre voisin',
+    endsAt: new Date(Date.now() + 102_000).toISOString(),
+    state: 'running' as const,
+  },
+})
+
 describe('GuestUploadPage: folding the pane', () => {
   beforeEach(() => {
     sessionStorage.clear()
@@ -153,5 +166,71 @@ describe('GuestUploadPage: folding the pane', () => {
     scrollTo(100)
 
     expect(screen.queryByTestId('folded-bar')).toBeNull()
+  })
+
+  describe('the challenge box on the folded bar (spec 18)', () => {
+    const renderWithChallenge = () => {
+      const uploadPhotos = vi.fn(async () => ({
+        results: [{ index: 0, declaredName: 'un.jpg', status: 'accepted' as const, photoId: 'p1' }],
+      }))
+      const api = fakeApi({
+        myPhotos: vi.fn(async () => ({ items: [] })),
+        myMissions: vi.fn(async () => runningChallenge()),
+        uploadPhotos,
+      })
+      renderWithProviders(<GuestUploadPage />, {
+        api,
+        route: `/e/${SLUG}/upload`,
+        path: '/e/:slug/upload',
+      })
+      return api
+    }
+
+    const pickAndFold = async () => {
+      await screen.findByText('un selfie avec votre voisin')
+      await userEvent.upload(screen.getByLabelText(fr.upload.addPhotos), [aPhotoFile('un.jpg')])
+      await userEvent.click(fold())
+    }
+
+    it('sends the challenge from the bar by default, the box itself waiting in the pane', async () => {
+      const api = renderWithChallenge()
+      await pickAndFold()
+
+      // The bar keeps its height budget: the choice is in the pane, checked until changed.
+      expect(within(bar()).queryByRole('checkbox')).toBeNull()
+      await userEvent.click(within(bar()).getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await vi.waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ challengeId: 'c1' }),
+        ),
+      )
+    })
+
+    it('keeps an unchecked box through a fold: the bar then sends a plain photograph', async () => {
+      const api = renderWithChallenge()
+      await screen.findByText('un selfie avec votre voisin')
+      await userEvent.upload(screen.getByLabelText(fr.upload.addPhotos), [aPhotoFile('un.jpg')])
+      await userEvent.click(screen.getByRole('checkbox', { name: fr.challenge.participate }))
+      await userEvent.click(fold())
+
+      await userEvent.click(within(bar()).getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await vi.waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ challengeId: null }),
+        ),
+      )
+    })
+
+    it('shows no box on the bar when nothing waits', async () => {
+      renderWithChallenge()
+      await screen.findByText('un selfie avec votre voisin')
+      await userEvent.click(fold())
+
+      expect(within(bar()).queryByRole('checkbox')).toBeNull()
+    })
   })
 })

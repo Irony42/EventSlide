@@ -60,8 +60,13 @@ export type UiText = Localized<Translations>
 /** One node of a copy table, seen by something that does not know its shape. */
 type Table = Readonly<Record<string, unknown>>
 
-/** `object` and not `function`: a phrase is replaced whole, a section descended into. */
-const isTable = (value: unknown): value is Table => typeof value === 'object' && value !== null
+/**
+ * `object` and not `function`: a phrase is replaced whole, a section descended into. **A list is
+ * replaced whole too** (the challenge ideas, spec 18): descending into one would turn it into a
+ * record of its indexes.
+ */
+const isTable = (value: unknown): value is Table =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /**
  * French first, the translation laid over it, at every depth: a key somehow absent at

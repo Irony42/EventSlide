@@ -15,9 +15,8 @@ import { fromIsoText, fromNullableIsoText, toIsoText } from './rowMapping'
  * `event_challenges`, plus the one read that turns photographs into a final count.
  *
  * **Every statement names `event_id`.** And **the answer count is a query, not a column**:
- * it counts published, not-taken-down photographs of the challenge's mission received inside
- * its window, on every call, so a refusal takes effect with nothing to undo (migrations 005
- * and 024 say why).
+ * it counts published, not-taken-down photographs that name the challenge (`challenge_id`, set
+ * at the upload, migration 026), on every call, so a refusal takes effect with nothing to undo.
  */
 
 const COLUMNS = `id, event_id, mission_id, prompt, started_at, ends_at, ended_at, created_by`
@@ -116,20 +115,29 @@ export class SqliteChallengeRepository implements ChallengeRepository {
   }
 
   async countAnswers(eventId: EventId, challenge: Challenge): Promise<number> {
-    if (challenge.missionId === null) return 0
-    const { from, to } = challenge.answerWindow()
     const row = this.db
-      .prepare<[string, string, string, string], { readonly n: number }>(
+      .prepare<[string, string], { readonly n: number }>(
         `SELECT COUNT(*) AS n
            FROM photos
           WHERE event_id = ?
-            AND mission_id = ?
+            AND challenge_id = ?
             AND status = 'published'
-            AND taken_down_at IS NULL
-            AND created_at >= ?
-            AND created_at <= ?`,
+            AND taken_down_at IS NULL`,
       )
-      .get(eventId, challenge.missionId, toIsoText(from), toIsoText(to))
+      .get(eventId, challenge.id)
     return row?.n ?? 0
+  }
+
+  async listPrompts(eventId: EventId): Promise<string[]> {
+    // Bounded: fifty challenges is the ceiling of an event, and the domain keeps five.
+    return this.db
+      .prepare<[string], { readonly prompt: string }>(
+        `SELECT prompt FROM event_challenges
+          WHERE event_id = ?
+          ORDER BY started_at DESC, id DESC
+          LIMIT 50`,
+      )
+      .all(eventId)
+      .map((row) => row.prompt)
   }
 }

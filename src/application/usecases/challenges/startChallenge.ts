@@ -1,4 +1,5 @@
 import { Challenge } from '../../../domain/challenges/challenge'
+import { MissionPrompt } from '../../../domain/missions/missionPrompt'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, MissionId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -32,7 +33,10 @@ import { requireEventRole, requireWritable } from '../shared/eventRole'
 export interface StartChallengeInput {
   readonly eventId: EventId
   readonly actorId: UserId
-  readonly missionId: MissionId
+  /** The challenge's own text (spec 18), typed by the host; the mission's when absent. */
+  readonly prompt?: unknown
+  /** Optional: a mission the text may come from (and which a photograph is then also filed under). */
+  readonly missionId?: MissionId | null
   /** Whole seconds, 15 to 1800; the domain decides. */
   readonly durationSeconds: unknown
 }
@@ -59,7 +63,7 @@ export const makeStartChallenge =
     bus,
     clock,
   }: StartChallengeDeps): StartChallenge =>
-  async ({ eventId, actorId, missionId, durationSeconds }) => {
+  async ({ eventId, actorId, prompt: typed, missionId, durationSeconds }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
@@ -73,12 +77,29 @@ export const makeStartChallenge =
     if (!event.acceptsGuests()) return err(DomainError.conflict('challenge.eventNotOpen'))
 
     // Scoped read: a mission id of another event is a `404`, never a stranger's prompt.
-    const mission = await missions.findById(eventId, missionId)
-    if (mission === null) return err(DomainError.notFound('mission.notFound'))
+    const mission =
+      missionId === undefined || missionId === null
+        ? null
+        : await missions.findById(eventId, missionId)
+    if (missionId !== undefined && missionId !== null && mission === null) {
+      return err(DomainError.notFound('mission.notFound'))
+    }
+
+    // The text the host typed wins; a mission alone lends its own (the spec 10 body). Never both
+    // absent: a challenge says something to the room.
+    let prompt: MissionPrompt
+    if (typed === undefined || typed === null) {
+      if (mission === null) return err(DomainError.invalid('mission.promptEmpty'))
+      prompt = mission.prompt
+    } else {
+      const parsed = MissionPrompt.create(typed)
+      if (!parsed.ok) return parsed
+      prompt = parsed.value
+    }
 
     const now = clock.now()
     const started = Challenge.start(
-      { eventId, missionId, prompt: mission.prompt, durationSeconds, createdBy: actorId },
+      { eventId, missionId: mission?.id ?? null, prompt, durationSeconds, createdBy: actorId },
       ids.challengeId(),
       now,
     )

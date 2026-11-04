@@ -114,7 +114,6 @@ describe('useMissions', () => {
       'missions',
       'selected',
       'toggle',
-      'select',
       'refresh',
       'challenge',
       'offsetMs',
@@ -300,17 +299,17 @@ describe('useMissions: the timed challenge', () => {
     await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(2))
   })
 
-  it('never reads again on an event whose host set no prompts', async () => {
+  it('reads again on an event whose host set no prompts: a challenge needs no mission (spec 18)', async () => {
     const api = fakeApi({ myMissions: vi.fn(async () => ({ items: [] })) })
     const { result } = mount(api)
     await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(1))
     expect(result.current.missions).toEqual([])
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS * 3)
+      await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS)
     })
 
-    expect(api.myMissions).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(2))
   })
 
   it('does not read while the page is hidden, and reads at once when it comes back', async () => {
@@ -343,15 +342,5 @@ describe('useMissions: the timed challenge', () => {
 
     expect(vi.getTimerCount()).toBe(0)
     expect(api.myMissions).toHaveBeenCalledTimes(1)
-  })
-
-  it('chooses a mission without a second tap clearing it', async () => {
-    const { result } = mount(fakeApi({ myMissions: oneMission() }))
-    await waitFor(() => expect(result.current.missions).toHaveLength(1))
-
-    act(() => result.current.select('m1'))
-    act(() => result.current.select('m1'))
-
-    expect(result.current.selected).toBe('m1')
   })
 })

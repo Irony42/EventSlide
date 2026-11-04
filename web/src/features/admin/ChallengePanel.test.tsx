@@ -27,6 +27,7 @@ const running = (leftMs: number, offsetMs = 0): HostChallengeResponse => {
   const serverNowMs = Date.now() + offsetMs
   return {
     serverNowMs,
+    recent: [],
     challenge: {
       id: 'c1',
       missionId: 'm1',
@@ -50,27 +51,115 @@ describe('ChallengePanel', () => {
     vi.useRealTimers()
   })
 
-  it('launches the first mission for two minutes by default', async () => {
-    const startChallenge = vi.fn(apiWith().startChallenge)
-    render(apiWith({ startChallenge }))
+  const typeInto = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
+    const box = await screen.findByLabelText(fr.challenge.prompt)
+    await user.clear(box)
+    await user.type(box, text)
+  }
 
-    const launch = await screen.findByRole('button', { name: fr.challenge.launch })
-    await waitFor(() => expect(launch).toBeEnabled())
-    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(launch)
-
-    expect(startChallenge).toHaveBeenCalledWith(SLUG, { missionId: 'm1', durationSeconds: 120 })
-  })
-
-  it('launches the mission and the duration the host chose', async () => {
+  it('launches the text the host typed, for two minutes by default, with no mission', async () => {
     const startChallenge = vi.fn(apiWith().startChallenge)
     render(apiWith({ startChallenge }))
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
-    await user.selectOptions(await screen.findByLabelText(fr.challenge.mission), 'm2')
+    await typeInto(user, '  Un toast ')
+    await user.click(screen.getByRole('button', { name: fr.challenge.launch }))
+
+    expect(startChallenge).toHaveBeenCalledWith(SLUG, { prompt: 'Un toast', durationSeconds: 120 })
+  })
+
+  it('cannot launch with an empty text', async () => {
+    render(apiWith())
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    expect(await screen.findByRole('button', { name: fr.challenge.launch })).toBeDisabled()
+    await typeInto(user, '   ')
+    expect(screen.getByRole('button', { name: fr.challenge.launch })).toBeDisabled()
+  })
+
+  it('fills the box from a ready-made idea, which the host may correct', async () => {
+    const startChallenge = vi.fn(apiWith().startChallenge)
+    render(apiWith({ startChallenge }))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    await user.click(await screen.findByRole('button', { name: fr.challenge.ideas[0] }))
+    expect(screen.getByLabelText(fr.challenge.prompt)).toHaveValue(fr.challenge.ideas[0])
+    await user.click(screen.getByRole('button', { name: fr.challenge.launch }))
+
+    expect(startChallenge).toHaveBeenCalledWith(SLUG, {
+      prompt: fr.challenge.ideas[0],
+      durationSeconds: 120,
+    })
+  })
+
+  it('offers the last texts of the event and fills the box from one', async () => {
+    const getChallenge = vi.fn(async () => ({
+      serverNowMs: Date.now(),
+      challenge: null,
+      recent: ['Le plus beau selfie'],
+    }))
+    render(apiWith({ getChallenge }))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    await user.click(await screen.findByRole('button', { name: 'Le plus beau selfie' }))
+
+    expect(screen.getByLabelText(fr.challenge.prompt)).toHaveValue('Le plus beau selfie')
+  })
+
+  it('sends the mission as a link when its text is taken as it is', async () => {
+    const startChallenge = vi.fn(apiWith().startChallenge)
+    render(apiWith({ startChallenge }))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    await user.click(await screen.findByRole('button', { name: 'la première danse' }))
+    await user.click(screen.getByRole('button', { name: fr.challenge.launch }))
+
+    expect(startChallenge).toHaveBeenCalledWith(SLUG, {
+      prompt: 'la première danse',
+      missionId: 'm2',
+      durationSeconds: 120,
+    })
+  })
+
+  it('cuts the link to the mission once its text is corrected', async () => {
+    const startChallenge = vi.fn(apiWith().startChallenge)
+    render(apiWith({ startChallenge }))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    await user.click(await screen.findByRole('button', { name: 'la première danse' }))
+    await user.type(screen.getByLabelText(fr.challenge.prompt), '!')
+    await user.click(screen.getByRole('button', { name: fr.challenge.launch }))
+
+    expect(startChallenge).toHaveBeenCalledWith(SLUG, {
+      prompt: 'la première danse!',
+      durationSeconds: 120,
+    })
+  })
+
+  it('launches with the duration the host chose', async () => {
+    const startChallenge = vi.fn(apiWith().startChallenge)
+    render(apiWith({ startChallenge }))
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+    await typeInto(user, 'Un toast')
     await user.selectOptions(screen.getByLabelText(fr.challenge.duration), '300')
     await user.click(screen.getByRole('button', { name: fr.challenge.launch }))
 
-    expect(startChallenge).toHaveBeenCalledWith(SLUG, { missionId: 'm2', durationSeconds: 300 })
+    expect(startChallenge).toHaveBeenCalledWith(SLUG, { prompt: 'Un toast', durationSeconds: 300 })
+  })
+
+  it('needs no mission at all, and offers no mission list without one', async () => {
+    render(apiWith({ listMissions: vi.fn(async () => ({ items: [] })) }))
+
+    await screen.findByLabelText(fr.challenge.prompt)
+
+    expect(screen.queryByRole('group', { name: fr.challenge.fromMission })).toBeNull()
+  })
+
+  it('stops at sixty characters, the length of a mission text', async () => {
+    render(apiWith())
+
+    expect(await screen.findByLabelText(fr.challenge.prompt)).toHaveAttribute('maxlength', '60')
   })
 
   it('offers the four durations the interface promises', async () => {
@@ -84,13 +173,6 @@ describe('ChallengePanel', () => {
       '300',
       '600',
     ])
-  })
-
-  it('says why it cannot launch when the host has no mission yet', async () => {
-    render(apiWith({ listMissions: vi.fn(async () => ({ items: [] })) }))
-
-    expect(await screen.findByText(fr.challenge.noMissions)).toBeVisible()
-    expect(screen.getByRole('button', { name: fr.challenge.launch })).toBeDisabled()
   })
 
   it('refuses to launch on an event that is not live, and says so', async () => {
@@ -107,7 +189,8 @@ describe('ChallengePanel', () => {
     render(apiWith({ startChallenge }))
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
-    await user.click(await screen.findByRole('button', { name: fr.challenge.launch }))
+    await typeInto(user, 'Un toast')
+    await user.click(screen.getByRole('button', { name: fr.challenge.launch }))
 
     expect(await screen.findByText(fr.errors['challenge.alreadyRunning'])).toBeVisible()
   })
@@ -152,7 +235,8 @@ describe('ChallengePanel', () => {
   it('stops ticking when it is unmounted', async () => {
     const view = render(apiWith({ getChallenge: vi.fn(async () => running(60_000)) }))
     await screen.findByText(fr.challenge.remaining('1:00'))
-    expect(vi.getTimerCount()).toBe(1)
+    // The countdown interval is armed by an effect after the first paint, so wait for it.
+    await vi.waitFor(() => expect(vi.getTimerCount()).toBe(1))
 
     view.unmount()
 

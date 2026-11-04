@@ -2235,8 +2235,22 @@ export const it: UiText = {
   /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
   challenge: {
     title: 'Sfida fotografica',
-    hint: 'Lanci una missione per qualche minuto: lo schermo e i telefoni fanno il conto alla rovescia insieme.',
-    mission: 'Missione',
+    hint: 'Scriva ciò che chiede alla sala. Il testo compare solo al lancio.',
+    prompt: 'Testo della sfida',
+    /** The text box's counter: how much of the sixty characters is used. */
+    promptCount: (used: number, max: number) => `${t.number(used)} / ${t.number(max)}`,
+    recent: 'Ultime sfide',
+    ideasTitle: 'Idee',
+    /** Ready-made challenges the host may take as they are or correct; each is at most 60 characters. */
+    ideas: [
+      'Un selfie con il vicino di tavolo',
+      'Tutto il tavolo nella foto',
+      'Il sorriso più bello della serata',
+      'Una foto dei vostri piedi in pista',
+      'Un brindisi all’obiettivo',
+      'Una smorfia, tutti insieme',
+    ],
+    fromMission: 'Una delle mie missioni',
     duration: 'Durata',
     minutes: (count: number) =>
       t.count(count, {
@@ -2246,7 +2260,6 @@ export const it: UiText = {
     launch: 'Lancia come sfida',
     stop: 'Ferma',
     remaining: (time: string) => `Sfida in corso · ${time}`,
-    noMissions: 'Aggiunga prima una missione per lanciare una sfida.',
     notOpen: 'Una sfida si può lanciare quando l’evento è aperto.',
     ended: 'Sfida conclusa',
     answers: (count: number) =>
@@ -2256,8 +2269,8 @@ export const it: UiText = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Inizia la sfida fotografica: ${prompt}`,
-    /** The phone's button: it chooses the challenge's mission for the next photograph. */
-    takeUp: 'Accetta la sfida',
+    /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
+    participate: 'Partecipo alla sfida',
     announceEnd: 'Fine della sfida fotografica',
   },
   titles: {

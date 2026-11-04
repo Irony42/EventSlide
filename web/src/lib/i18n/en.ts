@@ -2190,8 +2190,22 @@ export const en: UiText = {
   /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
   challenge: {
     title: 'Photo challenge',
-    hint: 'Launch a mission for a few minutes: the screen and the phones count down together.',
-    mission: 'Mission',
+    hint: 'Type what you ask of the room. The text only appears once the challenge starts.',
+    prompt: 'Challenge text',
+    /** The text box's counter: how much of the sixty characters is used. */
+    promptCount: (used: number, max: number) => `${t.number(used)} / ${t.number(max)}`,
+    recent: 'Recent challenges',
+    ideasTitle: 'Ideas',
+    /** Ready-made challenges the host may take as they are or correct; each is at most 60 characters. */
+    ideas: [
+      'A selfie with your neighbour at the table',
+      'Everyone at the table in the shot',
+      'The best smile of the evening',
+      'A photo of your feet on the dance floor',
+      'A toast to the camera',
+      'A silly face, all together',
+    ],
+    fromMission: 'One of my missions',
     duration: 'Duration',
     minutes: (count: number) =>
       t.count(count, {
@@ -2201,7 +2215,6 @@ export const en: UiText = {
     launch: 'Start as a challenge',
     stop: 'Stop',
     remaining: (time: string) => `Challenge in progress · ${time}`,
-    noMissions: 'Add a mission first to start a challenge.',
     notOpen: 'A challenge can start once the event is open.',
     ended: 'Challenge over',
     answers: (count: number) =>
@@ -2211,8 +2224,8 @@ export const en: UiText = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Photo challenge started: ${prompt}`,
-    /** The phone's button: it chooses the challenge's mission for the next photograph. */
-    takeUp: 'Take up the challenge',
+    /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
+    participate: 'I’m taking part in the challenge',
     announceEnd: 'Photo challenge over',
   },
   titles: {

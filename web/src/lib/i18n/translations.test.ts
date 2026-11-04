@@ -158,6 +158,13 @@ describe('the scope', () => {
     expect(merged.wall.layoutNames.split).toBe(fr.wall.layoutNames.split)
     expect(merged.wall.missionsTitle).toBe(TRANSLATIONS.de.wall.missionsTitle)
   })
+
+  it('keeps a list a list: the challenge ideas are an array in every language', () => {
+    for (const locale of Object.keys(TRANSLATIONS) as (keyof typeof TRANSLATIONS)[]) {
+      expect(Array.isArray(TRANSLATIONS[locale].challenge.ideas)).toBe(true)
+    }
+    expect(TRANSLATIONS.de.challenge.ideas).not.toEqual(fr.challenge.ideas)
+  })
 })
 
 describe('messageForCode', () => {

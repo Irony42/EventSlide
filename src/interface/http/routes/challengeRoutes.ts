@@ -58,7 +58,8 @@ export const challengeRoutes = ({ deps, usecases }: ChallengeRouteDeps): Router 
       const result = await usecases.startChallenge({
         eventId: scope.event.id,
         actorId: scope.user.userId,
-        missionId: asMissionId(body.missionId),
+        ...(body.prompt === undefined ? {} : { prompt: body.prompt }),
+        ...(body.missionId === undefined ? {} : { missionId: asMissionId(body.missionId) }),
         durationSeconds: body.durationSeconds,
       })
 

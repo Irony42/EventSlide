@@ -2923,8 +2923,22 @@ export const fr = {
   /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
   challenge: {
     title: 'Défi photo',
-    hint: 'Lancez une mission pendant quelques minutes : l’écran et les téléphones comptent à rebours ensemble.',
-    mission: 'Mission',
+    hint: 'Tapez ce que vous demandez à la salle. Le texte n’apparaît qu’au lancement.',
+    prompt: 'Texte du défi',
+    /** The text box's counter: how much of the sixty characters is used. */
+    promptCount: (used: number, max: number) => `${t.number(used)} / ${t.number(max)}`,
+    recent: 'Derniers défis',
+    ideasTitle: 'Idées',
+    /** Ready-made challenges the host may take as they are or correct; each is at most 60 characters. */
+    ideas: [
+      'Un selfie avec votre voisin de table',
+      'Toute la table dans la photo',
+      'Le plus beau sourire de la soirée',
+      'Une photo de vos pieds sur la piste',
+      'Un toast à l’objectif',
+      'Une grimace, tous ensemble',
+    ],
+    fromMission: 'Une de mes missions',
     duration: 'Durée',
     minutes: (count: number) =>
       t.count(count, {
@@ -2934,7 +2948,6 @@ export const fr = {
     launch: 'Lancer en défi',
     stop: 'Arrêter',
     remaining: (time: string) => `Défi en cours · ${time}`,
-    noMissions: 'Ajoutez d’abord une mission pour lancer un défi.',
     notOpen: 'Un défi se lance quand l’évènement est ouvert.',
     ended: 'Défi terminé',
     answers: (count: number) =>
@@ -2944,8 +2957,8 @@ export const fr = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Début du défi photo : ${prompt}`,
-    /** The phone's button: it chooses the challenge's mission for the next photograph. */
-    takeUp: 'Relever le défi',
+    /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
+    participate: 'Je participe au défi',
     announceEnd: 'Fin du défi photo',
   },
   titles: {

@@ -33,6 +33,26 @@ export const ENDED_VISIBLE_MS = 20_000
  */
 export const ANSWER_TOLERANCE_MS = 60_000
 
+/** How many past texts the host is offered again (spec 18). */
+export const RECENT_PROMPTS_LIMIT = 5
+
+/**
+ * The last texts an event launched, most recent first, each once (case and trailing spaces do not
+ * make a second one). `promptsNewestFirst` is the frozen copies, newest first.
+ */
+export const recentPrompts = (promptsNewestFirst: readonly string[]): string[] => {
+  const seen = new Set<string>()
+  const kept: string[] = []
+  for (const prompt of promptsNewestFirst) {
+    const key = prompt.trimEnd().toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    kept.push(prompt)
+    if (kept.length === RECENT_PROMPTS_LIMIT) break
+  }
+  return kept
+}
+
 /** Whether an event holding `existing` challenges may take one more. */
 export const hasRoomForChallenge = (existing: number): boolean =>
   existing < MAX_CHALLENGES_PER_EVENT
@@ -70,7 +90,8 @@ export interface ChallengeProps {
 
 export interface NewChallenge {
   readonly eventId: EventId
-  readonly missionId: MissionId
+  /** Optional since spec 18: a challenge has its own text, a mission is only where it may come from. */
+  readonly missionId: MissionId | null
   readonly prompt: MissionPrompt
   readonly durationSeconds: unknown
   readonly createdBy: UserId
@@ -162,6 +183,15 @@ export class Challenge {
       from: this.props.startedAt,
       to: new Date(this.stoppedAtMs + ANSWER_TOLERANCE_MS),
     }
+  }
+
+  /**
+   * Whether a photograph received at `receivedAt` answers it (spec 18): from the start to a
+   * minute after the stop, both bounds inclusive. Checked once, at the upload.
+   */
+  canAnswer(receivedAt: Date): boolean {
+    const { from, to } = this.answerWindow()
+    return receivedAt.getTime() >= from.getTime() && receivedAt.getTime() <= to.getTime()
   }
 
   toProps(): ChallengeProps {
