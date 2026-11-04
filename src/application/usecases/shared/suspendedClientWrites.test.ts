@@ -19,6 +19,8 @@ import { makeCreateShareLink } from '../gallery/createShareLink'
 import { makeRevokeShareLink } from '../gallery/revokeShareLink'
 import { makeRevokeGuest } from '../guests/revokeGuest'
 import { makeCreateMission } from '../missions/createMission'
+import { makeStartChallenge } from '../challenges/startChallenge'
+import { makeStopChallenge } from '../challenges/stopChallenge'
 import { makeDeleteMission } from '../missions/deleteMission'
 import { makeUpdateMission } from '../missions/updateMission'
 import { makeModeratePhoto } from '../moderation/moderatePhoto'
@@ -185,9 +187,44 @@ const CASES: readonly Case[] = [
     name: 'deleteMission',
     member: 'owner',
     ask: ({ events, memberships }, actorId) =>
-      makeDeleteMission({ events, memberships, missions: gone(), bus: gone() })({
+      makeDeleteMission({
+        events,
+        memberships,
+        missions: gone(),
+        challenges: gone(),
+        bus: gone(),
+        clock: gone(),
+      })({
         eventId: EVENT,
         missionId: asMissionId('mission-1'),
+        actorId,
+      }),
+  },
+  {
+    name: 'startChallenge',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeStartChallenge({
+        events,
+        memberships,
+        missions: gone(),
+        challenges: gone(),
+        ids: gone(),
+        bus: gone(),
+        clock: gone(),
+      })({
+        eventId: EVENT,
+        missionId: asMissionId('mission-1'),
+        actorId,
+        durationSeconds: 120,
+      }),
+  },
+  {
+    name: 'stopChallenge',
+    member: 'moderator',
+    ask: ({ events, memberships }, actorId) =>
+      makeStopChallenge({ events, memberships, challenges: gone(), bus: gone(), clock: gone() })({
+        eventId: EVENT,
         actorId,
       }),
   },

@@ -576,6 +576,10 @@ export const es: UiText = {
     'mission.promptEmpty': 'Escriba lo que pide la misión.',
     'mission.promptTooLong': 'Este texto es demasiado largo para la pantalla.',
     'mission.promptInvalid': 'Este texto no es válido.',
+    'challenge.alreadyRunning': 'Ya hay un reto en curso. Deténgalo antes de lanzar otro.',
+    'challenge.limit': 'Este evento ha alcanzado el número de retos permitido.',
+    'challenge.eventNotOpen': 'Un reto solo se puede lanzar mientras el evento está abierto.',
+    'challenge.durationInvalid': 'Esta duración no es válida.',
 
     'eventTheme.accentHueInvalid': 'Ese color no se reconoce. Elija uno de la lista.',
     'eventTheme.accentUnreadable':
@@ -2145,6 +2149,23 @@ export const es: UiText = {
     step3: 'Se unen a la pantalla de la velada.',
     fallback: (code: string, address: string) =>
       `¿Sin código QR? Escriba el código ${code} en ${address}.`,
+  },
+  /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
+  challenge: {
+    title: 'Reto fotográfico',
+    hint: 'Lance una misión durante unos minutos: la pantalla y los móviles cuentan atrás a la vez.',
+    mission: 'Misión',
+    duration: 'Duración',
+    minutes: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} minuto`,
+        other: `${t.number(count)} minutos`,
+      }),
+    launch: 'Lanzar como reto',
+    stop: 'Detener',
+    remaining: (time: string) => `Reto en curso · ${time}`,
+    noMissions: 'Añada primero una misión para lanzar un reto.',
+    notOpen: 'Un reto se puede lanzar cuando el evento está abierto.',
   },
   titles: {
     print: 'Tarjetas de mesa y cartel',
