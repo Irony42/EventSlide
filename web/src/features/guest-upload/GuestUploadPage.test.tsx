@@ -326,6 +326,26 @@ describe('GuestUploadPage', () => {
     }
   })
 
+  it('still says a photo is held on the device when the pane is folded', async () => {
+    // On bad venue Wi-Fi this is the one message a guest needs; folding must not hide it.
+    havingJoined()
+    const api = fakeApi({
+      ...withPhotos(),
+      uploadPhotos: vi.fn(async () => {
+        throw ApiError.network()
+      }),
+    })
+    renderUpload(api)
+    await pickPhotos(aPhotoFile('confettis.jpg'))
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+    await screen.findByText(fr.upload.offlineTitle(1))
+
+    await userEvent.click(screen.getByRole('button', { name: fr.upload.foldPane }))
+
+    const bar = screen.getByTestId('folded-bar')
+    expect(within(bar).getByText(fr.upload.offlineTitle(1))).toBeVisible()
+  })
+
   it('keeps a photo the connection dropped, and sends it when the network returns', async () => {
     // This used to assert a "Réessayer" button, and the button was the problem: it only
     // helps a guest still looking at their phone. The photo is now held on the device

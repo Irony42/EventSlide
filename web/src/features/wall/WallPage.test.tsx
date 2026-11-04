@@ -1621,19 +1621,110 @@ describe('WallPage', () => {
       ],
     })
 
-    it('shows a message card every Nth photograph change, signed, and holds the photographs under it', async () => {
+    /** The slide clock, not the host: one change of the server's 8 s interval each. */
+    const automaticChanges = async (count: number): Promise<void> => {
+      for (let i = 0; i < count; i += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(8_000)
+        })
+      }
+    }
+
+    beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }))
+    afterEach(() => vi.useRealTimers())
+
+    it('shows a message card every Nth automatic photograph change, signed, and holds the photographs under it', async () => {
       const api = fakeApi({
         wall: wallSequence(aPopulatedWall({ items: somePhotos(4), guestbook: book() })),
       })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
 
-      await userEvent.keyboard('{ArrowRight}')
+      await automaticChanges(1)
       expect(screen.queryByText('Une soirée merveilleuse')).not.toBeInTheDocument()
 
-      await userEvent.keyboard('{ArrowRight}')
+      await automaticChanges(1)
       expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
       expect(screen.getByText('Zoé')).toBeVisible()
+    })
+
+    it('leaves the card for a photograph when the host presses an arrow, and never lands on one by pressing', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ items: somePhotos(6), guestbook: book(2) })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await automaticChanges(2)
+      expect(document.querySelector('[data-wall-message]')).not.toBeNull()
+
+      await userEvent.keyboard('{ArrowRight}')
+      expect(document.querySelector('[data-wall-message]')).toBeNull()
+
+      // Ten more presses, either way: the card only comes back on the slide clock.
+      for (const key of ['{ArrowRight}', '{ArrowLeft}']) {
+        for (let i = 0; i < 5; i += 1) {
+          await userEvent.keyboard(key)
+          expect(document.querySelector('[data-wall-message]')).toBeNull()
+        }
+      }
+    })
+
+    it('keeps the challenge banner on screen over a card, and starts no new card while it runs', async () => {
+      const serverNowMs = Date.now()
+      const challenge: Partial<WallResponse> = {
+        serverNowMs,
+        challenge: {
+          id: 'c1',
+          prompt: 'un selfie avec votre voisin',
+          startedAt: new Date(serverNowMs - 1_000).toISOString(),
+          endsAt: new Date(serverNowMs + 3_600_000).toISOString(),
+          state: 'running',
+          answers: null,
+        },
+      }
+      const book = {
+        everyNth: 2,
+        messages: [
+          aWallGuestbookMessage({ id: 'g1', text: 'Une soirée merveilleuse', displayMs: 3_000 }),
+        ],
+      }
+      const photos = { items: somePhotos(8), guestbook: book }
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall(photos), aPopulatedWall({ ...photos, ...challenge })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await automaticChanges(2)
+      expect(await screen.findByText('Une soirée merveilleuse')).toBeVisible()
+
+      await streamSignals('challenge.changed')
+      expect(await screen.findByText('un selfie avec votre voisin')).toBeVisible()
+      expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
+
+      // The card ends on its own time; the next Nth changes (4th, 6th) bring none while it runs.
+      for (let i = 0; i < 12; i += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2_000)
+        })
+        if (i >= 2) expect(screen.queryByText('Une soirée merveilleuse')).toBeNull()
+      }
+      expect(screen.getByText('un selfie avec votre voisin')).toBeVisible()
+    })
+
+    it('keeps the automatic rhythm after manual presses: a card again two automatic changes later', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ items: somePhotos(6), guestbook: book(2) })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
+      expect(document.querySelector('[data-wall-message]')).toBeNull()
+
+      await automaticChanges(1)
+      expect(document.querySelector('[data-wall-message]')).toBeNull()
+      await automaticChanges(1)
+
+      expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
     })
 
     it('signs a message whose guest gave no name with the wall’s own words', async () => {
@@ -1648,7 +1739,7 @@ describe('WallPage', () => {
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
 
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      await automaticChanges(2)
 
       expect(screen.getByText(fr.wall.guestbookAnonymous)).toBeVisible()
     })
@@ -1658,7 +1749,7 @@ describe('WallPage', () => {
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
 
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      await automaticChanges(2)
 
       expect(document.querySelector('[data-wall-message]')).toBeNull()
     })
@@ -1674,7 +1765,7 @@ describe('WallPage', () => {
       await screen.findByTestId('wall-slide')
 
       await streamSignals('guestbook.changed')
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      await automaticChanges(2)
 
       expect(await screen.findByText('Une soirée merveilleuse')).toBeVisible()
     })

@@ -62,6 +62,13 @@ export const de: UiText = {
     sendCount: (count: number) =>
       t.count(count, { one: 'Foto senden', other: `${t.number(count)} Fotos senden` }),
     queueEmpty: 'Noch keine Fotos ausgewählt.',
+    foldPane: 'Einklappen',
+    openPane: 'Foto senden',
+    openPaneReady: (count: number) =>
+      t.count(count, {
+        one: 'Bereich öffnen: 1 Foto bereit',
+        other: `Bereich öffnen: ${t.number(count)} Fotos bereit`,
+      }),
     itemPending: 'Bereit',
     itemUploading: 'Wird gesendet',
     itemDone: 'Gesendet',
