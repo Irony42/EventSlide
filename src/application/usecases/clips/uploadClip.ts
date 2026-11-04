@@ -1,5 +1,6 @@
 import { ClipJob } from '../../../domain/clips/clipJob'
 import { clipQueueFull } from '../../../domain/clips/clipQueue'
+import { ClipTrim } from '../../../domain/clips/clipTrim'
 import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import { Caption } from '../../../domain/photos/caption'
 import { ContentHash } from '../../../domain/photos/contentHash'
@@ -53,6 +54,8 @@ export interface UploadClipInput {
   readonly author: PhotoAuthor
   readonly file: UploadClipFile
   readonly caption?: string | null
+  /** The part of a too-long recording to keep, from the start of `file`; both or neither. */
+  readonly trim?: { readonly startMs: number; readonly endMs: number } | null
 }
 
 export interface UploadClipLimits {
@@ -64,6 +67,8 @@ export interface UploadClipLimits {
   readonly maxQueuedClips: number
   /** The same backpressure, scoped to one event — see `ClipAdmissionLimits`. */
   readonly maxQueuedClipsPerEvent: number
+  /** `MAX_CLIP_SECONDS`, in milliseconds: what a trimmed range may not exceed. */
+  readonly maxDurationMs: number
 }
 
 export interface UploadClipDeps {
@@ -138,7 +143,7 @@ export const makeUploadClip = ({
   logger,
   limits,
 }: UploadClipDeps): UploadClip => {
-  return async ({ eventId, author, file, caption }) => {
+  return async ({ eventId, author, file, caption, trim }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
@@ -175,6 +180,15 @@ export const makeUploadClip = ({
     if (!parsedCaption.ok) return parsedCaption
     if (parsedCaption.value !== null && !settings.allowCaptions) {
       return err(DomainError.forbidden('event.captionsNotAllowed'))
+    }
+
+    // The guest's range, judged against the configured cap before a byte is staged. Absent is
+    // "all of it", which the worker then holds to the cap on the source's own duration.
+    let parsedTrim: ClipTrim | null = null
+    if (trim !== undefined && trim !== null) {
+      const range = ClipTrim.create(trim.startMs, trim.endMs, limits.maxDurationMs)
+      if (!range.ok) return range
+      parsedTrim = range.value
     }
 
     // Signature before anything else touches the disk. This starts no process — see the
@@ -243,6 +257,7 @@ export const makeUploadClip = ({
         sourceHash: digest.value,
         sourceByteSize: byteSize,
         caption: parsedCaption.value,
+        trim: parsedTrim,
       },
       ids.clipJobId(),
       // Minted here, before any transcode: a crash between the photo insert and the

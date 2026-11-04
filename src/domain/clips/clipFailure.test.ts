@@ -9,6 +9,7 @@ describe('classifyClipFailure', () => {
     'clip.durationUnknown',
     'clip.tooShort',
     'clip.tooLong',
+    'clip.trimOutOfRange',
     'clip.pixelBudgetExceeded',
     'clip.sourceMissing',
     'event.quotaExceeded',

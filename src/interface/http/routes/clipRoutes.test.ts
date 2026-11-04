@@ -135,6 +135,7 @@ const buildSubject = (options: SubjectOptions = {}): Subject => {
               logger: deps.logger,
               limits: {
                 maxQueuedClips: options.maxQueuedClips ?? 20,
+                maxDurationMs: 15_000,
                 maxQueuedClipsPerEvent:
                   options.maxQueuedClipsPerEvent ?? options.maxQueuedClips ?? 20,
               },
@@ -291,6 +292,66 @@ describe('POST /api/events/:eventSlug/clips', () => {
       .attach('clip', aClipBody(), 'IMG_4021.MOV')
 
     expect(subject.clips.all[0]?.caption?.value).toBe('Le premier slow')
+  })
+
+  describe('the range a guest kept (spec 16)', () => {
+    const send = (subject: ReturnType<typeof buildSubject>, fields: Record<string, string>) => {
+      let req = request(subject.app).post(`${BASE}/clips`).set('Cookie', cookie(subject.token))
+      for (const [name, value] of Object.entries(fields)) req = req.field(name, value)
+      return req.attach('clip', aClipBody(), 'IMG_4021.MOV')
+    }
+
+    it('queues the range with the job', async () => {
+      const subject = buildSubject()
+
+      const response = await send(subject, { startMs: '12000', endMs: '24000' })
+
+      expect(response.status).toBe(202)
+      expect(subject.clips.all[0]?.trim?.startMs).toBe(12_000)
+      expect(subject.clips.all[0]?.trim?.endMs).toBe(24_000)
+    })
+
+    it('queues no range when none is sent', async () => {
+      const subject = buildSubject()
+
+      await send(subject, {})
+
+      expect(subject.clips.all[0]?.trim).toBeNull()
+    })
+
+    it.each([
+      ['only a start', { startMs: '1000' }],
+      ['only an end', { endMs: '5000' }],
+      ['a bound that is not digits', { startMs: '1e3', endMs: '5000' }],
+      ['a negative bound', { startMs: '-1', endMs: '5000' }],
+      ['a bound of ten digits', { startMs: '0', endMs: '1000000000' }],
+    ])('answers 400 request.invalid for %s, and queues nothing', async (_name, fields) => {
+      const subject = buildSubject()
+
+      const response = await send(subject, fields)
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe('request.invalid')
+      expect(subject.clips.all).toHaveLength(0)
+    })
+
+    it.each([
+      ['a range over the cap', { startMs: '0', endMs: '15001' }, 'clip.tooLong'],
+      ['a range under a second', { startMs: '5000', endMs: '5500' }, 'clip.tooShort'],
+      [
+        'a range that ends before it starts',
+        { startMs: '9000', endMs: '4000' },
+        'clip.trimInvalid',
+      ],
+    ])('answers 400 %s with the domain code', async (_name, fields, code) => {
+      const subject = buildSubject()
+
+      const response = await send(subject, fields)
+
+      expect(response.status).toBe(400)
+      expect(response.body.error.code).toBe(code)
+      expect(subject.clips.all).toHaveLength(0)
+    })
   })
 
   it('leaves no temp file behind, on the path that works', async () => {

@@ -213,6 +213,22 @@ export const en: UiText = {
     clipTooLong: (seconds: number) =>
       `This video is over ${t.number(seconds)} seconds. Record a shorter sequence.`,
     clipNotAVideo: 'This file is not a video.',
+    /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) => `Choose the ${t.number(seconds)} seconds to keep`,
+    clipTrimStart: 'Start of the clip',
+    clipTrimEnd: 'End of the clip',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} seconds`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Clip: ${t.number(seconds)} s of ${t.number(maxSeconds)} s at most`,
+    clipTrimPlay: 'Play the clip',
+    clipTrimPause: 'Pause',
+    clipTrimNoPreview: 'No preview on this device. The clip will still be cut.',
+    clipTrimWholeFileSent:
+      'Only the part you chose is kept. If this phone cannot cut it, the whole video is sent and then cut.',
+    clipSendTrimmed: 'Send this clip',
     clipUploading: 'Sending the video…',
     clipQueued: 'In the queue…',
     clipRunning: 'Processing the video…',
@@ -532,6 +548,8 @@ export const en: UiText = {
     'clip.durationUnknown': 'The length of this video cannot be read. Try another one.',
     'clip.tooShort': 'This video is too short.',
     'clip.tooLong': 'This video is too long. Record a shorter sequence.',
+    'clip.trimInvalid': 'This part of the video is not valid. Pick another one.',
+    'clip.trimOutOfRange': 'The part you chose goes past the end of the video. Pick another one.',
     'clip.transcodeFailed': 'This video could not be processed. Try another one.',
     'clip.transcodeTimedOut': 'This video is too heavy to process. Try another one.',
     'clip.storageFailed': 'This video could not be saved. Try again.',

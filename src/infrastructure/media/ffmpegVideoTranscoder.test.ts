@@ -255,6 +255,34 @@ describe('ffmpegVideoTranscoder against real ffmpeg', () => {
     expect(facts.profile).not.toContain('10')
   }, 120_000)
 
+  it('keeps only the range it is given, not the cap and not the whole source (spec 16)', async () => {
+    // The source runs five seconds and the cap is two. A one-second range near its end
+    // must come out about one second long: `-t` is the range's length, `-ss` seeks before
+    // the input. Without the range the output is the cap's two.
+    const trimmed = await harness.transcoder.transcode(harness.fixtures.long, {
+      ...CONTRACT_SPEC,
+      trim: { startMs: 3_000, endMs: 4_000 },
+    })
+    const whole = await harness.transcoder.transcode(harness.fixtures.long, CONTRACT_SPEC)
+
+    expect(trimmed.ok && whole.ok).toBe(true)
+    if (!trimmed.ok || !whole.ok) return
+    expect(trimmed.value.video.durationMs).toBeGreaterThan(800)
+    expect(trimmed.value.video.durationMs).toBeLessThan(1_300)
+    expect(whole.value.video.durationMs).toBeGreaterThan(1_700)
+  }, 120_000)
+
+  it('never lets a range longer than the cap through, whatever the caller built', async () => {
+    const result = await harness.transcoder.transcode(harness.fixtures.long, {
+      ...CONTRACT_SPEC,
+      trim: { startMs: 0, endMs: 5_000 },
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.value.video.durationMs).toBeLessThan(2_300)
+  }, 120_000)
+
   it('keeps nothing but the picture and the sound', async () => {
     // `-map_metadata -1` does not remove streams. An iPhone's `mebx` timed-metadata track
     // carries per-frame gyroscope and sometimes location data, and it is invisible in a

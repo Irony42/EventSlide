@@ -230,6 +230,23 @@ export const it: UiText = {
     clipTooLong: (seconds: number) =>
       `Questo video supera ${t.number(seconds)} secondi. Registri una sequenza più breve.`,
     clipNotAVideo: 'Questo file non è un video.',
+    /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) => `Scelga i ${t.number(seconds)} secondi da tenere`,
+    clipTrimStart: 'Inizio dell’estratto',
+    clipTrimEnd: 'Fine dell’estratto',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} secondi`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Estratto: ${t.number(seconds)} s su ${t.number(maxSeconds)} s al massimo`,
+    clipTrimPlay: 'Riproduci l’estratto',
+    clipTrimPause: 'Pausa',
+    clipTrimNoPreview:
+      'Nessuna anteprima su questo dispositivo. L’estratto verrà comunque tagliato.',
+    clipTrimWholeFileSent:
+      'Viene conservato solo l’estratto scelto. Se questo telefono non riesce a tagliarlo, viene inviato l’intero video e poi tagliato.',
+    clipSendTrimmed: 'Invia questo estratto',
     clipUploading: 'Invio del video…',
     clipQueued: 'In coda…',
     clipRunning: 'Elaborazione del video…',
@@ -567,6 +584,8 @@ export const it: UiText = {
     'clip.durationUnknown': 'La durata di questo video non è leggibile. Ne provi un altro.',
     'clip.tooShort': 'Questo video è troppo corto.',
     'clip.tooLong': 'Questo video è troppo lungo. Registri una sequenza più breve.',
+    'clip.trimInvalid': 'Questo estratto non è valido. Ne scelga un altro.',
+    'clip.trimOutOfRange': 'L’estratto scelto supera la fine del video. Ne scelga un altro.',
     'clip.transcodeFailed': 'Non è stato possibile elaborare questo video. Ne provi un altro.',
     'clip.transcodeTimedOut': 'Questo video è troppo pesante da elaborare. Ne provi un altro.',
     'clip.storageFailed': 'Non è stato possibile salvare questo video. Riprovi.',

@@ -6,6 +6,7 @@ import { Client, type ClientProps } from '../../domain/clients/client'
 import type { ClientRole } from '../../domain/clients/clientRole'
 import { ClientCeilings, type ClientCeilingsProps } from '../../domain/clients/clientCeilings'
 import { ClipJob } from '../../domain/clips/clipJob'
+import { ClipTrim } from '../../domain/clips/clipTrim'
 import { ClipDuration } from '../../domain/clips/clipDuration'
 import type { ClipJobStatus } from '../../domain/clips/clipJobStatus'
 import { Event } from '../../domain/events/event'
@@ -464,6 +465,7 @@ export interface ClipJobInput {
   readonly sourceHash?: string
   readonly sourceByteSize?: number
   readonly caption?: string | null
+  readonly trim?: { readonly startMs: number; readonly endMs: number } | null
   readonly attempts?: number
   readonly createdAt?: Date
   readonly updatedAt?: Date
@@ -484,6 +486,7 @@ export const aClipJob = (input: ClipJobInput = {}): ClipJob => {
   const status = pick(input.status, 'queued')
   const createdAt = pick(input.createdAt, AT)
   const caption = pick(input.caption, null)
+  const trim = pick(input.trim, null)
 
   const created = must(
     ClipJob.create(
@@ -496,6 +499,13 @@ export const aClipJob = (input: ClipJobInput = {}): ClipJob => {
         ),
         sourceByteSize: pick(input.sourceByteSize, 8_000_000),
         caption: caption === null ? null : must(Caption.create(caption), 'aClipJob.caption'),
+        trim:
+          trim === null
+            ? null
+            : must(
+                ClipTrim.create(trim.startMs, trim.endMs, Number.POSITIVE_INFINITY),
+                'aClipJob.trim',
+              ),
       },
       asClipJobId(id),
       asPhotoId(pick(input.photoId, `${id}-photo`)),
