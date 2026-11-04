@@ -804,7 +804,15 @@ part of the release changes.
   list and chooses the mission for the next photograph. No sound, no vibration, no notification; the screen of an event
   with no missions is unchanged and asks nothing more.
 
-## Upgrading to 3.7 (not released yet)
+## Upgrading to 3.7
+
+3.7.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
+`BREAKING` section. It applies **one migration (025)**, adds one runtime dependency (`mp4box`, loaded only
+when a guest trims a video) and changes the look of the mosaic layout. Back up with the version you run now
+([above](#upgrading-with-docker)): the migration only goes forward, and going back is the restore of that
+archive. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker),
+with `vX.Y.Z` as `v3.7.0`; the image is `ghcr.io/irony42/eventslide:3.7.0`. The sections below say what each
+part of the release changes.
 
 ### Trimming a video that is too long (spec 16)
 
@@ -816,3 +824,18 @@ part of the release changes.
   from the start of the file sent), and answers `clip.trimInvalid`, `clip.tooShort` or `clip.tooLong` (`400`) for a
   range that is not valid. A client that sends neither behaves exactly as before; a phone left open across the
   upgrade keeps refusing a video longer than the limit until it is reloaded.
+
+### Guestbook messages in the moderation console (spec 15)
+
+- **No migration, nothing to set in `.env`.** The console gets a Photos | Messages switch (`?vue=messages`), on
+  the desktop and on the phone console. On the event page the guestbook card becomes a summary with a link to
+  the console; the full read-only list stays for an archived event.
+- **`guestbook.changed` reaches both streams**: the public stream the wall reads, and the moderation stream the
+  console reads. It carries no text, only the signal to read again.
+
+### The wall: icon bar, settings drawer, portrait photos and mosaic (spec 17 and two fixes)
+
+- **No migration, nothing to set in `.env`.** The owner's bar and the settings panel on the wall change their look
+  (icon buttons, a drawer with a row of sections); the keys (`R`, `Espace`, `F`) and the settings do not change.
+- **The mosaic layout changes**: six equal cells, and the 2x2 hero tile is gone. A photo keeps the whole picture
+  when cropping it to the cell would hide more than 30 % of it. A full screen portrait photo is no longer cropped.
