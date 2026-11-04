@@ -971,5 +971,14 @@ describe('getWallPlaylist and the mission panel', () => {
       expect(result.ok && result.value.souvenirCount).toBe(1)
       expect(result.ok && result.value.newPhotoSignal).toBe(true)
     })
+
+    it('is also computed when only the arrival sound is on, which needs it for the same guard (spec 12)', async () => {
+      events.seed(anEvent({ id: 'event-1', settings: { wall: { soundEnabled: true } } }))
+      photos.seed(aPhoto({ id: 'p-1', eventId: 'event-1', status: 'published', createdAt: AT }))
+
+      const result = await ask()
+
+      expect(result.ok && result.value.souvenirCount).toBe(1)
+    })
   })
 })

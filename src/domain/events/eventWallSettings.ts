@@ -79,7 +79,7 @@ export interface EventWallSettings {
  * arrival sound of spec 12, which adds its own switch here). Off for every switch: no query.
  */
 export const wallNeedsSouvenirCount = (wall: EventWallSettings): boolean =>
-  wall.souvenirCounter || wall.newPhotoSignal
+  wall.souvenirCounter || wall.newPhotoSignal || wall.soundEnabled
 
 export type EventWallSettingsPatch = Partial<EventWallSettings>
 

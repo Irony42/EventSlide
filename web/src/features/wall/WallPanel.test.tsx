@@ -250,6 +250,27 @@ describe('what the panel writes', () => {
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', { guestbookOnWall: false })
   })
 
+  it('writes the sound keys alone, and shows this screen as muted until it is activated (spec 12)', async () => {
+    const api = renderWall({
+      getEvent: vi.fn(async () => asOwner()),
+      wall: vi.fn(async () =>
+        aWallResponse({
+          items: [aWallItem()],
+          sound: { enabled: true, tone: 'chime', volume: 50 },
+        }),
+      ),
+    })
+    await open()
+
+    expect(screen.getByText(fr.wall.panel.soundScreenOff)).toBeVisible()
+    await userEvent.click(screen.getByRole('radio', { name: fr.admin.wallSound.toneNames.bell }))
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { soundTone: 'bell' },
+    })
+  })
+
   it('writes the ambiance with the other theme choices, and links to the custom one', async () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
