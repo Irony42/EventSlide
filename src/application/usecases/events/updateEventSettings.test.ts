@@ -79,9 +79,12 @@ describe('updateEventSettings', () => {
     expect(result.ok && result.value.settings.wall).toEqual({
       layout: 'mosaic',
       slideIntervalMs: 12_000,
+      qrVisible: true,
+      freshLane: true,
+      tilt: true,
+      showTime: false,
       souvenirCounter: false,
       newPhotoSignal: false,
-      qrVisible: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',
       soundEnabled: false,

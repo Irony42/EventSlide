@@ -7,6 +7,7 @@ import {
   effectiveQrScale,
   isWallQrPlacement,
   isWallQrScale,
+  qrModuleCount,
   smallScaleFloor,
 } from './wallJoinCard'
 
@@ -47,5 +48,26 @@ describe('the wall invitation card (spec 14)', () => {
     expect(effectiveQrScale(0.8, 37)).toBeCloseTo(0.9675, 4)
     expect(effectiveQrScale(1.2, 37)).toBe(1.2)
     expect(effectiveQrScale(1, 29)).toBe(1)
+  })
+})
+
+describe('the module count of a link (spec 14)', () => {
+  it.each([
+    [1, 21],
+    [14, 21],
+    [15, 25],
+    [34, 29],
+    [42, 29],
+    [43, 33],
+    [50, 33],
+    [62, 33],
+    [63, 37],
+    [84, 37],
+    [85, 41],
+    [106, 41],
+    [107, 45],
+    [500, 45],
+  ])('%i bytes need %i modules', (bytes, modules) => {
+    expect(qrModuleCount(bytes)).toBe(modules)
   })
 })

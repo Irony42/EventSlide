@@ -872,6 +872,36 @@ export const it: UiText = {
       clothesline: 'Filo del bucato',
     },
     layoutOrder: (names: readonly string[]) => `Disposizioni, in ordine: ${names.join(', ')}.`,
+
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Impostazioni',
+      pause: 'Pausa',
+      resume: 'Riprendi',
+      fullscreen: 'Schermo intero',
+      barLabel: 'Comandi del muro',
+      panelLabel: 'Impostazioni del muro',
+      title: 'Impostazioni',
+      close: 'Chiudi le impostazioni',
+      sectionDisplay: 'Visualizzazione',
+      sectionAmbiance: 'Ambiente',
+      forAll: 'Per tutti gli schermi',
+      thisScreen: 'Solo questo schermo',
+      thisScreenHint:
+        'Questi comandi cambiano solo questo schermo e si perdono al ricaricamento della pagina.',
+      screenLayout: (name: string) => `Disposizione di questo schermo: ${name} (tasto L)`,
+      screenShows: (name: string) => `Questo schermo mostra ${name} (tasto L)`,
+      backToEvent: 'Torna all’impostazione dell’evento',
+      hideQr: 'Nascondi la scheda QR',
+      showQr: 'Mostra la scheda QR',
+      saving: 'Salvataggio…',
+      saved: 'Salvato',
+      saveFailed: 'Impossibile salvare, riprova',
+      sessionExpired: 'La sessione è scaduta. Accedi di nuovo per impostare il muro.',
+      signIn: 'Accedi',
+      signInToSet: 'Accedi per impostare questo muro',
+      openHint: 'R apre le impostazioni del muro.',
+    },
     videoBy: (name: string) => `Video inviato da ${name}`,
     videoByAnonymous: 'Video inviato da un invitato',
 
@@ -1021,6 +1051,14 @@ export const it: UiText = {
       intervalHint: 'Per quanto tempo ogni foto resta sullo schermo.',
       intervalDefault: 'Predefinito (una foto ogni 8 s)',
       intervalSeconds: (n: number) => `Una foto ogni ${n} s`,
+      freshLane: 'Foto nuove per prime',
+      freshLaneHint:
+        'Una foto pubblicata prende la diapositiva successiva, al massimo tre di fila.',
+      tilt: 'Foto leggermente inclinate',
+      tiltHint: 'Polaroid e filo del bucato: un angolo fisso di pochi gradi.',
+      showTime: 'Ora di invio sotto la foto',
+      showTimeHint:
+        'L’ora in cui la foto è stata inviata, secondo l’orologio dello schermo della sala.',
       // Spec 11.
       onScreen: 'Sullo schermo',
       souvenirCounter: 'Mostra il contatore dei ricordi',

@@ -15,7 +15,7 @@ export function NewPhotoSignal({ bubble }: NewPhotoSignalProps) {
   const text = useTranslations()
 
   return (
-    <div className={styles['region']} aria-live="polite">
+    <div className={styles['region']} aria-live="polite" data-testid="new-photo-signal-region">
       {bubble === null ? null : (
         <p className={styles['signal']} data-testid="new-photo-signal">
           <span className={styles['dot']} aria-hidden="true" />

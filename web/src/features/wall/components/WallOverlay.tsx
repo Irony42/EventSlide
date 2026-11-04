@@ -1,3 +1,4 @@
+import { cx } from '../../../design-system/classNames'
 import { Card } from '../../../design-system/components/Card'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
 import { IconButton } from '../../../design-system/components/IconButton'
@@ -10,6 +11,13 @@ export interface WallOverlayProps {
   /** The code and its link, both from the wall response — see {@link WallEmptyStateProps}. */
   readonly join: { readonly code: string; readonly url: string }
   readonly onDismiss: () => void
+  /**
+   * The corner the host chose (spec 14). Absent is the bottom end, the card as it always was. A
+   * top corner is laid out by the column that stacks it above the occupants of that corner.
+   */
+  readonly placement?: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  /** Taken out of the corner and into the flow of the column that stacks it. */
+  readonly stacked?: boolean
 }
 
 /**
@@ -27,12 +35,24 @@ export interface WallOverlayProps {
  * since from ten metres a guest needs the verb. Under the code, the address to type it at
  * is for the phone that cannot read the QR (MUR-7).
  */
-export function WallOverlay({ join, onDismiss }: WallOverlayProps) {
+export function WallOverlay({
+  join,
+  onDismiss,
+  placement = 'bottom-end',
+  stacked = false,
+}: WallOverlayProps) {
   const text = useTranslations()
   const host = joinHost(join.url)
 
   return (
-    <Card className={styles['overlay']}>
+    <Card
+      className={cx(
+        styles['overlay'],
+        placement === 'bottom-start' && styles['bottomStart'],
+        stacked && styles['stacked'],
+      )}
+      data-placement={placement === 'bottom-end' ? undefined : placement}
+    >
       <div className={styles['header']}>
         <h2 className={styles['prompt']}>{text.wall.sendPrompt}</h2>
         <IconButton

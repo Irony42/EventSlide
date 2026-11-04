@@ -15,6 +15,11 @@ export interface WallShortcuts {
   readonly onDismiss: () => void
   /** `Q`: put the corner QR away, or bring it back. */
   readonly onToggleQr: () => void
+  /**
+   * `R`: open the settings panel (spec 13). **Absent unless this browser holds the owner's session**,
+   * and then the key does nothing at all: it is not a hidden feature a guest could stumble on.
+   */
+  readonly onOpenPanel?: (() => void) | undefined
   /** `S` (spec 12): this screen carries the speakers. A key press is the gesture a browser wants. */
   readonly onActivateSound?: () => void
 }
@@ -92,6 +97,11 @@ export const useWallKeyboard = (shortcuts: WallShortcuts): void => {
         case 'q':
           event.preventDefault()
           handlers.onToggleQr()
+          return
+        case 'r':
+          if (handlers.onOpenPanel === undefined) return
+          event.preventDefault()
+          handlers.onOpenPanel()
           return
         case 's':
           event.preventDefault()

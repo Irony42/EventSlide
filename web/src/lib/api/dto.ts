@@ -300,6 +300,10 @@ export interface WallResponse {
   readonly souvenirCount?: number | null
   readonly souvenirCounter?: boolean
   readonly newPhotoSignal?: boolean
+  /** Optional: an older server sends none, and the wall then behaves as before (true). */
+  readonly freshLane?: boolean
+  readonly tilt?: boolean
+  readonly showTime?: boolean
   /**
    * The invitation card (spec 14): shown on a populated wall, its scale (0.8 to 1.5, 1 = as it
    * always was) and corner. Optional: an older server sends none and the wall takes the defaults.
@@ -628,6 +632,9 @@ export interface EventSettingsDto {
     readonly slideIntervalMs: number | null
     readonly souvenirCounter: boolean
     readonly newPhotoSignal: boolean
+    readonly freshLane: boolean
+    readonly tilt: boolean
+    readonly showTime: boolean
     readonly qrVisible: boolean
     readonly qrScale: number
     readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'

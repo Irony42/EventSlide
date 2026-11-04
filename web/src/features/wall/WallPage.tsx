@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import type { WallResponse } from '../../lib/api/dto'
-import { useParams } from 'react-router-dom'
 import { wallBudgetProps } from '../../design-system/budget'
 import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
@@ -18,8 +18,10 @@ import { parseLocale } from '../../lib/i18n/locale'
 import { messageForCode } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AMBIANCE_LAYOUT } from './ambianceLayout'
+import { joinCardScale } from './joinCardScale'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
+import { WallControls } from './components/WallControls'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMessage } from './components/WallMessage'
 import { NewPhotoSignal } from './components/NewPhotoSignal'
@@ -36,6 +38,7 @@ import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useWallGuestbook } from './hooks/useWallGuestbook'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
+import { useWallOwner } from './hooks/useWallOwner'
 import { useWakeLock } from './hooks/useWakeLock'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
 import { useWallPlaylist } from './hooks/useWallPlaylist'
@@ -48,6 +51,8 @@ import styles from './WallPage.module.css'
  * a hiding that outlived the host's attention would cost them their evening, so it undoes
  * itself (MUR-5).
  */
+const DEFAULT_JOIN_CARD = { visible: true, scale: 1, placement: 'bottom-end' } as const
+
 export const QR_HIDDEN_MS = 10 * 60_000
 
 /** One frozen array, so an empty playlist keeps a stable identity between renders. */
@@ -169,6 +174,15 @@ export function WallPage() {
   const outage = useOutageStage(offline && readFailing)
   const awake = useWakeLock()
   const cursorIdle = useIdleCursor()
+  /**
+   * The owner's session, if this browser has one (spec 13). Asked once, after the wall has
+   * something to show, and `null` for everybody else: the controls and the panel exist only
+   * for the owner, and the `R` key does nothing without it.
+   */
+  const owner = useWallOwner(eventSlug, wall !== null)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const panelOpener = useRef<HTMLButtonElement>(null)
+  const closePanel = useCallback(() => setPanelOpen(false), [])
 
   /**
    * The language the room is in, told to the shell above this page. It is the **event's**,
@@ -202,6 +216,7 @@ export function WallPage() {
     intervalMs: wall?.slideIntervalMs ?? 0,
     loaded: wall !== null,
     hold: cardUp,
+    freshLane: wall?.freshLane !== false,
   })
   const { message: guestbookMessage } = useWallGuestbook(wall?.guestbook, slideshow.generation)
   // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
@@ -267,8 +282,24 @@ export function WallPage() {
   const ambianceLayout = eventTheme === null ? null : AMBIANCE_LAYOUT[eventTheme.ambiance]
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
-  const showsOverlay = invitation !== null && !qrHidden && items.length > 0
-  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.soundShortcutHint} ${text.wall.leaveHint}`
+  /**
+   * The host's card settings (spec 14); an older server sends none, and the defaults are the card
+   * as it always was. `visible` false is the host's permanent switch: no card on a populated
+   * wall, and `Q` has nothing to flip. The empty wall's large invitation ignores it (it is not
+   * this card).
+   */
+  const joinCard = wall?.joinCard ?? DEFAULT_JOIN_CARD
+  const cardEnabled = invitation !== null && joinCard.visible && items.length > 0
+  const showsOverlay = cardEnabled && !qrHidden
+  /** The scale drawn: the host's, lifted to the readability floor of this very link. */
+  const cardScale = invitation === null ? 1 : joinCardScale(joinCard.scale, invitation.url)
+  const placement = joinCard.placement
+  const stackStart = cardEnabled && placement === 'top-start'
+  const stackEnd = cardEnabled && placement === 'top-end'
+  // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
+  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.soundShortcutHint} ${text.wall.leaveHint}${
+    owner === null ? '' : ` ${text.wall.panel.openHint}`
+  }`
 
   /**
    * What the room is looking at, named on the wall element itself.
@@ -278,7 +309,28 @@ export function WallPage() {
    * showing" — and that is the question a second projector is compared on, and the one a
    * wall that quietly fell back to the spotlight answers wrongly.
    */
-  const layout = layoutOverride ?? urlLayout ?? ambianceLayout ?? serverLayout ?? null
+  // The event's own choice (spec 13) sits between the screen's URL and the ambiance's suggestion.
+  const eventLayout = wall?.layoutChosen === true ? serverLayout : undefined
+  const layout =
+    layoutOverride ?? urlLayout ?? eventLayout ?? ambianceLayout ?? serverLayout ?? null
+
+  /** One region for the whole concern, mounted once. Stacked under the card when it is top-end. */
+  const noticesRegion = (
+    <div className={cx(styles['notices'], stackEnd && styles['noticesStacked'])} aria-live="polite">
+      {/*
+        A lost connection is not announced to the room (MUR-9). Nothing for a minute, then a
+        dot with no words, and the sentence only once it has lasted for minutes. The dot
+        still carries its text, visually hidden, for the laptop a host sets up from.
+      */}
+      {outage === 'dot' ? (
+        <span className={styles['outageDot']} role="status" data-testid="wall-outage-dot">
+          <VisuallyHidden>{text.wall.offline}</VisuallyHidden>
+        </span>
+      ) : null}
+      {outage === 'text' ? <WallNotice tone="warning" text={text.wall.offline} /> : null}
+      {slideshow.paused ? <WallNotice tone="accent" text={text.wall.paused} /> : null}
+    </div>
+  )
 
   useWallKeyboard({
     onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
@@ -286,19 +338,23 @@ export function WallPage() {
     onToggleFullscreen: toggleFullscreen,
     onCycleLayout: () =>
       setLayoutOverride((current) =>
-        nextLayout(current ?? urlLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight'),
+        nextLayout(
+          current ?? urlLayout ?? eventLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight',
+        ),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
     onActivateSound: () => {
       if (wallSound.enabled) wallSound.activate()
     },
-    // Escape closes the help and nothing else; leaving fullscreen is the browser's own.
-    onDismiss: closeHelp,
+    // Escape closes the panel, then the help, and nothing else: it never hides the QR (MUR-5), and
+    // leaving fullscreen is the browser's own.
+    onDismiss: () => (panelOpen ? closePanel() : closeHelp()),
+    onOpenPanel: owner === null ? undefined : () => setPanelOpen(true),
     onToggleQr: () => {
       // Nothing to put away on a closed event, with no invitation from the server, or on the
       // empty wall (whose full-screen invitation this key does not touch): flipping the flag
       // then would hide the corner card at some later moment for no reason.
-      if (invitation !== null && items.length > 0) setQrHidden((hidden) => !hidden)
+      if (cardEnabled) setQrHidden((hidden) => !hidden)
     },
   })
 
@@ -336,6 +392,13 @@ export function WallPage() {
   return (
     <div
       {...theme}
+      // Only a scale other than 1 is spread: a wall nobody touched renders the DOM it always did.
+      // Beside the theme's own inline custom properties, never instead of them.
+      style={
+        cardScale === 1
+          ? theme.style
+          : ({ ...theme.style, '--wall-join-scale': cardScale } as CSSProperties)
+      }
       // What this machine has turned out not to be able to afford — roadmap 11.3.
       //
       // Every rung is a verdict taken here, on the night, by the wall watching its own frames: `budget.ts` holds the order and
@@ -351,25 +414,14 @@ export function WallPage() {
       // The card is chrome and the caption is the guest's words, so the card is what the
       // wall reserves around rather than what it prints over.
       data-wall-chrome={showsOverlay ? 'corner' : undefined}
+      // Which corner, only when it is not the bottom end the wall always used (spec 14): the
+      // reservation follows the side, the caption makes way for a bottom-start card.
+      data-wall-join-corner={showsOverlay && placement !== 'bottom-end' ? placement : undefined}
       // The arrow is taken off the photo after a few idle seconds (MUR-2), and is back at the
       // first movement. An attribute, so the rule that hides it is one selector in CSS.
       data-idle={cursorIdle ? 'true' : undefined}
     >
-      {/* One region for the whole concern, mounted once — never one per notice. */}
-      <div className={styles['notices']} aria-live="polite">
-        {/*
-          A lost connection is not announced to the room (MUR-9). Nothing for a minute, then a
-          dot with no words, and the sentence only once it has lasted for minutes. The dot
-          still carries its text, visually hidden, for the laptop a host sets up from.
-        */}
-        {outage === 'dot' ? (
-          <span className={styles['outageDot']} role="status" data-testid="wall-outage-dot">
-            <VisuallyHidden>{text.wall.offline}</VisuallyHidden>
-          </span>
-        ) : null}
-        {outage === 'text' ? <WallNotice tone="warning" text={text.wall.offline} /> : null}
-        {slideshow.paused ? <WallNotice tone="accent" text={text.wall.paused} /> : null}
-      </div>
+      {stackEnd ? null : noticesRegion}
 
       {wall === null ? (
         <div className={styles['centre']}>
@@ -424,10 +476,12 @@ export function WallPage() {
           slideshow={slideshow}
           kenBurnsDurationMs={wall.kenBurnsDurationMs}
           transitionMs={transitionMs}
+          tilt={wall.tilt !== false}
+          showTime={wall.showTime === true}
         />
       )}
 
-      {showsMissions ? <WallMissions missions={missions} /> : null}
+      {showsMissions && !stackStart ? <WallMissions missions={missions} /> : null}
 
       {/* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */}
       {wall?.souvenirCounter === true && typeof wall.souvenirCount === 'number' ? (
@@ -447,11 +501,71 @@ export function WallPage() {
         onActivate={wallSound.activate}
       />
 
-      {showsOverlay && invitation !== null ? (
-        <WallOverlay join={invitation} onDismiss={() => setQrHidden(true)} />
+      {showsOverlay && invitation !== null && !stackStart && !stackEnd ? (
+        <WallOverlay join={invitation} placement={placement} onDismiss={() => setQrHidden(true)} />
+      ) : null}
+      {stackStart ? (
+        <div className={cx(styles['cornerStack'], styles['cornerStart'])}>
+          {showsOverlay && invitation !== null ? (
+            <WallOverlay
+              join={invitation}
+              placement={placement}
+              stacked
+              onDismiss={() => setQrHidden(true)}
+            />
+          ) : null}
+          {showsMissions ? <WallMissions missions={missions} stacked /> : null}
+        </div>
+      ) : null}
+      {stackEnd ? (
+        <div className={cx(styles['cornerStack'], styles['cornerEnd'])}>
+          {showsOverlay && invitation !== null ? (
+            <WallOverlay
+              join={invitation}
+              placement={placement}
+              stacked
+              onDismiss={() => setQrHidden(true)}
+            />
+          ) : null}
+          {noticesRegion}
+        </div>
       ) : null}
 
       <ReactionBurst pulse={reactionPulse} />
+
+      {owner === null || wall === null ? null : (
+        <WallControls
+          slug={eventSlug}
+          owner={owner}
+          active={!cursorIdle}
+          panelOpen={panelOpen}
+          onOpenPanel={() => setPanelOpen(true)}
+          onClosePanel={closePanel}
+          openerRef={panelOpener}
+          screen={{
+            paused: slideshow.paused,
+            onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
+            onToggleFullscreen: toggleFullscreen,
+            layoutName: text.wall.layoutNames[layout ?? wall.layout],
+            onCycleLayout: () =>
+              setLayoutOverride((current) =>
+                nextLayout(
+                  current ??
+                    urlLayout ??
+                    eventLayout ??
+                    ambianceLayout ??
+                    serverLayout ??
+                    'spotlight',
+                ),
+              ),
+            localLayout:
+              layoutOverride === null ? null : { onReset: () => setLayoutOverride(null) },
+            qr: cardEnabled
+              ? { hidden: qrHidden, onToggle: () => setQrHidden((hidden) => !hidden) }
+              : null,
+          }}
+        />
+      )}
 
       <Dialog
         open={helpOpen}
@@ -464,7 +578,14 @@ export function WallPage() {
         // own computer is then the one thing left that can turn the projector off.
         description={awake ? shortcutsHelp : `${shortcutsHelp} ${text.wall.keepAwakeHint}`}
         onClose={closeHelp}
-      />
+      >
+        {/* The way in for a projector nobody is signed in on: in the help only, never a floating button. */}
+        {owner === null ? (
+          <Link to="/login" state={{ from: `/e/${encodeURIComponent(eventSlug)}/display` }}>
+            {text.wall.panel.signInToSet}
+          </Link>
+        ) : null}
+      </Dialog>
     </div>
   )
 }

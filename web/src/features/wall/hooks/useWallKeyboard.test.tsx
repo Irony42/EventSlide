@@ -15,7 +15,7 @@ import { useWallKeyboard } from './useWallKeyboard'
  * The probe renders what the wall was asked to do, so every assertion is about the
  * hook's output rather than about a spy.
  */
-function Probe() {
+function Probe({ withPanel = false }: { readonly withPanel?: boolean }) {
   const [done, setDone] = useState<readonly string[]>([])
   const record = (action: string) => setDone((previous) => [...previous, action])
 
@@ -27,6 +27,7 @@ function Probe() {
     onToggleHelp: () => record('aide'),
     onDismiss: () => record('fermer'),
     onToggleQr: () => record('qr'),
+    ...(withPanel ? { onOpenPanel: () => record('réglages') } : {}),
     onActivateSound: () => record('son'),
   })
 
@@ -64,6 +65,17 @@ describe('useWallKeyboard', () => {
     await userEvent.keyboard(key)
 
     expect(asked()).toHaveTextContent(`demandé ${action}`)
+  })
+
+  it('opens the panel with R only when the wall was given one, and ignores R otherwise', async () => {
+    const { unmount } = render(<Probe withPanel />)
+    await userEvent.keyboard('r')
+    expect(asked()).toHaveTextContent('demandé réglages')
+    unmount()
+
+    render(<Probe />)
+    await userEvent.keyboard('r')
+    expect(asked()).toHaveTextContent('demandé rien')
   })
 
   it('leaves a browser or system shortcut to the browser', async () => {

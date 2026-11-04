@@ -884,6 +884,36 @@ export const fr = {
     // In the shortcuts panel, only when the browser could not keep the screen awake itself.
     keepAwakeHint: 'Désactivez la mise en veille de cet ordinateur.',
 
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Réglages',
+      pause: 'Pause',
+      resume: 'Reprendre',
+      fullscreen: 'Plein écran',
+      barLabel: 'Commandes du mur',
+      panelLabel: 'Réglages du mur',
+      title: 'Réglages',
+      close: 'Fermer les réglages',
+      sectionDisplay: 'Affichage',
+      sectionAmbiance: 'Ambiance',
+      forAll: 'Pour tous les écrans',
+      thisScreen: 'Cet écran seulement',
+      thisScreenHint:
+        'Ces commandes ne changent que cet écran et sont perdues au rechargement de la page.',
+      screenLayout: (name: string) => `Mise en page de cet écran : ${name} (touche L)`,
+      screenShows: (name: string) => `Cet écran affiche ${name} (touche L)`,
+      backToEvent: 'Revenir au réglage de l’évènement',
+      hideQr: 'Masquer la carte QR',
+      showQr: 'Montrer la carte QR',
+      saving: 'Enregistrement…',
+      saved: 'Enregistré',
+      saveFailed: 'Impossible d’enregistrer, réessayez',
+      sessionExpired: 'Votre session a expiré. Reconnectez-vous pour régler le mur.',
+      signIn: 'Se connecter',
+      signInToSet: 'Se connecter pour régler ce mur',
+      openHint: 'R ouvre les réglages du mur.',
+    },
+
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**
      * The dispositions, named for the one person who ever reads them: the host standing
@@ -1123,6 +1153,13 @@ export const fr = {
       intervalHint: 'Le temps pendant lequel chaque photo reste à l’écran.',
       intervalDefault: 'Par défaut (une photo toutes les 8 s)',
       intervalSeconds: (n: number) => `Une photo toutes les ${n} s`,
+      freshLane: 'Nouvelles photos en priorité',
+      freshLaneHint: 'Une photo publiée prend la diapositive suivante, trois de suite au plus.',
+      tilt: 'Photos légèrement inclinées',
+      tiltHint: 'Polaroïds et corde à linge : un angle fixe de quelques degrés.',
+      showTime: 'Heure d’envoi sous la photo',
+      showTimeHint:
+        'L’heure à laquelle la photo a été envoyée, selon l’horloge de l’écran de la salle.',
       // Spec 11.
       onScreen: 'À l’écran',
       souvenirCounter: 'Afficher le compteur de souvenirs',

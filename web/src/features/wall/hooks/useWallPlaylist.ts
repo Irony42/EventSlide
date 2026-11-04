@@ -201,6 +201,10 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.souvenirCount === fresh.souvenirCount &&
   kept.souvenirCounter === fresh.souvenirCounter &&
   kept.newPhotoSignal === fresh.newPhotoSignal &&
+  // Fresh photos first and tilted prints (spec 13): display choices that move no photograph.
+  kept.freshLane === fresh.freshLane &&
+  kept.tilt === fresh.tilt &&
+  kept.showTime === fresh.showTime &&
   // The invitation card (spec 14): a size or a corner changed mid-evening moves no photograph.
   kept.joinCard?.visible === fresh.joinCard?.visible &&
   kept.joinCard?.scale === fresh.joinCard?.scale &&
