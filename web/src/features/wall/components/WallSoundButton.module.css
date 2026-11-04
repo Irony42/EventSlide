@@ -21,11 +21,6 @@
   animation: button-in var(--duration-base) var(--ease-out) both;
 }
 
-.button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
 .icon {
   inline-size: var(--space-6);
   block-size: var(--space-6);
@@ -38,4 +33,9 @@
   to {
     opacity: 1;
   }
+}
+
+/* The bottom rung of the frame budget: it appears at rest instead of fading in. */
+[data-wall-budget='cut'] .button {
+  animation-duration: 0s;
 }

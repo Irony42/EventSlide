@@ -813,6 +813,8 @@ describe('the wall reads from the back of the room, over any photograph', () => 
       'features/wall/components/SouvenirCounter.module.css',
       // The timed challenge's banner, top centre (spec 10), over the photograph.
       'features/wall/components/WallChallenge.module.css',
+      // The muted-speaker icon, bottom start (spec 12), over the photograph.
+      'features/wall/components/WallSoundButton.module.css',
     ])
   })
 
