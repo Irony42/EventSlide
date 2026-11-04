@@ -851,6 +851,9 @@ export const it: UiText = {
       'Spazio mette in pausa, le frecce cambiano foto, F passa a schermo intero, L cambia la disposizione, Q nasconde o mostra il codice QR.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Per uscire: Esc o F escono dallo schermo intero, poi chiuda la scheda.',
+    /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
+    soundActivate: 'Attiva il suono su questo schermo',
+    soundShortcutHint: 'S attiva il suono su questo schermo, se è attivo nelle impostazioni.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `Prima foto di ${name}`,
 
