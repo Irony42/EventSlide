@@ -797,6 +797,45 @@ describe('SqliteEventRepository', () => {
       )
     })
 
+    it('reads a blob with no wall group as today’s behaviour, and a bad one without failing (spec 13)', async () => {
+      await repo.save(anEvent({ id: 'evt-1' }))
+      db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
+        json({ wall: undefined }),
+        'evt-1',
+      )
+      expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
+        layout: null,
+        slideIntervalMs: null,
+        qrVisible: true,
+        freshLane: true,
+        tilt: true,
+        showTime: false,
+        souvenirCounter: false,
+        newPhotoSignal: false,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
+      })
+
+      db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
+        json({
+          wall: { layout: 'carousel', slideIntervalMs: 'fast', qrScale: 9, qrPlacement: 'x' },
+        }),
+        'evt-1',
+      )
+      expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
+        layout: null,
+        slideIntervalMs: null,
+        qrVisible: true,
+        freshLane: true,
+        tilt: true,
+        showTime: false,
+        souvenirCounter: false,
+        newPhotoSignal: false,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
+      })
+    })
+
     it('keeps a wall language the host did choose', async () => {
       await repo.save(anEvent({ id: 'evt-1' }))
       db.prepare(`UPDATE events SET settings = ? WHERE id = ?`).run(

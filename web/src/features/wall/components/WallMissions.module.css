@@ -20,6 +20,12 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* Under the invitation card in the top-left column (spec 14), in the flow rather than at the edge. */
+.panel.stacked {
+  position: static;
+  inset: auto;
+}
+
 .title {
   font-size: var(--text-xl);
   line-height: var(--leading-tight);

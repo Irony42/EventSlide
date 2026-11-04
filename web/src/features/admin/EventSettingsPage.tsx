@@ -13,6 +13,7 @@ import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
+import { WALL_UNSET, wallLayoutOptions, wallRhythmOptions } from './wallDisplayOptions'
 import { VenuePhotoField } from './components/VenuePhotoField'
 import { LogoField } from './components/LogoField'
 import { WelcomeMessageField } from './components/WelcomeMessageField'
@@ -26,7 +27,7 @@ import { useEvent } from './hooks/useEventData'
 import { useSaveSchedule, useSaveSettings } from './hooks/useEventActions'
 import { useRevalidateWhenVisible } from './hooks/useRevalidateWhenVisible'
 import styles from './EventSettingsPage.module.css'
-import type { EventDto, EventSettingsDto } from '../../lib/api/dto'
+import type { EventDto, EventSettingsDto, WallLayout } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
 
 /** `null` in the DTO means "no limit"; the select uses the empty option for it. */
@@ -126,6 +127,14 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     // reason: a host who changed only this would otherwise have their unsaved choice
     // survive a background refresh that moved it underneath them.
     settings.wallLanguage,
+    // The wall group (spec 13), for the same reason.
+    settings.wall.layout ?? '',
+    settings.wall.slideIntervalMs ?? '',
+    settings.wall.souvenirCounter,
+    settings.wall.newPhotoSignal,
+    settings.wall.freshLane,
+    settings.wall.tilt,
+    settings.wall.showTime,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -237,7 +246,7 @@ export function EventSettingsPage() {
     submitEvent.preventDefault()
     setFailure(null)
 
-    void save.run('save', slug, toSettingsPatch(settings)).then((result) => {
+    void save.run('save', slug, toSettingsPatch(settings, event.settings)).then((result) => {
       if (!result.ok) {
         setFailure(result.message)
         return
@@ -474,6 +483,86 @@ export function EventSettingsPage() {
           disabled={readOnly}
           onChange={(theme) => update({ theme })}
         />
+
+        {/*
+          The wall's behaviour for every screen of the event (spec 13). One block named
+          "Affichage du mur", and what it saves is the event's: the panel on the projected wall
+          writes the same group, so the page sends only the keys it changed (settingsPayload).
+        */}
+        <fieldset className={styles['group']}>
+          <legend className={styles['legend']}>{t.admin.wallDisplay.title}</legend>
+          <p className={styles['sectionHint']}>{t.admin.wallDisplay.hint}</p>
+          <SelectField
+            label={t.admin.wallDisplay.layout}
+            hint={t.admin.wallDisplay.layoutHint}
+            value={settings.wall.layout ?? WALL_UNSET}
+            options={wallLayoutOptions(t)}
+            disabled={readOnly}
+            onChange={(value) =>
+              update({
+                wall: {
+                  ...settings.wall,
+                  layout: wallLayoutOptions(t).some(
+                    (o) => o.value === value && value !== WALL_UNSET,
+                  )
+                    ? (value as WallLayout)
+                    : null,
+                },
+              })
+            }
+          />
+          <SelectField
+            label={t.admin.wallDisplay.interval}
+            hint={t.admin.wallDisplay.intervalHint}
+            value={
+              settings.wall.slideIntervalMs === null
+                ? WALL_UNSET
+                : String(settings.wall.slideIntervalMs)
+            }
+            options={wallRhythmOptions(t, settings.wall.slideIntervalMs)}
+            disabled={readOnly}
+            onChange={(value) =>
+              update({ wall: { ...settings.wall, slideIntervalMs: numberOrNull(value) } })
+            }
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.freshLane}
+            hint={t.admin.wallDisplay.freshLaneHint}
+            checked={settings.wall.freshLane}
+            disabled={readOnly}
+            onChange={(freshLane) => update({ wall: { ...settings.wall, freshLane } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.tilt}
+            hint={t.admin.wallDisplay.tiltHint}
+            checked={settings.wall.tilt}
+            disabled={readOnly}
+            onChange={(tilt) => update({ wall: { ...settings.wall, tilt } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.showTime}
+            hint={t.admin.wallDisplay.showTimeHint}
+            checked={settings.wall.showTime}
+            disabled={readOnly}
+            onChange={(showTime) => update({ wall: { ...settings.wall, showTime } })}
+          />
+          {/* Spec 11: « À l'écran ». Both off until the host asks. */}
+          <p className={styles['sectionHint']}>{t.admin.wallDisplay.onScreen}</p>
+          <CheckboxField
+            label={t.admin.wallDisplay.souvenirCounter}
+            hint={t.admin.wallDisplay.souvenirCounterHint}
+            checked={settings.wall.souvenirCounter}
+            disabled={readOnly}
+            onChange={(souvenirCounter) => update({ wall: { ...settings.wall, souvenirCounter } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.newPhotoSignal}
+            hint={t.admin.wallDisplay.newPhotoSignalHint}
+            checked={settings.wall.newPhotoSignal}
+            disabled={readOnly}
+            onChange={(newPhotoSignal) => update({ wall: { ...settings.wall, newPhotoSignal } })}
+          />
+        </fieldset>
 
         {/*
           The host's own photograph of the venue (ADR 0010, decision 8a): every ambiance paints a

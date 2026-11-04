@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { CLIENT_LOCALES, DEFAULT_CLIENT_LOCALE } from '../../../domain/clients/clientLocale'
 import { BOOK_LAYOUTS } from '../../../domain/book/bookLayout'
+import { WALL_QR_PLACEMENTS } from '../../../domain/events/wallJoinCard'
+import { WALL_LAYOUTS } from '../../../domain/slideshow/wallLayout'
 import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
 import { EVENT_STATUSES } from '../../../domain/events/eventStatus'
@@ -490,6 +492,27 @@ export const updateSettingsBody = z.strictObject({
    * wide on purpose: the real rule (280 characters, 4 lines) is the domain's, and answers with its own codes.
    */
   welcomeMessage: z.string().max(2_000).nullable().optional(),
+  /**
+   * How the wall behaves for every screen (spec 13). Partial and strict: only the keys sent are
+   * written, merged field by field into the stored group, so the wall's panel and the settings
+   * page (each sending only what it changed) cannot erase each other. A key outside the group is
+   * a 400. The interval's bounds are `SlideInterval`'s (`slideInterval.tooShort` / `tooLong`).
+   */
+  wall: z
+    .strictObject({
+      layout: z.enum(WALL_LAYOUTS).nullable().optional(),
+      slideIntervalMs: z.number().int().nullable().optional(),
+      souvenirCounter: z.boolean().optional(),
+      newPhotoSignal: z.boolean().optional(),
+      freshLane: z.boolean().optional(),
+      tilt: z.boolean().optional(),
+      showTime: z.boolean().optional(),
+      // Spec 14. The scale's range and grid are the domain's (`eventSettings.wallQrScaleInvalid`).
+      qrVisible: z.boolean().optional(),
+      qrScale: z.number().optional(),
+      qrPlacement: z.enum(WALL_QR_PLACEMENTS).optional(),
+    })
+    .optional(),
   /**
    * **Read and ignored.** `GET` answers the brand in `settings`, so a tab that sends settings back
    * as it received them must not get a 400. The route never forwards it: it cannot set a logo.

@@ -788,6 +788,18 @@ export const en: UiText = {
     offline: 'New photos waiting for the network',
     paused: 'Slideshow paused',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} memory shared`,
+        other: `${t.number(count)} memories shared`,
+      }),
+    arrivalPhoto: 'New photo added',
+    arrivalClip: 'New video added',
+    arrivalPhotos: (count: number) => `${t.number(count)} new photos`,
+    arrivalClips: (count: number) => `${t.number(count)} new videos`,
+    arrivalMixed: (count: number) => `${t.number(count)} new memories`,
+
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
     // is also opened on a laptop while a host sets the projector up.
@@ -828,6 +840,35 @@ export const en: UiText = {
       clothesline: 'Clothesline',
     },
     layoutOrder: (names: readonly string[]) => `Layouts, in order: ${names.join(', ')}.`,
+
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Settings',
+      pause: 'Pause',
+      resume: 'Resume',
+      fullscreen: 'Full screen',
+      barLabel: 'Wall controls',
+      panelLabel: 'Wall settings',
+      title: 'Settings',
+      close: 'Close settings',
+      sectionDisplay: 'Display',
+      sectionAmbiance: 'Ambiance',
+      forAll: 'For every screen',
+      thisScreen: 'This screen only',
+      thisScreenHint: 'These controls only change this screen and are lost when the page reloads.',
+      screenLayout: (name: string) => `Layout of this screen: ${name} (L key)`,
+      screenShows: (name: string) => `This screen shows ${name} (L key)`,
+      backToEvent: 'Back to the event setting',
+      hideQr: 'Hide the QR card',
+      showQr: 'Show the QR card',
+      saving: 'Saving…',
+      saved: 'Saved',
+      saveFailed: 'Could not save, try again',
+      sessionExpired: 'Your session has expired. Sign in again to set the wall.',
+      signIn: 'Sign in',
+      signInToSet: 'Sign in to set this wall',
+      openHint: 'R opens the wall settings.',
+    },
 
     videoBy: (name: string) => `Video sent by ${name}`,
     videoByAnonymous: 'Video sent by a guest',
@@ -962,6 +1003,34 @@ export const en: UiText = {
     wallLanguage: 'Language of the screen in the room',
     wallLanguageHint:
       'The words on the screen in the room: “Join the event”, “Missions”, the waiting messages. What you and your guests write — the event name, the captions, the mission prompts — is shown as it is and is never translated. Your guests choose their own language on their phone; this setting does not apply to them.',
+
+    /* ---- Wall display block of the settings page (spec 13). Keep additions to it inside this block. ---- */
+    wallDisplay: {
+      title: 'Wall display',
+      forAll: 'For every screen',
+      hint: 'These choices are saved for the event: every screen in the room follows them.',
+      layout: 'Layout',
+      layoutHint: 'An L key press, or an address with ?layout=, still wins on that one screen.',
+      layoutUnset: 'Each screen decides',
+      interval: 'Pace',
+      intervalHint: 'How long each photo stays on screen.',
+      intervalDefault: 'Default (one photo every 8 s)',
+      intervalSeconds: (n: number) => `One photo every ${n} s`,
+      freshLane: 'New photos first',
+      freshLaneHint: 'A published photo takes the next slide, three in a row at most.',
+      tilt: 'Slightly tilted photos',
+      tiltHint: 'Polaroids and clothesline: a fixed angle of a few degrees.',
+      showTime: 'Send time under the photo',
+      showTimeHint: 'The time the photo was sent, on the clock of the screen in the room.',
+      // Spec 11.
+      onScreen: 'On screen',
+      souvenirCounter: 'Show the memories counter',
+      souvenirCounterHint:
+        'A discreet counter at the top centre: “17 memories shared”. It counts the photos and videos visible on the wall.',
+      newPhotoSignal: 'Announce new photos',
+      newPhotoSignalHint:
+        'A brief message at the top centre when a photo or video has just appeared on the wall. Never the guest’s name.',
+    },
 
     theme: 'Appearance',
     themeHint:

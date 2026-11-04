@@ -334,6 +334,89 @@ describe('WallPage', () => {
     expect(failure).toHaveTextContent(fr.wall.errorHint)
   })
 
+  describe('the new-photo signal (spec 11)', () => {
+    const signalOn = { newPhotoSignal: true }
+    const first = aWallItem({ id: 'photo-1', authorName: 'Julie' })
+    const second = aWallItem({ id: 'photo-2', authorName: 'Marc' })
+
+    it('says nothing at the first read, however many photos are already there', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ ...signalOn, souvenirCount: 1, items: [first] })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+
+      await screen.findByTestId('wall-slide')
+      expect(screen.queryByTestId('new-photo-signal')).toBeNull()
+    })
+
+    it('announces a photo that became visible, without naming the guest', async () => {
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ ...signalOn, souvenirCount: 1, items: [first] }),
+          aPopulatedWall({
+            ...signalOn,
+            revision: 'rev-2',
+            souvenirCount: 2,
+            items: [second, first],
+          }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+
+      await streamSignals('photo.moderated')
+
+      const bubble = await screen.findByTestId('new-photo-signal')
+      expect(bubble).toHaveTextContent('Nouvelle photo ajoutée')
+      expect(bubble.textContent).not.toMatch(/Julie|Marc/)
+    })
+
+    it('stays silent for a send the total does not confirm, and when the switch is off', async () => {
+      const off = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ souvenirCount: null, items: [first] }),
+          aPopulatedWall({ revision: 'rev-2', souvenirCount: null, items: [second, first] }),
+        ),
+      })
+      const { unmount } = renderWithProviders(<WallPage />, { api: off, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamSignals('photo.moderated')
+      await screen.findByTestId('wall-slide')
+      expect(screen.queryByTestId('new-photo-signal')).toBeNull()
+      unmount()
+
+      // Total went down: the 201st photo came back into the window after a deletion.
+      const deleted = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ ...signalOn, souvenirCount: 5, items: [first] }),
+          aPopulatedWall({ ...signalOn, revision: 'rev-2', souvenirCount: 4, items: [second] }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api: deleted, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await streamSignals('photo.moderated')
+      expect(screen.queryByTestId('new-photo-signal')).toBeNull()
+    })
+  })
+
+  it('shows the souvenir total only when the host switched the counter on (spec 11)', async () => {
+    const off = fakeApi({
+      wall: wallSequence(aPopulatedWall({ souvenirCount: 1_234, souvenirCounter: false })),
+    })
+    const { unmount } = renderWithProviders(<WallPage />, { api: off, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+    expect(screen.queryByTestId('souvenir-counter')).toBeNull()
+    unmount()
+
+    const on = fakeApi({
+      wall: wallSequence(aPopulatedWall({ souvenirCount: 1_234, souvenirCounter: true })),
+    })
+    renderWithProviders(<WallPage />, { api: on, route: ROUTE, path: PATH })
+
+    // The server's total, not the length of the one-item playlist.
+    expect(await screen.findByTestId('souvenir-counter')).toHaveTextContent(/^1.234 souvenirs/)
+  })
+
   it('takes the Ken Burns duration from the response, not from a constant', async () => {
     // 1.0 hardcoded a 20 s zoom beside a 10 s slide, so every image snapped back.
     //
