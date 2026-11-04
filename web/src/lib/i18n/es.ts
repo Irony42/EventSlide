@@ -884,6 +884,7 @@ export const es: UiText = {
       close: 'Cerrar los ajustes',
       sectionDisplay: 'Visualización',
       sectionAmbiance: 'Ambiente',
+      sectionQr: 'Código QR',
       forAll: 'Para todas las pantallas',
       thisScreen: 'Solo esta pantalla',
       thisScreenHint:
@@ -1081,6 +1082,26 @@ export const es: UiText = {
       newPhotoSignal: 'Avisar de las fotos nuevas',
       newPhotoSignalHint:
         'Un mensaje breve, arriba en el centro, cuando una foto o un vídeo acaba de aparecer en el muro. Nunca el nombre del invitado.',
+      // Spec 14: the invitation card.
+      qrTitle: 'Código QR',
+      qrVisible: 'Mostrar el QR en el muro',
+      qrVisibleHint:
+        'Los invitados que lleguen tarde ya no tendrán el QR. El muro vacío conserva su invitación.',
+      qrSize: 'Tamaño del QR',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100).replace('.', ',')}`,
+      qrSizeSmall: 'Pequeño',
+      qrSizeMedium: 'Mediano',
+      qrSizeLarge: 'Grande',
+      qrSizeHint: 'El QR nunca baja de un tamaño legible: un enlace largo lo mantiene más grande.',
+      qrPlacement: 'Posición',
+      qrCorners: {
+        'top-start': 'Arriba a la izquierda',
+        'top-end': 'Arriba a la derecha',
+        'bottom-start': 'Abajo a la izquierda',
+        'bottom-end': 'Abajo a la derecha',
+      },
+      qrPlacementHint:
+        'En los diseños que dejan sitio a la tarjeta, las fotos se aprietan; en los demás, la tarjeta se pone sobre las fotos.',
     },
 
     theme: 'Apariencia',

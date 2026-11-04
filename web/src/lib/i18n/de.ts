@@ -904,6 +904,7 @@ export const de: UiText = {
       close: 'Einstellungen schließen',
       sectionDisplay: 'Anzeige',
       sectionAmbiance: 'Ambiente',
+      sectionQr: 'QR-Code',
       forAll: 'Für alle Bildschirme',
       thisScreen: 'Nur dieser Bildschirm',
       thisScreenHint:
@@ -1086,6 +1087,26 @@ export const de: UiText = {
       newPhotoSignal: 'Neue Fotos ankündigen',
       newPhotoSignalHint:
         'Eine kurze Meldung oben in der Mitte, wenn ein Foto oder Video gerade auf der Wand erschienen ist. Nie der Name des Gastes.',
+      // Spec 14: the invitation card.
+      qrTitle: 'QR-Code',
+      qrVisible: 'QR-Code auf der Wand zeigen',
+      qrVisibleHint:
+        'Spät ankommende Gäste haben dann keinen QR-Code mehr. Die leere Wand behält ihre Einladung.',
+      qrSize: 'Größe des QR-Codes',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100).replace('.', ',')}`,
+      qrSizeSmall: 'Klein',
+      qrSizeMedium: 'Mittel',
+      qrSizeLarge: 'Groß',
+      qrSizeHint: 'Der QR-Code wird nie kleiner als lesbar: ein langer Link hält ihn größer.',
+      qrPlacement: 'Position',
+      qrCorners: {
+        'top-start': 'Oben links',
+        'top-end': 'Oben rechts',
+        'bottom-start': 'Unten links',
+        'bottom-end': 'Unten rechts',
+      },
+      qrPlacementHint:
+        'Bei Layouts mit Platz für die Karte rücken die Fotos zusammen; bei den anderen liegt die Karte über den Fotos.',
     },
 
     theme: 'Erscheinungsbild',

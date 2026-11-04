@@ -849,6 +849,7 @@ export const en: UiText = {
       close: 'Close settings',
       sectionDisplay: 'Display',
       sectionAmbiance: 'Ambiance',
+      sectionQr: 'QR code',
       forAll: 'For every screen',
       thisScreen: 'This screen only',
       thisScreenHint: 'These controls only change this screen and are lost when the page reloads.',
@@ -1026,6 +1027,26 @@ export const en: UiText = {
       newPhotoSignal: 'Announce new photos',
       newPhotoSignalHint:
         'A brief message at the top centre when a photo or video has just appeared on the wall. Never the guest’s name.',
+      // Spec 14: the invitation card.
+      qrTitle: 'QR code',
+      qrVisible: 'Show the QR on the wall',
+      qrVisibleHint:
+        'Guests who arrive late will no longer have the QR. The empty wall keeps its invitation.',
+      qrSize: 'QR size',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100)}`,
+      qrSizeSmall: 'Small',
+      qrSizeMedium: 'Medium',
+      qrSizeLarge: 'Large',
+      qrSizeHint: 'The QR never goes below a readable size: a long link keeps it larger.',
+      qrPlacement: 'Position',
+      qrCorners: {
+        'top-start': 'Top left',
+        'top-end': 'Top right',
+        'bottom-start': 'Bottom left',
+        'bottom-end': 'Bottom right',
+      },
+      qrPlacementHint:
+        'On layouts that leave room for the card, the photos tighten up; on the others, the card sits over the photos.',
     },
 
     theme: 'Appearance',
