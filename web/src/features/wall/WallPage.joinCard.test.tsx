@@ -49,7 +49,9 @@ const theMissions = (): HTMLElement | null =>
   screen.getByRole('heading', { name: fr.wall.missionsTitle }).closest('[class*="panel"]')
 
 const theNotices = (): HTMLElement => {
-  const region = document.querySelector('[aria-live="polite"]')
+  const region = document.querySelector(
+    '[aria-live="polite"]:not([data-testid="new-photo-signal-region"])',
+  )
   if (!(region instanceof HTMLElement)) throw new Error('no notices region')
   return region
 }

@@ -9,7 +9,7 @@ import { aPhoto } from '../fixtures/media'
  * moderated event (the wall must not move), a moderator publishes it (the counter goes up on the
  * projector that is already running, with no reload), and the counter stays out of the way.
  */
-test('the counter counts what is published, never what is merely sent', async ({
+test('the counter and the signal speak of what is published, never of what is merely sent', async ({
   app,
   surfaces,
 }) => {
@@ -19,12 +19,14 @@ test('the counter counts what is published, never what is merely sent', async ({
 
   await host.goto(app.url(`/admin/events/${event.slug}/settings`))
   await host.getByRole('checkbox', { name: 'Afficher le compteur de souvenirs' }).check()
+  await host.getByRole('checkbox', { name: 'Signaler les nouvelles photos' }).check()
   await host.getByRole('button', { name: 'Enregistrer', exact: true }).click()
   await expect(host.getByText('Réglages enregistrés.')).toBeVisible()
 
   await projector.goto(wallUrl(app, event.slug))
   await expect(projector.getByTestId('wall-empty')).toBeVisible()
   await expect(projector.getByTestId('souvenir-counter')).toHaveCount(0)
+  await expect(projector.getByTestId('new-photo-signal')).toHaveCount(0)
 
   await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
   await joinAndUpload(guest, app, event.joinCode, {
@@ -45,6 +47,14 @@ test('the counter counts what is published, never what is merely sent', async ({
 
   const counter = projector.getByTestId('souvenir-counter')
   await expect(counter).toHaveText('1 souvenir partagé')
+  // The first photograph of an empty wall is announced at once, with no name in it.
+  const signal = projector.getByTestId('new-photo-signal')
+  await expect(signal).toHaveText('Nouvelle photo ajoutée')
+  const counterBox = await counter.boundingBox()
+  const signalBox = await signal.boundingBox()
+  if (counterBox === null || signalBox === null) throw new Error('no box to measure')
+  // Under the counter, never over it.
+  expect(signalBox.y).toBeGreaterThanOrEqual(counterBox.y + counterBox.height)
 
   // Geometry, not pixels: top centre, clear of the missions' corner and the notices' corner.
   const box = await counter.boundingBox()
