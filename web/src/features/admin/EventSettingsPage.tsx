@@ -13,6 +13,7 @@ import { CheckboxField } from './components/CheckboxField'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
+import { WallQrControls } from './components/WallQrControls'
 import { WALL_UNSET, wallLayoutOptions, wallRhythmOptions } from './wallDisplayOptions'
 import { VenuePhotoField } from './components/VenuePhotoField'
 import { LogoField } from './components/LogoField'
@@ -135,6 +136,9 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.wall.freshLane,
     settings.wall.tilt,
     settings.wall.showTime,
+    settings.wall.qrVisible,
+    settings.wall.qrScale,
+    settings.wall.qrPlacement,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -545,6 +549,13 @@ export function EventSettingsPage() {
             checked={settings.wall.showTime}
             disabled={readOnly}
             onChange={(showTime) => update({ wall: { ...settings.wall, showTime } })}
+          />
+          {/* Spec 14: the invitation card on the populated wall. */}
+          <p className={styles['sectionHint']}>{t.admin.wallDisplay.qrTitle}</p>
+          <WallQrControls
+            wall={settings.wall}
+            disabled={readOnly}
+            onChange={(patch) => update({ wall: { ...settings.wall, ...patch } })}
           />
           {/* Spec 11: « À l'écran ». Both off until the host asks. */}
           <p className={styles['sectionHint']}>{t.admin.wallDisplay.onScreen}</p>

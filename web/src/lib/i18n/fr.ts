@@ -893,6 +893,7 @@ export const fr = {
       close: 'Fermer les réglages',
       sectionDisplay: 'Affichage',
       sectionAmbiance: 'Ambiance',
+      sectionQr: 'QR code',
       forAll: 'Pour tous les écrans',
       thisScreen: 'Cet écran seulement',
       thisScreenHint:
@@ -1165,6 +1166,27 @@ export const fr = {
       newPhotoSignal: 'Signaler les nouvelles photos',
       newPhotoSignalHint:
         'Un message bref, en haut au centre, quand une photo ou une vidéo vient d’apparaître au mur. Jamais le nom de l’invité.',
+      // Spec 14: the invitation card.
+      qrTitle: 'QR code',
+      qrVisible: 'Afficher le QR sur le mur',
+      qrVisibleHint:
+        'Les invités qui arrivent tard n’auront plus le QR. Le mur vide garde son invitation.',
+      qrSize: 'Taille du QR',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100).replace('.', ',')}`,
+      qrSizeSmall: 'Petit',
+      qrSizeMedium: 'Moyen',
+      qrSizeLarge: 'Grand',
+      qrSizeHint:
+        'Le QR ne descend jamais sous un seuil lisible : un lien long le garde plus grand.',
+      qrPlacement: 'Position',
+      qrCorners: {
+        'top-start': 'En haut à gauche',
+        'top-end': 'En haut à droite',
+        'bottom-start': 'En bas à gauche',
+        'bottom-end': 'En bas à droite',
+      },
+      qrPlacementHint:
+        'Sur les mises en page qui laissent de la place à la carte, les photos se serrent ; sur les autres, la carte passe sur les photos.',
     },
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,
