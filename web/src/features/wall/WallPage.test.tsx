@@ -2209,6 +2209,56 @@ describe('WallPage', () => {
       expect(screen.getByText('H7K2QM')).toBeVisible()
     })
 
+    it('hides the souvenir counter while the banner is up, and shows it again after', async () => {
+      const counter = { souvenirCounter: true, souvenirCount: 1_234 }
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ ...counter, ...running(102_000) }),
+          aPopulatedWall({ ...counter, revision: 'rev-1' }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByText('1:42')
+      expect(screen.queryByTestId('souvenir-counter')).toBeNull()
+      await streamOpens()
+
+      await streamSignals('challenge.changed')
+
+      expect(await screen.findByTestId('souvenir-counter')).toBeVisible()
+    })
+
+    it('holds the new-photo signal while the banner is up, and announces it afterwards', async () => {
+      const first = aWallItem({ id: 'photo-1' })
+      const second = aWallItem({ id: 'photo-2' })
+      const on = { newPhotoSignal: true }
+      const api = fakeApi({
+        wall: wallSequence(
+          aPopulatedWall({ ...on, souvenirCount: 1, items: [first], ...running(102_000) }),
+          aPopulatedWall({
+            ...on,
+            revision: 'rev-2',
+            souvenirCount: 2,
+            items: [second, first],
+            ...running(100_000),
+          }),
+          aPopulatedWall({ ...on, revision: 'rev-2', souvenirCount: 2, items: [second, first] }),
+        ),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByText('1:42')
+      await streamOpens()
+
+      await streamSignals('photo.moderated')
+      await waitFor(() => expect(api.wall).toHaveBeenCalledTimes(2))
+      expect(screen.queryByTestId('new-photo-signal')).toBeNull()
+
+      await streamSignals('challenge.changed')
+
+      expect(await screen.findByTestId('new-photo-signal')).toHaveTextContent(
+        'Nouvelle photo ajoutée',
+      )
+    })
+
     it('says "Défi terminé" with the number of published answers, and no confetti', async () => {
       const api = fakeApi({ wall: wallSequence(aPopulatedWall(ended(3))) })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
