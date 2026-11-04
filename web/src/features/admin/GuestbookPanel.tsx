@@ -1,14 +1,13 @@
+import { Link } from 'react-router-dom'
 import { Async } from '../../design-system/components/Async'
 import { Badge, type BadgeTone } from '../../design-system/components/Badge'
-import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { useToast } from '../../design-system/components/useToast'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
-import { decisionWording, inDisplayOrder } from '../moderation/components/decisionWording'
-import { useDecideGuestbookEntry, useGuestbookQueue } from './hooks/useGuestbookQueue'
+import { useGuestbookQueue } from './hooks/useGuestbookQueue'
 import styles from './GuestbookPanel.module.css'
-import type { GuestbookQueueItemDto, ModerationDecision } from '../../lib/api/dto'
+import type { GuestbookQueueItemDto } from '../../lib/api/dto'
 
 export interface GuestbookPanelProps {
   readonly slug: string
@@ -33,8 +32,6 @@ export function GuestbookPanel({ slug, canDecide }: GuestbookPanelProps) {
   const { locale } = useLocale()
   const toast = useToast()
   const queue = useGuestbookQueue(slug)
-  const { reload } = queue
-  const decide = useDecideGuestbookEntry()
 
   const statusLabel = (status: GuestbookQueueItemDto['status']): string =>
     ({
@@ -56,77 +53,66 @@ export function GuestbookPanel({ slug, canDecide }: GuestbookPanelProps) {
       .then(() => toast.show(t.guestbookHost.idCopied, { tone: 'success' }), failed)
   }
 
-  const run = (item: GuestbookQueueItemDto, decision: ModerationDecision) => {
-    void decide.run(item.id, slug, item.id, decision).then((result) => {
-      if (!result.ok) {
-        toast.show(result.message, { tone: 'danger' })
-        return
-      }
-      toast.show(t.guestbookHost.decided, { tone: 'success' })
-      reload()
-    })
-  }
-
   const formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' })
 
   return (
     <Card as="h2" title={t.guestbookHost.title}>
       <Async state={queue} as="h3">
-        {(data) => (
-          <>
-            <p className={styles['hint']}>{t.guestbookHost.hint}</p>
-            {data.pendingCount > 0 ? (
-              <Badge tone="warning">{t.guestbookHost.pending(data.pendingCount)}</Badge>
-            ) : null}
-            {data.items.length === 0 ? (
-              <EmptyState as="h3" title={t.guestbookHost.empty} />
-            ) : (
-              <ul className={styles['list']}>
-                {data.items.map((item) => {
-                  const author = item.authorName ?? t.guestbookHost.anonymous
-                  return (
-                    <li key={item.id} className={styles['row']}>
-                      <p className={styles['text']}>{item.text}</p>
-                      <p className={styles['meta']}>
-                        <span>{author}</span>
-                        <time dateTime={item.createdAt}>
-                          {formatter.format(new Date(item.createdAt))}
-                        </time>
-                        <Badge tone={TONES[item.status]}>{statusLabel(item.status)}</Badge>
-                        <button
-                          type="button"
-                          className={styles['id']}
-                          onClick={() => copyId(item.id)}
-                          aria-label={`${t.guestbookHost.copyId}: ${item.id}`}
-                        >
-                          {item.id}
-                        </button>
-                      </p>
-                      {canDecide ? (
-                        <div className={styles['actions']}>
-                          {inDisplayOrder(item.allowedDecisions).map((decision) => {
-                            const wording = decisionWording(decision, item.status, author, t)
-                            return (
-                              <Button
-                                key={decision}
-                                variant={decision === 'publish' ? 'primary' : 'secondary'}
-                                disabled={decide.busy}
-                                aria-label={wording.ariaLabel}
-                                onClick={() => run(item, decision)}
-                              >
-                                {wording.label}
-                              </Button>
-                            )
-                          })}
-                        </div>
-                      ) : null}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </>
-        )}
+        {(data) =>
+          canDecide ? (
+            // The decisions live in the moderation console (spec 15): one surface that decides.
+            <>
+              <p className={styles['hint']}>{t.guestbookHost.hint}</p>
+              {data.pendingCount > 0 ? (
+                <Badge tone="warning">{t.guestbookHost.pending(data.pendingCount)}</Badge>
+              ) : null}
+              <p>
+                {t.guestbookHost.onWall(
+                  data.items.filter((item) => item.status === 'published').length,
+                )}
+              </p>
+              <Link to={`/admin/events/${slug}/moderation?vue=messages`}>
+                {t.guestbookHost.openMessages}
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className={styles['hint']}>{t.guestbookHost.hint}</p>
+              {data.pendingCount > 0 ? (
+                <Badge tone="warning">{t.guestbookHost.pending(data.pendingCount)}</Badge>
+              ) : null}
+              {data.items.length === 0 ? (
+                <EmptyState as="h3" title={t.guestbookHost.empty} />
+              ) : (
+                <ul className={styles['list']}>
+                  {data.items.map((item) => {
+                    const author = item.authorName ?? t.guestbookHost.anonymous
+                    return (
+                      <li key={item.id} className={styles['row']}>
+                        <p className={styles['text']}>{item.text}</p>
+                        <p className={styles['meta']}>
+                          <span>{author}</span>
+                          <time dateTime={item.createdAt}>
+                            {formatter.format(new Date(item.createdAt))}
+                          </time>
+                          <Badge tone={TONES[item.status]}>{statusLabel(item.status)}</Badge>
+                          <button
+                            type="button"
+                            className={styles['id']}
+                            onClick={() => copyId(item.id)}
+                            aria-label={`${t.guestbookHost.copyId}: ${item.id}`}
+                          >
+                            {item.id}
+                          </button>
+                        </p>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </>
+          )
+        }
       </Async>
     </Card>
   )

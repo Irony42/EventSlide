@@ -225,6 +225,24 @@ export const es: UiText = {
     clipTooLong: (seconds: number) =>
       `Este vídeo supera los ${t.number(seconds)} segundos. Grabe una secuencia más corta.`,
     clipNotAVideo: 'Este archivo no es un vídeo.',
+    /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) =>
+      `Elija los ${t.number(seconds)} segundos que quiere conservar`,
+    clipTrimStart: 'Inicio del fragmento',
+    clipTrimEnd: 'Final del fragmento',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} segundos`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Fragmento: ${t.number(seconds)} s de ${t.number(maxSeconds)} s como máximo`,
+    clipTrimPlay: 'Reproducir el fragmento',
+    clipTrimPause: 'Pausa',
+    clipTrimNoPreview:
+      'No hay vista previa en este dispositivo. El fragmento se recortará igualmente.',
+    clipTrimWholeFileSent:
+      'Solo se conserva el fragmento elegido. Si este teléfono no puede recortarlo, se envía el vídeo entero y luego se recorta.',
+    clipSendTrimmed: 'Enviar este fragmento',
     clipUploading: 'Enviando el vídeo…',
     clipQueued: 'En la cola…',
     clipRunning: 'Procesando el vídeo…',
@@ -554,6 +572,8 @@ export const es: UiText = {
     'clip.durationUnknown': 'No se puede leer la duración de este vídeo. Pruebe con otro.',
     'clip.tooShort': 'Este vídeo es demasiado corto.',
     'clip.tooLong': 'Este vídeo es demasiado largo. Grabe una secuencia más corta.',
+    'clip.trimInvalid': 'Este fragmento no es válido. Elija otro.',
+    'clip.trimOutOfRange': 'El fragmento elegido sobrepasa el final del vídeo. Elija otro.',
     'clip.transcodeFailed': 'Este vídeo no se ha podido procesar. Pruebe con otro.',
     'clip.transcodeTimedOut': 'Este vídeo es demasiado pesado para procesarlo. Pruebe con otro.',
     'clip.storageFailed': 'Este vídeo no se ha podido guardar. Inténtelo de nuevo.',
@@ -800,6 +820,32 @@ export const es: UiText = {
     videoMuted: 'No se ha podido activar el sonido: este vídeo se reproduce sin sonido.',
     videoUnplayable:
       'Este vídeo no se puede reproducir aquí. Solo se muestra la imagen de vista previa.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Fotos',
+    tabMessages: 'Mensajes',
+    tabsLabel: 'Lo que modera',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} por revisar`,
+    tabFresh: (label: string, count: number) => `${label}, ${t.number(count)} nuevos por leer`,
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} mensaje en espera`,
+        other: `${t.number(count)} mensajes en espera`,
+      }),
+    messagesEmpty: 'Nada que revisar por ahora.',
+    messagesEmptyHint: 'Las notas de sus invitados llegan aquí automáticamente.',
+    messagePublished: (author: string) => `Mensaje de ${author} publicado.`,
+    messageRejected: (author: string) => `Mensaje de ${author} rechazado.`,
+    messageHidden: (author: string) => `Mensaje de ${author} retirado de la pantalla.`,
+    messagesListLabel: 'Mensajes del libro de oro',
+    messagesLoadFailed: 'No se pudieron cargar los mensajes.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Mensaje de ${author}`,
+    onScreenMessagesTitle: 'Últimos mensajes en pantalla',
+    onScreenMessagesEmpty: 'Todavía no hay mensajes en pantalla.',
+    publishMessageOf: (author: string) => `Publicar el mensaje de ${author}`,
+    rejectMessageOf: (author: string) => `Rechazar el mensaje de ${author}`,
+    readMessage: 'Leer',
+    readMessageOf: (author: string) => `Leer el mensaje de ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
@@ -1575,7 +1621,8 @@ export const es: UiText = {
     copyId: 'Copiar el identificador',
     idCopied: 'Identificador copiado.',
     copyFailed: 'No se pudo copiar: seleccione el identificador a mano.',
-    decided: 'Decisión guardada.',
+    openMessages: 'Moderar los mensajes',
+    onWall: (count: number) => `${t.number(count)} en pantalla`,
   },
 
   auth: {

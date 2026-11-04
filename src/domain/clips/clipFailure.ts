@@ -41,6 +41,8 @@ const KIND_BY_CODE = new Map<string, ClipFailureKind>([
   ['clip.durationUnknown', 'permanent'],
   ['clip.tooShort', 'permanent'],
   ['clip.tooLong', 'permanent'],
+  // The range the guest kept lies beyond the end of the source (spec 16).
+  ['clip.trimOutOfRange', 'permanent'],
   // A frame too large to decode safely. The pixel budget is read from the header, so the
   // answer is the same every time and a retry only spends the budget again.
   ['clip.pixelBudgetExceeded', 'permanent'],

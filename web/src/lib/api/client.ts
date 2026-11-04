@@ -201,6 +201,11 @@ export interface UploadInput {
 export interface ClipUploadInput {
   readonly file: File
   readonly caption?: string | null
+  /**
+   * The part of a too-long recording to keep, in milliseconds from the start of `file`
+   * (spec 16). Both bounds travel, or neither.
+   */
+  readonly trim?: { readonly startMs: number; readonly endMs: number }
   readonly onProgress?: (progress: UploadProgress) => void
   readonly signal?: AbortSignal
 }
@@ -334,6 +339,12 @@ export const createApi = (transport: Transport) => ({
    */
   uploadClip: (slug: string, input: ClipUploadInput): Promise<ClipJobDto> => {
     const form = new FormData()
+    // The text parts go before the file, which is the order multipart parsers expect them in:
+    // a text part that arrives after a large file part is the one a proxy may cut off.
+    if (input.trim !== undefined) {
+      form.append('startMs', String(Math.round(input.trim.startMs)))
+      form.append('endMs', String(Math.round(input.trim.endMs)))
+    }
     form.append('clip', input.file)
     // Omitted rather than sent empty, exactly as the photo path does: the server
     // distinguishes "no caption" from an invalid one.
@@ -776,8 +787,19 @@ export const createApi = (transport: Transport) => ({
     transport.patch(`/api/events/${encode(slug)}/photos/${encode(photoId)}/status`, { decision }),
 
   /** The host's reading of the guestbook: pending first. No cursor (a book is bounded at 500). */
-  guestbookQueue: (slug: string, signal?: AbortSignal): Promise<GuestbookQueueDto> =>
-    transport.get(`/api/events/${encode(slug)}/guestbook`, { limit: 500 }, signal),
+  guestbookQueue: (
+    slug: string,
+    signal?: AbortSignal,
+    query: { status?: PhotoStatus | 'all'; limit?: number } = {},
+  ): Promise<GuestbookQueueDto> =>
+    transport.get(
+      `/api/events/${encode(slug)}/guestbook`,
+      {
+        ...(query.status && query.status !== 'all' ? { status: query.status } : {}),
+        limit: query.limit ?? 500,
+      },
+      signal,
+    ),
 
   decideGuestbookEntry: (
     slug: string,

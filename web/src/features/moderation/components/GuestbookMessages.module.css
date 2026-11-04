@@ -1,0 +1,95 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-inline-start: var(--space-1) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.card[data-status='pending'] {
+  border-inline-start-color: var(--warning);
+}
+
+.card[data-status='published'] {
+  border-inline-start-color: var(--success);
+}
+
+.card[data-status='rejected'] {
+  border-inline-start-color: var(--danger);
+}
+
+.card[data-status='hidden'] {
+  border-inline-start-color: var(--text-muted);
+}
+
+/* Where the keyboard is: the message P will publish. */
+.card[data-active='true'] {
+  box-shadow: var(--focus-ring);
+}
+
+/* The whole text, never cut: the host decides what the room reads. */
+.text {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.id {
+  min-height: var(--touch-min);
+  padding: 0 var(--space-2);
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.emptyFocus {
+  outline: none;
+}

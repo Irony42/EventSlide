@@ -224,6 +224,16 @@ export interface FfmpegVideoTranscoder extends VideoTranscoder {
   close(): void
 }
 
+/**
+ * How long the output may run: the cap, or the guest's range when that is shorter. The
+ * range was judged against the cap at the door; taking the smaller here is the second
+ * enforcement, for a spec a caller built by hand.
+ */
+const outputLimitMs = (spec: TranscodeSpec): number =>
+  spec.trim === undefined
+    ? spec.maxDurationMs
+    : Math.min(spec.maxDurationMs, spec.trim.endMs - spec.trim.startMs)
+
 export const createFfmpegVideoTranscoder = ({
   paths,
   scratchRoot,
@@ -486,11 +496,19 @@ export const createFfmpegVideoTranscoder = ({
             INPUT_SCAN_BYTES,
             '-probesize',
             INPUT_SCAN_BYTES,
+            // The guest's range (spec 16). **Before `-i`, like the scan bounds above**: as an
+            // input option it seeks to the keyframe before the start and decodes forward to it,
+            // so the cost is the range's and the first frame is the one asked for. Seconds
+            // formatted here, from numbers the use case already validated; nothing the client
+            // wrote reaches argv as text.
+            ...(spec.trim === undefined
+              ? []
+              : ['-ss', (spec.trim.startMs / 1000).toFixed(3)]),
             '-i',
             `file:${input}`,
             // The cap, again. The header is a claim by the file.
             '-t',
-            (spec.maxDurationMs / 1000).toFixed(3),
+            (outputLimitMs(spec) / 1000).toFixed(3),
             '-map',
             '0:v:0',
             // The `?` is load-bearing: a clip with no audio must not fail outright.

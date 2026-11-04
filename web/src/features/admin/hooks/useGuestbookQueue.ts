@@ -2,8 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useApi } from '../../../app/useApi'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
-import { useAction, type ActionState } from './useAction'
-import type { GuestbookQueueDto, ModerationDecision } from '../../../lib/api/dto'
+import type { GuestbookQueueDto } from '../../../lib/api/dto'
 
 /**
  * The host's reading of the guestbook (spec 01), kept fresh by the moderation stream: a
@@ -26,18 +25,4 @@ export const useGuestbookQueue = (slug: string): LoaderState<GuestbookQueueDto> 
   useEventStream({ url: streamUrl, onSignal })
 
   return state
-}
-
-export const useDecideGuestbookEntry = (): ActionState<
-  [slug: string, entryId: string, decision: ModerationDecision],
-  void
-> => {
-  const api = useApi()
-  return useAction(
-    useCallback(
-      (slug: string, entryId: string, decision: ModerationDecision) =>
-        api.decideGuestbookEntry(slug, entryId, decision),
-      [api],
-    ),
-  )
 }

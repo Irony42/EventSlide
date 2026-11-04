@@ -213,6 +213,22 @@ export const en: UiText = {
     clipTooLong: (seconds: number) =>
       `This video is over ${t.number(seconds)} seconds. Record a shorter sequence.`,
     clipNotAVideo: 'This file is not a video.',
+    /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) => `Choose the ${t.number(seconds)} seconds to keep`,
+    clipTrimStart: 'Start of the clip',
+    clipTrimEnd: 'End of the clip',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} seconds`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Clip: ${t.number(seconds)} s of ${t.number(maxSeconds)} s at most`,
+    clipTrimPlay: 'Play the clip',
+    clipTrimPause: 'Pause',
+    clipTrimNoPreview: 'No preview on this device. The clip will still be cut.',
+    clipTrimWholeFileSent:
+      'Only the part you chose is kept. If this phone cannot cut it, the whole video is sent and then cut.',
+    clipSendTrimmed: 'Send this clip',
     clipUploading: 'Sending the video…',
     clipQueued: 'In the queue…',
     clipRunning: 'Processing the video…',
@@ -532,6 +548,8 @@ export const en: UiText = {
     'clip.durationUnknown': 'The length of this video cannot be read. Try another one.',
     'clip.tooShort': 'This video is too short.',
     'clip.tooLong': 'This video is too long. Record a shorter sequence.',
+    'clip.trimInvalid': 'This part of the video is not valid. Pick another one.',
+    'clip.trimOutOfRange': 'The part you chose goes past the end of the video. Pick another one.',
     'clip.transcodeFailed': 'This video could not be processed. Try another one.',
     'clip.transcodeTimedOut': 'This video is too heavy to process. Try another one.',
     'clip.storageFailed': 'This video could not be saved. Try again.',
@@ -766,6 +784,32 @@ export const en: UiText = {
       `${caption} — video sent by ${author}`,
     videoMuted: 'The sound could not be turned on: this video is playing without sound.',
     videoUnplayable: 'This video cannot be played here. Only the preview frame is shown.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Photos',
+    tabMessages: 'Messages',
+    tabsLabel: 'What you are moderating',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} to review`,
+    tabFresh: (label: string, count: number) => `${label}, ${t.number(count)} new to read`,
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message waiting`,
+        other: `${t.number(count)} messages waiting`,
+      }),
+    messagesEmpty: 'No message to review right now.',
+    messagesEmptyHint: 'The notes your guests leave arrive here automatically.',
+    messagePublished: (author: string) => `Message from ${author} published.`,
+    messageRejected: (author: string) => `Message from ${author} rejected.`,
+    messageHidden: (author: string) => `Message from ${author} taken off the screen.`,
+    messagesListLabel: 'Guestbook messages',
+    messagesLoadFailed: 'The messages could not be loaded.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Message from ${author}`,
+    onScreenMessagesTitle: 'Latest messages on screen',
+    onScreenMessagesEmpty: 'No message on screen yet.',
+    publishMessageOf: (author: string) => `Publish the message from ${author}`,
+    rejectMessageOf: (author: string) => `Reject the message from ${author}`,
+    readMessage: 'Read',
+    readMessageOf: (author: string) => `Read the message from ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
@@ -1515,7 +1559,8 @@ export const en: UiText = {
     copyId: 'Copy the identifier',
     idCopied: 'Identifier copied.',
     copyFailed: 'Could not copy: select the identifier by hand.',
-    decided: 'Decision saved.',
+    openMessages: 'Moderate the messages',
+    onWall: (count: number) => `${t.number(count)} on screen`,
   },
 
   auth: {

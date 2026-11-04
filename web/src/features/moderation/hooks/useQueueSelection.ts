@@ -1,5 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import type { ModerationPhotoDto } from '../../../lib/api/dto'
+/** Anything with an id: a photo, or a guestbook message (spec 15). */
+export interface QueueItem {
+  readonly id: string
+}
 
 /**
  * Which photos are selected, and which one the keyboard is on.
@@ -33,7 +36,7 @@ export interface QueueSelection {
   registerCard: (photoId: string, element: HTMLElement | null) => void
 }
 
-export const useQueueSelection = (items: readonly ModerationPhotoDto[]): QueueSelection => {
+export const useQueueSelection = (items: readonly QueueItem[]): QueueSelection => {
   const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set())
   const [requested, setRequested] = useState<string | null>(null)
   const cards = useRef(new Map<string, HTMLElement>())

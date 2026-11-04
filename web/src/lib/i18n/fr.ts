@@ -380,6 +380,22 @@ export const fr = {
       `Cette vidéo dépasse ${t.number(seconds)} secondes. Filmez une séquence plus courte.`,
     clipNotAVideo: 'Ce fichier n’est pas une vidéo.',
     /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) => `Choisissez les ${t.number(seconds)} secondes à garder`,
+    clipTrimStart: 'Début de l’extrait',
+    clipTrimEnd: 'Fin de l’extrait',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} secondes`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Extrait : ${t.number(seconds)} s sur ${t.number(maxSeconds)} s au plus`,
+    clipTrimPlay: 'Lire l’extrait',
+    clipTrimPause: 'Pause',
+    clipTrimNoPreview: 'Aperçu indisponible sur cet appareil. L’extrait sera bien découpé.',
+    clipTrimWholeFileSent:
+      'Seul l’extrait choisi est conservé. Si ce téléphone ne sait pas le découper, la vidéo entière est envoyée avant d’être coupée.',
+    clipSendTrimmed: 'Envoyer cet extrait',
+    /**
      * The four states the job actually has, in the guest's words.
      *
      * Polled from the server rather than guessed at: a progress bar that reaches 100%
@@ -810,6 +826,36 @@ export const fr = {
      * decision, and it is an honest one.
      */
     videoUnplayable: 'Cette vidéo ne peut pas être lue ici. Seule l’image d’aperçu s’affiche.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Photos',
+    tabMessages: 'Messages',
+    tabsLabel: 'Ce que vous modérez',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} à valider`,
+    tabFresh: (label: string, count: number) =>
+      t.count(count, {
+        one: `${label}, ${t.number(count)} nouveau à relire`,
+        other: `${label}, ${t.number(count)} nouveaux à relire`,
+      }),
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message en attente`,
+        other: `${t.number(count)} messages en attente`,
+      }),
+    messagesEmpty: 'Aucun message à valider pour l’instant.',
+    messagesEmptyHint: 'Les mots laissés par vos invités arrivent ici automatiquement.',
+    messagePublished: (author: string) => `Message de ${author} publié.`,
+    messageRejected: (author: string) => `Message de ${author} refusé.`,
+    messageHidden: (author: string) => `Message de ${author} retiré de l’écran.`,
+    messagesListLabel: 'Messages du livre d’or',
+    messagesLoadFailed: 'Les messages n’ont pas pu être chargés.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Message de ${author}`,
+    onScreenMessagesTitle: 'Derniers messages à l’écran',
+    onScreenMessagesEmpty: 'Aucun message à l’écran pour l’instant.',
+    publishMessageOf: (author: string) => `Publier le message de ${author}`,
+    rejectMessageOf: (author: string) => `Refuser le message de ${author}`,
+    readMessage: 'Lire',
+    readMessageOf: (author: string) => `Lire le message de ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
@@ -1745,7 +1791,8 @@ export const fr = {
     copyId: 'Copier l’identifiant',
     idCopied: 'Identifiant copié.',
     copyFailed: 'Copie impossible : sélectionnez l’identifiant à la main.',
-    decided: 'Décision enregistrée.',
+    openMessages: 'Modérer les messages',
+    onWall: (count: number) => `${t.number(count)} à l’écran`,
   },
 
   auth: {
@@ -2173,6 +2220,8 @@ export const fr = {
     'clip.durationUnknown': 'La durée de cette vidéo est illisible. Essayez-en une autre.',
     'clip.tooShort': 'Cette vidéo est trop courte.',
     'clip.tooLong': 'Cette vidéo est trop longue. Filmez une séquence plus courte.',
+    'clip.trimInvalid': 'Cet extrait n’est pas valable. Choisissez-en un autre.',
+    'clip.trimOutOfRange': 'L’extrait choisi dépasse la fin de la vidéo. Choisissez-en un autre.',
     'clip.transcodeFailed': 'Cette vidéo n’a pas pu être traitée. Essayez-en une autre.',
     'clip.transcodeTimedOut': 'Cette vidéo est trop lourde à traiter. Essayez-en une autre.',
     'clip.storageFailed': 'Cette vidéo n’a pas pu être enregistrée. Réessayez.',

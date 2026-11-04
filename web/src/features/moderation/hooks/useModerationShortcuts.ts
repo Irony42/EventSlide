@@ -42,6 +42,12 @@ export interface ModerationShortcutHandlers {
 export interface ModerationShortcutOptions {
   /** `false` while a modal owns the keyboard, so the two do not both react. */
   readonly enabled?: boolean
+  /**
+   * Whether Space is taken from the browser. True on the photo grid, where it selects. On
+   * the messages tab it means nothing, and swallowing it would freeze the page's scroll and
+   * the keyboard activation of a focused decision button (spec 15).
+   */
+  readonly captureSpace?: boolean
 }
 
 /**
@@ -77,7 +83,7 @@ const isCheckbox = (target: EventTarget | null): boolean =>
 
 export const useModerationShortcuts = (
   handlers: ModerationShortcutHandlers,
-  { enabled = true }: ModerationShortcutOptions = {},
+  { enabled = true, captureSpace = true }: ModerationShortcutOptions = {},
 ): void => {
   /**
    * Held in a ref so the listener is attached once. The handlers close over the queue
@@ -108,6 +114,7 @@ export const useModerationShortcuts = (
       }
 
       if (event.key === ' ') {
+        if (!captureSpace) return
         // The browser already toggles a focused checkbox on Space, and doing it here
         // too would select and immediately deselect the photo.
         if (isCheckbox(event.target)) return
@@ -147,5 +154,5 @@ export const useModerationShortcuts = (
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [enabled])
+  }, [enabled, captureSpace])
 }

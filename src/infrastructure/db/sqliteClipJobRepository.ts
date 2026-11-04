@@ -6,6 +6,7 @@ import type {
 import { ClipJob, type ClipJobProps } from '../../domain/clips/clipJob'
 import { isClipJobStatus, type ClipJobStatus } from '../../domain/clips/clipJobStatus'
 import { admitsAnotherClip } from '../../domain/clips/clipQueue'
+import { ClipTrim } from '../../domain/clips/clipTrim'
 import { storageRefusalFor } from '../../domain/events/admission'
 import { Caption } from '../../domain/photos/caption'
 import { ContentHash } from '../../domain/photos/contentHash'
@@ -50,18 +51,18 @@ import { fromIsoText, toIsoText } from './rowMapping'
 
 const CLIP_JOB_COLUMNS = `
   id, event_id, photo_id, author_guest_id, author_user_id, status,
-  source_hash, source_byte_size, caption, attempts,
+  source_hash, source_byte_size, caption, trim_start_ms, trim_end_ms, attempts,
   created_at, updated_at, not_before, failure_code
 `
 
 const INSERT_CLIP_JOB = `
   INSERT INTO clip_jobs (
     id, event_id, photo_id, author_guest_id, author_user_id, status,
-    source_hash, source_byte_size, caption, attempts,
+    source_hash, source_byte_size, caption, trim_start_ms, trim_end_ms, attempts,
     created_at, updated_at, not_before, failure_code
   ) VALUES (
     @id, @event_id, @photo_id, @author_guest_id, @author_user_id, @status,
-    @source_hash, @source_byte_size, @caption, @attempts,
+    @source_hash, @source_byte_size, @caption, @trim_start_ms, @trim_end_ms, @attempts,
     @created_at, @updated_at, @not_before, @failure_code
   )
 `
@@ -76,6 +77,8 @@ const UPDATE_CLIP_JOB = `
          source_hash      = @source_hash,
          source_byte_size = @source_byte_size,
          caption          = @caption,
+         trim_start_ms    = @trim_start_ms,
+         trim_end_ms      = @trim_end_ms,
          attempts         = @attempts,
          created_at       = @created_at,
          updated_at       = @updated_at,
@@ -107,6 +110,8 @@ interface ClipJobRow {
   readonly source_hash: string
   readonly source_byte_size: number
   readonly caption: string | null
+  readonly trim_start_ms: number | null
+  readonly trim_end_ms: number | null
   readonly attempts: number
   readonly created_at: string
   readonly updated_at: string
@@ -124,6 +129,8 @@ interface ClipJobBindings {
   readonly source_hash: string
   readonly source_byte_size: number
   readonly caption: string | null
+  readonly trim_start_ms: number | null
+  readonly trim_end_ms: number | null
   readonly attempts: number
   readonly created_at: string
   readonly updated_at: string
@@ -153,6 +160,23 @@ const statusOf = (row: ClipJobRow): ClipJobStatus => {
   return row.status
 }
 
+/**
+ * The cap is **not** re-judged on the way out: a range accepted under a 30-second setting
+ * must still load after an operator lowers it to 15, or the queue would stop on a row.
+ * The structure is still checked, and a half-written pair is a corrupt row.
+ */
+const trimOf = (row: ClipJobRow): ClipTrim | null => {
+  if (row.trim_start_ms === null && row.trim_end_ms === null) return null
+  if (row.trim_start_ms === null || row.trim_end_ms === null) {
+    throw corruptRow(row.id, 'has only one of its trim bounds')
+  }
+  return trusted(
+    ClipTrim.create(row.trim_start_ms, row.trim_end_ms, Number.POSITIVE_INFINITY),
+    row.id,
+    'trim',
+  )
+}
+
 const toClipJob = (row: ClipJobRow): ClipJob => {
   const props: ClipJobProps = {
     id: asClipJobId(row.id),
@@ -163,6 +187,7 @@ const toClipJob = (row: ClipJobRow): ClipJob => {
     sourceHash: trusted(ContentHash.create(row.source_hash), row.id, 'source_hash'),
     sourceByteSize: row.source_byte_size,
     caption: row.caption === null ? null : trusted(Caption.create(row.caption), row.id, 'caption'),
+    trim: trimOf(row),
     attempts: row.attempts,
     createdAt: fromIsoText(row.created_at),
     updatedAt: fromIsoText(row.updated_at),
@@ -186,6 +211,8 @@ const toBindings = (job: ClipJob): ClipJobBindings => {
     source_hash: props.sourceHash.value,
     source_byte_size: props.sourceByteSize,
     caption: props.caption === null ? null : props.caption.value,
+    trim_start_ms: props.trim === null ? null : props.trim.startMs,
+    trim_end_ms: props.trim === null ? null : props.trim.endMs,
     attempts: props.attempts,
     created_at: toIsoText(props.createdAt),
     updated_at: toIsoText(props.updatedAt),

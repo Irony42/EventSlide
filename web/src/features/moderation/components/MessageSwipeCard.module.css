@@ -1,0 +1,17 @@
+/*
+ * The message, in the space a photo takes. It scrolls on its own when it is long: the card
+ * above it is `touch-action: pan-y`, so a vertical drag here is the browser's scroll and
+ * never a decision. Selection stays off (the card's own rule): a thumb dragging across the
+ * text must not select it.
+ */
+.text {
+  margin: 0;
+  padding: var(--space-4);
+  min-height: calc(var(--touch-min) * 3);
+  max-height: 50vh;
+  overflow-y: auto;
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

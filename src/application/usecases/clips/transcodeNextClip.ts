@@ -1,5 +1,6 @@
 import type { ClipJob } from '../../../domain/clips/clipJob'
 import { ClipDuration } from '../../../domain/clips/clipDuration'
+import { MAX_TRIM_SOURCE_MS } from '../../../domain/clips/clipTrim'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { Photo } from '../../../domain/photos/photo'
 import type { DomainError } from '../../../domain/shared/errors'
@@ -138,6 +139,24 @@ export const makeTranscodeNextClip = ({
     maxDurationMs: policy.maxDurationMs,
     maxOutputBytes: policy.maxOutputBytes,
     posterMaxEdge: policy.posterMaxEdge,
+  }
+
+  /**
+   * Why the source's declared duration is refused, or `null`.
+   *
+   * A job with no range is held to the cap on the source itself. A job with one is not:
+   * the guest kept a part of it, and **the range** was judged against the cap when the
+   * upload arrived, so what is left to ask of the source is that it is a sane length and
+   * that it contains what the guest asked for.
+   */
+  const declaredDurationRefusal = (job: ClipJob, declaredMs: number): string | null => {
+    if (job.trim === null) {
+      const declared = ClipDuration.create(declaredMs, policy.maxDurationMs)
+      return declared.ok ? null : declared.error.code
+    }
+    const sane = ClipDuration.create(declaredMs, MAX_TRIM_SOURCE_MS)
+    if (!sane.ok) return sane.error.code
+    return job.trim.fitsWithin(declaredMs) ? null : 'clip.trimOutOfRange'
   }
 
   /**
@@ -336,10 +355,15 @@ export const makeTranscodeNextClip = ({
     // Refused at the probe, and bounded again at the encoder through `spec`. Both,
     // because the header is a claim by the file: a truncated recording declares a
     // duration it never had, and a hand-written one can declare anything at all.
-    const declared = ClipDuration.create(probed.value.durationMs, policy.maxDurationMs)
-    if (!declared.ok) return giveUpOn(job, declared.error.code, now)
+    const declared = declaredDurationRefusal(job, probed.value.durationMs)
+    if (declared !== null) return giveUpOn(job, declared, now)
 
-    const transcoded = await transcoder.transcode(source, spec)
+    const transcoded = await transcoder.transcode(
+      source,
+      job.trim === null
+        ? spec
+        : { ...spec, trim: { startMs: job.trim.startMs, endMs: job.trim.endMs } },
+    )
     if (!transcoded.ok) return giveUpOn(job, transcoded.error.code, now)
 
     const { video, poster } = transcoded.value
