@@ -20,6 +20,8 @@ export interface WallShortcuts {
    * and then the key does nothing at all: it is not a hidden feature a guest could stumble on.
    */
   readonly onOpenPanel?: (() => void) | undefined
+  /** `S` (spec 12): this screen carries the speakers. A key press is the gesture a browser wants. */
+  readonly onActivateSound?: () => void
 }
 
 /** A control the browser already operates with these keys owns them. */
@@ -100,6 +102,10 @@ export const useWallKeyboard = (shortcuts: WallShortcuts): void => {
           if (handlers.onOpenPanel === undefined) return
           event.preventDefault()
           handlers.onOpenPanel()
+          return
+        case 's':
+          event.preventDefault()
+          handlers.onActivateSound?.()
           return
         default:
           return
