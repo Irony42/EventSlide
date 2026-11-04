@@ -20,6 +20,116 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.6.0] - 2026-11-04
+
+Everything merged to `main` after the tag `v3.5.0`: pull requests #315, #316, #317, #318, #319, #320, #321,
+#322, #323, #324, #325, #326, #327, #328, #329, #330, #331, #332, #333, #334, #335, #336, #337, #338, #339,
+#340 and #341. This is a minor release, the wall batch of the 3 November specs: a settings panel on the wall
+itself, the invitation card's size, corner and visibility, a souvenir counter and a new-photo signal, a timed
+photo challenge, a sound for each new photo and a wall that alternates with a large photograph. It breaks
+nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to keep, and
+**nothing changes on an existing event until its host acts**, but it applies one migration (024), adds public
+fields to the wall's read and makes the guests' phones ask the server every twenty seconds while the event has
+missions, so read "Behaviour changes to check before upgrading" and
+[Upgrading to 3.6](docs/UPGRADING.md#upgrading-to-36) before you upgrade.
+
+### Guests
+
+- **A timed photo challenge on the phone** (#334). While a challenge runs, a band "Défi photo · 1:42" shows
+  above the missions with the mission's sentence and a large « Relever le défi » button that chooses the
+  mission for the next photograph. The countdown follows the server's clock, so a phone with the wrong time is
+  not wrong about the time left. No sound, no vibration, no notification, and an event with no missions is
+  unchanged.
+
+### The wall
+
+- **A timed photo challenge banner** (#329). "Défi photo · 1:42" over the mission's sentence, top centre,
+  inside the overscan inset; the layouts that fill the screen lay out below it and the invitation card stays
+  on screen. It goes ten seconds after the end.
+- **A souvenir counter** (#325). « n souvenirs partagés » top centre, the server's total of published photos and
+  clips (not the length of the window the wall holds); hidden at zero. Off by default.
+- **A new-photo signal** (#328). A short « nouvelle photo » line under the counter when a published photograph
+  arrives; silent at the first read, after a gap of more than two minutes and for a photograph that only came
+  back into the window. Off by default.
+- **The invitation card, sized and placed by the host** (#319, #321). A scale from 0.8 to 1.5 (never wider than
+  40 % of the screen, and lifted for a long link so the QR stays readable), one of four corners, and a switch
+  that hides it on a populated wall (the empty wall keeps its invitation).
+- **Send time, straight prints, no fast lane** (#320, #322). The caption can show the send time (`HH:mm`, with
+  the short weekday when the photograph is not from today); polaroid and clothesline prints can be held at 0
+  degrees; and a published photograph can wait for its turn instead of taking the next slide.
+- **A sound for each new photo** (#335). One sound at most every five seconds, on a new published photograph,
+  never from the event stream. Each screen is activated once, with a click on the speaker icon or the `S` key.
+  Off by default.
+- **A wall that alternates with a large photograph** (#333). In the mixed mode the wall plays its layout for a
+  while, then one large photograph (`spotlight`) for a while, on a clock shared with the server so two
+  projectors change together, through a fade (a cut under reduced motion). A screen that names its own layout
+  with `L` or `?layout=` leaves the alternation until it is reloaded.
+- **A settings panel on the wall** (#317, #318). A bar at the bottom centre (Réglages, Pause, Plein écran)
+  shows while the pointer moves, and `R` opens a panel that closes with Esc, its cross or after 60 seconds
+  untouched. It is there only for the owner signed in on that machine; for anyone else there is no bar, no
+  panel and no DOM, and `R` does nothing.
+
+### Hosts
+
+- **Wall settings, on the settings page and in the panel** (#315, #318, #320, #322, #323, #326, #327, #330,
+  #332, #336, #339, #340, #341). A block "Affichage du mur" on the settings page and the same controls in the
+  panel, saved key by key: the layout of the event and the rhythm of the slides (#315, #318), new photos first
+  and tilt (#320), the send time (#322), the counter and the new-photo signal under « À l'écran » (#323,
+  #336), the invitation card's switch, slider (0.8 to 1.5, with the marks Petit, Moyen and Grand) and corner
+  grid (#340), the alternation of wall and large photograph with its two durations (#326, #327, #339) and the
+  sound, with four tones (`chime`, `bell`, `drop`, `pop`), a volume and a « Tester » button (#330, #332,
+  #341). The panel says what this screen does when it has its own layout and offers « Revenir au réglage de
+  l'évènement ».
+- **Launch a timed photo challenge** (#316, #324, #338). From the missions of the console, or from the « Défi
+  photo » section of the wall panel: a mission, a duration of 1, 2, 5 or 10 minutes (the API accepts 15 seconds to 30 minutes), « Lancer » and
+  « Arrêter », and the number of answers (published photographs that name the mission inside the window,
+  which runs until a minute after the end). Fifty challenges per event; any moderator can launch one from the
+  console.
+
+### Behaviour changes to check before upgrading
+
+- **One migration, applied at boot, 024.** `024_event_challenges` adds a new, empty table (`event_challenges`,
+  cascade with the event, no personal data) and touches no existing row (#316). It only goes forward; a 3.5.x
+  build still reads the database, so going back is the restore of the archive taken before the upgrade.
+- **Every new wall setting defaults to today's behaviour: nothing changes on an existing wall until the host
+  acts.** The wall keeps its layout chain and its eight-second slide, new photos first and tilt on, no send
+  time, no counter, no new-photo signal, the invitation card visible at scale 1 in its usual corner, no
+  alternation, and the sound off (tone `chime`, volume 50). A challenge exists only when a host launches one.
+- **New public fields on `GET /api/events/:slug/wall`**, all additions, none removed: `serverNowMs`,
+  `challenge`, `layoutChosen`, `mixed` (`null` when off, else the two durations in milliseconds, the layout of
+  the wall phase and an anchor), `souvenirCount` (`null` unless the counter, the signal or the sound is on),
+  `souvenirCounter`, `newPhotoSignal`, `freshLane`, `tilt`, `showTime`, `joinCard` (`visible`, `scale`,
+  `placement`) and `sound` (`enabled`, `tone`, `volume`). `GET /api/events/:slug/missions/mine` gains
+  `serverNowMs` and `challenge`. The settings of the host gain the `wall` keys, changed by the owner only. A
+  wall or a phone left open across the upgrade ignores them until it is reloaded.
+- **New routes**: `GET`, `POST` and `DELETE /api/events/:slug/challenge` (a moderator or the owner; `POST`
+  answers `201`, `DELETE` is idempotent and answers `204`), and a `challenge.changed` signal on the event
+  stream.
+- **Load: a guest's phone reads `GET /api/events/:slug/missions/mine` every twenty seconds** (jittered by 15 %
+  either way, only while the page is visible and when the tab comes back) **while the event has missions**,
+  to learn that a challenge started. That is about ten reads a second for 200 guests, three indexed queries
+  each: watch the load at the first large event that sets missions. An event with no missions asks nothing
+  more.
+- **The wall panel is for the owner, signed in on the projector machine.** A moderator, or a wall nobody
+  signed in on, has no panel (a moderator launches a challenge from the console), and the panel's settings
+  writes are owner only like the settings page.
+- **Sounds are off by default and need a click.** A browser plays a sound only on a page where someone clicked
+  or pressed a key: each screen that should ring is activated once (the speaker icon or `S`), and a wall that
+  reloads comes back silent until then. The four sound files are synthesised and CC0 (`web/public/sounds/`,
+  about 25 kB together) and ship in the image; the content security policy does not change.
+- **The mixed wall follows the box's clock.** The phases are computed from the server's time (`serverNowMs`)
+  with an offset measured on each read, so two projectors change together even when their own clocks differ.
+
+### Documentation, tests and dependencies
+
+- `docs/API.md` describes the new keys, fields and routes, and `docs/OPERATING.md` the sound activation.
+- New guards: contract tests that pin the server's and the browser's copies of the same rule (the slide order
+  with `freshLane`, the mixed phase, the invitation card's readability floor), and e2e journeys for the
+  souvenir counter and signal and for the mixed wall.
+- `scripts/auditPruneScope.test.ts` parses the source tree once per run, which ends its timeouts on CI (#337).
+- No new dependency; four CC0 sound files and the script that synthesises them (`tools/sounds/generate.mjs`)
+  are added (#331).
+
 ## [3.5.0] - 2026-11-02
 
 Everything merged to `main` after the tag `v3.4.0`: pull requests #288, #289, #290, #291, #292, #293, #294,
