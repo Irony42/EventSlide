@@ -410,8 +410,13 @@
   cursor: pointer;
 }
 
+/* On: a faint accent tint, not a border. The focus ring itself is base.css's, on the input. */
 .card:has(.switch:checked) {
-  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface-base));
+}
+
+.card:has(.switch:focus-visible) {
+  border-color: var(--border-strong);
 }
 
 .cardText {
@@ -449,13 +454,17 @@
   stroke-linecap: round;
 }
 
-/* A switch: the input itself, drawn. The knob moves by position, not by a transition. */
+/* A switch: the input itself, drawn as a pill about twice as wide as tall. The label around it is
+   the 44 px target; the track is not stretched to be one. */
 .switch {
   appearance: none;
+  box-sizing: border-box;
   position: relative;
   flex: none;
-  inline-size: var(--touch-min);
-  block-size: var(--space-6);
+  inline-size: var(--switch-width);
+  block-size: var(--switch-height);
+  min-inline-size: 0;
+  min-block-size: 0;
   margin: 0;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-full);
@@ -466,22 +475,32 @@
 .switch::after {
   content: '';
   position: absolute;
-  inset-block-start: var(--space-1);
-  inset-inline-start: var(--space-1);
-  inline-size: var(--space-5);
-  block-size: var(--space-5);
+  inset-block-start: calc(var(--switch-gap) - 1px);
+  inset-inline-start: calc(var(--switch-gap) - 1px);
+  inline-size: var(--switch-knob);
+  block-size: var(--switch-knob);
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: var(--switch-knob-colour);
 }
 
 .switch:checked {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--switch-on);
+  border-color: var(--switch-on);
 }
 
 .switch:checked::after {
-  inset-inline-start: calc(100% - var(--space-5) - var(--space-1));
-  background: var(--accent-contrast);
+  transform: translateX(calc(var(--switch-width) - var(--switch-knob) - 2 * var(--switch-gap)));
+}
+
+/* The knob slides on the compositor; the track's colour changes at once (no paint transition on the wall). */
+@media (prefers-reduced-motion: no-preference) {
+  .switch::after {
+    transition: transform var(--duration-fast) var(--ease-in-out);
+  }
+}
+
+[data-wall-budget='cut'] .switch::after {
+  transition: none;
 }
 
 .switch:disabled {

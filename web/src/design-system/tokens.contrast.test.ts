@@ -1269,3 +1269,37 @@ describe('a miniature inside a page that wears another ambiance', () => {
     expect(block).toMatch(/--qr-ink:\s*var\(--surface-base\);/)
   })
 })
+
+describe.each(AMBIANCES)('the option switch in the %s ambiance', (name) => {
+  const body = name === 'eventslide' ? ROOT_RESOLVED : ambianceBlock(TOKENS, name)
+  const own = parseOklchTokens(`:root {${body}}`)
+  const resolve = (property: string): Oklch => {
+    const found = own.get(property) ?? tokens.get(property)
+    if (found === undefined) throw new Error(`${property} is not an oklch token in ${name}`)
+    return found
+  }
+  // `--switch-on` is `oklch(from var(--accent) 58% calc(c * 0.8) h)`.
+  const on: Oklch = {
+    ...resolve('--accent'),
+    l: 0.58,
+    c: resolve('--accent').c * 0.8,
+  }
+
+  it('declares the mix this measures', () => {
+    expect(TOKENS).toContain('--switch-on: oklch(from var(--accent) 58% calc(c * 0.8) h);')
+  })
+
+  it('keeps the knob at 3:1 on the on track, and the on track at 3:1 on the card', () => {
+    expect(contrast(resolve('--switch-knob-colour'), on)).toBeGreaterThanOrEqual(3)
+    expect(contrast(on, resolve('--surface-base'))).toBeGreaterThanOrEqual(3)
+  })
+
+  it('keeps the off track’s edge at 3:1 on the card, and the knob at 3:1 on the off track', () => {
+    expect(contrast(resolve('--border-strong'), resolve('--surface-base'))).toBeGreaterThanOrEqual(
+      3,
+    )
+    expect(
+      contrast(resolve('--text-secondary'), resolve('--surface-overlay')),
+    ).toBeGreaterThanOrEqual(3)
+  })
+})
