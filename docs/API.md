@@ -1922,7 +1922,12 @@ client shows the new notice. `400 request.invalid` for a missing, empty or non-s
 ### `POST /api/events/:slug/clips`
 
 A short video clip. `multipart/form-data`, **exactly one** file under the field `clip`,
-optional `caption`. Guest token required.
+optional `caption`, and optionally the part of a too-long recording to keep: `startMs` and `endMs` (digits,
+milliseconds from the start of the file sent; **both or neither**, `400 request.invalid` otherwise). A range must be
+at least one second and at most `MAX_CLIP_SECONDS`; the source itself may then be longer than the cap (at most
+30 minutes declared, and at most `MAX_CLIP_BYTES`). The job carries the range and the worker applies it while it
+re-encodes (never `-c copy`); a range that ends past the end of the source fails the job, `failureCode` `clip.trimOutOfRange`.
+Sending the same bytes again returns the first job whatever the range. Guest token required.
 
 A separate route with its own `multer`, its own byte limit and its own storage, and none
 of that is incidental: the photo path's `MAX_UPLOAD_BYTES` feeds a per-request heap
@@ -1964,7 +1969,8 @@ old row stays, so the first `clipJobId` still resolves and still says why that a
 ended; the new upload gets a new job. The same applies after a clip is deleted — the job
 that produced it is retired with it.
 
-**Errors** — `400 clip.unsupportedFormat` when the bytes are not a container this server
+**Errors** — `400 clip.trimInvalid` (a range that is not whole, ordered, positive numbers), `400 clip.tooShort` and
+`400 clip.tooLong` for a range under one second or over the cap; `400 clip.unsupportedFormat` when the bytes are not a container this server
 opens, decided from the **signature** before anything is written;
 `400 clip.sourceByteSizeInvalid` for an empty file; `400 upload.noFiles` when the request
 carries no `clip` part; `403 event.clipsNotAllowed` when the host turned video off for

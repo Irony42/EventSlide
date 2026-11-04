@@ -217,13 +217,32 @@ export const uploadFields = z.strictObject({
 })
 
 /**
- * The one text part a clip upload carries. Same bound and same reasoning as
+ * The text parts a clip upload carries. Same bound and same reasoning as
  * {@link uploadFields}: the exact limit is `Caption`'s, this only keeps a multi-megabyte
  * field out of the domain.
+ *
+ * `startMs` and `endMs` (spec 16) are the part of a too-long recording the guest kept.
+ * Multipart text is text, so they are digit strings, at most nine of them (about eleven
+ * days: nothing a header can claim is larger and nothing here can overflow). Whether the
+ * range is a valid one — at least a second, at most the cap — is `ClipTrim`'s, answered
+ * `clip.trimInvalid` / `clip.tooShort` / `clip.tooLong`. What is structural and belongs
+ * here is that they come as a pair: one without the other is not a range.
  */
-export const clipUploadFields = z.strictObject({
-  caption: z.string().max(1_000).nullish(),
-})
+export const clipUploadFields = z
+  .strictObject({
+    caption: z.string().max(1_000).nullish(),
+    startMs: z
+      .string()
+      .regex(/^\d{1,9}$/)
+      .optional(),
+    endMs: z
+      .string()
+      .regex(/^\d{1,9}$/)
+      .optional(),
+  })
+  .refine((fields) => (fields.startMs === undefined) === (fields.endMs === undefined), {
+    message: 'startMs and endMs go together',
+  })
 
 /**
  * A guestbook message. The 500-character rule is the domain's (`GuestbookText`), which answers

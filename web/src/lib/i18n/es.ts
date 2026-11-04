@@ -554,6 +554,8 @@ export const es: UiText = {
     'clip.durationUnknown': 'No se puede leer la duración de este vídeo. Pruebe con otro.',
     'clip.tooShort': 'Este vídeo es demasiado corto.',
     'clip.tooLong': 'Este vídeo es demasiado largo. Grabe una secuencia más corta.',
+    'clip.trimInvalid': 'Este fragmento no es válido. Elija otro.',
+    'clip.trimOutOfRange': 'El fragmento elegido sobrepasa el final del vídeo. Elija otro.',
     'clip.transcodeFailed': 'Este vídeo no se ha podido procesar. Pruebe con otro.',
     'clip.transcodeTimedOut': 'Este vídeo es demasiado pesado para procesarlo. Pruebe con otro.',
     'clip.storageFailed': 'Este vídeo no se ha podido guardar. Inténtelo de nuevo.',

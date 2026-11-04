@@ -270,6 +270,8 @@ const DOCUMENTED_CODES: readonly string[] = [
   'clip.durationUnknown',
   'clip.tooShort',
   'clip.tooLong',
+  'clip.trimInvalid',
+  'clip.trimOutOfRange',
   'clip.transcodeFailed',
   'clip.transcodeTimedOut',
   'clip.transcodeCancelled',

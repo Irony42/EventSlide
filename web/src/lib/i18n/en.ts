@@ -532,6 +532,8 @@ export const en: UiText = {
     'clip.durationUnknown': 'The length of this video cannot be read. Try another one.',
     'clip.tooShort': 'This video is too short.',
     'clip.tooLong': 'This video is too long. Record a shorter sequence.',
+    'clip.trimInvalid': 'This part of the video is not valid. Pick another one.',
+    'clip.trimOutOfRange': 'The part you chose goes past the end of the video. Pick another one.',
     'clip.transcodeFailed': 'This video could not be processed. Try another one.',
     'clip.transcodeTimedOut': 'This video is too heavy to process. Try another one.',
     'clip.storageFailed': 'This video could not be saved. Try again.',

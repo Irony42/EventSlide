@@ -583,6 +583,9 @@ export const de: UiText = {
       'Die Länge dieses Videos ist nicht lesbar. Versuchen Sie es mit einem anderen.',
     'clip.tooShort': 'Dieses Video ist zu kurz.',
     'clip.tooLong': 'Dieses Video ist zu lang. Nehmen Sie ein kürzeres Video auf.',
+    'clip.trimInvalid': 'Dieser Ausschnitt ist nicht gültig. Wählen Sie einen anderen.',
+    'clip.trimOutOfRange':
+      'Der gewählte Ausschnitt reicht über das Ende des Videos hinaus. Wählen Sie einen anderen.',
     'clip.transcodeFailed':
       'Dieses Video konnte nicht verarbeitet werden. Versuchen Sie es mit einem anderen.',
     'clip.transcodeTimedOut':

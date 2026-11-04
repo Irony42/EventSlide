@@ -2160,6 +2160,8 @@ export const fr = {
     'clip.durationUnknown': 'La durée de cette vidéo est illisible. Essayez-en une autre.',
     'clip.tooShort': 'Cette vidéo est trop courte.',
     'clip.tooLong': 'Cette vidéo est trop longue. Filmez une séquence plus courte.',
+    'clip.trimInvalid': 'Cet extrait n’est pas valable. Choisissez-en un autre.',
+    'clip.trimOutOfRange': 'L’extrait choisi dépasse la fin de la vidéo. Choisissez-en un autre.',
     'clip.transcodeFailed': 'Cette vidéo n’a pas pu être traitée. Essayez-en une autre.',
     'clip.transcodeTimedOut': 'Cette vidéo est trop lourde à traiter. Essayez-en une autre.',
     'clip.storageFailed': 'Cette vidéo n’a pas pu être enregistrée. Réessayez.',
