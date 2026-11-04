@@ -28,6 +28,7 @@ function Probe({ withPanel = false }: { readonly withPanel?: boolean }) {
     onDismiss: () => record('fermer'),
     onToggleQr: () => record('qr'),
     ...(withPanel ? { onOpenPanel: () => record('réglages') } : {}),
+    onActivateSound: () => record('son'),
   })
 
   return (
@@ -56,6 +57,8 @@ describe('useWallKeyboard', () => {
     { key: 'L', name: 'shifted L', action: 'disposition' },
     { key: 'q', name: 'Q', action: 'qr' },
     { key: 'Q', name: 'shifted Q', action: 'qr' },
+    { key: 's', name: 'S', action: 'son' },
+    { key: 'S', name: 'shifted S', action: 'son' },
   ])('answers $name with $action', async ({ key, action }) => {
     render(<Probe />)
 

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import type { WallResponse } from '../../lib/api/dto'
+import { serverNowFrom } from '../../lib/serverClock'
 import { affords, wallBudgetProps } from '../../design-system/budget'
 import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
@@ -23,7 +25,9 @@ import { WallEmptyState } from './components/WallEmptyState'
 import { WallControls } from './components/WallControls'
 import { WallLayouts } from './components/WallLayouts'
 import { WallMessage } from './components/WallMessage'
+import { WallChallenge } from './components/WallChallenge'
 import { NewPhotoSignal } from './components/NewPhotoSignal'
+import { WallSoundButton } from './components/WallSoundButton'
 import { SouvenirCounter } from './components/SouvenirCounter'
 import { WallMissions } from './components/WallMissions'
 import { WallOverlay } from './components/WallOverlay'
@@ -31,6 +35,7 @@ import { useFrameBudget } from './hooks/useFrameBudget'
 import { useLayoutParam } from './hooks/useLayoutParam'
 import { useIdleCursor } from './hooks/useIdleCursor'
 import { useNewPhotoSignal } from './hooks/useNewPhotoSignal'
+import { useWallSound } from './hooks/useWallSound'
 import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useWallGuestbook } from './hooks/useWallGuestbook'
@@ -183,6 +188,17 @@ export function WallPage() {
   const eventSlug = slug ?? ''
 
   const newPhotoSignal = useNewPhotoSignal()
+  const wallSound = useWallSound(eventSlug)
+  const { observe: observeSignal } = newPhotoSignal
+  const { observe: observeSound } = wallSound
+  // One read feeds both: they share `detectArrivals`, so what the room sees and hears is one fact.
+  const observeReads = useCallback(
+    (response: WallResponse) => {
+      observeSignal(response)
+      observeSound(response)
+    },
+    [observeSignal, observeSound],
+  )
   const {
     wall,
     loading,
@@ -191,9 +207,9 @@ export function WallPage() {
     offline,
     readFailing,
     reactionPulse,
+    serverOffsetMs,
     refresh,
-    serverClock,
-  } = useWallPlaylist(eventSlug, newPhotoSignal.observe)
+  } = useWallPlaylist(eventSlug, observeReads)
   const text = useTranslations()
   // A stream that is down says nothing about the network while the wall's own reads keep
   // coming back: a proxy that buffers event streams leaves it down all night. The room is told
@@ -248,9 +264,11 @@ export function WallPage() {
   // The mixed wall (spec 09): which half the room is on, from the server's clock. One slideshow
   // cursor serves both halves; the phase never touches it (rule 7).
   const reducedMotion = usePrefersReducedMotion()
+  // `Date.now` is read only when the phase is asked for, never while rendering a value of its own.
+  const serverNow = useCallback(() => serverNowFrom(Date.now(), serverOffsetMs), [serverOffsetMs])
   const phaseView = useWallPhase({
     mixed: wall?.mixed,
-    clock: serverClock,
+    now: serverNow,
     paused: slideshow.paused,
     instant: reducedMotion || !affords(budget, 'crossfade'),
     fadeMs: transitionMs,
@@ -321,6 +339,31 @@ export function WallPage() {
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
   /**
+   * The timed challenge (spec 10), in every phase of the wall and on the empty wall too: it is a
+   * call to take photographs, so it is withheld only when the room can no longer send any (the
+   * rule `showsMissions` follows). `challengeGone` is the banner saying it has shown "Défi
+   * terminé" for its ten seconds, which is when the room it reserved is given back.
+   */
+  const challenge = wall?.challenge ?? null
+  const [challengeGone, setChallengeGone] = useState<string | null>(null)
+  // Stable, so the banner's ten-second timer is not restarted by every render of the wall.
+  const challengeId = challenge?.id ?? null
+  const leaveChallenge = useCallback(() => setChallengeGone(challengeId), [challengeId])
+  const showsChallenge = acceptsGuests && challenge !== null && challengeGone !== challenge.id
+  const challengeRunning = showsChallenge && challenge.state === 'running'
+  /**
+   * The join card comes back when a challenge starts, even if `Q` put it away: a challenge with
+   * no way to join it means nothing, and the return is the same one the timer makes. Adjusted
+   * while rendering, once per challenge, so the host can still put it away afterwards (it is
+   * held on screen while the challenge runs, whatever the state says).
+   */
+  const [seenChallenge, setSeenChallenge] = useState<string | null>(null)
+  const startedId = challengeRunning ? challenge.id : null
+  if (startedId !== null && startedId !== seenChallenge) {
+    setSeenChallenge(startedId)
+    setQrHidden(false)
+  }
+  /**
    * The host's card settings (spec 14); an older server sends none, and the defaults are the card
    * as it always was. `visible` false is the host's permanent switch: no card on a populated
    * wall, and `Q` has nothing to flip. The empty wall's large invitation ignores it (it is not
@@ -328,14 +371,19 @@ export function WallPage() {
    */
   const joinCard = wall?.joinCard ?? DEFAULT_JOIN_CARD
   const cardEnabled = invitation !== null && joinCard.visible && items.length > 0
-  const showsOverlay = cardEnabled && !qrHidden
+  const showsOverlay = cardEnabled && (!qrHidden || challengeRunning)
   /** The scale drawn: the host's, lifted to the readability floor of this very link. */
   const cardScale = invitation === null ? 1 : joinCardScale(joinCard.scale, invitation.url)
   const placement = joinCard.placement
   const stackStart = cardEnabled && placement === 'top-start'
   const stackEnd = cardEnabled && placement === 'top-end'
+  // Decision 11-4: while the banner is up the counter is hidden and the new-photo signal is held
+  // (its arrivals wait in the reserve and are announced together afterwards).
+  const { hold: holdSignal } = newPhotoSignal
+  useEffect(() => holdSignal(showsChallenge), [showsChallenge, holdSignal])
+  const chrome = cx(showsOverlay && 'corner', showsChallenge && 'top')
   // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
-  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.leaveHint}${
+  const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.soundShortcutHint} ${text.wall.leaveHint}${
     owner === null ? '' : ` ${text.wall.panel.openHint}`
   }${wall?.mixed == null ? '' : ` ${text.wall.mixedHint}`}`
 
@@ -403,6 +451,9 @@ export function WallPage() {
         ),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
+    onActivateSound: () => {
+      if (wallSound.enabled) wallSound.activate()
+    },
     // Escape closes the panel, then the help, and nothing else: it never hides the QR (MUR-5), and
     // leaving fullscreen is the browser's own.
     onDismiss: () => (panelOpen ? closePanel() : closeHelp()),
@@ -474,7 +525,7 @@ export function WallPage() {
       // that would otherwise centre a caption under it lays out inside what is left.
       // The card is chrome and the caption is the guest's words, so the card is what the
       // wall reserves around rather than what it prints over.
-      data-wall-chrome={showsOverlay ? 'corner' : undefined}
+      data-wall-chrome={chrome === '' ? undefined : chrome}
       // Which corner, only when it is not the bottom end the wall always used (spec 14): the
       // reservation follows the side, the caption makes way for a bottom-start card.
       data-wall-join-corner={showsOverlay && placement !== 'bottom-end' ? placement : undefined}
@@ -551,8 +602,20 @@ export function WallPage() {
       {showsMissions && !stackStart ? <WallMissions missions={missions} /> : null}
 
       {/* Spec 11: the host's switch, and the server's total (never `items.length`, which is capped). */}
-      {wall?.souvenirCounter === true && typeof wall.souvenirCount === 'number' ? (
+      {wall?.souvenirCounter === true &&
+      typeof wall.souvenirCount === 'number' &&
+      !showsChallenge ? (
         <SouvenirCounter count={wall.souvenirCount} />
+      ) : null}
+
+      {showsChallenge ? (
+        <WallChallenge
+          key={challenge.id}
+          challenge={challenge}
+          offsetMs={serverOffsetMs}
+          onElapsed={refresh}
+          onLeave={leaveChallenge}
+        />
       ) : null}
 
       {guestbookMessage !== null && items.length > 0 ? (
@@ -561,6 +624,12 @@ export function WallPage() {
 
       {/* Spec 11: only a host-enabled signal ever produces a bubble. */}
       <NewPhotoSignal bubble={newPhotoSignal.bubble} />
+
+      {/* Spec 12: public and harmless, it only lets this browser play; it writes nothing. */}
+      <WallSoundButton
+        visible={wallSound.enabled && !wallSound.active && !cursorIdle}
+        onActivate={wallSound.activate}
+      />
 
       {showsOverlay && invitation !== null && !stackStart && !stackEnd ? (
         <WallOverlay join={invitation} placement={placement} onDismiss={() => setQrHidden(true)} />
@@ -622,6 +691,7 @@ export function WallPage() {
               ),
             localLayout:
               layoutOverride === null ? null : { onReset: () => setLayoutOverride(null) },
+            sound: { active: wallSound.active, onActivate: wallSound.activate },
             qr: cardEnabled
               ? { hidden: qrHidden, onToggle: () => setQrHidden((hidden) => !hidden) }
               : null,

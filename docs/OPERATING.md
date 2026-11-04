@@ -81,6 +81,8 @@ What the link hands out, and what it does not:
    code lets nobody in and there is no wall to show.
 4. **Open the wall** on the projector: the display page, fullscreen. It needs no
    keyboard after that.
+   If you turned on the [wall sound](#a-sound-for-each-new-photo), click the speaker icon on the
+   wall (or press `S`) once: browsers refuse to play a sound on a page nobody has touched.
 5. **Keep the moderation queue open** on your laptop or phone. New photos arrive by
    themselves; `J`/`K` to move, `P` to publish, `R` to refuse, `Z` to undo.
 6. **The morning after**, make the [shared gallery](#shared-gallery) link on the event
@@ -201,3 +203,11 @@ ones signs every host out, and on a replacement box `docker compose` will not ru
 single command, `stop` and `run` included, until the three variables `compose.yaml`
 requires are back. Details, and what the checks do and do not catch, are in
 [docs/SECURITY.md §11](SECURITY.md#11-deployment-posture).
+
+## A sound for each new photo
+
+Off by default, for every event. The host turns it on in the event settings ("Affichage du mur", "Son": four sounds, a volume and a Test button) and the setting is the same for every wall of the event. A wall rings once when a photo or clip becomes visible on it, at most once every 5 seconds; a photo still waiting for moderation never rings.
+
+A browser only plays a sound on a page where someone has clicked or pressed a key, so **each screen that should ring must be activated once** (the speaker icon that shows when the pointer moves, or the `S` key). A wall that reloads comes back silent until the next click or key: that is the browser, not a fault. The sound files are the four synthesised, CC0 sounds in `web/public/sounds/` (see `web/public/licenses/SOUNDS.txt`).
+
+**Kiosk screens.** On a dedicated machine nobody touches, start Chrome with `--autoplay-policy=no-user-gesture-required` so that the wall can ring after a reload. It is a setting of that computer; EventSlide never asks for it. The first sound after a long silence may lose its start if the HDMI output goes to sleep: test on the real hardware.

@@ -9,9 +9,16 @@ import { useChallenge, useMissions } from './hooks/useEventData'
 import { useStartChallenge, useStopChallenge } from './hooks/useEventActions'
 import styles from './ChallengePanel.module.css'
 
-export interface ChallengePanelProps {
+export interface ChallengeControlsProps {
   readonly slug: string
   /** The event is live: a challenge is asked of a room that can still answer (the server refuses otherwise). */
+  readonly live: boolean
+  /** Where a refusal is said: a toast on the console, a line in the wall's panel (which has no toaster). */
+  readonly onFailure: (message: string | null) => void
+}
+
+export interface ChallengePanelProps {
+  readonly slug: string
   readonly live: boolean
 }
 
@@ -29,9 +36,8 @@ const DEFAULT_DURATION_SECONDS = 120
  * clock (`useChallenge` measures the offset), re-reading once when it reaches zero because the end
  * of a challenge is derived from the clock and announces nothing.
  */
-export function ChallengePanel({ slug, live }: ChallengePanelProps) {
+export function ChallengeControls({ slug, live, onFailure }: ChallengeControlsProps) {
   const t = useTranslations()
-  const toast = useToast()
   const challenge = useChallenge(slug)
   const missions = useMissions(slug)
   const start = useStartChallenge()
@@ -68,20 +74,20 @@ export function ChallengePanel({ slug, live }: ChallengePanelProps) {
     void start
       .run('start', slug, { missionId: chosen, durationSeconds: seconds })
       .then((result) => {
-        if (!result.ok) toast.show(result.message, { tone: 'danger' })
+        onFailure(result.ok ? null : result.message)
         reload()
       })
   }
 
   const halt = () => {
     void stop.run('stop', slug).then((result) => {
-      if (!result.ok) toast.show(result.message, { tone: 'danger' })
+      onFailure(result.ok ? null : result.message)
       reload()
     })
   }
 
   return (
-    <Card as="h2" title={t.challenge.title}>
+    <>
       <p className={styles['hint']}>{t.challenge.hint}</p>
 
       {running === null ? (
@@ -130,6 +136,24 @@ export function ChallengePanel({ slug, live }: ChallengePanelProps) {
           </div>
         </div>
       )}
+    </>
+  )
+}
+
+/** The console's panel: the controls in a card, refusals as toasts. */
+export function ChallengePanel({ slug, live }: ChallengePanelProps) {
+  const t = useTranslations()
+  const toast = useToast()
+
+  return (
+    <Card as="h2" title={t.challenge.title}>
+      <ChallengeControls
+        slug={slug}
+        live={live}
+        onFailure={(message) => {
+          if (message !== null) toast.show(message, { tone: 'danger' })
+        }}
+      />
     </Card>
   )
 }
