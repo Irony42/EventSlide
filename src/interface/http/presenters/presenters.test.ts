@@ -365,6 +365,9 @@ describe('toEventSettingsDto', () => {
           newPhotoSignal: true,
           qrScale: 1.3,
           qrPlacement: 'top-end',
+          soundEnabled: true,
+          soundTone: 'bell',
+          soundVolume: 30,
         },
       },
     })
@@ -403,6 +406,9 @@ describe('toEventSettingsDto', () => {
         newPhotoSignal: true,
         qrScale: 1.3,
         qrPlacement: 'top-end',
+        soundEnabled: true,
+        soundTone: 'bell',
+        soundVolume: 30,
       },
     })
   })

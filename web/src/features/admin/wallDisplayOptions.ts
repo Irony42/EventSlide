@@ -100,5 +100,11 @@ export const wallChanges = (
   if (draft.freshLane !== loaded.freshLane) changes.freshLane = draft.freshLane
   if (draft.tilt !== loaded.tilt) changes.tilt = draft.tilt
   if (draft.showTime !== loaded.showTime) changes.showTime = draft.showTime
+  if (draft.soundEnabled !== loaded.soundEnabled) changes.soundEnabled = draft.soundEnabled
+  if (draft.soundTone !== loaded.soundTone) changes.soundTone = draft.soundTone
+  if (draft.soundVolume !== loaded.soundVolume) changes.soundVolume = draft.soundVolume
+  if (draft.qrVisible !== loaded.qrVisible) changes.qrVisible = draft.qrVisible
+  if (draft.qrScale !== loaded.qrScale) changes.qrScale = draft.qrScale
+  if (draft.qrPlacement !== loaded.qrPlacement) changes.qrPlacement = draft.qrPlacement
   return Object.keys(changes).length === 0 ? undefined : changes
 }

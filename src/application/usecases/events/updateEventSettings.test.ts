@@ -96,6 +96,9 @@ describe('updateEventSettings', () => {
       newPhotoSignal: false,
       qrScale: 1,
       qrPlacement: 'bottom-end',
+      soundEnabled: false,
+      soundTone: 'chime',
+      soundVolume: 50,
     })
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
   })

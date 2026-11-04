@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { CLIENT_LOCALES, DEFAULT_CLIENT_LOCALE } from '../../../domain/clients/clientLocale'
 import { BOOK_LAYOUTS } from '../../../domain/book/bookLayout'
 import { WALL_QR_PLACEMENTS } from '../../../domain/events/wallJoinCard'
+import { WALL_SOUND_TONES } from '../../../domain/events/wallSound'
 import { WALL_LAYOUTS } from '../../../domain/slideshow/wallLayout'
 import { EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 import { MODERATION_MODES } from '../../../domain/events/eventSettings'
@@ -516,6 +517,10 @@ export const updateSettingsBody = z.strictObject({
       qrVisible: z.boolean().optional(),
       qrScale: z.number().optional(),
       qrPlacement: z.enum(WALL_QR_PLACEMENTS).optional(),
+      // Spec 12. The volume's bounds (a whole 0..100) are the domain's.
+      soundEnabled: z.boolean().optional(),
+      soundTone: z.enum(WALL_SOUND_TONES).optional(),
+      soundVolume: z.number().optional(),
     })
     .optional(),
   /**

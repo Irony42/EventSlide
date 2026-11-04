@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '../../../app/useApi'
+import { serverOffsetMs } from '../../../lib/serverClock'
 import { useLoader } from '../../../lib/useLoader'
-import type { GuestMissionDto } from '../../../lib/api/dto'
+import type { GuestChallengeDto, GuestMissionDto } from '../../../lib/api/dto'
 
 /**
  * The guest's checklist, from `GET /api/events/:slug/missions/mine` (roadmap §2.1).
@@ -28,20 +29,75 @@ export interface MissionsState {
   readonly selected: string | null
   /** Passing the id that is already selected clears it — the same tap, twice. */
   readonly toggle: (missionId: string) => void
+  /** Chooses a prompt without the second tap clearing it: what "Relever le défi" does. */
+  readonly select: (missionId: string) => void
   readonly refresh: () => void
+  /** The host's timed challenge, or `null` (spec 10). */
+  readonly challenge: GuestChallengeDto | null
+  /** This phone's clock to the server's, measured at the last read, for the countdown. */
+  readonly offsetMs: number
 }
+
+/**
+ * How often the phone asks again whether a challenge started (spec 10), while the page is visible.
+ *
+ * Twenty seconds is a cost choice, not a freshness one: 200 guests are about ten reads a second,
+ * each three indexed queries. The alternative, the event stream, is one long connection per phone
+ * (`maxStreamsPerClient`, battery), and the guest surface deliberately opens none. A phone may see
+ * a challenge up to twenty seconds late; it counts down against the server's clock, so it is
+ * never wrong about the time left. The delay carries a jitter of 15 % either way, so two hundred
+ * phones that opened together do not read together for the rest of the evening.
+ */
+export const CHALLENGE_POLL_MS = 20_000
+const JITTER = 0.15
 
 const NO_MISSIONS: readonly GuestMissionDto[] = []
 
 export const useMissions = (slug: string): MissionsState => {
   const api = useApi()
+  const [offsetMs, setOffsetMs] = useState(0)
   const load = useCallback(
-    async (signal: AbortSignal) => (await api.myMissions(slug, signal)).items,
+    async (signal: AbortSignal) => {
+      const sentAt = Date.now()
+      const response = await api.myMissions(slug, signal)
+      if (response.serverNowMs !== undefined) {
+        setOffsetMs(serverOffsetMs(response.serverNowMs, sentAt, Date.now()))
+      }
+      return response
+    },
     [api, slug],
   )
   const { data, reload: refresh } = useLoader(load)
-  const missions = data ?? NO_MISSIONS
+  const missions = data?.items ?? NO_MISSIONS
+  const challenge = data?.challenge ?? null
   const [selected, setSelected] = useState<string | null>(null)
+
+  /**
+   * Asked again every twenty seconds, and on coming back to the tab, only while the host has set
+   * prompts at all (a challenge always names one) and the page is on screen. Nothing runs on an
+   * event with no prompts, which is most of them.
+   */
+  const watching = missions.length > 0
+  useEffect(() => {
+    if (!watching) return undefined
+    let timer: number | undefined
+    const schedule = (): void => {
+      timer = window.setTimeout(tick, CHALLENGE_POLL_MS * (1 + (Math.random() * 2 - 1) * JITTER))
+    }
+    const tick = (): void => {
+      if (document.visibilityState === 'visible') refresh()
+      schedule()
+    }
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    schedule()
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [watching, refresh])
 
   const toggle = useCallback((missionId: string) => {
     setSelected((current) => (current === missionId ? null : missionId))
@@ -64,5 +120,13 @@ export const useMissions = (slug: string): MissionsState => {
    */
   const live = selected !== null && missions.some((mission) => mission.id === selected)
 
-  return { missions, selected: live ? selected : null, toggle, refresh }
+  return {
+    missions,
+    selected: live ? selected : null,
+    toggle,
+    select: setSelected,
+    refresh,
+    challenge,
+    offsetMs,
+  }
 }

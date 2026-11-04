@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
@@ -424,5 +424,123 @@ describe('the « À l’écran » section (spec 11)', () => {
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
       wall: { souvenirCounter: true, newPhotoSignal: true },
     })
+  })
+})
+
+describe('the QR code section (spec 14)', () => {
+  const open = async () => {
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+  }
+
+  it('is the third section, named QR code', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    const titles = Array.from(document.querySelectorAll('details > summary')).map(
+      (summary) => summary.textContent,
+    )
+    expect(titles.indexOf(fr.wall.panel.sectionQr)).toBe(2)
+  })
+
+  it('writes the size from the slider and from a mark, each alone', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    fireEvent.change(screen.getByLabelText(new RegExp(fr.admin.wallDisplay.qrSize)), {
+      target: { value: '1.25' },
+    })
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenLastCalledWith('camille-et-sacha', {
+      wall: { qrScale: 1.25 },
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: fr.admin.wallDisplay.qrSizeLarge }))
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(2))
+    expect(api.updateSettings).toHaveBeenLastCalledWith('camille-et-sacha', {
+      wall: { qrScale: 1.3 },
+    })
+  })
+
+  it('writes the corner and the switch', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.qrCorners['top-start']))
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.qrVisible))
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { qrPlacement: 'top-start', qrVisible: false },
+    })
+  })
+})
+
+describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
+  const missions = [
+    {
+      id: 'm1',
+      prompt: 'un selfie avec votre voisin',
+      scope: 'guest' as const,
+      achieved: false,
+      publishedPhotos: 0,
+      completedByGuests: 0,
+    },
+  ]
+
+  const openPanel = async (overrides: Parameters<typeof fakeApi>[0] = {}) => {
+    const api = renderWall({
+      getEvent: vi.fn(async () => asOwner()),
+      listMissions: vi.fn(async () => ({ items: missions })),
+      ...overrides,
+    })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+    return api
+  }
+
+  it('has a section "Défi photo" that launches the chosen mission for two minutes', async () => {
+    const startChallenge = vi.fn(async () => ({
+      id: 'c1',
+      missionId: 'm1',
+      prompt: 'un selfie avec votre voisin',
+      startedAt: new Date().toISOString(),
+      endsAt: new Date().toISOString(),
+      state: 'running' as const,
+    }))
+    await openPanel({ startChallenge })
+
+    expect(screen.getByText(fr.challenge.title, { selector: 'summary' })).toBeVisible()
+    const launch = await screen.findByRole('button', { name: fr.challenge.launch })
+    await waitFor(() => expect(launch).toBeEnabled())
+    await userEvent.click(launch)
+
+    expect(startChallenge).toHaveBeenCalledWith('camille-et-sacha', {
+      missionId: 'm1',
+      durationSeconds: 120,
+    })
+  })
+
+  it('says the server refusal in the panel, which has no toaster', async () => {
+    const startChallenge = vi.fn(async () => {
+      throw new ApiError(409, 'challenge.alreadyRunning')
+    })
+    await openPanel({ startChallenge })
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.challenge.launch }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      fr.errors['challenge.alreadyRunning'],
+    )
+  })
+
+  it('does not exist for a moderator, who launches from the console', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) })
+    await screen.findByTestId('wall-slide')
+    await waitFor(() => expect(api.getEvent).toHaveBeenCalled())
+
+    await userEvent.keyboard('r')
+
+    expect(screen.queryByText(fr.challenge.launch)).not.toBeInTheDocument()
   })
 })

@@ -1096,6 +1096,38 @@ describe('sending a video', () => {
       ).toBeVisible()
     })
 
+    it('shows the host challenge above the list, and takes it up with one tap', async () => {
+      const api = fakeApi({
+        myMissions: vi.fn(async () => ({
+          items: [aGuestMission({ id: 'm1', prompt: 'un selfie' })],
+          serverNowMs: Date.now(),
+          challenge: {
+            id: 'c1',
+            missionId: 'm1',
+            prompt: 'un selfie avec votre voisin',
+            endsAt: new Date(Date.now() + 102_000).toISOString(),
+            state: 'running' as const,
+          },
+        })),
+      })
+      havingJoined()
+      renderUpload(api)
+
+      await userEvent.click(await screen.findByRole('button', { name: fr.challenge.takeUp }))
+
+      expect(screen.getByText('un selfie avec votre voisin')).toBeVisible()
+      expect(screen.getByRole('button', { name: /un selfie/, pressed: true })).toBeVisible()
+    })
+
+    it('shows no challenge band when none runs', async () => {
+      havingJoined()
+      renderUpload(fakeApi(withMissions(aGuestMission({ id: 'm1', prompt: 'un selfie' }))))
+
+      await screen.findByRole('button', { name: /un selfie/ })
+
+      expect(screen.queryByRole('button', { name: fr.challenge.takeUp })).not.toBeInTheDocument()
+    })
+
     it('files the photographs under the prompt the guest tapped', async () => {
       const api = fakeApi({
         ...withMissions(aGuestMission({ id: 'm1', prompt: 'un selfie' })),
