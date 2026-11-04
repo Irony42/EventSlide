@@ -45,5 +45,7 @@ export interface ScreenControls {
   /** Set while the `L` key has put this screen on a layout of its own; `onReset` goes back to the event's. */
   readonly localLayout: { readonly onReset: () => void } | null
   /** `null` when there is no corner card to put away (closed event, empty wall, no invitation). */
+  /** The speakers of this screen (spec 12): whether the browser lets it play, and the gesture that allows it. */
+  readonly sound: { readonly active: boolean; readonly onActivate: () => void }
   readonly qr: { readonly hidden: boolean; readonly onToggle: () => void } | null
 }

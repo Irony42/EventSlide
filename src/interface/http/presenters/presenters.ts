@@ -352,6 +352,9 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
     qrVisible: settings.wall.qrVisible,
     qrScale: settings.wall.qrScale,
     qrPlacement: settings.wall.qrPlacement,
+    soundEnabled: settings.wall.soundEnabled,
+    soundTone: settings.wall.soundTone,
+    soundVolume: settings.wall.soundVolume,
   },
 })
 
@@ -873,6 +876,11 @@ export const toWallResponseDto = (
     tilt: view.event.settings.wall.tilt,
     showTime: view.event.settings.wall.showTime,
     joinCard: view.joinCard,
+    sound: {
+      enabled: view.event.settings.wall.soundEnabled,
+      tone: view.event.settings.wall.soundTone,
+      volume: view.event.settings.wall.soundVolume,
+    },
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.

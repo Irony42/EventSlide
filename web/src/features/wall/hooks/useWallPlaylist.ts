@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createWallServerClock, type WallServerClock } from './wallServerClock'
 import { useApi } from '../../../app/useApi'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
+import { serverOffsetMs } from '../../../lib/serverClock'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 
 export interface WallPlaylistState {
@@ -36,9 +36,12 @@ export interface WallPlaylistState {
    * reaction — the wall knows that something was felt, not by whom.
    */
   readonly reactionPulse: number
+  /**
+   * The gap between this machine's clock and the server's, measured at the last read (spec 10):
+   * what a countdown adds to its own clock so two projectors in one room agree.
+   */
+  readonly serverOffsetMs: number
   readonly refresh: () => void
-  /** The server's clock as read off the last responses (spec 09): the mixed wall's phase uses it. */
-  readonly serverClock: WallServerClock
 }
 
 /** While the mixed wall is on, the wall is read again at least this often, to recalibrate the clock. */
@@ -112,14 +115,7 @@ const isNotServed = (cause: Error | null): boolean =>
  * changing only the material while a projector was already running and the wall keeping the
  * stale answer until the next photograph moved `revision`.
  */
-export const SETTINGS_EXEMPT: readonly string[] = [
-  'items',
-  'revision',
-  // The server's time at each read (spec 09): it changes on every one, so comparing it would
-  // make every read look like a changed setting and replace the response (and its clock reading
-  // is taken separately, in the hook, whether or not the response is kept).
-  'serverNowMs',
-]
+export const SETTINGS_EXEMPT: readonly string[] = ['items', 'revision', 'serverNowMs']
 
 /** The mixed wall's schedule, field by field; "off" on both sides is the same. */
 const sameMixed = (kept: WallResponse, fresh: WallResponse): boolean => {
@@ -163,6 +159,32 @@ const sameMissions = (kept: WallResponse, fresh: WallResponse): boolean => {
       mission.completedByGuests === now.completedByGuests
     )
   })
+}
+
+/**
+/**
+ * The timed challenge, compared field by field (spec 10).
+ *
+ * A challenge starts, ends or is stopped without moving a photograph, so `revision` never sees
+ * it. Every field the wall draws is compared: the prompt is the sentence, `endsAt` is the
+ * countdown, `state` is "Défi photo" against "Défi terminé" and `answers` is the number after
+ * it. `serverNowMs` is **not** compared: it moves at every read by design, and the offset it
+ * gives is kept apart (`useWallPlaylist` returns it), so comparing it would re-render a running
+ * projector for nothing at every signal.
+ */
+const sameChallenge = (kept: WallResponse, fresh: WallResponse): boolean => {
+  const before = kept.challenge ?? null
+  const after = fresh.challenge ?? null
+  if (before === null || after === null) return before === after
+
+  return (
+    before.id === after.id &&
+    before.prompt === after.prompt &&
+    before.startedAt === after.startedAt &&
+    before.endsAt === after.endsAt &&
+    before.state === after.state &&
+    before.answers === after.answers
+  )
 }
 
 /**
@@ -238,6 +260,10 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.joinCard?.visible === fresh.joinCard?.visible &&
   kept.joinCard?.scale === fresh.joinCard?.scale &&
   kept.joinCard?.placement === fresh.joinCard?.placement &&
+  // The sound (spec 12): the host switching it off must silence every wall without a reload.
+  kept.sound?.enabled === fresh.sound?.enabled &&
+  kept.sound?.tone === fresh.sound?.tone &&
+  kept.sound?.volume === fresh.sound?.volume &&
   kept.reactionsEnabled === fresh.reactionsEnabled &&
   kept.event.name === fresh.event.name &&
   kept.theme?.accentHue === fresh.theme?.accentHue &&
@@ -263,6 +289,7 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   // Same for the logo: it is drawn on that empty wall and moves no photograph either.
   kept.brand?.logoUrl === fresh.brand?.logoUrl &&
   sameMissions(kept, fresh) &&
+  sameChallenge(kept, fresh) &&
   sameGuestbook(kept, fresh)
 
 /**
@@ -311,7 +338,7 @@ export const useWallPlaylist = (
   const [state, setState] = useState<Fetched>(INITIAL)
   const [attempt, setAttempt] = useState(0)
   const [reactionPulse, setReactionPulse] = useState(0)
-  const [serverClock] = useState(createWallServerClock)
+  const [offsetMs, setOffsetMs] = useState(0)
 
   /**
    * A refresh does not raise `loading`.
@@ -347,14 +374,15 @@ export const useWallPlaylist = (
     const controller = new AbortController()
     let live = true
 
-    const sentAt = performance.now()
+    const sentAt = Date.now()
     api.wall(slug, controller.signal).then(
       (response) => {
         if (!live) return
-        // The stamp was taken about halfway through the round trip (spec 09). Taken on every
-        // read, kept or not, so the offset never ages.
+        // Measured at every read, so it follows this machine's clock if somebody corrects it. Kept
+        // to the nearest 100 ms so a read that differs by round-trip jitter alone re-renders nothing.
         if (response.serverNowMs !== undefined) {
-          serverClock.sync(response.serverNowMs, sentAt, performance.now())
+          const measured = serverOffsetMs(response.serverNowMs, sentAt, Date.now())
+          setOffsetMs((kept) => (Math.abs(kept - measured) < 100 ? kept : measured))
         }
         onReadRef.current?.(response)
         setState((previous) => {
@@ -394,7 +422,7 @@ export const useWallPlaylist = (
       live = false
       controller.abort()
     }
-  }, [api, slug, attempt, serverClock])
+  }, [api, slug, attempt])
 
   // The offset is read at every response; this only guarantees one when the room is quiet.
   const alternates = state.wall?.mixed != null
@@ -433,7 +461,7 @@ export const useWallPlaylist = (
     offline: !connected && !notServed,
     readFailing: state.error !== null && !notServed,
     reactionPulse,
+    serverOffsetMs: offsetMs,
     refresh,
-    serverClock,
   }
 }

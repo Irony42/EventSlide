@@ -823,6 +823,9 @@ export const en: UiText = {
     leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
     mixedHint:
       'The wall alternates an overview and one large photo: L (or ?layout=) fixes a layout on this screen and stops the alternation until the page is reloaded.',
+    /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
+    soundActivate: 'Turn the sound on for this screen',
+    soundShortcutHint: 'S turns the sound on for this screen, when it is enabled in the settings.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `First photo from ${name}`,
 
@@ -859,6 +862,7 @@ export const en: UiText = {
       close: 'Close settings',
       sectionDisplay: 'Display',
       sectionAmbiance: 'Ambiance',
+      sectionQr: 'QR code',
       forAll: 'For every screen',
       thisScreen: 'This screen only',
       thisScreenHint: 'These controls only change this screen and are lost when the page reloads.',
@@ -874,6 +878,9 @@ export const en: UiText = {
       signIn: 'Sign in',
       signInToSet: 'Sign in to set this wall',
       openHint: 'R opens the wall settings.',
+      /* Spec 12: the state of this screen's speakers, in the "Son" section. */
+      soundScreenOn: 'This screen: sound on.',
+      soundScreenOff: 'This screen: sound off.',
     },
 
     videoBy: (name: string) => `Video sent by ${name}`,
@@ -1040,6 +1047,39 @@ export const en: UiText = {
       newPhotoSignal: 'Announce new photos',
       newPhotoSignalHint:
         'A brief message at the top centre when a photo or video has just appeared on the wall. Never the guest’s name.',
+      // Spec 14: the invitation card.
+      qrTitle: 'QR code',
+      qrVisible: 'Show the QR on the wall',
+      qrVisibleHint:
+        'Guests who arrive late will no longer have the QR. The empty wall keeps its invitation.',
+      qrSize: 'QR size',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100)}`,
+      qrSizeSmall: 'Small',
+      qrSizeMedium: 'Medium',
+      qrSizeLarge: 'Large',
+      qrSizeHint: 'The QR never goes below a readable size: a long link keeps it larger.',
+      qrPlacement: 'Position',
+      qrCorners: {
+        'top-start': 'Top left',
+        'top-end': 'Top right',
+        'bottom-start': 'Bottom left',
+        'bottom-end': 'Bottom right',
+      },
+      qrPlacementHint:
+        'On layouts that leave room for the card, the photos tighten up; on the others, the card sits over the photos.',
+    },
+    wallSound: {
+      title: 'Sound',
+      hint: 'A short sound when a photo or clip is published on the wall. Off by default.',
+      enable: 'A sound for each new photo',
+      enableHint:
+        'Each screen must also be switched on in the room: one click on the wall (or the S key) is enough.',
+      tone: 'Sound',
+      toneNames: { chime: 'Chime', bell: 'Bell', drop: 'Drop', pop: 'Pop' },
+      volume: 'Volume',
+      volumeValue: (n: number) => `Volume ${n}%`,
+      test: 'Test',
+      testHint: 'Plays the chosen sound on this computer, at this volume.',
     },
 
     theme: 'Appearance',
@@ -2098,6 +2138,17 @@ export const en: UiText = {
     remaining: (time: string) => `Challenge in progress · ${time}`,
     noMissions: 'Add a mission first to start a challenge.',
     notOpen: 'A challenge can start once the event is open.',
+    ended: 'Challenge over',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo`,
+        other: `${t.number(count)} photos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Photo challenge started: ${prompt}`,
+    /** The phone's button: it chooses the challenge's mission for the next photograph. */
+    takeUp: 'Take up the challenge',
+    announceEnd: 'Photo challenge over',
   },
   titles: {
     print: 'Table cards and poster',

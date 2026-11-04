@@ -777,6 +777,77 @@ describe('EventSettingsPage', () => {
     })
   })
 
+  describe('the wall sound block (spec 12)', () => {
+    it('shows the sound off, the chime and 50 for an event that never chose', async () => {
+      renderPage(fakeApi())
+
+      expect(await screen.findByLabelText(fr.admin.wallSound.enable)).not.toBeChecked()
+      expect(screen.getByRole('radio', { name: fr.admin.wallSound.toneNames.chime })).toBeChecked()
+      expect(screen.getByLabelText(fr.admin.wallSound.volume)).toHaveValue('50')
+    })
+
+    it('sends only the sound keys it changed', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.admin.wallSound.enable))
+      await userEvent.click(screen.getByRole('radio', { name: fr.admin.wallSound.toneNames.drop }))
+      fireEvent.change(screen.getByLabelText(fr.admin.wallSound.volume), {
+        target: { value: '30' },
+      })
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent?.wall).toEqual({ soundEnabled: true, soundTone: 'drop', soundVolume: 30 })
+    })
+
+    it('plays the chosen tone on this computer when the host presses Test, after a click', async () => {
+      let starts = 0
+      class FakeContext {
+        state = 'suspended'
+        currentTime = 0
+        destination = {}
+        resume() {
+          this.state = 'running'
+          return Promise.resolve()
+        }
+        close() {
+          return Promise.resolve()
+        }
+        decodeAudioData() {
+          return Promise.resolve({})
+        }
+        createGain() {
+          return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {} }, connect() {} }
+        }
+        createBufferSource() {
+          return {
+            connect() {},
+            start() {
+              starts += 1
+            },
+          }
+        }
+      }
+      vi.stubGlobal('AudioContext', FakeContext)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(new ArrayBuffer(4))),
+      )
+      try {
+        renderPage(fakeApi())
+        const test = await screen.findByRole('button', { name: fr.admin.wallSound.test })
+        expect(starts).toBe(0)
+
+        await userEvent.click(test)
+
+        await waitFor(() => expect(starts).toBe(1))
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+  })
+
   describe('the wall display block (spec 13)', () => {
     it('shows what the event is set to, and the default when nothing is chosen', async () => {
       const api = fakeApi({
@@ -1116,5 +1187,36 @@ describe('EventSettingsPage', () => {
     renderPage(fakeApi({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) }))
     await screen.findByRole('heading', { name: fr.admin.settings })
     expect(screen.queryByRole('link', { name: fr.admin.customAmbianceCreate })).toBeNull()
+  })
+})
+
+describe('the invitation card block (spec 14)', () => {
+  it('shows the defaults, warns about the switch, and sends only what changed', async () => {
+    const api = fakeApi()
+
+    renderPage(api)
+    expect(await screen.findByLabelText(fr.admin.wallDisplay.qrVisible)).toBeChecked()
+    expect(screen.getByText(fr.admin.wallDisplay.qrVisibleHint)).toBeVisible()
+    expect(screen.getByLabelText(fr.admin.wallDisplay.qrCorners['bottom-end'])).toBeChecked()
+
+    fireEvent.change(screen.getByLabelText(new RegExp(fr.admin.wallDisplay.qrSize)), {
+      target: { value: '1.4' },
+    })
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.qrCorners['top-end']))
+    await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+    expect(vi.mocked(api.updateSettings).mock.calls[0]?.[1]?.wall).toEqual({
+      qrScale: 1.4,
+      qrPlacement: 'top-end',
+    })
+  })
+
+  it('greys the size and the corner while the card is off', async () => {
+    renderPage(fakeApi())
+
+    await userEvent.click(await screen.findByLabelText(fr.admin.wallDisplay.qrVisible))
+
+    expect(screen.getByRole('button', { name: fr.admin.wallDisplay.qrSizeSmall })).toBeDisabled()
+    expect(screen.getByLabelText(fr.admin.wallDisplay.qrCorners['top-start'])).toBeDisabled()
   })
 })

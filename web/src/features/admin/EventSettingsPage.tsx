@@ -10,9 +10,11 @@ import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../..
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { CheckboxField } from './components/CheckboxField'
+import { WallSoundFields } from './components/WallSoundFields'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
+import { WallQrControls } from './components/WallQrControls'
 import {
   MIXED_SLIDESHOW_STEPS_SECONDS,
   MIXED_WALL_STEPS_SECONDS,
@@ -146,6 +148,13 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.wall.freshLane,
     settings.wall.tilt,
     settings.wall.showTime,
+    // Spec 12.
+    settings.wall.soundEnabled,
+    settings.wall.soundTone,
+    settings.wall.soundVolume,
+    settings.wall.qrVisible,
+    settings.wall.qrScale,
+    settings.wall.qrPlacement,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -597,6 +606,13 @@ export function EventSettingsPage() {
             disabled={readOnly}
             onChange={(showTime) => update({ wall: { ...settings.wall, showTime } })}
           />
+          {/* Spec 14: the invitation card on the populated wall. */}
+          <p className={styles['sectionHint']}>{t.admin.wallDisplay.qrTitle}</p>
+          <WallQrControls
+            wall={settings.wall}
+            disabled={readOnly}
+            onChange={(patch) => update({ wall: { ...settings.wall, ...patch } })}
+          />
           {/* Spec 11: « À l'écran ». Both off until the host asks. */}
           <p className={styles['sectionHint']}>{t.admin.wallDisplay.onScreen}</p>
           <CheckboxField
@@ -612,6 +628,11 @@ export function EventSettingsPage() {
             checked={settings.wall.newPhotoSignal}
             disabled={readOnly}
             onChange={(newPhotoSignal) => update({ wall: { ...settings.wall, newPhotoSignal } })}
+          />
+          <WallSoundFields
+            wall={settings.wall}
+            disabled={readOnly}
+            onChange={(patch) => update({ wall: { ...settings.wall, ...patch } })}
           />
         </fieldset>
 

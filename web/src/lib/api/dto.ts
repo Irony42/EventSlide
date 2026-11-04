@@ -324,6 +324,15 @@ export interface WallResponse {
     readonly scale: number
     readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
   }
+  /**
+   * The sound the wall may play for a new photo (spec 12). Optional: an older server sends none
+   * and the wall stays silent.
+   */
+  readonly sound?: {
+    readonly enabled: boolean
+    readonly tone: 'bell' | 'chime' | 'drop' | 'pop'
+    readonly volume: number
+  }
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -651,6 +660,9 @@ export interface EventSettingsDto {
     readonly qrVisible: boolean
     readonly qrScale: number
     readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+    readonly soundEnabled: boolean
+    readonly soundTone: 'bell' | 'chime' | 'drop' | 'pop'
+    readonly soundVolume: number
   }
 }
 

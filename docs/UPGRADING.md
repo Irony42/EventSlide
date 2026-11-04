@@ -20,6 +20,10 @@ the image.
   The steps are [below](#upgrading-with-docker), and the image they pull is
   [described here](#which-image-tag).
 
+## Upgrading to 3.6 (not released yet)
+
+- **A sound for each new photo on the wall (spec 12).** New and **off by default** for every event, old and new: nothing rings until a host turns it on. There is no migration; the three keys live in the `wall` group of the event settings. The four sound files ship in the image (`web/public/sounds/`, CC0). No change to the content security policy.
+
 ## What a version number promises
 
 Versions are `MAJOR.MINOR.PATCH`.
@@ -763,3 +767,11 @@ autorisés »). Existing clients keep the function on. On top of it, one event g
 - **Nothing to set in `.env`.**
 - **Additions to existing responses** (optional for a client, none removed): `serverNowMs` and `challenge` in
   `GET /api/events/:slug/wall` and in `GET /api/events/:slug/missions/mine`.
+- **The wall**: while a challenge runs, a banner ("Défi photo · 1:42" and the mission's sentence) takes the top centre,
+  the layouts that fill the screen lay out below it, and the join card is held on screen. It goes ten seconds after
+  the end. A wall with no challenge is drawn exactly as before.
+- **The guests' phones**: while the host has set missions, the upload screen asks the server again every twenty seconds
+  (about ten reads a second for 200 guests, jittered, only while the page is visible, and when the tab comes
+  back) to learn whether a challenge started. A band "Défi en cours" with a "Relever le défi" button appears above the
+  list and chooses the mission for the next photograph. No sound, no vibration, no notification; the screen of an event
+  with no missions is unchanged and asks nothing more.

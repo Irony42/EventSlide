@@ -883,6 +883,10 @@ export const de: UiText = {
     leaveHint: 'Zum Verlassen: Esc oder F beenden den Vollbildmodus, danach den Tab schließen.',
     mixedHint:
       'Die Wand wechselt zwischen Übersicht und großem Foto: L (oder ?layout=) legt auf diesem Bildschirm ein Layout fest und beendet das Wechseln, bis die Seite neu geladen wird.',
+    /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
+    soundActivate: 'Ton auf diesem Bildschirm aktivieren',
+    soundShortcutHint:
+      'S aktiviert den Ton auf diesem Bildschirm, falls er in den Einstellungen eingeschaltet ist.',
     /* "Levez les yeux" (UX review 2026-10-30): the line under a guest's first photo on the wall. */
     firstPhotoOf: (name: string) => `Erstes Foto von ${name}`,
 
@@ -920,6 +924,7 @@ export const de: UiText = {
       close: 'Einstellungen schließen',
       sectionDisplay: 'Anzeige',
       sectionAmbiance: 'Ambiente',
+      sectionQr: 'QR-Code',
       forAll: 'Für alle Bildschirme',
       thisScreen: 'Nur dieser Bildschirm',
       thisScreenHint:
@@ -937,6 +942,9 @@ export const de: UiText = {
       signIn: 'Anmelden',
       signInToSet: 'Anmelden, um diese Wand einzustellen',
       openHint: 'R öffnet die Einstellungen der Wand.',
+      /* Spec 12: the state of this screen's speakers, in the "Son" section. */
+      soundScreenOn: 'Dieser Bildschirm: Ton aktiv.',
+      soundScreenOff: 'Dieser Bildschirm: Ton aus.',
     },
 
     videoBy: (name: string) => `Video, gesendet von ${name}`,
@@ -1106,6 +1114,39 @@ export const de: UiText = {
       newPhotoSignal: 'Neue Fotos ankündigen',
       newPhotoSignalHint:
         'Eine kurze Meldung oben in der Mitte, wenn ein Foto oder Video gerade auf der Wand erschienen ist. Nie der Name des Gastes.',
+      // Spec 14: the invitation card.
+      qrTitle: 'QR-Code',
+      qrVisible: 'QR-Code auf der Wand zeigen',
+      qrVisibleHint:
+        'Spät ankommende Gäste haben dann keinen QR-Code mehr. Die leere Wand behält ihre Einladung.',
+      qrSize: 'Größe des QR-Codes',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100).replace('.', ',')}`,
+      qrSizeSmall: 'Klein',
+      qrSizeMedium: 'Mittel',
+      qrSizeLarge: 'Groß',
+      qrSizeHint: 'Der QR-Code wird nie kleiner als lesbar: ein langer Link hält ihn größer.',
+      qrPlacement: 'Position',
+      qrCorners: {
+        'top-start': 'Oben links',
+        'top-end': 'Oben rechts',
+        'bottom-start': 'Unten links',
+        'bottom-end': 'Unten rechts',
+      },
+      qrPlacementHint:
+        'Bei Layouts mit Platz für die Karte rücken die Fotos zusammen; bei den anderen liegt die Karte über den Fotos.',
+    },
+    wallSound: {
+      title: 'Ton',
+      hint: 'Ein kurzer Ton, wenn ein Foto oder Clip an der Wand erscheint. Standardmäßig aus.',
+      enable: 'Ein Ton bei jedem neuen Foto',
+      enableHint:
+        'Jeder Bildschirm muss vor Ort zusätzlich aktiviert werden: ein Klick auf die Wand (oder die Taste S) genügt.',
+      tone: 'Ton',
+      toneNames: { chime: 'Glockenspiel', bell: 'Glocke', drop: 'Tropfen', pop: 'Pop' },
+      volume: 'Lautstärke',
+      volumeValue: (n: number) => `Lautstärke ${n} %`,
+      test: 'Testen',
+      testHint: 'Spielt den gewählten Ton auf diesem Computer in dieser Lautstärke ab.',
     },
 
     theme: 'Erscheinungsbild',
@@ -2186,6 +2227,17 @@ export const de: UiText = {
     remaining: (time: string) => `Challenge läuft · ${time}`,
     noMissions: 'Fügen Sie zuerst eine Mission hinzu, um eine Challenge zu starten.',
     notOpen: 'Eine Challenge lässt sich starten, sobald die Veranstaltung geöffnet ist.',
+    ended: 'Challenge beendet',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto`,
+        other: `${t.number(count)} Fotos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Foto-Challenge gestartet: ${prompt}`,
+    /** The phone's button: it chooses the challenge's mission for the next photograph. */
+    takeUp: 'Challenge annehmen',
+    announceEnd: 'Foto-Challenge beendet',
   },
   titles: {
     print: 'Tischkarten und Plakat',

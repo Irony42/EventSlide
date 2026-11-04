@@ -302,9 +302,6 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   kenBurnsDurationMs: 8_800,
   layout: 'spotlight',
   // Present for the reason `theme` is: the sweep in `useWallPlaylist.settings.test.ts` must see it.
-  // Present, like every field the server always sends (spec 09). `mixed` is left out: off, and an
-  // absent key reads the same, so the walk in useWallPlaylist.settings.test covers it by hand.
-  serverNowMs: 1_790_000_000_000,
   layoutChosen: false,
   // Spec 11: present so the sweep in `useWallPlaylist.settings.test.ts` sees them.
   souvenirCount: null,
@@ -314,6 +311,7 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   tilt: true,
   showTime: false,
   joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
+  sound: { enabled: false, tone: 'chime', volume: 50 },
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
   // renders the DOM it rendered before theming existed, and every negative assertion about
@@ -334,6 +332,10 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // settings field cannot go uncompared. A test that wants the server build which
   // predates the field deletes the key rather than overriding it.
   wallLanguage: 'fr',
+  // The server's clock at the read, and no challenge: present rather than omitted for the same
+  // reason (the enumeration in `useWallPlaylist.settings.test.ts` cannot see an omitted key).
+  serverNowMs: 1_782_000_000_000,
+  challenge: null,
   ...overrides,
 })
 
@@ -430,6 +432,9 @@ export const eventSettings = (
       qrVisible: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',
+      soundEnabled: false,
+      soundTone: 'chime',
+      soundVolume: 50,
       // Spec 11: both off until the host asks.
       souvenirCounter: false,
       newPhotoSignal: false,

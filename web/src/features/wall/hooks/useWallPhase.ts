@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import type { WallResponse } from '../../../lib/api/dto'
-import type { WallServerClock } from './wallServerClock'
 import { PHASE_FADE_MS, wallPhaseAt, type WallPhase } from '../wallPhase'
 
 export interface WallPhaseView {
@@ -15,7 +14,8 @@ export interface WallPhaseView {
 
 export interface WallPhaseOptions {
   readonly mixed: WallResponse['mixed']
-  readonly clock: WallServerClock
+  /** The server's time now, in milliseconds: this machine's clock plus the offset measured at the last read. */
+  readonly now: () => number
   /** Space, or a hidden tab: the phase holds where it was, and catches up on resume. */
   readonly paused: boolean
   /** Reduced motion, or a budget with no cross-fade left: a hard cut, no dark gap. */
@@ -39,7 +39,7 @@ export interface WallPhaseOptions {
  */
 export const useWallPhase = ({
   mixed,
-  clock,
+  now,
   paused,
   instant,
   fadeMs,
@@ -59,7 +59,7 @@ export const useWallPhase = ({
             wallMs: phaseMsOverride ?? mixed.wallMs,
             slideshowMs: phaseMsOverride ?? mixed.slideshowMs,
           },
-          clock.now(),
+          now(),
         )
 
   // A pause holds the phase where it was; the resume reads the clock again (rule 15). Adjusted
