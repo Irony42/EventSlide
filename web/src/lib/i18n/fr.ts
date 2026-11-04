@@ -2924,7 +2924,7 @@ export const fr = {
   challenge: {
     title: 'Défi photo',
     hint: 'Tapez ce que vous demandez à la salle. Le texte n’apparaît qu’au lancement.',
-    prompt: 'Consigne du défi',
+    prompt: 'Texte du défi',
     /** The text box's counter: how much of the sixty characters is used. */
     promptCount: (used: number, max: number) => `${t.number(used)} / ${t.number(max)}`,
     recent: 'Derniers défis',
