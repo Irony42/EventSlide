@@ -18,6 +18,10 @@
   inset: 0;
   margin: 0;
   display: grid;
+  /* One definite track, the size of the screen. With the default `auto` track the image's own
+     height sized it, so the `max-block-size: 100%` below had nothing to resolve against: a
+     3000x4000 portrait was laid out 1920 wide and 2560 tall, its top and bottom off screen. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   opacity: 0;
   transition: opacity var(--wall-transition, var(--duration-slow)) var(--ease-in-out);
@@ -104,6 +108,25 @@
 .slide[data-motion='kenburns'] .image {
   animation: ken-burns var(--wall-kenburns-duration) var(--ease-linear) both;
   will-change: transform;
+}
+
+/**
+ * A photograph as tall as it is wide or taller (`data-orientation='tall'`) is fitted by its
+ * height, so the 8 % zoom would push its top and bottom edges off the screen — the viewer
+ * loses the head and the feet of the portrait the guest framed. It zooms *in* to the fit
+ * instead (from 1/1.08 to 1), which keeps the drift and ends on the whole photograph.
+ */
+.slide[data-motion='kenburns'][data-orientation='tall'] .image {
+  animation-name: ken-burns-tall;
+}
+
+@keyframes ken-burns-tall {
+  from {
+    transform: scale(0.926);
+  }
+  to {
+    transform: scale(1);
+  }
 }
 
 @keyframes ken-burns {

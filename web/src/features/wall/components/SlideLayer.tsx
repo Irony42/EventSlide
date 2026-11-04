@@ -129,6 +129,11 @@ export function SlideLayer({
             // and because a wall that is not advancing has no interval for the zoom to
             // be derived from, which is what `advancing` above argues.
             data-motion={zooms ? 'kenburns' : 'still'}
+            // Fitted by its height, so the zoom must not grow past the screen: see
+            // `ken-burns-tall` in the stylesheet.
+            {...(showsItem && item !== null && item.height >= item.width
+              ? { 'data-orientation': 'tall' }
+              : {})}
             // Which photo this layer is holding, named on the element itself.
             //
             // The position is derived from the playlist and never stored, so without

@@ -24,12 +24,14 @@
   padding-block-start: calc(var(--wall-safe) + var(--wall-chrome-block-start));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(3, 1fr);
+  /* Six cells of about 5:4 on a 16:9 screen. The 4x3 grid this replaced had three 2x1 areas of
+     2.7:1 (and a 2x2 hero), and a photograph cropped to 2.7:1 keeps a quarter to a half of its
+     area: the flat cells showed almost nothing of a portrait. */
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
   grid-template-areas:
-    'a a b c'
-    'a a d d'
-    'e e f f';
+    'a b c'
+    'd e f';
 }
 
 .slot0 {
@@ -68,8 +70,9 @@
   background: var(--surface-raised);
 }
 
-/* `cover` is the crop the mosaic is allowed. Faces are not detected, so the areas
-   above stay near 4:3 and 1:1 to limit the damage. */
+/* `cover` is the crop the mosaic is allowed, for a photograph close to the cell's 5:4: at
+   least 70 % of it stays visible. Faces are not detected, so a photograph further from the
+   cell than that is shown whole (`data-fit`, `mosaicFit` in WallLayouts.tsx). */
 .image {
   inline-size: 100%;
   block-size: 100%;
@@ -85,6 +88,22 @@
   to {
     opacity: 1;
   }
+}
+
+/* A photograph too far from the cell's shape to be cropped (a portrait, a panorama) is shown
+   whole, on its own blurred light as in the spotlight (ADR 0010). */
+.tile[data-fit='contain'] .image {
+  position: relative;
+  z-index: 1;
+  object-fit: contain;
+}
+
+.tileAmbient {
+  display: var(--wall-ambient);
+  position: absolute;
+  inset: -8%;
+  background: var(--wall-ambient-image) center / cover no-repeat;
+  filter: blur(32px) saturate(1.25) brightness(0.45);
 }
 
 /* ---------------------------------------------------------------------------------- */
