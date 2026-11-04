@@ -36,7 +36,7 @@ test('the event page lays its actions out inside the screen, as real targets', a
   if (viewport === null) throw new Error('the project declares no viewport')
 
   for (const name of ACTIONS) {
-    const link = page.getByRole('link', { name })
+    const link = page.getByRole('link', { name, exact: true })
     await expect(link).toBeVisible()
     const box = await link.boundingBox()
     if (box === null) throw new Error(`${name} was never laid out`)
@@ -48,7 +48,7 @@ test('the event page lays its actions out inside the screen, as real targets', a
   // The tiers are drawn, not only declared: the two actions the evening turns on stand taller
   // than the rest, whatever the width puts them beside.
   const height = async (name: string): Promise<number> => {
-    const box = await page.getByRole('link', { name }).boundingBox()
+    const box = await page.getByRole('link', { name, exact: true }).boundingBox()
     if (box === null) throw new Error()
     return box.height
   }
@@ -75,7 +75,7 @@ test('the event page has no serious accessibility violation, tiles included', as
   const event = await app.seedEvent({ slug: 'buffet', name: 'Camille & Sacha' })
   await signInAsHost(page, app)
   await page.goto(app.url(`/admin/events/${event.slug}`))
-  await expect(page.getByRole('link', { name: fr.admin.openModeration })).toBeVisible()
+  await expect(page.getByRole('link', { name: fr.admin.openModeration, exact: true })).toBeVisible()
 
   // The QR code is left out, and the exclusion is the finding rather than a convenience:
   // `qrcode.react` stamps `role="img"` on its own `<svg>`, inside the wrapper that already
