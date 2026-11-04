@@ -248,7 +248,7 @@ export const it: UiText = {
     clipTrimSummary: (seconds: number, maxSeconds: number) =>
       `Estratto: ${t.number(seconds)} s su ${t.number(maxSeconds)} s al massimo`,
     clipTrimPlay: 'Riproduci l’estratto',
-    clipTrimPause: 'Pausa',
+    clipTrimPause: 'Metti in pausa l’estratto',
     clipTrimNoPreview:
       'Nessuna anteprima su questo dispositivo. L’estratto verrà comunque tagliato.',
     clipTrimWholeFileSent:

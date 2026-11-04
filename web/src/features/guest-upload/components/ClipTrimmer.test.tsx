@@ -1,5 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fr } from '../../../lib/i18n/fr'
 import { ClipTrimmer } from './ClipTrimmer'
 import { renderWithProviders } from '../../../testing/renderWithProviders'
@@ -9,9 +9,15 @@ import { renderWithProviders } from '../../../testing/renderWithProviders'
 const FILE = new File([new Uint8Array([1])], 'danse.mp4', { type: 'video/mp4' })
 const TRIM = { durationMs: 40_000, startMs: 0, endMs: 15_000 }
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
 beforeEach(() => {
   URL.createObjectURL = vi.fn(() => 'blob:preview')
   URL.revokeObjectURL = vi.fn()
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
 })
 
 const mount = (onChange = vi.fn(), disabled = false, trim = TRIM) => {
@@ -78,5 +84,102 @@ describe('ClipTrimmer', () => {
     view.unmount()
 
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview')
+  })
+
+  describe('the play button', () => {
+    let play: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
+    })
+
+    it('is an icon button named for what it does, and toggles name and glyph', async () => {
+      mount()
+      const button = screen.getByRole('button', { name: fr.upload.clipTrimPlay })
+      const glyph = () => button.querySelector('path')?.getAttribute('d')
+      const playGlyph = glyph()
+
+      await act(async () => fireEvent.click(button))
+
+      expect(play).toHaveBeenCalledTimes(1)
+      const paused = screen.getByRole('button', { name: fr.upload.clipTrimPause })
+      expect(paused).toBe(button)
+      expect(glyph()).not.toBe(playGlyph)
+      expect(button.textContent).toBe('')
+
+      await act(async () => fireEvent.click(button))
+
+      expect(screen.getByRole('button', { name: fr.upload.clipTrimPlay })).toBe(button)
+      expect(glyph()).toBe(playGlyph)
+    })
+  })
+
+  describe('the frame under the handle', () => {
+    let frames: FrameRequestCallback[]
+    let seeks: number[]
+    let pause: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      frames = []
+      seeks = []
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        frames.push(callback)
+        return frames.length
+      })
+      vi.stubGlobal('cancelAnimationFrame', vi.fn())
+      vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation((value) => {
+        seeks.push(value)
+      })
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+      pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
+    })
+
+    const flush = () => act(() => frames.splice(0).forEach((frame) => frame(0)))
+
+    it('shows the frame at the start handle and pauses the preview', async () => {
+      mount(vi.fn(), false, { durationMs: 40_000, startMs: 10_000, endMs: 20_000 })
+      await act(async () => fireEvent.click(screen.getByTestId('clip-trim-play')))
+      seeks.length = 0
+
+      fireEvent.change(screen.getByTestId('clip-trim-start'), { target: { value: '12300' } })
+
+      expect(pause).toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: fr.upload.clipTrimPlay })).toBeTruthy()
+      flush()
+      expect(seeks).toEqual([12.3])
+    })
+
+    it('shows the frame at the end handle, not at the start that follows it', () => {
+      mount()
+
+      fireEvent.change(screen.getByTestId('clip-trim-end'), { target: { value: '30000' } })
+
+      flush()
+      expect(seeks).toEqual([30])
+    })
+
+    it('applies only the latest position of a fast drag, in one seek', () => {
+      mount()
+      const end = screen.getByTestId('clip-trim-end')
+
+      fireEvent.change(end, { target: { value: '20000' } })
+      fireEvent.change(end, { target: { value: '25000' } })
+      fireEvent.change(end, { target: { value: '31000' } })
+
+      expect(frames).toHaveLength(1)
+      flush()
+      expect(seeks).toEqual([31])
+    })
+
+    it('does nothing new when the browser cannot decode the video', () => {
+      mount()
+      fireEvent.error(document.querySelector('video') as HTMLVideoElement)
+
+      fireEvent.change(screen.getByTestId('clip-trim-end'), { target: { value: '30000' } })
+
+      expect(frames).toHaveLength(0)
+      expect(pause).not.toHaveBeenCalled()
+    })
   })
 })

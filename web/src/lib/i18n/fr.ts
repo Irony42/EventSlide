@@ -397,7 +397,7 @@ export const fr = {
     clipTrimSummary: (seconds: number, maxSeconds: number) =>
       `Extrait : ${t.number(seconds)} s sur ${t.number(maxSeconds)} s au plus`,
     clipTrimPlay: 'Lire l’extrait',
-    clipTrimPause: 'Pause',
+    clipTrimPause: 'Mettre en pause',
     clipTrimNoPreview: 'Aperçu indisponible sur cet appareil. L’extrait sera bien découpé.',
     clipTrimWholeFileSent:
       'Seul l’extrait choisi est conservé. Si ce téléphone ne sait pas le découper, la vidéo entière est envoyée avant d’être coupée.',
