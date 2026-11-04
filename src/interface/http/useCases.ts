@@ -113,6 +113,9 @@ import type { DeleteGuestbookEntry } from '../../application/usecases/guestbook/
 import type { ListGuestbookQueue } from '../../application/usecases/guestbook/listGuestbookQueue'
 import type { ListMyGuestbookEntries } from '../../application/usecases/guestbook/listMyGuestbookEntries'
 import type { ModerateGuestbookEntry } from '../../application/usecases/guestbook/moderateGuestbookEntry'
+import type { StartChallenge } from '../../application/usecases/challenges/startChallenge'
+import type { GetChallenge } from '../../application/usecases/challenges/getChallenge'
+import type { StopChallenge } from '../../application/usecases/challenges/stopChallenge'
 import type { CreateMission } from '../../application/usecases/missions/createMission'
 import type { DeleteMission } from '../../application/usecases/missions/deleteMission'
 import type { GetGuestChecklist } from '../../application/usecases/missions/getGuestChecklist'
@@ -288,6 +291,10 @@ export interface HttpUseCases {
   readonly createMission: CreateMission
   readonly updateMission: UpdateMission
   readonly deleteMission: DeleteMission
+  // timed photo challenges (spec 10)
+  readonly startChallenge: StartChallenge
+  readonly stopChallenge: StopChallenge
+  readonly getChallenge: GetChallenge
   readonly getGuestChecklist: GetGuestChecklist
 
   // the shared gallery (roadmap §4.1): the host's three, then the link holder's five
