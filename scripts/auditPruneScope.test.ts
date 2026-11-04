@@ -72,13 +72,16 @@ const namesIn = (path: string): Names => {
 
 /**
  * Every file the server and its tools are built from, slash-separated: not a test, and not
- * a test double or a contract suite (`testing/`).
+ * a test double or a contract suite (`testing/`). Parsed once per run: every assertion asks
+ * the same tree, and parsing it with the compiler eight times took the last test past its
+ * 10 s timeout on a loaded CI runner.
  */
+let parsed: Names[] | undefined
 const productionSources = (): Names[] =>
-  [...walk(join(ROOT, 'src')), ...walk(join(ROOT, 'scripts'))]
+  (parsed ??= [...walk(join(ROOT, 'src')), ...walk(join(ROOT, 'scripts'))]
     .filter((path) => /\.(m?ts|m?js|cjs)$/.test(path) && !/\.(test|spec)\.[mc]?[jt]s$/.test(path))
     .filter((path) => !/[\\/]testing[\\/]/.test(path))
-    .map(namesIn)
+    .map(namesIn))
 
 /** Files that use `name` as an identifier, or inside a string such as SQL or an import path. */
 const filesNaming = (name: string): string[] =>
