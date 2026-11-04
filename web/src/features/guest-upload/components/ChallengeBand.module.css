@@ -1,0 +1,32 @@
+/**
+ * The timed challenge's band, above the checklist (spec 10).
+ *
+ * Nothing here animates, for the reason the checklist's own stylesheet gives: this scrolls under
+ * the composer, on the one machine that is also encoding a photograph over venue Wi-Fi. The band
+ * is just there, and the digits change once a second.
+ */
+.band {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.head {
+  font-size: var(--text-base);
+  font-weight: 650;
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt {
+  overflow-wrap: anywhere;
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+}

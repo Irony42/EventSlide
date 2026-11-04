@@ -1,0 +1,77 @@
+/**
+ * The timed challenge's banner, top centre, inside the overscan inset (spec 10).
+ *
+ * The zone is the banner's while a challenge runs: the layouts reserve its height
+ * (`--wall-chrome-block-start`, set by `data-wall-chrome~='top'` on the wall root), and its width
+ * is capped to what the corners beside it leave, so it never passes under the mission panel at
+ * the top left or the notices at the top right. Text on the scrim ground, at the projector's
+ * type scale: legible at ten metres, digits tabular so they do not jitter as they change.
+ */
+.banner {
+  position: absolute;
+  inset-block-start: var(--wall-safe);
+  inset-inline: 0;
+  margin-inline: auto;
+  inline-size: fit-content;
+  max-inline-size: calc(100% - 2 * (var(--wall-safe) + var(--wall-mission-panel) + var(--space-6)));
+  max-block-size: var(--wall-challenge-height);
+  overflow: hidden;
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+  text-align: center;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--surface-scrim);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  z-index: var(--z-wall-caption);
+}
+
+.head {
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* The last seconds: the warning token, and the weight above, so it is never the colour alone. */
+.urgent .time {
+  color: var(--warning);
+}
+
+/**
+ * The entrance: a fade and a lift, 250 ms, `opacity` and `transform` only (roadmap 11.2: a
+ * challenge launched three or four times an evening is rare enough to earn it). It ends at
+ * rest. Under `prefers-reduced-motion` the component does not apply this class at all.
+ */
+.enters {
+  animation: challenge-in var(--duration-base) var(--ease-out) both;
+}
+
+@keyframes challenge-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-3)));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The bottom rung of the frame budget gives the entrance up: the banner is simply there. */
+[data-wall-budget='cut'] .enters {
+  animation: none;
+}

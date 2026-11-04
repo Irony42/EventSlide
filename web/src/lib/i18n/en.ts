@@ -549,6 +549,10 @@ export const en: UiText = {
     'mission.promptEmpty': 'Write what the mission asks for.',
     'mission.promptTooLong': 'That wording is too long for the screen.',
     'mission.promptInvalid': 'That wording is not valid.',
+    'challenge.alreadyRunning': 'A challenge is already running. Stop it before starting another.',
+    'challenge.limit': 'This event has reached the number of challenges allowed.',
+    'challenge.eventNotOpen': 'A challenge can only start while the event is open.',
+    'challenge.durationInvalid': 'That duration is not valid.',
 
     'eventTheme.accentHueInvalid': 'That colour is not recognised. Choose one from the list.',
     'eventTheme.accentUnreadable':
@@ -2088,6 +2092,34 @@ export const en: UiText = {
     step2: 'Send your photos.',
     step3: 'They join the evening’s screen.',
     fallback: (code: string, address: string) => `No QR code? Type the code ${code} at ${address}.`,
+  },
+  /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
+  challenge: {
+    title: 'Photo challenge',
+    hint: 'Launch a mission for a few minutes: the screen and the phones count down together.',
+    mission: 'Mission',
+    duration: 'Duration',
+    minutes: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} minute`,
+        other: `${t.number(count)} minutes`,
+      }),
+    launch: 'Start as a challenge',
+    stop: 'Stop',
+    remaining: (time: string) => `Challenge in progress · ${time}`,
+    noMissions: 'Add a mission first to start a challenge.',
+    notOpen: 'A challenge can start once the event is open.',
+    ended: 'Challenge over',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo`,
+        other: `${t.number(count)} photos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Photo challenge started: ${prompt}`,
+    /** The phone's button: it chooses the challenge's mission for the next photograph. */
+    takeUp: 'Take up the challenge',
+    announceEnd: 'Photo challenge over',
   },
   titles: {
     print: 'Table cards and poster',

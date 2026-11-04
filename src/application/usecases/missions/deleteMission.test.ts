@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { asEventId, asMissionId, asPhotoId, asUserId } from '../../../domain/shared/ids'
+import { Challenge } from '../../../domain/challenges/challenge'
+import { MissionPrompt } from '../../../domain/missions/missionPrompt'
+import {
+  asChallengeId,
+  asEventId,
+  asMissionId,
+  asPhotoId,
+  asUserId,
+} from '../../../domain/shared/ids'
 import { AT, aMission, aPhoto, anEvent } from '../../testing/builders'
+import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
@@ -14,13 +24,35 @@ const OWNER = asUserId('user-host')
 const MODERATOR = asUserId('user-mod')
 const STRANGER = asUserId('user-stranger')
 
+const must = <T>(result: { readonly ok: true; readonly value: T } | { readonly ok: false }): T => {
+  if (!result.ok) throw new Error('fixture refused')
+  return result.value
+}
+
 describe('deleteMission', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
   let missions: FakeMissionRepository
   let memberships: FakeMembershipRepository
+  let challenges: FakeChallengeRepository
+  let clock: FakeClock
   let bus: RecordingEventBus
   let deleteMission: DeleteMission
+
+  const runningChallenge = (startedAt: Date, missionId = 'm1'): Challenge => {
+    const started = Challenge.start(
+      {
+        eventId: WEDDING,
+        missionId: asMissionId(missionId),
+        prompt: must(MissionPrompt.create('un selfie')),
+        durationSeconds: 120,
+        createdBy: OWNER,
+      },
+      asChallengeId('c1'),
+      startedAt,
+    )
+    return must(started)
+  }
 
   const ask = (overrides: Partial<Parameters<DeleteMission>[0]> = {}) =>
     deleteMission({ eventId: WEDDING, missionId: asMissionId('m1'), actorId: OWNER, ...overrides })
@@ -31,7 +63,9 @@ describe('deleteMission', () => {
     missions = new FakeMissionRepository(photos)
     memberships = new FakeMembershipRepository()
     bus = new RecordingEventBus()
-    deleteMission = makeDeleteMission({ events, missions, memberships, bus })
+    challenges = new FakeChallengeRepository(photos)
+    clock = new FakeClock(AT)
+    deleteMission = makeDeleteMission({ events, missions, challenges, memberships, bus, clock })
 
     events.seed(
       anEvent({ id: WEDDING, ownerId: OWNER, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
@@ -76,6 +110,42 @@ describe('deleteMission', () => {
   it('announces the change', async () => {
     await ask()
 
+    expect(bus.published).toEqual([{ type: 'mission.changed', eventId: WEDDING }])
+  })
+
+  it('stops the challenge that was running on the prompt, and announces both changes', async () => {
+    const startedAt = clock.now()
+    await challenges.tryStart(runningChallenge(startedAt), startedAt)
+    clock.advance(30_000)
+
+    await ask()
+
+    expect((await challenges.findLatest(WEDDING))?.endedAt).toEqual(clock.now())
+    expect(bus.published).toEqual([
+      { type: 'mission.changed', eventId: WEDDING },
+      { type: 'challenge.changed', eventId: WEDDING },
+    ])
+  })
+
+  it('leaves a challenge that runs on another prompt alone', async () => {
+    missions.seed(aMission({ id: 'm2', eventId: 'evt-wedding', prompt: 'le gateau' }))
+    const startedAt = clock.now()
+    await challenges.tryStart(runningChallenge(startedAt, 'm2'), startedAt)
+
+    await ask()
+
+    expect((await challenges.findLatest(WEDDING))?.endedAt).toBeNull()
+    expect(bus.published).toEqual([{ type: 'mission.changed', eventId: WEDDING }])
+  })
+
+  it('does not touch a challenge that already ended', async () => {
+    const startedAt = clock.now()
+    await challenges.tryStart(runningChallenge(startedAt), startedAt)
+    clock.advance(121_000)
+
+    await ask()
+
+    expect((await challenges.findLatest(WEDDING))?.endedAt).toBeNull()
     expect(bus.published).toEqual([{ type: 'mission.changed', eventId: WEDDING }])
   })
 
