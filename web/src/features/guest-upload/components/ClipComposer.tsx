@@ -6,6 +6,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { UiText } from '../../../lib/i18n/translations'
 import { megabytes, type ClipLimits } from '../clipFile'
 import type { ClipStage, ClipUpload } from '../hooks/useClipUpload'
+import { ClipTrimmer } from './ClipTrimmer'
 import styles from './ClipComposer.module.css'
 
 /**
@@ -178,6 +179,20 @@ export function ClipComposer({
           <p className={styles['name']}>{clip.file.name}</p>
           <p className={styles['size']}>{t.upload.clipSize(megabytes(clip.file.size))}</p>
 
+          {clip.trim !== null && (clip.stage === 'ready' || clip.stage === 'uploading') ? (
+            <>
+              <ClipTrimmer
+                key={`${clip.file.name}-${clip.file.size}-${clip.file.lastModified}`}
+                file={clip.file}
+                trim={clip.trim}
+                maxSeconds={limits.maxSeconds}
+                disabled={busy}
+                onChange={clip.setTrim}
+              />
+              <p className={styles['notice']}>{t.upload.clipTrimWholeFileSent}</p>
+            </>
+          ) : null}
+
           {/*
             One live region for the whole flow, so the four states are announced in turn
             rather than each one shouting over the last. A guest who cannot see the
@@ -234,7 +249,11 @@ export function ClipComposer({
             ) : (
               <>
                 <Button variant="primary" size="lg" block onClick={() => clip.send(caption)}>
-                  {clip.stage === 'failed' ? t.app.retry : t.upload.clipSend}
+                  {clip.stage === 'failed'
+                    ? t.app.retry
+                    : clip.trim !== null
+                      ? t.upload.clipSendTrimmed
+                      : t.upload.clipSend}
                 </Button>
                 <Button variant="ghost" block onClick={clip.clear}>
                   {t.app.cancel}

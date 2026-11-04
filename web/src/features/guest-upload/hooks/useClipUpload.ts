@@ -11,6 +11,7 @@ import {
   type ClipLimits,
   type ClipRefusal,
 } from '../clipFile'
+import { defaultTrim, type TrimRange } from '../clipTrim'
 import { probeClipDuration } from './probeClipDuration'
 import type { NoticePublication } from '../../../lib/api/dto'
 
@@ -70,6 +71,8 @@ export type ClipStage =
 export interface ClipUpload {
   /** The recording in hand, or `null`. Kept through a failure, so a retry has bytes. */
   readonly file: File | null
+  /** The range the guest keeps of a recording longer than the cap; `null` when none is needed. */
+  readonly trim: ClipTrimState | null
   readonly stage: ClipStage
   /** 0-100, from the transport's upload progress events. */
   readonly progress: number
@@ -81,6 +84,8 @@ export interface ClipUpload {
   readonly clear: () => void
   readonly send: (caption: string | null) => void
   readonly cancel: () => void
+  /** Moves the handles. A range the screen has already kept valid (`clipTrim.ts`). */
+  readonly setTrim: (range: TrimRange) => void
 }
 
 export interface UseClipUploadOptions {
@@ -161,15 +166,32 @@ const refusalMessage = (refusal: ClipRefusal, limits: ClipLimits, t: UiText): st
   return messages[refusal]()
 }
 
+/**
+ * The part of a recording longer than the cap that the guest keeps (spec 16), with the
+ * duration the handles move within. `null` while there is nothing to cut: a recording
+ * inside the cap, or one whose duration the browser could not read.
+ */
+export interface ClipTrimState extends TrimRange {
+  readonly durationMs: number
+}
+
 interface Snapshot {
   readonly file: File | null
+  readonly trim: ClipTrimState | null
   readonly stage: ClipStage
   readonly progress: number
   readonly message: string | null
   readonly retryable: boolean
 }
 
-const IDLE: Snapshot = { file: null, stage: 'idle', progress: 0, message: null, retryable: false }
+const IDLE: Snapshot = {
+  file: null,
+  trim: null,
+  stage: 'idle',
+  progress: 0,
+  message: null,
+  retryable: false,
+}
 
 export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
   const {
@@ -250,6 +272,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
         // with nothing selected cannot tell which of the two they just picked was wrong.
         setState({
           file,
+          trim: null,
           stage: 'failed',
           progress: 0,
           message: refusalMessage(refusal, limits, t),
@@ -257,7 +280,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
         })
         return
       }
-      setState({ file, stage: 'ready', progress: 0, message: null, retryable: false })
+      setState({ ...IDLE, file, stage: 'ready' })
 
       /**
        * The duration check runs in the background rather than gating the control: the
@@ -273,15 +296,16 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
        */
       void probe(file).then((durationMs) => {
         if (chosen.current !== file) return
-        const tooLong = refuseClipDuration(durationMs, limits)
-        if (tooLong === null) return
+        // Longer than the cap is no longer a refusal (spec 16): the guest picks the part to
+        // keep. The recording is within `maxBytes` — `refuseClipFile` already said so — which
+        // is what makes sending all of it with the range possible.
+        if (durationMs === null || refuseClipDuration(durationMs, limits) === null) return
         abandon()
         setState({
+          ...IDLE,
           file,
-          stage: 'failed',
-          progress: 0,
-          message: refusalMessage(tooLong, limits, t),
-          retryable: false,
+          stage: 'ready',
+          trim: { durationMs, ...defaultTrim(durationMs, limits.maxSeconds * 1_000) },
         })
       })
     },
@@ -293,6 +317,12 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
     chosen.current = null
     setState(IDLE)
   }, [abandon])
+
+  const setTrim = useCallback((range: TrimRange) => {
+    setState((previous) =>
+      previous.trim === null ? previous : { ...previous, trim: { ...previous.trim, ...range } },
+    )
+  }, [])
 
   /**
    * Asks the job where it is, until it stops moving.
@@ -436,6 +466,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
   const send = useCallback(
     (caption: string | null) => {
       const file = state.file
+      const trim = state.trim
       if (file === null) return
       if (BUSY.includes(state.stage)) return
 
@@ -447,20 +478,21 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
       // second refusal to explain, it is the first one still standing.
       const remaining = blockedUntil.current - Date.now()
       if (remaining > 0) {
-        setState({ file, stage: 'ready', progress: 0, message: null, retryable: false })
+        setState({ ...IDLE, file, stage: 'ready', trim })
         beginWait(Math.ceil(remaining / 1_000), mine)
         return
       }
 
       const aborter = new AbortController()
       controller.current = aborter
-      setState({ file, stage: 'uploading', progress: 0, message: null, retryable: false })
+      setState({ ...IDLE, file, trim, stage: 'uploading' })
 
       void (async () => {
         try {
           const job = await api.uploadClip(slug, {
             file,
             caption,
+            ...(trim === null ? {} : { trim: { startMs: trim.startMs, endMs: trim.endMs } }),
             onProgress: (progress) => {
               if (run.current !== mine) return
               setState((previous) => ({ ...previous, progress: progress.percent }))
@@ -534,7 +566,7 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
         // run.
       })()
     },
-    [abandon, api, beginWait, slug, state.file, state.stage, t, watch],
+    [abandon, api, beginWait, slug, state.file, state.stage, state.trim, t, watch],
   )
 
   const cancel = useCallback(() => {
@@ -548,5 +580,5 @@ export const useClipUpload = (options: UseClipUploadOptions): ClipUpload => {
     }))
   }, [abandon])
 
-  return { ...state, choose, clear, send, cancel }
+  return { ...state, choose, clear, send, cancel, setTrim }
 }

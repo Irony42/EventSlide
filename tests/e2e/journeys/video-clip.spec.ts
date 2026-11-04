@@ -227,3 +227,35 @@ test.describe('on a phone', () => {
     expect(box!.height).toBeGreaterThanOrEqual(44)
   })
 })
+
+test('a guest keeps the part they chose of a video that is too long (spec 16)', async ({
+  app,
+  surfaces,
+}) => {
+  const { guest, host } = surfaces
+  const event = await app.seedEvent({ slug: 'video-trop-longue' })
+
+  await guest.goto(app.url(`/join/${event.joinCode}`))
+  await guest.getByLabel(/Votre prénom/i).fill('Léa')
+  await guest.getByRole('button', { name: /Rejoindre/i }).click()
+  await guest.waitForURL(/\/e\/[^/]+\/upload/)
+  await passPrivacyNotice(guest)
+
+  // Forty seconds against a fifteen-second cap: not a refusal any more, a trim screen.
+  await guest.getByTestId('clip-input').setInputFiles(await aClip('too-long', 40))
+  await expect(guest.getByTestId('clip-trimmer')).toBeVisible()
+
+  const start = guest.getByTestId('clip-trim-start')
+  await start.focus()
+  for (let i = 0; i < 20; i += 1) await start.press('ArrowRight')
+  await expect(guest.getByRole('status').filter({ hasText: /Extrait/ })).toContainText('13')
+
+  await guest.getByRole('button', { name: fr.upload.clipSendTrimmed }).click()
+  await expect(guest.getByTestId('clip-state')).toHaveAttribute('data-stage', 'done')
+
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  const card = host.getByTestId('moderation-card')
+  await expect(card).toBeVisible()
+  // 2 s to 15 s of forty: thirteen seconds kept.
+  await expect(card.getByText(fr.moderation.videoLength(13))).toBeVisible()
+})

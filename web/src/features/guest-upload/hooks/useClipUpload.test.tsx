@@ -92,15 +92,77 @@ describe('choosing a recording', () => {
     expect(api.uploadClip).not.toHaveBeenCalled()
   })
 
-  it('refuses one longer than the cap, once the browser has read its header', async () => {
+  it('opens the trim screen for one longer than the cap, instead of refusing it (spec 16)', async () => {
     const api = fakeApi()
     const { result } = mount(api, { probe: () => Promise.resolve(21_000) })
 
     act(() => result.current.choose(aClipFile()))
 
-    await waitFor(() => expect(result.current.stage).toBe('failed'))
-    expect(result.current.message).toBe(fr.upload.clipTooLong(15))
+    await waitFor(() => expect(result.current.trim).not.toBeNull())
+    expect(result.current.stage).toBe('ready')
+    expect(result.current.message).toBeNull()
+    expect(result.current.trim).toEqual({ durationMs: 21_000, startMs: 0, endMs: 15_000 })
     expect(api.uploadClip).not.toHaveBeenCalled()
+  })
+
+  it('opens no trim screen for one inside the cap, or one it could not read', async () => {
+    const inside = mount(fakeApi(), { probe: () => Promise.resolve(15_000) })
+    act(() => inside.result.current.choose(aClipFile()))
+    const unread = mount(fakeApi(), { probe: () => Promise.resolve(null) })
+    act(() => unread.result.current.choose(aClipFile()))
+
+    await waitFor(() => expect(inside.result.current.stage).toBe('ready'))
+    expect(inside.result.current.trim).toBeNull()
+    expect(unread.result.current.trim).toBeNull()
+  })
+
+  it('still refuses a too-long recording that is also too heavy, with no trim screen', async () => {
+    const { result } = mount(fakeApi(), { probe: () => Promise.resolve(60_000) })
+
+    act(() => result.current.choose(aClipFile('longue.mp4', 90_000_000)))
+
+    await waitFor(() => expect(result.current.stage).toBe('failed'))
+    expect(result.current.trim).toBeNull()
+  })
+
+  it('sends the whole file with the range the guest set', async () => {
+    const api = fakeApi({ uploadClip: vi.fn(async () => aClipJob({ status: 'done' })) })
+    const { result } = mount(api, { probe: () => Promise.resolve(40_000) })
+    act(() => result.current.choose(aClipFile()))
+    await waitFor(() => expect(result.current.trim).not.toBeNull())
+
+    act(() => result.current.setTrim({ startMs: 12_000, endMs: 24_000 }))
+    act(() => result.current.send(null))
+
+    await waitFor(() => expect(api.uploadClip).toHaveBeenCalled())
+    expect(api.uploadClip).toHaveBeenCalledWith(
+      SLUG,
+      expect.objectContaining({ trim: { startMs: 12_000, endMs: 24_000 } }),
+    )
+  })
+
+  it('sends no range for a recording that needed none', async () => {
+    const api = fakeApi({ uploadClip: vi.fn(async () => aClipJob({ status: 'done' })) })
+    const { result } = mount(api)
+    act(() => result.current.choose(aClipFile()))
+    await waitFor(() => expect(result.current.stage).toBe('ready'))
+
+    act(() => result.current.send(null))
+
+    await waitFor(() => expect(api.uploadClip).toHaveBeenCalled())
+    const input = vi.mocked(api.uploadClip).mock.calls[0]?.[1]
+    expect(input).toBeDefined()
+    expect(input && 'trim' in input).toBe(false)
+  })
+
+  it('forgets the range when the guest picks another recording', async () => {
+    const { result } = mount(fakeApi(), { probe: () => Promise.resolve(40_000) })
+    act(() => result.current.choose(aClipFile()))
+    await waitFor(() => expect(result.current.trim).not.toBeNull())
+
+    act(() => result.current.clear())
+
+    expect(result.current.trim).toBeNull()
   })
 
   it('accepts one whose duration this browser could not read', async () => {
