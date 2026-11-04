@@ -310,6 +310,8 @@ const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
   'features/moderation/components/ModerationGrid.module.css': 'no-preference',
   'features/wall/WallPage.module.css': 'survives-collapsed',
   'features/wall/components/NewPhotoSignal.module.css': 'survives-collapsed',
+  // The muted-speaker icon (spec 12): a fade-in under the collapsed duration, still usable.
+  'features/wall/components/WallSoundButton.module.css': 'survives-collapsed',
   'features/wall/components/ReactionBurst.module.css': 'declined-in-javascript',
   'features/wall/components/SlideLayer.module.css': 'declined-in-javascript',
   // The challenge banner's 250 ms entrance (spec 10): `WallChallenge.tsx` does not apply the class
@@ -437,6 +439,8 @@ const WALL_BUDGET_ANSWERS: Readonly<Record<string, 'still' | 'cut'>> = {
   'features/wall/components/NewPhotoSignal.module.css': 'cut',
   'features/wall/components/ReactionBurst.module.css': 'cut',
   'features/wall/components/SlideLayer.module.css': 'still',
+  // Chrome: its fade-in is given up at the bottom rung (spec 12).
+  'features/wall/components/WallSoundButton.module.css': 'cut',
   'features/wall/components/WallChallenge.module.css': 'cut',
   'features/wall/components/WallLayouts.module.css': 'still',
 }
