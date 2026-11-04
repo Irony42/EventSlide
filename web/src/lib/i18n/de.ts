@@ -840,6 +840,18 @@ export const de: UiText = {
     offline: 'Neue Fotos warten auf das Netzwerk',
     paused: 'Diashow angehalten',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Erinnerung geteilt`,
+        other: `${t.number(count)} Erinnerungen geteilt`,
+      }),
+    arrivalPhoto: 'Neues Foto hinzugefügt',
+    arrivalClip: 'Neues Video hinzugefügt',
+    arrivalPhotos: (count: number) => `${t.number(count)} neue Fotos`,
+    arrivalClips: (count: number) => `${t.number(count)} neue Videos`,
+    arrivalMixed: (count: number) => `${t.number(count)} neue Erinnerungen`,
+
     codeLabel: 'Code der Feier',
     qrTitle: 'QR-Code für den Beitritt zur Feier',
     photoBy: (name: string) => `Foto, gesendet von ${name}`,
@@ -879,6 +891,37 @@ export const de: UiText = {
     },
     layoutOrder: (names: readonly string[]) =>
       `Anordnungen, in dieser Reihenfolge: ${names.join(', ')}.`,
+
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Einstellungen',
+      pause: 'Pause',
+      resume: 'Fortsetzen',
+      fullscreen: 'Vollbild',
+      barLabel: 'Steuerung der Wand',
+      panelLabel: 'Einstellungen der Wand',
+      title: 'Einstellungen',
+      close: 'Einstellungen schließen',
+      sectionDisplay: 'Anzeige',
+      sectionAmbiance: 'Ambiente',
+      forAll: 'Für alle Bildschirme',
+      thisScreen: 'Nur dieser Bildschirm',
+      thisScreenHint:
+        'Diese Schaltflächen ändern nur diesen Bildschirm und gehen beim Neuladen der Seite verloren.',
+      screenLayout: (name: string) => `Anordnung dieses Bildschirms: ${name} (Taste L)`,
+      screenShows: (name: string) => `Dieser Bildschirm zeigt ${name} (Taste L)`,
+      backToEvent: 'Zurück zur Einstellung der Veranstaltung',
+      hideQr: 'QR-Karte ausblenden',
+      showQr: 'QR-Karte anzeigen',
+      saving: 'Wird gespeichert…',
+      saved: 'Gespeichert',
+      saveFailed: 'Speichern nicht möglich, bitte erneut versuchen',
+      sessionExpired:
+        'Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an, um die Wand einzustellen.',
+      signIn: 'Anmelden',
+      signInToSet: 'Anmelden, um diese Wand einzustellen',
+      openHint: 'R öffnet die Einstellungen der Wand.',
+    },
 
     videoBy: (name: string) => `Video, gesendet von ${name}`,
     videoByAnonymous: 'Video, gesendet von einem Gast',
@@ -1028,6 +1071,21 @@ export const de: UiText = {
       intervalHint: 'Wie lange jedes Foto auf dem Bildschirm bleibt.',
       intervalDefault: 'Standard (ein Foto alle 8 s)',
       intervalSeconds: (n: number) => `Ein Foto alle ${n} s`,
+      freshLane: 'Neue Fotos zuerst',
+      freshLaneHint: 'Ein veröffentlichtes Foto kommt als nächstes, höchstens drei hintereinander.',
+      tilt: 'Leicht geneigte Fotos',
+      tiltHint: 'Polaroids und Wäscheleine: ein fester Winkel von wenigen Grad.',
+      showTime: 'Sendezeit unter dem Foto',
+      showTimeHint:
+        'Die Uhrzeit, zu der das Foto gesendet wurde, nach der Uhr des Bildschirms im Raum.',
+      // Spec 11.
+      onScreen: 'Auf dem Bildschirm',
+      souvenirCounter: 'Erinnerungszähler anzeigen',
+      souvenirCounterHint:
+        'Ein dezenter Zähler oben in der Mitte: „17 Erinnerungen geteilt“. Er zählt die auf der Wand sichtbaren Fotos und Videos.',
+      newPhotoSignal: 'Neue Fotos ankündigen',
+      newPhotoSignalHint:
+        'Eine kurze Meldung oben in der Mitte, wenn ein Foto oder Video gerade auf der Wand erschienen ist. Nie der Name des Gastes.',
     },
     wallSound: {
       title: 'Ton',

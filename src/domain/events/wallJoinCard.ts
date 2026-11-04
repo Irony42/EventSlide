@@ -44,3 +44,15 @@ export const smallScaleFloor = (moduleCount: number): number =>
 /** The scale actually drawn: the host's choice, never below the floor of this link. */
 export const effectiveQrScale = (scale: number, moduleCount: number): number =>
   Math.max(scale, smallScaleFloor(moduleCount))
+
+/** Byte-mode capacity at error-correction level M, versions 1 to 6 (modules = 17 + 4 x version). */
+const BYTE_CAPACITY_M = [14, 26, 42, 62, 84, 106] as const
+
+/**
+ * Data modules per side of a level-M QR holding `byteLength` bytes. Past version 6 (41 modules) the
+ * floor is already 1, so the exact count no longer matters and 45 stands for "larger".
+ */
+export const qrModuleCount = (byteLength: number): number => {
+  const index = BYTE_CAPACITY_M.findIndex((capacity) => byteLength <= capacity)
+  return index === -1 ? 45 : 17 + 4 * (index + 1)
+}

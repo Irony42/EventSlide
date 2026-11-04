@@ -267,6 +267,15 @@ export const eventRoutes = ({
                   ...(body.wall.slideIntervalMs === undefined
                     ? {}
                     : { slideIntervalMs: body.wall.slideIntervalMs }),
+                  ...(body.wall.souvenirCounter === undefined
+                    ? {}
+                    : { souvenirCounter: body.wall.souvenirCounter }),
+                  ...(body.wall.newPhotoSignal === undefined
+                    ? {}
+                    : { newPhotoSignal: body.wall.newPhotoSignal }),
+                  ...(body.wall.freshLane === undefined ? {} : { freshLane: body.wall.freshLane }),
+                  ...(body.wall.tilt === undefined ? {} : { tilt: body.wall.tilt }),
+                  ...(body.wall.showTime === undefined ? {} : { showTime: body.wall.showTime }),
                   ...(body.wall.qrVisible === undefined ? {} : { qrVisible: body.wall.qrVisible }),
                   ...(body.wall.qrScale === undefined ? {} : { qrScale: body.wall.qrScale }),
                   ...(body.wall.qrPlacement === undefined

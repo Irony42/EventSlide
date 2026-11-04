@@ -303,6 +303,13 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   layout: 'spotlight',
   // Present for the reason `theme` is: the sweep in `useWallPlaylist.settings.test.ts` must see it.
   layoutChosen: false,
+  // Spec 11: present so the sweep in `useWallPlaylist.settings.test.ts` sees them.
+  souvenirCount: null,
+  souvenirCounter: false,
+  newPhotoSignal: false,
+  freshLane: true,
+  tilt: true,
+  showTime: false,
   joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
   sound: { enabled: false, tone: 'chime', volume: 50 },
   reactionsEnabled: true,
@@ -415,12 +422,18 @@ export const eventSettings = (
     wall: {
       layout: null,
       slideIntervalMs: null,
+      freshLane: true,
+      tilt: true,
+      showTime: false,
       qrVisible: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',
       soundEnabled: false,
       soundTone: 'chime',
       soundVolume: 50,
+      // Spec 11: both off until the host asks.
+      souvenirCounter: false,
+      newPhotoSignal: false,
       ...wall,
     },
     ...rest,

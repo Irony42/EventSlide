@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError, asError, isAbortError } from '../../../lib/http'
 import type { WallResponse } from '../../../lib/api/dto'
@@ -196,6 +196,15 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.layout === fresh.layout &&
   // Whether that layout is the host's choice (spec 13): it decides who wins against the ambiance.
   kept.layoutChosen === fresh.layoutChosen &&
+  // Spec 11: a souvenir published beyond the window, or one taken down, moves no `revision`, so
+  // without these lines the counter would stay wrong until the next photograph.
+  kept.souvenirCount === fresh.souvenirCount &&
+  kept.souvenirCounter === fresh.souvenirCounter &&
+  kept.newPhotoSignal === fresh.newPhotoSignal &&
+  // Fresh photos first and tilted prints (spec 13): display choices that move no photograph.
+  kept.freshLane === fresh.freshLane &&
+  kept.tilt === fresh.tilt &&
+  kept.showTime === fresh.showTime &&
   // The invitation card (spec 14): a size or a corner changed mid-evening moves no photograph.
   kept.joinCard?.visible === fresh.joinCard?.visible &&
   kept.joinCard?.scale === fresh.joinCard?.scale &&
@@ -264,8 +273,16 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
  *    wall that holds photos and has no stream also re-reads on a slow timer, for the outages the
  *    stream cannot report (see `STREAM_DOWN_REFRESH_MS`).
  */
-export const useWallPlaylist = (slug: string): WallPlaylistState => {
+export const useWallPlaylist = (
+  slug: string,
+  /** Told of every successful read, changed or not (the new-photo signal of spec 11 needs both). */
+  onRead?: (response: WallResponse) => void,
+): WallPlaylistState => {
   const api = useApi()
+  const onReadRef = useRef(onRead)
+  useEffect(() => {
+    onReadRef.current = onRead
+  })
   const [state, setState] = useState<Fetched>(INITIAL)
   const [attempt, setAttempt] = useState(0)
   const [reactionPulse, setReactionPulse] = useState(0)
@@ -307,6 +324,7 @@ export const useWallPlaylist = (slug: string): WallPlaylistState => {
     api.wall(slug, controller.signal).then(
       (response) => {
         if (!live) return
+        onReadRef.current?.(response)
         setState((previous) => {
           const kept = previous.wall
           if (kept !== null && kept.revision === response.revision) {

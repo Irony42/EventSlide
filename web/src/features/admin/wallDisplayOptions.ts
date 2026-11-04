@@ -62,6 +62,13 @@ export const wallChanges = (
   if (draft.slideIntervalMs !== loaded.slideIntervalMs) {
     changes.slideIntervalMs = draft.slideIntervalMs
   }
+  if (draft.souvenirCounter !== loaded.souvenirCounter) {
+    changes.souvenirCounter = draft.souvenirCounter
+  }
+  if (draft.newPhotoSignal !== loaded.newPhotoSignal) changes.newPhotoSignal = draft.newPhotoSignal
+  if (draft.freshLane !== loaded.freshLane) changes.freshLane = draft.freshLane
+  if (draft.tilt !== loaded.tilt) changes.tilt = draft.tilt
+  if (draft.showTime !== loaded.showTime) changes.showTime = draft.showTime
   if (draft.soundEnabled !== loaded.soundEnabled) changes.soundEnabled = draft.soundEnabled
   if (draft.soundTone !== loaded.soundTone) changes.soundTone = draft.soundTone
   if (draft.soundVolume !== loaded.soundVolume) changes.soundVolume = draft.soundVolume
