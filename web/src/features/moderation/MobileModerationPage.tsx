@@ -284,7 +284,12 @@ export function MobileModerationPage() {
             </Badge>
           </div>
         </div>
-        <p className={styles['intro']}>{t.mobileModeration.intro}</p>
+        {/* The tabs take the line the intro had: the card, its caption and its author must fit a phone. */}
+        {guestbookEnabled ? (
+          <VisuallyHidden as="div">{t.mobileModeration.intro}</VisuallyHidden>
+        ) : (
+          <p className={styles['intro']}>{t.mobileModeration.intro}</p>
+        )}
       </header>
 
       {guestbookEnabled ? (
