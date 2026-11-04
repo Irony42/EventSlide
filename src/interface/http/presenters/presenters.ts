@@ -1,4 +1,5 @@
 import { allowedDecisionsFrom } from '../../../domain/moderation/moderationDecision'
+import type { Challenge } from '../../../domain/challenges/challenge'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
@@ -41,6 +42,11 @@ import type {
   ThemeCustomDto,
   GalleryDto,
   GalleryPageDto,
+  ChallengeDto,
+  GuestChallengeDto,
+  HostChallengeDto,
+  HostChallengeResponseDto,
+  WallChallengeDto,
   GalleryPhotoDto,
   GuestDto,
   GuestMissionDto,
@@ -105,6 +111,8 @@ import type { MembershipWithUser } from '../../../application/ports/userReposito
 import type { AcceptedInvitation } from '../../../application/usecases/auth/acceptInvitation'
 import type { IssuedInvitation } from '../../../application/usecases/auth/issueInvitation'
 import type { InvitationPreview } from '../../../application/usecases/auth/previewInvitation'
+import type { ChallengeReading } from '../../../application/usecases/challenges/readChallenge'
+import type { HostChallengeView } from '../../../application/usecases/challenges/getChallenge'
 import type { ChecklistItem } from '../../../application/usecases/missions/getGuestChecklist'
 import type { MissionSummary } from '../../../application/usecases/missions/listMissions'
 import type { CreatedShareLink } from '../../../application/usecases/gallery/createShareLink'
@@ -857,7 +865,6 @@ export const toWallResponseDto = (
     kenBurnsDurationMs: view.kenBurnsDurationMs,
     layout: view.layout,
     layoutChosen: view.layoutChosen,
-    serverNowMs: view.serverNowMs,
     mixed: view.mixed,
     souvenirCount: view.souvenirCount,
     souvenirCounter: view.souvenirCounter,
@@ -881,6 +888,9 @@ export const toWallResponseDto = (
     // contrast — a layout genuinely does belong to the screen, which is why that one is a
     // query parameter and there is no `?lang=`.
     wallLanguage: view.event.settings.wallLanguage,
+    // One read of the server's clock, taken with the challenge's state, so the two agree.
+    serverNowMs: view.serverNowMs,
+    challenge: toWallChallengeDto(view.challenge),
   }
 }
 
@@ -933,6 +943,16 @@ export const toInvitationAcceptedDto = (accepted: AcceptedInvitation): Invitatio
  * wants. Nothing about the photographs themselves — they are ordinary photographs and
  * are already in the queue and the gallery.
  */
+/** A challenge that has just started: always `running`, which is what the launch answers. */
+export const toStartedChallengeDto = (challenge: Challenge): ChallengeDto => ({
+  id: challenge.id,
+  missionId: challenge.missionId,
+  prompt: challenge.prompt.value,
+  startedAt: challenge.startedAt.toISOString(),
+  endsAt: challenge.endsAt.toISOString(),
+  state: 'running',
+})
+
 export const toMissionDto = (row: MissionSummary): MissionDto => ({
   id: row.mission.id,
   prompt: row.mission.prompt.value,
@@ -949,6 +969,46 @@ export const toMissionDto = (row: MissionSummary): MissionDto => ({
  * to know whether there is still something for them to do, and how many other people
  * have done it is a scoreboard nobody asked for (roadmap §7).
  */
+/** A phone's view of the challenge: no count of answers (spec 10). */
+export const toGuestChallengeDto = (reading: ChallengeReading | null): GuestChallengeDto | null =>
+  reading === null
+    ? null
+    : {
+        id: reading.challenge.id,
+        missionId: reading.challenge.missionId,
+        prompt: reading.challenge.prompt.value,
+        endsAt: reading.challenge.endsAt.toISOString(),
+        state: reading.state,
+      }
+
+/** The wall's (and the console's) view of the challenge. */
+export const toWallChallengeDto = (reading: ChallengeReading | null): WallChallengeDto | null =>
+  reading === null
+    ? null
+    : {
+        id: reading.challenge.id,
+        prompt: reading.challenge.prompt.value,
+        startedAt: reading.challenge.startedAt.toISOString(),
+        endsAt: reading.challenge.endsAt.toISOString(),
+        state: reading.state,
+        answers: reading.answers,
+      }
+
+const toHostChallengeDto = (reading: ChallengeReading): HostChallengeDto => ({
+  id: reading.challenge.id,
+  missionId: reading.challenge.missionId,
+  prompt: reading.challenge.prompt.value,
+  startedAt: reading.challenge.startedAt.toISOString(),
+  endsAt: reading.challenge.endsAt.toISOString(),
+  state: reading.state,
+  answers: reading.answers,
+})
+
+export const toHostChallengeResponseDto = (view: HostChallengeView): HostChallengeResponseDto => ({
+  serverNowMs: view.serverNowMs,
+  challenge: view.challenge === null ? null : toHostChallengeDto(view.challenge),
+})
+
 export const toGuestMissionDto = (row: ChecklistItem): GuestMissionDto => ({
   id: row.mission.id,
   prompt: row.mission.prompt.value,

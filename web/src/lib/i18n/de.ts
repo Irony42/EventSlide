@@ -607,6 +607,12 @@ export const de: UiText = {
     'mission.promptEmpty': 'Schreiben Sie, worum die Mission bittet.',
     'mission.promptTooLong': 'Dieser Text ist zu lang für den Bildschirm.',
     'mission.promptInvalid': 'Dieser Text ist nicht gültig.',
+    'challenge.alreadyRunning':
+      'Es läuft bereits eine Challenge. Stoppen Sie sie, bevor Sie eine neue starten.',
+    'challenge.limit': 'Diese Veranstaltung hat die zulässige Anzahl an Challenges erreicht.',
+    'challenge.eventNotOpen':
+      'Eine Challenge kann nur starten, solange die Veranstaltung geöffnet ist.',
+    'challenge.durationInvalid': 'Diese Dauer ist nicht gültig.',
 
     'eventTheme.accentHueInvalid': 'Diese Farbe ist unbekannt. Wählen Sie eine aus der Liste.',
     'eventTheme.accentUnreadable':
@@ -2163,6 +2169,23 @@ export const de: UiText = {
     step3: 'Sie erscheinen auf dem Bildschirm des Abends.',
     fallback: (code: string, address: string) =>
       `Kein QR-Code? Geben Sie den Code ${code} auf ${address} ein.`,
+  },
+  /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
+  challenge: {
+    title: 'Foto-Challenge',
+    hint: 'Starten Sie eine Mission für einige Minuten: Bildschirm und Handys zählen gemeinsam herunter.',
+    mission: 'Mission',
+    duration: 'Dauer',
+    minutes: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Minute`,
+        other: `${t.number(count)} Minuten`,
+      }),
+    launch: 'Als Challenge starten',
+    stop: 'Stoppen',
+    remaining: (time: string) => `Challenge läuft · ${time}`,
+    noMissions: 'Fügen Sie zuerst eine Mission hinzu, um eine Challenge zu starten.',
+    notOpen: 'Eine Challenge lässt sich starten, sobald die Veranstaltung geöffnet ist.',
   },
   titles: {
     print: 'Tischkarten und Plakat',

@@ -1,0 +1,31 @@
+/* The same shape as `MissionsPanel`: a hint, then one small form (or the running challenge). */
+
+.hint {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+.form,
+.running {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.prompt {
+  overflow-wrap: anywhere;
+  line-height: var(--leading-snug);
+}
+
+/* Tabular figures, so the digits do not jitter as they change. */
+.time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

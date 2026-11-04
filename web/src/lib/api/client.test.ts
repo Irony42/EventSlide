@@ -580,6 +580,25 @@ const ENDPOINTS: readonly EndpointCase[] = [
     invoke: (client) => client.deleteMission(SLUG, 'mission-1'),
   },
   {
+    name: 'getChallenge',
+    verb: 'get',
+    path: `/api/events/${SLUG}/challenge`,
+    invoke: (client) => client.getChallenge(SLUG),
+  },
+  {
+    name: 'startChallenge',
+    verb: 'post',
+    path: `/api/events/${SLUG}/challenge`,
+    invoke: (client) =>
+      client.startChallenge(SLUG, { missionId: 'mission-1', durationSeconds: 120 }),
+  },
+  {
+    name: 'stopChallenge',
+    verb: 'del',
+    path: `/api/events/${SLUG}/challenge`,
+    invoke: (client) => client.stopChallenge(SLUG),
+  },
+  {
     name: 'shareLink',
     verb: 'get',
     path: `/api/events/${SLUG}/share-link`,
