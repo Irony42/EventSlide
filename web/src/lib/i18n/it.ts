@@ -230,6 +230,22 @@ export const it: UiText = {
     clipTooLong: (seconds: number) =>
       `Questo video supera ${t.number(seconds)} secondi. Registri una sequenza più breve.`,
     clipNotAVideo: 'Questo file non è un video.',
+    /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) => `Scelga i ${t.number(seconds)} secondi da tenere`,
+    clipTrimStart: 'Inizio dell’estratto',
+    clipTrimEnd: 'Fine dell’estratto',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} secondi`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Estratto: ${t.number(seconds)} s su ${t.number(maxSeconds)} s al massimo`,
+    clipTrimPlay: 'Riproduci l’estratto',
+    clipTrimPause: 'Pausa',
+    clipTrimNoPreview:
+      'Nessuna anteprima su questo dispositivo. L’estratto verrà comunque tagliato.',
+    clipTrimWholeFileSent: 'Viene inviato l’intero video; solo l’estratto scelto viene conservato.',
+    clipSendTrimmed: 'Invia questo estratto',
     clipUploading: 'Invio del video…',
     clipQueued: 'In coda…',
     clipRunning: 'Elaborazione del video…',

@@ -380,6 +380,21 @@ export const fr = {
       `Cette vidéo dépasse ${t.number(seconds)} secondes. Filmez une séquence plus courte.`,
     clipNotAVideo: 'Ce fichier n’est pas une vidéo.',
     /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) => `Choisissez les ${t.number(seconds)} secondes à garder`,
+    clipTrimStart: 'Début de l’extrait',
+    clipTrimEnd: 'Fin de l’extrait',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} secondes`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Extrait : ${t.number(seconds)} s sur ${t.number(maxSeconds)} s au plus`,
+    clipTrimPlay: 'Lire l’extrait',
+    clipTrimPause: 'Pause',
+    clipTrimNoPreview: 'Aperçu indisponible sur cet appareil. L’extrait sera bien découpé.',
+    clipTrimWholeFileSent: 'La vidéo entière est envoyée ; seul l’extrait choisi est conservé.',
+    clipSendTrimmed: 'Envoyer cet extrait',
+    /**
      * The four states the job actually has, in the guest's words.
      *
      * Polled from the server rather than guessed at: a progress bar that reaches 100%

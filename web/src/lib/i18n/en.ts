@@ -213,6 +213,21 @@ export const en: UiText = {
     clipTooLong: (seconds: number) =>
       `This video is over ${t.number(seconds)} seconds. Record a shorter sequence.`,
     clipNotAVideo: 'This file is not a video.',
+    /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) => `Choose the ${t.number(seconds)} seconds to keep`,
+    clipTrimStart: 'Start of the clip',
+    clipTrimEnd: 'End of the clip',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} seconds`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Clip: ${t.number(seconds)} s of ${t.number(maxSeconds)} s at most`,
+    clipTrimPlay: 'Play the clip',
+    clipTrimPause: 'Pause',
+    clipTrimNoPreview: 'No preview on this device. The clip will still be cut.',
+    clipTrimWholeFileSent: 'The whole video is sent; only the part you chose is kept.',
+    clipSendTrimmed: 'Send this clip',
     clipUploading: 'Sending the video…',
     clipQueued: 'In the queue…',
     clipRunning: 'Processing the video…',
