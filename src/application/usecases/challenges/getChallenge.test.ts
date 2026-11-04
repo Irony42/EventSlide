@@ -20,12 +20,13 @@ const STRANGER = asUserId('user-stranger')
 describe('getChallenge', () => {
   let clock: FakeClock
   let getChallenge: GetChallenge
+  let events: FakeEventRepository
   let launch: () => Promise<unknown>
 
   const ask = (actorId = MODERATOR, eventId = WEDDING) => getChallenge({ eventId, actorId })
 
   beforeEach(async () => {
-    const events = new FakeEventRepository()
+    events = new FakeEventRepository()
     const photos = new FakePhotoRepository()
     const missions = new FakeMissionRepository(photos)
     const challenges = new FakeChallengeRepository(photos)
@@ -85,6 +86,23 @@ describe('getChallenge', () => {
     const result = await ask(STRANGER)
 
     expect(!result.ok && result.error.code).toBe('event.notFound')
+  })
+
+  it('refuses a member of a suspended client, who may not read photographs either', async () => {
+    events.seed(
+      anEvent({
+        id: WEDDING,
+        ownerId: OWNER,
+        slug: 'camille-et-sacha',
+        joinCode: 'H7K2QM',
+        clientId: 'client-1',
+        clientSuspendedAt: AT,
+      }),
+    )
+
+    const result = await ask()
+
+    expect(!result.ok && result.error.code).toBe('client.suspended')
   })
 
   it('answers notFound for an event that does not exist', async () => {
