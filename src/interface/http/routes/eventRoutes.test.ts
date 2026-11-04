@@ -1251,6 +1251,14 @@ describe('the host event routes', () => {
         mixedEnabled: false,
         mixedWallSeconds: 180,
         mixedSlideshowSeconds: 60,
+        qrVisible: true,
+        freshLane: true,
+        tilt: true,
+        showTime: false,
+        souvenirCounter: false,
+        newPhotoSignal: false,
+        qrScale: 1,
+        qrPlacement: 'bottom-end',
       })
     })
 
@@ -1299,6 +1307,15 @@ describe('the host event routes', () => {
       const patch = (wall: unknown) => agent.patch(`/api/events/${SLUG}/settings`).send({ wall })
 
       expect((await patch({ qrSize: 'large' })).status).toBe(400)
+      expect((await patch({ qrPlacement: 'center' })).status).toBe(400)
+      expect((await patch({ qrVisible: 'yes' })).status).toBe(400)
+      const offGrid = await patch({ qrScale: 1.02 })
+      expect(offGrid.status).toBe(400)
+      expect(offGrid.body.error.code).toBe('eventSettings.wallQrScaleInvalid')
+      expect((await patch({ qrScale: 0.5 })).body.error.code).toBe(
+        'eventSettings.wallQrScaleInvalid',
+      )
+      expect((await patch({ qrScale: 2 })).body.error.code).toBe('eventSettings.wallQrScaleInvalid')
       expect((await patch({ layout: 'carousel' })).status).toBe(400)
       const tooShort = await patch({ slideIntervalMs: 500 })
       expect(tooShort.status).toBe(400)
@@ -1378,7 +1395,36 @@ describe('the host event routes', () => {
           mixedEnabled: false,
           mixedWallSeconds: 180,
           mixedSlideshowSeconds: 60,
+          qrVisible: true,
+          freshLane: true,
+          tilt: true,
+          showTime: false,
+          souvenirCounter: false,
+          newPhotoSignal: false,
+          qrScale: 1,
+          qrPlacement: 'bottom-end',
         },
+      })
+    })
+
+    it('merges the invitation card keys one by one and answers them (spec 14)', async () => {
+      const agent = await signedIn(world, 'owner')
+
+      await agent.patch(`/api/events/${SLUG}/settings`).send({ wall: { qrScale: 1.35 } })
+      const response = await agent
+        .patch(`/api/events/${SLUG}/settings`)
+        .send({ wall: { qrPlacement: 'top-start', qrVisible: false } })
+
+      expect(response.status).toBe(200)
+      expect(response.body.settings.wall).toMatchObject({
+        qrVisible: false,
+        freshLane: true,
+        tilt: true,
+        showTime: false,
+        souvenirCounter: false,
+        newPhotoSignal: false,
+        qrScale: 1.35,
+        qrPlacement: 'top-start',
       })
     })
 

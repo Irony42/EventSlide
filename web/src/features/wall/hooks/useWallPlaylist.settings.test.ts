@@ -22,27 +22,29 @@ import type { EventThemeDto, WallGuestbookMessageDto, WallMissionDto } from '../
  * here, by name, before it can fail at a wedding.
  */
 describe('every field of the wall response is accounted for', () => {
-  it.each(Object.keys(aWallResponse()).filter((key) => !SETTINGS_EXEMPT.includes(key)))(
-    'notices a change to %s',
-    (key) => {
-      const kept = aWallResponse()
-      const fresh = aWallResponse()
+  it.each(
+    Object.keys(aWallResponse()).filter(
+      // `joinCard` is an object the generic walk cannot move; its three fields are walked below.
+      (key) => !SETTINGS_EXEMPT.includes(key) && key !== 'joinCard',
+    ),
+  )('notices a change to %s', (key) => {
+    const kept = aWallResponse()
+    const fresh = aWallResponse()
 
-      // A value of the right shape but a different content, whatever the field holds.
-      const changed: Record<string, unknown> = { ...fresh }
-      const current: unknown = changed[key]
-      changed[key] =
-        typeof current === 'number'
-          ? current + 1
-          : typeof current === 'string'
-            ? `${current}-moved`
-            : typeof current === 'boolean'
-              ? !current
-              : { ...(current as object), name: 'Une autre soirée', accentHue: 250 }
+    // A value of the right shape but a different content, whatever the field holds.
+    const changed: Record<string, unknown> = { ...fresh }
+    const current: unknown = changed[key]
+    changed[key] =
+      typeof current === 'number'
+        ? current + 1
+        : typeof current === 'string'
+          ? `${current}-moved`
+          : typeof current === 'boolean'
+            ? !current
+            : { ...(current as object), name: 'Une autre soirée', accentHue: 250 }
 
-      expect(sameSettings(kept, changed as unknown as typeof fresh)).toBe(false)
-    },
-  )
+    expect(sameSettings(kept, changed as unknown as typeof fresh)).toBe(false)
+  })
 
   /**
    * And one level down, because the theme is an object and the walk above is not recursive.
@@ -113,6 +115,17 @@ describe('every field of the wall response is accounted for', () => {
 
     expect(sameSettings(kept, changed)).toBe(false)
     expect(sameSettings(kept, { ...aWallResponse(), theme: themed(base) })).toBe(true)
+  })
+
+  it.each([
+    ['visible', { visible: false, scale: 1, placement: 'bottom-end' }],
+    ['scale', { visible: true, scale: 1.05, placement: 'bottom-end' }],
+    ['placement', { visible: true, scale: 1, placement: 'top-start' }],
+  ] as const)('notices a change to joinCard.%s (spec 14)', (_key, moved) => {
+    const kept = aWallResponse()
+
+    expect(sameSettings(kept, { ...aWallResponse(), joinCard: moved })).toBe(false)
+    expect(sameSettings(kept, aWallResponse())).toBe(true)
   })
 
   it.each(Object.keys(DEFAULT_EVENT_THEME))('notices a change to theme.%s', (key) => {

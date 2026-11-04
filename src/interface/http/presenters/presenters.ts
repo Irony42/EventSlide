@@ -336,6 +336,14 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
     mixedEnabled: settings.wall.mixedEnabled,
     mixedWallSeconds: settings.wall.mixedWallSeconds,
     mixedSlideshowSeconds: settings.wall.mixedSlideshowSeconds,
+    souvenirCounter: settings.wall.souvenirCounter,
+    newPhotoSignal: settings.wall.newPhotoSignal,
+    freshLane: settings.wall.freshLane,
+    tilt: settings.wall.tilt,
+    showTime: settings.wall.showTime,
+    qrVisible: settings.wall.qrVisible,
+    qrScale: settings.wall.qrScale,
+    qrPlacement: settings.wall.qrPlacement,
   },
 })
 
@@ -851,6 +859,13 @@ export const toWallResponseDto = (
     layoutChosen: view.layoutChosen,
     serverNowMs: view.serverNowMs,
     mixed: view.mixed,
+    souvenirCount: view.souvenirCount,
+    souvenirCounter: view.souvenirCounter,
+    newPhotoSignal: view.newPhotoSignal,
+    freshLane: view.event.settings.wall.freshLane,
+    tilt: view.event.settings.wall.tilt,
+    showTime: view.event.settings.wall.showTime,
+    joinCard: view.joinCard,
     reactionsEnabled: view.event.settings.allowReactions,
     missions: view.missions.map(toWallMissionDto),
     // Absent rather than empty: an older wall and a room with nothing to read look alike.

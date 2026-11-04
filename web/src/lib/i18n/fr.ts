@@ -836,6 +836,18 @@ export const fr = {
     offline: 'Nouvelles photos en attente du réseau',
     paused: 'Diaporama en pause',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} souvenir partagé`,
+        other: `${t.number(count)} souvenirs partagés`,
+      }),
+    arrivalPhoto: 'Nouvelle photo ajoutée',
+    arrivalClip: 'Nouvelle vidéo ajoutée',
+    arrivalPhotos: (count: number) => `${t.number(count)} nouvelles photos`,
+    arrivalClips: (count: number) => `${t.number(count)} nouvelles vidéos`,
+    arrivalMixed: (count: number) => `${t.number(count)} nouveaux souvenirs`,
+
     /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Code de la soirée',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
@@ -868,6 +880,36 @@ export const fr = {
     emptyClosed: 'Merci d’être venus !',
     // In the shortcuts panel, only when the browser could not keep the screen awake itself.
     keepAwakeHint: 'Désactivez la mise en veille de cet ordinateur.',
+
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Réglages',
+      pause: 'Pause',
+      resume: 'Reprendre',
+      fullscreen: 'Plein écran',
+      barLabel: 'Commandes du mur',
+      panelLabel: 'Réglages du mur',
+      title: 'Réglages',
+      close: 'Fermer les réglages',
+      sectionDisplay: 'Affichage',
+      sectionAmbiance: 'Ambiance',
+      forAll: 'Pour tous les écrans',
+      thisScreen: 'Cet écran seulement',
+      thisScreenHint:
+        'Ces commandes ne changent que cet écran et sont perdues au rechargement de la page.',
+      screenLayout: (name: string) => `Mise en page de cet écran : ${name} (touche L)`,
+      screenShows: (name: string) => `Cet écran affiche ${name} (touche L)`,
+      backToEvent: 'Revenir au réglage de l’évènement',
+      hideQr: 'Masquer la carte QR',
+      showQr: 'Montrer la carte QR',
+      saving: 'Enregistrement…',
+      saved: 'Enregistré',
+      saveFailed: 'Impossible d’enregistrer, réessayez',
+      sessionExpired: 'Votre session a expiré. Reconnectez-vous pour régler le mur.',
+      signIn: 'Se connecter',
+      signInToSet: 'Se connecter pour régler ce mur',
+      openHint: 'R ouvre les réglages du mur.',
+    },
 
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
     /**
@@ -1112,6 +1154,21 @@ export const fr = {
       mixedHint: 'Le mur affiche une vue d’ensemble, puis une photo en grand, tour à tour.',
       mixedWall: 'Temps sur le mur',
       mixedSlideshow: 'Temps sur le diaporama',
+      freshLane: 'Nouvelles photos en priorité',
+      freshLaneHint: 'Une photo publiée prend la diapositive suivante, trois de suite au plus.',
+      tilt: 'Photos légèrement inclinées',
+      tiltHint: 'Polaroïds et corde à linge : un angle fixe de quelques degrés.',
+      showTime: 'Heure d’envoi sous la photo',
+      showTimeHint:
+        'L’heure à laquelle la photo a été envoyée, selon l’horloge de l’écran de la salle.',
+      // Spec 11.
+      onScreen: 'À l’écran',
+      souvenirCounter: 'Afficher le compteur de souvenirs',
+      souvenirCounterHint:
+        'Un compteur discret, en haut au centre : « 17 souvenirs partagés ». Il compte les photos et les vidéos visibles au mur.',
+      newPhotoSignal: 'Signaler les nouvelles photos',
+      newPhotoSignalHint:
+        'Un message bref, en haut au centre, quand une photo ou une vidéo vient d’apparaître au mur. Jamais le nom de l’invité.',
     },
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,

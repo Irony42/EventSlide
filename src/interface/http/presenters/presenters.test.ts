@@ -354,7 +354,18 @@ describe('toEventSettingsDto', () => {
           ambiance: 'guinguette',
         },
         wallLanguage: 'es',
-        wall: { layout: 'collage', slideIntervalMs: 20_000 },
+        wall: {
+          layout: 'collage',
+          slideIntervalMs: 20_000,
+          qrVisible: false,
+          freshLane: false,
+          tilt: false,
+          showTime: true,
+          souvenirCounter: true,
+          newPhotoSignal: true,
+          qrScale: 1.3,
+          qrPlacement: 'top-end',
+        },
       },
     })
 
@@ -384,6 +395,14 @@ describe('toEventSettingsDto', () => {
         mixedEnabled: false,
         mixedWallSeconds: 180,
         mixedSlideshowSeconds: 60,
+        qrVisible: false,
+        freshLane: false,
+        tilt: false,
+        showTime: true,
+        souvenirCounter: true,
+        newPhotoSignal: true,
+        qrScale: 1.3,
+        qrPlacement: 'top-end',
       },
     })
   })
