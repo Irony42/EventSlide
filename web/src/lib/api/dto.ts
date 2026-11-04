@@ -313,6 +313,23 @@ export interface WallResponse {
     readonly layout: WallLayout
     readonly anchorMs: number
   } | null
+  /** The souvenirs visible on the wall (spec 11); `null` when neither switch below is on. */
+  readonly souvenirCount?: number | null
+  readonly souvenirCounter?: boolean
+  readonly newPhotoSignal?: boolean
+  /** Optional: an older server sends none, and the wall then behaves as before (true). */
+  readonly freshLane?: boolean
+  readonly tilt?: boolean
+  readonly showTime?: boolean
+  /**
+   * The invitation card (spec 14): shown on a populated wall, its scale (0.8 to 1.5, 1 = as it
+   * always was) and corner. Optional: an older server sends none and the wall takes the defaults.
+   */
+  readonly joinCard?: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -624,6 +641,14 @@ export interface EventSettingsDto {
     readonly mixedEnabled: boolean
     readonly mixedWallSeconds: number
     readonly mixedSlideshowSeconds: number
+    readonly souvenirCounter: boolean
+    readonly newPhotoSignal: boolean
+    readonly freshLane: boolean
+    readonly tilt: boolean
+    readonly showTime: boolean
+    readonly qrVisible: boolean
+    readonly qrScale: number
+    readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
   }
 }
 

@@ -130,6 +130,11 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     // The wall group (spec 13), for the same reason.
     settings.wall.layout ?? '',
     settings.wall.slideIntervalMs ?? '',
+    settings.wall.souvenirCounter,
+    settings.wall.newPhotoSignal,
+    settings.wall.freshLane,
+    settings.wall.tilt,
+    settings.wall.showTime,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -519,6 +524,43 @@ export function EventSettingsPage() {
             onChange={(value) =>
               update({ wall: { ...settings.wall, slideIntervalMs: numberOrNull(value) } })
             }
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.freshLane}
+            hint={t.admin.wallDisplay.freshLaneHint}
+            checked={settings.wall.freshLane}
+            disabled={readOnly}
+            onChange={(freshLane) => update({ wall: { ...settings.wall, freshLane } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.tilt}
+            hint={t.admin.wallDisplay.tiltHint}
+            checked={settings.wall.tilt}
+            disabled={readOnly}
+            onChange={(tilt) => update({ wall: { ...settings.wall, tilt } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.showTime}
+            hint={t.admin.wallDisplay.showTimeHint}
+            checked={settings.wall.showTime}
+            disabled={readOnly}
+            onChange={(showTime) => update({ wall: { ...settings.wall, showTime } })}
+          />
+          {/* Spec 11: « À l'écran ». Both off until the host asks. */}
+          <p className={styles['sectionHint']}>{t.admin.wallDisplay.onScreen}</p>
+          <CheckboxField
+            label={t.admin.wallDisplay.souvenirCounter}
+            hint={t.admin.wallDisplay.souvenirCounterHint}
+            checked={settings.wall.souvenirCounter}
+            disabled={readOnly}
+            onChange={(souvenirCounter) => update({ wall: { ...settings.wall, souvenirCounter } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.newPhotoSignal}
+            hint={t.admin.wallDisplay.newPhotoSignalHint}
+            checked={settings.wall.newPhotoSignal}
+            disabled={readOnly}
+            onChange={(newPhotoSignal) => update({ wall: { ...settings.wall, newPhotoSignal } })}
           />
         </fieldset>
 
