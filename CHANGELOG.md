@@ -38,7 +38,7 @@ check before upgrading" and [Upgrading to 3.8](docs/UPGRADING.md#upgrading-to-38
   challenge: the box is not shown while a clip is in hand.
 - **The upload pane folds** (#365). A "Réduire" button on the queue summary line folds the pane into a bar of
   at most 14 % of the screen: a large "Envoyer une photo", or, once photographs are chosen, their thumbnails,
-  a count and "Envoyer N". The bar also keeps the offline notice and the challenge box. A tap opens the pane
+  a count and "Envoyer N". The bar also keeps the offline notice; the « Je participe au défi » box stays in the pane, keeps its state through a fold, and a send from the bar takes part by default. A tap opens the pane
   again with the selection intact. The pane also folds by itself after a guest scroll gesture upwards (48 px
   net), never while sending or typing a caption, and never opens by scrolling.
 
