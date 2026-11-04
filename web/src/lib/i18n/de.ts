@@ -918,6 +918,11 @@ export const de: UiText = {
       pause: 'Pause',
       resume: 'Fortsetzen',
       fullscreen: 'Vollbild',
+      /* Spec 17: what the owner bar's icons say on hover and on focus, with their key. */
+      openTip: 'Einstellungen (R)',
+      pauseTip: 'Pause (Leertaste)',
+      resumeTip: 'Fortsetzen (Leertaste)',
+      fullscreenTip: 'Vollbild (F)',
       barLabel: 'Steuerung der Wand',
       panelLabel: 'Einstellungen der Wand',
       title: 'Einstellungen',

@@ -3,7 +3,7 @@ import { cx } from '../classNames'
 import styles from './IconButton.module.css'
 
 export type IconButtonVariant = 'ghost' | 'solid' | 'danger'
-export type IconButtonSize = 'md' | 'lg'
+export type IconButtonSize = 'md' | 'lg' | 'bar'
 
 export interface IconButtonProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,

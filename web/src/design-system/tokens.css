@@ -275,6 +275,13 @@
   /* ---- Icons. Outlined glyphs on a 16-unit grid, drawn as strokes: this is their weight,
          in the grid's own units, so every glyph in a set is the same line at any size. ---- */
   --icon-stroke: 1.5;
+  /* The `Icon` set: a 24-unit grid (the wall bar and panel are read at arm's length), a touch
+     heavier than the 16-unit status glyphs above, in the 20 px and 24 px sizes it is drawn at. */
+  --icon-stroke-24: 1.75;
+  --icon-size-sm: 1.25rem;
+  --icon-size-md: 1.5rem;
+  /* A button of the wall's owner bar: over a photograph, at the projector's distance. */
+  --wall-bar-button: 3.25rem;
 }
 
 /**

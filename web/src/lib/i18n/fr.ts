@@ -892,6 +892,11 @@ export const fr = {
       pause: 'Pause',
       resume: 'Reprendre',
       fullscreen: 'Plein écran',
+      /* Spec 17: what the owner bar's icons say on hover and on focus, with their key. */
+      openTip: 'Réglages (R)',
+      pauseTip: 'Pause (Espace)',
+      resumeTip: 'Reprendre (Espace)',
+      fullscreenTip: 'Plein écran (F)',
       barLabel: 'Commandes du mur',
       panelLabel: 'Réglages du mur',
       title: 'Réglages',

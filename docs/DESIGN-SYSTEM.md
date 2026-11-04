@@ -189,6 +189,13 @@ token exactly.
   /* ---- Icons. Outlined glyphs on a 16-unit grid, drawn as strokes: this is their weight,
          in the grid's own units, so every glyph in a set is the same line at any size. ---- */
   --icon-stroke: 1.5;
+  /* The `Icon` set: a 24-unit grid (the wall bar and panel are read at arm's length), a touch
+     heavier than the 16-unit status glyphs above, in the 20 px and 24 px sizes it is drawn at. */
+  --icon-stroke-24: 1.75;
+  --icon-size-sm: 1.25rem;
+  --icon-size-md: 1.5rem;
+  /* A button of the wall's owner bar: over a photograph, at the projector's distance. */
+  --wall-bar-button: 3.25rem;
 }
 
 /* The accent, derived wherever a hue is in force. Two selectors, one rule — see §12:
@@ -323,6 +330,8 @@ reason. `classNames.guard.test.ts` fails on the old spellings.
 | Primitive        | Purpose                                                                                                        | Accessibility requirement it carries                                                                                                                                                     |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Button`         | Every action. Variants `primary` \| `secondary` \| `ghost` \| `danger`; sizes `sm` \| `md` \| `lg`; `loading`. | Real `<button type>`. `loading` sets `aria-busy` and keeps the label — a spinner-only button announces nothing. `disabled` when loading. Never `outline: none`.                          |
+| `Icon`           | One glyph of a closed set (`IconName`), drawn inline on a 24-unit grid; `sm` 20 px, `md` 24 px.                | `aria-hidden` always: the button or text beside it is the name. `currentColor`; no sprite, no icon font, no remote file. A new glyph is a new entry of the set.                          |
+| `Tooltip`        | The name of an icon-only control, with its key, shown on hover and on keyboard focus.                          | `role="tooltip"` + `aria-describedby`; no transition; the accessible name stays the control's `aria-label`.                                                                              |
 | `IconButton`     | Icon-only affordance (close, delete, next).                                                                    | `aria-label` is required by the type, not optional. Hit area ≥ `var(--touch-min)` even when the glyph is 16 px. Icon is `aria-hidden`.                                                   |
 | `Field`          | Label + control + help + error wrapper.                                                                        | Renders `<label for>`, wires `aria-describedby` to help text and `aria-invalid` + `role="alert"` to the error. Placeholder is never a label.                                             |
 | `TextInput`      | Single-line text, join code, e-mail.                                                                           | `font-size: var(--text-base)` minimum, correct `inputMode` / `autoComplete`; error state is border **and** text, never border alone.                                                     |

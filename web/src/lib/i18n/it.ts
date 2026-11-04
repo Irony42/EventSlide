@@ -891,6 +891,11 @@ export const it: UiText = {
       pause: 'Pausa',
       resume: 'Riprendi',
       fullscreen: 'Schermo intero',
+      /* Spec 17: what the owner bar's icons say on hover and on focus, with their key. */
+      openTip: 'Impostazioni (R)',
+      pauseTip: 'Pausa (Spazio)',
+      resumeTip: 'Riprendi (Spazio)',
+      fullscreenTip: 'Schermo intero (F)',
       barLabel: 'Comandi del muro',
       panelLabel: 'Impostazioni del muro',
       title: 'Impostazioni',

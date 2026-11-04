@@ -1,0 +1,28 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Opaque, because it may sit over a photograph: --text-primary on --surface-raised is 7:1 or better. */
+.tip {
+  position: absolute;
+  inset-block-end: calc(100% + var(--space-2));
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  z-index: 1;
+  inline-size: max-content;
+  max-inline-size: 80vw;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.wrap:hover .tip,
+.wrap:has(:focus-visible) .tip {
+  visibility: visible;
+}
