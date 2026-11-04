@@ -1669,6 +1669,48 @@ describe('WallPage', () => {
       }
     })
 
+    it('keeps the challenge banner on screen over a card, and starts no new card while it runs', async () => {
+      const serverNowMs = Date.now()
+      const challenge: Partial<WallResponse> = {
+        serverNowMs,
+        challenge: {
+          id: 'c1',
+          prompt: 'un selfie avec votre voisin',
+          startedAt: new Date(serverNowMs - 1_000).toISOString(),
+          endsAt: new Date(serverNowMs + 3_600_000).toISOString(),
+          state: 'running',
+          answers: null,
+        },
+      }
+      const book = {
+        everyNth: 2,
+        messages: [
+          aWallGuestbookMessage({ id: 'g1', text: 'Une soirée merveilleuse', displayMs: 3_000 }),
+        ],
+      }
+      const photos = { items: somePhotos(8), guestbook: book }
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall(photos), aPopulatedWall({ ...photos, ...challenge })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await automaticChanges(2)
+      expect(await screen.findByText('Une soirée merveilleuse')).toBeVisible()
+
+      await streamSignals('challenge.changed')
+      expect(await screen.findByText('un selfie avec votre voisin')).toBeVisible()
+      expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
+
+      // The card ends on its own time; the next Nth changes (4th, 6th) bring none while it runs.
+      for (let i = 0; i < 12; i += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2_000)
+        })
+        if (i >= 2) expect(screen.queryByText('Une soirée merveilleuse')).toBeNull()
+      }
+      expect(screen.getByText('un selfie avec votre voisin')).toBeVisible()
+    })
+
     it('keeps the automatic rhythm after manual presses: a card again two automatic changes later', async () => {
       const api = fakeApi({
         wall: wallSequence(aPopulatedWall({ items: somePhotos(6), guestbook: book(2) })),
