@@ -77,6 +77,12 @@ export interface Slideshow {
    */
   readonly generation: number
   /**
+   * How many of those changes the slide clock made. The host's arrows are not among them: the
+   * guestbook's "every Nth change" rhythm (spec 01) counts these, so a remote's presses never
+   * bring a card up, and the automatic rhythm is the one the playlist alone derives.
+   */
+  readonly automaticChanges: number
+  /**
    * What has been on screen, newest first, `recent[0]` being the photo showing now: the
    * last `generation + 1` slides, up to the dozen the biggest layout holds.
    *
@@ -117,9 +123,10 @@ interface State {
   readonly slide: SlideCursor
   readonly previous: WallItemDto | null
   readonly generation: number
+  readonly automaticChanges: number
 }
 
-const INITIAL: State = { slide: EMPTY_CURSOR, previous: null, generation: 0 }
+const INITIAL: State = { slide: EMPTY_CURSOR, previous: null, generation: 0, automaticChanges: 0 }
 
 /** How far ahead a layout that shows a strip may look. The filmstrip draws six frames. */
 const UPCOMING_SLIDES = 6
@@ -218,7 +225,10 @@ export const useSlideshow = ({
   )
 
   const move = useCallback(
-    (choose: (list: readonly SlideCandidate[], cursor: SlideCursor) => Move | null) => {
+    (
+      choose: (list: readonly SlideCandidate[], cursor: SlideCursor) => Move | null,
+      automatic: boolean,
+    ) => {
       setState((previousState) => {
         const settled = settleCursor(candidates, previousState.slide)
         const moved = choose(candidates, settled)
@@ -232,6 +242,7 @@ export const useSlideshow = ({
           previous:
             (leaving === undefined ? undefined : byId.get(leaving)) ?? previousState.previous,
           generation: previousState.generation + 1,
+          automaticChanges: previousState.automaticChanges + (automatic ? 1 : 0),
         }
       })
     },
@@ -240,13 +251,13 @@ export const useSlideshow = ({
 
   /** The host's arrows: exactly the photo that many places away. */
   const advance = useCallback(
-    (step = 1) => move((list, cursor) => stepSlide(list, cursor, step)),
+    (step = 1) => move((list, cursor) => stepSlide(list, cursor, step), false),
     [move],
   )
 
   /** The slide clock: the fresh lane and the rotation, by the rule. */
   const advanceAutomatically = useCallback(
-    () => move((list, cursor) => nextSlide(list, cursor, freshLane)),
+    () => move((list, cursor) => nextSlide(list, cursor, freshLane), true),
     [move, freshLane],
   )
 
@@ -290,6 +301,7 @@ export const useSlideshow = ({
     // after the host had stopped the show.
     intervalMs: !paused && !hold && canAdvance ? effectiveIntervalMs : 0,
     generation: state.generation,
+    automaticChanges: state.automaticChanges,
     recent,
     upcoming,
     fresh: head?.fresh ?? false,

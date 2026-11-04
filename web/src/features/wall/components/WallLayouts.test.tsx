@@ -79,6 +79,7 @@ const aSlideshow = (
     index: 0,
     intervalMs: paused ? 0 : INTERVAL_MS,
     generation: overrides.index ?? 0,
+    automaticChanges: 0,
     ...sequentialHistory(items, overrides.index ?? 0),
     fresh: false,
     paused,

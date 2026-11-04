@@ -66,6 +66,7 @@ const stillOn = (current: WallItemDto): Slideshow => ({
   index: 0,
   intervalMs: 0,
   generation: 0,
+  automaticChanges: 0,
   recent: [{ item: current, fresh: false }],
   upcoming: [],
   fresh: false,
