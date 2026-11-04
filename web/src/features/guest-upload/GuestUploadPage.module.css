@@ -235,3 +235,27 @@
   line-height: var(--leading-snug);
   padding-block: var(--space-2);
 }
+
+/**
+ * Everything the open pane holds, in one box so a folded pane can hide it whole (`hidden`, which
+ * takes it out of the tab order and the accessibility tree: nothing is unmounted, so the
+ * selection, a caption being written and the unfolded options all survive a fold). The rhythm is
+ * the composer's own, one level down.
+ */
+.paneContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* `display: flex` above would beat the browser's `[hidden] { display: none }`. */
+.paneContent[hidden] {
+  display: none;
+}
+
+/* Folded, the pane is one bar: a little less padding, because the bar's own button is the
+   padding's job and the whole is held to a share of the screen (`guest-upload-pane.spec.ts`). */
+.composer[data-folded] {
+  padding: var(--space-2);
+}

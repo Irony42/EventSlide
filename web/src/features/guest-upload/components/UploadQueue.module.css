@@ -165,3 +165,14 @@
   gap: var(--space-1);
   flex: none;
 }
+
+/**
+ * "Réduire", on the summary line. Its box is the touch floor tall, the line is a line of small text:
+ * the negative margins let the touch target lean into the pane's padding and into the gap under
+ * the line (both empty), so the pane does not grow by the difference — the empty pane is held to
+ * two fifths of the screen (guest-upload-pane.spec.ts). Neither side reaches another control.
+ */
+.fold {
+  margin-block: calc(var(--space-3) * -1) calc(var(--space-2) * -1);
+  margin-inline-start: auto;
+}
