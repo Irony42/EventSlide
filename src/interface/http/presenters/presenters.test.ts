@@ -357,8 +357,14 @@ describe('toEventSettingsDto', () => {
         wall: {
           layout: 'collage',
           slideIntervalMs: 20_000,
-          souvenirCounter: false,
-          newPhotoSignal: false,
+          qrVisible: false,
+          freshLane: false,
+          tilt: false,
+          showTime: true,
+          souvenirCounter: true,
+          newPhotoSignal: true,
+          qrScale: 1.3,
+          qrPlacement: 'top-end',
         },
       },
     })
@@ -386,8 +392,14 @@ describe('toEventSettingsDto', () => {
       wall: {
         layout: 'collage',
         slideIntervalMs: 20_000,
-        souvenirCounter: false,
-        newPhotoSignal: false,
+        qrVisible: false,
+        freshLane: false,
+        tilt: false,
+        showTime: true,
+        souvenirCounter: true,
+        newPhotoSignal: true,
+        qrScale: 1.3,
+        qrPlacement: 'top-end',
       },
     })
   })

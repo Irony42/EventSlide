@@ -243,15 +243,22 @@ const rotatedTo = (items: readonly SlideCandidate[], id: string) => ({
  * The automatic step: the next slide by the rule above, or `null` for an empty list.
  *
  * With one photo it answers that photo, and the caller treats standing still as no change.
+ *
+ * `freshLane` is the host's switch (spec 13): off, the fresh run is capped at zero, so a new photo
+ * waits for its turn in the rotation like any other.
  */
-export const nextSlide = (items: readonly SlideCandidate[], cursor: SlideCursor): Move | null => {
+export const nextSlide = (
+  items: readonly SlideCandidate[],
+  cursor: SlideCursor,
+  freshLane = true,
+): Move | null => {
   const current = cursor.shown[0]
   // The list is newest first, so reversed it is arrival order.
   const waiting = items.filter((item) => !cursor.seen.has(item.id) && item.id !== current?.id)
   waiting.reverse()
 
   const [oldest] = waiting
-  if (oldest !== undefined && cursor.run < MAX_FRESH_RUN) {
+  if (freshLane && oldest !== undefined && cursor.run < MAX_FRESH_RUN) {
     const onScreen = items.find((item) => item.id === current?.id)
     const pick = waiting.find((item) => item.author !== onScreen?.author) ?? oldest
     // The fresh lane does not move the rotation.
@@ -289,11 +296,12 @@ export const upcomingSlides = (
   items: readonly SlideCandidate[],
   cursor: SlideCursor,
   count: number,
+  freshLane = true,
 ): readonly ShownSlide[] => {
   const slides: ShownSlide[] = []
   let ahead = cursor
   for (let step = 0; step < count; step += 1) {
-    const move = nextSlide(items, ahead)
+    const move = nextSlide(items, ahead, freshLane)
     if (move === null) break
     slides.push(move.slide)
     ahead = move.cursor
