@@ -1,18 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { remainingMs } from '../../../lib/serverClock'
 import type { GuestChallengeDto } from '../../../lib/api/dto'
+import { isChallengeRunning } from '../challengeRunning'
 import styles from './ParticipateBox.module.css'
-
-/** Whether the challenge is still running on the server's clock, as this phone reckons it. */
-export const isChallengeRunning = (
-  challenge: GuestChallengeDto | null,
-  offsetMs: number,
-  localNowMs: number,
-): boolean =>
-  challenge !== null &&
-  challenge.state === 'running' &&
-  remainingMs(Date.parse(challenge.endsAt), localNowMs, offsetMs) > 0
 
 export interface ParticipateBoxProps {
   readonly challenge: GuestChallengeDto
