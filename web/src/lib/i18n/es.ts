@@ -1107,6 +1107,19 @@ export const es: UiText = {
       qrPlacementHint:
         'En los diseños que dejan sitio a la tarjeta, las fotos se aprietan; en los demás, la tarjeta se pone sobre las fotos.',
     },
+    wallSound: {
+      title: 'Sonido',
+      hint: 'Un sonido breve cuando se publica una foto o un clip en el muro. Desactivado por defecto.',
+      enable: 'Un sonido con cada foto nueva',
+      enableHint:
+        'Cada pantalla debe activarse también en la sala: basta un clic en el muro (o la tecla S).',
+      tone: 'Sonido',
+      toneNames: { chime: 'Carillón', bell: 'Campana', drop: 'Gota', pop: 'Pop' },
+      volume: 'Volumen',
+      volumeValue: (n: number) => `Volumen ${n} %`,
+      test: 'Probar',
+      testHint: 'Reproduce el sonido elegido en este ordenador, a este volumen.',
+    },
 
     theme: 'Apariencia',
     themeHint:

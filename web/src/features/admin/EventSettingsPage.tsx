@@ -10,6 +10,7 @@ import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../..
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
 import { CheckboxField } from './components/CheckboxField'
+import { WallSoundFields } from './components/WallSoundFields'
 import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
@@ -136,6 +137,10 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.wall.freshLane,
     settings.wall.tilt,
     settings.wall.showTime,
+    // Spec 12.
+    settings.wall.soundEnabled,
+    settings.wall.soundTone,
+    settings.wall.soundVolume,
     settings.wall.qrVisible,
     settings.wall.qrScale,
     settings.wall.qrPlacement,
@@ -572,6 +577,11 @@ export function EventSettingsPage() {
             checked={settings.wall.newPhotoSignal}
             disabled={readOnly}
             onChange={(newPhotoSignal) => update({ wall: { ...settings.wall, newPhotoSignal } })}
+          />
+          <WallSoundFields
+            wall={settings.wall}
+            disabled={readOnly}
+            onChange={(patch) => update({ wall: { ...settings.wall, ...patch } })}
           />
         </fieldset>
 
