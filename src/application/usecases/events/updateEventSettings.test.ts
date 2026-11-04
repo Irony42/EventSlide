@@ -82,6 +82,7 @@ describe('updateEventSettings', () => {
       qrVisible: true,
       freshLane: true,
       tilt: true,
+      showTime: false,
       qrScale: 1,
       qrPlacement: 'bottom-end',
     })

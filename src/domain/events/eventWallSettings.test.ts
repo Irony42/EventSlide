@@ -14,6 +14,7 @@ const QR = {
   qrPlacement: 'bottom-end',
   freshLane: true,
   tilt: true,
+  showTime: false,
 } as const
 
 describe('the wall settings group (spec 13)', () => {
@@ -71,7 +72,15 @@ describe('the wall settings group (spec 13)', () => {
     expect(mergeWallSettings(merged, { freshLane: false })).toMatchObject({
       freshLane: false,
       tilt: false,
+      showTime: false,
     })
+  })
+
+  it('keeps the time under photos off by default and merges it like the rest', () => {
+    expect(DEFAULT_WALL_SETTINGS.showTime).toBe(false)
+    expect(mergeWallSettings(DEFAULT_WALL_SETTINGS, { showTime: true }).showTime).toBe(true)
+    expect(restoreWallSettings({ showTime: 'yes' }).showTime).toBe(false)
+    expect(restoreWallSettings({ showTime: true }).showTime).toBe(true)
   })
 
   it('reads a stored group tolerantly: an unreadable field takes its default, nothing throws', () => {
@@ -90,6 +99,7 @@ describe('the wall settings group (spec 13)', () => {
     expect(restoreWallSettings({ freshLane: false, tilt: false })).toMatchObject({
       freshLane: false,
       tilt: false,
+      showTime: false,
     })
     expect(restoreWallSettings({ layout: 'collage', slideIntervalMs: 30_000 })).toEqual({
       layout: 'collage',
@@ -115,6 +125,7 @@ describe('the wall settings group (spec 13)', () => {
       qrVisible: false,
       freshLane: true,
       tilt: true,
+      showTime: false,
     })
   })
 

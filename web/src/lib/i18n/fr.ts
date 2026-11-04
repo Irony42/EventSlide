@@ -1142,6 +1142,9 @@ export const fr = {
       freshLaneHint: 'Une photo publiée prend la diapositive suivante, trois de suite au plus.',
       tilt: 'Photos légèrement inclinées',
       tiltHint: 'Polaroïds et corde à linge : un angle fixe de quelques degrés.',
+      showTime: 'Heure d’envoi sous la photo',
+      showTimeHint:
+        'L’heure à laquelle la photo a été envoyée, selon l’horloge de l’écran de la salle.',
     },
 
     /* ---- Per-event theming (roadmap 2.2). Kept to seven keys, three of them records,

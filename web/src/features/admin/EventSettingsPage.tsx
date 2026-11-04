@@ -132,6 +132,7 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     settings.wall.slideIntervalMs ?? '',
     settings.wall.freshLane,
     settings.wall.tilt,
+    settings.wall.showTime,
   ].join('|')
 
 const scheduleIdentity = (event: EventDto): string =>
@@ -535,6 +536,13 @@ export function EventSettingsPage() {
             checked={settings.wall.tilt}
             disabled={readOnly}
             onChange={(tilt) => update({ wall: { ...settings.wall, tilt } })}
+          />
+          <CheckboxField
+            label={t.admin.wallDisplay.showTime}
+            hint={t.admin.wallDisplay.showTimeHint}
+            checked={settings.wall.showTime}
+            disabled={readOnly}
+            onChange={(showTime) => update({ wall: { ...settings.wall, showTime } })}
           />
         </fieldset>
 

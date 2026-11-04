@@ -809,6 +809,7 @@ describe('SqliteEventRepository', () => {
         qrVisible: true,
         freshLane: true,
         tilt: true,
+        showTime: false,
         qrScale: 1,
         qrPlacement: 'bottom-end',
       })
@@ -825,6 +826,7 @@ describe('SqliteEventRepository', () => {
         qrVisible: true,
         freshLane: true,
         tilt: true,
+        showTime: false,
         qrScale: 1,
         qrPlacement: 'bottom-end',
       })

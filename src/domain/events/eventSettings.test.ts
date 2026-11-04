@@ -138,6 +138,7 @@ describe('EventSettings.create', () => {
         qrVisible: true,
         freshLane: true,
         tilt: true,
+        showTime: false,
         qrScale: 1,
         qrPlacement: 'bottom-end',
       },

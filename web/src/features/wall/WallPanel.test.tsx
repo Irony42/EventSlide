@@ -369,3 +369,42 @@ describe('fresh photos first and tilt (spec 13, PR 4)', () => {
     }
   })
 })
+
+describe('the send time under a photo (spec 13, PR 5)', () => {
+  it('prints it in the caption only when the event turned it on', async () => {
+    const photo = aWallItem({ caption: 'Les mariés', createdAt: new Date().toISOString() })
+    const { unmount } = renderWithProviders(<WallPage />, {
+      api: fakeApi({
+        wall: vi.fn(async () => aWallResponse({ items: [photo], showTime: true })),
+      }),
+      route: ROUTE,
+      path: PATH,
+    })
+
+    expect(await screen.findByText(/^\d{2}:\d{2}$/)).toBeVisible()
+    unmount()
+
+    renderWithProviders(<WallPage />, {
+      api: fakeApi({
+        wall: vi.fn(async () => aWallResponse({ items: [photo], showTime: false })),
+      }),
+      route: ROUTE,
+      path: PATH,
+    })
+    await screen.findByText('Les mariés')
+    expect(screen.queryByText(/^\d{2}:\d{2}$/)).not.toBeInTheDocument()
+  })
+
+  it('writes the switch alone from the panel', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.showTime))
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { showTime: true },
+    })
+  })
+})

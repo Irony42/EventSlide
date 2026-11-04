@@ -305,6 +305,7 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   layoutChosen: false,
   freshLane: true,
   tilt: true,
+  showTime: false,
   joinCard: { visible: true, scale: 1, placement: 'bottom-end' },
   reactionsEnabled: true,
   // The product's own look, which spreads no attribute at all — so a wall built from this
@@ -418,6 +419,7 @@ export const eventSettings = (
       slideIntervalMs: null,
       freshLane: true,
       tilt: true,
+      showTime: false,
       qrVisible: true,
       qrScale: 1,
       qrPlacement: 'bottom-end',

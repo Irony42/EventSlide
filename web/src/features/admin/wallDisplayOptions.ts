@@ -64,5 +64,6 @@ export const wallChanges = (
   }
   if (draft.freshLane !== loaded.freshLane) changes.freshLane = draft.freshLane
   if (draft.tilt !== loaded.tilt) changes.tilt = draft.tilt
+  if (draft.showTime !== loaded.showTime) changes.showTime = draft.showTime
   return Object.keys(changes).length === 0 ? undefined : changes
 }

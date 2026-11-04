@@ -456,6 +456,7 @@ export function WallPage() {
           kenBurnsDurationMs={wall.kenBurnsDurationMs}
           transitionMs={transitionMs}
           tilt={wall.tilt !== false}
+          showTime={wall.showTime === true}
         />
       )}
 

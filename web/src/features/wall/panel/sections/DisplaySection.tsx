@@ -74,6 +74,11 @@ function DisplaySection({ settings, save, screen }: WallPanelContext) {
         checked={wall.tilt}
         onChange={(tilt) => save({ wall: { tilt } })}
       />
+      <CheckboxField
+        label={t.admin.wallDisplay.showTime}
+        checked={wall.showTime}
+        onChange={(showTime) => save({ wall: { showTime } })}
+      />
       {/* Only meaningful once the guestbook is open, as on the settings page. */}
       <CheckboxField
         label={t.admin.guestbookOnWall}

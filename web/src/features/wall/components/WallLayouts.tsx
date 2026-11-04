@@ -7,6 +7,7 @@ import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { photoAlt } from '../../../lib/photoAlt'
 import { wallLayoutPlaysVideo } from '../wallLayoutPlayback'
 import { PhotoPreload } from './PhotoPreload'
+import { SendTimeContext } from './sendTimeContext'
 import { SlideCaption } from './SlideCaption'
 import { SlideLayer } from './SlideLayer'
 import { WallMedia } from './WallMedia'
@@ -24,6 +25,8 @@ interface LayoutViewProps {
   readonly transitionMs: number | null
   /** The host's switch for the lean of prints (spec 13). Off: angle 0. Default on. */
   readonly tilt?: boolean
+  /** Print the time a photo was sent in its caption (spec 13). Off by default. */
+  readonly showTime?: boolean
   /**
    * Whether a clip in this layout plays or shows its poster frame.
    *
@@ -311,6 +314,7 @@ function SpotlightLayout({ slideshow, kenBurnsDurationMs, transitionMs, plays }:
           <SlideCaption
             caption={current.caption}
             authorName={current.authorName}
+            sentAt={current.createdAt}
             firstFromGuest={saysFirstPhoto(current, slideshow)}
           />
         )
@@ -355,7 +359,12 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
             alt={photoAlt(item, text)}
             className={styles['image']}
           />
-          <SlideCaption caption={null} authorName={item.authorName} variant="tile" />
+          <SlideCaption
+            caption={null}
+            authorName={item.authorName}
+            sentAt={item.createdAt}
+            variant="tile"
+          />
         </figure>
       ))}
 
@@ -428,6 +437,7 @@ function PolaroidLayout({
             <SlideCaption
               caption={item.caption}
               authorName={item.authorName}
+              sentAt={item.createdAt}
               firstFromGuest={saysFirstPhoto(item, slideshow)}
               variant="print"
             />
@@ -504,6 +514,7 @@ function ClotheslineLayout({
               <SlideCaption
                 caption={item.caption}
                 authorName={item.authorName}
+                sentAt={item.createdAt}
                 firstFromGuest={saysFirstPhoto(item, slideshow)}
                 variant="print"
               />
@@ -691,6 +702,7 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
           <SlideCaption
             caption={item.caption}
             authorName={item.authorName}
+            sentAt={item.createdAt}
             firstFromGuest={saysFirstPhoto(item, slideshow)}
             variant="pane"
           />
@@ -715,7 +727,15 @@ function SplitLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps)
  * answer from the spec too, automatically, instead of from whichever branch somebody
  * copied.
  */
-export function WallLayouts({ layout, ...view }: WallLayoutsProps) {
+export function WallLayouts({ layout, showTime = false, ...view }: WallLayoutsProps) {
+  return (
+    <SendTimeContext.Provider value={showTime}>
+      <LayoutSwitch layout={layout} {...view} />
+    </SendTimeContext.Provider>
+  )
+}
+
+function LayoutSwitch({ layout, ...view }: WallLayoutsProps) {
   const plays = wallLayoutPlaysVideo(layout)
 
   switch (layout) {

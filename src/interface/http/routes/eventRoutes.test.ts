@@ -1250,6 +1250,7 @@ describe('the host event routes', () => {
         qrVisible: true,
         freshLane: true,
         tilt: true,
+        showTime: false,
         qrScale: 1,
         qrPlacement: 'bottom-end',
       })
@@ -1348,6 +1349,7 @@ describe('the host event routes', () => {
           qrVisible: true,
           freshLane: true,
           tilt: true,
+          showTime: false,
           qrScale: 1,
           qrPlacement: 'bottom-end',
         },
@@ -1367,6 +1369,7 @@ describe('the host event routes', () => {
         qrVisible: false,
         freshLane: true,
         tilt: true,
+        showTime: false,
         qrScale: 1.35,
         qrPlacement: 'top-start',
       })

@@ -1059,6 +1059,8 @@ export const es: UiText = {
         'Una foto publicada ocupa la diapositiva siguiente, tres seguidas como máximo.',
       tilt: 'Fotos ligeramente inclinadas',
       tiltHint: 'Polaroids y cuerda de ropa: un ángulo fijo de unos grados.',
+      showTime: 'Hora de envío bajo la foto',
+      showTimeHint: 'La hora a la que se envió la foto, según el reloj de la pantalla de la sala.',
     },
 
     theme: 'Apariencia',
