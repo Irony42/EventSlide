@@ -566,6 +566,7 @@ export function EventSettingsPage() {
             checked={settings.wall.newPhotoSignal}
             disabled={readOnly}
             onChange={(newPhotoSignal) => update({ wall: { ...settings.wall, newPhotoSignal } })}
+          />
           <WallSoundFields
             wall={settings.wall}
             disabled={readOnly}
