@@ -21,7 +21,8 @@ const SLUG = 'camille-et-sacha'
 const aPhotoFile = (name: string): File =>
   new File([new Uint8Array([0xff, 0xd8, 0xff])], name, { type: 'image/jpeg' })
 
-const scrollTo = (y: number): void => {
+const scrollTo = (y: number, byGuest = true): void => {
+  if (byGuest) fireEvent.wheel(window)
   Object.defineProperty(window, 'scrollY', { configurable: true, value: y })
   act(() => {
     fireEvent.scroll(window)
@@ -113,6 +114,26 @@ describe('GuestUploadPage: folding the pane', () => {
 
     scrollTo(3000)
     scrollTo(10)
+    expect(bar()).toBeInTheDocument()
+  })
+
+  it('does not fold on a scroll nobody made: the page moving by itself', async () => {
+    renderUpload()
+    await userEvent.upload(screen.getByLabelText(fr.upload.addPhotos), [aPhotoFile('un.jpg')])
+    scrollTo(100, false)
+    expect(screen.queryByTestId('folded-bar')).toBeNull()
+  })
+
+  it('does not take a tap for a scroll, but a drag and its momentum are one', () => {
+    renderUpload()
+    fireEvent.touchStart(window)
+    fireEvent.touchEnd(window)
+    scrollTo(100, false)
+    expect(screen.queryByTestId('folded-bar')).toBeNull()
+    fireEvent.touchStart(window)
+    fireEvent.touchMove(window)
+    fireEvent.touchEnd(window)
+    scrollTo(20, false)
     expect(bar()).toBeInTheDocument()
   })
 

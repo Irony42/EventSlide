@@ -26,6 +26,8 @@
 }
 
 .bar > button:last-child {
+  padding-block: var(--space-2);
+  line-height: var(--leading-snug);
   flex: 1 1 var(--tile-min-width);
   min-width: 0;
 }

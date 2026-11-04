@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
+import { cx } from '../../../design-system/classNames'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
@@ -136,10 +137,19 @@ export function UploadQueue({
               {t.upload.queueDone(batch.arrived, batch.alreadyThere)}
             </Notice>
           ) : (
-            <p className={styles['summary']}>{progressFor(items, batch, t)}</p>
+            <p
+              className={cx(
+                styles['summary'],
+                // "Nothing selected yet" says what the empty pane already shows, and next to the fold
+                // button it wraps onto a second line on a small phone: spoken, not drawn.
+                items.length === 0 && foldControl !== undefined && 'visually-hidden',
+              )}
+            >
+              {progressFor(items, batch, t)}
+            </p>
           )}
         </div>
-        {foldControl}
+        {foldControl === undefined ? null : <div className={styles['fold']}>{foldControl}</div>}
 
         {batch.settledOk ? (
           <div className={styles['actions']}>
