@@ -20,10 +20,6 @@ the image.
   The steps are [below](#upgrading-with-docker), and the image they pull is
   [described here](#which-image-tag).
 
-## Upgrading to 3.6 (not released yet)
-
-- **A sound for each new photo on the wall (spec 12).** New and **off by default** for every event, old and new: nothing rings until a host turns it on. There is no migration; the three keys live in the `wall` group of the event settings. The four sound files ship in the image (`web/public/sounds/`, CC0). No change to the content security policy.
-
 ## What a version number promises
 
 Versions are `MAJOR.MINOR.PATCH`.
@@ -752,7 +748,39 @@ absent means allowed) is the default a client created on a hosted box starts wit
 autorisés »). Existing clients keep the function on. On top of it, one event gets at most
 `BOOK_MAX_PER_EVENT_PER_DAY` books in a rolling day.
 
-## Upgrading to 3.6 (not released yet)
+## Upgrading to 3.6
+
+3.6.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no
+`BREAKING` section, and **nothing changes on an existing event until its host acts**. It applies **one
+migration (024)**, adds public fields to the wall's read and makes the guests' phones ask the server every
+twenty seconds while the event has missions. Back up with the version you run now
+([above](#upgrading-with-docker)): the migration only goes forward, and going back is the restore of that
+archive. Take the steps of [Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker),
+with `vX.Y.Z` as `v3.6.0`; the image is `ghcr.io/irony42/eventslide:3.6.0`. The sections below say what each
+part of the release changes.
+
+### Wall settings and the panel on the wall (specs 13, 14, 11 and 09)
+
+- **No migration, nothing to set in `.env`.** Every setting lives in the `wall` group of the event's settings
+  and defaults to today's behaviour: the layout chain and the eight-second slide, new photos first and tilt on,
+  no send time, no souvenir counter, no new-photo signal, the invitation card visible at scale 1 in its usual
+  corner, and no alternation of the wall and a large photograph. Nothing moves on an existing wall until the
+  owner changes a switch on the settings page ("Affichage du mur") or in the panel.
+- **The panel on the wall (`R`) is for the owner**, signed in on the projector machine. A moderator or an
+  anonymous wall has no bar, no panel and no DOM.
+- **Additions to `GET /api/events/:slug/wall`** (optional for a client, none removed): `serverNowMs`,
+  `layoutChosen`, `mixed` (`null` when off), `souvenirCount` (`null` unless the counter, the signal or the
+  sound is on), `souvenirCounter`, `newPhotoSignal`, `freshLane`, `tilt`, `showTime` and `joinCard`. A wall left
+  open across the upgrade ignores them until it is reloaded.
+
+### Sound for each new photo (spec 12)
+
+- **A sound for each new photo on the wall.** New and **off by default** for every event, old and new: nothing
+  rings until a host turns it on. There is no migration; the three keys live in the `wall` group of the event
+  settings, and `sound` is a new public field of the wall's read. The four sound files ship in the image
+  (`web/public/sounds/`, CC0). No change to the content security policy.
+- **Each screen needs a click.** A browser plays a sound only on a page where someone has clicked or pressed a
+  key: activate each screen once (the speaker icon or `S`); a wall that reloads is silent until then.
 
 ### Timed photo challenge (spec 10)
 
