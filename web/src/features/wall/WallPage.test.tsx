@@ -1621,19 +1621,68 @@ describe('WallPage', () => {
       ],
     })
 
-    it('shows a message card every Nth photograph change, signed, and holds the photographs under it', async () => {
+    /** The slide clock, not the host: one change of the server's 8 s interval each. */
+    const automaticChanges = async (count: number): Promise<void> => {
+      for (let i = 0; i < count; i += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(8_000)
+        })
+      }
+    }
+
+    beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }))
+    afterEach(() => vi.useRealTimers())
+
+    it('shows a message card every Nth automatic photograph change, signed, and holds the photographs under it', async () => {
       const api = fakeApi({
         wall: wallSequence(aPopulatedWall({ items: somePhotos(4), guestbook: book() })),
       })
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
 
-      await userEvent.keyboard('{ArrowRight}')
+      await automaticChanges(1)
       expect(screen.queryByText('Une soirée merveilleuse')).not.toBeInTheDocument()
 
-      await userEvent.keyboard('{ArrowRight}')
+      await automaticChanges(1)
       expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
       expect(screen.getByText('Zoé')).toBeVisible()
+    })
+
+    it('leaves the card for a photograph when the host presses an arrow, and never lands on one by pressing', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ items: somePhotos(6), guestbook: book(2) })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await automaticChanges(2)
+      expect(document.querySelector('[data-wall-message]')).not.toBeNull()
+
+      await userEvent.keyboard('{ArrowRight}')
+      expect(document.querySelector('[data-wall-message]')).toBeNull()
+
+      // Ten more presses, either way: the card only comes back on the slide clock.
+      for (const key of ['{ArrowRight}', '{ArrowLeft}']) {
+        for (let i = 0; i < 5; i += 1) {
+          await userEvent.keyboard(key)
+          expect(document.querySelector('[data-wall-message]')).toBeNull()
+        }
+      }
+    })
+
+    it('keeps the automatic rhythm after manual presses: a card again two automatic changes later', async () => {
+      const api = fakeApi({
+        wall: wallSequence(aPopulatedWall({ items: somePhotos(6), guestbook: book(2) })),
+      })
+      renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
+      await screen.findByTestId('wall-slide')
+      await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
+      expect(document.querySelector('[data-wall-message]')).toBeNull()
+
+      await automaticChanges(1)
+      expect(document.querySelector('[data-wall-message]')).toBeNull()
+      await automaticChanges(1)
+
+      expect(screen.getByText('Une soirée merveilleuse')).toBeVisible()
     })
 
     it('signs a message whose guest gave no name with the wall’s own words', async () => {
@@ -1648,7 +1697,7 @@ describe('WallPage', () => {
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
 
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      await automaticChanges(2)
 
       expect(screen.getByText(fr.wall.guestbookAnonymous)).toBeVisible()
     })
@@ -1658,7 +1707,7 @@ describe('WallPage', () => {
       renderWithProviders(<WallPage />, { api, route: ROUTE, path: PATH })
       await screen.findByTestId('wall-slide')
 
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      await automaticChanges(2)
 
       expect(document.querySelector('[data-wall-message]')).toBeNull()
     })
@@ -1674,7 +1723,7 @@ describe('WallPage', () => {
       await screen.findByTestId('wall-slide')
 
       await streamSignals('guestbook.changed')
-      await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+      await automaticChanges(2)
 
       expect(await screen.findByText('Une soirée merveilleuse')).toBeVisible()
     })
