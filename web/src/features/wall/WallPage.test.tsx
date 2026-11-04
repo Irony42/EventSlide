@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
@@ -1977,21 +1977,42 @@ describe('WallPage', () => {
     it('comes back by itself when the event is served again', async () => {
       // A draft wall set up before the party, a suspension the operator lifts: nobody walks
       // over to the projector, so the page keeps asking.
-      vi.useFakeTimers({ shouldAdvanceTime: true })
+      //
+      // The clock is fully manual (no `shouldAdvanceTime`) and nothing here waits on a
+      // `findBy*` timeout. The test used to let real time drive the fake clock and then raced
+      // it: the retry timer is armed by a passive effect that runs after the "not served"
+      // screen is committed, so on a loaded runner the 10 s advance could start before the
+      // timer existed (it would then be due at 10 s + a little, past the advance), and the
+      // answer was then awaited with the 1 s `findBy` default.
+      vi.useFakeTimers()
       let served = false
       const wall = vi.fn(async (): Promise<WallResponse> => {
         if (!served) throw theEventIsGone()
         return aPopulatedWall()
       })
       renderWithProviders(<WallPage />, { api: fakeApi({ wall }), route: ROUTE, path: PATH })
-      await screen.findByRole('status')
+      // Flushes the first read, the render of its failure and the effect that arms the retry.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(screen.getByRole('status')).toHaveTextContent(fr.wall.notServedTitle)
+      expect(wall).toHaveBeenCalledTimes(1)
 
       served = true
+      // One tick short of the retry: the page has not asked again.
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(10_000)
+        await vi.advanceTimersByTimeAsync(9_999)
+      })
+      expect(wall).toHaveBeenCalledTimes(1)
+      expect(screen.queryByTestId('wall-slide')).not.toBeInTheDocument()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
       })
 
-      expect(await screen.findByTestId('wall-slide')).toBeVisible()
+      expect(wall).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('wall-slide')).toBeVisible()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
   })
@@ -2197,6 +2218,21 @@ describe('WallPage', () => {
         },
         ...overrides,
       })
+    /**
+     * Both clocks are the test's: the phase is read off `Date.now()` and flips on a `setTimeout`,
+     * so with real time (or `shouldAdvanceTime`) a slow runner could carry the screen past a
+     * 300 ms boundary between `open` and the first assertion, and "the wall half" was
+     * "the slideshow half" by then. Time moves only through `advance`.
+     */
+    beforeEach(() => vi.useFakeTimers())
+    const advance = (ms: number) =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(ms)
+      })
+    const press = (key: string) =>
+      act(async () => {
+        fireEvent.keyDown(window, { key })
+      })
     const phaseOf = (): string | null => theWall().getAttribute('data-wall-phase')
     const open = async (wall: WallResponse, query = PHASES): Promise<void> => {
       renderWithProviders(<WallPage />, {
@@ -2204,21 +2240,27 @@ describe('WallPage', () => {
         route: `${ROUTE}?${query}`,
         path: PATH,
       })
-      await screen.findAllByTestId('wall-slide')
+      await advance(0)
+      expect(screen.getAllByTestId('wall-slide').length).toBeGreaterThan(0)
     }
-    const untilPhase = (phase: string) =>
-      waitFor(() => expect(phaseOf()).toBe(phase), { timeout: 2_000 })
+    const untilPhase = async (phase: string): Promise<void> => {
+      // 47 ms is not a divisor of the 300 ms phases, on purpose: the page re-arms its boundary
+      // timer only when the time left changes, and a step that lands every render on a multiple of
+      // the phase makes two consecutive phases report the same time left.
+      for (let step = 0; step < 60 && phaseOf() !== phase; step += 1) await advance(47)
+      expect(phaseOf()).toBe(phase)
+    }
 
     it('tells in the shortcuts notice that L leaves the alternation, only while the mode is on', async () => {
       await open(mixedWall())
-      await userEvent.keyboard('?')
-      expect(await screen.findByRole('dialog')).toHaveTextContent(fr.wall.mixedHint)
+      await press('?')
+      expect(screen.getByRole('dialog')).toHaveTextContent(fr.wall.mixedHint)
     })
 
     it('keeps the alternation out of the shortcuts notice while the mode is off', async () => {
       await open(aPopulatedWall({ items: somePhotos(8) }))
-      await userEvent.keyboard('?')
-      expect(await screen.findByRole('dialog')).not.toHaveTextContent(fr.wall.mixedHint)
+      await press('?')
+      expect(screen.getByRole('dialog')).not.toHaveTextContent(fr.wall.mixedHint)
     })
 
     it('says nothing of phases, and renders as before, while the mode is off', async () => {
@@ -2254,11 +2296,11 @@ describe('WallPage', () => {
     it('leaves the alternation on a screen that names its layout: the L key', async () => {
       await open(mixedWall())
 
-      await userEvent.keyboard('l')
+      await press('l')
 
       expect(phaseOf()).toBeNull()
       const named = theWall().getAttribute('data-wall-layout')
-      await new Promise((resolve) => window.setTimeout(resolve, 700))
+      await advance(700)
       expect(theWall()).toHaveAttribute('data-wall-layout', named)
     })
 
@@ -2266,7 +2308,7 @@ describe('WallPage', () => {
       await open(mixedWall(), `${PHASES}&layout=polaroid`)
 
       expect(phaseOf()).toBeNull()
-      await new Promise((resolve) => window.setTimeout(resolve, 700))
+      await advance(700)
       expect(theWall()).toHaveAttribute('data-wall-layout', 'polaroid')
     })
 
@@ -2295,9 +2337,9 @@ describe('WallPage', () => {
 
     it('freezes the phase while paused, and catches up on resume', async () => {
       await open(mixedWall())
-      await userEvent.keyboard(' ')
+      await press(' ')
 
-      await new Promise((resolve) => window.setTimeout(resolve, 400))
+      await advance(400)
       // Something re-renders the page while it is paused (here a tab coming back to the front):
       // the boundary has gone by, and the room still sees the phase it froze on.
       await act(async () => {
@@ -2305,9 +2347,10 @@ describe('WallPage', () => {
       })
       expect(phaseOf()).toBe('wall')
 
-      await userEvent.keyboard(' ')
+      await press(' ')
       // 800 ms into a 600 ms cycle that began at the anchor: 200 ms in, the wall half again.
-      await waitFor(() => expect(phaseOf()).not.toBeNull())
+      await advance(200)
+      expect(phaseOf()).not.toBeNull()
     })
 
     it('goes dark between two phases, and never mounts two layouts at once', async () => {
