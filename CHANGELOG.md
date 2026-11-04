@@ -20,6 +20,99 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.7.0] - 2026-11-04
+
+Everything merged to `main` after the tag `v3.6.0`: pull requests #343, #345, #346, #347, #348, #349, #350,
+#351, #352, #353, #354, #355, #356 and #357. This is a minor release, the second batch of the 3 November
+specs: guestbook messages in the moderation console, the cut of a video that is too long on the guest's phone,
+a settings drawer and an icon bar on the wall, and two fixes to how a photograph fills the screen. It breaks
+nothing that [docs/UPGRADING.md](docs/UPGRADING.md#what-a-version-number-promises) promises to keep, but it
+applies one migration (025), adds one runtime dependency and redraws the mosaic layout, so read "Behaviour
+changes to check before upgrading" and [Upgrading to 3.7](docs/UPGRADING.md#upgrading-to-37) before you
+upgrade.
+
+### Guests
+
+- **A video that is too long is trimmed instead of refused** (#347, #349, #354). A recording longer than the
+  limit opens a trim screen: two sliders (keyboard and screen readers come with them), a muted looping preview,
+  a line that sums up the extract, and a default selection that is already valid, so one tap sends. The handles
+  cannot produce an invalid range (one second at least, the limit at most). When the guest sends, the phone
+  cuts the extract out of the MP4 or MOV file without re-encoding it and uploads only that; the extract starts
+  on the keyframe before the chosen start (about a second earlier). A recording too heavy for the limit but
+  trimmable is no longer refused. If the cut cannot be made, the whole file goes up with the range when it
+  fits, and is refused as too large when it does not.
+
+### The wall
+
+- **A portrait photo shown full screen is never cropped** (#356). The large photograph (the spotlight, the
+  alternating wall's photograph phase and the new-photo presentation) now fits the screen on both axes,
+  letterboxed on the blurred ground, instead of filling the width and losing the top and the bottom. A tall
+  photo gets its own slow zoom, from slightly smaller to exactly the whole photo.
+- **The mosaic shows most of every photo** (#357). Six equal cells of about 5:4 replace the 4x3 grid with its
+  flat cells and its 2x2 hero tile. A photo is cropped to its cell only when at least 70 % of it stays
+  visible; otherwise it is shown whole over its own blurred thumbnail. The placement and the tilt of the photos
+  are unchanged.
+- **Icon buttons on the owner's bar** (#346). Réglages, Pause (Reprendre) and Plein écran become icons with a
+  tooltip that names the key (`R`, `Espace`, `F`); the accessible names and the keys do not change, and an
+  anonymous wall still has no bar.
+- **The wall's sound button is reachable on a touch screen** (#343). The muted-speaker icon used to hide with
+  the idle cursor, which a touch screen never moves; it now stays visible until the screen is activated.
+  Mouse behaviour is unchanged.
+
+### Hosts
+
+- **The guestbook messages are moderated in the console** (#345, #350, #352, #355). A Photos | Messages switch
+  (`?vue=messages`) with a badge on each side that stays visible, the message in full with its author or
+  anonymous, its time and its status, and the decisions the server allows, with undo. Keys `J`, `K`, `P`, `R`,
+  `H` and `Z` work on messages and never act on the photo selection. On the phone console a message sits in a
+  swipe card (right publishes, left refuses), with "Annuler la dernière" per tab and a strip of the last six
+  messages on screen, the way to take a message published automatically off the wall from a phone. The console
+  uses one event stream for both tabs. An archived event is read-only, an event with the guestbook off has no
+  tab, and with automatic moderation the badge counts the messages published since the last visit.
+- **The guestbook card on the event page is a summary and a link** (#355). The count on screen, the pending
+  badge and a link to the console's Messages tab while the event can be moderated; the full read-only list
+  stays for an archived event.
+- **A settings drawer on the wall** (#348, #353). The panel opened with `R` becomes a drawer on the left, with
+  a row of icons that jumps to a section, each section showing its current value, and visual controls: layout
+  tiles, rhythm circles, a miniature of the invitation card at its real scale and corner, ambiance swatches,
+  option cards with a switch, challenge chips, and a play button per sound tone. The keys, the settings, the
+  per-key saving and the owner-only rule are unchanged; the settings page keeps its own controls.
+
+### Behaviour changes to check before upgrading
+
+- **One migration, applied at boot, 025.** `025_clip_trim` adds two nullable columns to `clip_jobs`
+  (`trim_start_ms`, `trim_end_ms`), `NULL` for every existing job and for every upload that sends no range
+  (#347). It only goes forward; going back is the restore of the archive taken before the upgrade.
+- **`POST /api/events/:slug/clips` accepts two optional fields, `startMs` and `endMs`.** They go together
+  (`400 request.invalid` if only one is sent) and a range must be at least one second and at most
+  `MAX_CLIP_SECONDS` (`400` `clip.trimInvalid`, `clip.tooShort` or `clip.tooLong` otherwise). A client that
+  sends neither behaves exactly as before. The source itself may now be longer than the limit, up to 30
+  minutes declared. A range that ends past the end of the source fails the job with the new permanent failure
+  `clip.trimOutOfRange`.
+- **A too-long video opens the trim screen instead of a refusal.** `MAX_CLIP_SECONDS` and `MAX_CLIP_BYTES` keep
+  their names and values; the seconds now bound the part a guest keeps rather than the recording, and the
+  bytes bound what is sent. A phone left open across the upgrade keeps refusing a long video until it is
+  reloaded.
+- **A new runtime dependency, `mp4box` 2.5.0 (BSD-3-Clause)** (#351, #354). It lives in a separate chunk of
+  about 205 kB (46 kB gzipped) that is fetched only when a guest sends a trimmed extract, and is not preloaded.
+  The upload page's own code grows by about 2.5 kB. No new environment variable.
+- **The mosaic layout changes.** The 2x2 hero tile is gone and the layout has six equal cells; a wall that
+  uses the mosaic looks different after the upgrade (#357), and a portrait photo shown full screen is no
+  longer cropped (#356). Nothing to set.
+- **The guestbook card on the event page is now a summary and a link to the console** while the event can be
+  moderated; the read-only list stays for an archived event (#355).
+- **`guestbook.changed` reaches both the wall's stream and the moderation stream.** It already reached the
+  wall; the console now reads it too (#350). It carries no text.
+
+### Documentation, tests and dependencies
+
+- `docs/API.md` describes the `startMs` and `endMs` fields, the failure `clip.trimOutOfRange` and the
+  console's single stream, and `docs/DESIGN-SYSTEM.md` the new `Icon` and `Tooltip` components and tokens.
+- New guards: unit tests for each rule of the trim (the range, the cut, the fallback), end to end journeys for
+  the guestbook console and for a trimmed upload, a geometry journey for the portrait and mosaic fits, and a
+  contrast test for the new `--selected-tint` token.
+- Dependency: `mp4box` 2.5.0, with its licence checked by the audit (#351). No other dependency changes.
+
 ## [3.6.0] - 2026-11-04
 
 Everything merged to `main` after the tag `v3.5.0`: pull requests #315, #316, #317, #318, #319, #320, #321,
