@@ -865,7 +865,7 @@ sections below say what each part of the release changes.
 ### The guest upload pane folds (spec 19)
 
 - **No migration, nothing to set in `.env`.** A "Réduire" button folds the pane into a bar of at most 14 % of the
-  screen, and a guest scroll gesture upwards folds it too. The selection is kept; a tap opens the pane again.
+  screen; only that button folds it (scrolling never does). The selection is kept; a tap opens the pane again.
 
 ### The wall: arrows, challenge over the guestbook, switches, mixed phases
 
