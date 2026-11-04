@@ -22,3 +22,15 @@
 .bar:focus-within {
   opacity: 1;
 }
+
+/* An icon over the photograph: the ground the captions sit on, so the glyph keeps 7:1. */
+.bar .button {
+  background: var(--surface-scrim);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.bar .button:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}

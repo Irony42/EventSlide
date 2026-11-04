@@ -6,6 +6,7 @@ import { useTranslations } from '../../lib/i18n/useTranslations'
 import { formatCountdown, remainingMs } from '../../lib/serverClock'
 import { SelectField } from './components/SelectField'
 import { useChallenge, useMissions } from './hooks/useEventData'
+import { ChoiceChips } from '../../design-system/components/ChoiceChips'
 import { useStartChallenge, useStopChallenge } from './hooks/useEventActions'
 import styles from './ChallengePanel.module.css'
 
@@ -15,6 +16,8 @@ export interface ChallengeControlsProps {
   readonly live: boolean
   /** Where a refusal is said: a toast on the console, a line in the wall's panel (which has no toaster). */
   readonly onFailure: (message: string | null) => void
+  /** Mission and duration as chips rather than selects: the wall's drawer (spec 17). */
+  readonly visual?: boolean
 }
 
 export interface ChallengePanelProps {
@@ -36,7 +39,12 @@ const DEFAULT_DURATION_SECONDS = 120
  * clock (`useChallenge` measures the offset), re-reading once when it reaches zero because the end
  * of a challenge is derived from the clock and announces nothing.
  */
-export function ChallengeControls({ slug, live, onFailure }: ChallengeControlsProps) {
+export function ChallengeControls({
+  slug,
+  live,
+  onFailure,
+  visual = false,
+}: ChallengeControlsProps) {
   const t = useTranslations()
   const challenge = useChallenge(slug)
   const missions = useMissions(slug)
@@ -92,23 +100,47 @@ export function ChallengeControls({ slug, live, onFailure }: ChallengeControlsPr
 
       {running === null ? (
         <div className={styles['form']}>
-          <SelectField
-            label={t.challenge.mission}
-            value={chosen}
-            options={list.map((mission) => ({ value: mission.id, label: mission.prompt }))}
-            disabled={list.length === 0 || !live}
-            onChange={setMissionId}
-          />
-          <SelectField
-            label={t.challenge.duration}
-            value={String(seconds)}
-            options={DURATIONS_SECONDS.map((value) => ({
-              value: String(value),
-              label: t.challenge.minutes(value / 60),
-            }))}
-            disabled={!live}
-            onChange={(value) => setSeconds(Number(value))}
-          />
+          {visual ? (
+            <>
+              <ChoiceChips
+                legend={t.challenge.mission}
+                value={chosen}
+                options={list.map((mission) => ({ value: mission.id, label: mission.prompt }))}
+                disabled={list.length === 0 || !live}
+                onChange={setMissionId}
+              />
+              <ChoiceChips
+                legend={t.challenge.duration}
+                value={String(seconds)}
+                options={DURATIONS_SECONDS.map((value) => ({
+                  value: String(value),
+                  label: t.challenge.minutes(value / 60),
+                }))}
+                disabled={!live}
+                onChange={(value) => setSeconds(Number(value))}
+              />
+            </>
+          ) : (
+            <>
+              <SelectField
+                label={t.challenge.mission}
+                value={chosen}
+                options={list.map((mission) => ({ value: mission.id, label: mission.prompt }))}
+                disabled={list.length === 0 || !live}
+                onChange={setMissionId}
+              />
+              <SelectField
+                label={t.challenge.duration}
+                value={String(seconds)}
+                options={DURATIONS_SECONDS.map((value) => ({
+                  value: String(value),
+                  label: t.challenge.minutes(value / 60),
+                }))}
+                disabled={!live}
+                onChange={(value) => setSeconds(Number(value))}
+              />
+            </>
+          )}
           <div className={styles['actions']}>
             <Button
               loading={start.busy}

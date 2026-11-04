@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { IconName } from '../../../design-system/components/Icon'
 import type { EventSettingsPatch } from '../../../lib/api/client'
 import type { EventSettingsDto } from '../../../lib/api/dto'
 import type { UiText } from '../../../lib/i18n/translations'
@@ -28,6 +29,10 @@ export interface WallPanelSection {
   /** 10 Affichage, 20 Ambiance, 30 QR code, 40 A l'ecran, 50 Defi photo, 60 Son. */
   readonly order: number
   readonly title: (text: UiText) => string
+  /** The glyph of the section's badge and of its button in the drawer's jump row (spec 17). */
+  readonly icon: IconName
+  /** The current value, one short line under the title; `null` or absent when the section has none. */
+  readonly summary?: (text: UiText, settings: EventSettingsDto) => string | null
   readonly Component: ComponentType<WallPanelContext>
 }
 

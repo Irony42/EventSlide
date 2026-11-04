@@ -1,23 +1,17 @@
 import { useId } from 'react'
 import type { EventSettingsDto } from '../../../lib/api/dto'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import {
+  QR_CORNERS as CORNERS,
+  QR_SCALE_MARKS,
+  QR_SCALE_MAX,
+  QR_SCALE_MIN,
+  QR_SCALE_STEP,
+} from '../wallDisplayOptions'
 import { CheckboxField } from './CheckboxField'
 import styles from './WallQrControls.module.css'
 
 type WallSettings = EventSettingsDto['wall']
-type Placement = WallSettings['qrPlacement']
-
-/**
- * The slider's own range and the three marks the first draft of spec 14 offered as sizes
- * (Pierre, decision 14-6). Mirrors `src/domain/events/wallJoinCard.ts`, which the server enforces.
- */
-const QR_SCALE_MIN = 0.8
-const QR_SCALE_MAX = 1.5
-const QR_SCALE_STEP = 0.05
-const QR_SCALE_MARKS = { small: 0.8, medium: 1, large: 1.3 } as const
-
-/** Row-major, as the 2 x 2 grid reads: top start, top end, bottom start, bottom end. */
-const CORNERS: readonly Placement[] = ['top-start', 'top-end', 'bottom-start', 'bottom-end']
 
 export interface WallQrControlsProps {
   readonly wall: Pick<WallSettings, 'qrVisible' | 'qrScale' | 'qrPlacement'>

@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, type RefObject } from 'react'
-import { Button } from '../../../design-system/components/Button'
+import { Icon } from '../../../design-system/components/Icon'
+import { IconButton } from '../../../design-system/components/IconButton'
+import { Tooltip } from '../../../design-system/components/Tooltip'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { WallOwner } from '../hooks/useWallOwner'
 import type { ScreenControls } from '../panel/panelTypes'
@@ -60,16 +62,45 @@ export function WallControls({
         aria-label={text.barLabel}
         data-visible={active || panelOpen ? 'true' : undefined}
       >
-        <Button
-          ref={openerRef}
-          onClick={onOpenPanel}
-          aria-haspopup="dialog"
-          aria-expanded={panelOpen}
-        >
-          {text.open}
-        </Button>
-        <Button onClick={screen.onTogglePause}>{screen.paused ? text.resume : text.pause}</Button>
-        <Button onClick={screen.onToggleFullscreen}>{text.fullscreen}</Button>
+        <Tooltip text={text.openTip}>
+          {(describedBy) => (
+            <IconButton
+              ref={openerRef}
+              size="bar"
+              className={styles['button']}
+              aria-label={text.open}
+              aria-describedby={describedBy}
+              icon={<Icon name="settings" />}
+              onClick={onOpenPanel}
+              aria-haspopup="dialog"
+              aria-expanded={panelOpen}
+            />
+          )}
+        </Tooltip>
+        <Tooltip text={screen.paused ? text.resumeTip : text.pauseTip}>
+          {(describedBy) => (
+            <IconButton
+              size="bar"
+              className={styles['button']}
+              aria-label={screen.paused ? text.resume : text.pause}
+              aria-describedby={describedBy}
+              icon={<Icon name={screen.paused ? 'play' : 'pause'} />}
+              onClick={screen.onTogglePause}
+            />
+          )}
+        </Tooltip>
+        <Tooltip text={text.fullscreenTip}>
+          {(describedBy) => (
+            <IconButton
+              size="bar"
+              className={styles['button']}
+              aria-label={text.fullscreen}
+              aria-describedby={describedBy}
+              icon={<Icon name="fullscreen" />}
+              onClick={screen.onToggleFullscreen}
+            />
+          )}
+        </Tooltip>
       </div>
       {panelOpen ? (
         <Suspense fallback={null}>

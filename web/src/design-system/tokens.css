@@ -275,6 +275,20 @@
   /* ---- Icons. Outlined glyphs on a 16-unit grid, drawn as strokes: this is their weight,
          in the grid's own units, so every glyph in a set is the same line at any size. ---- */
   --icon-stroke: 1.5;
+  /* The `Icon` set: a 24-unit grid (the wall bar and panel are read at arm's length), a touch
+     heavier than the 16-unit status glyphs above, in the 20 px and 24 px sizes it is drawn at. */
+  --icon-stroke-24: 1.75;
+  --icon-size-sm: 1.25rem;
+  --icon-size-md: 1.5rem;
+  /* A button of the wall's owner bar: over a photograph, at the projector's distance. */
+  --wall-bar-button: 3.25rem;
+  /* The owner's settings drawer on the wall: wide enough for the visual controls, a third of a 16:9 screen at most. */
+  --wall-panel-width: 27.5rem;
+  /* A chosen tile, chip or swatch is the accent at this share over a raised surface
+     (`color-mix(in oklch, var(--accent) var(--selected-tint), var(--surface-raised))`), written where it
+     is used so that the event's own accent and ambiance reach it. --text-primary keeps its 7:1 on
+     it; the accent edge and a check glyph say it too: never the tint alone. */
+  --selected-tint: 20%;
 }
 
 /**
