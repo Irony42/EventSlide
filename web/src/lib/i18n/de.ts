@@ -2274,8 +2274,22 @@ export const de: UiText = {
   /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
   challenge: {
     title: 'Foto-Challenge',
-    hint: 'Starten Sie eine Mission für einige Minuten: Bildschirm und Handys zählen gemeinsam herunter.',
-    mission: 'Mission',
+    hint: 'Schreiben Sie, was Sie vom Saal verlangen. Der Text erscheint erst beim Start.',
+    prompt: 'Text der Challenge',
+    /** The text box's counter: how much of the sixty characters is used. */
+    promptCount: (used: number, max: number) => `${t.number(used)} / ${t.number(max)}`,
+    recent: 'Letzte Challenges',
+    ideasTitle: 'Ideen',
+    /** Ready-made challenges the host may take as they are or correct; each is at most 60 characters. */
+    ideas: [
+      'Ein Selfie mit Ihrem Tischnachbarn',
+      'Der ganze Tisch auf einem Foto',
+      'Das schönste Lächeln des Abends',
+      'Ein Foto Ihrer Füße auf der Tanzfläche',
+      'Ein Prosit in die Kamera',
+      'Alle zusammen eine Grimasse',
+    ],
+    fromMission: 'Eine meiner Missionen',
     duration: 'Dauer',
     minutes: (count: number) =>
       t.count(count, {
@@ -2285,7 +2299,6 @@ export const de: UiText = {
     launch: 'Als Challenge starten',
     stop: 'Stoppen',
     remaining: (time: string) => `Challenge läuft · ${time}`,
-    noMissions: 'Fügen Sie zuerst eine Mission hinzu, um eine Challenge zu starten.',
     notOpen: 'Eine Challenge lässt sich starten, sobald die Veranstaltung geöffnet ist.',
     ended: 'Challenge beendet',
     answers: (count: number) =>

@@ -224,7 +224,10 @@ export interface MissionInput {
 
 /** A timed photo challenge as the host launches it (spec 10). */
 export interface ChallengeInput {
-  readonly missionId: string
+  /** The challenge's own text (spec 18): one line, 60 characters at most. */
+  readonly prompt: string
+  /** The mission it was taken from, if the host chose it there; only a link. */
+  readonly missionId?: string
   readonly durationSeconds: number
 }
 

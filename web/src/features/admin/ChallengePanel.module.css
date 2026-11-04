@@ -29,3 +29,24 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+.count {
+  margin-block-start: calc(-1 * var(--space-2));
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  text-align: end;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chipsTitle {
+  flex-basis: 100%;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

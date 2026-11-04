@@ -590,7 +590,11 @@ const ENDPOINTS: readonly EndpointCase[] = [
     verb: 'post',
     path: `/api/events/${SLUG}/challenge`,
     invoke: (client) =>
-      client.startChallenge(SLUG, { missionId: 'mission-1', durationSeconds: 120 }),
+      client.startChallenge(SLUG, {
+        prompt: 'Un toast',
+        missionId: 'mission-1',
+        durationSeconds: 120,
+      }),
   },
   {
     name: 'stopChallenge',

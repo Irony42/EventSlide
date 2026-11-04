@@ -556,7 +556,7 @@ describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
     return api
   }
 
-  it('has a section "Défi photo" that launches the chosen mission for two minutes', async () => {
+  it('has a section "Défi photo" that launches the idea taken for two minutes', async () => {
     const startChallenge = vi.fn(async () => ({
       id: 'c1',
       missionId: 'm1',
@@ -568,12 +568,13 @@ describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
     await openPanel({ startChallenge })
 
     expect(screen.getByText(fr.challenge.title, { selector: 'summary strong' })).toBeVisible()
-    const launch = await screen.findByRole('button', { name: fr.challenge.launch })
+    await userEvent.click(await screen.findByRole('button', { name: fr.challenge.ideas[0] }))
+    const launch = screen.getByRole('button', { name: fr.challenge.launch })
     await waitFor(() => expect(launch).toBeEnabled())
     await userEvent.click(launch)
 
     expect(startChallenge).toHaveBeenCalledWith('camille-et-sacha', {
-      missionId: 'm1',
+      prompt: fr.challenge.ideas[0],
       durationSeconds: 120,
     })
   })
@@ -584,7 +585,8 @@ describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
     })
     await openPanel({ startChallenge })
 
-    await userEvent.click(await screen.findByRole('button', { name: fr.challenge.launch }))
+    await userEvent.click(await screen.findByRole('button', { name: fr.challenge.ideas[0] }))
+    await userEvent.click(screen.getByRole('button', { name: fr.challenge.launch }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       fr.errors['challenge.alreadyRunning'],
