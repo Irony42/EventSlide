@@ -408,3 +408,72 @@ describe('the send time under a photo (spec 13, PR 5)', () => {
     })
   })
 })
+
+describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
+  const missions = [
+    {
+      id: 'm1',
+      prompt: 'un selfie avec votre voisin',
+      scope: 'guest' as const,
+      achieved: false,
+      publishedPhotos: 0,
+      completedByGuests: 0,
+    },
+  ]
+
+  const openPanel = async (overrides: Parameters<typeof fakeApi>[0] = {}) => {
+    const api = renderWall({
+      getEvent: vi.fn(async () => asOwner()),
+      listMissions: vi.fn(async () => ({ items: missions })),
+      ...overrides,
+    })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+    return api
+  }
+
+  it('has a section "Défi photo" that launches the chosen mission for two minutes', async () => {
+    const startChallenge = vi.fn(async () => ({
+      id: 'c1',
+      missionId: 'm1',
+      prompt: 'un selfie avec votre voisin',
+      startedAt: new Date().toISOString(),
+      endsAt: new Date().toISOString(),
+      state: 'running' as const,
+    }))
+    await openPanel({ startChallenge })
+
+    expect(screen.getByText(fr.challenge.title, { selector: 'summary' })).toBeVisible()
+    const launch = await screen.findByRole('button', { name: fr.challenge.launch })
+    await waitFor(() => expect(launch).toBeEnabled())
+    await userEvent.click(launch)
+
+    expect(startChallenge).toHaveBeenCalledWith('camille-et-sacha', {
+      missionId: 'm1',
+      durationSeconds: 120,
+    })
+  })
+
+  it('says the server refusal in the panel, which has no toaster', async () => {
+    const startChallenge = vi.fn(async () => {
+      throw new ApiError(409, 'challenge.alreadyRunning')
+    })
+    await openPanel({ startChallenge })
+
+    await userEvent.click(await screen.findByRole('button', { name: fr.challenge.launch }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      fr.errors['challenge.alreadyRunning'],
+    )
+  })
+
+  it('does not exist for a moderator, who launches from the console', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => anEventDto({ role: 'moderator' })) })
+    await screen.findByTestId('wall-slide')
+    await waitFor(() => expect(api.getEvent).toHaveBeenCalled())
+
+    await userEvent.keyboard('r')
+
+    expect(screen.queryByText(fr.challenge.launch)).not.toBeInTheDocument()
+  })
+})
