@@ -2164,6 +2164,8 @@ export const es: UiText = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Comienza el reto fotográfico: ${prompt}`,
+    /** The phone's button: it chooses the challenge's mission for the next photograph. */
+    takeUp: 'Aceptar el reto',
     announceEnd: 'Fin del reto fotográfico',
   },
   titles: {
