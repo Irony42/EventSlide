@@ -1096,27 +1096,104 @@ describe('sending a video', () => {
       ).toBeVisible()
     })
 
-    it('shows the host challenge above the list, and takes it up with one tap', async () => {
+    const challengeReading = (missionId: string | null) => ({
+      items: [],
+      serverNowMs: Date.now(),
+      challenge: {
+        id: 'c1',
+        missionId,
+        prompt: 'un selfie avec votre voisin',
+        endsAt: new Date(Date.now() + 102_000).toISOString(),
+        state: 'running' as const,
+      },
+    })
+
+    const joinedWithChallenge = (overrides: Partial<Api> = {}): Api => {
       const api = fakeApi({
-        myMissions: vi.fn(async () => ({
-          items: [aGuestMission({ id: 'm1', prompt: 'un selfie' })],
-          serverNowMs: Date.now(),
-          challenge: {
-            id: 'c1',
-            missionId: 'm1',
-            prompt: 'un selfie avec votre voisin',
-            endsAt: new Date(Date.now() + 102_000).toISOString(),
-            state: 'running' as const,
-          },
-        })),
+        myMissions: vi.fn(async () => challengeReading(null)),
+        uploadPhotos: vi.fn(async () => accepted('photo-1')),
+        ...overrides,
       })
       havingJoined()
       renderUpload(api)
+      return api
+    }
 
-      await userEvent.click(await screen.findByRole('button', { name: fr.challenge.takeUp }))
+    it('shows the host challenge even when the host set no mission at all (spec 18)', async () => {
+      joinedWithChallenge()
 
-      expect(screen.getByText('un selfie avec votre voisin')).toBeVisible()
-      expect(screen.getByRole('button', { name: /un selfie/, pressed: true })).toBeVisible()
+      expect(await screen.findByText('un selfie avec votre voisin')).toBeVisible()
+    })
+
+    it('shows the box checked once a photo is chosen, and sends the challenge with it', async () => {
+      const api = joinedWithChallenge()
+      await screen.findByText('un selfie avec votre voisin')
+      expect(screen.queryByRole('checkbox', { name: fr.challenge.participate })).toBeNull()
+
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+      expect(screen.getByRole('checkbox', { name: fr.challenge.participate })).toBeChecked()
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ challengeId: 'c1' }),
+        ),
+      )
+    })
+
+    it('sends a plain photograph when the guest unchecks the box', async () => {
+      const api = joinedWithChallenge()
+      await screen.findByText('un selfie avec votre voisin')
+
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+      await userEvent.click(screen.getByRole('checkbox', { name: fr.challenge.participate }))
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ challengeId: null }),
+        ),
+      )
+    })
+
+    it('shows no box and sends no challenge when none runs', async () => {
+      const api = fakeApi({ uploadPhotos: vi.fn(async () => accepted('photo-1')) })
+      havingJoined()
+      renderUpload(api)
+      await screen.findByTestId('upload-composer')
+
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+
+      expect(screen.queryByRole('checkbox', { name: fr.challenge.participate })).toBeNull()
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+      await waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ challengeId: null }),
+        ),
+      )
+    })
+
+    it('sends the challenge and no mission when the guest chose none, the server files the rest', async () => {
+      const api = joinedWithChallenge({
+        myMissions: vi.fn(async () => ({
+          ...challengeReading('m1'),
+          items: [aGuestMission({ id: 'm1', prompt: 'un selfie' })],
+        })),
+      })
+      await screen.findByText('un selfie avec votre voisin')
+
+      await pickPhotos(aPhotoFile('confettis.jpg'))
+      await userEvent.click(screen.getByRole('button', { name: fr.upload.sendCount(1) }))
+
+      await waitFor(() =>
+        expect(api.uploadPhotos).toHaveBeenCalledWith(
+          SLUG,
+          expect.objectContaining({ challengeId: 'c1', missionId: null }),
+        ),
+      )
     })
 
     it('shows no challenge band when none runs', async () => {
@@ -1125,7 +1202,7 @@ describe('sending a video', () => {
 
       await screen.findByRole('button', { name: /un selfie/ })
 
-      expect(screen.queryByRole('button', { name: fr.challenge.takeUp })).not.toBeInTheDocument()
+      expect(screen.queryByText(fr.challenge.ended)).not.toBeInTheDocument()
     })
 
     it('files the photographs under the prompt the guest tapped', async () => {

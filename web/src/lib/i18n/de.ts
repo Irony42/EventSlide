@@ -2308,8 +2308,8 @@ export const de: UiText = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Foto-Challenge gestartet: ${prompt}`,
-    /** The phone's button: it chooses the challenge's mission for the next photograph. */
-    takeUp: 'Challenge annehmen',
+    /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
+    participate: 'Ich nehme an der Challenge teil',
     announceEnd: 'Foto-Challenge beendet',
   },
   titles: {

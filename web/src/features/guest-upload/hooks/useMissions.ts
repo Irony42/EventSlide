@@ -29,8 +29,6 @@ export interface MissionsState {
   readonly selected: string | null
   /** Passing the id that is already selected clears it — the same tap, twice. */
   readonly toggle: (missionId: string) => void
-  /** Chooses a prompt without the second tap clearing it: what "Relever le défi" does. */
-  readonly select: (missionId: string) => void
   readonly refresh: () => void
   /** The host's timed challenge, or `null` (spec 10). */
   readonly challenge: GuestChallengeDto | null
@@ -73,13 +71,12 @@ export const useMissions = (slug: string): MissionsState => {
   const [selected, setSelected] = useState<string | null>(null)
 
   /**
-   * Asked again every twenty seconds, and on coming back to the tab, only while the host has set
-   * prompts at all (a challenge always names one) and the page is on screen. Nothing runs on an
-   * event with no prompts, which is most of them.
+   * Asked again every twenty seconds, and on coming back to the tab, while the page is on
+   * screen. On **every** event since spec 18: a challenge has its own text and needs no mission,
+   * so an event with no prompts can run one, and a phone cannot know before it asks. The cost
+   * is the one `CHALLENGE_POLL_MS` argues, one more indexed read per phone on those events.
    */
-  const watching = missions.length > 0
   useEffect(() => {
-    if (!watching) return undefined
     let timer: number | undefined
     const schedule = (): void => {
       timer = window.setTimeout(tick, CHALLENGE_POLL_MS * (1 + (Math.random() * 2 - 1) * JITTER))
@@ -97,7 +94,7 @@ export const useMissions = (slug: string): MissionsState => {
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [watching, refresh])
+  }, [refresh])
 
   const toggle = useCallback((missionId: string) => {
     setSelected((current) => (current === missionId ? null : missionId))
@@ -124,7 +121,6 @@ export const useMissions = (slug: string): MissionsState => {
     missions,
     selected: live ? selected : null,
     toggle,
-    select: setSelected,
     refresh,
     challenge,
     offsetMs,

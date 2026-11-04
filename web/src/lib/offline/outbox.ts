@@ -41,6 +41,12 @@ export interface OutboxEntry {
    * `outboxPolicy` — a prompt the host deleted will not come back on a retry.
    */
   readonly missionId: string | null
+  /**
+   * The timed challenge this photograph answers (spec 18), or absent/`null`. Optional because an
+   * entry stored before the upgrade has none. The server keeps it only inside the challenge's
+   * window and otherwise stores the photograph plain, so a late replay is never refused for it.
+   */
+  readonly challengeId?: string | null
   /** Epoch milliseconds. Used for expiry, so a stale photo is never sent to a
    *  wedding that ended two days ago. */
   readonly enqueuedAt: number
@@ -87,6 +93,7 @@ export interface NewOutboxEntry {
   readonly fileType: string
   readonly caption: string | null
   readonly missionId: string | null
+  readonly challengeId?: string | null
   readonly csrfToken: string | null
 }
 
@@ -102,6 +109,7 @@ export interface OutboxHandOff {
   readonly file: () => Promise<File>
   readonly caption: string | null
   readonly missionId: string | null
+  readonly challengeId?: string | null
 }
 
 /**

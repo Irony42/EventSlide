@@ -56,6 +56,10 @@ export const fetchOutboxSender = ({ fetch, readCsrf }: FetchSenderOptions): Outb
     if (entry.missionId !== null && entry.missionId !== '') {
       form.append('missionId', entry.missionId)
     }
+    // The challenge answered (spec 18), on the same terms: a uuid, so never an empty part.
+    if (entry.challengeId !== undefined && entry.challengeId !== null && entry.challengeId !== '') {
+      form.append('challengeId', entry.challengeId)
+    }
 
     const headers: Record<string, string> = { accept: 'application/json' }
     const token = await readCsrf()

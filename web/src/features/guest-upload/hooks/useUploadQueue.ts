@@ -63,6 +63,7 @@ export interface UploadOutbox {
     file: File,
     caption: string | null,
     missionId: string | null,
+    challengeId?: string | null,
   ) => Promise<string | null>
   readonly discard: (entryId: string) => Promise<void>
   /**
@@ -119,7 +120,11 @@ export interface UploadQueue {
   /** Drops every row that has arrived, as picking the next photos would. Never one that has not. */
   readonly clearSettled: () => void
   readonly retry: (id: string) => void
-  readonly send: (caption: string | null, missionId: string | null) => void
+  readonly send: (
+    caption: string | null,
+    missionId: string | null,
+    challengeId?: string | null,
+  ) => void
   /**
    * Reconciles the rows with what a drain just did.
    *
@@ -195,6 +200,8 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
    * lose the choice with it.
    */
   const mission = useRef<string | null>(null)
+  /** The challenge the batch answers (spec 18), kept for the retries like the mission. */
+  const challenge = useRef<string | null>(null)
   const lastId = useRef(0)
 
   const commit = useCallback((next: readonly UploadItem[]) => {
@@ -276,7 +283,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
       let entryId: string | null
       storing.current.add(id)
       try {
-        entryId = await outbox.enqueue(file, caption.current, mission.current)
+        entryId = await outbox.enqueue(file, caption.current, mission.current, challenge.current)
       } finally {
         storing.current.delete(id)
       }
@@ -320,6 +327,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
           files: [shrunk],
           caption: caption.current,
           missionId: mission.current,
+          challengeId: challenge.current,
           onProgress: (progress) => patch(id, { progress: progress.percent }),
           signal: controller.signal,
         })
@@ -398,12 +406,17 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   )
 
   const send = useCallback(
-    (batchCaption: string | null, batchMission: string | null) => {
+    (
+      batchCaption: string | null,
+      batchMission: string | null,
+      batchChallenge: string | null = null,
+    ) => {
       // One caption and one mission for the batch, kept for the retries: a guest who
       // wrote a caption or chose a prompt and then lost the connection must not lose
       // either with it.
       caption.current = batchCaption
       mission.current = batchMission
+      challenge.current = batchChallenge
       const ids = itemsRef.current.filter((item) => item.state === 'pending').map((item) => item.id)
       void run(ids)
     },
@@ -464,6 +477,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
   const handOff = useCallback((): readonly OutboxHandOff[] => {
     const batchCaption = caption.current
     const batchMission = mission.current
+    const batchChallenge = challenge.current
     return itemsRef.current
       .filter((item) => owed.current.has(item.id) && !storing.current.has(item.id))
       .map((item): OutboxHandOff => {
@@ -473,6 +487,7 @@ export const useUploadQueue = (options: UploadQueueOptions): UploadQueue => {
             ready === undefined ? resize(item.file).catch(() => item.file) : Promise.resolve(ready),
           caption: batchCaption,
           missionId: batchMission,
+          challengeId: batchChallenge,
         }
       })
   }, [resize])

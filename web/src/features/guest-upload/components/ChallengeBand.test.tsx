@@ -1,5 +1,4 @@
 import { act, render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fr } from '../../../lib/i18n/fr'
 import { LocaleProvider } from '../../../lib/i18n/LocaleProvider'
@@ -20,13 +19,11 @@ const challenge = (overrides: Partial<GuestChallengeDto> = {}): GuestChallengeDt
 const mount = (
   props: Partial<Parameters<typeof ChallengeBand>[0]> & { readonly challenge: GuestChallengeDto },
 ) => {
-  const onTakeUp = vi.fn()
-  const view = render(
+  return render(
     <LocaleProvider initialLocale="fr">
-      <ChallengeBand offsetMs={0} onTakeUp={onTakeUp} {...props} />
+      <ChallengeBand offsetMs={0} {...props} />
     </LocaleProvider>,
   )
-  return { ...view, onTakeUp }
 }
 
 describe('ChallengeBand', () => {
@@ -47,20 +44,11 @@ describe('ChallengeBand', () => {
     expect(screen.getByText('un selfie avec votre voisin')).toBeVisible()
   })
 
-  it('chooses the challenge mission when the guest takes it up', async () => {
-    const { onTakeUp } = mount({ challenge: challenge() })
-
-    await userEvent
-      .setup({ advanceTimers: vi.advanceTimersByTime })
-      .click(screen.getByRole('button', { name: fr.challenge.takeUp }))
-
-    expect(onTakeUp).toHaveBeenCalledWith('m1')
-  })
-
-  it('offers no button for a challenge whose mission was just deleted', () => {
+  it('shows a challenge that has no mission, and offers no button: the box above Envoyer does it', () => {
     mount({ challenge: challenge({ missionId: null }) })
 
-    expect(screen.queryByRole('button', { name: fr.challenge.takeUp })).not.toBeInTheDocument()
+    expect(screen.getByText('un selfie avec votre voisin')).toBeVisible()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('counts against the server clock: a phone three minutes ahead shows the same time', () => {
@@ -82,7 +70,7 @@ describe('ChallengeBand', () => {
     expect(screen.getByText('1:41')).toBeVisible()
   })
 
-  it('says it is over at zero, takes the button away, and goes after ten seconds', async () => {
+  it('says it is over at zero and goes after ten seconds', async () => {
     const { container } = mount({
       challenge: challenge({ endsAt: new Date(NOW.getTime() + 2_000).toISOString() }),
     })
@@ -91,7 +79,6 @@ describe('ChallengeBand', () => {
       await vi.advanceTimersByTimeAsync(3_000)
     })
     expect(screen.getByText(fr.challenge.ended)).toBeVisible()
-    expect(screen.queryByRole('button', { name: fr.challenge.takeUp })).not.toBeInTheDocument()
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(ENDED_SHOWN_MS)

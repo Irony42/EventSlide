@@ -2950,8 +2950,8 @@ export const fr = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Début du défi photo : ${prompt}`,
-    /** The phone's button: it chooses the challenge's mission for the next photograph. */
-    takeUp: 'Relever le défi',
+    /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
+    participate: 'Je participe au défi',
     announceEnd: 'Fin du défi photo',
   },
   titles: {

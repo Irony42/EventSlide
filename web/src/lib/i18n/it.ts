@@ -2262,8 +2262,8 @@ export const it: UiText = {
       }),
     /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
     announceStart: (prompt: string) => `Inizia la sfida fotografica: ${prompt}`,
-    /** The phone's button: it chooses the challenge's mission for the next photograph. */
-    takeUp: 'Accetta la sfida',
+    /** The box above "Envoyer" while a challenge runs (spec 18): checked, the photo answers it. */
+    participate: 'Partecipo alla sfida',
     announceEnd: 'Fine della sfida fotografica',
   },
   titles: {

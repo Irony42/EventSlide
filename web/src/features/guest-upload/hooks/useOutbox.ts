@@ -70,6 +70,7 @@ export interface Outbox {
     file: File,
     caption: string | null,
     missionId: string | null,
+    challengeId?: string | null,
   ) => Promise<string | null>
   /**
    * Forgets a stored photo.
@@ -377,6 +378,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       file: File,
       caption: string | null,
       missionId: string | null,
+      challengeId: string | null = null,
     ): Promise<string | null> => {
       if (!acceptsFileType(file.type)) {
         // Refused before a byte is read, and said out loud rather than swallowed. The
@@ -407,6 +409,7 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
             fileType: file.type,
             caption,
             missionId,
+            challengeId,
             // Captured now, because the worker that may send this has no
             // `document.cookie`. See `OutboxEntry.csrfToken`.
             csrfToken: currentCsrfToken(),
@@ -442,11 +445,12 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       file: File,
       caption: string | null,
       missionId: string | null,
+      challengeId: string | null = null,
     ): Promise<string | null> => {
       const opened = store.current
       if (opened === null) return null
       const write = (async (): Promise<string | null> => {
-        const id = await storeIn(opened, file, caption, missionId)
+        const id = await storeIn(opened, file, caption, missionId, challengeId)
         if (id === null) return null
         await count()
         // Best effort, and never awaited for its answer: the foreground drain is what
@@ -479,7 +483,16 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
       for (const photo of photos) {
         try {
           const file = await photo.file()
-          if ((await storeIn(opened, file, photo.caption, photo.missionId)) !== null) stored += 1
+          if (
+            (await storeIn(
+              opened,
+              file,
+              photo.caption,
+              photo.missionId,
+              photo.challengeId ?? null,
+            )) !== null
+          )
+            stored += 1
         } catch (cause) {
           console.warn('a photo could not be handed to the outbox on leaving', cause)
         }

@@ -25,6 +25,7 @@ export const apiOutboxSender = (api: Api): OutboxSender => {
         files: [fileFor(entry)],
         caption: entry.caption,
         missionId: entry.missionId,
+        challengeId: entry.challengeId ?? null,
       })
       return outcomeForResults(response.results)
     } catch (cause) {

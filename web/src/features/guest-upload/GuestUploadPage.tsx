@@ -11,6 +11,7 @@ import { cx } from '../../design-system/classNames'
 import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { ChallengeBand } from './components/ChallengeBand'
+import { isChallengeRunning, ParticipateBox } from './components/ParticipateBox'
 import { MissionChecklist } from './components/MissionChecklist'
 import { EraseEverything } from './components/EraseEverything'
 import { GuestbookCard } from './components/GuestbookCard'
@@ -167,6 +168,8 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
    */
   const notice = usePrivacyNotice(slug, privacyNotice)
   const [noticeOpen, setNoticeOpen] = useState(false)
+  // "Je participe au défi" (spec 18): checked for every batch, so playing costs no tap.
+  const [participate, setParticipate] = useState(true)
   const publication = notice.state?.notice.publication ?? null
   /**
    * The host's prompts, and the one the next send is filed under (roadmap §2.1).
@@ -377,6 +380,22 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   const bookOpen = !messages.unavailable && messages.accepting && !mine.unavailable
 
   /** The words of the chosen prompt, for the line under the send button. */
+  const sendBatch = () => {
+    // The id goes only when the box is checked and the challenge still runs by the
+    // server's clock; the server decides all the same and keeps the photographs.
+    const answering =
+      participate &&
+      missions.challenge !== null &&
+      isChallengeRunning(missions.challenge, missions.offsetMs, Date.now())
+    queue.send(
+      trimmedCaption.length === 0 ? null : trimmedCaption,
+      missions.selected,
+      answering && missions.challenge !== null ? missions.challenge.id : null,
+    )
+    // The next batch starts checked again.
+    setParticipate(true)
+  }
+
   const selectedPrompt =
     missions.missions.find((mission) => mission.id === missions.selected)?.prompt ?? null
 
@@ -654,14 +673,13 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
 
               Nothing at all for the majority of events, which set no prompts.
             */}
-            {/* The host's timed challenge (spec 10): one band and one button, nothing for a guest
-                who does not want to play; absent when none runs. */}
-            {missions.challenge === null || missions.missions.length === 0 ? null : (
+            {/* The host's timed challenge (spec 10): one band, nothing for a guest who does not
+                want to play; absent when none runs. It needs no mission (spec 18). */}
+            {missions.challenge === null ? null : (
               <ChallengeBand
                 key={missions.challenge.id}
                 challenge={missions.challenge}
                 offsetMs={missions.offsetMs}
-                onTakeUp={missions.select}
               />
             )}
             <MissionChecklist
@@ -681,15 +699,25 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
               clip={clip}
               limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
             />
+            {/* Above "Envoyer", where the thumb is: only with a challenge running, a photo chosen
+                and no video in hand (a video does not answer a challenge). */}
+            {missions.challenge === null ||
+            queue.sendableCount === 0 ||
+            clip.stage !== 'idle' ? null : (
+              <ParticipateBox
+                challenge={missions.challenge}
+                offsetMs={missions.offsetMs}
+                checked={participate}
+                onChange={setParticipate}
+              />
+            )}
             <Button
               variant="primary"
               size="lg"
               block
               loading={queue.sending}
               disabled={queue.sendableCount === 0}
-              onClick={() =>
-                queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
-              }
+              onClick={sendBatch}
             >
               {queue.sendableCount === 0 ? t.upload.send : t.upload.sendCount(queue.sendableCount)}
             </Button>
