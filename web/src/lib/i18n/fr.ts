@@ -1157,6 +1157,10 @@ export const fr = {
       intervalHint: 'Le temps pendant lequel chaque photo reste à l’écran.',
       intervalDefault: 'Par défaut (une photo toutes les 8 s)',
       intervalSeconds: (n: number) => `Une photo toutes les ${n} s`,
+      mixed: 'Alterner mur et diaporama',
+      mixedHint: 'Le mur affiche une vue d’ensemble, puis une photo en grand, tour à tour.',
+      mixedWall: 'Temps sur le mur',
+      mixedSlideshow: 'Temps sur le diaporama',
       freshLane: 'Nouvelles photos en priorité',
       freshLaneHint: 'Une photo publiée prend la diapositive suivante, trois de suite au plus.',
       tilt: 'Photos légèrement inclinées',
@@ -2044,6 +2048,14 @@ export const fr = {
     'eventSettings.maxPhotosPerGuestInvalid': 'Ce nombre de photos par invité n’est pas accepté.',
     // The picker offers only the five the build carries, so a host meets this through the
     // API or a tab left open across a deploy that removed one.
+    'wallMixed.wallTooShort':
+      'La durée sur le mur doit être comprise entre 30 secondes et 60 minutes.',
+    'wallMixed.wallTooLong':
+      'La durée sur le mur doit être comprise entre 30 secondes et 60 minutes.',
+    'wallMixed.slideshowTooShort':
+      'La durée du diaporama doit être comprise entre 15 secondes et 30 minutes.',
+    'wallMixed.slideshowTooLong':
+      'La durée du diaporama doit être comprise entre 15 secondes et 30 minutes.',
     'eventSettings.wallLanguageInvalid':
       'Cette langue n’est pas disponible. Choisissez-en une dans la liste.',
     'email.malformed': 'Cette adresse e-mail n’est pas valide.',

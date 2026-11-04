@@ -919,6 +919,55 @@ describe('EventSettingsPage', () => {
       expect(sent).not.toHaveProperty('wall')
     })
 
+    it('keeps the mixed wall off and its durations hidden until the box is ticked (spec 09)', async () => {
+      renderPage(fakeApi())
+
+      const box = await screen.findByLabelText(fr.admin.wallDisplay.mixed)
+      expect(box).not.toBeChecked()
+      expect(screen.queryByLabelText(fr.admin.wallDisplay.mixedWall)).toBeNull()
+      expect(screen.queryByLabelText(fr.admin.wallDisplay.mixedSlideshow)).toBeNull()
+
+      await userEvent.click(box)
+
+      expect(screen.getByLabelText(fr.admin.wallDisplay.mixedWall)).toHaveValue('180')
+      expect(screen.getByLabelText(fr.admin.wallDisplay.mixedSlideshow)).toHaveValue('60')
+    })
+
+    it('sends only the mixed keys that changed (spec 09)', async () => {
+      const api = fakeApi()
+
+      renderPage(api)
+      await userEvent.click(await screen.findByLabelText(fr.admin.wallDisplay.mixed))
+      await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.mixedWall), '300')
+      await userEvent.click(screen.getByRole('button', { name: fr.app.save }))
+
+      const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
+      expect(sent?.wall).toEqual({ mixedEnabled: true, mixedWallSeconds: 300 })
+    })
+
+    it('shows a stored duration outside the steps as it is (spec 09)', async () => {
+      renderPage(
+        fakeApi({
+          getEvent: vi.fn(async () =>
+            anEventDto({
+              settings: eventSettings({
+                wall: {
+                  layout: null,
+                  slideIntervalMs: null,
+                  mixedEnabled: true,
+                  mixedWallSeconds: 95,
+                  mixedSlideshowSeconds: 45,
+                },
+              }),
+            }),
+          ),
+        }),
+      )
+
+      expect(await screen.findByLabelText(fr.admin.wallDisplay.mixedWall)).toHaveValue('95')
+      expect(screen.getByLabelText(fr.admin.wallDisplay.mixedSlideshow)).toHaveValue('45')
+    })
+
     it('sends only the switch the host flipped', async () => {
       const api = fakeApi()
 

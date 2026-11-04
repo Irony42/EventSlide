@@ -497,6 +497,12 @@ export const it: UiText = {
     'eventSettings.graceSecondsInvalid': 'Questo tempo di eliminazione non è accettato.',
     'eventSettings.retentionDaysInvalid': 'Questo periodo di conservazione non è accettato.',
     'eventSettings.maxPhotosPerGuestInvalid': 'Questo numero di foto per invitato non è accettato.',
+    'wallMixed.wallTooShort': 'Il tempo sul muro deve essere compreso tra 30 secondi e 60 minuti.',
+    'wallMixed.wallTooLong': 'Il tempo sul muro deve essere compreso tra 30 secondi e 60 minuti.',
+    'wallMixed.slideshowTooShort':
+      'Il tempo della presentazione deve essere compreso tra 15 secondi e 30 minuti.',
+    'wallMixed.slideshowTooLong':
+      'Il tempo della presentazione deve essere compreso tra 15 secondi e 30 minuti.',
     'eventSettings.wallLanguageInvalid':
       'Questa lingua non è disponibile. Ne scelga una dall’elenco.',
     'email.malformed': 'Questo indirizzo e-mail non è valido.',
@@ -1059,6 +1065,10 @@ export const it: UiText = {
       intervalHint: 'Per quanto tempo ogni foto resta sullo schermo.',
       intervalDefault: 'Predefinito (una foto ogni 8 s)',
       intervalSeconds: (n: number) => `Una foto ogni ${n} s`,
+      mixed: 'Alternare muro e presentazione',
+      mixedHint: 'Il muro mostra una vista d’insieme, poi una foto grande, a turno.',
+      mixedWall: 'Tempo sul muro',
+      mixedSlideshow: 'Tempo nella presentazione',
       freshLane: 'Foto nuove per prime',
       freshLaneHint:
         'Una foto pubblicata prende la diapositiva successiva, al massimo tre di fila.',

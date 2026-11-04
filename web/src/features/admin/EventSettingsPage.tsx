@@ -15,7 +15,14 @@ import { DateTimeField } from './components/DateTimeField'
 import { SelectField, type SelectOption } from './components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
 import { WallQrControls } from './components/WallQrControls'
-import { WALL_UNSET, wallLayoutOptions, wallRhythmOptions } from './wallDisplayOptions'
+import {
+  MIXED_SLIDESHOW_STEPS_SECONDS,
+  MIXED_WALL_STEPS_SECONDS,
+  WALL_UNSET,
+  mixedDurationOptions,
+  wallLayoutOptions,
+  wallRhythmOptions,
+} from './wallDisplayOptions'
 import { VenuePhotoField } from './components/VenuePhotoField'
 import { LogoField } from './components/LogoField'
 import { WelcomeMessageField } from './components/WelcomeMessageField'
@@ -132,6 +139,10 @@ const settingsIdentity = (settings: EventSettingsDto): string =>
     // The wall group (spec 13), for the same reason.
     settings.wall.layout ?? '',
     settings.wall.slideIntervalMs ?? '',
+    // The mixed wall (spec 09).
+    settings.wall.mixedEnabled,
+    settings.wall.mixedWallSeconds,
+    settings.wall.mixedSlideshowSeconds,
     settings.wall.souvenirCounter,
     settings.wall.newPhotoSignal,
     settings.wall.freshLane,
@@ -534,6 +545,46 @@ export function EventSettingsPage() {
               update({ wall: { ...settings.wall, slideIntervalMs: numberOrNull(value) } })
             }
           />
+          {/* The mixed wall (spec 09): off until chosen, the two durations only once it is on. */}
+          <CheckboxField
+            label={t.admin.wallDisplay.mixed}
+            hint={t.admin.wallDisplay.mixedHint}
+            checked={settings.wall.mixedEnabled}
+            disabled={readOnly}
+            onChange={(mixedEnabled) => update({ wall: { ...settings.wall, mixedEnabled } })}
+          />
+          {settings.wall.mixedEnabled ? (
+            <>
+              <SelectField
+                label={t.admin.wallDisplay.mixedWall}
+                value={String(settings.wall.mixedWallSeconds)}
+                options={mixedDurationOptions(
+                  MIXED_WALL_STEPS_SECONDS,
+                  settings.wall.mixedWallSeconds,
+                )}
+                disabled={readOnly}
+                onChange={(value) =>
+                  update({
+                    wall: { ...settings.wall, mixedWallSeconds: Number.parseInt(value, 10) },
+                  })
+                }
+              />
+              <SelectField
+                label={t.admin.wallDisplay.mixedSlideshow}
+                value={String(settings.wall.mixedSlideshowSeconds)}
+                options={mixedDurationOptions(
+                  MIXED_SLIDESHOW_STEPS_SECONDS,
+                  settings.wall.mixedSlideshowSeconds,
+                )}
+                disabled={readOnly}
+                onChange={(value) =>
+                  update({
+                    wall: { ...settings.wall, mixedSlideshowSeconds: Number.parseInt(value, 10) },
+                  })
+                }
+              />
+            </>
+          ) : null}
           <CheckboxField
             label={t.admin.wallDisplay.freshLane}
             hint={t.admin.wallDisplay.freshLaneHint}

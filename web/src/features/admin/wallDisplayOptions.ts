@@ -47,6 +47,30 @@ export const wallRhythmOptions = (
   ]
 }
 
+/** Whole seconds as a person reads them: "45 s", "3 min". The same abbreviations in the five languages. */
+const durationLabel = (seconds: number): string =>
+  seconds % 60 === 0 ? `${seconds / 60} min` : `${seconds} s`
+
+/** Steps for the time on the wall (30 s to 60 min) and on the slideshow (15 s to 30 min). */
+export const MIXED_WALL_STEPS_SECONDS: readonly number[] = [
+  30, 60, 120, 180, 300, 600, 900, 1_800, 3_600,
+]
+export const MIXED_SLIDESHOW_STEPS_SECONDS: readonly number[] = [
+  15, 30, 60, 120, 180, 300, 600, 1_800,
+]
+
+/**
+ * A closed list of durations, every one inside the server's bounds. A value the server already
+ * holds that is not a step (set through the API) is shown as it is, never rewritten.
+ */
+export const mixedDurationOptions = (
+  steps: readonly number[],
+  current: number,
+): readonly SelectOption[] =>
+  [...new Set([...steps, current])]
+    .sort((a, b) => a - b)
+    .map((seconds) => ({ value: String(seconds), label: durationLabel(seconds) }))
+
 /**
  * Only the `wall` keys that differ from what the page loaded. The panel on the wall writes the
  * same group at other moments, and sending the whole object would erase what it changed in
@@ -61,6 +85,13 @@ export const wallChanges = (
   if (draft.layout !== loaded.layout) changes.layout = draft.layout
   if (draft.slideIntervalMs !== loaded.slideIntervalMs) {
     changes.slideIntervalMs = draft.slideIntervalMs
+  }
+  if (draft.mixedEnabled !== loaded.mixedEnabled) changes.mixedEnabled = draft.mixedEnabled
+  if (draft.mixedWallSeconds !== loaded.mixedWallSeconds) {
+    changes.mixedWallSeconds = draft.mixedWallSeconds
+  }
+  if (draft.mixedSlideshowSeconds !== loaded.mixedSlideshowSeconds) {
+    changes.mixedSlideshowSeconds = draft.mixedSlideshowSeconds
   }
   if (draft.souvenirCounter !== loaded.souvenirCounter) {
     changes.souvenirCounter = draft.souvenirCounter
