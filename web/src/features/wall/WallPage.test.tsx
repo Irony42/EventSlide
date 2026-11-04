@@ -2017,6 +2017,43 @@ describe('WallPage', () => {
     })
   })
 
+  describe('WallPage, the mixed wall across many boundaries', () => {
+    const SERVER_NOW = 1_790_000_000_000
+
+    it('changes phase at every boundary, even when each one is reported with the same time left', async () => {
+      // Equal phases, and a clock that moves in whole phases: every render lands exactly on a
+      // boundary, so the wall half and the slideshow half both have 300 ms left. The boundary
+      // timer used to be re-armed only when that figure changed, so the second boundary was
+      // never watched and the room stayed on one phase until something else re-rendered.
+      vi.useFakeTimers()
+      const wall = aPopulatedWall({
+        items: somePhotos(8),
+        serverNowMs: SERVER_NOW,
+        mixed: { wallMs: 180_000, slideshowMs: 60_000, layout: 'mosaic', anchorMs: SERVER_NOW },
+      })
+      renderWithProviders(<WallPage />, {
+        api: fakeApi({ wall: wallSequence(wall) }),
+        route: `${ROUTE}?e2e_phase_ms=300&e2e_transition=0`,
+        path: PATH,
+      })
+      const advance = (ms: number) =>
+        act(async () => {
+          await vi.advanceTimersByTimeAsync(ms)
+        })
+      await advance(0)
+      const phaseOf = (): string | null => theWall().getAttribute('data-wall-phase')
+      expect(phaseOf()).toBe('wall')
+
+      const seen: (string | null)[] = []
+      for (let boundary = 0; boundary < 6; boundary += 1) {
+        await advance(300)
+        seen.push(phaseOf())
+      }
+
+      expect(seen).toEqual(['slideshow', 'wall', 'slideshow', 'wall', 'slideshow', 'wall'])
+    })
+  })
+
   describe('an event the host has closed (MUR-3)', () => {
     const aClosedWall = (overrides: Partial<WallResponse> = {}): WallResponse =>
       aPopulatedWall({ acceptsGuests: false, ...overrides })
