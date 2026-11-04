@@ -10,6 +10,7 @@ import { prefersReducedMotion } from '../../lib/prefersReducedMotion'
 import { cx } from '../../design-system/classNames'
 import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
+import { ChallengeBand } from './components/ChallengeBand'
 import { MissionChecklist } from './components/MissionChecklist'
 import { EraseEverything } from './components/EraseEverything'
 import { GuestbookCard } from './components/GuestbookCard'
@@ -653,6 +654,16 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
 
               Nothing at all for the majority of events, which set no prompts.
             */}
+            {/* The host's timed challenge (spec 10): one band and one button, nothing for a guest
+                who does not want to play; absent when none runs. */}
+            {missions.challenge === null || missions.missions.length === 0 ? null : (
+              <ChallengeBand
+                key={missions.challenge.id}
+                challenge={missions.challenge}
+                offsetMs={missions.offsetMs}
+                onTakeUp={missions.select}
+              />
+            )}
             <MissionChecklist
               missions={missions.missions}
               selected={missions.selected}

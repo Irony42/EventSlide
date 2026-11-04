@@ -599,6 +599,12 @@ export const de: UiText = {
     'mission.promptEmpty': 'Schreiben Sie, worum die Mission bittet.',
     'mission.promptTooLong': 'Dieser Text ist zu lang für den Bildschirm.',
     'mission.promptInvalid': 'Dieser Text ist nicht gültig.',
+    'challenge.alreadyRunning':
+      'Es läuft bereits eine Challenge. Stoppen Sie sie, bevor Sie eine neue starten.',
+    'challenge.limit': 'Diese Veranstaltung hat die zulässige Anzahl an Challenges erreicht.',
+    'challenge.eventNotOpen':
+      'Eine Challenge kann nur starten, solange die Veranstaltung geöffnet ist.',
+    'challenge.durationInvalid': 'Diese Dauer ist nicht gültig.',
 
     'eventTheme.accentHueInvalid': 'Diese Farbe ist unbekannt. Wählen Sie eine aus der Liste.',
     'eventTheme.accentUnreadable':
@@ -908,6 +914,7 @@ export const de: UiText = {
       close: 'Einstellungen schließen',
       sectionDisplay: 'Anzeige',
       sectionAmbiance: 'Ambiente',
+      sectionQr: 'QR-Code',
       forAll: 'Für alle Bildschirme',
       thisScreen: 'Nur dieser Bildschirm',
       thisScreenHint:
@@ -1090,6 +1097,26 @@ export const de: UiText = {
       newPhotoSignal: 'Neue Fotos ankündigen',
       newPhotoSignalHint:
         'Eine kurze Meldung oben in der Mitte, wenn ein Foto oder Video gerade auf der Wand erschienen ist. Nie der Name des Gastes.',
+      // Spec 14: the invitation card.
+      qrTitle: 'QR-Code',
+      qrVisible: 'QR-Code auf der Wand zeigen',
+      qrVisibleHint:
+        'Spät ankommende Gäste haben dann keinen QR-Code mehr. Die leere Wand behält ihre Einladung.',
+      qrSize: 'Größe des QR-Codes',
+      qrSizeValue: (n: number) => `× ${String(Math.round(n * 100) / 100).replace('.', ',')}`,
+      qrSizeSmall: 'Klein',
+      qrSizeMedium: 'Mittel',
+      qrSizeLarge: 'Groß',
+      qrSizeHint: 'Der QR-Code wird nie kleiner als lesbar: ein langer Link hält ihn größer.',
+      qrPlacement: 'Position',
+      qrCorners: {
+        'top-start': 'Oben links',
+        'top-end': 'Oben rechts',
+        'bottom-start': 'Unten links',
+        'bottom-end': 'Unten rechts',
+      },
+      qrPlacementHint:
+        'Bei Layouts mit Platz für die Karte rücken die Fotos zusammen; bei den anderen liegt die Karte über den Fotos.',
     },
     wallSound: {
       title: 'Ton',
@@ -2166,6 +2193,34 @@ export const de: UiText = {
     step3: 'Sie erscheinen auf dem Bildschirm des Abends.',
     fallback: (code: string, address: string) =>
       `Kein QR-Code? Geben Sie den Code ${code} auf ${address} ein.`,
+  },
+  /** The timed photo challenge (spec 10): the console's panel. The prompt inside it is content, never translated. */
+  challenge: {
+    title: 'Foto-Challenge',
+    hint: 'Starten Sie eine Mission für einige Minuten: Bildschirm und Handys zählen gemeinsam herunter.',
+    mission: 'Mission',
+    duration: 'Dauer',
+    minutes: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Minute`,
+        other: `${t.number(count)} Minuten`,
+      }),
+    launch: 'Als Challenge starten',
+    stop: 'Stoppen',
+    remaining: (time: string) => `Challenge läuft · ${time}`,
+    noMissions: 'Fügen Sie zuerst eine Mission hinzu, um eine Challenge zu starten.',
+    notOpen: 'Eine Challenge lässt sich starten, sobald die Veranstaltung geöffnet ist.',
+    ended: 'Challenge beendet',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto`,
+        other: `${t.number(count)} Fotos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Foto-Challenge gestartet: ${prompt}`,
+    /** The phone's button: it chooses the challenge's mission for the next photograph. */
+    takeUp: 'Challenge annehmen',
+    announceEnd: 'Foto-Challenge beendet',
   },
   titles: {
     print: 'Tischkarten und Plakat',

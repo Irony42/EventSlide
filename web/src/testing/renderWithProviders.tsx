@@ -332,6 +332,10 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // settings field cannot go uncompared. A test that wants the server build which
   // predates the field deletes the key rather than overriding it.
   wallLanguage: 'fr',
+  // The server's clock at the read, and no challenge: present rather than omitted for the same
+  // reason (the enumeration in `useWallPlaylist.settings.test.ts` cannot see an omitted key).
+  serverNowMs: 1_782_000_000_000,
+  challenge: null,
   ...overrides,
 })
 
@@ -693,6 +697,16 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   createMission: vi.fn(async (): Promise<MissionDto> => aMission()),
   updateMission: vi.fn(async () => undefined),
   deleteMission: vi.fn(async () => undefined),
+  getChallenge: vi.fn(async () => ({ serverNowMs: Date.now(), challenge: null })),
+  startChallenge: vi.fn(async () => ({
+    id: 'challenge-1',
+    missionId: null,
+    prompt: '',
+    startedAt: new Date().toISOString(),
+    endsAt: new Date().toISOString(),
+    state: 'running' as const,
+  })),
+  stopChallenge: vi.fn(async () => undefined),
 
   // No link by default: the panel's first state is the one a host meets first.
   shareLink: vi.fn(async () => ({ link: null })),

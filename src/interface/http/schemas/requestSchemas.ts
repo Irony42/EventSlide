@@ -169,6 +169,9 @@ export const joinCodeParams = z.object({ code: joinCode })
 
 export const missionParams = z.object({ eventSlug: slug, missionId: uuid })
 
+/** `DELETE /challenge` carries no body and no id: there is at most one running challenge. */
+export const challengeParams = z.object({ eventSlug: slug })
+
 /**
  * `GET /guestbook?status=&limit=`: one status or none (every one), and a limit up to the book's own
  * ceiling of 500 rows: a book is bounded, so there is no cursor.
@@ -583,6 +586,16 @@ export const inviteModeratorBody = z.strictObject({
 export const missionBody = z.strictObject({
   prompt: z.string().max(1_000),
   scope: z.enum(MISSION_SCOPES),
+})
+
+/**
+ * `POST /challenge` (spec 10). The duration is any number here: **the domain owns the bounds**
+ * (15 s to 30 min), so a value out of them is the use case's `400 challenge.durationInvalid`,
+ * not a second copy of the rule in a schema.
+ */
+export const challengeBody = z.strictObject({
+  missionId: uuid,
+  durationSeconds: z.number(),
 })
 
 // --------------------------------------------------------------- moderation --

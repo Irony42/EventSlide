@@ -1,5 +1,6 @@
 import {
   asAccountTokenId,
+  asChallengeId,
   asClientId,
   asClipJobId,
   asEventId,
@@ -11,6 +12,7 @@ import {
   asShareLinkId,
   asUserId,
   type AccountTokenId,
+  type ChallengeId,
   type ClientId,
   type ClipJobId,
   type EventId,
@@ -53,6 +55,8 @@ export class SequentialIdGenerator implements IdGenerator {
   private clients = 0
 
   private accountTokens = 0
+
+  private challenges = 0
 
   /**
    * How far the byte sequence has run. It advances across calls so two events created
@@ -111,6 +115,11 @@ export class SequentialIdGenerator implements IdGenerator {
     return asClientId(`client-${this.clients}`)
   }
 
+  challengeId(): ChallengeId {
+    this.challenges += 1
+    return asChallengeId(`challenge-${this.challenges}`)
+  }
+
   accountTokenId(): AccountTokenId {
     this.accountTokens += 1
     return asAccountTokenId(`account-token-${this.accountTokens}`)
@@ -149,6 +158,7 @@ export class SequentialIdGenerator implements IdGenerator {
     this.shareLinks = 0
     this.clients = 0
     this.accountTokens = 0
+    this.challenges = 0
     this.byteOffset = 0
     return this
   }

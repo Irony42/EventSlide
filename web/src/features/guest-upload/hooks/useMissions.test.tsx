@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { ApiProvider } from '../../../app/ApiProvider'
 import { aGuestMission, fakeApi } from '../../../testing/renderWithProviders'
-import { useMissions } from './useMissions'
+import { CHALLENGE_POLL_MS, useMissions } from './useMissions'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 
@@ -109,7 +109,16 @@ describe('useMissions', () => {
 
     await waitFor(() => expect(api.myMissions).toHaveBeenCalled())
     expect(result.current.missions).toEqual([])
-    expect(Object.keys(result.current)).toEqual(['missions', 'selected', 'toggle', 'refresh'])
+    // Still no loading flag and no error: the two this screen deliberately never reports.
+    expect(Object.keys(result.current)).toEqual([
+      'missions',
+      'selected',
+      'toggle',
+      'select',
+      'refresh',
+      'challenge',
+      'offsetMs',
+    ])
   })
 })
 
@@ -203,5 +212,146 @@ describe('useMissions: its read', () => {
     unmount()
 
     expect(signals[0]?.aborted).toBe(true)
+  })
+})
+
+/**
+ * The phone side of the timed challenge (spec 10): it has no event stream, so it asks again.
+ */
+describe('useMissions: the timed challenge', () => {
+  const running = (leftMs = 60_000) => ({
+    id: 'c1',
+    missionId: 'm1',
+    prompt: 'un selfie',
+    endsAt: new Date(Date.now() + leftMs).toISOString(),
+    state: 'running' as const,
+  })
+
+  const setVisibility = (state: 'visible' | 'hidden'): void => {
+    Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
+  }
+
+  const oneMission = () => vi.fn(async () => ({ items: [aGuestMission({ id: 'm1' })] }))
+
+  beforeEach(() => {
+    // Jitter pinned to its middle, so a poll is exactly twenty seconds.
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setVisibility('visible')
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+    setVisibility('visible')
+  })
+
+  it('exposes the challenge and the offset to the server clock', async () => {
+    const api = fakeApi({
+      myMissions: vi.fn(async () => ({
+        items: [aGuestMission({ id: 'm1' })],
+        serverNowMs: Date.now() - 180_000,
+        challenge: running(),
+      })),
+    })
+
+    const { result } = mount(api)
+
+    await waitFor(() => expect(result.current.challenge?.id).toBe('c1'))
+    expect(result.current.offsetMs).toBeLessThan(-170_000)
+    expect(result.current.offsetMs).toBeGreaterThan(-190_000)
+  })
+
+  it('has no challenge for a server that does not send one', async () => {
+    const { result } = mount(fakeApi({ myMissions: oneMission() }))
+
+    await waitFor(() => expect(result.current.missions).toHaveLength(1))
+    expect(result.current.challenge).toBeNull()
+    expect(result.current.offsetMs).toBe(0)
+  })
+
+  it('reads again every twenty seconds while the host has prompts', async () => {
+    const api = fakeApi({ myMissions: oneMission() })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.missions).toHaveLength(1))
+    expect(api.myMissions).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS)
+    })
+    await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS)
+    })
+    await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(3))
+  })
+
+  it('spreads the reads: the delay is jittered, not the same for every phone', async () => {
+    vi.mocked(Math.random).mockReturnValue(0)
+    const api = fakeApi({ myMissions: oneMission() })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.missions).toHaveLength(1))
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS * 0.85 + 50)
+    })
+
+    await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(2))
+  })
+
+  it('never reads again on an event whose host set no prompts', async () => {
+    const api = fakeApi({ myMissions: vi.fn(async () => ({ items: [] })) })
+    const { result } = mount(api)
+    await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(1))
+    expect(result.current.missions).toEqual([])
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS * 3)
+    })
+
+    expect(api.myMissions).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not read while the page is hidden, and reads at once when it comes back', async () => {
+    const api = fakeApi({ myMissions: oneMission() })
+    const { result } = mount(api)
+    await waitFor(() => expect(result.current.missions).toHaveLength(1))
+    setVisibility('hidden')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS * 2)
+    })
+    expect(api.myMissions).toHaveBeenCalledTimes(1)
+
+    setVisibility('visible')
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    await waitFor(() => expect(api.myMissions).toHaveBeenCalledTimes(2))
+  })
+
+  it('stops asking when the screen goes away', async () => {
+    const api = fakeApi({ myMissions: oneMission() })
+    const { result, unmount } = mount(api)
+    await waitFor(() => expect(result.current.missions).toHaveLength(1))
+
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+    unmount()
+    await vi.advanceTimersByTimeAsync(CHALLENGE_POLL_MS * 3)
+
+    expect(vi.getTimerCount()).toBe(0)
+    expect(api.myMissions).toHaveBeenCalledTimes(1)
+  })
+
+  it('chooses a mission without a second tap clearing it', async () => {
+    const { result } = mount(fakeApi({ myMissions: oneMission() }))
+    await waitFor(() => expect(result.current.missions).toHaveLength(1))
+
+    act(() => result.current.select('m1'))
+    act(() => result.current.select('m1'))
+
+    expect(result.current.selected).toBe('m1')
   })
 })

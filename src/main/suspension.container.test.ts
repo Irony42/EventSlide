@@ -388,6 +388,12 @@ describe('a suspended client, through the real composition root', () => {
     { method: 'patch', path: '/api/events/:eventSlug/missions/:missionId', body: SOME_MISSION },
     { method: 'delete', path: '/api/events/:eventSlug/missions/:missionId', body: {} },
     {
+      method: 'post',
+      path: '/api/events/:eventSlug/challenge',
+      body: { missionId: ANY, durationSeconds: 120 },
+    },
+    { method: 'delete', path: '/api/events/:eventSlug/challenge', body: {} },
+    {
       method: 'patch',
       path: '/api/events/:eventSlug/photos/:photoId/status',
       body: { decision: 'publish' },
