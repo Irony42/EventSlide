@@ -1,8 +1,11 @@
+import { Challenge } from '../../../domain/challenges/challenge'
+import { MissionPrompt } from '../../../domain/missions/missionPrompt'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import type { Photo, PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
 import {
+  asChallengeId,
   asEventId,
   asGuestId,
   asMissionId,
@@ -24,6 +27,7 @@ import {
 } from '../../ports/mediaStore'
 import { aClient, aMission, anEvent, aPhoto, type EventInput } from '../../testing/builders'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
+import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
 import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
@@ -225,6 +229,7 @@ describe('uploadPhotos', () => {
   let events: FakeEventRepository
   let photos: FakePhotoRepository
   let missions: FakeMissionRepository
+  let challenges: FakeChallengeRepository
   let media: InMemoryMediaStore
   let images: FakeImageProcessor
   let hasher: FakeContentHasher
@@ -240,6 +245,7 @@ describe('uploadPhotos', () => {
       clients: new FakeClientRepository(),
       photos,
       missions,
+      challenges,
       media,
       imageProcessor: images,
       hasher,
@@ -255,6 +261,7 @@ describe('uploadPhotos', () => {
     events = new FakeEventRepository()
     photos = new FakePhotoRepository()
     missions = new FakeMissionRepository(photos)
+    challenges = new FakeChallengeRepository(photos)
     media = new InMemoryMediaStore().forbidEnumeration('photo ingest')
     images = new FakeImageProcessor()
     hasher = new FakeContentHasher()
@@ -1175,6 +1182,7 @@ describe('uploadPhotos and the mission tag', () => {
       clients: new FakeClientRepository(),
       photos,
       missions,
+      challenges: new FakeChallengeRepository(photos),
       media,
       imageProcessor: images,
       hasher,
@@ -1275,6 +1283,148 @@ describe('uploadPhotos and the mission tag', () => {
   })
 })
 
+describe('uploadPhotos and the challenge tag (spec 18)', () => {
+  let photos: FakePhotoRepository
+  let missions: FakeMissionRepository
+  let challenges: FakeChallengeRepository
+  let clock: FakeClock
+  let logger: CapturingLogger
+  let uploadPhotos: UploadPhotos
+
+  const launch = async (
+    input: { readonly id?: string; readonly eventId?: EventId; readonly missionId?: string } = {},
+  ): Promise<Challenge> => {
+    const prompt = MissionPrompt.create('un selfie')
+    if (!prompt.ok) throw new Error('prompt')
+    const started = Challenge.start(
+      {
+        eventId: input.eventId ?? EVENT,
+        missionId: input.missionId === undefined ? null : asMissionId(input.missionId),
+        prompt: prompt.value,
+        durationSeconds: 120,
+        createdBy: asUserId('host-1'),
+      },
+      asChallengeId(input.id ?? 'c1'),
+      clock.now(),
+    )
+    if (!started.ok) throw new Error('challenge')
+    await challenges.tryStart(started.value, clock.now())
+    return started.value
+  }
+
+  beforeEach(() => {
+    const events = new FakeEventRepository()
+    photos = new FakePhotoRepository()
+    missions = new FakeMissionRepository(photos)
+    challenges = new FakeChallengeRepository(photos)
+    clock = new FakeClock()
+    logger = new CapturingLogger()
+    uploadPhotos = makeUploadPhotos({
+      events,
+      clients: new FakeClientRepository(),
+      photos,
+      missions,
+      challenges,
+      media: new InMemoryMediaStore().forbidEnumeration('photo ingest'),
+      imageProcessor: new FakeImageProcessor(),
+      hasher: new FakeContentHasher(),
+      bus: new RecordingEventBus(),
+      clock,
+      ids: new SequentialIdGenerator(),
+      logger,
+      limits: { maxPixels: MAX_PIXELS },
+    })
+    events.seed(anEvent({ id: 'event-1' }), anEvent({ id: 'event-2', slug: 'gala', joinCode: 'Z3N9PT' }))
+    missions.seed(
+      aMission({ id: 'mission-1', eventId: 'event-1' }),
+      aMission({ id: 'mission-2', eventId: 'event-1', prompt: 'le gateau' }),
+    )
+  })
+
+  const send = async (
+    challengeId: string | null,
+    missionId: MissionId | null = null,
+    name = 'sunset',
+  ) =>
+    uploadPhotos({
+      eventId: EVENT,
+      author: GUEST,
+      files: [aFile(name)],
+      ...(challengeId === null ? {} : { challengeId: asChallengeId(challengeId) }),
+      ...(missionId === null ? {} : { missionId }),
+    })
+
+  const stored = async () => (await photos.list(EVENT)).items
+
+  it('files the photograph under the running challenge it names', async () => {
+    await launch()
+
+    await send('c1')
+
+    expect((await stored()).map((photo) => photo.challengeId)).toEqual(['c1'])
+  })
+
+  it('files nothing under a challenge when the box was left out', async () => {
+    await launch()
+
+    await send(null)
+
+    expect((await stored()).map((photo) => photo.challengeId)).toEqual([null])
+  })
+
+  it('drops the tag, and keeps the photograph, for a challenge of another event', async () => {
+    await launch({ id: 'c-gala', eventId: asEventId('event-2') })
+
+    const result = await send('c-gala')
+
+    expect(result.ok).toBe(true)
+    expect((await stored()).map((photo) => photo.challengeId)).toEqual([null])
+    expect(logger.messages('warn')).toHaveLength(1)
+  })
+
+  it('drops the tag for a challenge that is not the latest or does not exist', async () => {
+    await launch()
+
+    await send('c-ghost')
+
+    expect((await stored()).map((photo) => photo.challengeId)).toEqual([null])
+  })
+
+  it('accepts a late send up to a minute after the end, and drops the tag after', async () => {
+    await launch()
+    clock.advance(120_000 + 60_000)
+    await send('c1')
+    clock.advance(1)
+    await send('c1', null, 'second')
+
+    expect((await stored()).map((photo) => photo.challengeId).sort()).toEqual(['c1', null])
+  })
+
+  it('also files the photograph under the mission the challenge was launched from', async () => {
+    await launch({ missionId: 'mission-1' })
+
+    await send('c1')
+
+    expect((await stored()).map((photo) => photo.missionId)).toEqual(['mission-1'])
+  })
+
+  it('leaves the mission the guest chose alone', async () => {
+    await launch({ missionId: 'mission-1' })
+
+    await send('c1', asMissionId('mission-2'))
+
+    expect((await stored()).map((photo) => photo.missionId)).toEqual(['mission-2'])
+  })
+
+  it('files nothing under the challenge mission when the box was left out', async () => {
+    await launch({ missionId: 'mission-1' })
+
+    await send(null)
+
+    expect((await stored()).map((photo) => photo.missionId)).toEqual([null])
+  })
+})
+
 /**
  * The client's ceilings on the one public write (roadmap §10.5 / G2-05). Every photograph
  * the doubles above produce is exactly 1 MB, so a total is arithmetic a reader can do.
@@ -1300,6 +1450,7 @@ describe('uploadPhotos under a client’s ceilings', () => {
       clients,
       photos: photoRepo,
       missions: new FakeMissionRepository(photoRepo),
+      challenges: new FakeChallengeRepository(photoRepo),
       media,
       imageProcessor: images,
       hasher: new FakeContentHasher(),

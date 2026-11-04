@@ -86,6 +86,46 @@ describe('startChallenge', () => {
     expect(stored?.toProps().createdBy).toBe(MODERATOR)
   })
 
+  it('launches a challenge from the text the host typed, with no mission at all', async () => {
+    const result = await startChallenge({
+      eventId: WEDDING,
+      actorId: MODERATOR,
+      prompt: 'Un selfie avec votre voisin de table',
+      durationSeconds: 120,
+    })
+
+    expect(result.ok).toBe(true)
+    const stored = await challenges.findLatest(WEDDING)
+    expect(stored?.prompt.value).toBe('Un selfie avec votre voisin de table')
+    expect(stored?.missionId).toBeNull()
+  })
+
+  it('lets the typed text win over the mission and keeps the link', async () => {
+    await ask({ prompt: 'Autre texte' })
+
+    const stored = await challenges.findLatest(WEDDING)
+    expect(stored?.prompt.value).toBe('Autre texte')
+    expect(stored?.missionId).toBe('m1')
+  })
+
+  it('refuses a challenge with neither a text nor a mission', async () => {
+    const result = await startChallenge({
+      eventId: WEDDING,
+      actorId: MODERATOR,
+      durationSeconds: 120,
+    })
+
+    expect(!result.ok && result.error.code).toBe('mission.promptEmpty')
+    expect(await challenges.findLatest(WEDDING)).toBeNull()
+  })
+
+  it.each(['   ', 'x'.repeat(61), 42])('refuses the text %j', async (prompt) => {
+    const result = await ask({ prompt })
+
+    expect(result.ok).toBe(false)
+    expect(await challenges.findLatest(WEDDING)).toBeNull()
+  })
+
   it('keeps the frozen prompt when the mission is corrected afterwards', async () => {
     await ask()
 

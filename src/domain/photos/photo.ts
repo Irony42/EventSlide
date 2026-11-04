@@ -1,7 +1,7 @@
 import type { ClipDuration } from '../clips/clipDuration'
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
-import type { EventId, GuestId, MissionId, PhotoId, UserId } from '../shared/ids'
+import type { ChallengeId, EventId, GuestId, MissionId, PhotoId, UserId } from '../shared/ids'
 import type { Caption } from './caption'
 import type { ContentHash } from './contentHash'
 import type { Dimensions } from './dimensions'
@@ -92,6 +92,15 @@ export interface PhotoProps {
    */
   readonly missionId: MissionId | null
   /**
+   * The timed challenge this photograph answers (spec 18), or `null`/absent.
+   *
+   * Set once, at the upload, when the guest left "Je participe au défi" checked and the
+   * challenge was running (the use case checks it against **this** event and the clock). A
+   * challenge's answers are counted by it instead of by the mission, so a challenge needs no
+   * mission at all. Never changed afterwards.
+   */
+  readonly challengeId?: ChallengeId | null
+  /**
    * When the host starred it as a favourite (spec 08), or `null`/absent. Read-only on the
    * entity: the repository's `save` never writes it (a stale read of a moderation could
    * otherwise erase a star set in between), a dedicated setter does.
@@ -116,6 +125,8 @@ export interface NewPhoto {
    * photograph is created rather than stored and filtered later.
    */
   readonly missionId?: MissionId | null
+  /** The challenge it answers, already resolved against this event and its window (spec 18). */
+  readonly challengeId?: ChallengeId | null
 }
 
 /**
@@ -151,6 +162,7 @@ export class Photo {
         review: null,
         facet: input.facet ?? STILL,
         missionId: input.missionId ?? null,
+        challengeId: input.challengeId ?? null,
       }),
     )
   }
@@ -212,6 +224,11 @@ export class Photo {
   /** The prompt this was filed under, or `null`. See {@link PhotoProps.missionId}. */
   get missionId(): MissionId | null {
     return this.props.missionId
+  }
+
+  /** The challenge this answers, or `null`. See {@link PhotoProps.challengeId}. */
+  get challengeId(): ChallengeId | null {
+    return this.props.challengeId ?? null
   }
 
   get highlightedAt(): Date | null {

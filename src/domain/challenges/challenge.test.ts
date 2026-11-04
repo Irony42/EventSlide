@@ -10,6 +10,8 @@ import {
   MAX_CHALLENGES_PER_EVENT,
   MIN_CHALLENGE_SECONDS,
   parseChallengeDuration,
+  RECENT_PROMPTS_LIMIT,
+  recentPrompts,
 } from './challenge'
 
 const T0 = new Date('2026-06-20T21:00:00.000Z')
@@ -120,6 +122,32 @@ describe('Challenge', () => {
     expect(window.to).toEqual(at(30_000 + ANSWER_TOLERANCE_MS))
   })
 
+  it('answers at the start and a minute after the end, and not a millisecond either side', () => {
+    const challenge = started(120)
+
+    expect(challenge.canAnswer(at(-1))).toBe(false)
+    expect(challenge.canAnswer(T0)).toBe(true)
+    expect(challenge.canAnswer(at(120_000 + ANSWER_TOLERANCE_MS))).toBe(true)
+    expect(challenge.canAnswer(at(120_000 + ANSWER_TOLERANCE_MS + 1))).toBe(false)
+  })
+
+  it('starts from its own text with no mission at all', () => {
+    const result = Challenge.start(
+      {
+        eventId: asEventId('e1'),
+        missionId: null,
+        prompt: promptOf('un toast à l objectif'),
+        durationSeconds: 60,
+        createdBy: asUserId('u1'),
+      },
+      asChallengeId('c2'),
+      T0,
+    )
+
+    expect(result.ok && result.value.missionId).toBeNull()
+    expect(result.ok && result.value.prompt.value).toBe('un toast à l objectif')
+  })
+
   it('round-trips through its props', () => {
     const challenge = started(60)
 
@@ -135,5 +163,20 @@ describe('hasRoomForChallenge', () => {
   it('holds fifty, and not a fifty-first', () => {
     expect(hasRoomForChallenge(MAX_CHALLENGES_PER_EVENT - 1)).toBe(true)
     expect(hasRoomForChallenge(MAX_CHALLENGES_PER_EVENT)).toBe(false)
+  })
+})
+
+describe('recentPrompts', () => {
+  it('keeps the newest first, each text once whatever its case or trailing space', () => {
+    expect(recentPrompts(['Un selfie ', 'Un toast', 'un selfie', 'Un toast'])).toEqual([
+      'Un selfie ',
+      'Un toast',
+    ])
+  })
+
+  it('stops at five', () => {
+    const many = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+
+    expect(recentPrompts(many)).toEqual(many.slice(0, RECENT_PROMPTS_LIMIT))
   })
 })

@@ -1229,7 +1229,8 @@ shares): a client keeps the offset between that and its own clock and counts dow
 projectors with different clocks show the same time. `challenge` is the **timed photo challenge** (spec
 10): `null` when none runs, otherwise the frozen prompt, two instants and a `state` of `running`, then
 `ended` for twenty seconds after the end (and nothing after). `answers` is the number of **published**
-photographs that named the mission inside the window (from the start to a minute after the end); it is
+photographs that answer **this challenge** (spec 18: the phone's "Je participe au défi" box sets it at the upload,
+inside the window from the start to a minute after the end, not by the mission); it is
 `null` while the challenge runs and when nobody answered, and it never counts a pending, refused,
 hidden or taken-down photograph. No name and no identifier appears in it.
 
@@ -1503,11 +1504,12 @@ guest of any event which slugs exist, drafts and archived events included, where
 
 `multipart/form-data`:
 
-| Field       |                                                            |
-| ----------- | ---------------------------------------------------------- |
-| `photos`    | 1..`maxFilesPerUpload` files                               |
-| `caption`   | optional, applies to every file in the request             |
-| `missionId` | optional uuid, applies to every file in the request (§2.1) |
+| Field         |                                                                                                                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `photos`      | 1..`maxFilesPerUpload` files                                                                                                                                                                                                                                 |
+| `caption`     | optional, applies to every file in the request                                                                                                                                                                                                               |
+| `missionId`   | optional uuid, applies to every file in the request (§2.1)                                                                                                                                                                                                   |
+| `challengeId` | optional uuid, applies to every file in the request (spec 18): the timed challenge answered; kept only for this event's latest challenge and an upload received from its start to a minute after its end, otherwise dropped and the photographs stored plain |
 
 **201** — a per-file outcome, so a guest whose third photo failed is told which one
 rather than handed one opaque error for the batch:
@@ -1684,8 +1686,8 @@ guest reloads to find out whether their photograph counted.
 `serverNowMs` and `challenge` are the timed photo challenge of spec 10, with the server's clock to count it
 down against (see `GET /wall`). `challenge` is `null` when none runs or one ended more than twenty seconds
 ago, and **carries no count of answers**: a phone has no use for a scoreboard. `missionId` is the mission
-the "Relever le défi" button preselects (`null` if it was just deleted). The challenge is only read when
-the list is not empty.
+the challenge was launched from (`null` when the host typed its text, or if the mission was deleted). Since spec 18
+the challenge is read **even when the list is empty**: it has its own text and needs no mission.
 
 `done` is the only computed field and `scope` is what computes it. A `guest` prompt is done
 once **this guest's own** published photograph names it — a checklist that ticked itself
@@ -4024,20 +4026,29 @@ on the wall exactly as it was.
 ### `GET /api/events/:slug/challenge`
 
 **`moderator`**. What the console draws "Lancer" or "Arrêter" from: `{ "serverNowMs": 1782000000000,
-"challenge": null }`, or the challenge as `GET /wall` serves it plus `missionId` (the mission it names).
-`challenge` is `null` once a finished one is more than twenty seconds old. **Errors** — `401`,
+"challenge": null, "recent": [] }`, or the challenge as `GET /wall` serves it plus `missionId` (the mission it was
+launched from, or `null`). `challenge` is `null` once a finished one is more than twenty seconds old. `recent` is
+the frozen texts of the event's past challenges, newest first, each once, at most five (spec 18): the host's
+suggestions, never served to the wall or a phone. **Errors** — `401`,
 `404 event.notFound` for a non-member, `403 client.suspended`.
 
 ### `POST /api/events/:slug/challenge`
 
-**`moderator`** (any moderator, or the owner). Launches one of the event's missions as a **timed photo
-challenge** (spec 10) that the wall and the guests' phones count down together.
+**`moderator`** (any moderator, or the owner). Launches a **timed photo challenge** (spec 10) that the wall
+and the guests' phones count down together. Since spec 18 it has **its own text**, typed by the host; a mission
+is optional.
 
 ```json
-{ "missionId": "uuid", "durationSeconds": 120 }
+{
+  "prompt": "Un selfie avec votre voisin de table",
+  "missionId": "uuid",
+  "durationSeconds": 120
+}
 ```
 
-The body is strict. `durationSeconds` is a whole number of seconds from **15 to 1800** (the interface offers
+The body is strict. `prompt` is one line of 60 characters at most (the rule of a mission's text); without it the
+mission's text is used, and with neither the answer is `400 mission.promptEmpty` (`mission.promptTooLong`
+over the limit). `missionId` is only a link: it is kept when sent with a text. `durationSeconds` is a whole number of seconds from **15 to 1800** (the interface offers
 1, 2, 5 and 10 minutes). **201** answers the challenge as launched:
 
 ```json
@@ -4051,12 +4062,15 @@ The body is strict. `durationSeconds` is a whole number of seconds from **15 to 
 }
 ```
 
-`prompt` is a frozen copy of the mission's: correcting the mission afterwards does not change a challenge
-already launched. The end is **derived from the clock** (`now < endsAt`); nothing on the server fires when it
+`prompt` is frozen: correcting or deleting the mission afterwards does not change a challenge already launched. The end is **derived from the clock** (`now < endsAt`); nothing on the server fires when it
 passes. The launch publishes a `challenge.changed` signal (public, no data) on the event's stream.
 
 It does not touch moderation: a photograph that answers the challenge waits for the host's decision like any
-other. A guest may send a photograph at any time, with or without the mission.
+other. A guest may send a photograph at any time. A photograph answers the challenge only when the upload carries
+its `challengeId` (see the photo upload): the phone sends it when "Je participe au défi" is checked, and the
+server keeps it only for this event's latest challenge and an upload received from its start to a minute after
+its end, otherwise the photograph is stored plain. A challenge launched from a mission also files the photograph
+under that mission (unless the guest chose another).
 
 **Errors** — `400 challenge.durationInvalid` (or `request.invalid` for an unknown field),
 `404 mission.notFound` (including another event's mission), `409 challenge.alreadyRunning` (stop it first:
@@ -4069,7 +4083,7 @@ non-member, `403 client.suspended`.
 **`moderator`**. Stops the running challenge now. **204**, and **204 as well when nothing is running**
 (idempotent; the first stop's instant is kept). Publishes `challenge.changed` only when a challenge was
 actually running. Allowed on an event that is no longer live, so a host who closed the evening can take a
-countdown off the wall. `DELETE /missions/:missionId` also stops that mission's running challenge.
+countdown off the wall. Deleting a mission no longer stops a challenge (spec 18).
 
 **Errors** — `401`, `404 event.notFound` for a non-member, `403 client.suspended`.
 

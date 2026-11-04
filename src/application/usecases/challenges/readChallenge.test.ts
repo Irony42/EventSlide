@@ -44,7 +44,9 @@ describe('readChallenge', () => {
   })
 
   const answer = (id: string, status: 'published' | 'pending', eventId = 'evt-wedding') =>
-    photos.seed(aPhoto({ id, eventId, status, missionId: 'm1', createdAt: atPlus(10_000) }))
+    photos.seed(
+      aPhoto({ id, eventId, status, challengeId: `c-${eventId}`, createdAt: atPlus(10_000) }),
+    )
 
   it('reads nothing when no challenge was ever launched', async () => {
     expect(await readChallenge(challenges, WEDDING, AT)).toBeNull()

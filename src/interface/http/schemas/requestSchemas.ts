@@ -214,6 +214,12 @@ export const uploadFields = z.strictObject({
    * "none" as `null` and one that omits the part are saying the same thing.
    */
   missionId: uuid.nullish(),
+  /**
+   * The timed challenge the guest answers (spec 18): sent only with "Je participe au défi"
+   * checked. A uuid for the reason `missionId` is, and `nullish` for the same one. The use
+   * case decides whether it names this event's running challenge; a miss drops the tag only.
+   */
+  challengeId: uuid.nullish(),
 })
 
 /**
@@ -618,7 +624,13 @@ export const missionBody = z.strictObject({
  * not a second copy of the rule in a schema.
  */
 export const challengeBody = z.strictObject({
-  missionId: uuid,
+  /**
+   * The challenge's own text (spec 18). Bounded here so a huge field never reaches the domain;
+   * the 60-character, one-line rule is `MissionPrompt`'s. Absent: the mission's text is used.
+   */
+  prompt: z.string().max(200).optional(),
+  /** Optional since spec 18: a mission the text may come from. */
+  missionId: uuid.optional(),
   durationSeconds: z.number(),
 })
 

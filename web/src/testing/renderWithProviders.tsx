@@ -701,7 +701,7 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   createMission: vi.fn(async (): Promise<MissionDto> => aMission()),
   updateMission: vi.fn(async () => undefined),
   deleteMission: vi.fn(async () => undefined),
-  getChallenge: vi.fn(async () => ({ serverNowMs: Date.now(), challenge: null })),
+  getChallenge: vi.fn(async () => ({ serverNowMs: Date.now(), challenge: null, recent: [] })),
   startChallenge: vi.fn(async () => ({
     id: 'challenge-1',
     missionId: null,

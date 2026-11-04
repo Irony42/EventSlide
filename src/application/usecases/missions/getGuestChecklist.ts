@@ -43,12 +43,9 @@ export interface GetGuestChecklistDeps {
 }
 
 /**
- * The checklist and, beside it, the timed challenge the host launched on one of its prompts
- * (spec 10), with the server's clock so the phone counts down with the wall.
- *
- * The challenge is only read when the list is not empty: a challenge always names a mission, and
- * deleting the last mission stops it, so an empty list has none, and a phone that reads this every
- * twenty seconds is spared the second query.
+ * The checklist and, beside it, the timed challenge the host launched (spec 10), with the server's
+ * clock so the phone counts down with the wall. Since spec 18 a challenge has its own text and
+ * needs no mission, so it is read even when the list is empty.
  */
 export interface GuestChecklist {
   readonly items: readonly ChecklistItem[]
@@ -69,9 +66,12 @@ export const makeGetGuestChecklist =
     const now = clock.now()
     const serverNowMs = now.getTime()
     const listed = await missions.listWithProgress(eventId)
-    // Skipped entirely when the host has set no prompts, which is most events: the
-    // checklist is then empty and there is nothing to ask the second question about.
-    if (listed.length === 0) return ok({ items: [], challenge: null, serverNowMs })
+    // The challenge is read whatever the list holds (spec 18): it has its own text and needs no
+    // mission, so an event with no prompts can still run one.
+    const challenge = await readChallenge(challenges, eventId, now)
+    // Skipped when the host has set no prompts, which is most events: there is nothing to ask
+    // the second question about.
+    if (listed.length === 0) return ok({ items: [], challenge, serverNowMs })
 
     const mine = await missions.completedByGuest(eventId, guestId)
 
@@ -80,7 +80,7 @@ export const makeGetGuestChecklist =
         ...row,
         done: isDoneForGuest(row.mission.scope, row.progress, mine.has(row.mission.id)),
       })),
-      challenge: await readChallenge(challenges, eventId, now),
+      challenge,
       serverNowMs,
     })
   }

@@ -803,6 +803,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       events: adapters.events,
       clients: adapters.clients,
       photos: adapters.photos,
+      challenges: adapters.challenges,
       missions: adapters.missions,
       media: adapters.media,
       imageProcessor: adapters.imageProcessor,
@@ -1111,10 +1112,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     deleteMission: makeDeleteMission({
       events: adapters.events,
       missions: adapters.missions,
-      challenges: adapters.challenges,
       memberships: adapters.memberships,
       bus: adapters.bus,
-      clock: adapters.clock,
     }),
 
     // -------------------------------------------------------------- challenges --

@@ -66,7 +66,21 @@ describe('getChallenge', () => {
   it('reads no challenge, with the server clock, when none runs', async () => {
     const result = await ask()
 
-    expect(result.ok && result.value).toEqual({ challenge: null, serverNowMs: AT.getTime() })
+    expect(result.ok && result.value).toEqual({
+      challenge: null,
+      serverNowMs: AT.getTime(),
+      recent: [],
+    })
+  })
+
+  it('offers the host the texts of past challenges, newest first, once each', async () => {
+    await launch()
+    clock.advance(200_000)
+    await launch()
+
+    const result = await ask()
+
+    expect(result.ok && result.value.recent).toEqual(['un selfie'])
   })
 
   it('lets a moderator read the running challenge', async () => {

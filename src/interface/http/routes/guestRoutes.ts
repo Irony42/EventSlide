@@ -4,7 +4,7 @@ import type { Event } from '../../../domain/events/event'
 import type { Guest } from '../../../domain/guests/guest'
 import type { Photo, PhotoActor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import { asGuestId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
+import { asChallengeId, asGuestId, asMissionId, asPhotoId } from '../../../domain/shared/ids'
 import { withGuest } from '../middleware/scope'
 import { GUEST_COOKIE, deferToHostSurface, requireGuest } from '../middleware/authz'
 import { createDiskSpaceGuard } from '../middleware/diskSpaceGuard'
@@ -377,6 +377,11 @@ export const guestRoutes = ({
         ...(fields.missionId === undefined || fields.missionId === null
           ? {}
           : { missionId: asMissionId(fields.missionId) }),
+        // "Je participe au défi" (spec 18): the id the phone chose. Whether it names this event's
+        // running challenge is the use case's scoped lookup, and a miss only drops the tag.
+        ...(fields.challengeId === undefined || fields.challengeId === null
+          ? {}
+          : { challengeId: asChallengeId(fields.challengeId) }),
       })
 
       sendResult(res, result, (response, value) => {

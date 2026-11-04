@@ -4,7 +4,7 @@ import { ContentHash } from '../../../domain/photos/contentHash'
 import { Dimensions } from '../../../domain/photos/dimensions'
 import { Photo, type PhotoAuthor } from '../../../domain/photos/photo'
 import { DomainError } from '../../../domain/shared/errors'
-import type { EventId, MissionId, PhotoId } from '../../../domain/shared/ids'
+import type { ChallengeId, EventId, MissionId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
@@ -14,6 +14,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { IdGenerator } from '../../ports/idGenerator'
 import type { ImageProcessor, RenderSpec, RenderedImage } from '../../ports/imageProcessor'
 import type { Logger } from '../../ports/logger'
+import type { ChallengeRepository } from '../../ports/challengeRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import { MEDIA_VARIANTS, type MediaStore, type PhotoVariant } from '../../ports/mediaStore'
 import type {
@@ -67,6 +68,12 @@ export interface UploadPhotosInput {
    * on a phone is asking them not to bother.
    */
   readonly missionId?: MissionId | null
+  /**
+   * The timed challenge the guest answers, if they left "Je participe au défi" checked (spec 18).
+   * One per request, like the mission. The phone says it, the server decides: it is kept only if
+   * it is this event's latest challenge and the upload was received inside its window.
+   */
+  readonly challengeId?: ChallengeId | null
 }
 
 /** Header-level ceilings the deployment sets; the render specs below are product policy. */
@@ -85,6 +92,8 @@ export interface UploadPhotosDeps {
   readonly clients: ClientRepository
   readonly photos: PhotoRepository
   readonly missions: MissionRepository
+  /** Where a `challengeId` is resolved, against this event (spec 18). */
+  readonly challenges: ChallengeRepository
   readonly media: MediaStore
   readonly imageProcessor: ImageProcessor
   readonly hasher: ContentHasher
@@ -220,6 +229,7 @@ export const makeUploadPhotos = ({
   clients,
   photos,
   missions,
+  challenges,
   media,
   imageProcessor,
   hasher,
@@ -229,7 +239,7 @@ export const makeUploadPhotos = ({
   logger,
   limits,
 }: UploadPhotosDeps): UploadPhotos => {
-  return async ({ eventId, author, files, caption, missionId }) => {
+  return async ({ eventId, author, files, caption, missionId, challengeId }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
 
@@ -293,6 +303,31 @@ export const makeUploadPhotos = ({
         })
       }
       tag = mission?.id ?? null
+    }
+
+    /**
+     * The challenge tag (spec 18), resolved against **this** event and the clock. It is the phone
+     * that says "I took part" and the server that decides: only the event's latest challenge
+     * qualifies, and only for an upload received inside its window (a minute of tolerance after
+     * the end, for a late send). Anything else drops the tag and keeps the photographs, for the
+     * reason the mission tag does (an outbox entry refused on its merits is deleted off the
+     * phone). A challenge launched from a mission files the photograph under it too, unless the
+     * guest chose another mission.
+     */
+    let challengeTag: ChallengeId | null = null
+    if (challengeId !== undefined && challengeId !== null) {
+      const latest = await challenges.findLatest(eventId)
+      if (latest !== null && latest.id === challengeId && latest.canAnswer(clock.now())) {
+        challengeTag = latest.id
+        if (tag === null && latest.missionId !== null) {
+          tag = (await missions.findById(eventId, latest.missionId))?.id ?? null
+        }
+      } else {
+        logger.warn('an upload named a challenge that is not running here; storing it plain', {
+          eventId,
+          challengeId,
+        })
+      }
     }
 
     const maxPerGuest = settings.maxPhotosPerGuest
@@ -495,6 +530,7 @@ export const makeUploadPhotos = ({
           byteSize,
           caption: parsedCaption.value,
           missionId: tag,
+          challengeId: challengeTag,
         },
         ids.photoId(),
         now,

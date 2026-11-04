@@ -10,7 +10,6 @@ import { makeUpdateMission } from '../../../application/usecases/missions/update
 import { AT, aMission, aPhoto, anEvent, aUser } from '../../../application/testing/builders'
 import { FakeEventRepository } from '../../../application/testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../../application/testing/fakeMembershipRepository'
-import { FakeChallengeRepository } from '../../../application/testing/fakeChallengeRepository'
 import { FakeMissionRepository } from '../../../application/testing/fakeMissionRepository'
 import { FakePhotoRepository } from '../../../application/testing/fakePhotoRepository'
 import { FakeUserRepository } from '../../../application/testing/fakeUserRepository'
@@ -103,10 +102,8 @@ const buildWorld = (): World => {
             deleteMission: makeDeleteMission({
               events,
               missions,
-              challenges: new FakeChallengeRepository(photos),
               memberships,
               bus: deps.bus,
-              clock: deps.clock,
             }),
           },
         }),

@@ -27,6 +27,7 @@ const running = (leftMs: number, offsetMs = 0): HostChallengeResponse => {
   const serverNowMs = Date.now() + offsetMs
   return {
     serverNowMs,
+    recent: [],
     challenge: {
       id: 'c1',
       missionId: 'm1',

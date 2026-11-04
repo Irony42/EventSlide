@@ -158,6 +158,40 @@ describe('POST /api/events/:eventSlug/challenge', () => {
     expect(await world.challenges.findLatest(WEDDING)).not.toBeNull()
   })
 
+  it('launches a challenge from its own typed text, with no mission', async () => {
+    const agent = await signedIn(world, 'moderator')
+
+    const response = await agent
+      .post(`/api/events/${SLUG}/challenge`)
+      .send({ prompt: 'Un toast à l’objectif', durationSeconds: 60 })
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({ missionId: null, prompt: 'Un toast à l’objectif' })
+  })
+
+  it('keeps the typed text and the mission link when both are sent', async () => {
+    const agent = await signedIn(world, 'moderator')
+
+    const response = await agent
+      .post(`/api/events/${SLUG}/challenge`)
+      .send({ prompt: 'Autre texte', missionId: SELFIE, durationSeconds: 60 })
+
+    expect(response.body).toMatchObject({ missionId: SELFIE, prompt: 'Autre texte' })
+  })
+
+  it.each([
+    ['neither a text nor a mission', { durationSeconds: 60 }],
+    ['an empty text', { prompt: '   ', durationSeconds: 60 }],
+    ['a text over sixty characters', { prompt: 'x'.repeat(61), durationSeconds: 60 }],
+  ])('answers 400 for %s', async (_name, body) => {
+    const agent = await signedIn(world, 'moderator')
+
+    const response = await agent.post(`/api/events/${SLUG}/challenge`).send(body)
+
+    expect(response.status).toBe(400)
+    expect(await world.challenges.findLatest(WEDDING)).toBeNull()
+  })
+
   it('answers 409 challenge.alreadyRunning to a second launch', async () => {
     const agent = await signedIn(world, 'owner')
     await agent.post(`/api/events/${SLUG}/challenge`).send(LAUNCH).expect(201)
@@ -271,7 +305,20 @@ describe('GET /api/events/:eventSlug/challenge', () => {
     const response = await agent.get(`/api/events/${SLUG}/challenge`)
 
     expect(response.status).toBe(200)
-    expect(response.body).toEqual({ challenge: null, serverNowMs: AT.getTime() })
+    expect(response.body).toEqual({ challenge: null, serverNowMs: AT.getTime(), recent: [] })
+  })
+
+  it('offers the texts of past challenges back to the host, newest first', async () => {
+    const agent = await signedIn(world, 'moderator')
+    await agent
+      .post(`/api/events/${SLUG}/challenge`)
+      .send({ prompt: 'Premier', durationSeconds: 60 })
+      .expect(201)
+    await agent.delete(`/api/events/${SLUG}/challenge`).expect(204)
+
+    const response = await agent.get(`/api/events/${SLUG}/challenge`)
+
+    expect(response.body.recent).toEqual(['Premier'])
   })
 
   it('answers the running challenge with the mission it names', async () => {

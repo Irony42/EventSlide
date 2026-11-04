@@ -41,6 +41,7 @@ import {
   asEventId,
   asGuestId,
   asGuestbookEntryId,
+  asChallengeId,
   asMissionId,
   asPhotoId,
   asReactionId,
@@ -254,6 +255,8 @@ export interface PhotoInput {
    * untagged, which is what almost every photograph at an event actually is.
    */
   readonly missionId?: string | null
+  /** The challenge it answers (spec 18). */
+  readonly challengeId?: string | null
 }
 
 /**
@@ -324,6 +327,7 @@ export const aPhoto = (input: PhotoInput = {}): Photo => {
         byteSize: pick(input.byteSize, 2_400_000),
         caption: caption === null ? null : must(Caption.create(caption), 'aPhoto.caption'),
         missionId: input.missionId === undefined ? null : toMissionId(input.missionId),
+        challengeId: input.challengeId == null ? null : asChallengeId(input.challengeId),
       },
       asPhotoId(id),
       createdAt,

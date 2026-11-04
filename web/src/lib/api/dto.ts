@@ -814,6 +814,8 @@ export interface HostChallengeDto {
 export interface HostChallengeResponse {
   readonly serverNowMs: number
   readonly challenge: HostChallengeDto | null
+  /** Past challenge texts, newest first, at most five: the host's suggestions (spec 18). */
+  readonly recent: readonly string[]
 }
 
 /**
