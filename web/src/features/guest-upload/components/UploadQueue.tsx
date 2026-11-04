@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { CloseIcon } from '../../../design-system/components/CloseIcon'
@@ -77,6 +77,8 @@ export interface UploadQueueProps {
    * gallery is no longer served), and the button is then not offered.
    */
   readonly onViewMine?: (() => void) | undefined
+  /** The pane's "Réduire", on the summary line: the line is there anyway, so it costs no height. */
+  readonly foldControl?: ReactNode
 }
 
 /** The sentence the live region carries while the batch is not finished. */
@@ -100,6 +102,7 @@ export function UploadQueue({
   onRemove,
   onDismiss,
   onViewMine,
+  foldControl,
 }: UploadQueueProps) {
   const t = useTranslations()
   const labels = labelsFor(t)
@@ -136,6 +139,7 @@ export function UploadQueue({
             <p className={styles['summary']}>{progressFor(items, batch, t)}</p>
           )}
         </div>
+        {foldControl}
 
         {batch.settledOk ? (
           <div className={styles['actions']}>

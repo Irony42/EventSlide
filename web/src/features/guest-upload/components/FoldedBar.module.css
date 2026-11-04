@@ -1,0 +1,78 @@
+/**
+ * The folded pane (mockup B of the upload-pane study). It sits where the pane sat, inside the
+ * same sheet, so the shape, the rim and the lift are the pane's own; only the content differs.
+ * One row, `--touch-min` or more everywhere, and wrapping rather than overflowing for a guest
+ * who has turned their text up.
+ */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Words about a send made from the bar, in the place the thumbnails take when none is waiting.
+   Empty it takes no room: the live region has to exist before its text does, not to be seen. */
+.status {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  flex: 0 1 100%;
+  min-width: 0;
+}
+
+.status:empty {
+  display: none;
+}
+
+.bar > button:last-child {
+  flex: 1 1 var(--tile-min-width);
+  min-width: 0;
+}
+
+/* The thumbnails are one control: they reopen the pane. A tap target of at least the touch floor
+   on both axes, however few photos are stacked. */
+.stack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+}
+
+.thumb {
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--surface-raised);
+}
+
+.thumb + .thumb {
+  margin-inline-start: calc(var(--space-4) * -1);
+}
+
+/* A number and a colour, never the colour alone. */
+.badge {
+  position: absolute;
+  inset-block-start: calc(var(--space-1) * -1);
+  inset-inline-end: 0;
+  min-inline-size: var(--space-5);
+  block-size: var(--space-5);
+  padding-inline: var(--space-1);
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--surface-raised);
+  background: var(--warning);
+  color: var(--surface-base);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

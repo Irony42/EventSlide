@@ -72,6 +72,13 @@ export const it: UiText = {
     sendCount: (count: number) =>
       t.count(count, { one: 'Invia la foto', other: `Invia le ${t.number(count)} foto` }),
     queueEmpty: 'Nessuna foto selezionata al momento.',
+    foldPane: 'Riduci',
+    openPane: 'Invia una foto',
+    openPaneReady: (count: number) =>
+      t.count(count, {
+        one: 'Riapri il pannello: 1 foto pronta',
+        other: `Riapri il pannello: ${t.number(count)} foto pronte`,
+      }),
     itemPending: 'Pronta',
     itemUploading: 'Invio in corso',
     itemDone: 'Inviata',

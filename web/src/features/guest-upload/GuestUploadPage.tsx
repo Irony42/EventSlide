@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../../design-system/components/Button'
 import { EmptyState } from '../../design-system/components/EmptyState'
@@ -12,6 +12,7 @@ import { ComposerOptions } from './components/ComposerOptions'
 import { InstallCard } from './components/InstallCard'
 import { ChallengeBand } from './components/ChallengeBand'
 import { MissionChecklist } from './components/MissionChecklist'
+import { FoldedBar } from './components/FoldedBar'
 import { EraseEverything } from './components/EraseEverything'
 import { GuestbookCard } from './components/GuestbookCard'
 import { MyMessages } from './components/MyMessages'
@@ -23,6 +24,7 @@ import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { PrivacyNoticeCard, PrivacyNoticeDialog } from './components/PrivacyNotice'
 import { UploadQueue } from './components/UploadQueue'
+import { useFoldOnScroll } from './hooks/useFoldOnScroll'
 import { useBackgroundSync } from './hooks/useBackgroundSync'
 import { useClipUpload } from './hooks/useClipUpload'
 import { useEraseEverything } from './hooks/useEraseEverything'
@@ -314,6 +316,48 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   const oversized = useOversizedPane(composer)
 
   /**
+   * The pane folded into a bar (spec 19, mockup B), and where the focus goes either way.
+   *
+   * Only page state, and only the view: the selection lives in `queue` above and a folded pane is
+   * the same pane with its content `hidden`, so nothing is unmounted and nothing is lost. The
+   * guest folds it with "Réduire", or by scrolling back up the page; only a tap on the bar opens
+   * it again, never a scroll (a pane that jumped open under the thumb is worse than the one in
+   * the way). Folding by scroll moves no focus; the button moves it to the bar, and opening moves
+   * it to the first useful action, in the layout effect below, once the content is displayed.
+   */
+  const paneContent = useId()
+  const [folded, setFolded] = useState(false)
+  const openButton = useRef<HTMLButtonElement | null>(null)
+  const sendButton = useRef<HTMLButtonElement | null>(null)
+  const focusAfterToggle = useRef(false)
+  const canFold = mine.acceptingUploads && !mine.unavailable && !gated
+  const isFolded = folded && canFold
+  const busy = queue.sending || outbox.draining || clip.stage === 'uploading'
+  const foldPane = useCallback(() => {
+    focusAfterToggle.current = true
+    setFolded(true)
+  }, [])
+  const openPane = useCallback(() => {
+    focusAfterToggle.current = true
+    setFolded(false)
+  }, [])
+  const foldByScroll = useCallback(() => {
+    // A field being typed in is the guest's own hands: the page scrolls under the keyboard too.
+    const active = document.activeElement
+    if (active instanceof HTMLElement && composer.current?.contains(active) === true) {
+      if (active.matches('input:not([type="file"]), textarea, [contenteditable]')) return
+    }
+    setFolded(true)
+  }, [])
+  useFoldOnScroll(canFold && !folded && !busy, foldByScroll)
+  useLayoutEffect(() => {
+    if (!focusAfterToggle.current) return
+    focusAfterToggle.current = false
+    if (isFolded) openButton.current?.focus({ preventScroll: true })
+    else (sendButton.current?.disabled === false ? sendButton : libraryInput).current?.focus()
+  }, [isFolded, libraryInput])
+
+  /**
    * "Voir mes envois", on the summary line of the queue: the guest's photos have moved to the
    * list above, and this is the way there. The page owns it because it is the page that holds
    * both ends (the pane and the list).
@@ -563,90 +607,126 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
         className={styles['composer']}
         data-gated={gated ? '' : undefined}
         data-oversized={oversized ? '' : undefined}
+        data-folded={isFolded ? '' : undefined}
       >
-        {/* Above the queue: it is the answer to "did my photos go?", and a guest who
-            reads it stops pressing "Envoyer" again. */}
-        {/* Not once the evening is over: "will be sent" would be a promise the box refuses. */}
-        {mine.acceptingUploads && !mine.unavailable ? (
-          <OfflineNotice
-            waiting={outbox.waiting}
-            draining={outbox.draining}
-            onSendNow={outbox.drain}
-            canCloseSafely={canCloseSafely}
+        {isFolded ? (
+          <FoldedBar
+            ref={openButton}
+            items={queue.items}
+            sendableCount={queue.sendableCount}
+            sending={queue.sending}
+            status={
+              queue.batch.settledOk
+                ? t.upload.queueDone(queue.batch.arrived, queue.batch.alreadyThere)
+                : queue.sending
+                  ? t.upload.queueSummary(queue.batch.arrived, queue.items.length)
+                  : ''
+            }
+            controls={paneContent}
+            onOpen={openPane}
+            onSend={() =>
+              queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
+            }
           />
         ) : null}
-        <UploadQueue
-          items={queue.items}
-          batch={queue.batch}
-          onRetry={queue.retry}
-          onRemove={queue.remove}
-          onDismiss={queue.clearSettled}
-          // Not once the server has stopped serving the gallery: there is no list to go to.
-          onViewMine={showMine ? viewMine : undefined}
-        />
-        {/*
+        <div id={paneContent} className={styles['paneContent']} hidden={isFolded}>
+          {/* Above the queue: it is the answer to "did my photos go?", and a guest who
+            reads it stops pressing "Envoyer" again. */}
+          {/* Not once the evening is over: "will be sent" would be a promise the box refuses. */}
+          {mine.acceptingUploads && !mine.unavailable ? (
+            <OfflineNotice
+              waiting={outbox.waiting}
+              draining={outbox.draining}
+              onSendNow={outbox.drain}
+              canCloseSafely={canCloseSafely}
+            />
+          ) : null}
+          <UploadQueue
+            items={queue.items}
+            batch={queue.batch}
+            onRetry={queue.retry}
+            onRemove={queue.remove}
+            onDismiss={queue.clearSettled}
+            // Not once the server has stopped serving the gallery: there is no list to go to.
+            onViewMine={showMine ? viewMine : undefined}
+            foldControl={
+              canFold ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-expanded={true}
+                  aria-controls={paneContent}
+                  onClick={foldPane}
+                >
+                  {t.upload.foldPane}
+                  <span aria-hidden="true">⌄</span>
+                </Button>
+              ) : undefined
+            }
+          />
+          {/*
           The notice, in the place the picker will be, until this device has read the one
           in force. Everything below it picks or sends a new photo, so all of it waits;
           the queue above does not, because what it holds was already chosen.
         */}
-        {mine.unavailable ? (
-          // A suspended account, or an event the server no longer knows: it answers `404` before it
-          // would even say the evening is over, and every send would fail. No form, no queue of
-          // false hope.
-          <>
-            <Notice tone="warning" variant="boxed" role="status">
-              {t.upload.galleryUnavailable}
-            </Notice>
-            {/* The same `404` is what the server says to a phone whose cookie names another
+          {mine.unavailable ? (
+            // A suspended account, or an event the server no longer knows: it answers `404` before it
+            // would even say the evening is over, and every send would fail. No form, no queue of
+            // false hope.
+            <>
+              <Notice tone="warning" variant="boxed" role="status">
+                {t.upload.galleryUnavailable}
+              </Notice>
+              {/* The same `404` is what the server says to a phone whose cookie names another
                 event (this one was joined before a later one), and it cannot tell the two
                 apart on purpose: so the way back to the code is offered here as well. */}
-            <Link className={styles['rejoin']} to="/join" state={{ from: `/e/${slug}/upload` }}>
-              {t.upload.galleryUnavailableAction}
-            </Link>
-          </>
-        ) : !mine.acceptingUploads ? (
-          // The host closed the evening (or archived it, or its account is suspended): there is
-          // nothing left to send, so none of the controls is offered. A quiet thank-you and not a
-          // warning (INV-4): nothing went wrong, the evening ended, and the guest's next question is
-          // where the photos will be. The count is the list already on screen, so no request is added.
-          // What the guest sent stays listed above.
-          <>
-            <section className={styles['ended']} role="status" data-testid="evening-ended">
-              <h2 className={styles['endedTitle']}>{t.upload.endedTitle}</h2>
-              <p className={styles['endedBody']}>
-                {thanked > 0 ? t.upload.endedThanks(thanked) : t.upload.endedThanksNone}
-              </p>
-              <p className={styles['endedBody']}>{t.upload.endedAlbum}</p>
-            </section>
-            {/* The written word of a closed evening (spec 01, Q4) is the card above the composer; only the
+              <Link className={styles['rejoin']} to="/join" state={{ from: `/e/${slug}/upload` }}>
+                {t.upload.galleryUnavailableAction}
+              </Link>
+            </>
+          ) : !mine.acceptingUploads ? (
+            // The host closed the evening (or archived it, or its account is suspended): there is
+            // nothing left to send, so none of the controls is offered. A quiet thank-you and not a
+            // warning (INV-4): nothing went wrong, the evening ended, and the guest's next question is
+            // where the photos will be. The count is the list already on screen, so no request is added.
+            // What the guest sent stays listed above.
+            <>
+              <section className={styles['ended']} role="status" data-testid="evening-ended">
+                <h2 className={styles['endedTitle']}>{t.upload.endedTitle}</h2>
+                <p className={styles['endedBody']}>
+                  {thanked > 0 ? t.upload.endedThanks(thanked) : t.upload.endedThanksNone}
+                </p>
+                <p className={styles['endedBody']}>{t.upload.endedAlbum}</p>
+              </section>
+              {/* The written word of a closed evening (spec 01, Q4) is the card above the composer; only the
                 notice, which locks it, shows here. */}
-            {bookOpen && gated && notice.state !== null ? (
-              <PrivacyNoticeCard
-                ref={noticeCard}
-                state={notice.state}
-                onAcknowledge={() => {
-                  setNoticeOpen(false)
-                  notice.acknowledge()
-                }}
-              />
-            ) : null}
-          </>
-        ) : notice.state !== null && gated ? (
-          <PrivacyNoticeCard
-            ref={noticeCard}
-            state={notice.state}
-            onAcknowledge={() => {
-              // The dialog may have been open when a changed notice took the picker's
-              // place, and it was only unmounted, not closed: without this it would pop
-              // back up over the picker the moment the card went, and take the focus
-              // meant for "Ajouter des photos" with it.
-              setNoticeOpen(false)
-              notice.acknowledge()
-            }}
-          />
-        ) : (
-          <>
-            {/*
+              {bookOpen && gated && notice.state !== null ? (
+                <PrivacyNoticeCard
+                  ref={noticeCard}
+                  state={notice.state}
+                  onAcknowledge={() => {
+                    setNoticeOpen(false)
+                    notice.acknowledge()
+                  }}
+                />
+              ) : null}
+            </>
+          ) : notice.state !== null && gated ? (
+            <PrivacyNoticeCard
+              ref={noticeCard}
+              state={notice.state}
+              onAcknowledge={() => {
+                // The dialog may have been open when a changed notice took the picker's
+                // place, and it was only unmounted, not closed: without this it would pop
+                // back up over the picker the moment the card went, and take the focus
+                // meant for "Ajouter des photos" with it.
+                setNoticeOpen(false)
+                notice.acknowledge()
+              }}
+            />
+          ) : (
+            <>
+              {/*
               Above the picker, because the order is the point: the checklist is what tells a
               guest there is something to photograph, and a list of prompts *after* the button
               that opens the camera arrives one decision too late. Inside the composer, because
@@ -654,58 +734,62 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
 
               Nothing at all for the majority of events, which set no prompts.
             */}
-            {/* The host's timed challenge (spec 10): one band and one button, nothing for a guest
+              {/* The host's timed challenge (spec 10): one band and one button, nothing for a guest
                 who does not want to play; absent when none runs. */}
-            {missions.challenge === null || missions.missions.length === 0 ? null : (
-              <ChallengeBand
-                key={missions.challenge.id}
-                challenge={missions.challenge}
-                offsetMs={missions.offsetMs}
-                onTakeUp={missions.select}
+              {missions.challenge === null || missions.missions.length === 0 ? null : (
+                <ChallengeBand
+                  key={missions.challenge.id}
+                  challenge={missions.challenge}
+                  offsetMs={missions.offsetMs}
+                  onTakeUp={missions.select}
+                />
+              )}
+              <MissionChecklist
+                missions={missions.missions}
+                selected={missions.selected}
+                onToggle={missions.toggle}
               />
-            )}
-            <MissionChecklist
-              missions={missions.missions}
-              selected={missions.selected}
-              onToggle={missions.toggle}
-            />
-            <PhotoPicker onPick={queue.add} libraryRef={libraryInput} />
-            {/* The caption and the video, as labelled buttons that unfold in place: shown in full
+              <PhotoPicker onPick={queue.add} libraryRef={libraryInput} />
+              {/* The caption and the video, as labelled buttons that unfold in place: shown in full
                 they took half of a phone before a photo was chosen. The host's settings, from the
                 event the join step returned, decide which exist at all. */}
-            <ComposerOptions
-              captions={event.allowCaptions}
-              caption={caption}
-              onCaptionChange={setCaption}
-              clips={event.allowClips}
-              clip={clip}
-              limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
-            />
-            <Button
-              variant="primary"
-              size="lg"
-              block
-              loading={queue.sending}
-              disabled={queue.sendableCount === 0}
-              onClick={() =>
-                queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
-              }
-            >
-              {queue.sendableCount === 0 ? t.upload.send : t.upload.sendCount(queue.sendableCount)}
-            </Button>
-            {/*
+              <ComposerOptions
+                captions={event.allowCaptions}
+                caption={caption}
+                onCaptionChange={setCaption}
+                clips={event.allowClips}
+                clip={clip}
+                limits={{ maxBytes: event.maxClipBytes, maxSeconds: event.maxClipSeconds }}
+              />
+              <Button
+                ref={sendButton}
+                variant="primary"
+                size="lg"
+                block
+                loading={queue.sending}
+                disabled={queue.sendableCount === 0}
+                onClick={() =>
+                  queue.send(trimmedCaption.length === 0 ? null : trimmedCaption, missions.selected)
+                }
+              >
+                {queue.sendableCount === 0
+                  ? t.upload.send
+                  : t.upload.sendCount(queue.sendableCount)}
+              </Button>
+              {/*
               Said once, under the button, rather than on every row of the checklist: the
               guest has just chosen a prompt and is about to send, and this is the moment a
               confirmation is worth its line. `aria-live` because the selection is made by a
               tap somewhere above it.
             */}
-            {selectedPrompt === null ? null : (
-              <p className={styles['missionNotice']} aria-live="polite">
-                {t.upload.missionFor(selectedPrompt)}
-              </p>
-            )}
-          </>
-        )}
+              {selectedPrompt === null ? null : (
+                <p className={styles['missionNotice']} aria-live="polite">
+                  {t.upload.missionFor(selectedPrompt)}
+                </p>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
