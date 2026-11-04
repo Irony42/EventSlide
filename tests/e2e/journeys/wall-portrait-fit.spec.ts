@@ -128,3 +128,74 @@ test('a portrait photo fills the screen height, never its width, in every full-s
   })
   await expectFitAtBothEnds(projector)
 })
+
+/**
+ * The mosaic (Pierre: "the flat cells show little"). Every tile keeps at least 70 % of its
+ * photograph visible: a photo near the cell's shape is cropped to it, anything further is
+ * shown whole. Geometry, not pixels: the cell's box, the photo's file ratio and `object-fit`.
+ */
+test('every mosaic tile shows at least 70 % of its photograph', async ({ app, surfaces }) => {
+  const { guest, host, projector } = surfaces
+  const event = await app.seedEvent({ slug: 'mosaique', name: 'Camille & Sacha' })
+  await signInAsHost(host, app)
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  const shapes = [
+    [3000, 4000],
+    [4000, 3000],
+    [3000, 4000],
+    [4000, 2000],
+    [3000, 3000],
+    [1600, 1200],
+  ] as const
+  for (const [index, [width, height]] of shapes.entries()) {
+    await joinAndUpload(guest, app, event.joinCode, {
+      displayName: 'Léa',
+      file: await aPhoto(`mosaic-${index}`, width, height),
+    })
+  }
+  await expect(host.getByTestId('moderation-card')).toHaveCount(shapes.length)
+  for (let left = shapes.length - 1; left >= 0; left -= 1) {
+    await host
+      .getByTestId('moderation-card')
+      .first()
+      .getByRole('button', { name: /Publier/i })
+      .click()
+    await expect(host.getByTestId('moderation-card')).toHaveCount(left)
+  }
+
+  await projector.goto(wallUrl(app, event.slug, { layout: 'mosaic', intervalMs: 600_000 }))
+  await expect(projector.getByTestId('wall-slide')).toHaveCount(shapes.length)
+  await expect
+    .poll(async () =>
+      projector
+        .locator('[data-wall-layout="mosaic"] [data-testid="wall-slide"] img')
+        .evaluateAll((images) =>
+          images.every((node) => node instanceof HTMLImageElement && node.complete),
+        ),
+    )
+    .toBe(true)
+
+  const tiles = await projector
+    .locator('[data-wall-layout="mosaic"] [data-testid="wall-slide"] img')
+    .evaluateAll((images) =>
+      images.map((node) => {
+        const image = node as HTMLImageElement
+        const box = image.getBoundingClientRect()
+        return {
+          cell: box.width / box.height,
+          photo: image.naturalWidth / image.naturalHeight,
+          fit: getComputedStyle(image).objectFit,
+        }
+      }),
+    )
+  expect(tiles).toHaveLength(shapes.length)
+  for (const tile of tiles) {
+    const visible =
+      tile.fit === 'cover' ? Math.min(tile.photo, tile.cell) / Math.max(tile.photo, tile.cell) : 1
+    expect(visible).toBeGreaterThanOrEqual(0.7)
+    // No flat strip: the cell is never more than twice as wide as tall.
+    expect(tile.cell).toBeLessThan(2)
+  }
+  // The phone portraits are the ones shown whole.
+  expect(tiles.filter((tile) => tile.fit === 'contain').length).toBeGreaterThanOrEqual(2)
+})

@@ -6,6 +6,7 @@ import { fr } from '../../../lib/i18n/fr'
 import type { Slideshow } from '../hooks/useSlideshow'
 import { classesOf, cls } from '../../../testing/classesOf'
 import { WallLayouts } from './WallLayouts'
+import { mosaicFit } from '../mosaicFit'
 import styles from './WallLayouts.module.css'
 
 const KEN_BURNS_MS = 8_800
@@ -1306,4 +1307,16 @@ describe('the first photo of a guest, in a layout that holds several photos', ()
       expect(lines()).toHaveLength(0)
     },
   )
+})
+
+describe('mosaicFit', () => {
+  it.each([
+    [4000, 3000, 'cover'],
+    [3000, 3000, 'cover'],
+    [3000, 4000, 'contain'],
+    [9, 16, 'contain'],
+    [4000, 2000, 'contain'],
+  ] as const)('a %i x %i photo is shown with %s', (width, height, fit) => {
+    expect(mosaicFit({ width, height })).toBe(fit)
+  })
 })

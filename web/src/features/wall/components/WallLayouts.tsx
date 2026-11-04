@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { cx } from '../../../design-system/classNames'
 import type { WallItemDto, WallLayout } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { mosaicFit } from '../mosaicFit'
 import type { Slideshow } from '../hooks/useSlideshow'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { photoAlt } from '../../../lib/photoAlt'
@@ -349,7 +350,17 @@ function MosaicLayout({ items, slideshow, transitionMs, plays }: LayoutViewProps
           // two projectors be shown to agree tile for tile.
           data-testid="wall-slide"
           data-photo-id={item.id}
+          data-fit={mosaicFit(item)}
         >
+          {mosaicFit(item) === 'contain' ? (
+            <span
+              className={styles['tileAmbient']}
+              aria-hidden="true"
+              style={{
+                ['--wall-ambient-image' as string]: `url(${JSON.stringify(item.thumbUrl)})`,
+              }}
+            />
+          ) : null}
           <WallMedia
             // Keyed by the photo, so a tile taking its turn fades its new photo in
             // rather than swapping it under the viewer's eye.
