@@ -37,12 +37,19 @@ export interface GuestbookModerationOptions {
   /** The event has a guestbook (`allowGuestbook`). Off: no call at all. */
   readonly enabled?: boolean
   readonly debounceMs?: number
+  /**
+   * Automatic moderation: nothing is ever pending, so the badge counts what went to the wall
+   * since this instant (ISO), while the tab is not the active one. `null` otherwise.
+   */
+  readonly watchPublishedSince?: string | null
 }
 
 export interface GuestbookModeration {
   readonly items: readonly GuestbookQueueItemDto[]
   /** The whole book's pending messages, whatever the filter. */
   readonly pendingCount: number
+  /** Messages published since `watchPublishedSince`; 0 when it is not set. */
+  readonly freshPublishedCount: number
   readonly loading: boolean
   /** The failed loud read; a failed silent read keeps the list on screen and sets nothing. */
   readonly error: Error | null
@@ -72,7 +79,12 @@ const matches = (filter: GuestbookFilter, status: PhotoStatus): boolean =>
 
 export const useGuestbookModeration = (
   slug: string | undefined,
-  { active, enabled = true, debounceMs = SIGNAL_DEBOUNCE_MS }: GuestbookModerationOptions,
+  {
+    active,
+    enabled = true,
+    debounceMs = SIGNAL_DEBOUNCE_MS,
+    watchPublishedSince = null,
+  }: GuestbookModerationOptions,
 ): GuestbookModeration => {
   const api = useApi()
   const toast = useToast()
@@ -82,6 +94,7 @@ export const useGuestbookModeration = (
   const [filter, setFilterState] = useState<GuestbookFilter>('pending')
   const [items, setItems] = useState<readonly GuestbookQueueItemDto[]>([])
   const [pendingCount, setPendingCount] = useState(0)
+  const [freshPublishedCount, setFreshPublishedCount] = useState(0)
   const [loading, setLoading] = useState(live)
   const [error, setError] = useState<Error | null>(null)
   const [canUndo, setCanUndo] = useState(false)
@@ -104,7 +117,12 @@ export const useGuestbookModeration = (
       const controller = new AbortController()
       abortRef.current = controller
       const index = ++readsStartedRef.current
-      const query = active ? { status: filter, limit: ACTIVE_LIMIT } : { limit: BADGE_LIMIT }
+      const watching = !active && watchPublishedSince !== null
+      const query = active
+        ? { status: filter, limit: ACTIVE_LIMIT }
+        : watching
+          ? { status: 'published' as const, limit: ACTIVE_LIMIT }
+          : { limit: BADGE_LIMIT }
       api
         .guestbookQueue(slug, controller.signal, query)
         .then((answer) => {
@@ -124,6 +142,13 @@ export const useGuestbookModeration = (
           loadedRef.current = true
           setPendingCount(Math.max(0, pending))
           if (active) setItems(rows.filter((row) => matches(filter, row.status)))
+          setFreshPublishedCount(
+            watching
+              ? rows.filter(
+                  (row) => row.status === 'published' && row.createdAt > watchPublishedSince,
+                ).length
+              : 0,
+          )
           setError(null)
           setLoading(false)
         })
@@ -133,7 +158,7 @@ export const useGuestbookModeration = (
           if (loud || !loadedRef.current) setError(asError(cause))
         })
     },
-    [api, slug, live, active, filter],
+    [api, slug, live, active, filter, watchPublishedSince],
   )
 
   // The first read, and the one after a change of tab or of status: those may show a failure.
@@ -238,6 +263,7 @@ export const useGuestbookModeration = (
     () => ({
       items,
       pendingCount,
+      freshPublishedCount,
       loading: loading && live,
       error,
       filter,
@@ -251,6 +277,7 @@ export const useGuestbookModeration = (
     [
       items,
       pendingCount,
+      freshPublishedCount,
       loading,
       live,
       error,

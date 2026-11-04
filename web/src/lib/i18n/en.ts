@@ -766,6 +766,28 @@ export const en: UiText = {
       `${caption} — video sent by ${author}`,
     videoMuted: 'The sound could not be turned on: this video is playing without sound.',
     videoUnplayable: 'This video cannot be played here. Only the preview frame is shown.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Photos',
+    tabMessages: 'Messages',
+    tabsLabel: 'What you are moderating',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} to review`,
+    tabFresh: (label: string, count: number) => `${label}, ${t.number(count)} new to read`,
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message waiting`,
+        other: `${t.number(count)} messages waiting`,
+      }),
+    messagesEmpty: 'No message to review right now.',
+    messagesEmptyHint: 'The notes your guests leave arrive here automatically.',
+    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
+      ({
+        publish: `Message from ${author} published.`,
+        reject: `Message from ${author} rejected.`,
+        hide: `Message from ${author} taken off the screen.`,
+      })[decision],
+    openMessages: 'Moderate the messages',
+    messagesListLabel: 'Guestbook messages',
+    messagesLoadFailed: 'The messages could not be loaded.',
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */

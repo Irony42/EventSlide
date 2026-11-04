@@ -828,6 +828,28 @@ export const de: UiText = {
     videoMuted: 'Der Ton ließ sich nicht einschalten: Dieses Video läuft ohne Ton.',
     videoUnplayable:
       'Dieses Video kann hier nicht abgespielt werden. Zu sehen ist nur das Vorschaubild.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Fotos',
+    tabMessages: 'Nachrichten',
+    tabsLabel: 'Was Sie moderieren',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} zu prüfen`,
+    tabFresh: (label: string, count: number) => `${label}, ${t.number(count)} neu zum Lesen`,
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Nachricht wartet`,
+        other: `${t.number(count)} Nachrichten warten`,
+      }),
+    messagesEmpty: 'Im Moment ist nichts zu prüfen.',
+    messagesEmptyHint: 'Die Zeilen Ihrer Gäste erscheinen hier automatisch.',
+    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
+      ({
+        publish: `Nachricht von ${author} veröffentlicht.`,
+        reject: `Nachricht von ${author} abgelehnt.`,
+        hide: `Nachricht von ${author} vom Bildschirm genommen.`,
+      })[decision],
+    openMessages: 'Nachrichten moderieren',
+    messagesListLabel: 'Gästebuch-Nachrichten',
+    messagesLoadFailed: 'Die Nachrichten konnten nicht geladen werden.',
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */

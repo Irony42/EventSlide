@@ -141,6 +141,12 @@ export interface ModerationQueueOptions {
    * screen, which shows nothing but pending photos.
    */
   readonly linkToRejected?: boolean
+  /**
+   * Whether to open the console's stream here. `false` when the page opens one itself and
+   * hands every signal to `onSignal`, so that photos and messages share one connection
+   * (spec 15). `connected` is then the page's to report.
+   */
+  readonly ownStream?: boolean
 }
 
 export interface ModerationQueue extends QueueState {
@@ -152,6 +158,8 @@ export interface ModerationQueue extends QueueState {
   readonly canUndo: boolean
   setFilter: (filter: StatusFilter) => void
   refresh: () => void
+  /** The stream's signals, for a page that owns the connection (`ownStream: false`). */
+  onSignal: (signal: StreamSignal) => void
   decide: (photoId: string, decision: ModerationDecision) => Promise<void>
   decideBulk: (photoIds: readonly string[], decision: ModerationDecision) => Promise<void>
   undo: () => Promise<void>
@@ -175,7 +183,7 @@ const failureMessage = (cause: unknown, fallback: string, text: UiText): string 
 
 export const useModerationQueue = (
   slug: string | undefined,
-  { onScreenLimit, linkToRejected = false }: ModerationQueueOptions = {},
+  { onScreenLimit, linkToRejected = false, ownStream = true }: ModerationQueueOptions = {},
 ): ModerationQueue => {
   const text = useTranslations()
   const api = useApi()
@@ -815,8 +823,8 @@ export const useModerationQueue = (
    * two stop being interchangeable the day moderation needs to see rejected photos.
    */
   const streamUrl = useMemo(
-    () => (slug === undefined ? null : api.moderationStreamUrl(slug)),
-    [api, slug],
+    () => (slug === undefined || !ownStream ? null : api.moderationStreamUrl(slug)),
+    [api, slug, ownStream],
   )
   const { connected } = useEventStream({ url: streamUrl, onSignal })
 
@@ -828,6 +836,7 @@ export const useModerationQueue = (
     canUndo,
     setFilter,
     refresh,
+    onSignal,
     decide,
     decideBulk,
     undo,

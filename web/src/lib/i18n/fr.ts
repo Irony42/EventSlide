@@ -810,6 +810,32 @@ export const fr = {
      * decision, and it is an honest one.
      */
     videoUnplayable: 'Cette vidéo ne peut pas être lue ici. Seule l’image d’aperçu s’affiche.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Photos',
+    tabMessages: 'Messages',
+    tabsLabel: 'Ce que vous modérez',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} à valider`,
+    tabFresh: (label: string, count: number) =>
+      t.count(count, {
+        one: `${label}, ${t.number(count)} nouveau à relire`,
+        other: `${label}, ${t.number(count)} nouveaux à relire`,
+      }),
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message en attente`,
+        other: `${t.number(count)} messages en attente`,
+      }),
+    messagesEmpty: 'Aucun message à valider pour l’instant.',
+    messagesEmptyHint: 'Les mots laissés par vos invités arrivent ici automatiquement.',
+    messageDecided: (author: string, decision: 'publish' | 'reject' | 'hide') =>
+      ({
+        publish: `Message de ${author} publié.`,
+        reject: `Message de ${author} refusé.`,
+        hide: `Message de ${author} retiré de l’écran.`,
+      })[decision],
+    openMessages: 'Modérer les messages',
+    messagesListLabel: 'Messages du livre d’or',
+    messagesLoadFailed: 'Les messages n’ont pas pu être chargés.',
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
