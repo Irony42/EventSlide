@@ -223,6 +223,7 @@ describe('the real schema', () => {
       'client_members',
       'clients',
       'clip_jobs',
+      'event_challenges',
       'event_memberships',
       'event_missions',
       'event_stats_counters',
@@ -3226,6 +3227,62 @@ describe('migration 023 (the audit log learns the guestbook subject)', () => {
     migrate(db, migrations)
 
     expect(() => insert(db, 1, 'pizza')).toThrow(/CHECK/)
+    closeDatabase(db)
+  })
+})
+
+describe('migration 024 (timed photo challenges)', () => {
+  const AT = '2026-06-20T21:00:00.000Z'
+
+  const seed = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'u1@example.test', 'h', ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO events (id, owner_id, name, slug, join_code, status, settings, quota_bytes, created_at)
+            VALUES ('e1', 'u1', 'e1', 'e1', 'e1', 'live', '{}', 1000, ?)`,
+    ).run(AT)
+    db.prepare(
+      `INSERT INTO event_missions (id, event_id, prompt, scope, created_at) VALUES ('m1', 'e1', 'selfie', 'guest', ?)`,
+    ).run(AT)
+  }
+
+  const challenge = (db: Db): void => {
+    db.prepare(
+      `INSERT INTO event_challenges (id, event_id, mission_id, prompt, started_at, ends_at)
+            VALUES ('c1', 'e1', 'm1', 'selfie', ?, ?)`,
+    ).run(AT, AT)
+  }
+
+  it('is applied on top of a populated 023 database and keeps its rows', () => {
+    const db = freshDb()
+    migrate(
+      db,
+      migrations.filter((migration) => migration.id < 24),
+    )
+    seed(db)
+
+    migrate(db, migrations)
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM event_missions`).get()).toEqual({ n: 1 })
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM event_challenges`).get()).toEqual({ n: 0 })
+    closeDatabase(db)
+  })
+
+  it('keeps the challenge when its mission is deleted, and drops it with its event', () => {
+    const db = freshDb()
+    migrate(db, migrations)
+    seed(db)
+    challenge(db)
+
+    db.prepare(`DELETE FROM event_missions WHERE id = 'm1'`).run()
+    expect(db.prepare(`SELECT mission_id, prompt FROM event_challenges`).get()).toEqual({
+      mission_id: null,
+      prompt: 'selfie',
+    })
+
+    db.prepare(`DELETE FROM events WHERE id = 'e1'`).run()
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM event_challenges`).get()).toEqual({ n: 0 })
     closeDatabase(db)
   })
 })

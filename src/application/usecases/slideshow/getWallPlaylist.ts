@@ -25,12 +25,14 @@ import type { GuestId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
 import { mixedWallLayout } from '../../../domain/slideshow/wallPhase'
+import type { ChallengeRepository } from '../../ports/challengeRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoRepository } from '../../ports/photoRepository'
+import { readChallenge, type ChallengeReading } from '../challenges/readChallenge'
 
 /**
  * What the projector shows. Public: there is no principal at a projector, and asking
@@ -90,7 +92,9 @@ export interface GetWallPlaylistDeps {
   readonly guests: GuestRepository
   readonly missions: MissionRepository
   readonly guestbook: GuestbookRepository
-  /** For `serverNowMs`: the one clock of the application. */
+  /** The timed challenge the wall counts down (spec 10). */
+  readonly challenges: ChallengeRepository
+  /** The one clock the countdown is anchored on: `serverNowMs` and the challenge state come from it. */
   readonly clock: Clock
 }
 
@@ -177,8 +181,6 @@ export interface WallPlaylistView {
     readonly placement: WallQrPlacement
   }
   readonly layoutSpec: WallLayoutSpec
-  /** The server's time at the read, in whole milliseconds (spec 09, shared with spec 10). */
-  readonly serverNowMs: number
   /** The mixed wall's schedule; `null` when the host has not turned it on. */
   readonly mixed: {
     readonly wallMs: number
@@ -204,6 +206,14 @@ export interface WallPlaylistView {
   readonly newPhotoSignal: boolean
   /** `null` unless the guestbook is open and its messages are for the wall, or there is none yet. */
   readonly guestbook: WallGuestbook | null
+  /** The running challenge, or the one that just ended (twenty seconds), or `null` (spec 10). */
+  readonly challenge: ChallengeReading | null
+  /**
+   * The server's clock at this read, in milliseconds: what a client anchors its countdown on, so
+   * two projectors with different clocks show the same time. The same field spec 09 puts on the
+   * wall's response.
+   */
+  readonly serverNowMs: number
 }
 
 export type GetWallPlaylist = (
@@ -296,7 +306,15 @@ const mixedScheduleOf = (
       }
 
 export const makeGetWallPlaylist =
-  ({ events, photos, guests, missions, guestbook, clock }: GetWallPlaylistDeps): GetWallPlaylist =>
+  ({
+    events,
+    photos,
+    guests,
+    missions,
+    guestbook,
+    challenges,
+    clock,
+  }: GetWallPlaylistDeps): GetWallPlaylist =>
   async ({ slug, layout, slideIntervalMs, windowSize }) => {
     const event = await events.findBySlug(slug)
     // An event that does not serve its wall is answered exactly as one that does not
@@ -361,6 +379,10 @@ export const makeGetWallPlaylist =
 
     const book = await readGuestbook(guestbook, guests, event)
 
+    // One indexed read of the last challenge; the count of answers only inside the short window
+    // after it ends. `now` is taken once, so the state and `serverNowMs` cannot disagree.
+    const now = clock.now()
+    const challenge = await readChallenge(challenges, event.id, now)
     // The same definition as the moderation counters and the album: published, not taken down.
     const wallSettings = event.settings.wall
     const souvenirCount = wallNeedsSouvenirCount(wallSettings)
@@ -383,10 +405,11 @@ export const makeGetWallPlaylist =
         placement: event.settings.wall.qrPlacement,
       },
       layoutSpec: wallLayoutSpec(chosenLayout),
-      serverNowMs: clock.now().getTime(),
       mixed: mixedScheduleOf(event.settings.wall, eventLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,
+      challenge,
+      serverNowMs: now.getTime(),
       souvenirCount,
       souvenirCounter: wallSettings.souvenirCounter,
       newPhotoSignal: wallSettings.newPhotoSignal,

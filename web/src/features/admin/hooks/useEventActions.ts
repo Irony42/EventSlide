@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useApi } from '../../../app/useApi'
 import { useAction, type ActionState } from './useAction'
 import type {
+  ChallengeInput,
   CreateEventInput,
   EventScheduleInput,
   MissionInput,
@@ -10,6 +11,7 @@ import type {
   ShareLinkInput,
 } from '../../../lib/api/client'
 import type {
+  ChallengeDto,
   EventDto,
   EventStatus,
   MissionDto,
@@ -134,6 +136,19 @@ export const useDeleteMission = (): ActionState<[string, string], void> => {
   return useAction(
     useCallback((slug: string, missionId: string) => api.deleteMission(slug, missionId), [api]),
   )
+}
+
+/** Launch and stop a timed photo challenge (spec 10). */
+export const useStartChallenge = (): ActionState<[string, ChallengeInput], ChallengeDto> => {
+  const api = useApi()
+  return useAction(
+    useCallback((slug: string, input: ChallengeInput) => api.startChallenge(slug, input), [api]),
+  )
+}
+
+export const useStopChallenge = (): ActionState<[string], void> => {
+  const api = useApi()
+  return useAction(useCallback((slug: string) => api.stopChallenge(slug), [api]))
 }
 
 /**

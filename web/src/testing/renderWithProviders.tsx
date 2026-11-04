@@ -693,6 +693,16 @@ export const fakeApi = (overrides: Partial<Api> = {}): Api => ({
   createMission: vi.fn(async (): Promise<MissionDto> => aMission()),
   updateMission: vi.fn(async () => undefined),
   deleteMission: vi.fn(async () => undefined),
+  getChallenge: vi.fn(async () => ({ serverNowMs: Date.now(), challenge: null })),
+  startChallenge: vi.fn(async () => ({
+    id: 'challenge-1',
+    missionId: null,
+    prompt: '',
+    startedAt: new Date().toISOString(),
+    endsAt: new Date().toISOString(),
+    state: 'running' as const,
+  })),
+  stopChallenge: vi.fn(async () => undefined),
 
   // No link by default: the panel's first state is the one a host meets first.
   shareLink: vi.fn(async () => ({ link: null })),
