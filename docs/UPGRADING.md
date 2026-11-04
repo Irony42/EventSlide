@@ -757,7 +757,9 @@ autorisés »). Existing clients keep the function on. On top of it, one event g
   the restore of that archive.
 - **Nothing changes for an existing event.** A challenge exists only when a host launches one, from the
   missions list of the console; there is no setting to switch on and no challenge is ever started on its own.
-- **Two new routes**, `POST` and `DELETE /api/events/:slug/challenge` (a moderator or the owner), and a new
+- **Three new routes**, `GET`, `POST` and `DELETE /api/events/:slug/challenge` (a moderator or the owner), and a new
   public `challenge.changed` signal on the event stream. A wall or a phone left open across the upgrade ignores
   them until it is reloaded.
 - **Nothing to set in `.env`.**
+- **Additions to existing responses** (optional for a client, none removed): `serverNowMs` and `challenge` in
+  `GET /api/events/:slug/wall` and in `GET /api/events/:slug/missions/mine`.

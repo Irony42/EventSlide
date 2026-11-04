@@ -3,7 +3,7 @@ import { asMissionId } from '../../../domain/shared/ids'
 import { asyncHandler } from '../middleware/asyncHandler'
 import { requireRole } from '../middleware/authz'
 import { hostScopeOf } from '../middleware/scope'
-import { toStartedChallengeDto } from '../presenters/presenters'
+import { toHostChallengeResponseDto, toStartedChallengeDto } from '../presenters/presenters'
 import { sendJson, sendNoContent, sendResult } from '../presenters/send'
 import { challengeBody, challengeParams } from '../schemas/requestSchemas'
 import type { HttpUseCases, RouteDeps } from '../useCases'
@@ -19,16 +19,34 @@ import type { HttpUseCases, RouteDeps } from '../useCases'
  * Both routes are writes, so the CSRF gate and the no-store default apply to them like to every
  * other host route; the body is strict, and the duration's bounds are the domain's.
  *
- * The reads are not here: the wall and the phones read the running challenge inside their own
- * responses (`GET /wall`, `GET /missions/mine`).
+ * The wall and the phones read the running challenge inside their own responses (`GET /wall`,
+ * `GET /missions/mine`); the console, which has neither, reads it here.
  */
 
 export interface ChallengeRouteDeps extends Omit<RouteDeps, 'usecases'> {
-  readonly usecases: Pick<HttpUseCases, 'startChallenge' | 'stopChallenge'>
+  readonly usecases: Pick<HttpUseCases, 'startChallenge' | 'stopChallenge' | 'getChallenge'>
 }
 
 export const challengeRoutes = ({ deps, usecases }: ChallengeRouteDeps): Router => {
   const router = Router()
+
+  /** `GET /events/:eventSlug/challenge`: what the console draws "Lancer" or "Arrêter" from. */
+  router.get(
+    '/events/:eventSlug/challenge',
+    requireRole('moderator', deps),
+    asyncHandler(async (req, res) => {
+      const scope = hostScopeOf(req)
+
+      const result = await usecases.getChallenge({
+        eventId: scope.event.id,
+        actorId: scope.user.userId,
+      })
+
+      sendResult(res, result, (response, view) =>
+        sendJson(response, toHostChallengeResponseDto(view)),
+      )
+    }),
+  )
 
   router.post(
     '/events/:eventSlug/challenge',

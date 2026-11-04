@@ -144,6 +144,7 @@ import { makeDeleteGuestbookEntry } from '../application/usecases/guestbook/dele
 import { makeListGuestbookQueue } from '../application/usecases/guestbook/listGuestbookQueue'
 import { makeListMyGuestbookEntries } from '../application/usecases/guestbook/listMyGuestbookEntries'
 import { makeModerateGuestbookEntry } from '../application/usecases/guestbook/moderateGuestbookEntry'
+import { makeGetChallenge } from '../application/usecases/challenges/getChallenge'
 import { makeStartChallenge } from '../application/usecases/challenges/startChallenge'
 import { makeStopChallenge } from '../application/usecases/challenges/stopChallenge'
 import { makeCreateMission } from '../application/usecases/missions/createMission'
@@ -1048,6 +1049,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       guests: adapters.guests,
       missions: adapters.missions,
       guestbook: adapters.guestbook,
+      challenges: adapters.challenges,
+      clock: adapters.clock,
     }),
 
     // -------------------------------------------------------------- guestbook --
@@ -1122,6 +1125,12 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       bus: adapters.bus,
       clock: adapters.clock,
     }),
+    getChallenge: makeGetChallenge({
+      events: adapters.events,
+      challenges: adapters.challenges,
+      memberships: adapters.memberships,
+      clock: adapters.clock,
+    }),
     stopChallenge: makeStopChallenge({
       events: adapters.events,
       challenges: adapters.challenges,
@@ -1132,6 +1141,8 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     getGuestChecklist: makeGetGuestChecklist({
       events: adapters.events,
       missions: adapters.missions,
+      challenges: adapters.challenges,
+      clock: adapters.clock,
     }),
 
     // --------------------------------------------------------- shared gallery --

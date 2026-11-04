@@ -1208,9 +1208,27 @@ _display_ URL. They are accepted here and inert, which is a defect and not a fea
       { "id": "…", "text": "Une belle soirée", "authorName": "Léa", "displayMs": 6600 }
     ]
   },
-  "wallLanguage": "fr"
+  "wallLanguage": "fr",
+  "serverNowMs": 1782000000000,
+  "challenge": {
+    "id": "…",
+    "prompt": "un selfie avec votre voisin",
+    "startedAt": "2026-06-20T21:00:00.000Z",
+    "endsAt": "2026-06-20T21:02:00.000Z",
+    "state": "running",
+    "answers": null
+  }
 }
 ```
+
+`serverNowMs` is the server's clock when it answered, in milliseconds (the same field the mixed mode
+shares): a client keeps the offset between that and its own clock and counts down against it, so two
+projectors with different clocks show the same time. `challenge` is the **timed photo challenge** (spec
+10): `null` when none runs, otherwise the frozen prompt, two instants and a `state` of `running`, then
+`ended` for twenty seconds after the end (and nothing after). `answers` is the number of **published**
+photographs that named the mission inside the window (from the start to a minute after the end); it is
+`null` while the challenge runs and when nobody answered, and it never counts a pending, refused,
+hidden or taken-down photograph. No name and no identifier appears in it.
 
 `layout` is the **effective** layout: the one the host chose for the event (spec 13) when there is one, the
 default `spotlight` otherwise. `layoutChosen` says which: true when the host chose it, so the wall lets the
@@ -1639,9 +1657,23 @@ guest reloads to find out whether their photograph counted.
       "done": false
     },
     { "id": "…", "prompt": "la première danse", "scope": "event", "done": true }
-  ]
+  ],
+  "serverNowMs": 1782000000000,
+  "challenge": {
+    "id": "…",
+    "missionId": "…",
+    "prompt": "un selfie avec votre voisin",
+    "endsAt": "2026-06-20T21:02:00.000Z",
+    "state": "running"
+  }
 }
 ```
+
+`serverNowMs` and `challenge` are the timed photo challenge of spec 10, with the server's clock to count it
+down against (see `GET /wall`). `challenge` is `null` when none runs or one ended more than twenty seconds
+ago, and **carries no count of answers**: a phone has no use for a scoreboard. `missionId` is the mission
+the "Relever le défi" button preselects (`null` if it was just deleted). The challenge is only read when
+the list is not empty.
 
 `done` is the only computed field and `scope` is what computes it. A `guest` prompt is done
 once **this guest's own** published photograph names it — a checklist that ticked itself
@@ -3970,6 +4002,13 @@ on the wall exactly as it was.
 
 **Errors** — `404 mission.notFound` (including another event's), `409 event.immutable`,
 `403 auth.forbidden` for a moderator, `404 event.notFound` for anybody else.
+
+### `GET /api/events/:slug/challenge`
+
+**`moderator`**. What the console draws "Lancer" or "Arrêter" from: `{ "serverNowMs": 1782000000000,
+"challenge": null }`, or the challenge as `GET /wall` serves it plus `missionId` (the mission it names).
+`challenge` is `null` once a finished one is more than twenty seconds old. **Errors** — `401`,
+`404 event.notFound` for a non-member, `403 client.suspended`.
 
 ### `POST /api/events/:slug/challenge`
 

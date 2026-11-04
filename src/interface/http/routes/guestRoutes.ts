@@ -18,6 +18,7 @@ import {
   uploadLimiter,
 } from '../middleware/rateLimit'
 import {
+  toGuestChallengeDto,
   toGuestMissionDto,
   toGuestPhotoDto,
   toReactionsDto,
@@ -445,13 +446,17 @@ export const guestRoutes = ({
     withGuest(async ({ event, guest }, _req, res) => {
       const result = await usecases.getGuestChecklist({ eventId: event.id, guestId: guest.id })
 
-      sendResult(res, result, (response, items) => {
+      sendResult(res, result, (response, checklist) => {
         // Never cached, for the reason "Mes photos" is not: this is the view a guest
         // reloads to find out whether their photograph counted, and a proxy or a back
         // button serving it from a store would show them the answer from before the host
         // published it.
         response.setHeader('Cache-Control', 'no-store')
-        const dto: GuestMissionListResponseDto = { items: items.map(toGuestMissionDto) }
+        const dto: GuestMissionListResponseDto = {
+          items: checklist.items.map(toGuestMissionDto),
+          serverNowMs: checklist.serverNowMs,
+          challenge: toGuestChallengeDto(checklist.challenge),
+        }
         sendJson(response, dto)
       })
     }),

@@ -1,6 +1,7 @@
 import type { Express } from 'express'
 import request, { type Agent } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { makeGetChallenge } from '../../../application/usecases/challenges/getChallenge'
 import { makeStartChallenge } from '../../../application/usecases/challenges/startChallenge'
 import { makeStopChallenge } from '../../../application/usecases/challenges/stopChallenge'
 import { AT, aMission, anEvent, aUser } from '../../../application/testing/builders'
@@ -81,6 +82,12 @@ const buildWorld = (): World => {
               memberships,
               ids: new SequentialIdGenerator(),
               bus: deps.bus,
+              clock: deps.clock,
+            }),
+            getChallenge: makeGetChallenge({
+              events,
+              challenges,
+              memberships,
               clock: deps.clock,
             }),
             stopChallenge: makeStopChallenge({
@@ -248,5 +255,49 @@ describe('DELETE /api/events/:eventSlug/challenge', () => {
 
     expect(response.status).toBe(404)
     expect((await world.challenges.findLatest(WEDDING))?.endedAt).toBeNull()
+  })
+})
+
+describe('GET /api/events/:eventSlug/challenge', () => {
+  let world: World
+
+  beforeEach(() => {
+    world = buildWorld()
+  })
+
+  it('answers no challenge, with the server clock, before one is launched', async () => {
+    const agent = await signedIn(world, 'moderator')
+
+    const response = await agent.get(`/api/events/${SLUG}/challenge`)
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ challenge: null, serverNowMs: AT.getTime() })
+  })
+
+  it('answers the running challenge with the mission it names', async () => {
+    const agent = await signedIn(world, 'moderator')
+    await agent.post(`/api/events/${SLUG}/challenge`).send(LAUNCH).expect(201)
+
+    const response = await agent.get(`/api/events/${SLUG}/challenge`)
+
+    expect(response.body.challenge).toEqual({
+      id: expect.any(String),
+      missionId: SELFIE,
+      prompt: 'un selfie avec les mariés',
+      startedAt: AT.toISOString(),
+      endsAt: new Date(AT.getTime() + 120_000).toISOString(),
+      state: 'running',
+      answers: null,
+    })
+  })
+
+  it('answers 401 without a session', async () => {
+    expect((await request(world.app).get(`/api/events/${SLUG}/challenge`)).status).toBe(401)
+  })
+
+  it('answers 404 for the owner of another event', async () => {
+    const agent = await signedIn(world, 'gala-owner')
+
+    expect((await agent.get(`/api/events/${SLUG}/challenge`)).status).toBe(404)
   })
 })

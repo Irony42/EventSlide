@@ -340,6 +340,14 @@ export interface WallResponse {
    * means the same thing**, and is what nearly every event sends.
    */
   readonly missions?: readonly WallMissionDto[]
+  /**
+   * The server's clock at this read, in milliseconds (spec 10; spec 09 shares the field): the
+   * anchor of every countdown on the wall. Optional: an older server leaves the projector with no
+   * challenge rather than crashing it.
+   */
+  readonly serverNowMs?: number
+  /** The running challenge, or the one that just ended; `null` or absent otherwise (spec 10). */
+  readonly challenge?: WallChallengeDto | null
   /** The guestbook for the room (spec 01); absent when there is nothing to show or an older server. */
   readonly guestbook?: WallGuestbookDto
   /**
@@ -728,8 +736,71 @@ export interface GuestMissionDto {
   readonly done: boolean
 }
 
+/**
+ * The timed challenge as a phone reads it (spec 10). No count of answers: a guest has no use for
+ * a scoreboard (roadmap §7). `state` is the server's word; the phone only counts `endsAt` down,
+ * against the `serverNowMs` of the same response.
+ */
+export interface GuestChallengeDto {
+  readonly id: string
+  /** The mission to preselect, or `null` if it has just been deleted. */
+  readonly missionId: string | null
+  /** The frozen copy of the prompt: content, never translated. */
+  readonly prompt: string
+  readonly endsAt: string
+  readonly state: 'running' | 'ended'
+}
+
 export interface GuestMissionListResponse {
   readonly items: readonly GuestMissionDto[]
+  /** The server's clock at this read, in milliseconds (spec 10; the same field as the wall's). */
+  readonly serverNowMs?: number
+  /** `null` or absent when no challenge runs or one ended more than twenty seconds ago. */
+  readonly challenge?: GuestChallengeDto | null
+}
+
+/**
+ * The timed challenge as the wall reads it (spec 10): the frozen prompt, two instants, a state,
+ * and **a count of published answers once it is over** (`null` while it runs, or when nobody
+ * answered). No name, no guest id, no photograph.
+ */
+export interface WallChallengeDto {
+  readonly id: string
+  readonly prompt: string
+  readonly startedAt: string
+  readonly endsAt: string
+  readonly state: 'running' | 'ended'
+  readonly answers: number | null
+}
+
+/** The console's view: the wall's, plus the mission it names (to say which row is running). */
+export interface HostChallengeDto {
+  readonly id: string
+  readonly missionId: string | null
+  readonly prompt: string
+  readonly startedAt: string
+  readonly endsAt: string
+  readonly state: 'running' | 'ended'
+  readonly answers: number | null
+}
+
+/** `GET /events/:slug/challenge`: the host's console read. */
+export interface HostChallengeResponse {
+  readonly serverNowMs: number
+  readonly challenge: HostChallengeDto | null
+}
+
+/**
+ * A challenge as a host's launch answers it (spec 10). Instants are ISO 8601, the prompt is the
+ * frozen copy. The wall and the phones read a different, smaller shape.
+ */
+export interface ChallengeDto {
+  readonly id: string
+  readonly missionId: string | null
+  readonly prompt: string
+  readonly startedAt: string
+  readonly endsAt: string
+  readonly state: 'running'
 }
 
 export interface ModeratorDto {
