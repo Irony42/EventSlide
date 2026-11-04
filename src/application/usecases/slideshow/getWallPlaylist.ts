@@ -1,4 +1,5 @@
 import type { Event } from '../../../domain/events/event'
+import type { EventWallSettings } from '../../../domain/events/eventWallSettings'
 import type { WallQrPlacement } from '../../../domain/events/wallJoinCard'
 import type { Mission } from '../../../domain/missions/mission'
 import { isAchieved, type MissionProgress } from '../../../domain/missions/missionProgress'
@@ -23,6 +24,7 @@ import { DomainError } from '../../../domain/shared/errors'
 import type { GuestId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Slug } from '../../../domain/shared/slug'
+import { mixedWallLayout } from '../../../domain/slideshow/wallPhase'
 import type { ChallengeRepository } from '../../ports/challengeRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
@@ -179,6 +181,13 @@ export interface WallPlaylistView {
     readonly placement: WallQrPlacement
   }
   readonly layoutSpec: WallLayoutSpec
+  /** The mixed wall's schedule; `null` when the host has not turned it on. */
+  readonly mixed: {
+    readonly wallMs: number
+    readonly slideshowMs: number
+    readonly layout: WallLayout
+    readonly anchorMs: number
+  } | null
   /**
    * The host's prompts and how the room is answering them. Empty for the overwhelming
    * majority of events, which set none — and an empty list is what stops the wall
@@ -277,6 +286,24 @@ const readGuestbook = async (
     })),
   }
 }
+
+/**
+ * The mixed wall's schedule as the wall reads it. `null` when it is off; an enabled wall whose
+ * anchor was never written (hand-edited settings) is read as off too: there is no phase to
+ * derive, and the wall is exactly the one it was.
+ */
+const mixedScheduleOf = (
+  wall: EventWallSettings,
+  eventLayout: WallLayout | null,
+): WallPlaylistView['mixed'] =>
+  !wall.mixedEnabled || wall.mixedAnchorMs === null
+    ? null
+    : {
+        wallMs: wall.mixedWallSeconds * 1000,
+        slideshowMs: wall.mixedSlideshowSeconds * 1000,
+        layout: mixedWallLayout(eventLayout),
+        anchorMs: wall.mixedAnchorMs,
+      }
 
 export const makeGetWallPlaylist =
   ({
@@ -378,6 +405,7 @@ export const makeGetWallPlaylist =
         placement: event.settings.wall.qrPlacement,
       },
       layoutSpec: wallLayoutSpec(chosenLayout),
+      mixed: mixedScheduleOf(event.settings.wall, eventLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,
       challenge,

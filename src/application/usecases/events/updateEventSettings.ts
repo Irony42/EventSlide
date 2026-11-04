@@ -1,8 +1,10 @@
 import type { Event } from '../../../domain/events/event'
 import type { EventSettingsPatch } from '../../../domain/events/eventSettings'
+import { mergeWallSettings } from '../../../domain/events/eventWallSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
+import type { Clock } from '../../ports/clock'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { EventBus } from '../../ports/eventBus'
 import type { EventRepository } from '../../ports/eventRepository'
@@ -27,6 +29,8 @@ export interface UpdateEventSettingsInput {
 }
 
 export interface UpdateEventSettingsDeps {
+  /** Stamps the mixed wall's anchor. */
+  readonly clock: Clock
   readonly events: EventRepository
   /**
    * For the ceilings of the event's client (roadmap §10.5): `max_retention_days` and
@@ -46,8 +50,12 @@ export type UpdateEventSettings = (
  * persisted out of range while its neighbour is refused), the purge hold on the welcome message,
  * and the archived rule, which lives in the entity.
  */
-const judge = (event: Event, patch: EventSettingsPatch): Result<Event, DomainError> => {
-  const settings = event.settings.with(patch)
+const judge = (
+  event: Event,
+  patch: EventSettingsPatch,
+  nowMs: number,
+): Result<Event, DomainError> => {
+  const settings = event.settings.with(withMixedAnchor(event, patch, nowMs))
   if (!settings.ok) return settings
 
   // A purge hold keeps evidence: changing or clearing the welcome message destroys the previous
@@ -62,8 +70,32 @@ const judge = (event: Event, patch: EventSettingsPatch): Result<Event, DomainErr
   return event.withSettings(settings.value)
 }
 
+/**
+ * The mixed wall's phases restart when the host turns the mode on or changes a duration, so the
+ * host who ticks the box sees the wall first. Any other save (a layout, a caption policy, the
+ * same form sent back whole) leaves the anchor where it was and the rooms in step. The anchor is
+ * the server's: a patch's own value is overwritten, and no route carries one.
+ */
+const withMixedAnchor = (
+  event: Event,
+  patch: EventSettingsPatch,
+  nowMs: number,
+): EventSettingsPatch => {
+  const before = event.settings.wall
+  const after = mergeWallSettings(before, patch.wall)
+  const restarts =
+    after.mixedEnabled &&
+    (!before.mixedEnabled ||
+      after.mixedWallSeconds !== before.mixedWallSeconds ||
+      after.mixedSlideshowSeconds !== before.mixedSlideshowSeconds)
+  return {
+    ...patch,
+    wall: { ...patch.wall, mixedAnchorMs: restarts ? nowMs : before.mixedAnchorMs },
+  }
+}
+
 export const makeUpdateEventSettings =
-  ({ events, clients, memberships, bus }: UpdateEventSettingsDeps): UpdateEventSettings =>
+  ({ clock, events, clients, memberships, bus }: UpdateEventSettingsDeps): UpdateEventSettings =>
   async ({ eventId, actorId, patch }) => {
     const event = await events.findById(eventId)
     if (event === null) return err(DomainError.notFound('event.notFound'))
@@ -76,7 +108,8 @@ export const makeUpdateEventSettings =
 
     // Judged on the entity read at the top, so the answers to a bad request come before the
     // awaits below, in the order they always did.
-    const judged = judge(event, patch)
+    const nowMs = clock.now().getTime()
+    const judged = judge(event, patch, nowMs)
     if (!judged.ok) return judged
 
     // The client's ceilings (roadmap §10.5 / G2-05): the rule, and why it asks only of what this
@@ -91,7 +124,7 @@ export const makeUpdateEventSettings =
     // fresh entity instead (the ceilings were judged on what this save changes, which is the same).
     const current = await events.findById(eventId)
     if (current === null) return err(DomainError.notFound('event.notFound'))
-    const updated = judge(current, patch)
+    const updated = judge(current, patch, nowMs)
     if (!updated.ok) return updated
 
     await events.save(updated.value)

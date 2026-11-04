@@ -3,6 +3,7 @@ import type { ClientCeilingsProps } from '../../../domain/clients/clientCeilings
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { asEventId, asUserId } from '../../../domain/shared/ids'
 import { AT, aClient, anEvent } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeClientRepository } from '../../testing/fakeClientRepository'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeMembershipRepository } from '../../testing/fakeMembershipRepository'
@@ -21,13 +22,21 @@ describe('updateEventSettings', () => {
   let memberships: FakeMembershipRepository
   let bus: RecordingEventBus
   let updateEventSettings: UpdateEventSettings
+  let clock: FakeClock
 
   beforeEach(async () => {
     clients = new FakeClientRepository()
     events = new FakeEventRepository({ clients })
     memberships = new FakeMembershipRepository()
     bus = new RecordingEventBus()
-    updateEventSettings = makeUpdateEventSettings({ events, clients, memberships, bus })
+    clock = new FakeClock()
+    updateEventSettings = makeUpdateEventSettings({
+      clock,
+      events,
+      clients,
+      memberships,
+      bus,
+    })
 
     events.seed(
       anEvent({ id: WEDDING, ownerId: OWNER, slug: 'camille-et-sacha', joinCode: 'H7K2QM' }),
@@ -76,7 +85,7 @@ describe('updateEventSettings', () => {
       patch: { wall: { slideIntervalMs: 12_000 } },
     })
 
-    expect(result.ok && result.value.settings.wall).toEqual({
+    expect(result.ok && result.value.settings.wall).toMatchObject({
       layout: 'mosaic',
       slideIntervalMs: 12_000,
       qrVisible: true,
@@ -92,6 +101,65 @@ describe('updateEventSettings', () => {
       soundVolume: 50,
     })
     expect(result.ok && result.value.settings.allowCaptions).toBe(true)
+  })
+
+  describe('the mixed wall anchor (spec 09)', () => {
+    const save = (wall: Record<string, unknown>) =>
+      updateEventSettings({ eventId: WEDDING, actorId: OWNER, patch: { wall } })
+    const anchor = async () => (await events.findById(WEDDING))?.settings.wall.mixedAnchorMs
+
+    it('starts the phases when the host turns the mode on', async () => {
+      await save({ mixedEnabled: true })
+
+      expect(await anchor()).toBe(AT.getTime())
+    })
+
+    it('restarts them when a duration changes, and only then', async () => {
+      await save({ mixedEnabled: true })
+      clock.advance(60_000)
+      await save({ mixedWallSeconds: 90 })
+      expect(await anchor()).toBe(AT.getTime() + 60_000)
+
+      clock.advance(60_000)
+      await save({ mixedSlideshowSeconds: 20 })
+      expect(await anchor()).toBe(AT.getTime() + 120_000)
+    })
+
+    it('leaves them in step on any other save, the same form sent whole included', async () => {
+      await save({ mixedEnabled: true })
+      clock.advance(60_000)
+
+      await save({ layout: 'collage' })
+      await save({ mixedEnabled: true, mixedWallSeconds: 180, mixedSlideshowSeconds: 60 })
+      await updateEventSettings({
+        eventId: WEDDING,
+        actorId: OWNER,
+        patch: { moderation: 'auto' },
+      })
+
+      expect(await anchor()).toBe(AT.getTime())
+    })
+
+    it('does not start them for a duration changed while the mode is off', async () => {
+      await save({ mixedWallSeconds: 90 })
+
+      expect(await anchor()).toBeNull()
+    })
+
+    it('ignores an anchor sent in the patch: only the server sets it', async () => {
+      await save({ mixedEnabled: true, mixedAnchorMs: 1 })
+      expect(await anchor()).toBe(AT.getTime())
+
+      await save({ mixedAnchorMs: 5 })
+      expect(await anchor()).toBe(AT.getTime())
+    })
+
+    it('refuses a duration outside the bounds and stores nothing', async () => {
+      const result = await save({ mixedEnabled: true, mixedWallSeconds: 10 })
+
+      expect(!result.ok && result.error.code).toBe('wallMixed.wallTooShort')
+      expect((await events.findById(WEDDING))?.settings.wall.mixedEnabled).toBe(false)
+    })
   })
 
   it('refuses a rhythm outside the domain bounds', async () => {
@@ -502,7 +570,13 @@ describe('updateEventSettings', () => {
       if (!LOGO.ok) throw new Error('fixture digest')
       const { waiting, release } = gated()
       await waiting.grant({ eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT })
-      const racing = makeUpdateEventSettings({ events, clients, memberships: waiting, bus })
+      const racing = makeUpdateEventSettings({
+        clock: new FakeClock(),
+        events,
+        clients,
+        memberships: waiting,
+        bus,
+      })
 
       const pending = racing({ eventId: WEDDING, actorId: OWNER, patch: { moderation: 'auto' } })
       // The logo lands while the save is still waiting on its role check.
@@ -522,7 +596,13 @@ describe('updateEventSettings', () => {
     it('answers not found when the event is gone by the time it saves', async () => {
       const { waiting, release } = gated()
       await waiting.grant({ eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT })
-      const racing = makeUpdateEventSettings({ events, clients, memberships: waiting, bus })
+      const racing = makeUpdateEventSettings({
+        clock: new FakeClock(),
+        events,
+        clients,
+        memberships: waiting,
+        bus,
+      })
 
       const pending = racing({ eventId: WEDDING, actorId: OWNER, patch: { moderation: 'auto' } })
       await events.delete(WEDDING)
@@ -535,7 +615,13 @@ describe('updateEventSettings', () => {
     it('refuses when the event was archived by the time it saves', async () => {
       const { waiting, release } = gated()
       await waiting.grant({ eventId: WEDDING, userId: OWNER, role: 'owner', grantedAt: AT })
-      const racing = makeUpdateEventSettings({ events, clients, memberships: waiting, bus })
+      const racing = makeUpdateEventSettings({
+        clock: new FakeClock(),
+        events,
+        clients,
+        memberships: waiting,
+        bus,
+      })
 
       const pending = racing({ eventId: WEDDING, actorId: OWNER, patch: { moderation: 'auto' } })
       events.seed(anEvent({ id: WEDDING, ownerId: OWNER, status: 'archived' }))

@@ -374,6 +374,17 @@ export interface WallResponseDto {
    */
   readonly layoutChosen: boolean
   /**
+   * The mixed wall's schedule, or `null` when it is off: a wall that has not been asked to
+   * alternate says nothing about it. `layout` is the "wall" phase's (the other phase is
+   * always `spotlight`).
+   */
+  readonly mixed: {
+    readonly wallMs: number
+    readonly slideshowMs: number
+    readonly layout: WallLayout
+    readonly anchorMs: number
+  } | null
+  /**
    * The souvenirs visible on the wall (spec 11): the server's total of published photos and clips,
    * not the length of `items`. `null` when neither wall switch below is on. Compared by the wall
    * apart from `revision`: a photo published beyond the window or a take-down moves only this.
@@ -555,6 +566,9 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly mixedEnabled: boolean
+    readonly mixedWallSeconds: number
+    readonly mixedSlideshowSeconds: number
     readonly souvenirCounter: boolean
     readonly newPhotoSignal: boolean
     readonly freshLane: boolean

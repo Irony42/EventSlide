@@ -296,6 +296,17 @@ export interface WallResponse {
   readonly layout: WallLayout
   /** Whether `layout` is the host's choice for the event. Optional: an older server sends none. */
   readonly layoutChosen?: boolean
+  /**
+   * The mixed wall's schedule, or `null` when it is off: a wall that has not been asked to
+   * alternate says nothing about it. `layout` is the "wall" phase's (the other phase is
+   * always `spotlight`).
+   */
+  readonly mixed?: {
+    readonly wallMs: number
+    readonly slideshowMs: number
+    readonly layout: WallLayout
+    readonly anchorMs: number
+  } | null
   /** The souvenirs visible on the wall (spec 11); `null` when neither switch below is on. */
   readonly souvenirCount?: number | null
   readonly souvenirCounter?: boolean
@@ -638,6 +649,9 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly mixedEnabled: boolean
+    readonly mixedWallSeconds: number
+    readonly mixedSlideshowSeconds: number
     readonly souvenirCounter: boolean
     readonly newPhotoSignal: boolean
     readonly freshLane: boolean

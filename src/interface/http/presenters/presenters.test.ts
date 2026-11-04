@@ -395,6 +395,9 @@ describe('toEventSettingsDto', () => {
       wall: {
         layout: 'collage',
         slideIntervalMs: 20_000,
+        mixedEnabled: false,
+        mixedWallSeconds: 180,
+        mixedSlideshowSeconds: 60,
         qrVisible: false,
         freshLane: false,
         tilt: false,

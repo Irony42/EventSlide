@@ -6,9 +6,9 @@ import type { EventStatus } from '../../../domain/events/eventStatus'
 import type { PhotoStatus } from '../../../domain/photos/photoStatus'
 import type { GuestRepository } from '../../ports/guestRepository'
 import { aGuest, aMission, anEvent, aPhoto, atPlus, AT } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
-import { FakeClock } from '../../testing/fakeClock'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'
@@ -329,6 +329,60 @@ describe('getWallPlaylist', () => {
     expect(result.ok && result.value.kenBurnsDurationMs).toBe(12_800)
     expect(result.ok && result.value.layout).toBe('polaroid')
     expect(result.ok && result.value.layoutChosen).toBe(true)
+  })
+
+  it('answers the server time and no mixed schedule while the mode is off (spec 09)', async () => {
+    events.seed(wedding)
+
+    const result = await ask()
+
+    expect(result.ok && result.value.serverNowMs).toBe(AT.getTime())
+    expect(result.ok && result.value.mixed).toBeNull()
+  })
+
+  it('answers the mixed schedule in milliseconds, the wall phase on the event layout', async () => {
+    events.seed(
+      anEvent({
+        id: 'event-1',
+        settings: {
+          wall: {
+            layout: 'collage',
+            mixedEnabled: true,
+            mixedWallSeconds: 120,
+            mixedSlideshowSeconds: 30,
+            mixedAnchorMs: 42,
+          },
+        },
+      }),
+    )
+
+    const result = await ask()
+
+    expect(result.ok && result.value.mixed).toEqual({
+      wallMs: 120_000,
+      slideshowMs: 30_000,
+      layout: 'collage',
+      anchorMs: 42,
+    })
+  })
+
+  it('gives the overview to the wall phase when no layout, or spotlight, was chosen', async () => {
+    const mixed = { mixedEnabled: true, mixedAnchorMs: 1 }
+    events.seed(anEvent({ id: 'event-1', settings: { wall: mixed } }))
+    const none = await ask()
+    expect(none.ok && none.value.mixed?.layout).toBe('mosaic')
+
+    events.seed(anEvent({ id: 'event-1', settings: { wall: { ...mixed, layout: 'spotlight' } } }))
+    const spotlight = await ask()
+    expect(spotlight.ok && spotlight.value.mixed?.layout).toBe('mosaic')
+  })
+
+  it('reads an enabled mode with no anchor as off', async () => {
+    events.seed(anEvent({ id: 'event-1', settings: { wall: { mixedEnabled: true } } }))
+
+    const result = await ask()
+
+    expect(result.ok && result.value.mixed).toBeNull()
   })
 
   it('hands the invitation card settings to the wall, defaults first (spec 14)', async () => {

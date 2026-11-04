@@ -201,6 +201,10 @@ export const eventRepositoryContract = (
             wall: {
               layout: 'polaroid',
               slideIntervalMs: 12_000,
+              mixedEnabled: true,
+              mixedWallSeconds: 120,
+              mixedSlideshowSeconds: 45,
+              mixedAnchorMs: 1_700_000_000_000,
               qrVisible: false,
               freshLane: false,
               tilt: false,
@@ -243,6 +247,10 @@ export const eventRepositoryContract = (
         wall: {
           layout: 'polaroid',
           slideIntervalMs: 12_000,
+          mixedEnabled: true,
+          mixedWallSeconds: 120,
+          mixedSlideshowSeconds: 45,
+          mixedAnchorMs: 1_700_000_000_000,
           qrVisible: false,
           freshLane: false,
           tilt: false,

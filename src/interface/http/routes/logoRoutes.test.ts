@@ -84,6 +84,7 @@ const buildWorld = (): World => {
         }),
         getEventLogoMedia: makeGetEventLogoMedia({ media }),
         updateEventSettings: makeUpdateEventSettings({
+          clock: deps.clock,
           events: deps.events,
           clients: base.clients,
           memberships: deps.memberships,

@@ -438,6 +438,10 @@ export const eventSettings = (
       // Spec 11: both off until the host asks.
       souvenirCounter: false,
       newPhotoSignal: false,
+      // Spec 09: off.
+      mixedEnabled: false,
+      mixedWallSeconds: 180,
+      mixedSlideshowSeconds: 60,
       ...wall,
     },
     ...rest,

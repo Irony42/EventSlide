@@ -1,3 +1,4 @@
+import { DEFAULT_WALL_SETTINGS } from '../../domain/events/eventWallSettings'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -803,21 +804,9 @@ describe('SqliteEventRepository', () => {
         json({ wall: undefined }),
         'evt-1',
       )
-      expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
-        layout: null,
-        slideIntervalMs: null,
-        qrVisible: true,
-        freshLane: true,
-        tilt: true,
-        showTime: false,
-        souvenirCounter: false,
-        newPhotoSignal: false,
-        qrScale: 1,
-        qrPlacement: 'bottom-end',
-        soundEnabled: false,
-        soundTone: 'chime',
-        soundVolume: 50,
-      })
+      expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual(
+        DEFAULT_WALL_SETTINGS,
+      )
 
       db.prepare('UPDATE events SET settings = ? WHERE id = ?').run(
         json({
@@ -833,21 +822,9 @@ describe('SqliteEventRepository', () => {
         }),
         'evt-1',
       )
-      expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual({
-        layout: null,
-        slideIntervalMs: null,
-        qrVisible: true,
-        freshLane: true,
-        tilt: true,
-        showTime: false,
-        souvenirCounter: false,
-        newPhotoSignal: false,
-        qrScale: 1,
-        qrPlacement: 'bottom-end',
-        soundEnabled: false,
-        soundTone: 'chime',
-        soundVolume: 50,
-      })
+      expect((await repo.findById(asEventId('evt-1')))?.settings.wall).toEqual(
+        DEFAULT_WALL_SETTINGS,
+      )
     })
 
     it('keeps a wall language the host did choose', async () => {

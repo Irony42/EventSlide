@@ -6,9 +6,9 @@ import {
   messageDisplayMs,
 } from '../../../domain/guestbook/guestbookWall'
 import { aGuest, aGuestbookEntry, anEvent, atPlus } from '../../testing/builders'
+import { FakeClock } from '../../testing/fakeClock'
 import { FakeEventRepository } from '../../testing/fakeEventRepository'
 import { FakeChallengeRepository } from '../../testing/fakeChallengeRepository'
-import { FakeClock } from '../../testing/fakeClock'
 import { FakeGuestbookRepository } from '../../testing/fakeGuestbookRepository'
 import { FakeGuestRepository } from '../../testing/fakeGuestRepository'
 import { FakeMissionRepository } from '../../testing/fakeMissionRepository'

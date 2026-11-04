@@ -5,6 +5,7 @@ import {
   mergeWallSettings,
   restoreWallSettings,
   wallSettingsViolation,
+  type EventWallSettings,
 } from './eventWallSettings'
 import { EventSettings } from './eventSettings'
 
@@ -12,6 +13,10 @@ const QR = {
   qrVisible: true,
   qrScale: DEFAULT_WALL_QR_SCALE,
   qrPlacement: 'bottom-end',
+  mixedEnabled: false,
+  mixedWallSeconds: 180,
+  mixedSlideshowSeconds: 60,
+  mixedAnchorMs: null,
   soundEnabled: false,
   soundTone: 'chime',
   soundVolume: 50,
@@ -181,5 +186,72 @@ describe('the wall settings group (spec 13)', () => {
       souvenirCounter: true,
       newPhotoSignal: false,
     })
+  })
+})
+
+const wallOf = (patch: Partial<EventWallSettings>): EventWallSettings => ({
+  ...DEFAULT_WALL_SETTINGS,
+  ...patch,
+})
+
+describe('the mixed wall keys (spec 09)', () => {
+  it('bounds the wall phase to 30 s to 60 min and the slideshow phase to 15 s to 30 min', () => {
+    const code = (patch: Partial<EventWallSettings>) => wallSettingsViolation(wallOf(patch))?.code
+    expect(code({ mixedWallSeconds: 30, mixedSlideshowSeconds: 15 })).toBeUndefined()
+    expect(code({ mixedWallSeconds: 3600, mixedSlideshowSeconds: 1800 })).toBeUndefined()
+    expect(code({ mixedWallSeconds: 29 })).toBe('wallMixed.wallTooShort')
+    expect(code({ mixedWallSeconds: 3601 })).toBe('wallMixed.wallTooLong')
+    expect(code({ mixedSlideshowSeconds: 14 })).toBe('wallMixed.slideshowTooShort')
+    expect(code({ mixedSlideshowSeconds: 1801 })).toBe('wallMixed.slideshowTooLong')
+  })
+
+  it('wants whole seconds', () => {
+    expect(wallSettingsViolation(wallOf({ mixedWallSeconds: 90.5 }))?.code).toBe(
+      'wallMixed.wallTooShort',
+    )
+    expect(wallSettingsViolation(wallOf({ mixedSlideshowSeconds: 20.5 }))?.code).toBe(
+      'wallMixed.slideshowTooShort',
+    )
+  })
+
+  it('merges its keys one by one, like the others', () => {
+    const base = wallOf({ mixedEnabled: true, mixedAnchorMs: 5 })
+    expect(mergeWallSettings(base, { mixedWallSeconds: 40 })).toEqual({
+      ...base,
+      mixedWallSeconds: 40,
+    })
+    expect(mergeWallSettings(base, { mixedEnabled: false }).mixedEnabled).toBe(false)
+    expect(mergeWallSettings(base, { mixedSlideshowSeconds: 20 }).mixedSlideshowSeconds).toBe(20)
+    expect(mergeWallSettings(base, { mixedAnchorMs: 9 }).mixedAnchorMs).toBe(9)
+  })
+
+  it('reads a blob without the keys (an event saved by 3.5.0) as switched off', () => {
+    expect(restoreWallSettings({ layout: 'mosaic' })).toEqual(wallOf({ layout: 'mosaic' }))
+  })
+
+  it('reads stored mixed keys, and falls back per key on an unreadable one', () => {
+    expect(
+      restoreWallSettings({
+        mixedEnabled: true,
+        mixedWallSeconds: 120,
+        mixedSlideshowSeconds: 45,
+        mixedAnchorMs: 1_700_000_000_000,
+      }),
+    ).toEqual(
+      wallOf({
+        mixedEnabled: true,
+        mixedWallSeconds: 120,
+        mixedSlideshowSeconds: 45,
+        mixedAnchorMs: 1_700_000_000_000,
+      }),
+    )
+    expect(
+      restoreWallSettings({
+        mixedEnabled: 'yes',
+        mixedWallSeconds: 5,
+        mixedSlideshowSeconds: 'x',
+        mixedAnchorMs: Number.NaN,
+      }),
+    ).toEqual(DEFAULT_WALL_SETTINGS)
   })
 })

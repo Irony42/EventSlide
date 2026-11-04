@@ -341,6 +341,9 @@ export const toEventSettingsDto = (settings: EventSettings, slug: string): Event
   wall: {
     layout: settings.wall.layout,
     slideIntervalMs: settings.wall.slideIntervalMs,
+    mixedEnabled: settings.wall.mixedEnabled,
+    mixedWallSeconds: settings.wall.mixedWallSeconds,
+    mixedSlideshowSeconds: settings.wall.mixedSlideshowSeconds,
     souvenirCounter: settings.wall.souvenirCounter,
     newPhotoSignal: settings.wall.newPhotoSignal,
     freshLane: settings.wall.freshLane,
@@ -865,6 +868,7 @@ export const toWallResponseDto = (
     kenBurnsDurationMs: view.kenBurnsDurationMs,
     layout: view.layout,
     layoutChosen: view.layoutChosen,
+    mixed: view.mixed,
     souvenirCount: view.souvenirCount,
     souvenirCounter: view.souvenirCounter,
     newPhotoSignal: view.newPhotoSignal,

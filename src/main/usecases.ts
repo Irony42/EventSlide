@@ -618,6 +618,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
     }),
     resolveJoinCode: makeResolveJoinCode({ events: adapters.events }),
     updateEventSettings: makeUpdateEventSettings({
+      clock: adapters.clock,
       events: adapters.events,
       clients: adapters.clients,
       memberships: adapters.memberships,
