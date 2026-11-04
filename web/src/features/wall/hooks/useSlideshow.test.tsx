@@ -43,6 +43,7 @@ function Probe({ items, intervalMs = INTERVAL_MS, loaded = true, hold = false }:
     next,
     paused,
     generation,
+    automaticChanges,
     fresh,
     upcoming,
     advance,
@@ -58,6 +59,7 @@ function Probe({ items, intervalMs = INTERVAL_MS, loaded = true, hold = false }:
       <p>à l’écran {current?.caption ?? 'rien'}</p>
       <p>ensuite {next?.caption ?? 'rien'}</p>
       <p>génération {generation}</p>
+      <p>automatiques {automaticChanges}</p>
       <p>passée devant la file {fresh ? 'oui' : 'non'}</p>
       <p>à suivre {upcoming.map((photo) => photo.caption).join(',')}</p>
       <p>cadence {cadenceMs}</p>
@@ -114,6 +116,21 @@ describe('useSlideshow', () => {
     tick(INTERVAL_MS)
 
     expect(screen.getByText(/à l’écran Le gâteau/)).toBeInTheDocument()
+  })
+
+  it('counts only the slide clock’s changes as automatic, not the host’s arrows', () => {
+    renderProbe({
+      items: [aPhoto('a', 'Les confettis'), aPhoto('b', 'Le gâteau'), aPhoto('c', 'La piste')],
+    })
+
+    fireEvent.click(screen.getByText('suivante'))
+    fireEvent.click(screen.getByText('précédente'))
+    expect(screen.getByText('génération 2')).toBeInTheDocument()
+    expect(screen.getByText('automatiques 0')).toBeInTheDocument()
+
+    tick(INTERVAL_MS)
+    expect(screen.getByText('génération 3')).toBeInTheDocument()
+    expect(screen.getByText('automatiques 1')).toBeInTheDocument()
   })
 
   it('waits while something covers the photographs, without saying it is paused', () => {

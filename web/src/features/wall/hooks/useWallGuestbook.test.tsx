@@ -49,6 +49,20 @@ describe('useWallGuestbook', () => {
     expect(view.result.current.message).toBeNull()
   })
 
+  it('takes the card down at once when dismissed, and brings none back before the next Nth change', () => {
+    const view = mount(BOOK)
+    view.rerender({ generation: 3, guestbook: BOOK })
+    expect(view.result.current.message?.id).toBe('a')
+
+    act(() => view.result.current.dismiss())
+    expect(view.result.current.message).toBeNull()
+
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(view.result.current.message).toBeNull()
+    view.rerender({ generation: 6, guestbook: BOOK })
+    expect(view.result.current.message?.id).toBe('b')
+  })
+
   it('goes round the messages and starts again at the first', () => {
     const view = mount(BOOK)
     const seen: (string | undefined)[] = []

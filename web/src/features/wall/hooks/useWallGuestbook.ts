@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WallGuestbookDto, WallGuestbookMessageDto } from '../../../lib/api/dto'
 
 export interface WallGuestbook {
   /** The card on screen now, or `null`. While it is up the slideshow holds still. */
   readonly message: WallGuestbookMessageDto | null
+  /** The host pressed an arrow: the card goes at once, and the cursor stays where it is. */
+  readonly dismiss: () => void
 }
 
 /**
  * When the room reads a guestbook message (spec 01).
  *
- * It counts photograph changes (`generation`, which only rises when the wall changes photo) and,
+ * It counts the photograph changes the slide clock makes (`generation`: the host's arrows are not
+ * counted, so a remote never summons a card) and,
  * every `everyNth` of them, puts the next message up for its `displayMs`. Both numbers are the
  * **server's**, received in `/wall`: the browser has no opinion on the rhythm. Messages go round
  * in order and start again at the first, so a long evening shows every message more than once
@@ -29,6 +32,7 @@ export const useWallGuestbook = (
   held = false,
 ): WallGuestbook => {
   const [message, setMessage] = useState<WallGuestbookMessageDto | null>(null)
+  const dismiss = useCallback(() => setMessage(null), [])
   const seen = useRef(generation)
   const cursor = useRef(0)
   const latest = useRef(guestbook)
@@ -64,5 +68,5 @@ export const useWallGuestbook = (
 
   // A message that left the response (taken off, or the switch turned off) goes with it.
   const stillThere = message !== null && guestbook?.messages.some((m) => m.id === message.id)
-  return { message: stillThere === true ? message : null }
+  return { message: stillThere === true ? message : null, dismiss }
 }
