@@ -81,7 +81,7 @@ missions, so read "Behaviour changes to check before upgrading" and
   #341). The panel says what this screen does when it has its own layout and offers « Revenir au réglage de
   l'évènement ».
 - **Launch a timed photo challenge** (#316, #324, #338). From the missions of the console, or from the « Défi
-  photo » section of the wall panel: a mission, a duration of 15 seconds to 30 minutes, « Lancer » and
+  photo » section of the wall panel: a mission, a duration of 1, 2, 5 or 10 minutes (the API accepts 15 seconds to 30 minutes), « Lancer » and
   « Arrêter », and the number of answers (published photographs that name the mission inside the window,
   which runs until a minute after the end). Fifty challenges per event; any moderator can launch one from the
   console.
