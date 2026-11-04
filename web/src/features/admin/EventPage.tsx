@@ -22,6 +22,7 @@ import { StorageMeter } from './components/StorageMeter'
 import { SupportCard } from './components/SupportCard'
 import { GuestListPanel } from './GuestListPanel'
 import { GuestbookPanel } from './GuestbookPanel'
+import { ChallengePanel } from './ChallengePanel'
 import { MissionsPanel } from './MissionsPanel'
 import { ModeratorsPanel } from './ModeratorsPanel'
 import { PurgeEventDialog } from './PurgeEventDialog'
@@ -282,6 +283,9 @@ export function EventPage() {
         {event.settings.allowGuestbook ? (
           <GuestbookPanel slug={event.slug} canDecide={allowsModeration(event.status)} />
         ) : null}
+        {/* Any moderator launches or stops a timed challenge (spec 10): the person with the laptop
+            at the evening is usually the moderator, and it writes no new sentence. */}
+        <ChallengePanel slug={event.slug} live={event.status === 'live'} />
         {isOwner ? <MissionsPanel slug={event.slug} /> : null}
         {/* Owner-only, like every endpoint behind it: sending the album beyond the room
             is a decision about the whole event (roadmap §4.1). */}

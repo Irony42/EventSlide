@@ -84,6 +84,7 @@ describe('the scope', () => {
         'admin',
         'app',
         'auth',
+        'challenge',
         'clientSpace',
         'errors',
         'feed',
