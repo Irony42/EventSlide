@@ -80,7 +80,7 @@ describe('uploadClip', () => {
       clock,
       ids,
       logger,
-      limits: { maxQueuedClips, maxQueuedClipsPerEvent },
+      limits: { maxQueuedClips, maxQueuedClipsPerEvent, maxDurationMs: 15_000 },
     })
   }
 
@@ -112,6 +112,54 @@ describe('uploadClip', () => {
       file: { bytes, declaredName: 'IMG_4021.MOV' },
       ...(caption === undefined ? {} : { caption }),
     })
+
+  describe('a trimmed recording (spec 16)', () => {
+    const trimmed = (startMs: number, endMs: number) =>
+      uploadClip({
+        eventId: EVENT,
+        author: GUEST,
+        file: { bytes: aClipFile(), declaredName: 'IMG_4021.MOV' },
+        trim: { startMs, endMs },
+      })
+
+    it('carries the range on the queued job, where the worker will read it', async () => {
+      seedEvent()
+
+      const result = await trimmed(12_000, 24_000)
+
+      expect(result.ok).toBe(true)
+      expect(clips.all[0]?.trim?.startMs).toBe(12_000)
+      expect(clips.all[0]?.trim?.endMs).toBe(24_000)
+    })
+
+    it('leaves the job untrimmed when no range is sent', async () => {
+      seedEvent()
+
+      await upload()
+
+      expect(clips.all[0]?.trim).toBeNull()
+    })
+
+    it('accepts a range of exactly the cap', async () => {
+      seedEvent()
+
+      expect((await trimmed(0, 15_000)).ok).toBe(true)
+    })
+
+    it.each([
+      ['longer than the cap', 0, 15_001, 'clip.tooLong'],
+      ['shorter than a second', 5_000, 5_999, 'clip.tooShort'],
+      ['ending before it starts', 9_000, 4_000, 'clip.trimInvalid'],
+    ])('refuses a range %s before a byte is staged', async (_name, start, end, code) => {
+      seedEvent()
+
+      const result = await trimmed(start, end)
+
+      expect(!result.ok && result.error.code).toBe(code)
+      expect(clips.all).toEqual([])
+      expect(media.objectCount).toBe(0)
+    })
+  })
 
   describe('the happy path', () => {
     it('queues the clip and hands back the row it will become', async () => {
@@ -284,7 +332,7 @@ describe('uploadClip', () => {
         clock,
         ids,
         logger,
-        limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20 },
+        limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20, maxDurationMs: 15_000 },
       })
 
       const result = await upload(new Uint8Array(0))
@@ -771,7 +819,7 @@ describe('uploadClip', () => {
         clock,
         ids,
         logger,
-        limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20 },
+        limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20, maxDurationMs: 15_000 },
       })
 
       const result = await upload()
@@ -866,7 +914,7 @@ describe('uploadClip under a client’s ceilings', () => {
       clock: new FakeClock(new Date('2026-06-20T21:00:00.000Z')),
       ids: new SequentialIdGenerator(),
       logger: new CapturingLogger(),
-      limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20 },
+      limits: { maxQueuedClips: 20, maxQueuedClipsPerEvent: 20, maxDurationMs: 15_000 },
     })
 
     seedClient('client-1', {})

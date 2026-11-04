@@ -961,6 +961,7 @@ export const buildUseCases = (adapters: Adapters, policy: UseCasePolicy) => {
       limits: {
         maxQueuedClips: policy.clips.maxQueuedClips,
         maxQueuedClipsPerEvent: policy.clips.maxQueuedClipsPerEvent,
+        maxDurationMs: policy.clips.maxDurationMs,
       },
     }),
     getClipJob: makeGetClipJob({ clips: adapters.clips }),

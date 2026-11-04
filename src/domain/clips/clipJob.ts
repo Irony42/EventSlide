@@ -6,6 +6,7 @@ import type { ClipJobId, EventId, PhotoId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
 import { MAX_ATTEMPTS, classifyClipFailure, retryDelayMs, shouldRetry } from './clipFailure'
 import { canTransition, type ClipJobStatus } from './clipJobStatus'
+import type { ClipTrim } from './clipTrim'
 
 /**
  * A clip that has been staged and is waiting for, or undergoing, a transcode.
@@ -38,6 +39,8 @@ export interface NewClipJob {
   readonly sourceHash: ContentHash
   readonly sourceByteSize: number
   readonly caption: Caption | null
+  /** The part of the source to keep; `null` is "all of it", and the source must then fit the cap. */
+  readonly trim?: ClipTrim | null
 }
 
 export interface ClipJobProps {
@@ -50,6 +53,7 @@ export interface ClipJobProps {
   readonly sourceHash: ContentHash
   readonly sourceByteSize: number
   readonly caption: Caption | null
+  readonly trim: ClipTrim | null
   /** How many times the worker has claimed this job. */
   readonly attempts: number
   readonly createdAt: Date
@@ -97,6 +101,7 @@ export class ClipJob {
         sourceHash: input.sourceHash,
         sourceByteSize: input.sourceByteSize,
         caption: input.caption,
+        trim: input.trim ?? null,
         attempts: 0,
         createdAt: now,
         updatedAt: now,
@@ -141,6 +146,10 @@ export class ClipJob {
 
   get caption(): Caption | null {
     return this.props.caption
+  }
+
+  get trim(): ClipTrim | null {
+    return this.props.trim
   }
 
   get attempts(): number {

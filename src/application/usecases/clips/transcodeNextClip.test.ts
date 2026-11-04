@@ -353,6 +353,82 @@ describe('transcodeNextClip', () => {
     })
   })
 
+  describe('a trimmed clip (spec 16)', () => {
+    const LONG = { width: 1280, height: 720, durationMs: 40_000 }
+
+    it('accepts a source longer than the cap when the range is inside it', async () => {
+      seedEvent()
+      await stage(sourceBytes(LONG), { trim: { startMs: 12_000, endMs: 24_000 } })
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind).toBe('transcoded')
+      expect(clips.all[0]?.status).toBe('done')
+    })
+
+    it('tells the encoder the range, and measures the output on what it produced', async () => {
+      seedEvent()
+      await stage(sourceBytes(LONG), { trim: { startMs: 12_000, endMs: 24_000 } })
+
+      await transcodeNextClip()
+
+      expect(transcoder.lastSpec?.trim).toEqual({ startMs: 12_000, endMs: 24_000 })
+      const facet = (await photos.findById(EVENT, asPhotoId('clip-job-1-photo')))?.facet
+      expect(facet?.kind === 'clip' && facet.duration.ms).toBe(12_000)
+    })
+
+    it('sends no range for a job that has none', async () => {
+      seedEvent()
+      await stage()
+
+      await transcodeNextClip()
+
+      expect(transcoder.lastSpec?.trim).toBeUndefined()
+    })
+
+    it('gives up when the range ends past the source, beyond the tolerance', async () => {
+      seedEvent()
+      await stage(sourceBytes(LONG), { trim: { startMs: 30_000, endMs: 40_501 } })
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind === 'failed' && result.value.code).toBe(
+        'clip.trimOutOfRange',
+      )
+      expect(transcoder.calls).not.toContain('transcode')
+    })
+
+    it('gives up at once on that, rather than retrying the same answer', async () => {
+      seedEvent()
+      await stage(sourceBytes(LONG), { trim: { startMs: 30_000, endMs: 41_000 } })
+
+      await transcodeNextClip()
+
+      expect(clips.all[0]?.status).toBe('failed')
+      expect(clips.all[0]?.attempts).toBe(1)
+    })
+
+    it('accepts a range ending within the tolerance of the declared end', async () => {
+      seedEvent()
+      await stage(sourceBytes(LONG), { trim: { startMs: 30_000, endMs: 40_500 } })
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind).toBe('transcoded')
+    })
+
+    it('still refuses a source whose header claims more than thirty minutes', async () => {
+      seedEvent()
+      await stage(sourceBytes({ ...LONG, durationMs: 1_800_001 }), {
+        trim: { startMs: 0, endMs: 10_000 },
+      })
+
+      const result = await transcodeNextClip()
+
+      expect(result.ok && result.value.kind === 'failed' && result.value.code).toBe('clip.tooLong')
+    })
+  })
+
   describe('a clip that will never transcode', () => {
     it('gives up at once on a file with no video stream', async () => {
       seedEvent()
