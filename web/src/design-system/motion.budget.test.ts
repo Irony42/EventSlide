@@ -443,6 +443,8 @@ const WALL_BUDGET_ANSWERS: Readonly<Record<string, 'still' | 'cut'>> = {
   'features/wall/components/WallSoundButton.module.css': 'cut',
   'features/wall/components/WallChallenge.module.css': 'cut',
   'features/wall/components/WallLayouts.module.css': 'still',
+  // The option switches' knob slide in the settings drawer: given up at the bottom rung.
+  'features/wall/panel/controls/controls.module.css': 'cut',
 }
 
 /** A rung, as a stylesheet declares it: an ancestor attribute the wall's root carries. */

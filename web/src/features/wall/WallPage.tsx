@@ -278,7 +278,12 @@ export function WallPage() {
     fadeMs: transitionMs,
     phaseMsOverride: phaseMs,
   })
-  const { message: guestbookMessage } = useWallGuestbook(wall?.guestbook, slideshow.generation)
+  const { message: guestbookMessage, dismiss: dismissGuestbook } = useWallGuestbook(
+    wall?.guestbook,
+    slideshow.automaticChanges,
+    // Spec 10: the room's attention belongs to a running challenge (the server's state).
+    wall?.challenge?.state === 'running',
+  )
   // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
   // below it, and an effect would let one photograph go by under a card that just appeared.
   if (cardUp !== (guestbookMessage !== null)) setCardUp(guestbookMessage !== null)
@@ -440,7 +445,11 @@ export function WallPage() {
 
   useWallKeyboard({
     onTogglePause: () => (slideshow.paused ? slideshow.resume() : slideshow.pause()),
-    onStep: (step) => slideshow.advance(step),
+    onStep: (step) => {
+      // An arrow leaves a card for the photograph under it, then steps: photographs only.
+      dismissGuestbook()
+      slideshow.advance(step)
+    },
     onToggleFullscreen: toggleFullscreen,
     onCycleLayout: () =>
       setLayoutOverride((current) =>

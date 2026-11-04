@@ -120,6 +120,13 @@ export const fr = {
         other: `Envoyer les ${t.number(count)} photos`,
       }),
     queueEmpty: 'Aucune photo sélectionnée pour le moment.',
+    foldPane: 'Réduire',
+    openPane: 'Envoyer une photo',
+    openPaneReady: (count: number) =>
+      t.count(count, {
+        one: 'Rouvrir le volet : 1 photo prête',
+        other: `Rouvrir le volet : ${t.number(count)} photos prêtes`,
+      }),
     itemPending: 'Prête',
     itemUploading: 'Envoi en cours',
     itemDone: 'Envoyée',

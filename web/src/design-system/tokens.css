@@ -242,11 +242,24 @@
      pushing the page wider than the screen. In rem, so it grows with the guest's text size. */
   --tile-min-width: 7.5rem;
   --z-wall-caption: 10;
+  /* The timed challenge's banner: above every other wall layer, the guestbook card included,
+     because a countdown the room cannot see is not a challenge. Under the dialogs. */
+  --z-wall-challenge: 15;
   --z-dialog: 50;
   --z-toast: 60;
 
   /* ---- Targets. 44 px is the floor, not the aspiration. ---- */
   --touch-min: 2.75rem;
+
+  /* ---- Switch. A pill twice as wide as tall: the 44 px target is the label around it, never the
+         track. The on track is the ambiance's accent re-lit to a fixed lightness so the near-white knob
+         and the card both stay at 3:1 from it whatever the accent (tokens.contrast.test.ts). ---- */
+  --switch-width: 2.75rem;
+  --switch-height: 1.5rem;
+  --switch-knob: 1.25rem;
+  --switch-gap: 0.125rem; /* (height - knob) / 2 */
+  --switch-on: oklch(from var(--accent) 58% calc(c * 0.8) h);
+  --switch-knob-colour: oklch(98% 0.005 85);
 
   /* ---- Print, spec 02: the sheet a host prints for the tables. Lengths are **millimetres, written
          without a unit**: the preview multiplies them by one screen millimetre and paper by a real

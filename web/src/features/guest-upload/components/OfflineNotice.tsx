@@ -25,6 +25,8 @@ export interface OfflineNoticeProps {
    * saying they may close it: see `useBackgroundSync`.
    */
   readonly canCloseSafely: boolean
+  /** One line, for the folded bar: the icon and the count, without the hint and the button. */
+  readonly compact?: boolean
 }
 
 export function OfflineNotice({
@@ -32,6 +34,7 @@ export function OfflineNotice({
   draining,
   onSendNow,
   canCloseSafely,
+  compact = false,
 }: OfflineNoticeProps) {
   const t = useTranslations()
   // Rendered only when there is something to say. An empty reassurance sitting above
@@ -39,7 +42,11 @@ export function OfflineNotice({
   if (waiting === 0) return null
 
   return (
-    <section className={styles['notice']} role="status" data-testid="offline-notice">
+    <section
+      className={styles[compact ? 'compact' : 'notice']}
+      role="status"
+      data-testid="offline-notice"
+    >
       {/* A span of its own rather than a class on the glyph: it carries the tone's colour and
           keeps the glyph from shrinking in the row. */}
       <span className={styles['icon']}>
@@ -50,20 +57,24 @@ export function OfflineNotice({
         <p className={styles['title']} data-testid="offline-waiting">
           {t.upload.offlineTitle(waiting)}
         </p>
-        <p className={styles['hint']}>
-          {draining
-            ? t.upload.offlineSending
-            : canCloseSafely
-              ? t.upload.offlineHint
-              : t.upload.offlineHintNoSync}
-        </p>
+        {compact ? null : (
+          <p className={styles['hint']}>
+            {draining
+              ? t.upload.offlineSending
+              : canCloseSafely
+                ? t.upload.offlineHint
+                : t.upload.offlineHintNoSync}
+          </p>
+        )}
       </div>
 
       {/* A guest who can see a bar of signal should not have to wait for the browser to
           agree. The drain is idempotent, so pressing it while offline costs nothing. */}
-      <Button size="sm" variant="secondary" loading={draining} onClick={onSendNow}>
-        {t.upload.offlineRetry}
-      </Button>
+      {compact ? null : (
+        <Button size="sm" variant="secondary" loading={draining} onClick={onSendNow}>
+          {t.upload.offlineRetry}
+        </Button>
+      )}
     </section>
   )
 }
