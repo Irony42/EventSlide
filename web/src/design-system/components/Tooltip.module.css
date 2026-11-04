@@ -22,6 +22,11 @@
   visibility: hidden;
 }
 
+.below {
+  inset-block-end: auto;
+  inset-block-start: calc(100% + var(--space-2));
+}
+
 .wrap:hover .tip,
 .wrap:has(:focus-visible) .tip {
   visibility: visible;

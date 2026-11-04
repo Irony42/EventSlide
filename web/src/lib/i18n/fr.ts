@@ -897,6 +897,12 @@ export const fr = {
       pauseTip: 'Pause (Espace)',
       resumeTip: 'Reprendre (Espace)',
       fullscreenTip: 'Plein écran (F)',
+      /* Spec 17: the drawer's section row and the current value under each section's title. */
+      sectionJump: 'Aller à la section',
+      summaryNone: 'Aucun',
+      summaryHidden: 'Masqué',
+      summaryOff: 'Désactivé',
+      summaryRhythm: (n: number) => `${n} s`,
       barLabel: 'Commandes du mur',
       panelLabel: 'Réglages du mur',
       title: 'Réglages',

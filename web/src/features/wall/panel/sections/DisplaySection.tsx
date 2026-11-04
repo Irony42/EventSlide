@@ -2,6 +2,7 @@ import { CheckboxField } from '../../../admin/components/CheckboxField'
 import { SelectField, type SelectOption } from '../../../admin/components/SelectField'
 import { Button } from '../../../../design-system/components/Button'
 import {
+  DEFAULT_RHYTHM_SECONDS,
   MIXED_SLIDESHOW_STEPS_SECONDS,
   MIXED_WALL_STEPS_SECONDS,
   WALL_UNSET,
@@ -129,5 +130,15 @@ export const section: WallPanelSection = {
   id: 'display',
   order: 10,
   title: (text) => text.wall.panel.sectionDisplay,
+  icon: 'layout',
+  summary: (text, { wall }) =>
+    [
+      wall.layout === null
+        ? text.admin.wallDisplay.layoutUnset
+        : text.wall.layoutNames[wall.layout],
+      text.wall.panel.summaryRhythm(
+        wall.slideIntervalMs === null ? DEFAULT_RHYTHM_SECONDS : wall.slideIntervalMs / 1_000,
+      ),
+    ].join(' · '),
   Component: DisplaySection,
 }

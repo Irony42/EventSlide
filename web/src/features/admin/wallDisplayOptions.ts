@@ -12,6 +12,9 @@ export type WallSettingsDto = EventSettingsDto['wall']
 export const WALL_UNSET = ''
 
 /** Steps offered for the rhythm, in seconds. 8 is the default and is the `null` option. */
+/** What a wall with no rhythm of its own shows, as the "default" option says. */
+export const DEFAULT_RHYTHM_SECONDS = 8
+
 export const RHYTHM_STEPS_SECONDS: readonly number[] = [4, 6, 12, 20, 30]
 
 export const wallLayoutOptions = (text: UiText): readonly SelectOption[] => [

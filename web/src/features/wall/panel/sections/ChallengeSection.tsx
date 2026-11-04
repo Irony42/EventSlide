@@ -32,5 +32,6 @@ export const section: WallPanelSection = {
   id: 'challenge',
   order: 50,
   title: (text) => text.challenge.title,
+  icon: 'flag',
   Component: ChallengeSection,
 }

@@ -51,5 +51,7 @@ export const section: WallPanelSection = {
   id: 'ambiance',
   order: 20,
   title: (text) => text.wall.panel.sectionAmbiance,
+  icon: 'palette',
+  summary: (text, { theme }) => text.admin.themeAmbianceNames[theme.ambiance],
   Component: AmbianceSection,
 }

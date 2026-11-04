@@ -32,5 +32,13 @@ export const section: WallPanelSection = {
   id: 'on-screen',
   order: 40,
   title: (text) => text.admin.wallDisplay.onScreen,
+  icon: 'eye',
+  summary: (text, { wall }) =>
+    [
+      wall.souvenirCounter ? text.admin.wallDisplay.souvenirCounter : null,
+      wall.newPhotoSignal ? text.admin.wallDisplay.newPhotoSignal : null,
+    ]
+      .filter((label) => label !== null)
+      .join(' · ') || text.wall.panel.summaryNone,
   Component: OnScreenSection,
 }

@@ -861,6 +861,12 @@ export const en: UiText = {
       pauseTip: 'Pause (Space)',
       resumeTip: 'Resume (Space)',
       fullscreenTip: 'Full screen (F)',
+      /* Spec 17: the drawer's section row and the current value under each section's title. */
+      sectionJump: 'Jump to section',
+      summaryNone: 'None',
+      summaryHidden: 'Hidden',
+      summaryOff: 'Off',
+      summaryRhythm: (n: number) => `${n} s`,
       barLabel: 'Wall controls',
       panelLabel: 'Wall settings',
       title: 'Settings',

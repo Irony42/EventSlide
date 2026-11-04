@@ -21,5 +21,10 @@ export const section: WallPanelSection = {
   id: 'qr',
   order: 30,
   title: (text) => text.wall.panel.sectionQr,
+  icon: 'qr',
+  summary: (text, { wall }) =>
+    wall.qrVisible
+      ? `${text.admin.wallDisplay.qrCorners[wall.qrPlacement]} · ${text.admin.wallDisplay.qrSizeValue(wall.qrScale)}`
+      : text.wall.panel.summaryHidden,
   Component: QrSection,
 }

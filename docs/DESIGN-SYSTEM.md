@@ -196,6 +196,8 @@ token exactly.
   --icon-size-md: 1.5rem;
   /* A button of the wall's owner bar: over a photograph, at the projector's distance. */
   --wall-bar-button: 3.25rem;
+  /* The owner's settings drawer on the wall: wide enough for the visual controls, a third of a 16:9 screen at most. */
+  --wall-panel-width: 27.5rem;
 }
 
 /* The accent, derived wherever a hue is in force. Two selectors, one rule — see §12:

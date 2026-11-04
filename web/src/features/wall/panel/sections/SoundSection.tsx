@@ -32,5 +32,10 @@ export const section: WallPanelSection = {
   id: 'sound',
   order: 60,
   title: (text) => text.admin.wallSound.title,
+  icon: 'speaker',
+  summary: (text, { wall }) =>
+    wall.soundEnabled
+      ? `${text.admin.wallSound.toneNames[wall.soundTone]} · ${text.admin.wallSound.volumeValue(wall.soundVolume)}`
+      : text.wall.panel.summaryOff,
   Component: SoundSection,
 }

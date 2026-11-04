@@ -896,6 +896,12 @@ export const it: UiText = {
       pauseTip: 'Pausa (Spazio)',
       resumeTip: 'Riprendi (Spazio)',
       fullscreenTip: 'Schermo intero (F)',
+      /* Spec 17: the drawer's section row and the current value under each section's title. */
+      sectionJump: 'Vai alla sezione',
+      summaryNone: 'Nessuno',
+      summaryHidden: 'Nascosto',
+      summaryOff: 'Disattivato',
+      summaryRhythm: (n: number) => `${n} s`,
       barLabel: 'Comandi del muro',
       panelLabel: 'Impostazioni del muro',
       title: 'Impostazioni',

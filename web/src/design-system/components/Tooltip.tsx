@@ -1,9 +1,12 @@
 import { useId, type ReactNode } from 'react'
+import { cx } from '../classNames'
 import styles from './Tooltip.module.css'
 
 export interface TooltipProps {
   /** What the tip says: the control's name, then its key. */
   readonly text: string
+  /** Where the tip stands: above its control (the default), or below it when the control is at an edge. */
+  readonly placement?: 'above' | 'below'
   /** Receives the id to give the control as `aria-describedby`. */
   readonly children: (describedBy: string) => ReactNode
 }
@@ -15,13 +18,17 @@ export interface TooltipProps {
  * motion budget. It describes the control rather than naming it: the accessible name stays the
  * control's own `aria-label`, which is why the tip is not read as a second name.
  */
-export function Tooltip({ text, children }: TooltipProps) {
+export function Tooltip({ text, placement = 'above', children }: TooltipProps) {
   const id = useId()
 
   return (
     <span className={styles['wrap']}>
       {children(id)}
-      <span id={id} role="tooltip" className={styles['tip']}>
+      <span
+        id={id}
+        role="tooltip"
+        className={cx(styles['tip'], placement === 'below' && styles['below'])}
+      >
         {text}
       </span>
     </span>

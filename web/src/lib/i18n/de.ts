@@ -923,6 +923,12 @@ export const de: UiText = {
       pauseTip: 'Pause (Leertaste)',
       resumeTip: 'Fortsetzen (Leertaste)',
       fullscreenTip: 'Vollbild (F)',
+      /* Spec 17: the drawer's section row and the current value under each section's title. */
+      sectionJump: 'Zum Abschnitt springen',
+      summaryNone: 'Keine',
+      summaryHidden: 'Ausgeblendet',
+      summaryOff: 'Aus',
+      summaryRhythm: (n: number) => `${n} s`,
       barLabel: 'Steuerung der Wand',
       panelLabel: 'Einstellungen der Wand',
       title: 'Einstellungen',

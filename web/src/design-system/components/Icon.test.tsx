@@ -2,7 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { Icon, type IconName } from './Icon'
 
-const NAMES: readonly IconName[] = ['settings', 'pause', 'play', 'fullscreen', 'close']
+const NAMES: readonly IconName[] = [
+  'settings',
+  'pause',
+  'play',
+  'fullscreen',
+  'close',
+  'layout',
+  'palette',
+  'qr',
+  'eye',
+  'flag',
+  'speaker',
+  'monitor',
+  'globe',
+  'check',
+  'chevron',
+]
 
 describe('Icon', () => {
   it.each(NAMES)('draws %s inline, hidden from assistive technology', (name) => {
