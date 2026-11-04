@@ -854,6 +854,8 @@ export const es: UiText = {
       'Espacio pausa, las flechas cambian de foto, F pasa a pantalla completa, L cambia la disposición, Q oculta o muestra el código QR.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Para salir: Esc o F salen de la pantalla completa; después cierre la pestaña.',
+    mixedHint:
+      'El muro alterna una vista general y una foto grande: la tecla L (o la dirección de la pantalla con layout) fija un diseño en esta pantalla y detiene la alternancia hasta recargar la página.',
     /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
     soundActivate: 'Activar el sonido en esta pantalla',
     soundShortcutHint: 'S activa el sonido en esta pantalla, si está activado en los ajustes.',
