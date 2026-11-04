@@ -217,6 +217,10 @@ export function WallPage() {
   const outage = useOutageStage(offline && readFailing)
   const awake = useWakeLock()
   const cursorIdle = useIdleCursor()
+  // A touch screen has no pointer to move, so the icon that follows the idle cursor would never
+  // come back there: it stays put (spec 12). Read once, a projector does not change its input.
+  const canHover =
+    typeof window.matchMedia !== 'function' || !window.matchMedia('(hover: none)').matches
   /**
    * The owner's session, if this browser has one (spec 13). Asked once, after the wall has
    * something to show, and `null` for everybody else: the controls and the panel exist only
@@ -627,7 +631,7 @@ export function WallPage() {
 
       {/* Spec 12: public and harmless, it only lets this browser play; it writes nothing. */}
       <WallSoundButton
-        visible={wallSound.enabled && !wallSound.active && !cursorIdle}
+        visible={wallSound.enabled && !wallSound.active && (!canHover || !cursorIdle)}
         onActivate={wallSound.activate}
       />
 

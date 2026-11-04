@@ -17,6 +17,8 @@ test('the wall rings for a published photo only, and only on a screen that was a
   await projector.addInitScript(() => {
     const w = window as unknown as { __starts: number }
     w.__starts = 0
+    // Some WebKit builds have no Web Audio at all; the page must cope, and so must the probe.
+    if (typeof AudioBufferSourceNode === 'undefined') return
     const original = AudioBufferSourceNode.prototype.start
     AudioBufferSourceNode.prototype.start = function (...args) {
       w.__starts += 1
@@ -39,6 +41,14 @@ test('the wall rings for a published photo only, and only on a screen that was a
   await projector.mouse.move(40, 40)
   await expect(activate).toBeVisible()
   expect(await starts()).toBe(0)
+
+  // A browser without Web Audio can never be allowed to play: the icon is then the honest state
+  // and stays, reachable (on a touch screen it must be, whatever the pointer does).
+  if (await projector.evaluate(() => typeof AudioContext === 'undefined')) {
+    await activate.click()
+    await expect(activate).toBeVisible()
+    return
+  }
 
   // The click is the gesture: the screen is allowed, and a test sound retentit once.
   await activate.click()
