@@ -1762,7 +1762,8 @@ export const fr = {
     copyId: 'Copier l’identifiant',
     idCopied: 'Identifiant copié.',
     copyFailed: 'Copie impossible : sélectionnez l’identifiant à la main.',
-    decided: 'Décision enregistrée.',
+    openMessages: 'Modérer les messages',
+    onWall: (count: number) => `${t.number(count)} à l’écran`,
   },
 
   auth: {

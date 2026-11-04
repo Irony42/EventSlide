@@ -1605,7 +1605,8 @@ export const de: UiText = {
     copyId: 'Kennung kopieren',
     idCopied: 'Kennung kopiert.',
     copyFailed: 'Kopieren nicht möglich: Markieren Sie die Kennung von Hand.',
-    decided: 'Entscheidung gespeichert.',
+    openMessages: 'Nachrichten moderieren',
+    onWall: (count: number) => `${t.number(count)} auf dem Bildschirm`,
   },
 
   auth: {

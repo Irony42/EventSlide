@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fr } from '../../lib/i18n/fr'
 import { fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
@@ -28,52 +28,55 @@ const render = (api: Api, canDecide = true) =>
   renderWithProviders(<GuestbookPanel slug={SLUG} canDecide={canDecide} />, { api })
 
 describe('GuestbookPanel', () => {
-  it('says the book is empty', async () => {
-    render(fakeApi())
+  it('sends the host to the console instead of deciding here', async () => {
+    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item()], 1)) }))
 
-    expect(await screen.findByText(fr.guestbookHost.empty)).toBeVisible()
+    const link = await screen.findByRole('link', { name: fr.guestbookHost.openMessages })
+    expect(link.getAttribute('href')).toBe('/admin/events/' + SLUG + '/moderation?vue=messages')
+    expect(screen.getByText(fr.guestbookHost.pending(1))).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.moderation.publishPhoto('Léa') })).toBeNull()
   })
 
-  it('shows each message with its author, status, id and the pending count', async () => {
-    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item()], 1)) }))
+  it('counts the messages on screen in its summary', async () => {
+    const published = item({
+      id: 'gb-2',
+      status: 'published',
+      allowedDecisions: ['hide', 'reject'],
+    })
+    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item(), published], 1)) }))
+
+    expect(await screen.findByText(fr.guestbookHost.onWall(1))).toBeVisible()
+  })
+
+  it('keeps reading the book, without any decision, once the event can no longer be moderated', async () => {
+    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item()], 1)) }), false)
 
     expect(await screen.findByText('Une belle soirée')).toBeVisible()
     expect(screen.getByText('Léa')).toBeVisible()
     expect(screen.getByText(fr.guestbookHost.statusPending)).toBeVisible()
-    expect(screen.getByText(fr.guestbookHost.pending(1))).toBeVisible()
-    expect(screen.getByRole('button', { name: new RegExp('gb-1') })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.moderation.publishPhoto('Léa') })).toBeNull()
+    expect(screen.queryByRole('link', { name: fr.guestbookHost.openMessages })).toBeNull()
   })
 
-  it('names a guest with no name', async () => {
-    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item({ authorName: null })])) }))
+  it('names a guest with no name in the read-only book', async () => {
+    render(
+      fakeApi({ guestbookQueue: vi.fn(async () => queue([item({ authorName: null })])) }),
+      false,
+    )
 
     expect(await screen.findByText(fr.guestbookHost.anonymous)).toBeVisible()
   })
 
-  it('offers exactly the decisions the server allows, and sends the one pressed', async () => {
-    const decideGuestbookEntry = vi.fn(async () => undefined)
-    const guestbookQueue = vi.fn(async () => queue([item()], 1))
-    render(fakeApi({ guestbookQueue, decideGuestbookEntry }))
+  it('says the read-only book is empty', async () => {
+    render(fakeApi(), false)
 
-    await screen.findByText('Une belle soirée')
-    expect(screen.queryByRole('button', { name: new RegExp(fr.moderation.hide) })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: fr.moderation.publishPhoto('Léa') }))
-
-    await waitFor(() => expect(decideGuestbookEntry).toHaveBeenCalledWith(SLUG, 'gb-1', 'publish'))
-    await waitFor(() => expect(guestbookQueue).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText(fr.guestbookHost.empty)).toBeVisible()
   })
 
-  it('offers no decision on an event that can no longer be moderated', async () => {
-    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item()], 1)) }), false)
-
-    await screen.findByText('Une belle soirée')
-    expect(screen.queryByRole('button', { name: fr.moderation.publishPhoto('Léa') })).toBeNull()
-  })
-
-  it('copies the id of a message', async () => {
+  it('copies the id of a message from the read-only book', async () => {
     const writeText = vi.fn(async () => undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item()], 1)) }))
+    render(fakeApi({ guestbookQueue: vi.fn(async () => queue([item()], 1)) }), false)
 
     await userEvent.click(await screen.findByRole('button', { name: new RegExp('gb-1') }))
 

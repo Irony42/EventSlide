@@ -1588,7 +1588,8 @@ export const es: UiText = {
     copyId: 'Copiar el identificador',
     idCopied: 'Identificador copiado.',
     copyFailed: 'No se pudo copiar: seleccione el identificador a mano.',
-    decided: 'Decisión guardada.',
+    openMessages: 'Moderar los mensajes',
+    onWall: (count: number) => `${t.number(count)} en pantalla`,
   },
 
   auth: {

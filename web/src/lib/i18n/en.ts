@@ -1528,7 +1528,8 @@ export const en: UiText = {
     copyId: 'Copy the identifier',
     idCopied: 'Identifier copied.',
     copyFailed: 'Could not copy: select the identifier by hand.',
-    decided: 'Decision saved.',
+    openMessages: 'Moderate the messages',
+    onWall: (count: number) => `${t.number(count)} on screen`,
   },
 
   auth: {

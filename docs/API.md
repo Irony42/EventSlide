@@ -4519,6 +4519,10 @@ It is the channel a moderation console subscribes to, and the console does:
 `web/src/features/moderation/hooks/useModerationQueue.ts`. It used to hold the public
 wall channel instead, which worked only because the frames are identical.
 
+The console opens **one** such connection and feeds both its photo queue (`photo.*` signals) and its guestbook tab
+(`guestbook.changed`, spec 15). `guestbook.changed` is not a console-only signal: the public wall channel carries it too,
+because the wall reads the guestbook again on it.
+
 ---
 
 ## 8. Not in 2.0
