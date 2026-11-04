@@ -2130,6 +2130,15 @@ export const it: UiText = {
     remaining: (time: string) => `Sfida in corso · ${time}`,
     noMissions: 'Aggiunga prima una missione per lanciare una sfida.',
     notOpen: 'Una sfida si può lanciare quando l’evento è aperto.',
+    ended: 'Sfida conclusa',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} foto`,
+        other: `${t.number(count)} foto`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Inizia la sfida fotografica: ${prompt}`,
+    announceEnd: 'Fine della sfida fotografica',
   },
   titles: {
     print: 'Segnaposto e locandina',

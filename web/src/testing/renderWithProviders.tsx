@@ -331,6 +331,10 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   // settings field cannot go uncompared. A test that wants the server build which
   // predates the field deletes the key rather than overriding it.
   wallLanguage: 'fr',
+  // The server's clock at the read, and no challenge: present rather than omitted for the same
+  // reason (the enumeration in `useWallPlaylist.settings.test.ts` cannot see an omitted key).
+  serverNowMs: 1_782_000_000_000,
+  challenge: null,
   ...overrides,
 })
 

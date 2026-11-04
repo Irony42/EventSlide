@@ -2812,6 +2812,15 @@ export const fr = {
     remaining: (time: string) => `Défi en cours · ${time}`,
     noMissions: 'Ajoutez d’abord une mission pour lancer un défi.',
     notOpen: 'Un défi se lance quand l’évènement est ouvert.',
+    ended: 'Défi terminé',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} photo`,
+        other: `${t.number(count)} photos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Début du défi photo : ${prompt}`,
+    announceEnd: 'Fin du défi photo',
   },
   titles: {
     print: 'Cartes de table et affiche',

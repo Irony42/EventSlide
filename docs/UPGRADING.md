@@ -763,3 +763,6 @@ autorisés »). Existing clients keep the function on. On top of it, one event g
 - **Nothing to set in `.env`.**
 - **Additions to existing responses** (optional for a client, none removed): `serverNowMs` and `challenge` in
   `GET /api/events/:slug/wall` and in `GET /api/events/:slug/missions/mine`.
+- **The wall**: while a challenge runs, a banner ("Défi photo · 1:42" and the mission's sentence) takes the top centre,
+  the layouts that fill the screen lay out below it, and the join card is held on screen. It goes ten seconds after
+  the end. A wall with no challenge is drawn exactly as before.

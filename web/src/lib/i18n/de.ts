@@ -2172,6 +2172,15 @@ export const de: UiText = {
     remaining: (time: string) => `Challenge läuft · ${time}`,
     noMissions: 'Fügen Sie zuerst eine Mission hinzu, um eine Challenge zu starten.',
     notOpen: 'Eine Challenge lässt sich starten, sobald die Veranstaltung geöffnet ist.',
+    ended: 'Challenge beendet',
+    answers: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Foto`,
+        other: `${t.number(count)} Fotos`,
+      }),
+    /** Said once to a screen reader when a challenge begins; the prompt in it is content. */
+    announceStart: (prompt: string) => `Foto-Challenge gestartet: ${prompt}`,
+    announceEnd: 'Foto-Challenge beendet',
   },
   titles: {
     print: 'Tischkarten und Plakat',
