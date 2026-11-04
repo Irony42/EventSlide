@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { aGuestOf, aName, bytesOfFile, uploadPhoto } from '../fixtures/clients'
-import { expect, test, wallUrl, type TestApp } from '../fixtures/app'
+import { expect, test, wallUrl } from '../fixtures/app'
+import type { TestApp } from '../fixtures/startTestApp'
 import { aPhoto } from '../fixtures/media'
 import { sessionOn, succeeded, type Session } from '../fixtures/session'
 import { OWNER_SETTLED_PASSWORD } from '../fixtures/startTestApp'
@@ -193,12 +194,12 @@ test.describe('guestbook cards on the wall', () => {
     await expect(card).toHaveCount(0)
     await expect(projector.getByTestId('wall-slide').first()).toBeVisible()
 
-    // Pause the clock so that only arrows move the wall, then press ten of them either way. A
+    // Pause the clock so that only arrows move the wall, then press sixty of them, either way. A
     // card summoned by an arrow (#360) is up for six seconds, but an observer sees it all the same.
     await projector.keyboard.press(' ')
     await expect(projector.getByText(/pause/i).first()).toBeVisible()
     const seen = await watch(projector)
-    for (let press = 0; press < 5; press += 1) {
+    for (let press = 0; press < 30; press += 1) {
       await projector.keyboard.press('ArrowRight')
       await projector.keyboard.press('ArrowLeft')
     }
