@@ -235,7 +235,8 @@ describe('ChallengePanel', () => {
   it('stops ticking when it is unmounted', async () => {
     const view = render(apiWith({ getChallenge: vi.fn(async () => running(60_000)) }))
     await screen.findByText(fr.challenge.remaining('1:00'))
-    expect(vi.getTimerCount()).toBe(1)
+    // The countdown interval is armed by an effect after the first paint, so wait for it.
+    await vi.waitFor(() => expect(vi.getTimerCount()).toBe(1))
 
     view.unmount()
 
