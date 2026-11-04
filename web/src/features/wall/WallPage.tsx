@@ -560,6 +560,7 @@ export function WallPage() {
               ),
             localLayout:
               layoutOverride === null ? null : { onReset: () => setLayoutOverride(null) },
+            sound: { active: wallSound.active, onActivate: wallSound.activate },
             qr: cardEnabled
               ? { hidden: qrHidden, onToggle: () => setQrHidden((hidden) => !hidden) }
               : null,

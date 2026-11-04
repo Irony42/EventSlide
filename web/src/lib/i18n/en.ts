@@ -867,6 +867,9 @@ export const en: UiText = {
       signIn: 'Sign in',
       signInToSet: 'Sign in to set this wall',
       openHint: 'R opens the wall settings.',
+      /* Spec 12: the state of this screen's speakers, in the "Son" section. */
+      soundScreenOn: 'This screen: sound on.',
+      soundScreenOff: 'This screen: sound off.',
     },
 
     videoBy: (name: string) => `Video sent by ${name}`,

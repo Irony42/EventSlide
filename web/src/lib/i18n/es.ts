@@ -903,6 +903,9 @@ export const es: UiText = {
       signIn: 'Iniciar sesión',
       signInToSet: 'Iniciar sesión para ajustar este muro',
       openHint: 'R abre los ajustes del muro.',
+      /* Spec 12: the state of this screen's speakers, in the "Son" section. */
+      soundScreenOn: 'Esta pantalla: sonido activado.',
+      soundScreenOff: 'Esta pantalla: sonido desactivado.',
     },
 
     videoBy: (name: string) => `Vídeo enviado por ${name}`,

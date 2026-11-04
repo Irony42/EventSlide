@@ -925,6 +925,9 @@ export const de: UiText = {
       signIn: 'Anmelden',
       signInToSet: 'Anmelden, um diese Wand einzustellen',
       openHint: 'R öffnet die Einstellungen der Wand.',
+      /* Spec 12: the state of this screen's speakers, in the "Son" section. */
+      soundScreenOn: 'Dieser Bildschirm: Ton aktiv.',
+      soundScreenOff: 'Dieser Bildschirm: Ton aus.',
     },
 
     videoBy: (name: string) => `Video, gesendet von ${name}`,

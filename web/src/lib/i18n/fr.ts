@@ -912,6 +912,9 @@ export const fr = {
       signIn: 'Se connecter',
       signInToSet: 'Se connecter pour régler ce mur',
       openHint: 'R ouvre les réglages du mur.',
+      /* Spec 12: the state of this screen's speakers, in the "Son" section. */
+      soundScreenOn: 'Cet écran : son activé.',
+      soundScreenOff: 'Cet écran : son désactivé.',
     },
 
     /* ---- Wall layouts (roadmap 2.3). Keep additions to them inside this block. ---- */
