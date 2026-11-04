@@ -1129,6 +1129,9 @@ describe('toWallResponseDto', () => {
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
       guestbook: null,
+      souvenirCount: null,
+      souvenirCounter: false,
+      newPhotoSignal: false,
     }
 
     const dto = toWallResponseDto(view, presenter)
@@ -1157,6 +1160,9 @@ describe('toWallResponseDto', () => {
       layoutSpec: wallLayoutSpec('spotlight'),
       missions: [],
       guestbook: null,
+      souvenirCount: null,
+      souvenirCounter: false,
+      newPhotoSignal: false,
     }
 
     const dto = toWallResponseDto(view, { ...presenter, publicUrl: 'https://photos.example.com' })

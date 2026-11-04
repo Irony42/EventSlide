@@ -836,6 +836,13 @@ export const fr = {
     offline: 'Nouvelles photos en attente du réseau',
     paused: 'Diaporama en pause',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} souvenir partagé`,
+        other: `${t.number(count)} souvenirs partagés`,
+      }),
+
     /* ---- Added by features/wall. Keep additions inside this block. ---- */
     codeLabel: 'Code de la soirée',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall

@@ -334,6 +334,24 @@ describe('WallPage', () => {
     expect(failure).toHaveTextContent(fr.wall.errorHint)
   })
 
+  it('shows the souvenir total only when the host switched the counter on (spec 11)', async () => {
+    const off = fakeApi({
+      wall: wallSequence(aPopulatedWall({ souvenirCount: 1_234, souvenirCounter: false })),
+    })
+    const { unmount } = renderWithProviders(<WallPage />, { api: off, route: ROUTE, path: PATH })
+    await screen.findByTestId('wall-slide')
+    expect(screen.queryByTestId('souvenir-counter')).toBeNull()
+    unmount()
+
+    const on = fakeApi({
+      wall: wallSequence(aPopulatedWall({ souvenirCount: 1_234, souvenirCounter: true })),
+    })
+    renderWithProviders(<WallPage />, { api: on, route: ROUTE, path: PATH })
+
+    // The server's total, not the length of the one-item playlist.
+    expect(await screen.findByTestId('souvenir-counter')).toHaveTextContent(/^1.234 souvenirs/)
+  })
+
   it('takes the Ken Burns duration from the response, not from a constant', async () => {
     // 1.0 hardcoded a 20 s zoom beside a 10 s slide, so every image snapped back.
     //

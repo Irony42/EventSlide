@@ -807,6 +807,8 @@ describe('the wall reads from the back of the room, over any photograph', () => 
       'features/wall/WallPage.module.css',
       // Every wall caption.
       'features/wall/components/SlideCaption.module.css',
+      // The souvenir counter, top centre (spec 11), over whatever photograph is under it.
+      'features/wall/components/SouvenirCounter.module.css',
     ])
   })
 

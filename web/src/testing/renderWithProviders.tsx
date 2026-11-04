@@ -303,6 +303,10 @@ export const aWallResponse = (overrides: Partial<WallResponse> = {}): WallRespon
   layout: 'spotlight',
   // Present for the reason `theme` is: the sweep in `useWallPlaylist.settings.test.ts` must see it.
   layoutChosen: false,
+  // Spec 11: present so the sweep in `useWallPlaylist.settings.test.ts` sees them.
+  souvenirCount: null,
+  souvenirCounter: false,
+  newPhotoSignal: false,
   freshLane: true,
   tilt: true,
   showTime: false,

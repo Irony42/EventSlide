@@ -784,6 +784,13 @@ export const en: UiText = {
     offline: 'New photos waiting for the network',
     paused: 'Slideshow paused',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} memory shared`,
+        other: `${t.number(count)} memories shared`,
+      }),
+
     codeLabel: 'Event code',
     // The accessible name of the inline QR. Read by nothing in the room, but the wall
     // is also opened on a laptop while a host sets the projector up.

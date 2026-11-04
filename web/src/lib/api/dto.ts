@@ -296,6 +296,10 @@ export interface WallResponse {
   readonly layout: WallLayout
   /** Whether `layout` is the host's choice for the event. Optional: an older server sends none. */
   readonly layoutChosen?: boolean
+  /** The souvenirs visible on the wall (spec 11); `null` when neither switch below is on. */
+  readonly souvenirCount?: number | null
+  readonly souvenirCounter?: boolean
+  readonly newPhotoSignal?: boolean
   /** Optional: an older server sends none, and the wall then behaves as before (true). */
   readonly freshLane?: boolean
   readonly tilt?: boolean
