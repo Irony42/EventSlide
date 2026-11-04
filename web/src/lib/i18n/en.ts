@@ -784,6 +784,14 @@ export const en: UiText = {
     messageHidden: (author: string) => `Message from ${author} taken off the screen.`,
     messagesListLabel: 'Guestbook messages',
     messagesLoadFailed: 'The messages could not be loaded.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Message from ${author}`,
+    onScreenMessagesTitle: 'Latest messages on screen',
+    onScreenMessagesEmpty: 'No message on screen yet.',
+    publishMessageOf: (author: string) => `Publish the message from ${author}`,
+    rejectMessageOf: (author: string) => `Reject the message from ${author}`,
+    readMessage: 'Read',
+    readMessageOf: (author: string) => `Read the message from ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */

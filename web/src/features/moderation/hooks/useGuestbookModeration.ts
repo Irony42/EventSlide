@@ -37,6 +37,8 @@ export interface GuestbookModerationOptions {
   /** The event has a guestbook (`allowGuestbook`). Off: no call at all. */
   readonly enabled?: boolean
   readonly debounceMs?: number
+  /** The status shown first; `pending` unless a surface lists something else (the phone's wall strip). */
+  readonly initialFilter?: GuestbookFilter
   /**
    * Automatic moderation: nothing is ever pending, so the badge counts what went to the wall
    * since this instant (ISO), while the tab is not the active one. `null` otherwise.
@@ -55,6 +57,8 @@ export interface GuestbookModeration {
   readonly error: Error | null
   readonly filter: GuestbookFilter
   readonly canUndo: boolean
+  /** A decision is in flight: a surface that advances on its own waits. */
+  readonly busy: boolean
   setFilter: (filter: GuestbookFilter) => void
   refresh: () => void
   decide: (entryId: string, decision: ModerationDecision) => Promise<void>
@@ -84,6 +88,7 @@ export const useGuestbookModeration = (
     enabled = true,
     debounceMs = SIGNAL_DEBOUNCE_MS,
     watchPublishedSince = null,
+    initialFilter = 'pending',
   }: GuestbookModerationOptions,
 ): GuestbookModeration => {
   const api = useApi()
@@ -91,13 +96,14 @@ export const useGuestbookModeration = (
   const text = useTranslations()
   const live = enabled && slug !== undefined
 
-  const [filter, setFilterState] = useState<GuestbookFilter>('pending')
+  const [filter, setFilterState] = useState<GuestbookFilter>(initialFilter)
   const [items, setItems] = useState<readonly GuestbookQueueItemDto[]>([])
   const [pendingCount, setPendingCount] = useState(0)
   const [freshPublishedCount, setFreshPublishedCount] = useState(0)
   const [loading, setLoading] = useState(live)
   const [error, setError] = useState<Error | null>(null)
   const [canUndo, setCanUndo] = useState(false)
+  const [inFlightCount, setInFlightCount] = useState(0)
 
   const inFlightRef = useRef(new Map<string, InFlight>())
   const readsStartedRef = useRef(0)
@@ -208,6 +214,7 @@ export const useGuestbookModeration = (
           .filter((row) => matches(filter, row.status)),
       )
       if (before?.status === 'pending') setPendingCount((n) => Math.max(0, n - 1))
+      setInFlightCount((n) => n + 1)
       try {
         await api.decideGuestbookEntry(slug, entryId, decision)
         held.settledAfterRead = readsStartedRef.current
@@ -218,6 +225,8 @@ export const useGuestbookModeration = (
         toast.show(messageForError(cause, text), { tone: 'danger' })
         readRef.current(false)
         return null
+      } finally {
+        setInFlightCount((n) => n - 1)
       }
     },
     [api, slug, filter, toast, text],
@@ -268,6 +277,7 @@ export const useGuestbookModeration = (
       error,
       filter,
       canUndo,
+      busy: inFlightCount > 0,
       setFilter,
       refresh,
       decide,
@@ -283,6 +293,7 @@ export const useGuestbookModeration = (
       error,
       filter,
       canUndo,
+      inFlightCount,
       setFilter,
       refresh,
       decide,

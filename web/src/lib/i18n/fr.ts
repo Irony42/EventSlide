@@ -832,6 +832,14 @@ export const fr = {
     messageHidden: (author: string) => `Message de ${author} retiré de l’écran.`,
     messagesListLabel: 'Messages du livre d’or',
     messagesLoadFailed: 'Les messages n’ont pas pu être chargés.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Message de ${author}`,
+    onScreenMessagesTitle: 'Derniers messages à l’écran',
+    onScreenMessagesEmpty: 'Aucun message à l’écran pour l’instant.',
+    publishMessageOf: (author: string) => `Publier le message de ${author}`,
+    rejectMessageOf: (author: string) => `Refuser le message de ${author}`,
+    readMessage: 'Lire',
+    readMessageOf: (author: string) => `Lire le message de ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useMemo, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useApi } from '../../app/useApi'
 import { HostBreadcrumb } from '../../app/HostBreadcrumb'
 import { HostEventsLink } from '../../app/HostEventsLink'
 import { LoadFailure } from '../../design-system/components/Async'
@@ -10,8 +11,16 @@ import { Spinner } from '../../design-system/components/Spinner'
 import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
 import { messageForError } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
+import { useEventStream, type StreamSignal } from '../../lib/realtime/useEventStream'
+import { useLoader } from '../../lib/useLoader'
+import { allowsModeration } from '../admin/eventLifecycle'
+import { ConsoleTabs } from './components/ConsoleTabs'
+import type { ConsoleTab } from './components/consoleTabIds'
+import { MessageSwipeCard } from './components/MessageSwipeCard'
+import { OnScreenMessages } from './components/OnScreenMessages'
 import { OnScreenStrip } from './components/OnScreenStrip'
 import { SwipeCard } from './components/SwipeCard'
+import { useGuestbookModeration } from './hooks/useGuestbookModeration'
 import { useModerationQueue } from './hooks/useModerationQueue'
 import type { ModerationDecision } from '../../lib/api/dto'
 import styles from './MobileModerationPage.module.css'
@@ -53,7 +62,52 @@ export function MobileModerationPage() {
    * shown as a strip (MOD-2). A photo that is already up can then be taken down from the
    * phone, which until then only the host's own last publication could be.
    */
-  const queue = useModerationQueue(slug, { onScreenLimit: ON_SCREEN_COUNT })
+  const queue = useModerationQueue(slug, { onScreenLimit: ON_SCREEN_COUNT, ownStream: false })
+
+  // The messages tab (spec 15): offered when the event has a guestbook. One stream serves the
+  // photo queue and both message readings.
+  const api = useApi()
+  const loadEvent = useCallback(
+    (signal: AbortSignal) =>
+      slug === undefined ? Promise.resolve(null) : api.getEvent(slug, signal),
+    [api, slug],
+  )
+  const { data: event } = useLoader(loadEvent)
+  const guestbookEnabled = event?.settings.allowGuestbook === true
+  const canDecideMessages = event !== null && allowsModeration(event.status)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [requestedTab, setRequestedTab] = useState<ConsoleTab>(
+    searchParams.get('vue') === 'messages' ? 'messages' : 'photos',
+  )
+  const tab: ConsoleTab = requestedTab === 'messages' && guestbookEnabled ? 'messages' : 'photos'
+  const onMessages = tab === 'messages'
+  const messages = useGuestbookModeration(slug, { active: onMessages, enabled: guestbookEnabled })
+  /** The wall strip's reading: the published ones, newest first. */
+  const onWallMessages = useGuestbookModeration(slug, {
+    active: onMessages,
+    enabled: guestbookEnabled,
+    initialFilter: 'published',
+  })
+  const currentMessage = messages.items.find((item) => item.status === 'pending') ?? null
+  const messageAuthor = (message: { readonly authorName: string | null }) =>
+    message.authorName ?? t.guestbookHost.anonymous
+
+  const { onSignal: onQueueSignal } = queue
+  const { onSignal: onMessagesSignal } = messages
+  const { onSignal: onWallSignal } = onWallMessages
+  const onSignal = useCallback(
+    (signal: StreamSignal) => {
+      onQueueSignal(signal)
+      onMessagesSignal(signal)
+      onWallSignal(signal)
+    },
+    [onQueueSignal, onMessagesSignal, onWallSignal],
+  )
+  const streamUrl = useMemo(
+    () => (slug === undefined ? null : api.moderationStreamUrl(slug)),
+    [api, slug],
+  )
+  const { connected } = useEventStream({ url: streamUrl, onSignal })
 
   /**
    * The photo in hand: the first one still awaiting a decision.
@@ -152,6 +206,12 @@ export function MobileModerationPage() {
    * region that narrated every state of the screen would be a region nobody listens to.
    */
   const announcement = (): string => {
+    if (onMessages) {
+      if (messages.items.length === 0 && (messages.loading || messages.error !== null)) return ''
+      return currentMessage === null
+        ? t.moderation.messagesEmpty
+        : t.mobileModeration.nowDeciding(t.moderation.messageOf(messageAuthor(currentMessage)))
+    }
     if (queue.items.length === 0 && (queue.loading || queue.error !== null)) return ''
     if (current === null || authorInName === null) return t.moderation.empty
     // "Vidéo" rather than "photo" where it is one: a host who cannot see the screen has
@@ -165,6 +225,38 @@ export function MobileModerationPage() {
         ? describe(authorInName)
         : describeWithCaption(current.caption, authorInName),
     )
+  }
+
+  /** Same guard as `decide`: one decision in flight, and only the message the gesture began on. */
+  const decideMessage = (decision: ModerationDecision, entryId: string) => {
+    if (messages.busy || !canDecideMessages) return
+    if (currentMessage === null || currentMessage.id !== entryId) return
+    setLastDecision(decision)
+    void messages.decide(entryId, decision)
+  }
+
+  const removeMessage = (entryId: string) => {
+    if (onWallMessages.busy || !canDecideMessages) return
+    void onWallMessages.decide(entryId, 'hide')
+  }
+
+  const switchTab = (next: ConsoleTab) => {
+    setRequestedTab(next)
+    setSearchParams(next === 'messages' ? { vue: 'messages' } : {}, { replace: true })
+  }
+
+  const busy = onMessages ? messages.busy : queue.busy
+  const hasCurrent = onMessages ? currentMessage !== null : current !== null
+  const canUndo = onMessages ? messages.canUndo : queue.canUndo
+  const handsAuthor = onMessages
+    ? currentMessage === null
+      ? null
+      : messageAuthor(currentMessage)
+    : authorInName
+  const decideCurrent = (decision: ModerationDecision) => {
+    if (onMessages) {
+      if (currentMessage !== null) decideMessage(decision, currentMessage.id)
+    } else if (current !== null) decide(decision, current.id)
   }
 
   if (slug === undefined) {
@@ -187,13 +279,23 @@ export function MobileModerationPage() {
             </Badge>
           </div>
           <div aria-live="polite">
-            <Badge tone={queue.connected ? 'success' : 'warning'}>
-              {queue.connected ? t.moderation.live : t.moderation.liveLost}
+            <Badge tone={connected ? 'success' : 'warning'}>
+              {connected ? t.moderation.live : t.moderation.liveLost}
             </Badge>
           </div>
         </div>
         <p className={styles['intro']}>{t.mobileModeration.intro}</p>
       </header>
+
+      {guestbookEnabled ? (
+        <ConsoleTabs
+          tab={tab}
+          onChange={switchTab}
+          photosPending={queue.pendingCount}
+          messagesPending={messages.pendingCount}
+          messagesAreFresh={false}
+        />
+      ) : null}
 
       {/*
         What is in hand, said out loud.
@@ -217,7 +319,34 @@ export function MobileModerationPage() {
       ) : null}
 
       <div className={styles['stage']}>
-        {queue.loading && queue.items.length === 0 ? (
+        {onMessages ? (
+          messages.loading && messages.items.length === 0 ? (
+            <div className={styles['pending']} aria-busy="true">
+              <Spinner size="lg" label={t.app.loading} />
+            </div>
+          ) : messages.error !== null && messages.items.length === 0 ? (
+            <LoadFailure
+              as="h2"
+              title={t.moderation.messagesLoadFailed}
+              message={messageForError(messages.error, t)}
+              onRetry={messages.refresh}
+              secondaryAction={<HostEventsLink />}
+            />
+          ) : currentMessage === null ? (
+            <EmptyState
+              as="h2"
+              title={t.moderation.messagesEmpty}
+              description={t.moderation.messagesEmptyHint}
+            />
+          ) : (
+            <MessageSwipeCard
+              key={currentMessage.id}
+              message={currentMessage}
+              disabled={messages.busy || !canDecideMessages}
+              onDecide={decideMessage}
+            />
+          )
+        ) : queue.loading && queue.items.length === 0 ? (
           <div className={styles['pending']} aria-busy="true">
             <Spinner size="lg" label={t.app.loading} />
           </div>
@@ -265,7 +394,18 @@ export function MobileModerationPage() {
         must not be told so. Filtered here as well as in the query, so a photo taken off the
         wall leaves it at once.
       */}
-      {queue.onScreen === null ? null : (
+      {onMessages ? (
+        // Same rule as the photo strip: not before its own reading has answered.
+        onWallMessages.loading && onWallMessages.items.length === 0 ? null : (
+          <OnScreenMessages
+            messages={onWallMessages.items
+              .filter((message) => message.status === 'published')
+              .slice(0, ON_SCREEN_COUNT)}
+            busy={onWallMessages.busy}
+            onRemove={removeMessage}
+          />
+        )
+      ) : queue.onScreen === null ? null : (
         <OnScreenStrip
           photos={queue.onScreen.filter((photo) => photo.status === 'published')}
           busy={queue.busy}
@@ -299,7 +439,7 @@ export function MobileModerationPage() {
           Rendered only for a clip, and above the decisions so the host's thumb does not
           pass over "Refuser" on its way to "Lire".
         */}
-        {isClip && current !== null && authorInName !== null ? (
+        {!onMessages && isClip && current !== null && authorInName !== null ? (
           <>
             <Button
               variant="secondary"
@@ -344,11 +484,17 @@ export function MobileModerationPage() {
             variant="danger"
             size="lg"
             block
-            loading={queue.busy}
-            disabled={current === null}
-            aria-label={authorInName === null ? undefined : t.moderation.rejectPhoto(authorInName)}
+            loading={busy}
+            disabled={!hasCurrent}
+            aria-label={
+              handsAuthor === null
+                ? undefined
+                : onMessages
+                  ? t.moderation.rejectMessageOf(handsAuthor)
+                  : t.moderation.rejectPhoto(handsAuthor)
+            }
             onClick={() => {
-              if (current !== null) decide('reject', current.id)
+              decideCurrent('reject')
             }}
           >
             {t.moderation.reject}
@@ -357,11 +503,17 @@ export function MobileModerationPage() {
             variant="primary"
             size="lg"
             block
-            loading={queue.busy}
-            disabled={current === null}
-            aria-label={authorInName === null ? undefined : t.moderation.publishPhoto(authorInName)}
+            loading={busy}
+            disabled={!hasCurrent}
+            aria-label={
+              handsAuthor === null
+                ? undefined
+                : onMessages
+                  ? t.moderation.publishMessageOf(handsAuthor)
+                  : t.moderation.publishPhoto(handsAuthor)
+            }
             onClick={() => {
-              if (current !== null) decide('publish', current.id)
+              decideCurrent('publish')
             }}
           >
             {t.moderation.publish}
@@ -375,7 +527,12 @@ export function MobileModerationPage() {
           keyboard is right there. Standing at a table, the affordance has to still be
           where it was.
         */}
-        <Button variant="ghost" block disabled={!queue.canUndo} onClick={() => void queue.undo()}>
+        <Button
+          variant="ghost"
+          block
+          disabled={!canUndo}
+          onClick={() => void (onMessages ? messages.undo() : queue.undo())}
+        >
           {t.mobileModeration.undoLast}
         </Button>
         {/*
@@ -383,7 +540,7 @@ export function MobileModerationPage() {
           one decision here that nothing takes back. Shown on first paint it would
           explain a situation nobody is in yet.
         */}
-        {!queue.canUndo && lastDecision === 'reject' ? (
+        {!canUndo && lastDecision === 'reject' ? (
           <p className={styles['undoHint']}>{t.mobileModeration.undoUnavailable}</p>
         ) : null}
       </div>

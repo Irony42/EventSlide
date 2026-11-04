@@ -824,6 +824,14 @@ export const it: UiText = {
     messageHidden: (author: string) => `Messaggio di ${author} tolto dallo schermo.`,
     messagesListLabel: 'Messaggi del libro degli ospiti',
     messagesLoadFailed: 'Impossibile caricare i messaggi.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Messaggio di ${author}`,
+    onScreenMessagesTitle: 'Ultimi messaggi sullo schermo',
+    onScreenMessagesEmpty: 'Nessun messaggio sullo schermo per ora.',
+    publishMessageOf: (author: string) => `Pubblica il messaggio di ${author}`,
+    rejectMessageOf: (author: string) => `Rifiuta il messaggio di ${author}`,
+    readMessage: 'Leggi',
+    readMessageOf: (author: string) => `Leggi il messaggio di ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
