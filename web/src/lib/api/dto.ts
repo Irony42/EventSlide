@@ -292,7 +292,27 @@ export interface WallResponse {
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number
   readonly kenBurnsDurationMs: number
+  /** The effective layout: the event's choice if it made one, else the default (spec 13). */
   readonly layout: WallLayout
+  /** Whether `layout` is the host's choice for the event. Optional: an older server sends none. */
+  readonly layoutChosen?: boolean
+  /** The souvenirs visible on the wall (spec 11); `null` when neither switch below is on. */
+  readonly souvenirCount?: number | null
+  readonly souvenirCounter?: boolean
+  readonly newPhotoSignal?: boolean
+  /** Optional: an older server sends none, and the wall then behaves as before (true). */
+  readonly freshLane?: boolean
+  readonly tilt?: boolean
+  readonly showTime?: boolean
+  /**
+   * The invitation card (spec 14): shown on a populated wall, its scale (0.8 to 1.5, 1 = as it
+   * always was) and corner. Optional: an older server sends none and the wall takes the defaults.
+   */
+  readonly joinCard?: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
   readonly reactionsEnabled: boolean
   /**
    * What the room is meant to look like.
@@ -605,6 +625,19 @@ export interface EventSettingsDto {
    * the single thing this field must never do.
    */
   readonly wallLanguage: EventLanguage
+  /** How the wall behaves for every screen (spec 13): `null` is "not chosen". Merged per key. */
+  readonly wall: {
+    readonly layout: WallLayout | null
+    readonly slideIntervalMs: number | null
+    readonly souvenirCounter: boolean
+    readonly newPhotoSignal: boolean
+    readonly freshLane: boolean
+    readonly tilt: boolean
+    readonly showTime: boolean
+    readonly qrVisible: boolean
+    readonly qrScale: number
+    readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
 }
 
 export interface EventSummaryDto {

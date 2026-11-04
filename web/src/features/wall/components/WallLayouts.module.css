@@ -111,6 +111,7 @@
      362px of overlap. The row lays out inside what the corner leaves free instead, and
      gets the space back the moment the card is dismissed. */
   padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
+  padding-inline-start: calc(var(--wall-safe) + var(--wall-chrome-inline-start, 0px));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
   /* A print is as tall as its photo plus its caption, and a guest who writes two long
@@ -378,6 +379,7 @@
   gap: var(--space-6);
   padding-inline: var(--wall-safe);
   padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
+  padding-inline-start: calc(var(--wall-safe) + var(--wall-chrome-inline-start, 0px));
   padding-block-start: var(--space-8);
 }
 
@@ -502,6 +504,7 @@
      a much smaller share of the width, and on any wall a host who wants the full pair
      presses Escape and the reservation goes with the card. */
   padding-inline-end: calc(var(--wall-safe) + var(--wall-chrome-inline-end));
+  padding-inline-start: calc(var(--wall-safe) + var(--wall-chrome-inline-start, 0px));
   /* ADR 0010: the ambiance's ground, which is the base colour unless it photographs one. */
   background: var(--wall-ground);
 }
