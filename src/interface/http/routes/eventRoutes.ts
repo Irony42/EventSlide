@@ -258,6 +258,31 @@ export const eventRoutes = ({
                 },
               }),
           ...(body.wallLanguage === undefined ? {} : { wallLanguage: body.wallLanguage }),
+          // Only the keys the body names: the domain merges them into the stored group.
+          ...(body.wall === undefined
+            ? {}
+            : {
+                wall: {
+                  ...(body.wall.layout === undefined ? {} : { layout: body.wall.layout }),
+                  ...(body.wall.slideIntervalMs === undefined
+                    ? {}
+                    : { slideIntervalMs: body.wall.slideIntervalMs }),
+                  ...(body.wall.souvenirCounter === undefined
+                    ? {}
+                    : { souvenirCounter: body.wall.souvenirCounter }),
+                  ...(body.wall.newPhotoSignal === undefined
+                    ? {}
+                    : { newPhotoSignal: body.wall.newPhotoSignal }),
+                  ...(body.wall.freshLane === undefined ? {} : { freshLane: body.wall.freshLane }),
+                  ...(body.wall.tilt === undefined ? {} : { tilt: body.wall.tilt }),
+                  ...(body.wall.showTime === undefined ? {} : { showTime: body.wall.showTime }),
+                  ...(body.wall.qrVisible === undefined ? {} : { qrVisible: body.wall.qrVisible }),
+                  ...(body.wall.qrScale === undefined ? {} : { qrScale: body.wall.qrScale }),
+                  ...(body.wall.qrPlacement === undefined
+                    ? {}
+                    : { qrPlacement: body.wall.qrPlacement }),
+                },
+              }),
           // Absent leaves the message alone, `null` clears it: never defaulted here.
           ...(body.welcomeMessage === undefined ? {} : { welcomeMessage: body.welcomeMessage }),
         },

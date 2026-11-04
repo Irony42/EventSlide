@@ -816,6 +816,18 @@ export const es: UiText = {
     offline: 'Nuevas fotos a la espera de la red',
     paused: 'Presentación en pausa',
 
+    /* ---- Spec 11: the souvenir counter and the new-photo signal. Keep additions inside this block. ---- */
+    souvenirCount: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} recuerdo compartido`,
+        other: `${t.number(count)} recuerdos compartidos`,
+      }),
+    arrivalPhoto: 'Nueva foto añadida',
+    arrivalClip: 'Nuevo vídeo añadido',
+    arrivalPhotos: (count: number) => `${t.number(count)} fotos nuevas`,
+    arrivalClips: (count: number) => `${t.number(count)} vídeos nuevos`,
+    arrivalMixed: (count: number) => `${t.number(count)} recuerdos nuevos`,
+
     codeLabel: 'Código de la fiesta',
     // Read by nothing in the room: the wall is also opened on a laptop while a host
     // sets the projector up.
@@ -859,6 +871,36 @@ export const es: UiText = {
       clothesline: 'Tendedero',
     },
     layoutOrder: (names: readonly string[]) => `Disposiciones, en orden: ${names.join(', ')}.`,
+
+    /* ---- The settings panel on the wall (spec 13). Keep additions to it inside this block. ---- */
+    panel: {
+      open: 'Ajustes',
+      pause: 'Pausa',
+      resume: 'Reanudar',
+      fullscreen: 'Pantalla completa',
+      barLabel: 'Controles del muro',
+      panelLabel: 'Ajustes del muro',
+      title: 'Ajustes',
+      close: 'Cerrar los ajustes',
+      sectionDisplay: 'Visualización',
+      sectionAmbiance: 'Ambiente',
+      forAll: 'Para todas las pantallas',
+      thisScreen: 'Solo esta pantalla',
+      thisScreenHint:
+        'Estos controles solo cambian esta pantalla y se pierden al recargar la página.',
+      screenLayout: (name: string) => `Disposición de esta pantalla: ${name} (tecla L)`,
+      screenShows: (name: string) => `Esta pantalla muestra ${name} (tecla L)`,
+      backToEvent: 'Volver al ajuste del evento',
+      hideQr: 'Ocultar la tarjeta QR',
+      showQr: 'Mostrar la tarjeta QR',
+      saving: 'Guardando…',
+      saved: 'Guardado',
+      saveFailed: 'No se pudo guardar, inténtelo de nuevo',
+      sessionExpired: 'Su sesión ha caducado. Vuelva a iniciar sesión para ajustar el muro.',
+      signIn: 'Iniciar sesión',
+      signInToSet: 'Iniciar sesión para ajustar este muro',
+      openHint: 'R abre los ajustes del muro.',
+    },
 
     videoBy: (name: string) => `Vídeo enviado por ${name}`,
     videoByAnonymous: 'Vídeo enviado por un invitado',
@@ -1010,6 +1052,36 @@ export const es: UiText = {
     wallLanguage: 'Idioma de la pantalla de la sala',
     wallLanguageHint:
       'Las palabras de la pantalla de la sala: «Únase a la fiesta», «Misiones», los mensajes de espera. Lo que usted y sus invitados escriben — el nombre del evento, los pies de foto, los textos de las misiones — se muestra tal cual y nunca se traduce. Sus invitados eligen su propio idioma en su teléfono; este ajuste no les afecta.',
+
+    /* ---- Wall display block of the settings page (spec 13). Keep additions to it inside this block. ---- */
+    wallDisplay: {
+      title: 'Pantalla del muro',
+      forAll: 'Para todas las pantallas',
+      hint: 'Estos ajustes se guardan para el evento: todas las pantallas de la sala los siguen.',
+      layout: 'Disposición',
+      layoutHint:
+        'La tecla L, o una dirección con el parámetro layout, sigue teniendo prioridad en esa pantalla.',
+      layoutUnset: 'Cada pantalla decide',
+      interval: 'Ritmo',
+      intervalHint: 'Cuánto tiempo permanece cada foto en pantalla.',
+      intervalDefault: 'Por defecto (una foto cada 8 s)',
+      intervalSeconds: (n: number) => `Una foto cada ${n} s`,
+      freshLane: 'Fotos nuevas primero',
+      freshLaneHint:
+        'Una foto publicada ocupa la diapositiva siguiente, tres seguidas como máximo.',
+      tilt: 'Fotos ligeramente inclinadas',
+      tiltHint: 'Polaroids y cuerda de ropa: un ángulo fijo de unos grados.',
+      showTime: 'Hora de envío bajo la foto',
+      showTimeHint: 'La hora a la que se envió la foto, según el reloj de la pantalla de la sala.',
+      // Spec 11.
+      onScreen: 'En pantalla',
+      souvenirCounter: 'Mostrar el contador de recuerdos',
+      souvenirCounterHint:
+        'Un contador discreto, arriba en el centro: «17 recuerdos compartidos». Cuenta las fotos y los vídeos visibles en el muro.',
+      newPhotoSignal: 'Avisar de las fotos nuevas',
+      newPhotoSignalHint:
+        'Un mensaje breve, arriba en el centro, cuando una foto o un vídeo acaba de aparecer en el muro. Nunca el nombre del invitado.',
+    },
 
     theme: 'Apariencia',
     themeHint:

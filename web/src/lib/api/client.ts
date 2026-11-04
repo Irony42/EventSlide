@@ -120,10 +120,13 @@ export interface EventSettingsPatch {
   readonly allowCaptions?: boolean
   readonly allowReactions?: boolean
   readonly allowClips?: boolean
+  readonly guestbookOnWall?: boolean
   readonly allowGuestSelfDelete?: boolean
   readonly guestSelfDeleteGraceSeconds?: number
   readonly retentionDays?: number | null
   readonly maxPhotosPerGuest?: number | null
+  /** Only the keys changed (spec 13): the server merges the group per key. */
+  readonly wall?: Partial<EventSettingsDto['wall']>
   readonly theme?: EventThemeDto
   readonly brand?: EventBrandDto
   readonly wallLanguage?: EventSettingsDto['wallLanguage']

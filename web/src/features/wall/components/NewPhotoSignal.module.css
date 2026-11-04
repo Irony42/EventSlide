@@ -1,0 +1,52 @@
+/**
+ * Top centre, in the column of the souvenir counter and under it (spec 11). The signal is
+ * transient, so the region is out of the layout flow and the counter never moves for it.
+ * Width capped: a QR card in a top corner (spec 14) must keep the centre.
+ */
+.region {
+  position: absolute;
+  inset-block-start: calc(var(--wall-safe) + var(--space-10));
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-wall-caption);
+  max-inline-size: 40%;
+  pointer-events: none;
+}
+
+.signal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  white-space: nowrap;
+  /* Opacity only: no slide, no bounce. A collapsed duration under reduced motion lands on the
+     resting state at once, and the signal still appears because it carries information. */
+  animation: signal-in var(--duration-base) var(--ease-out) both;
+}
+
+.dot {
+  flex: none;
+  inline-size: var(--space-3);
+  block-size: var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+@keyframes signal-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The bottom rung of the frame budget: it appears at rest instead of fading in. */
+[data-wall-budget='cut'] .signal {
+  animation-duration: 0s;
+}

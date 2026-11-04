@@ -1,0 +1,25 @@
+/**
+ * Top centre, inside the overscan inset (spec 11): the one place of the wall no layout spends.
+ * The missions are top left and the notices top right, so this sits equidistant from both.
+ * Nothing here animates; a stylesheet that does must be answered in `WALL_BUDGET_ANSWERS`.
+ */
+.counter {
+  position: absolute;
+  inset-block-start: var(--wall-safe);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-wall-caption);
+  max-inline-size: 40%;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--surface-scrim);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}

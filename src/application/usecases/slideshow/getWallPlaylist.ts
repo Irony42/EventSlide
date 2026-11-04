@@ -1,4 +1,5 @@
 import type { Event } from '../../../domain/events/event'
+import type { WallQrPlacement } from '../../../domain/events/wallJoinCard'
 import type { Mission } from '../../../domain/missions/mission'
 import { isAchieved, type MissionProgress } from '../../../domain/missions/missionProgress'
 import type { Photo } from '../../../domain/photos/photo'
@@ -17,6 +18,7 @@ import {
   GUESTBOOK_WALL_MAX_MESSAGES,
   messageDisplayMs,
 } from '../../../domain/guestbook/guestbookWall'
+import { wallNeedsSouvenirCount } from '../../../domain/events/eventWallSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { GuestId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -70,7 +72,10 @@ const FRESH_FIRST = true
 
 export interface GetWallPlaylistInput {
   readonly slug: Slug
-  /** The projector's own settings. `null` on each takes the default. */
+  /**
+   * The projector's own settings. `null` on each takes the event's choice (spec 13), and the
+   * default where the event made none.
+   */
   readonly layout: WallLayout | null
   readonly slideIntervalMs: number | null
   readonly windowSize: number | null
@@ -158,6 +163,14 @@ export interface WallPlaylistView {
    */
   readonly kenBurnsDurationMs: number
   readonly layout: WallLayout
+  /** Whether the host chose a layout for the event (spec 13); `layout` is the default otherwise. */
+  readonly layoutChosen: boolean
+  /** The invitation card's settings, as the host chose them (spec 14). */
+  readonly joinCard: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: WallQrPlacement
+  }
   readonly layoutSpec: WallLayoutSpec
   /**
    * The host's prompts and how the room is answering them. Empty for the overwhelming
@@ -165,6 +178,16 @@ export interface WallPlaylistView {
    * drawing a panel at all.
    */
   readonly missions: readonly WallMissionStanding[]
+  /**
+   * How many photographs and clips are visible on the wall (status `published`, operator take-downs
+   * left out; guestbook messages and clips still being transcoded are not souvenirs). The server's
+   * total, never the window's length: the window is capped at 200. `null` when no wall switch needs
+   * it, so that the query is not paid for (spec 11).
+   */
+  readonly souvenirCount: number | null
+  /** The two host switches of spec 11, so the wall needs no second read of the settings. */
+  readonly souvenirCounter: boolean
+  readonly newPhotoSignal: boolean
   /** `null` unless the guestbook is open and its messages are for the wall, or there is none yet. */
   readonly guestbook: WallGuestbook | null
 }
@@ -263,11 +286,13 @@ export const makeGetWallPlaylist =
     })
     if (!playlist.ok) return playlist
 
+    const wantedMs = slideIntervalMs ?? event.settings.wall.slideIntervalMs
     const interval =
-      slideIntervalMs === null ? ok(SlideInterval.default()) : SlideInterval.create(slideIntervalMs)
+      wantedMs === null ? ok(SlideInterval.default()) : SlideInterval.create(wantedMs)
     if (!interval.ok) return interval
 
-    const chosenLayout = layout ?? DEFAULT_LAYOUT
+    const eventLayout = event.settings.wall.layout
+    const chosenLayout = layout ?? eventLayout ?? DEFAULT_LAYOUT
 
     // Last, and only once the request is known to be answerable: a refused interval or
     // an impossible window must not have cost a second query first.
@@ -304,6 +329,12 @@ export const makeGetWallPlaylist =
 
     const book = await readGuestbook(guestbook, guests, event)
 
+    // The same definition as the moderation counters and the album: published, not taken down.
+    const wallSettings = event.settings.wall
+    const souvenirCount = wallNeedsSouvenirCount(wallSettings)
+      ? (await photos.countsByStatus(event.id)).published
+      : null
+
     return ok({
       event,
       playlist: playlist.value,
@@ -313,8 +344,17 @@ export const makeGetWallPlaylist =
       slideIntervalMs: interval.value.ms,
       kenBurnsDurationMs: kenBurnsDurationMs(interval.value),
       layout: chosenLayout,
+      layoutChosen: eventLayout !== null,
+      joinCard: {
+        visible: event.settings.wall.qrVisible,
+        scale: event.settings.wall.qrScale,
+        placement: event.settings.wall.qrPlacement,
+      },
       layoutSpec: wallLayoutSpec(chosenLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,
+      souvenirCount,
+      souvenirCounter: wallSettings.souvenirCounter,
+      newPhotoSignal: wallSettings.newPhotoSignal,
     })
   }

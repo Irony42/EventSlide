@@ -366,7 +366,37 @@ export interface WallResponseDto {
   readonly items: readonly WallItemDto[]
   readonly slideIntervalMs: number
   readonly kenBurnsDurationMs: number
+  /** The effective layout: the event's choice if it made one, else the default (spec 13). */
   readonly layout: WallLayout
+  /**
+   * Whether `layout` is the host's choice for the event, so the wall knows to let it beat the
+   * ambiance's suggestion (and to let the screen's own `L` and `?layout=` beat it).
+   */
+  readonly layoutChosen: boolean
+  /**
+   * The souvenirs visible on the wall (spec 11): the server's total of published photos and clips,
+   * not the length of `items`. `null` when neither wall switch below is on. Compared by the wall
+   * apart from `revision`: a photo published beyond the window or a take-down moves only this.
+   */
+  readonly souvenirCount: number | null
+  /** The host's switch for the counter « n souvenirs partagés » (spec 11). */
+  readonly souvenirCounter: boolean
+  /** The host's switch for the brief « nouvelle photo » signal (spec 11). */
+  readonly newPhotoSignal: boolean
+  /** Whether a published photo takes the next slide (spec 13). */
+  readonly freshLane: boolean
+  /** Whether prints lean a few degrees (spec 13). */
+  readonly tilt: boolean
+  readonly showTime: boolean
+  /**
+   * The invitation card (spec 14): whether it shows on a populated wall, its scale (0.8 to 1.5, 1
+   * is the card as it always was) and its corner. Public like the rest; carries no secret.
+   */
+  readonly joinCard: {
+    readonly visible: boolean
+    readonly scale: number
+    readonly placement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
   readonly reactionsEnabled: boolean
   /**
    * The host's prompts and how the room is answering them (roadmap §2.1).
@@ -502,6 +532,22 @@ export interface EventSettingsDto {
    * to prefer it over the guest's own choice, the single thing this field must never do.
    */
   readonly wallLanguage: EventLanguage
+  /**
+   * How the wall behaves for every screen (spec 13), as stored: `null` is "not chosen for the
+   * event". The settings page and the wall's panel read and write this group.
+   */
+  readonly wall: {
+    readonly layout: WallLayout | null
+    readonly slideIntervalMs: number | null
+    readonly souvenirCounter: boolean
+    readonly newPhotoSignal: boolean
+    readonly freshLane: boolean
+    readonly tilt: boolean
+    readonly showTime: boolean
+    readonly qrVisible: boolean
+    readonly qrScale: number
+    readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'
+  }
 }
 
 export interface EventSummaryDto {
