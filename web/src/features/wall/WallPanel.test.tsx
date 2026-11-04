@@ -409,6 +409,22 @@ describe('the send time under a photo (spec 13, PR 5)', () => {
   })
 })
 
+describe('the « À l’écran » section (spec 11)', () => {
+  it('writes the counter and the new-photo switches, each off until the owner turns it on', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+
+    expect(screen.getByLabelText(fr.admin.wallDisplay.souvenirCounter)).not.toBeChecked()
+    expect(screen.getByLabelText(fr.admin.wallDisplay.newPhotoSignal)).not.toBeChecked()
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.souvenirCounter))
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.newPhotoSignal))
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { souvenirCounter: true, newPhotoSignal: true },
+    })
+  })
 describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
   const missions = [
     {
