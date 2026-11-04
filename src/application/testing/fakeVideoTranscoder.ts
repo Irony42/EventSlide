@@ -71,6 +71,9 @@ export class FakeVideoTranscoder implements VideoTranscoder {
   /** Every call, in order, so a test can prove the pipeline probes before it encodes. */
   readonly calls: string[] = []
 
+  /** The spec of the last `transcode`, so a test can prove the range reached the encoder. */
+  lastSpec: TranscodeSpec | null = null
+
   private unavailableReason: string | null = null
 
   /**
@@ -118,6 +121,7 @@ export class FakeVideoTranscoder implements VideoTranscoder {
     spec: TranscodeSpec,
   ): Promise<Result<TranscodedClip, DomainError>> {
     this.calls.push('transcode')
+    this.lastSpec = spec
 
     const refusal = this.refuse(bytes)
     if (refusal !== null) return refusal
@@ -142,7 +146,12 @@ export class FakeVideoTranscoder implements VideoTranscoder {
 
     // Bounded by the spec, exactly as `-t` bounds the encoder: a source header is a
     // claim by the file and may be a lie.
-    const durationMs = Math.min(source.durationMs, spec.maxDurationMs)
+    // A range is seeked to and then measured from there, as `-ss` before `-i` with `-t` is.
+    const available =
+      spec.trim === undefined
+        ? source.durationMs
+        : Math.min(spec.trim.endMs - spec.trim.startMs, source.durationMs - spec.trim.startMs)
+    const durationMs = Math.min(available, spec.maxDurationMs)
     const byteSize = Math.min(
       spec.maxOutputBytes,
       Math.max(1, Math.round(durationMs * DEFAULT_BYTES_PER_MS)),

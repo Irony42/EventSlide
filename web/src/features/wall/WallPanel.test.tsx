@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/http'
@@ -275,7 +275,9 @@ describe('what the panel writes', () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
 
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.themeAmbiance), 'guinguette')
+    await userEvent.click(
+      screen.getByRole('radio', { name: fr.admin.themeAmbianceNames.guinguette }),
+    )
 
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
     const sent = vi.mocked(api.updateSettings).mock.calls[0]?.[1]
@@ -335,8 +337,8 @@ describe('layout and rhythm (spec 13, PR 3)', () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
 
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.layout), 'mosaic')
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '12000')
+    await userEvent.click(screen.getByRole('radio', { name: fr.wall.layoutNames.mosaic }))
+    await userEvent.click(screen.getByRole('radio', { name: fr.wall.panel.summaryRhythm(12) }))
 
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
@@ -348,7 +350,7 @@ describe('layout and rhythm (spec 13, PR 3)', () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
 
-    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.interval), '4000')
+    await userEvent.click(screen.getByRole('radio', { name: fr.wall.panel.summaryRhythm(4) }))
 
     await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
     expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
@@ -492,7 +494,7 @@ describe('the QR code section (spec 14)', () => {
     renderWall({ getEvent: vi.fn(async () => asOwner()) })
     await open()
 
-    const titles = Array.from(document.querySelectorAll('details > summary')).map(
+    const titles = Array.from(document.querySelectorAll('details > summary strong')).map(
       (summary) => summary.textContent,
     )
     expect(titles.indexOf(fr.wall.panel.sectionQr)).toBe(2)
@@ -565,7 +567,7 @@ describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
     }))
     await openPanel({ startChallenge })
 
-    expect(screen.getByText(fr.challenge.title, { selector: 'summary' })).toBeVisible()
+    expect(screen.getByText(fr.challenge.title, { selector: 'summary strong' })).toBeVisible()
     const launch = await screen.findByRole('button', { name: fr.challenge.launch })
     await waitFor(() => expect(launch).toBeEnabled())
     await userEvent.click(launch)
@@ -597,5 +599,97 @@ describe('the photo challenge, from the panel (spec 10, PR 5)', () => {
     await userEvent.keyboard('r')
 
     expect(screen.queryByText(fr.challenge.launch)).not.toBeInTheDocument()
+  })
+})
+
+describe('the drawer (spec 17)', () => {
+  const open = async () => {
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+  }
+
+  it('says the current value of each section under its title', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    const heads = Array.from(document.querySelectorAll('details > summary')).map(
+      (summary) => summary.textContent ?? '',
+    )
+    expect(heads.find((head) => head.startsWith(fr.wall.panel.sectionQr))).toContain(
+      fr.admin.wallDisplay.qrCorners['bottom-end'],
+    )
+  })
+
+  it('has one button per section in its jump row, named like the section', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    const jump = screen.getByRole('navigation', { name: fr.wall.panel.sectionJump })
+    const names = within(jump)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+    expect(names).toEqual([
+      fr.wall.panel.sectionDisplay,
+      fr.wall.panel.sectionAmbiance,
+      fr.wall.panel.sectionQr,
+      fr.admin.wallDisplay.onScreen,
+      fr.challenge.title,
+      fr.admin.wallSound.title,
+    ])
+  })
+
+  it('opens a section from its button in the row', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+    const section = document.querySelector<HTMLDetailsElement>('#wall-panel-section-sound')
+    if (section === null) throw new Error('no sound section')
+    section.open = false
+
+    const jump = screen.getByRole('navigation', { name: fr.wall.panel.sectionJump })
+    await userEvent.click(within(jump).getByRole('button', { name: fr.admin.wallSound.title }))
+
+    expect(section.open).toBe(true)
+  })
+
+  it('draws the layouts as tiles: one radio per layout, the event’s own choice checked', async () => {
+    renderWall({
+      wall: vi.fn(async () =>
+        aWallResponse({ items: [aWallItem()], layout: 'polaroid', layoutChosen: true }),
+      ),
+      getEvent: vi.fn(async () =>
+        anEventDto({ role: 'owner', settings: eventSettings({ wall: { layout: 'polaroid' } }) }),
+      ),
+    })
+    await open()
+
+    const group = screen.getByRole('group', { name: fr.admin.wallDisplay.layout })
+    expect(within(group).getAllByRole('radio')).toHaveLength(8)
+    expect(within(group).getByRole('radio', { name: fr.wall.layoutNames.polaroid })).toBeChecked()
+  })
+
+  it('moves the QR card on the miniature from the corner radios, one key at a time', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    await userEvent.click(
+      screen.getByRole('radio', { name: fr.admin.wallDisplay.qrCorners['top-start'] }),
+    )
+
+    expect(document.querySelector('[aria-hidden="true"][data-corner="top-start"]')).not.toBeNull()
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { qrPlacement: 'top-start' },
+    })
+  })
+
+  it('gives each tone a play button named after it', async () => {
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await open()
+
+    expect(
+      screen.getByRole('button', {
+        name: fr.admin.wallSound.tonePlay(fr.admin.wallSound.toneNames.bell),
+      }),
+    ).toBeVisible()
   })
 })

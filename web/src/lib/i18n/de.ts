@@ -223,6 +223,23 @@ export const de: UiText = {
     clipTooLong: (seconds: number) =>
       `Dieses Video ist länger als ${t.number(seconds)} Sekunden. Nehmen Sie ein kürzeres Video auf.`,
     clipNotAVideo: 'Diese Datei ist kein Video.',
+    /**
+     * The trim screen (spec 16), opened in place of a "too long" refusal. Nothing on it
+     * can be wrong: the handles keep the range valid, so there is no error sentence here.
+     */
+    clipTrimTitle: (seconds: number) =>
+      `Wählen Sie die ${t.number(seconds)} Sekunden, die bleiben sollen`,
+    clipTrimStart: 'Anfang des Ausschnitts',
+    clipTrimEnd: 'Ende des Ausschnitts',
+    clipTrimValue: (seconds: number) => `${t.number(seconds)} Sekunden`,
+    clipTrimSummary: (seconds: number, maxSeconds: number) =>
+      `Ausschnitt: ${t.number(seconds)} s von höchstens ${t.number(maxSeconds)} s`,
+    clipTrimPlay: 'Ausschnitt abspielen',
+    clipTrimPause: 'Pause',
+    clipTrimNoPreview: 'Keine Vorschau auf diesem Gerät. Der Ausschnitt wird trotzdem geschnitten.',
+    clipTrimWholeFileSent:
+      'Das ganze Video wird gesendet; nur der gewählte Ausschnitt wird behalten.',
+    clipSendTrimmed: 'Diesen Ausschnitt senden',
     clipUploading: 'Video wird gesendet…',
     clipQueued: 'In der Warteschlange…',
     clipRunning: 'Video wird verarbeitet…',
@@ -583,6 +600,9 @@ export const de: UiText = {
       'Die Länge dieses Videos ist nicht lesbar. Versuchen Sie es mit einem anderen.',
     'clip.tooShort': 'Dieses Video ist zu kurz.',
     'clip.tooLong': 'Dieses Video ist zu lang. Nehmen Sie ein kürzeres Video auf.',
+    'clip.trimInvalid': 'Dieser Ausschnitt ist nicht gültig. Wählen Sie einen anderen.',
+    'clip.trimOutOfRange':
+      'Der gewählte Ausschnitt reicht über das Ende des Videos hinaus. Wählen Sie einen anderen.',
     'clip.transcodeFailed':
       'Dieses Video konnte nicht verarbeitet werden. Versuchen Sie es mit einem anderen.',
     'clip.transcodeTimedOut':
@@ -944,6 +964,18 @@ export const de: UiText = {
       pause: 'Pause',
       resume: 'Fortsetzen',
       fullscreen: 'Vollbild',
+      /* Spec 17: what the owner bar's icons say on hover and on focus, with their key. */
+      openTip: 'Einstellungen (R)',
+      pauseTip: 'Pause (Leertaste)',
+      resumeTip: 'Fortsetzen (Leertaste)',
+      fullscreenTip: 'Vollbild (F)',
+      /* Spec 17: the drawer's section row and the current value under each section's title. */
+      sectionJump: 'Zum Abschnitt springen',
+      summaryNone: 'Keine',
+      summaryHidden: 'Ausgeblendet',
+      summaryOff: 'Aus',
+      rhythmAuto: 'Auto',
+      summaryRhythm: (n: number) => `${n} s`,
       barLabel: 'Steuerung der Wand',
       panelLabel: 'Einstellungen der Wand',
       title: 'Einstellungen',
@@ -1169,6 +1201,7 @@ export const de: UiText = {
         'Jeder Bildschirm muss vor Ort zusätzlich aktiviert werden: ein Klick auf die Wand (oder die Taste S) genügt.',
       tone: 'Ton',
       toneNames: { chime: 'Glockenspiel', bell: 'Glocke', drop: 'Tropfen', pop: 'Pop' },
+      tonePlay: (name: string) => `Anhören: ${name}`,
       volume: 'Lautstärke',
       volumeValue: (n: number) => `Lautstärke ${n} %`,
       test: 'Testen',

@@ -1,47 +1,137 @@
 /*
- * An opaque card on the left edge (ADR 0012: no glass). The wall keeps turning behind it. Above
- * the controls bar, inside the overscan inset. It animates nothing.
+ * A side drawer, opaque, on the left edge (ADR 0012: no glass; spec 17, mockup A). The wall keeps
+ * turning behind it. Above the controls bar, inside the overscan inset. It animates nothing: the
+ * chevron is turned by the section's state, not by a transition.
  */
 .panel {
   position: absolute;
   inset-block: var(--wall-safe);
   inset-inline-start: var(--wall-safe);
-  inline-size: 360px;
-  max-inline-size: 90%;
+  inline-size: var(--wall-panel-width);
+  max-inline-size: 92%;
   z-index: calc(var(--z-wall-caption) + 20);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 
-.close {
-  position: absolute;
-  inset-block-start: var(--space-2);
-  inset-inline-end: var(--space-2);
-  z-index: 1;
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid var(--border-subtle);
 }
 
-.section {
-  margin-block: var(--space-3);
+.title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-lg);
 }
 
-.section > summary {
-  font-weight: 600;
-  cursor: pointer;
+/* The state of the last write: a glyph beside the word, never the colour alone. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 1.5em;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
-.group {
-  margin-block-start: var(--space-4);
-  padding-block-start: var(--space-3);
-  border-block-start: 1px solid var(--border-subtle);
+.badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  border: 1px solid var(--border-strong);
+  color: var(--accent);
+}
+
+/* One button per section, to jump to it: the drawer is long and its sections are icons first. */
+.jump {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+}
+
+.scroll {
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
 .groupTitle {
-  font-size: var(--text-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   margin-block: var(--space-2);
+}
+
+.section {
+  border-block-end: 1px solid var(--border-subtle);
+  padding-block: var(--space-1);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 3.5rem;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+
+.sectionHead::-webkit-details-marker {
+  display: none;
+}
+
+.sectionTitle {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+  line-height: 1.25;
+}
+
+/* The current value, in the secondary ink: --text-muted is too close to the ground for this. */
+.sectionTitle small {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.section[open] .chevron {
+  rotate: 180deg;
+}
+
+.sectionBody {
+  padding-block: var(--space-2) var(--space-3);
+}
+
+/* What only this screen does, apart from what is written for the event. */
+.group {
+  margin-block-start: var(--space-4);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
 }
 
 .hint {
   font-size: var(--text-sm);
+  color: var(--text-secondary);
   margin-block-end: var(--space-2);
 }
 
@@ -49,8 +139,4 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-
-.status {
-  min-block-size: 1.5em;
 }

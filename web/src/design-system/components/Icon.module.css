@@ -1,0 +1,18 @@
+.icon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke-24);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sm {
+  inline-size: var(--icon-size-sm);
+  block-size: var(--icon-size-sm);
+}
+
+.md {
+  inline-size: var(--icon-size-md);
+  block-size: var(--icon-size-md);
+}

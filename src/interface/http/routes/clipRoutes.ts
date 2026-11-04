@@ -198,6 +198,9 @@ export const clipRoutes = ({
           declaredName: file.originalname,
         },
         ...(fields.caption === undefined ? {} : { caption: fields.caption }),
+        ...(fields.startMs === undefined || fields.endMs === undefined
+          ? {}
+          : { trim: { startMs: Number(fields.startMs), endMs: Number(fields.endMs) } }),
       })
 
       sendResult(res, result, (response, value) => {

@@ -18,6 +18,7 @@ const LIMITS = { maxBytes: 80_000_000, maxSeconds: 15 }
 
 const aClipUpload = (overrides: Partial<ClipUpload> = {}): ClipUpload => ({
   file: null,
+  trim: null,
   stage: 'idle',
   progress: 0,
   message: null,
@@ -26,6 +27,7 @@ const aClipUpload = (overrides: Partial<ClipUpload> = {}): ClipUpload => ({
   clear: vi.fn(),
   send: vi.fn(),
   cancel: vi.fn(),
+  setTrim: vi.fn(),
   ...overrides,
 })
 

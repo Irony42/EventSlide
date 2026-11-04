@@ -12,6 +12,9 @@ export type WallSettingsDto = EventSettingsDto['wall']
 export const WALL_UNSET = ''
 
 /** Steps offered for the rhythm, in seconds. 8 is the default and is the `null` option. */
+/** What a wall with no rhythm of its own shows, as the "default" option says. */
+export const DEFAULT_RHYTHM_SECONDS = 8
+
 export const RHYTHM_STEPS_SECONDS: readonly number[] = [4, 6, 12, 20, 30]
 
 export const wallLayoutOptions = (text: UiText): readonly SelectOption[] => [
@@ -108,3 +111,20 @@ export const wallChanges = (
   if (draft.qrPlacement !== loaded.qrPlacement) changes.qrPlacement = draft.qrPlacement
   return Object.keys(changes).length === 0 ? undefined : changes
 }
+
+/**
+ * The QR card's slider range and the three marks the first draft of spec 14 offered as sizes
+ * (Pierre, decision 14-6). Mirrors `src/domain/events/wallJoinCard.ts`, which the server enforces.
+ */
+export const QR_SCALE_MIN = 0.8
+export const QR_SCALE_MAX = 1.5
+export const QR_SCALE_STEP = 0.05
+export const QR_SCALE_MARKS = { small: 0.8, medium: 1, large: 1.3 } as const
+
+/** Row-major, as the 2 x 2 grid reads: top start, top end, bottom start, bottom end. */
+export const QR_CORNERS: readonly WallSettingsDto['qrPlacement'][] = [
+  'top-start',
+  'top-end',
+  'bottom-start',
+  'bottom-end',
+]

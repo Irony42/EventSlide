@@ -803,3 +803,16 @@ part of the release changes.
   back) to learn whether a challenge started. A band "Défi en cours" with a "Relever le défi" button appears above the
   list and chooses the mission for the next photograph. No sound, no vibration, no notification; the screen of an event
   with no missions is unchanged and asks nothing more.
+
+## Upgrading to 3.7 (not released yet)
+
+### Trimming a video that is too long (spec 16)
+
+- **One migration (025)**: two nullable columns on `clip_jobs` (`trim_start_ms`, `trim_end_ms`), `NULL` for every
+  existing job. Back up first, as for any upgrade: the migration only goes forward.
+- **Nothing to set in `.env`.** `MAX_CLIP_SECONDS` and `MAX_CLIP_BYTES` keep their meaning: the seconds now bound the
+  part of a recording a guest keeps rather than the recording itself.
+- **`POST /api/events/:slug/clips` accepts two optional fields**, `startMs` and `endMs` (a pair, in milliseconds
+  from the start of the file sent), and answers `clip.trimInvalid`, `clip.tooShort` or `clip.tooLong` (`400`) for a
+  range that is not valid. A client that sends neither behaves exactly as before; a phone left open across the
+  upgrade keeps refusing a video longer than the limit until it is reloaded.

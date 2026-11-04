@@ -256,12 +256,29 @@ export const clipJobRepositoryContract = (
         expect((await repo.findBySourceHash(WEDDING, hashOf('beef')))?.id).toBe('job-2')
       })
 
+      it('round-trips the range a guest kept, and gives an untrimmed job back as null', async () => {
+        const trimmed = aClipJob({
+          id: 'job-trim',
+          eventId: 'evt-wedding',
+          trim: { startMs: 12_000, endMs: 24_000 },
+        })
+        const whole = aClipJob({ id: 'job-whole', eventId: 'evt-wedding' })
+        await insertJob(trimmed)
+        await insertJob(whole)
+
+        const back = await repo.findById(WEDDING, asClipJobId('job-trim'))
+        expect(back?.trim?.startMs).toBe(12_000)
+        expect(back?.trim?.endMs).toBe(24_000)
+        expect((await repo.findById(WEDDING, asClipJobId('job-whole')))?.trim).toBeNull()
+      })
+
       it('round-trips every field the entity carries', async () => {
         const job = aClipJob({
           id: 'job-1',
           eventId: 'evt-wedding',
           author: { kind: 'guest', id: 'guest-lea' },
           caption: 'Le premier slow',
+          trim: { startMs: 1_000, endMs: 9_000 },
           sourceByteSize: 7_654_321,
           attempts: 2,
           status: 'failed',

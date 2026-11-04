@@ -56,6 +56,12 @@ export interface TranscodeSpec {
   readonly maxHeight: number
   /** Hard bound on the output's duration, whatever the source header claimed. */
   readonly maxDurationMs: number
+  /**
+   * Keep only this range of the source, in milliseconds from its start. Seeks before the
+   * input and measures the output from there, so the cost is the range's and not the
+   * source's. `maxDurationMs` still bounds the output either way.
+   */
+  readonly trim?: { readonly startMs: number; readonly endMs: number }
   /** Hard bound on the output's size, so a pathological source cannot fill the disk. */
   readonly maxOutputBytes: number
   /** Longest edge of the still frame the grid and the album render. */

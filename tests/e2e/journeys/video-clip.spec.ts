@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs'
 import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { passPrivacyNotice } from '../fixtures/guest'
 import { aClip, hasEncoder } from '../fixtures/media'
@@ -226,4 +227,46 @@ test.describe('on a phone', () => {
     expect(box).not.toBeNull()
     expect(box!.height).toBeGreaterThanOrEqual(44)
   })
+})
+
+test('a guest keeps the part they chose of a video that is too long (spec 16)', async ({
+  app,
+  surfaces,
+}) => {
+  const { guest, host } = surfaces
+  const event = await app.seedEvent({ slug: 'video-trop-longue' })
+
+  await guest.goto(app.url(`/join/${event.joinCode}`))
+  await guest.getByLabel(/Votre prénom/i).fill('Léa')
+  await guest.getByRole('button', { name: /Rejoindre/i }).click()
+  await guest.waitForURL(/\/e\/[^/]+\/upload/)
+  await passPrivacyNotice(guest)
+
+  // Forty seconds against a fifteen-second cap: not a refusal any more, a trim screen.
+  const original = await aClip('too-long', 40)
+  await guest.getByTestId('clip-input').setInputFiles(original)
+  await expect(guest.getByTestId('clip-trimmer')).toBeVisible()
+
+  const start = guest.getByTestId('clip-trim-start')
+  await start.focus()
+  for (let i = 0; i < 20; i += 1) await start.press('ArrowRight')
+  await expect(guest.getByRole('status').filter({ hasText: /Extrait/ })).toContainText('13')
+
+  const upload = guest.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().endsWith('/clips'),
+  )
+  await guest.getByRole('button', { name: fr.upload.clipSendTrimmed }).click()
+  // Only the part kept goes up: the phone cut the container (PR 3), so the body is a
+  // fraction of the forty seconds filmed.
+  const sent = Number(
+    (await (await upload).allHeaders())['content-length'] ?? Number.POSITIVE_INFINITY,
+  )
+  expect(sent).toBeLessThan(statSync(original).size / 2)
+  await expect(guest.getByTestId('clip-state')).toHaveAttribute('data-stage', 'done')
+
+  await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  const card = host.getByTestId('moderation-card')
+  await expect(card).toBeVisible()
+  // 2 s to 15 s of forty: thirteen seconds kept.
+  await expect(card.getByText(fr.moderation.videoLength(13))).toBeVisible()
 })
