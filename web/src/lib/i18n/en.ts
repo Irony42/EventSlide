@@ -821,6 +821,8 @@ export const en: UiText = {
       'Space pauses, the arrow keys change photo, F goes full screen, L changes the layout, Q hides or shows the QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'To leave: Esc or F exit full screen, then close the tab.',
+    mixedHint:
+      'The wall alternates an overview and one large photo: L (or ?layout=) fixes a layout on this screen and stops the alternation until the page is reloaded.',
     /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
     soundActivate: 'Turn the sound on for this screen',
     soundShortcutHint: 'S turns the sound on for this screen, when it is enabled in the settings.',

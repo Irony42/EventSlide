@@ -44,6 +44,9 @@ export interface WallPlaylistState {
   readonly refresh: () => void
 }
 
+/** While the mixed wall is on, the wall is read again at least this often, to recalibrate the clock. */
+export const CLOCK_RECALIBRATE_MS = 10 * 60 * 1000
+
 interface Fetched {
   readonly wall: WallResponse | null
   readonly loading: boolean
@@ -113,6 +116,19 @@ const isNotServed = (cause: Error | null): boolean =>
  * stale answer until the next photograph moved `revision`.
  */
 export const SETTINGS_EXEMPT: readonly string[] = ['items', 'revision', 'serverNowMs']
+
+/** The mixed wall's schedule, field by field; "off" on both sides is the same. */
+const sameMixed = (kept: WallResponse, fresh: WallResponse): boolean => {
+  const before = kept.mixed ?? null
+  const after = fresh.mixed ?? null
+  if (before === null || after === null) return before === after
+  return (
+    before.wallMs === after.wallMs &&
+    before.slideshowMs === after.slideshowMs &&
+    before.layout === after.layout &&
+    before.anchorMs === after.anchorMs
+  )
+}
 
 /**
  * The mission panel, compared row by row.
@@ -228,6 +244,9 @@ export const sameSettings = (kept: WallResponse, fresh: WallResponse): boolean =
   kept.layout === fresh.layout &&
   // Whether that layout is the host's choice (spec 13): it decides who wins against the ambiance.
   kept.layoutChosen === fresh.layoutChosen &&
+  // The mixed wall's schedule (spec 09): turned on, retimed or restarted mid-evening, it moves
+  // no photograph, so `revision` would never tell a running projector.
+  sameMixed(kept, fresh) &&
   // Spec 11: a souvenir published beyond the window, or one taken down, moves no `revision`, so
   // without these lines the counter would stay wrong until the next photograph.
   kept.souvenirCount === fresh.souvenirCount &&
@@ -404,6 +423,14 @@ export const useWallPlaylist = (
       controller.abort()
     }
   }, [api, slug, attempt])
+
+  // The offset is read at every response; this only guarantees one when the room is quiet.
+  const alternates = state.wall?.mixed != null
+  useEffect(() => {
+    if (!alternates) return
+    const timer = window.setInterval(refresh, CLOCK_RECALIBRATE_MS)
+    return () => window.clearInterval(timer)
+  }, [alternates, refresh])
 
   useEffect(() => {
     if (state.error === null) return

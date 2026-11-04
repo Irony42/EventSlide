@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { WallResponse } from '../../lib/api/dto'
-import { wallBudgetProps } from '../../design-system/budget'
+import { serverNowFrom } from '../../lib/serverClock'
+import { affords, wallBudgetProps } from '../../design-system/budget'
 import { cx } from '../../design-system/classNames'
 import { readEventTheme, themeSurfaceProps } from '../../design-system/eventTheme'
 import { useRootGroundHue } from '../../design-system/useRootGroundHue'
@@ -38,6 +39,8 @@ import { useWallSound } from './hooks/useWallSound'
 import { useOutageStage } from './hooks/useOutageStage'
 import { useSlideshow } from './hooks/useSlideshow'
 import { useWallGuestbook } from './hooks/useWallGuestbook'
+import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion'
+import { useWallPhase } from './hooks/useWallPhase'
 import { useTimingOverrides } from './hooks/useTimingOverrides'
 import { useWallOwner } from './hooks/useWallOwner'
 import { useWakeLock } from './hooks/useWakeLock'
@@ -117,6 +120,36 @@ function WallNotice({ tone, text }: WallNoticeProps) {
       <StatusIcon tone={tone} className={styles['noticeIcon']} />
       {text}
     </p>
+  )
+}
+
+interface WallSceneProps {
+  readonly alternating: boolean
+  readonly fading: boolean
+  readonly transitionMs: number | null
+  readonly children: ReactNode
+}
+
+/**
+ * The layouts, and only them, wrapped so the mixed wall can fade the scene through black between
+ * its two phases (spec 09, rule 9). Not wrapped at all when the wall is not alternating: that wall
+ * renders the DOM it always rendered.
+ */
+function WallScene({ alternating, fading, transitionMs, children }: WallSceneProps) {
+  if (!alternating) return <>{children}</>
+  return (
+    <div
+      className={styles['scene']}
+      data-fading={fading ? 'true' : undefined}
+      // `?e2e_transition=` reaches the scene the way it reaches the layouts.
+      style={
+        transitionMs === null
+          ? undefined
+          : ({ '--wall-transition': `${transitionMs}ms` } as CSSProperties)
+      }
+    >
+      {children}
+    </div>
   )
 }
 
@@ -214,7 +247,7 @@ export function WallPage() {
     if (wallLocale !== null) announceLocale(wallLocale)
   }, [wallLocale, announceLocale])
 
-  const { transitionMs } = useTimingOverrides()
+  const { transitionMs, phaseMs } = useTimingOverrides()
   const urlLayout = useLayoutParam()
   const budget = useFrameBudget()
 
@@ -227,6 +260,19 @@ export function WallPage() {
     loaded: wall !== null,
     hold: cardUp,
     freshLane: wall?.freshLane !== false,
+  })
+  // The mixed wall (spec 09): which half the room is on, from the server's clock. One slideshow
+  // cursor serves both halves; the phase never touches it (rule 7).
+  const reducedMotion = usePrefersReducedMotion()
+  // `Date.now` is read only when the phase is asked for, never while rendering a value of its own.
+  const serverNow = useCallback(() => serverNowFrom(Date.now(), serverOffsetMs), [serverOffsetMs])
+  const phaseView = useWallPhase({
+    mixed: wall?.mixed,
+    now: serverNow,
+    paused: slideshow.paused,
+    instant: reducedMotion || !affords(budget, 'crossfade'),
+    fadeMs: transitionMs,
+    phaseMsOverride: phaseMs,
   })
   const { message: guestbookMessage } = useWallGuestbook(wall?.guestbook, slideshow.generation)
   // Adjusted while rendering, not in an effect: the slideshow above needs the answer of the hook
@@ -339,7 +385,7 @@ export function WallPage() {
   // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
   const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.soundShortcutHint} ${text.wall.leaveHint}${
     owner === null ? '' : ` ${text.wall.panel.openHint}`
-  }`
+  }${wall?.mixed == null ? '' : ` ${text.wall.mixedHint}`}`
 
   /**
    * What the room is looking at, named on the wall element itself.
@@ -351,8 +397,24 @@ export function WallPage() {
    */
   // The event's own choice (spec 13) sits between the screen's URL and the ambiance's suggestion.
   const eventLayout = wall?.layoutChosen === true ? serverLayout : undefined
+  // The mixed wall comes after the screen's own choices (`L`, `?layout=`) and before the event's
+  // (its wall phase already is the event's layout): a screen that names its layout leaves the
+  // alternation until it is reloaded (spec 09, rule 8).
+  const mixedLayout =
+    phaseView.phase === null || wall?.mixed == null
+      ? undefined
+      : phaseView.phase === 'slideshow'
+        ? 'spotlight'
+        : wall.mixed.layout
+  const followsPhase = layoutOverride === null && urlLayout === null && mixedLayout !== undefined
   const layout =
-    layoutOverride ?? urlLayout ?? eventLayout ?? ambianceLayout ?? serverLayout ?? null
+    layoutOverride ??
+    urlLayout ??
+    mixedLayout ??
+    eventLayout ??
+    ambianceLayout ??
+    serverLayout ??
+    null
 
   /** One region for the whole concern, mounted once. Stacked under the card when it is top-end. */
   const noticesRegion = (
@@ -379,7 +441,13 @@ export function WallPage() {
     onCycleLayout: () =>
       setLayoutOverride((current) =>
         nextLayout(
-          current ?? urlLayout ?? eventLayout ?? ambianceLayout ?? serverLayout ?? 'spotlight',
+          current ??
+            urlLayout ??
+            mixedLayout ??
+            eventLayout ??
+            ambianceLayout ??
+            serverLayout ??
+            'spotlight',
         ),
       ),
     onToggleHelp: () => setHelpOpen((open) => !open),
@@ -449,6 +517,10 @@ export function WallPage() {
       {...wallBudgetProps(budget)}
       className={styles['wall']}
       data-wall-layout={layout ?? undefined}
+      // Absent when the wall is not alternating, and when this screen left the alternation.
+      data-wall-phase={
+        followsPhase ? (phaseView.phase === 'slideshow' ? 'slideshow' : 'wall') : undefined
+      }
       // The bottom-right corner is spoken for while the invitation is up, and a layout
       // that would otherwise centre a caption under it lays out inside what is left.
       // The card is chrome and the caption is the guest's words, so the card is what the
@@ -510,15 +582,21 @@ export function WallPage() {
           logoUrl={wall.brand?.logoUrl ?? null}
         />
       ) : (
-        <WallLayouts
-          layout={layout ?? wall.layout}
-          items={items}
-          slideshow={slideshow}
-          kenBurnsDurationMs={wall.kenBurnsDurationMs}
+        <WallScene
+          fading={followsPhase && phaseView.fading}
+          alternating={followsPhase}
           transitionMs={transitionMs}
-          tilt={wall.tilt !== false}
-          showTime={wall.showTime === true}
-        />
+        >
+          <WallLayouts
+            layout={layout ?? wall.layout}
+            items={items}
+            slideshow={slideshow}
+            kenBurnsDurationMs={wall.kenBurnsDurationMs}
+            transitionMs={transitionMs}
+            tilt={wall.tilt !== false}
+            showTime={wall.showTime === true}
+          />
+        </WallScene>
       )}
 
       {showsMissions && !stackStart ? <WallMissions missions={missions} /> : null}
@@ -604,6 +682,7 @@ export function WallPage() {
                 nextLayout(
                   current ??
                     urlLayout ??
+                    mixedLayout ??
                     eventLayout ??
                     ambianceLayout ??
                     serverLayout ??

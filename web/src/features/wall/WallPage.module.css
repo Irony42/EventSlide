@@ -228,3 +228,21 @@
 [data-wall-budget='cut'] .outageDot {
   animation-duration: 0s;
 }
+
+/**
+ * The scene of the mixed wall (spec 09): the layouts, faded through black between two phases.
+ * Half of the wall's own cross-fade to leave, half to come back; the same custom property the
+ * layouts read, so `?e2e_transition=` and the stylesheet's default stay the single source. The
+ * reduced-motion and budget cuts never set `data-fading`, and `base.css` collapses the
+ * transition under the media query.
+ */
+.scene {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+  transition: opacity calc(var(--wall-transition, var(--duration-slow)) / 2) var(--ease-in-out);
+}
+
+.scene[data-fading='true'] {
+  opacity: 0;
+}

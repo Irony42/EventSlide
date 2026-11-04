@@ -1,7 +1,14 @@
 import { CheckboxField } from '../../../admin/components/CheckboxField'
 import { SelectField, type SelectOption } from '../../../admin/components/SelectField'
 import { Button } from '../../../../design-system/components/Button'
-import { WALL_UNSET, wallLayoutOptions, wallRhythmOptions } from '../../../admin/wallDisplayOptions'
+import {
+  MIXED_SLIDESHOW_STEPS_SECONDS,
+  MIXED_WALL_STEPS_SECONDS,
+  WALL_UNSET,
+  mixedDurationOptions,
+  wallLayoutOptions,
+  wallRhythmOptions,
+} from '../../../admin/wallDisplayOptions'
 import type { WallLayout } from '../../../../lib/api/dto'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale } from '../../../../lib/i18n/locale'
 import { useTranslations } from '../../../../lib/i18n/useTranslations'
@@ -16,7 +23,7 @@ const LANGUAGE_OPTIONS: readonly SelectOption[] = SUPPORTED_LOCALES.map((locale)
 /**
  * "Affichage" (order 10). In this first PR: the wall's language and the guestbook messages on
  * the wall, both settings that already exist. Layout, rhythm, fresh photos, tilt and time arrive
- * with PR 3 to 5, in this same file; spec 09 adds its alternation rows here too.
+ * with PR 3 to 5, in this same file; spec 09's alternation rows follow the rhythm.
  */
 // The file exports a descriptor the registry collects, not its component.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -79,6 +86,34 @@ function DisplaySection({ settings, save, screen }: WallPanelContext) {
         checked={wall.showTime}
         onChange={(showTime) => save({ wall: { showTime } })}
       />
+      {/* The mixed wall (spec 09): the same rows, bounds and keys as the settings page. */}
+      <CheckboxField
+        label={t.admin.wallDisplay.mixed}
+        hint={t.admin.wallDisplay.mixedHint}
+        checked={wall.mixedEnabled}
+        onChange={(mixedEnabled) => save({ wall: { mixedEnabled } })}
+      />
+      {wall.mixedEnabled ? (
+        <>
+          <SelectField
+            label={t.admin.wallDisplay.mixedWall}
+            value={String(wall.mixedWallSeconds)}
+            options={mixedDurationOptions(MIXED_WALL_STEPS_SECONDS, wall.mixedWallSeconds)}
+            onChange={(value) => save({ wall: { mixedWallSeconds: Number.parseInt(value, 10) } })}
+          />
+          <SelectField
+            label={t.admin.wallDisplay.mixedSlideshow}
+            value={String(wall.mixedSlideshowSeconds)}
+            options={mixedDurationOptions(
+              MIXED_SLIDESHOW_STEPS_SECONDS,
+              wall.mixedSlideshowSeconds,
+            )}
+            onChange={(value) =>
+              save({ wall: { mixedSlideshowSeconds: Number.parseInt(value, 10) } })
+            }
+          />
+        </>
+      ) : null}
       {/* Only meaningful once the guestbook is open, as on the settings page. */}
       <CheckboxField
         label={t.admin.guestbookOnWall}

@@ -868,6 +868,8 @@ export const fr = {
       'Espace met en pause, les flèches changent de photo, F passe en plein écran, L change la disposition, Q masque ou affiche le QR code.',
     /* Navigation pass, batch A: how to leave the wall. */
     leaveHint: 'Pour quitter : Échap ou F sortent du plein écran, puis fermez l’onglet.',
+    mixedHint:
+      'Le mur alterne vue d’ensemble et photo en grand : L (ou ?layout=) fixe une mise en page sur cet écran et arrête l’alternance jusqu’au rechargement de la page.',
     /* Spec 12: the muted-speaker icon, and the S key in the shortcuts. */
     soundActivate: 'Activer le son sur cet écran',
     soundShortcutHint: 'S active le son sur cet écran, s’il est activé dans les réglages.',
