@@ -42,6 +42,37 @@ const confettis = aWallItem({ id: 'photo-1', caption: 'Les confettis', authorNam
 const gateau = aWallItem({ id: 'photo-2', caption: 'Le gâteau', authorName: 'Sacha' })
 
 describe('SlideLayer', () => {
+  it('marks a photograph as tall when it is as tall as it is wide or taller, so its zoom stays inside the screen', () => {
+    const tall = aWallItem({ id: 'photo-3', width: 3000, height: 4000 })
+    const { container, rerender } = render(
+      <SlideLayer
+        current={tall}
+        previous={null}
+        next={null}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+        advancing
+        generation={0}
+      />,
+    )
+    const front = () => screen.getByTestId('wall-slide')
+    expect(front().getAttribute('data-orientation')).toBe('tall')
+
+    rerender(
+      <SlideLayer
+        current={aWallItem({ id: 'photo-4', width: 4000, height: 3000 })}
+        previous={null}
+        next={null}
+        kenBurnsDurationMs={KEN_BURNS_MS}
+        transitionMs={null}
+        advancing
+        generation={1}
+      />,
+    )
+    expect(front().hasAttribute('data-orientation')).toBe(false)
+    expect(container).toBeTruthy()
+  })
+
   it('leaves the crossfade length to the stylesheet unless it is given one', () => {
     const { container } = render(
       <SlideLayer
