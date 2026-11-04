@@ -150,6 +150,8 @@ export const notWiredUseCases = (): HttpUseCases => ({
   createMission: notWired('createMission'),
   updateMission: notWired('updateMission'),
   deleteMission: notWired('deleteMission'),
+  startChallenge: notWired('startChallenge'),
+  stopChallenge: notWired('stopChallenge'),
   getGuestChecklist: notWired('getGuestChecklist'),
   createGuestbookEntry: notWired('createGuestbookEntry'),
   listMyGuestbookEntries: notWired('listMyGuestbookEntries'),

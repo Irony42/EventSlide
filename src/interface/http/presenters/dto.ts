@@ -847,6 +847,19 @@ export interface MissionDto {
   readonly completedByGuests: number
 }
 
+/**
+ * A timed photo challenge as a host's launch answers it (spec 10). Instants are ISO 8601, the
+ * prompt is the frozen copy. The wall and the phones read a different, smaller shape (PR 2).
+ */
+export interface ChallengeDto {
+  readonly id: string
+  readonly missionId: string | null
+  readonly prompt: string
+  readonly startedAt: string
+  readonly endsAt: string
+  readonly state: 'running'
+}
+
 export interface MissionListResponseDto {
   readonly items: readonly MissionDto[]
 }

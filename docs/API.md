@@ -3971,6 +3971,51 @@ on the wall exactly as it was.
 **Errors** — `404 mission.notFound` (including another event's), `409 event.immutable`,
 `403 auth.forbidden` for a moderator, `404 event.notFound` for anybody else.
 
+### `POST /api/events/:slug/challenge`
+
+**`moderator`** (any moderator, or the owner). Launches one of the event's missions as a **timed photo
+challenge** (spec 10) that the wall and the guests' phones count down together.
+
+```json
+{ "missionId": "uuid", "durationSeconds": 120 }
+```
+
+The body is strict. `durationSeconds` is a whole number of seconds from **15 to 1800** (the interface offers
+1, 2, 5 and 10 minutes). **201** answers the challenge as launched:
+
+```json
+{
+  "id": "uuid",
+  "missionId": "uuid",
+  "prompt": "un selfie avec votre voisin",
+  "startedAt": "2026-06-20T21:00:00.000Z",
+  "endsAt": "2026-06-20T21:02:00.000Z",
+  "state": "running"
+}
+```
+
+`prompt` is a frozen copy of the mission's: correcting the mission afterwards does not change a challenge
+already launched. The end is **derived from the clock** (`now < endsAt`); nothing on the server fires when it
+passes. The launch publishes a `challenge.changed` signal (public, no data) on the event's stream.
+
+It does not touch moderation: a photograph that answers the challenge waits for the host's decision like any
+other. A guest may send a photograph at any time, with or without the mission.
+
+**Errors** — `400 challenge.durationInvalid` (or `request.invalid` for an unknown field),
+`404 mission.notFound` (including another event's mission), `409 challenge.alreadyRunning` (stop it first:
+there is no silent replacement), `409 challenge.limit` (fifty per event), `409 challenge.eventNotOpen` (the
+event is not live), `401` without a session (a guest's token is not a session), `404 event.notFound` for a
+non-member, `403 client.suspended`.
+
+### `DELETE /api/events/:slug/challenge`
+
+**`moderator`**. Stops the running challenge now. **204**, and **204 as well when nothing is running**
+(idempotent; the first stop's instant is kept). Publishes `challenge.changed` only when a challenge was
+actually running. Allowed on an event that is no longer live, so a host who closed the evening can take a
+countdown off the wall. `DELETE /missions/:missionId` also stops that mission's running challenge.
+
+**Errors** — `401`, `404 event.notFound` for a non-member, `403 client.suspended`.
+
 ### `GET /api/events/:slug/top-photos`
 
 "Photo de la soirée". Query: `limit` 1..50, default 10 — bounded low on purpose, because

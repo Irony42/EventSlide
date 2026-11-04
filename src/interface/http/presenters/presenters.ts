@@ -1,4 +1,5 @@
 import { allowedDecisionsFrom } from '../../../domain/moderation/moderationDecision'
+import type { Challenge } from '../../../domain/challenges/challenge'
 import type { Event } from '../../../domain/events/event'
 import type { EventRole } from '../../../domain/events/eventRole'
 import type { EventSettings } from '../../../domain/events/eventSettings'
@@ -41,6 +42,7 @@ import type {
   ThemeCustomDto,
   GalleryDto,
   GalleryPageDto,
+  ChallengeDto,
   GalleryPhotoDto,
   GuestDto,
   GuestMissionDto,
@@ -928,6 +930,16 @@ export const toInvitationAcceptedDto = (accepted: AcceptedInvitation): Invitatio
  * wants. Nothing about the photographs themselves — they are ordinary photographs and
  * are already in the queue and the gallery.
  */
+/** A challenge that has just started: always `running`, which is what the launch answers. */
+export const toStartedChallengeDto = (challenge: Challenge): ChallengeDto => ({
+  id: challenge.id,
+  missionId: challenge.missionId,
+  prompt: challenge.prompt.value,
+  startedAt: challenge.startedAt.toISOString(),
+  endsAt: challenge.endsAt.toISOString(),
+  state: 'running',
+})
+
 export const toMissionDto = (row: MissionSummary): MissionDto => ({
   id: row.mission.id,
   prompt: row.mission.prompt.value,
