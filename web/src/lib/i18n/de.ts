@@ -848,6 +848,32 @@ export const de: UiText = {
     videoMuted: 'Der Ton ließ sich nicht einschalten: Dieses Video läuft ohne Ton.',
     videoUnplayable:
       'Dieses Video kann hier nicht abgespielt werden. Zu sehen ist nur das Vorschaubild.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Fotos',
+    tabMessages: 'Nachrichten',
+    tabsLabel: 'Was Sie moderieren',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} zu prüfen`,
+    tabFresh: (label: string, count: number) => `${label}, ${t.number(count)} neu zum Lesen`,
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} Nachricht wartet`,
+        other: `${t.number(count)} Nachrichten warten`,
+      }),
+    messagesEmpty: 'Im Moment ist nichts zu prüfen.',
+    messagesEmptyHint: 'Die Zeilen Ihrer Gäste erscheinen hier automatisch.',
+    messagePublished: (author: string) => `Nachricht von ${author} veröffentlicht.`,
+    messageRejected: (author: string) => `Nachricht von ${author} abgelehnt.`,
+    messageHidden: (author: string) => `Nachricht von ${author} vom Bildschirm genommen.`,
+    messagesListLabel: 'Gästebuch-Nachrichten',
+    messagesLoadFailed: 'Die Nachrichten konnten nicht geladen werden.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Nachricht von ${author}`,
+    onScreenMessagesTitle: 'Letzte Nachrichten auf dem Bildschirm',
+    onScreenMessagesEmpty: 'Noch keine Nachricht auf dem Bildschirm.',
+    publishMessageOf: (author: string) => `Nachricht von ${author} veröffentlichen`,
+    rejectMessageOf: (author: string) => `Nachricht von ${author} ablehnen`,
+    readMessage: 'Lesen',
+    readMessageOf: (author: string) => `Nachricht von ${author} lesen`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
@@ -1612,7 +1638,8 @@ export const de: UiText = {
     copyId: 'Kennung kopieren',
     idCopied: 'Kennung kopiert.',
     copyFailed: 'Kopieren nicht möglich: Markieren Sie die Kennung von Hand.',
-    decided: 'Entscheidung gespeichert.',
+    openMessages: 'Nachrichten moderieren',
+    onWall: (count: number) => `${t.number(count)} auf dem Bildschirm`,
   },
 
   auth: {

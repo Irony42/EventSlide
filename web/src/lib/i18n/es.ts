@@ -820,6 +820,32 @@ export const es: UiText = {
     videoMuted: 'No se ha podido activar el sonido: este vídeo se reproduce sin sonido.',
     videoUnplayable:
       'Este vídeo no se puede reproducir aquí. Solo se muestra la imagen de vista previa.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Fotos',
+    tabMessages: 'Mensajes',
+    tabsLabel: 'Lo que modera',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} por revisar`,
+    tabFresh: (label: string, count: number) => `${label}, ${t.number(count)} nuevos por leer`,
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} mensaje en espera`,
+        other: `${t.number(count)} mensajes en espera`,
+      }),
+    messagesEmpty: 'Nada que revisar por ahora.',
+    messagesEmptyHint: 'Las notas de sus invitados llegan aquí automáticamente.',
+    messagePublished: (author: string) => `Mensaje de ${author} publicado.`,
+    messageRejected: (author: string) => `Mensaje de ${author} rechazado.`,
+    messageHidden: (author: string) => `Mensaje de ${author} retirado de la pantalla.`,
+    messagesListLabel: 'Mensajes del libro de oro',
+    messagesLoadFailed: 'No se pudieron cargar los mensajes.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Mensaje de ${author}`,
+    onScreenMessagesTitle: 'Últimos mensajes en pantalla',
+    onScreenMessagesEmpty: 'Todavía no hay mensajes en pantalla.',
+    publishMessageOf: (author: string) => `Publicar el mensaje de ${author}`,
+    rejectMessageOf: (author: string) => `Rechazar el mensaje de ${author}`,
+    readMessage: 'Leer',
+    readMessageOf: (author: string) => `Leer el mensaje de ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
@@ -1595,7 +1621,8 @@ export const es: UiText = {
     copyId: 'Copiar el identificador',
     idCopied: 'Identificador copiado.',
     copyFailed: 'No se pudo copiar: seleccione el identificador a mano.',
-    decided: 'Decisión guardada.',
+    openMessages: 'Moderar los mensajes',
+    onWall: (count: number) => `${t.number(count)} en pantalla`,
   },
 
   auth: {

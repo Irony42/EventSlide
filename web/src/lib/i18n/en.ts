@@ -784,6 +784,32 @@ export const en: UiText = {
       `${caption} — video sent by ${author}`,
     videoMuted: 'The sound could not be turned on: this video is playing without sound.',
     videoUnplayable: 'This video cannot be played here. Only the preview frame is shown.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Photos',
+    tabMessages: 'Messages',
+    tabsLabel: 'What you are moderating',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} to review`,
+    tabFresh: (label: string, count: number) => `${label}, ${t.number(count)} new to read`,
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message waiting`,
+        other: `${t.number(count)} messages waiting`,
+      }),
+    messagesEmpty: 'No message to review right now.',
+    messagesEmptyHint: 'The notes your guests leave arrive here automatically.',
+    messagePublished: (author: string) => `Message from ${author} published.`,
+    messageRejected: (author: string) => `Message from ${author} rejected.`,
+    messageHidden: (author: string) => `Message from ${author} taken off the screen.`,
+    messagesListLabel: 'Guestbook messages',
+    messagesLoadFailed: 'The messages could not be loaded.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Message from ${author}`,
+    onScreenMessagesTitle: 'Latest messages on screen',
+    onScreenMessagesEmpty: 'No message on screen yet.',
+    publishMessageOf: (author: string) => `Publish the message from ${author}`,
+    rejectMessageOf: (author: string) => `Reject the message from ${author}`,
+    readMessage: 'Read',
+    readMessageOf: (author: string) => `Read the message from ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
@@ -1533,7 +1559,8 @@ export const en: UiText = {
     copyId: 'Copy the identifier',
     idCopied: 'Identifier copied.',
     copyFailed: 'Could not copy: select the identifier by hand.',
-    decided: 'Decision saved.',
+    openMessages: 'Moderate the messages',
+    onWall: (count: number) => `${t.number(count)} on screen`,
   },
 
   auth: {

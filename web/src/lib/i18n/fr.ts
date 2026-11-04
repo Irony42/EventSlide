@@ -826,6 +826,36 @@ export const fr = {
      * decision, and it is an honest one.
      */
     videoUnplayable: 'Cette vidéo ne peut pas être lue ici. Seule l’image d’aperçu s’affiche.',
+    /* Spec 15: the guestbook's tab in the console. Its own block, at the end. */
+    tabPhotos: 'Photos',
+    tabMessages: 'Messages',
+    tabsLabel: 'Ce que vous modérez',
+    tabCounted: (label: string, count: number) => `${label}, ${t.number(count)} à valider`,
+    tabFresh: (label: string, count: number) =>
+      t.count(count, {
+        one: `${label}, ${t.number(count)} nouveau à relire`,
+        other: `${label}, ${t.number(count)} nouveaux à relire`,
+      }),
+    messagesPendingAnnounce: (count: number) =>
+      t.count(count, {
+        one: `${t.number(count)} message en attente`,
+        other: `${t.number(count)} messages en attente`,
+      }),
+    messagesEmpty: 'Aucun message à valider pour l’instant.',
+    messagesEmptyHint: 'Les mots laissés par vos invités arrivent ici automatiquement.',
+    messagePublished: (author: string) => `Message de ${author} publié.`,
+    messageRejected: (author: string) => `Message de ${author} refusé.`,
+    messageHidden: (author: string) => `Message de ${author} retiré de l’écran.`,
+    messagesListLabel: 'Messages du livre d’or',
+    messagesLoadFailed: 'Les messages n’ont pas pu être chargés.',
+    /* Spec 15, phone console: messages. */
+    messageOf: (author: string) => `Message de ${author}`,
+    onScreenMessagesTitle: 'Derniers messages à l’écran',
+    onScreenMessagesEmpty: 'Aucun message à l’écran pour l’instant.',
+    publishMessageOf: (author: string) => `Publier le message de ${author}`,
+    rejectMessageOf: (author: string) => `Refuser le message de ${author}`,
+    readMessage: 'Lire',
+    readMessageOf: (author: string) => `Lire le message de ${author}`,
   },
 
   /* The guest's view of the evening: the published photographs, with the reactions. */
@@ -1761,7 +1791,8 @@ export const fr = {
     copyId: 'Copier l’identifiant',
     idCopied: 'Identifiant copié.',
     copyFailed: 'Copie impossible : sélectionnez l’identifiant à la main.',
-    decided: 'Décision enregistrée.',
+    openMessages: 'Modérer les messages',
+    onWall: (count: number) => `${t.number(count)} à l’écran`,
   },
 
   auth: {

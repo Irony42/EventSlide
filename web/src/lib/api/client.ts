@@ -787,8 +787,19 @@ export const createApi = (transport: Transport) => ({
     transport.patch(`/api/events/${encode(slug)}/photos/${encode(photoId)}/status`, { decision }),
 
   /** The host's reading of the guestbook: pending first. No cursor (a book is bounded at 500). */
-  guestbookQueue: (slug: string, signal?: AbortSignal): Promise<GuestbookQueueDto> =>
-    transport.get(`/api/events/${encode(slug)}/guestbook`, { limit: 500 }, signal),
+  guestbookQueue: (
+    slug: string,
+    signal?: AbortSignal,
+    query: { status?: PhotoStatus | 'all'; limit?: number } = {},
+  ): Promise<GuestbookQueueDto> =>
+    transport.get(
+      `/api/events/${encode(slug)}/guestbook`,
+      {
+        ...(query.status && query.status !== 'all' ? { status: query.status } : {}),
+        limit: query.limit ?? 500,
+      },
+      signal,
+    ),
 
   decideGuestbookEntry: (
     slug: string,
