@@ -1408,6 +1408,17 @@ describe('uploadPhotos and the challenge tag (spec 18)', () => {
     expect((await stored()).map((photo) => photo.missionId)).toEqual(['mission-1'])
   })
 
+  it('keeps the challenge tag when the mission it was launched from is gone', async () => {
+    await launch({ missionId: 'mission-1' })
+    await missions.delete(EVENT, asMissionId('mission-1'))
+
+    await send('c1')
+
+    const [photo] = await stored()
+    expect(photo?.challengeId).toBe('c1')
+    expect(photo?.missionId).toBeNull()
+  })
+
   it('leaves the mission the guest chose alone', async () => {
     await launch({ missionId: 'mission-1' })
 
