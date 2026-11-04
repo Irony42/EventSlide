@@ -18,6 +18,7 @@ import {
   GUESTBOOK_WALL_MAX_MESSAGES,
   messageDisplayMs,
 } from '../../../domain/guestbook/guestbookWall'
+import { wallNeedsSouvenirCount } from '../../../domain/events/eventWallSettings'
 import { DomainError } from '../../../domain/shared/errors'
 import type { GuestId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -177,6 +178,16 @@ export interface WallPlaylistView {
    * drawing a panel at all.
    */
   readonly missions: readonly WallMissionStanding[]
+  /**
+   * How many photographs and clips are visible on the wall (status `published`, operator take-downs
+   * left out; guestbook messages and clips still being transcoded are not souvenirs). The server's
+   * total, never the window's length: the window is capped at 200. `null` when no wall switch needs
+   * it, so that the query is not paid for (spec 11).
+   */
+  readonly souvenirCount: number | null
+  /** The two host switches of spec 11, so the wall needs no second read of the settings. */
+  readonly souvenirCounter: boolean
+  readonly newPhotoSignal: boolean
   /** `null` unless the guestbook is open and its messages are for the wall, or there is none yet. */
   readonly guestbook: WallGuestbook | null
 }
@@ -318,6 +329,12 @@ export const makeGetWallPlaylist =
 
     const book = await readGuestbook(guestbook, guests, event)
 
+    // The same definition as the moderation counters and the album: published, not taken down.
+    const wallSettings = event.settings.wall
+    const souvenirCount = wallNeedsSouvenirCount(wallSettings)
+      ? (await photos.countsByStatus(event.id)).published
+      : null
+
     return ok({
       event,
       playlist: playlist.value,
@@ -336,5 +353,8 @@ export const makeGetWallPlaylist =
       layoutSpec: wallLayoutSpec(chosenLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
       guestbook: book,
+      souvenirCount,
+      souvenirCounter: wallSettings.souvenirCounter,
+      newPhotoSignal: wallSettings.newPhotoSignal,
     })
   }

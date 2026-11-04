@@ -1,0 +1,56 @@
+/*
+ * An opaque card on the left edge (ADR 0012: no glass). The wall keeps turning behind it. Above
+ * the controls bar, inside the overscan inset. It animates nothing.
+ */
+.panel {
+  position: absolute;
+  inset-block: var(--wall-safe);
+  inset-inline-start: var(--wall-safe);
+  inline-size: 360px;
+  max-inline-size: 90%;
+  z-index: calc(var(--z-wall-caption) + 20);
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.close {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  z-index: 1;
+}
+
+.section {
+  margin-block: var(--space-3);
+}
+
+.section > summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.group {
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.groupTitle {
+  font-size: var(--text-base);
+  margin-block: var(--space-2);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  margin-block-end: var(--space-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.status {
+  min-block-size: 1.5em;
+}

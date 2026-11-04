@@ -15,6 +15,11 @@ const QR = {
   soundEnabled: false,
   soundTone: 'chime',
   soundVolume: 50,
+  freshLane: true,
+  tilt: true,
+  showTime: false,
+  souvenirCounter: false,
+  newPhotoSignal: false,
 } as const
 
 describe('the wall settings group (spec 13)', () => {
@@ -65,6 +70,24 @@ describe('the wall settings group (spec 13)', () => {
     expect(EventSettings.create({ wall: { slideIntervalMs: 1_500 } }).ok).toBe(false)
   })
 
+  it('defaults the display switches to today’s behaviour and merges them key by key', () => {
+    expect(DEFAULT_WALL_SETTINGS).toMatchObject({ freshLane: true, tilt: true })
+    const merged = mergeWallSettings(DEFAULT_WALL_SETTINGS, { tilt: false })
+    expect(merged).toEqual({ ...DEFAULT_WALL_SETTINGS, tilt: false })
+    expect(mergeWallSettings(merged, { freshLane: false })).toMatchObject({
+      freshLane: false,
+      tilt: false,
+      showTime: false,
+    })
+  })
+
+  it('keeps the time under photos off by default and merges it like the rest', () => {
+    expect(DEFAULT_WALL_SETTINGS.showTime).toBe(false)
+    expect(mergeWallSettings(DEFAULT_WALL_SETTINGS, { showTime: true }).showTime).toBe(true)
+    expect(restoreWallSettings({ showTime: 'yes' }).showTime).toBe(false)
+    expect(restoreWallSettings({ showTime: true }).showTime).toBe(true)
+  })
+
   it('reads a stored group tolerantly: an unreadable field takes its default, nothing throws', () => {
     expect(restoreWallSettings(undefined)).toEqual(DEFAULT_WALL_SETTINGS)
     expect(restoreWallSettings('x')).toEqual(DEFAULT_WALL_SETTINGS)
@@ -76,6 +99,12 @@ describe('the wall settings group (spec 13)', () => {
       layout: 'filmstrip',
       slideIntervalMs: null,
       ...QR,
+    })
+    expect(restoreWallSettings({ freshLane: 'no', tilt: 0 })).toEqual(DEFAULT_WALL_SETTINGS)
+    expect(restoreWallSettings({ freshLane: false, tilt: false })).toMatchObject({
+      freshLane: false,
+      tilt: false,
+      showTime: false,
     })
     expect(restoreWallSettings({ layout: 'collage', slideIntervalMs: 30_000 })).toEqual({
       layout: 'collage',
@@ -99,6 +128,9 @@ describe('the wall settings group (spec 13)', () => {
       qrScale: 1.3,
       qrPlacement: 'top-start',
       qrVisible: false,
+      freshLane: true,
+      tilt: true,
+      showTime: false,
     })
   })
 
@@ -132,5 +164,22 @@ describe('the wall settings group (spec 13)', () => {
       DEFAULT_WALL_SETTINGS,
     )
     expect(restoreWallSettings({ qrScale: '1.2' })).toEqual(DEFAULT_WALL_SETTINGS)
+  })
+
+  it('merges the spec 11 switches key by key and reads only a stored true as on', () => {
+    expect(mergeWallSettings(DEFAULT_WALL_SETTINGS, { souvenirCounter: true })).toMatchObject({
+      souvenirCounter: true,
+      newPhotoSignal: false,
+    })
+    expect(
+      mergeWallSettings(
+        { ...DEFAULT_WALL_SETTINGS, souvenirCounter: true },
+        { newPhotoSignal: true },
+      ),
+    ).toMatchObject({ souvenirCounter: true, newPhotoSignal: true })
+    expect(restoreWallSettings({ souvenirCounter: true, newPhotoSignal: 'true' })).toMatchObject({
+      souvenirCounter: true,
+      newPhotoSignal: false,
+    })
   })
 })

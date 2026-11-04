@@ -374,6 +374,21 @@ export interface WallResponseDto {
    */
   readonly layoutChosen: boolean
   /**
+   * The souvenirs visible on the wall (spec 11): the server's total of published photos and clips,
+   * not the length of `items`. `null` when neither wall switch below is on. Compared by the wall
+   * apart from `revision`: a photo published beyond the window or a take-down moves only this.
+   */
+  readonly souvenirCount: number | null
+  /** The host's switch for the counter « n souvenirs partagés » (spec 11). */
+  readonly souvenirCounter: boolean
+  /** The host's switch for the brief « nouvelle photo » signal (spec 11). */
+  readonly newPhotoSignal: boolean
+  /** Whether a published photo takes the next slide (spec 13). */
+  readonly freshLane: boolean
+  /** Whether prints lean a few degrees (spec 13). */
+  readonly tilt: boolean
+  readonly showTime: boolean
+  /**
    * The invitation card (spec 14): whether it shows on a populated wall, its scale (0.8 to 1.5, 1
    * is the card as it always was) and its corner. Public like the rest; carries no secret.
    */
@@ -533,6 +548,11 @@ export interface EventSettingsDto {
   readonly wall: {
     readonly layout: WallLayout | null
     readonly slideIntervalMs: number | null
+    readonly souvenirCounter: boolean
+    readonly newPhotoSignal: boolean
+    readonly freshLane: boolean
+    readonly tilt: boolean
+    readonly showTime: boolean
     readonly qrVisible: boolean
     readonly qrScale: number
     readonly qrPlacement: 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start'

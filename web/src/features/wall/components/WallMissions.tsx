@@ -1,3 +1,4 @@
+import { cx } from '../../../design-system/classNames'
 import { Card } from '../../../design-system/components/Card'
 import { StatusIcon } from '../../../design-system/components/StatusIcon'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
@@ -6,6 +7,8 @@ import styles from './WallMissions.module.css'
 
 export interface WallMissionsProps {
   readonly missions: readonly WallMissionDto[]
+  /** In the flow of the top-start column, under the invitation card (spec 14). */
+  readonly stacked?: boolean
 }
 
 /**
@@ -45,13 +48,13 @@ export interface WallMissionsProps {
  * Most events set none. Rendering `null` for them is what keeps every wall that does not
  * use this feature exactly the wall it was, committed visual baselines included.
  */
-export function WallMissions({ missions }: WallMissionsProps) {
+export function WallMissions({ missions, stacked = false }: WallMissionsProps) {
   const text = useTranslations()
 
   if (missions.length === 0) return null
 
   return (
-    <Card className={styles['panel']}>
+    <Card className={cx(styles['panel'], stacked && styles['stacked'])}>
       <h2 className={styles['title']}>{text.wall.missionsTitle}</h2>
       <ul className={styles['list']}>
         {missions.map((mission) => (
