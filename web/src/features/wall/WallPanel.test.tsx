@@ -430,6 +430,40 @@ describe('the send time under a photo (spec 13, PR 5)', () => {
   })
 })
 
+describe('the mixed wall row (spec 09, PR D)', () => {
+  it('shows the switch off with no durations, and writes the switch alone', async () => {
+    const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+    expect(screen.getByLabelText(fr.admin.wallDisplay.mixed)).not.toBeChecked()
+    expect(screen.queryByLabelText(fr.admin.wallDisplay.mixedWall)).toBeNull()
+
+    await userEvent.click(screen.getByLabelText(fr.admin.wallDisplay.mixed))
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith('camille-et-sacha', {
+      wall: { mixedEnabled: true },
+    })
+  })
+
+  it('writes one duration alone, once the mode is on', async () => {
+    const api = renderWall({
+      getEvent: vi.fn(async () =>
+        anEventDto({ role: 'owner', settings: eventSettings({ wall: { mixedEnabled: true } }) }),
+      ),
+    })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    await screen.findByRole('dialog', { name: panelLabel })
+
+    await userEvent.selectOptions(screen.getByLabelText(fr.admin.wallDisplay.mixedSlideshow), '120')
+
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenLastCalledWith('camille-et-sacha', {
+      wall: { mixedSlideshowSeconds: 120 },
+    })
+  })
+})
+
 describe('the « À l’écran » section (spec 11)', () => {
   it('writes the counter and the new-photo switches, each off until the owner turns it on', async () => {
     const api = renderWall({ getEvent: vi.fn(async () => asOwner()) })
