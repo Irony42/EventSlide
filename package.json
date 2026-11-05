@@ -85,6 +85,11 @@
     "sharp": "^0.35.5",
     "zod": "^4.6.7"
   },
+  "overrides": {
+    "readdir-glob": {
+      "minimatch": "^11.0.1"
+    }
+  },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^10.0.1",
