@@ -64,16 +64,6 @@ const pinnedShare = (
     share: element.getBoundingClientRect().height / window.innerHeight,
   }))
 
-/**
- * Scrolling back up through the page folds the pane (spec 19), which is what these journeys do on
- * purpose to reach the guest's photos: a test that then needs the pane's controls opens it, as a
- * thumb would.
- */
-const unfold = async (page: Page): Promise<void> => {
-  const bar = page.getByTestId('folded-bar')
-  if ((await bar.count()) > 0) await bar.getByRole('button').first().click()
-}
-
 type App = Parameters<typeof joinAsGuest>[1]
 
 /** What a host may change about an event, through the API exactly as the settings form does. */
@@ -166,7 +156,6 @@ for (const phone of PHONES) {
 
     // And the controls can still be reached: the picker is the top of the pane, and the send
     // button its bottom — a pane pinned taller than the screen loses the first of them.
-    await unfold(page)
     const picker = page.locator('label').filter({ has: page.getByTestId('photo-input') })
     expect(await reachable(picker), 'Ajouter des photos').toBe(true)
     expect(await reachable(page.getByRole('button', { name: /^Envoyer/i })), 'Envoyer').toBe(true)
@@ -567,7 +556,6 @@ for (const ambiance of ['eventslide', 'guinguette', 'cabaret'] as const)
     await expect(page.getByRole('heading', { level: 2, name: fr.upload.mine })).toBeFocused()
 
     // The rows are one press away, with the word of each state.
-    await unfold(page)
     const details = page.getByRole('button', { name: fr.upload.queueDetails })
     await expect(details).toHaveAttribute('aria-expanded', 'false')
     await details.click()
@@ -739,13 +727,12 @@ for (const phone of PHONES.slice(0, 2))
     await context.close()
   })
 
-test('scrolling up through the page folds the pane, and a scroll down does not open it again', async ({
+test('a scroll up never folds the pane: only its chevron does', async ({
   app,
   browser,
 }, testInfo) => {
-  // A wheel is the scroll a test can make; WebKit's touch emulation has none. The gesture rules are
-  // the component tests' (GuestUploadPage.fold.test.tsx).
-  test.skip(testInfo.project.name.startsWith('webkit'), 'no wheel on touch WebKit')
+  // A wheel is the scroll a test can make; WebKit's touch emulation has none, so the page is also
+  // scrolled by script, which is the same page movement.
   const context = await browser.newContext({
     viewport: { width: 375, height: 667 },
     isMobile: true,
@@ -766,12 +753,20 @@ test('scrolling up through the page folds the pane, and a scroll down does not o
   await page.evaluate(() =>
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }),
   )
-  await expect(page.getByTestId('folded-bar')).toHaveCount(0)
   await page.mouse.move(100, 100)
-  await page.mouse.wheel(0, -200)
-  await expect(page.getByTestId('folded-bar')).toBeVisible()
+  for (const delta of [-200, -200, -400]) {
+    if (!testInfo.project.name.startsWith('webkit')) await page.mouse.wheel(0, delta)
+    await page.evaluate(() => window.scrollBy({ top: -150, behavior: 'instant' }))
+  }
+  // Two frames: time for a scroll handler to have acted, were there one.
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+  )
+  await expect(page.getByTestId('folded-bar')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: fr.upload.foldPane })).toBeVisible()
 
-  await page.mouse.wheel(0, 600)
+  await page.getByRole('button', { name: fr.upload.foldPane }).click()
   await expect(page.getByTestId('folded-bar')).toBeVisible()
   await context.close()
 })

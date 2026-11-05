@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../../../design-system/components/Icon'
 import { IconButton } from '../../../design-system/components/IconButton'
@@ -76,7 +76,6 @@ export default function WallSettingsPanel({
       className={styles['panel']}
       role="dialog"
       aria-label={text.panelLabel}
-      onPointerMove={(event: PointerEvent) => event.stopPropagation()}
       onPointerDown={touch}
       onKeyDown={(event) => {
         // The window's key handler ignores keys typed in a control, and focus lives in one here.
