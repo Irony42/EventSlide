@@ -244,7 +244,7 @@ export const es: UiText = {
     clipTrimSummary: (seconds: number, maxSeconds: number) =>
       `Fragmento: ${t.number(seconds)} s de ${t.number(maxSeconds)} s como máximo`,
     clipTrimPlay: 'Reproducir el fragmento',
-    clipTrimPause: 'Pausa',
+    clipTrimPause: 'Pausar el fragmento',
     clipTrimNoPreview:
       'No hay vista previa en este dispositivo. El fragmento se recortará igualmente.',
     clipTrimWholeFileSent:

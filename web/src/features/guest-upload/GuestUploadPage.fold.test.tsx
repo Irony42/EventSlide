@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GuestUploadPage } from './GuestUploadPage'
-import { FOLD_DISTANCE } from './hooks/useFoldOnScroll'
 import { rememberGuestSession } from '../../lib/guestSession'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -51,7 +50,7 @@ describe('GuestUploadPage: folding the pane', () => {
       configurable: true,
       value: 5000,
     })
-    scrollTo(1000)
+    scrollTo(1000, false)
     rememberGuestSession({
       event: aPublicEvent(),
       displayName: 'Léa',
@@ -115,57 +114,27 @@ describe('GuestUploadPage: folding the pane', () => {
     expect(screen.getByRole('button', { name: fr.upload.removeItem(1) })).toBeVisible()
   })
 
-  it('folds when the guest scrolls back up by a real distance, and never opens by itself', () => {
-    renderUpload()
-    scrollTo(1000 - FOLD_DISTANCE + 1)
-    expect(screen.queryByTestId('folded-bar')).toBeNull()
-
-    scrollTo(1000 - FOLD_DISTANCE - 5)
-    expect(bar()).toBeInTheDocument()
-    // A fold by scroll moves no focus.
-    expect(document.activeElement).toBe(document.body)
-
-    scrollTo(3000)
-    scrollTo(10)
-    expect(bar()).toBeInTheDocument()
-  })
-
-  it('does not fold on a scroll nobody made: the page moving by itself', async () => {
+  it('never folds on a scroll up, by finger, wheel, key or script; the chevron still folds', async () => {
     renderUpload()
     await userEvent.upload(screen.getByLabelText(fr.upload.addPhotos), [aPhotoFile('un.jpg')])
-    scrollTo(100, false)
-    expect(screen.queryByTestId('folded-bar')).toBeNull()
-  })
 
-  it('does not take a tap for a scroll, but a drag and its momentum are one', () => {
-    renderUpload()
-    fireEvent.touchStart(window)
-    fireEvent.touchEnd(window)
-    scrollTo(100, false)
-    expect(screen.queryByTestId('folded-bar')).toBeNull()
+    // Each far past the 48 px the old scroll rule asked for.
     fireEvent.touchStart(window)
     fireEvent.touchMove(window)
     fireEvent.touchEnd(window)
-    scrollTo(20, false)
+    scrollTo(600, false)
+    scrollTo(200, false)
+    scrollTo(1000)
+    scrollTo(0)
+    fireEvent.keyDown(window, { key: 'PageUp' })
+    scrollTo(500)
+    scrollTo(0, false)
+
+    expect(screen.queryByTestId('folded-bar')).toBeNull()
+    expect(fold()).toHaveAttribute('aria-expanded', 'true')
+
+    await userEvent.click(fold())
     expect(bar()).toBeInTheDocument()
-  })
-
-  it('does not add up a tremor: a step down forgets the way up', () => {
-    renderUpload()
-    scrollTo(1000 - 30)
-    scrollTo(1000 - 20)
-    scrollTo(1000 - 50)
-    expect(screen.queryByTestId('folded-bar')).toBeNull()
-  })
-
-  it('does not fold by scroll while a caption is being typed', async () => {
-    renderUpload()
-    await userEvent.click(screen.getByRole('button', { name: fr.upload.captionLabel }))
-    expect(screen.getByLabelText(/Légende/)).toHaveFocus()
-
-    scrollTo(100)
-
-    expect(screen.queryByTestId('folded-bar')).toBeNull()
   })
 
   describe('the challenge box on the folded bar (spec 18)', () => {

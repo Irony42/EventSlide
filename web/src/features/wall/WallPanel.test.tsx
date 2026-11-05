@@ -11,6 +11,7 @@ import {
   fakeApi,
   renderWithProviders,
 } from '../../testing/renderWithProviders'
+import { CURSOR_IDLE_MS } from './hooks/useIdleCursor'
 import { SAVE_DEBOUNCE_MS } from './panel/usePanelSettings'
 import { PANEL_IDLE_MS } from './panel/WallSettingsPanel'
 import { WallPage } from './WallPage'
@@ -693,5 +694,60 @@ describe('the drawer (spec 17)', () => {
         name: fr.admin.wallSound.tonePlay(fr.admin.wallSound.toneNames.bell),
       }),
     ).toBeVisible()
+  })
+})
+
+describe('the mouse arrow while the owner uses the drawer', () => {
+  const theWall = (): HTMLElement => {
+    const el = document.querySelector('[data-wall-layout]')
+    if (!(el instanceof HTMLElement)) throw new Error('the wall named no layout')
+    return el
+  }
+  const advance = (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms)
+    })
+
+  it('stays on screen while the drawer is open, however long the owner reads it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    const dialog = await screen.findByRole('dialog', { name: panelLabel })
+
+    await advance(CURSOR_IDLE_MS + 500)
+    expect(theWall()).not.toHaveAttribute('data-idle')
+
+    fireEvent.pointerMove(dialog)
+    await advance(CURSOR_IDLE_MS + 500)
+    expect(theWall()).not.toHaveAttribute('data-idle')
+  })
+
+  it('counts a move over the drawer as a move: the count restarts when the drawer closes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await userEvent.click(await barButton(fr.wall.panel.open))
+    const dialog = await screen.findByRole('dialog', { name: panelLabel })
+
+    await advance(CURSOR_IDLE_MS + 500)
+    fireEvent.pointerMove(dialog)
+    await advance(1_000)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: panelLabel })).not.toBeInTheDocument(),
+    )
+
+    expect(theWall()).not.toHaveAttribute('data-idle')
+    await advance(CURSOR_IDLE_MS)
+    expect(theWall()).toHaveAttribute('data-idle', 'true')
+  })
+
+  it('still leaves the photo after three still seconds with the drawer shut', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderWall({ getEvent: vi.fn(async () => asOwner()) })
+    await screen.findByTestId('wall-slide')
+
+    await advance(CURSOR_IDLE_MS + 500)
+
+    expect(theWall()).toHaveAttribute('data-idle', 'true')
   })
 })

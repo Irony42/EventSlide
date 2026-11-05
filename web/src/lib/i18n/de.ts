@@ -242,7 +242,7 @@ export const de: UiText = {
     clipTrimSummary: (seconds: number, maxSeconds: number) =>
       `Ausschnitt: ${t.number(seconds)} s von höchstens ${t.number(maxSeconds)} s`,
     clipTrimPlay: 'Ausschnitt abspielen',
-    clipTrimPause: 'Pause',
+    clipTrimPause: 'Ausschnitt anhalten',
     clipTrimNoPreview: 'Keine Vorschau auf diesem Gerät. Der Ausschnitt wird trotzdem geschnitten.',
     clipTrimWholeFileSent:
       'Das ganze Video wird gesendet; nur der gewählte Ausschnitt wird behalten.',
