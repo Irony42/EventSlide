@@ -46,7 +46,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
   },
 
   reporter: process.env['CI']
-    ? [['github'], ['html', { open: 'never' }], ['list']]
+    ? [['github'], ['html', { open: 'never' }], ['list'], ['./tests/e2e/reporters/failOnFlaky.ts']]
     : [['html', { open: 'never' }], ['list']],
 
   use: {
