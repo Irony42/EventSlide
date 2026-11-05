@@ -20,6 +20,30 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.8.1] - 2026-11-05
+
+Everything merged to `main` after the tag `v3.8.0`: pull requests #372, #373 and #374. This is a patch
+release: two fixes and one polish. No migration, no new environment variable, no dependency change, and nothing
+to change before upgrading.
+
+### Fixes
+
+- **The wall's cursor stays visible while the owner uses the settings drawer** (#372). Moves over the drawer
+  were swallowed, so the cursor, the bar and the sound icon hid while the mouse was moving. The anonymous wall
+  is unchanged.
+- **The guest upload pane folds only from its chevron** (#373). The fold after a scroll gesture upwards, added
+  in 3.8.0, is removed; the "Réduire" button still folds the pane and the selection is still kept.
+
+### Guests
+
+- **The trim screen has a play/pause button and shows the frame under the handle** (#374). The text button
+  becomes a play/pause icon whose name follows its state, and dragging a handle pauses the preview and shows
+  the video frame at that position.
+
+### Behaviour changes to check before upgrading
+
+- None: no migration, no new environment variable, nothing to change before upgrading.
+
 ## [3.8.0] - 2026-11-04
 
 Everything merged to `main` after the tag `v3.7.0`: pull requests #360, #361, #362, #363, #364, #365, #366,

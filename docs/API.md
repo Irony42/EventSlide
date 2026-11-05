@@ -799,7 +799,7 @@ a health check that fails when the database is busy causes the restart it was me
 prevent.
 
 ```json
-{ "status": "ok", "version": "3.8.0", "uptimeSeconds": 4821 }
+{ "status": "ok", "version": "3.8.1", "uptimeSeconds": 4821 }
 ```
 
 ### `GET /api/ready`
@@ -880,9 +880,9 @@ when the session store is unusable.
 ```json
 {
   "name": "EventSlide",
-  "version": "3.8.0",
+  "version": "3.8.1",
   "license": "AGPL-3.0-only",
-  "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v3.8.0",
+  "sourceUrl": "https://github.com/Irony42/EventSlide/tree/v3.8.1",
   "links": {},
   "features": { "siteAdmin": false, "forgotPassword": false }
 }
