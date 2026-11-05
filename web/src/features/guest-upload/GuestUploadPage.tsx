@@ -26,7 +26,6 @@ import { OfflineNotice } from './components/OfflineNotice'
 import { PhotoPicker } from './components/PhotoPicker'
 import { PrivacyNoticeCard, PrivacyNoticeDialog } from './components/PrivacyNotice'
 import { UploadQueue } from './components/UploadQueue'
-import { useFoldOnScroll } from './hooks/useFoldOnScroll'
 import { useBackgroundSync } from './hooks/useBackgroundSync'
 import { useClipUpload } from './hooks/useClipUpload'
 import { useEraseEverything } from './hooks/useEraseEverything'
@@ -324,10 +323,10 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
    *
    * Only page state, and only the view: the selection lives in `queue` above and a folded pane is
    * the same pane with its content `hidden`, so nothing is unmounted and nothing is lost. The
-   * guest folds it with "Réduire", or by scrolling back up the page; only a tap on the bar opens
-   * it again, never a scroll (a pane that jumped open under the thumb is worse than the one in
-   * the way). Folding by scroll moves no focus; the button moves it to the bar, and opening moves
-   * it to the first useful action, in the layout effect below, once the content is displayed.
+   * guest folds it with "Réduire" and only that: scrolling never folds it (Pierre's call, the pane
+   * is the guest's to put away), and only a tap on the bar opens it again. The button moves the
+   * focus to the bar, and opening moves it to the first useful action, in the layout effect
+   * below, once the content is displayed.
    */
   const paneContent = useId()
   const [folded, setFolded] = useState(false)
@@ -336,7 +335,6 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
   const focusAfterToggle = useRef(false)
   const canFold = mine.acceptingUploads && !mine.unavailable && !gated
   const isFolded = folded && canFold
-  const busy = queue.sending || outbox.draining || clip.stage === 'uploading'
   const foldPane = useCallback(() => {
     focusAfterToggle.current = true
     setFolded(true)
@@ -345,15 +343,6 @@ function UploadScreen({ slug, event, displayName, privacyNotice }: UploadScreenP
     focusAfterToggle.current = true
     setFolded(false)
   }, [])
-  const foldByScroll = useCallback(() => {
-    // A field being typed in is the guest's own hands: the page scrolls under the keyboard too.
-    const active = document.activeElement
-    if (active instanceof HTMLElement && composer.current?.contains(active) === true) {
-      if (active.matches('input:not([type="file"]), textarea, [contenteditable]')) return
-    }
-    setFolded(true)
-  }, [])
-  useFoldOnScroll(canFold && !folded && !busy, foldByScroll)
   useLayoutEffect(() => {
     if (!focusAfterToggle.current) return
     focusAfterToggle.current = false

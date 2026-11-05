@@ -216,7 +216,7 @@ export function WallPage() {
   // only when the reads fail too.
   const outage = useOutageStage(offline && readFailing)
   const awake = useWakeLock()
-  const cursorIdle = useIdleCursor()
+  const pointerIdle = useIdleCursor()
   // A touch screen has no pointer to move, so the icon that follows the idle cursor would never
   // come back there: it stays put (spec 12). Read once, a projector does not change its input.
   const canHover =
@@ -228,6 +228,9 @@ export function WallPage() {
    */
   const owner = useWallOwner(eventSlug, wall !== null)
   const [panelOpen, setPanelOpen] = useState(false)
+  // The owner steers with the mouse while the drawer is open: the arrow never leaves then, and
+  // the bar and the sound icon that follow it stay too, whatever the idle count says.
+  const cursorIdle = pointerIdle && !panelOpen
   const panelOpener = useRef<HTMLButtonElement>(null)
   const closePanel = useCallback(() => setPanelOpen(false), [])
 
