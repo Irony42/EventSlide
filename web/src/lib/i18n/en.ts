@@ -231,7 +231,7 @@ export const en: UiText = {
     clipTrimSummary: (seconds: number, maxSeconds: number) =>
       `Clip: ${t.number(seconds)} s of ${t.number(maxSeconds)} s at most`,
     clipTrimPlay: 'Play the clip',
-    clipTrimPause: 'Pause',
+    clipTrimPause: 'Pause the clip',
     clipTrimNoPreview: 'No preview on this device. The clip will still be cut.',
     clipTrimWholeFileSent:
       'Only the part you chose is kept. If this phone cannot cut it, the whole video is sent and then cut.',

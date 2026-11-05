@@ -252,6 +252,18 @@ test('a guest keeps the part they chose of a video that is too long (spec 16)', 
   for (let i = 0; i < 20; i += 1) await start.press('ArrowRight')
   await expect(guest.getByRole('status').filter({ hasText: /Extrait/ })).toContainText('13')
 
+  // The preview shows the frame under the handle: twenty steps of a tenth, so two seconds.
+  const preview = guest.getByTestId('clip-trimmer').locator('video')
+  await expect
+    .poll(async () => preview.evaluate((element: HTMLVideoElement) => element.currentTime))
+    .toBeCloseTo(2, 1)
+  // The play control is an icon button whose name follows the state.
+  const play = guest.getByTestId('clip-trim-play')
+  await play.click()
+  await expect(play).toHaveAccessibleName(fr.upload.clipTrimPause)
+  await play.click()
+  await expect(play).toHaveAccessibleName(fr.upload.clipTrimPlay)
+
   const upload = guest.waitForRequest(
     (request) => request.method() === 'POST' && request.url().endsWith('/clips'),
   )

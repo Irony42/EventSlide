@@ -32,13 +32,13 @@ export const useIdleCursor = (): boolean => {
     }
 
     arm()
-    window.addEventListener('pointermove', onMove, { passive: true })
-    window.addEventListener('pointerdown', onMove, { passive: true })
+    window.addEventListener('pointermove', onMove, { passive: true, capture: true })
+    window.addEventListener('pointerdown', onMove, { passive: true, capture: true })
 
     return () => {
       window.clearTimeout(timer)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerdown', onMove)
+      window.removeEventListener('pointermove', onMove, true)
+      window.removeEventListener('pointerdown', onMove, true)
     }
   }, [])
 
