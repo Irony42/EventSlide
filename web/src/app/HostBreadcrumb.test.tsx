@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { configure, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../lib/http'
 import { AppRoutes } from './router'
@@ -21,6 +21,14 @@ import type { Locale } from '../lib/i18n/locale'
  * Surface: the host and the moderator. Pierre could not find how to create a second event
  * from an event's page: nothing on it led back to `/admin`, where "Nouvel évènement" is.
  */
+
+/**
+ * Every route here is a lazy chunk: the first test of a cold worker pays to transform and import
+ * the page, which on a loaded runner took longer than findBy's 1000 ms default (the flake of
+ * #330, and ~1029 ms locally). Room for an await that resolves as soon as it can costs nothing,
+ * and no assertion below is loosened by it.
+ */
+configure({ asyncUtilTimeout: 10_000 })
 
 const SLUG = 'camille-et-sacha'
 const NAME = 'Camille & Sacha'
@@ -226,18 +234,24 @@ describe('the way back for an account that only moderates', () => {
     )
   }
 
-  it.each(PAGES)('links $page only to pages the account can open', async ({ route, links }) => {
-    at(moderator(), route)
+  it.each(PAGES)(
+    'links $page only to pages the account can open',
+    async ({ route, current, links }) => {
+      at(moderator(), route)
 
-    const nav = await trail()
-    await within(nav).findByRole('link', { name: fr.admin.events })
+      const nav = await trail()
+      // The way out is there at once; the event's link and the page's name come with the read of the
+      // event. Count the links only once that read is shown, or the count races the second item.
+      await within(nav).findByRole('link', { name: fr.admin.events })
+      await within(nav).findByText(current)
 
-    // Never the operator's console nor the client's space: this account has neither.
-    for (const link of within(nav).getAllByRole('link')) {
-      expect(link.getAttribute('href')).toMatch(new RegExp(`^/admin(/events/${SLUG})?$`))
-    }
-    expect(within(nav).getAllByRole('link')).toHaveLength(links.length)
-  })
+      // Never the operator's console nor the client's space: this account has neither.
+      for (const link of within(nav).getAllByRole('link')) {
+        expect(link.getAttribute('href')).toMatch(new RegExp(`^/admin(/events/${SLUG})?$`))
+      }
+      expect(within(nav).getAllByRole('link')).toHaveLength(links.length)
+    },
+  )
 
   it('opens the list of events, holding the one event it moderates, from the console', async () => {
     at(moderator(), `/admin/events/${SLUG}/moderation`)
