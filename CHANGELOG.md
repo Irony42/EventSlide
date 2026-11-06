@@ -20,6 +20,55 @@ In an entry:
   you set it, a new warning at boot, a default that is opt-in for now.
 - `### Deprecated` lists what a later major will remove.
 
+## [3.9.0] - 2026-11-06
+
+Everything merged to `main` after the tag `v3.8.1`: pull requests #375, #376, #377, #379, #381, #382, #383,
+#384, #385, #386, #387 and #388. This is a minor release: the new brand logo on EventSlide's own screens, a
+dependency fix for a Dependabot alert, and a CI that no longer lets a flaky test hide behind retries. No
+migration (the last is still 026), no new environment variable, and nothing to change before upgrading.
+
+### Hosts
+
+- **The brand logo on EventSlide's own screens** (#381, #382, #383). The icon of the browser tab, of the
+  installed app and of the iOS home screen is the final "tirage suspendu" drawing (#381). The lockup (the mark
+  and the wordmark) is on the sign-in pages (sign-in, second factor, forgot and reset password, invitation), the
+  events list, About, the error page and the 404, and a garland hangs over the sign-in (#382); it only moves
+  when the system does not ask for reduced motion. The mark alone, small, is in the host console header for a
+  signed-in host or moderator, and links to the events list (#383). The guest pages and the wall are unchanged.
+  No new text and no change to the install manifest.
+
+### Behaviour changes to check before upgrading
+
+- None: no migration (the last is still 026), no new environment variable, nothing to change before
+  upgrading.
+
+### Dependencies and security
+
+- **`minimatch` 11.0.1 for the archiver's glob reader** (#379, Dependabot alert #44). `readdir-glob`, which
+  `archiver` uses, now gets `minimatch` 11 through a scoped override. Not reachable from untrusted input: the
+  product never calls `archiver`'s `glob()` or `directory()`, and no user input reaches a pattern. A development
+  copy of `minimatch` 10 (ESLint) stays, and Dependabot may still list it.
+- **Patch bumps of three runtime dependencies** (#376): `express-rate-limit` 8.7.2, `nodemailer` 10.3.1 and
+  `react-router-dom` 7.18.5.
+- **The `node:24-bookworm-slim` base image** moves to a newer digest (#375), in both stages of the `Dockerfile`.
+- **Development tools** (#377): `eslint` 10.14.0, `fake-indexeddb` 6.2.7, `globals` 17.14.0 and
+  `typescript-eslint` 8.72.1.
+
+### Tests and CI
+
+- **A test that passes only on a retry now fails the build** (#386). CI keeps its two retries, but a reporter
+  lists every test whose outcome is "flaky" in the log and in the job summary and makes the job exit non-zero.
+  Local runs are unchanged.
+- **The end to end fixtures no longer trip the event creation limit** (#385): the stock test server raises
+  `EVENT_CREATION_RATE_LIMIT_PER_HOUR` to its ceiling, so a worker that seeds many events no longer fails its own
+  setup with a 429. The product default is unchanged.
+- **Three end to end specs no longer flaky** (#388): forgot-password waits for the page before typing,
+  photo-book asserts the event name the server returned, and the print-kit QR checks no longer depend on
+  anti-aliasing.
+- **Two unit tests no longer race their renders** (#384, #387): `HostBreadcrumb` waits for its own crumb before
+  counting links, and `LoginPage` waits for the password field before reading it. Test files only, no assertion
+  weakened.
+
 ## [3.8.1] - 2026-11-05
 
 Everything merged to `main` after the tag `v3.8.0`: pull requests #372, #373 and #374. This is a patch
