@@ -122,6 +122,19 @@
   --success: oklch(76% 0.16 155);
   --danger: oklch(68% 0.19 22);
   --warning: oklch(82% 0.15 85);
+  /* ---- The brand (November 2026 logo). EventSlide's own colours, for the logo and the garland on
+         the screens that are the product's and not an event's: sign-in, the host's list, À propos,
+         the error and not-found pages. They are the one place where the hexadecimal values of the brand
+         kit exist, written as oklch; a stylesheet never writes them again. The same in every ambiance, because an
+         event never recolours the product's own mark. The ink follows the ground (the Logo component): night on a
+         light ground, cream on a dark one. ---- */
+  --brand-night: oklch(27% 0.068 272);
+  --brand-cream: oklch(97.9% 0.017 76);
+  --brand-sun: oklch(86.3% 0.149 85);
+  --brand-coral: oklch(70.8% 0.185 30);
+  --brand-sky: oklch(78.4% 0.097 225);
+  --brand-pink: oklch(77.5% 0.136 9);
+  --brand-mint: oklch(79% 0.118 171);
 
   /* ---- Space. 4 px base. No in-between values. ---- */
   --space-1: 0.25rem;

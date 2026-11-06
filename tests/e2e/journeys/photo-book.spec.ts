@@ -34,7 +34,10 @@ test('a host makes the photo book, downloads the PDF, and loses it when hiding a
   expect((await host.request.get(app.url(`/api/events/${event.slug}/book.pdf`))).status()).toBe(404)
 
   const title = host.getByLabel(fr.admin.bookTitle, { exact: true })
-  await expect(title).toHaveValue('Camille & Sacha')
+  // The cover says the event's name until the host writes another: the name the server gave back,
+  // which is not always the one asked for (a worker's server keeps its events across tests, and
+  // `seedEvent` numbers a name whose slug is taken: "Camille & Sacha 2").
+  await expect(title).toHaveValue(event.name)
   await host.getByRole('button', { name: fr.admin.bookCreate }).click()
 
   const download = host.getByRole('link', { name: fr.admin.bookDownload })

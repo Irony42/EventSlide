@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Badge } from '../../design-system/components/Badge'
 import { Button } from '../../design-system/components/Button'
 import { Card } from '../../design-system/components/Card'
+import { Logo } from '../../design-system/components/Logo'
 import { EmptyState } from '../../design-system/components/EmptyState'
 import { VisuallyHidden } from '../../design-system/components/VisuallyHidden'
 import { useTranslations } from '../../lib/i18n/useTranslations'
@@ -37,6 +38,7 @@ export function DashboardPage() {
 
   return (
     <div className={styles['page']}>
+      <Logo decorative size="sm" className={styles['logo']} />
       <div className={styles['header']}>
         <h1 className={styles['title']}>{t.admin.events}</h1>
         {clients.length > 0 ? (

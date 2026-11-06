@@ -134,6 +134,13 @@ describe('the environment of the end-to-end server', () => {
     expect(() => loadConfig(clientMembers)).not.toThrow()
   })
 
+  it('lifts the per-account event creation limit, which the owner every seed signs in as would trip', () => {
+    const env = serverEnvironment({ ...OPTIONS, host: MACHINE })
+
+    expect(env['EVENT_CREATION_RATE_LIMIT_PER_HOUR']).toBe('1000')
+    expect(loadConfig(env).rateLimits.eventCreationPerHour).toBe(1000)
+  })
+
   it('lets a spec override anything, last', () => {
     const env = serverEnvironment({
       ...OPTIONS,

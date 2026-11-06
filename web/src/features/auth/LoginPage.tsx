@@ -134,6 +134,7 @@ function SignInForm() {
   return (
     <AuthForm
       title={t.auth.title}
+      garland
       error={error ?? restartReason}
       submitting={submitting || arriving}
       submitLabel={t.auth.submit}
