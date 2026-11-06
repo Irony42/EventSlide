@@ -294,14 +294,16 @@ export interface UploadProgress {
  * congested venue Wi-Fi sending four photos needs to see that something is happening —
  * a spinner with no movement is indistinguishable from a hang, and they will re-tap.
  *
- * No CSRF retry here, unlike {@link request}, and the asymmetry is deliberate. The
- * token is rotated only by a login or a logout; the only caller of this path is a guest
- * sending photos, and a guest never does either — they have a device token, not a
- * session. So the interleaving {@link isStaleCsrf} exists for cannot arise on this
- * path, while the retry itself would mean pushing tens of megabytes back up a venue's
- * Wi-Fi a second time, which is the one repetition the guest surface is built to avoid.
+ * Repeated once on a stale CSRF token, like {@link request}. This note used to say the
+ * interleaving cannot arise here because a guest never logs in or out. A WebKit trace from CI
+ * disproved it: after a `reload()` the page read `es_csrf` as one value while the browser's
+ * cookie jar already held the one the server issued to the cookie-less reload, and the upload
+ * was refused with "this page has expired" (best-of.spec.ts, webkit-mobile, 2026-11-06). The
+ * gate that refuses it sits ahead of every route, so nothing was stored and repeating is safe;
+ * the cost is one more push of the file, paid only on a refusal that used to cost the guest the
+ * photo.
  */
-const upload = <T>(
+const sendUpload = <T>(
   path: string,
   form: FormData,
   handlers: {
@@ -367,6 +369,23 @@ const upload = <T>(
 
     xhr.send(form)
   })
+
+const upload = async <T>(
+  path: string,
+  form: FormData,
+  handlers: {
+    onProgress?: (progress: UploadProgress) => void
+    signal?: AbortSignal
+  } = {},
+): Promise<T> => {
+  try {
+    return await sendUpload<T>(path, form, handlers)
+  } catch (cause) {
+    if (!isStaleCsrf('POST', cause)) throw cause
+    // Once, never in a loop: the second attempt re-reads `document.cookie`.
+    return await sendUpload<T>(path, form, handlers)
+  }
+}
 
 /**
  * The transport surface. Injected as a whole in tests, so a component test never

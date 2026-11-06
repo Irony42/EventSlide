@@ -1,4 +1,4 @@
-import { expect, test, wallUrl } from '../fixtures/app'
+import { enterJoinName, expect, test, wallUrl } from '../fixtures/app'
 import { passPrivacyNotice, writeCaption } from '../fixtures/guest'
 import { jpegWithOrientation, theSamePhotoTwice } from '../fixtures/media'
 
@@ -28,7 +28,7 @@ test('a photo from a phone reaches the wall once the host approves it @smoke', a
 
   // --- The phone: scans the QR code, lands on the join page, no account.
   await guest.goto(app.url(`/join/${event.joinCode}`))
-  await guest.getByLabel(/Votre prénom/i).fill('Léa')
+  await enterJoinName(guest, 'Léa')
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await expect(guest.getByRole('heading', { name: /Camille & Sacha/ })).toBeVisible()
   // What happens to a photo, read once before the first one (roadmap 5.1).

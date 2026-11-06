@@ -871,17 +871,43 @@ describe('a token rotated underneath a request', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('does not repeat a refused upload, because a guest’s token never rotates', async () => {
-    // Only a login or a logout rotates, and a guest does neither — they carry a device
-    // token, not a session. Repeating here would push the photos up a congested venue's
-    // Wi-Fi a second time for a race that cannot happen on this path.
+  it('repeats an upload refused for a stale token, with the token the jar holds by then', async () => {
+    // Observed on webkit-mobile in CI: the page read one token, the cookie jar held another.
+    // The gate refuses before any route runs, so the photo was stored nowhere.
+    document.cookie = 'es_csrf=perime'
+    const pending = http.upload<{ ok: boolean }>('/api/events/gala/photos', aForm())
+    document.cookie = 'es_csrf=frais'
+    pendingUpload().respond(403, JSON.stringify({ error: { code: 'request.csrfMismatch' } }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(FakeXhr.instances).toHaveLength(2)
+    expect(pendingUpload().headers['x-csrf-token']).toBe('frais')
+    pendingUpload().respond(201, '{"ok":true}')
+
+    await expect(pending).resolves.toEqual({ ok: true })
+  })
+
+  it('repeats a refused upload once and then reports the refusal, rather than looping', async () => {
     document.cookie = 'es_csrf=perime'
     const pending = http.upload('/api/events/gala/photos', aForm())
+    pendingUpload().respond(403, JSON.stringify({ error: { code: 'request.csrfMismatch' } }))
+    await Promise.resolve()
+    await Promise.resolve()
     pendingUpload().respond(403, JSON.stringify({ error: { code: 'request.csrfMismatch' } }))
 
     const failure = asApiError(await failed(pending))
 
     expect(failure.code).toBe('request.csrfMismatch')
+    expect(FakeXhr.instances).toHaveLength(2)
+  })
+
+  it('does not repeat an upload refused for any other reason', async () => {
+    const pending = http.upload('/api/events/gala/photos', aForm())
+    pendingUpload().respond(403, JSON.stringify({ error: { code: 'auth.forbidden' } }))
+
+    const failure = asApiError(await failed(pending))
+
+    expect(failure.code).toBe('auth.forbidden')
     expect(FakeXhr.instances).toHaveLength(1)
   })
 })

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
 import type { APIRequestContext, Browser } from '@playwright/test'
-import { csrfHeaders, expect, test } from '../fixtures/app'
+import { csrfHeaders, enterJoinName, expect, test } from '../fixtures/app'
 import { tokenOf } from '../fixtures/clients'
 import type { TestApp } from '../fixtures/startTestApp'
 import { aDisguisedScript, anSvgNamedAsJpeg, aPhoto, aPixelBomb } from '../fixtures/media'
@@ -22,7 +22,7 @@ test.describe('guest token scope', () => {
     const context = await browser.newContext({ baseURL: app.baseUrl })
     const page = await context.newPage()
     await page.goto(app.url(`/join/${wedding.joinCode}`))
-    await page.getByLabel(/Votre prénom/i).fill('Léa')
+    await enterJoinName(page, 'Léa')
     await page.getByRole('button', { name: /Rejoindre/i }).click()
     await page.waitForURL(/\/upload/)
 

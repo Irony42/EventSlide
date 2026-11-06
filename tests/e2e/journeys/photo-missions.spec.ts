@@ -1,4 +1,4 @@
-import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { enterJoinName, expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { passPrivacyNotice } from '../fixtures/guest'
 import { aPhoto } from '../fixtures/media'
 
@@ -41,7 +41,7 @@ const joinAndSendForMission = async (
   displayName: string,
 ): Promise<void> => {
   await guest.goto(app.url(`/join/${joinCode}`))
-  await guest.getByLabel(/Votre prénom/i).fill(displayName)
+  await enterJoinName(guest, displayName)
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await guest.waitForURL(/\/e\/[^/]+\/upload/)
   // The checklist sits with the controls that send, behind the privacy notice.

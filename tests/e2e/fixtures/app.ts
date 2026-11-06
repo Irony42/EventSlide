@@ -5,6 +5,7 @@ import {
   type BrowserContext,
   type Page,
 } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { startTestApp, type EventCreation, type TestApp } from './startTestApp'
 import { SUITE_LOCALE } from './suiteLocale'
 import { SUPPORTED_LOCALES } from '../../../web/src/lib/i18n/locale'
@@ -304,6 +305,23 @@ export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
 const ADMIN_AREA = /\/admin(?:\/(?!password))?/
 
 /**
+ * Types the guest's first name on the join page, once the page has finished resolving the code.
+ *
+ * `/join/<code>` resolves the code the moment it mounts and swaps the form for the event's
+ * welcome. A `fill` that lands in that swap writes into the element React is about to remove:
+ * the field is empty again on the welcome, "Rejoindre" then continues anonymously, and the
+ * photo ends up on the wall without its sender. Three CI traces of the webkit-mobile job show
+ * exactly that — one `POST /api/join` with `displayName: null`, sent 16 ms before the fill.
+ * So wait for the welcome, then fill, then check the value stuck.
+ */
+export const enterJoinName = async (page: Page, displayName: string): Promise<void> => {
+  await expect(page.getByRole('heading', { level: 1, name: /^Bienvenue/ })).toBeVisible()
+  const field = page.getByLabel(/Votre prénom/i)
+  await field.fill(displayName)
+  await expect(field).toHaveValue(displayName)
+}
+
+/**
  * Joins an event as a guest, through the real join page.
  *
  * `displayName` omitted means an anonymous guest, which is a supported path and worth
@@ -317,7 +335,7 @@ export const joinAsGuest = async (
 ): Promise<void> => {
   await page.goto(app.url(`/join/${joinCode}`))
   if (displayName !== undefined) {
-    await page.getByLabel(/Votre prénom/i).fill(displayName)
+    await enterJoinName(page, displayName)
   }
   await page.getByRole('button', { name: /Rejoindre/i }).click()
   await page.waitForURL(/\/e\/[^/]+\/upload/)
