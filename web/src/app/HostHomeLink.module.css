@@ -1,0 +1,9 @@
+/* A touch target around a small mark: the mark is read at toolbar size, the hit area is not. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  border-radius: var(--radius-md);
+}
