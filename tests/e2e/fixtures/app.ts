@@ -285,6 +285,7 @@ export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
   await page.goto(app.url('/login'))
   if (alreadyIn) {
     await page.waitForURL(ADMIN_AREA)
+    await adminPageHasRendered(page)
     return
   }
   await page.getByLabel(inAnyLanguage((text) => text.auth.email)).fill(app.owner.email)
@@ -296,6 +297,19 @@ export const signInAsHost = async (page: Page, app: TestApp): Promise<void> => {
   // bootstrap password at boot (see `OWNER_SETTLED_PASSWORD`), so landing here means
   // something regressed, and it should say so.
   await page.waitForURL(ADMIN_AREA)
+  await adminPageHasRendered(page)
+}
+
+/**
+ * The page the sign-in landed on has drawn its heading, so nothing of it is still loading.
+ *
+ * The URL changes the moment the router navigates, while the page's lazy script and stylesheet are
+ * still on their way. A `goto` made at that instant cancels the stylesheet, the page reads that as
+ * a stale bundle (`crashRecovery.ts`) and reloads itself at the address it was on: a navigation to
+ * `/admin` that interrupts the test's own `goto` (webkit-mobile, `display-wall.spec.ts`).
+ */
+const adminPageHasRendered = async (page: Page): Promise<void> => {
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 }
 
 /**

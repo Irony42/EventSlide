@@ -261,15 +261,20 @@ test.describe('the operator’s console', () => {
     expect(await hostSees()).toBe(false)
 
     // The event, found by its slug and never shown by it.
+    // The states are read inside the event's own row: the photograph's row above is still on screen
+    // and wears the same "Retiré" badge, so a page-wide text lookup finds two.
+    const eventRow = page
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('heading', { name: fr.site.takedownEventHeading('').trim() }) })
     await page.getByLabel(fr.site.takedownEventLabel).fill(EVENT_SLUG)
     await page.getByRole('button', { name: fr.site.takedownEventAction }).click()
-    await expect(page.getByText(fr.site.takedownStateFree, { exact: true })).toBeVisible()
+    await expect(eventRow.getByText(fr.site.takedownStateFree, { exact: true })).toBeVisible()
     await noContentOnScreen(page)
     await page.getByRole('button', { name: fr.site.takedownEventDown }).click()
     const eventDialog = page.getByRole('dialog', { name: fr.site.takedownOps.eventDown.title })
     await eventDialog.getByLabel(fr.site.takedownReason).fill('Signalement reçu')
     await eventDialog.getByRole('button', { name: fr.site.takedownOps.eventDown.confirm }).click()
-    await expect(page.getByText(fr.site.takedownStateDown, { exact: true })).toBeVisible()
+    await expect(eventRow.getByText(fr.site.takedownStateDown, { exact: true })).toBeVisible()
 
     // Down: the wall is the same answer as an event that is not there, and so is the host's own view.
     const downWall = await request.get(box().url(`/api/events/${EVENT_SLUG}/wall`))
@@ -282,12 +287,12 @@ test.describe('the operator’s console', () => {
     const holdDialog = page.getByRole('dialog', { name: fr.site.takedownOps.purgeHold.title })
     await holdDialog.getByLabel(fr.site.takedownReason).fill('Conservation demandée')
     await holdDialog.getByRole('button', { name: fr.site.takedownOps.purgeHold.confirm }).click()
-    await expect(page.getByText(fr.site.takedownStateHeld, { exact: true })).toBeVisible()
+    await expect(eventRow.getByText(fr.site.takedownStateHeld, { exact: true })).toBeVisible()
     await page.getByRole('button', { name: fr.site.takedownEventUp }).click()
     const upDialog = page.getByRole('dialog', { name: fr.site.takedownOps.eventUp.title })
     await upDialog.getByLabel(fr.site.takedownReason).fill('Fausse alerte')
     await upDialog.getByRole('button', { name: fr.site.takedownOps.eventUp.confirm }).click()
-    await expect(page.getByText(fr.site.takedownStateUp, { exact: true })).toBeVisible()
+    await expect(eventRow.getByText(fr.site.takedownStateUp, { exact: true })).toBeVisible()
     expect((await request.get(box().url(`/api/events/${EVENT_SLUG}/wall`))).status()).toBe(200)
     await noContentOnScreen(page)
 
