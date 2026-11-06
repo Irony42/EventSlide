@@ -872,3 +872,23 @@ sections below say what each part of the release changes.
 - **No migration, nothing to set in `.env`.** The arrow keys step through photographs and leave a guestbook card,
   a running challenge stays above the cards (and no new card comes while it runs), the drawer's switches read on
   and off at a glance, and the mixed wall changes phase at every boundary.
+
+## Upgrading to 3.9
+
+3.9.0 is a minor release: it breaks nothing the policy above promises to keep, so there is no `BREAKING`
+section. **No migration** (the last is still 026), no new environment variable. Take the steps of
+[Upgrading with Docker](#upgrading-with-docker), or [without](#without-docker), with `vX.Y.Z` as `v3.9.0`; the
+image is `ghcr.io/irony42/eventslide:3.9.0`.
+
+### The brand logo on EventSlide's own screens
+
+- **Nothing to set in `.env`.** The icon of the tab, of the installed app and of the iOS home screen changes (a
+  phone that installed the app keeps the old one until it is reinstalled or the system refreshes it), the sign-in
+  pages, the events list, About, the error page and the 404 show the lockup, and the host console header shows the
+  mark. The guest pages and the wall are unchanged.
+
+### Dependencies
+
+- **`minimatch` 11 for `readdir-glob`** (Dependabot alert #44, not reachable from the product), patch bumps of
+  `express-rate-limit`, `nodemailer` and `react-router-dom`, and a newer `node:24-bookworm-slim` digest. Nothing
+  to do: they come with the image.
