@@ -135,7 +135,6 @@
   --brand-sky: oklch(78.4% 0.097 225);
   --brand-pink: oklch(77.5% 0.136 9);
   --brand-mint: oklch(79% 0.118 171);
-  --brand-white: oklch(100% 0 0);
 
   /* ---- Space. 4 px base. No in-between values. ---- */
   --space-1: 0.25rem;

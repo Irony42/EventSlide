@@ -93,7 +93,7 @@ export function Garland({ className }: GarlandProps) {
     >
       <path
         className={styles['string']}
-        d={`M${START.join(' ')}Q${SAG.join(' ')} ${END.join(' ')}`}
+        d={`M${START[0]} ${START[1]}Q${SAG[0]} ${SAG[1]} ${END[0]} ${END[1]}`}
         pathLength="1"
         fill="none"
         strokeWidth="4"
