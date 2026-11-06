@@ -40,6 +40,10 @@ test('a host who forgot their password asks for a link, chooses a new one with i
     await page.goto(app.url('/login'))
     await page.getByRole('link', { name: fr.auth.forgotLink }).click()
     await expect(page).toHaveURL(/\/password\/forgot$/)
+    // The address changes before the page does: the route is a lazy chunk and the router keeps the
+    // sign-in page on screen until it has loaded. Typing before that lands the address in the
+    // sign-in page's own field, and the form that replaces it opens empty.
+    await expect(page.getByRole('heading', { name: fr.auth.forgotTitle })).toBeVisible()
 
     // ---- asking: the same answer whoever is asked about ---------------------------------
 
