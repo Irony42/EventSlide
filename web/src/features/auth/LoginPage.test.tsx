@@ -201,6 +201,9 @@ describe('LoginPage', () => {
       await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '000000')
       await userEvent.click(screen.getByRole('button', { name: fr.auth.secondFactorSubmit }))
 
+      // The code step shows the refusal itself before the router has put the password step back,
+      // so the alert alone does not mean the form is there: wait for the form, then read it.
+      expect(await screen.findByLabelText(fr.auth.password)).toBeVisible()
       expect(await screen.findByRole('alert')).toHaveTextContent(
         fr.errors['auth.secondFactorExpired'],
       )
@@ -232,9 +235,9 @@ describe('LoginPage', () => {
       await signIn()
       await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '000000')
       await userEvent.click(screen.getByRole('button', { name: fr.auth.secondFactorSubmit }))
-      await screen.findByRole('alert')
-
-      await userEvent.type(screen.getByLabelText(fr.auth.password), 'un-mot-de-passe-long')
+      // The alert also shows on the code step, ahead of the password step: wait for the password.
+      await userEvent.type(await screen.findByLabelText(fr.auth.password), 'un-mot-de-passe-long')
+      expect(screen.getByRole('alert')).toHaveTextContent(fr.errors['auth.secondFactorExpired'])
       await userEvent.click(screen.getByRole('button', { name: fr.auth.submit }))
 
       expect(await screen.findByRole('heading', { name: fr.auth.secondFactorTitle })).toBeVisible()
@@ -621,10 +624,10 @@ describe('LoginPage: the small ways out (H16)', () => {
       await userEvent.type(await screen.findByLabelText(fr.auth.secondFactorCode), '123456')
       await userEvent.click(screen.getByRole('button', { name: fr.auth.secondFactorSubmit }))
 
+      expect(await screen.findByLabelText(fr.auth.password)).toBeVisible()
       expect(await screen.findByRole('alert')).toHaveTextContent(
         fr.errors['auth.secondFactorExpired'],
       )
-      expect(screen.getByLabelText(fr.auth.password)).toBeVisible()
     })
   })
 })
