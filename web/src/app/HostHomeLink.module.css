@@ -5,5 +5,7 @@
   justify-content: center;
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
+  margin-inline-start: var(--space-4);
+  margin-block-start: var(--space-2);
   border-radius: var(--radius-md);
 }
