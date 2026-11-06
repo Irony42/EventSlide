@@ -97,6 +97,11 @@ export const serverEnvironment = ({
   GUEST_WRITE_RATE_LIMIT_PER_MINUTE: '6000',
   GALLERY_RATE_LIMIT_PER_MINUTE: '600',
   GALLERY_MEDIA_RATE_LIMIT_PER_MINUTE: '6000',
+  // The one that bit: `seedEvent` signs in as the one bootstrap owner and creates an event per
+  // test, so a worker's server saw far more than the default twenty an hour from that single
+  // account and answered the fixtures' own setup with `seed event failed with 429`. Per account
+  // and per hour, so only a suite that seeds in a loop reaches it; 1000 is the schema's ceiling.
+  EVENT_CREATION_RATE_LIMIT_PER_HOUR: '1000',
   // Cost 10 rather than 12: this is the floor the hasher accepts, and it takes
   // roughly a quarter of the time. Every login in the suite pays it.
   BCRYPT_COST: '10',
