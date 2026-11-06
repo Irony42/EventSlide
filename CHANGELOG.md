@@ -15,15 +15,24 @@ In an entry:
 
 - `### BREAKING` lists what stops working and what to change. It is in a major and in no
   other release, and every major has one.
-- `### Behaviour changes to check before upgrading` lists what an existing installation will
-  notice without being broken by it: a migration (by number), a new limit that is off unless
-  you set it, a new warning at boot, a default that is opt-in for now.
+- `### Guests
+
+- **An upload refused as "this page has expired" is sent again once** (#391). After a reload, Safari could
+  send the photo with a security token the server had already replaced; the server refused it before storing
+  anything, and the guest lost the photo. The upload now repeats once on that refusal only, like every other
+  request already did, never in a loop. Found by the end to end suite on webkit-mobile.
+
+### Behaviour changes to check before upgrading` lists what an existing installation will
+
+notice without being broken by it: a migration (by number), a new limit that is off unless
+you set it, a new warning at boot, a default that is opt-in for now.
+
 - `### Deprecated` lists what a later major will remove.
 
 ## [3.9.0] - 2026-11-06
 
 Everything merged to `main` after the tag `v3.8.1`: pull requests #375, #376, #377, #379, #381, #382, #383,
-#384, #385, #386, #387 and #388. This is a minor release: the new brand logo on EventSlide's own screens, a
+#384, #385, #386, #387, #388, #390 and #391. This is a minor release: the new brand logo on EventSlide's own screens, a
 dependency fix for a Dependabot alert, and a CI that no longer lets a flaky test hide behind retries. No
 migration (the last is still 026), no new environment variable, and nothing to change before upgrading.
 
