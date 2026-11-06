@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { Garland } from '../../../design-system/components/Garland'
+import { Logo } from '../../../design-system/components/Logo'
 import styles from './AuthPage.module.css'
 
 export interface AuthPageProps {
@@ -15,6 +17,11 @@ export interface AuthPageProps {
    * be a surprise.
    */
   readonly focusTitle?: boolean
+  /**
+   * The animated garland above the logo. The sign-in page only: every other screen of the family
+   * wears the quiet logo alone.
+   */
+  readonly garland?: boolean
   readonly children?: ReactNode
 }
 
@@ -25,7 +32,13 @@ export interface AuthPageProps {
  * that a mail is on its way) are this plus a link. One frame so they cannot drift apart in
  * width, spacing or focus behaviour.
  */
-export function AuthPage({ title, intro, focusTitle = false, children }: AuthPageProps) {
+export function AuthPage({
+  title,
+  intro,
+  focusTitle = false,
+  garland = false,
+  children,
+}: AuthPageProps) {
   const heading = useRef<HTMLHeadingElement>(null)
 
   // A layout effect, so the keyboard is on the heading in the commit that shows the screen. A
@@ -39,6 +52,12 @@ export function AuthPage({ title, intro, focusTitle = false, children }: AuthPag
 
   return (
     <div className={styles['page']}>
+      {garland ? (
+        <div className={styles['garland']}>
+          <Garland />
+        </div>
+      ) : null}
+      <Logo className={styles['logo']} />
       {/* -1: reachable by script, never a Tab stop. */}
       <h1 ref={heading} className={styles['title']} tabIndex={focusTitle ? -1 : undefined}>
         {title}

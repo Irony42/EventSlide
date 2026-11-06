@@ -10,11 +10,18 @@
   color: var(--text-secondary);
 }
 
-/* The language picker and the account menu, side by side at the end of the line. Each brings
-   its own inset, so the row adds none. */
+/* The mark that leads home at the start of the line, the language picker and the account menu
+   at the end. Each brings its own inset, so the row adds none. */
 .hostHeader {
   display: flex;
   align-items: flex-start;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: var(--space-2);
+}
+
+.hostTools {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-inline-start: auto;
 }

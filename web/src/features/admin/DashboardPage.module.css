@@ -70,3 +70,7 @@
   text-align: start;
   color: var(--text-secondary);
 }
+
+.logo {
+  align-self: flex-start;
+}

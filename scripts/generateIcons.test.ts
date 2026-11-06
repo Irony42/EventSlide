@@ -33,7 +33,7 @@ const pixelsOf = (png: Buffer) => sharp(png).raw().toBuffer({ resolveWithObject:
 
 describe('app icons', () => {
   it.each(ICONS.map((spec) => [spec.file, spec] as const))(
-    '%s is what the current favicon.svg renders to',
+    '%s is what icon-source.svg renders to',
     async (file, spec) => {
       const source = await readFile(SOURCE)
 
@@ -60,12 +60,12 @@ describe('app icons', () => {
    * inset constant — and the drift test above would still pass, because it re-renders
    * from the same SVG and gets the same answer.
    */
-  it.each(ICONS.filter((spec) => spec.fit === 'masked').map((spec) => [spec.file, spec] as const))(
+  it.each(ICONS.filter((spec) => spec.maskable).map((spec) => [spec.file, spec] as const))(
     '%s keeps every mark pixel inside the circle a launcher will not crop',
     async (file, spec) => {
       const { data, info } = await pixelsOf(await readFile(join(ICONS_DIR, file)))
 
-      // The ground is the flat dark the icon is composited onto; anything else is mark.
+      // The ground is the flat cream the drawing sits on; anything else is mark.
       const ground = { r: data[0] ?? 0, g: data[1] ?? 0, b: data[2] ?? 0 }
       const centre = info.width / 2
       let furthest = 0
@@ -82,16 +82,16 @@ describe('app icons', () => {
 
       expect(furthest / info.width).toBeLessThanOrEqual(MASK_SAFE_RADIUS)
       // And not absurdly small either: an icon inset to nothing passes the line above
-      // while looking like a stamp on a dark square.
+      // while looking like a stamp on a cream square.
       expect(furthest / info.width).toBeGreaterThan(MASK_SAFE_RADIUS * 0.6)
       expect(spec.size).toBe(info.width)
     },
   )
 
-  it('fills the canvas for iOS, which crops corners rather than masking to a circle', async () => {
-    // Android's inset here would leave the mark visibly smaller than every neighbouring
-    // app on the home screen.
-    const apple = ICONS.find((spec) => spec.fit === 'padded') as IconSpec
+  it('is a full square for iOS, which rounds the corners itself, with a drawing that is not a speck', async () => {
+    // iOS paints a transparent corner black, so the file is the whole square, ground to the
+    // edge. The drawing keeps the maskable safe zone, so it spans about 60% of the width.
+    const apple = ICONS.find((spec) => spec.file === 'apple-touch-icon.png') as IconSpec
     const { data, info } = await pixelsOf(await readFile(join(ICONS_DIR, apple.file)))
 
     const ground = { r: data[0] ?? 0, g: data[1] ?? 0, b: data[2] ?? 0 }
@@ -105,7 +105,8 @@ describe('app icons', () => {
       }
     }
 
-    expect(widest / info.width).toBeGreaterThan(0.75)
+    expect(data[info.channels - 1]).toBe(255)
+    expect(widest / info.width).toBeGreaterThan(0.5)
   })
 
   it('writes every icon it promises, under the names the manifest asks for', async () => {
