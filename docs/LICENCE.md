@@ -29,7 +29,7 @@ Dependencies are held to the same standard. `scripts/licenseAudit.test.ts` reads
 allow-list (MIT, ISC, BSD, Apache-2.0, 0BSD, MIT-0, BlueOak-1.0.0) unless a named,
 argued exception covers that package: today sharp's LGPL libvips in production, and a few
 development tools that never reach the image. The photo book (a PDF of the album) is written by pdfkit (MIT, with its png-js dependency, also MIT) and embeds Noto Sans and Noto Serif, SIL Open Font Licence 1.1, whose text is `src/infrastructure/media/fonts/OFL-Noto.txt` and which the build copies next to the compiled server. The web build writes the notices the
-bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links.
+bundled libraries ask for to `/third-party-licenses.txt`, which `/about` links. The logo (the wordmark in the horizontal lockups) is set in Baloo 2 ExtraBold, SIL Open Font Licence 1.1, with the letters converted to outlines; the licence text is `web/public/licenses/OFL-Baloo2.txt`.
 
 **Everything published before this change remains under GPL-3.0, permanently** — a
 licence grant cannot be revoked after the fact. `v3.0.0` is the first release under the AGPL;
