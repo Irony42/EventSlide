@@ -133,7 +133,11 @@ test('the wall shows a clip’s poster in a layout that does not play it', async
 
   await sendClip(guest, app, event.joinCode, 'Tom')
   await host.goto(app.url(`/admin/events/${event.slug}/moderation`))
+  // The clip's card first, then its button: a failure here names which of the two is missing.
+  await expect(host.getByTestId('moderation-card')).toHaveCount(1)
   await host.getByRole('button', { name: fr.moderation.publishPhoto('Tom') }).click()
+  // Pressed is not decided: wait for the queue to empty before opening the wall on it.
+  await expect(host.getByTestId('moderation-card')).toHaveCount(0)
 
   await projector.goto(wallUrl(app, event.slug, { layout: 'collage' }))
   const slide = projector.getByTestId('wall-slide').first()

@@ -153,6 +153,10 @@ test('the caption and the sender are legible on the slide', async ({ app, surfac
     .first()
     .getByRole('button', { name: /Publier/i })
     .click()
+  // The click returns when it has been pressed, not when the server has decided. The
+  // card leaving the queue is the host console saying the decision landed, so the wall
+  // is opened on a photo that is already published, as the helper above does.
+  await expect(host.getByTestId('moderation-card')).toHaveCount(0)
 
   await projector.goto(wallUrl(app, event.slug))
   const slide = projector.getByTestId('wall-slide').first()
