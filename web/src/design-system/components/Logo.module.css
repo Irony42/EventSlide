@@ -1,0 +1,60 @@
+/* EventSlide's logo. Every colour is a brand token (tokens.css); the geometry is in Logo.tsx.
+   The ink is the one colour that changes with the ground, so it goes through one variable. */
+.logo {
+  display: block;
+  flex: none;
+  inline-size: auto;
+}
+
+/* Follows the page's color-scheme: cream on the dark ground the root look has today, night the
+   day a light ground exists. `light-dark()` reads the used color-scheme of the element. */
+.toneAuto {
+  --logo-ink: light-dark(var(--brand-night), var(--brand-cream));
+}
+
+.toneDark {
+  --logo-ink: var(--brand-cream);
+}
+
+.toneLight {
+  --logo-ink: var(--brand-night);
+}
+
+/* Heights. The width follows the viewBox. */
+.sm {
+  block-size: var(--space-6);
+}
+
+.md {
+  block-size: var(--space-8);
+}
+
+.lg {
+  block-size: var(--space-10);
+}
+
+/* The mark is square, and a mark beside a line of text is read at the text's size. */
+.mark.sm {
+  block-size: var(--space-5);
+}
+
+.string {
+  fill: none;
+  stroke: var(--logo-ink);
+}
+
+.ink {
+  fill: var(--logo-ink);
+}
+
+.sun {
+  fill: var(--brand-sun);
+}
+
+.coral {
+  fill: var(--brand-coral);
+}
+
+.sky {
+  fill: var(--brand-sky);
+}
