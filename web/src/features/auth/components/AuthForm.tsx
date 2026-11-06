@@ -9,6 +9,8 @@ export interface AuthFormProps {
   readonly intro?: string
   /** See {@link AuthPage}: for a form that appears in answer to something. */
   readonly focusTitle?: boolean
+  /** See {@link AuthPage}: the sign-in page's garland. */
+  readonly garland?: boolean
   /**
    * The whole-form failure, already a sentence in the reader's language. `null` while
    * there is nothing to say.
@@ -35,6 +37,7 @@ export function AuthForm({
   title,
   intro,
   focusTitle = false,
+  garland = false,
   error,
   submitting,
   submitLabel,
@@ -49,7 +52,12 @@ export function AuthForm({
   }
 
   return (
-    <AuthPage title={title} {...(intro === undefined ? {} : { intro })} focusTitle={focusTitle}>
+    <AuthPage
+      title={title}
+      {...(intro === undefined ? {} : { intro })}
+      focusTitle={focusTitle}
+      garland={garland}
+    >
       <form className={styles['form']} onSubmit={handleSubmit} noValidate>
         {children}
 

@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from '../design-system/components/Button'
+import { Logo } from '../design-system/components/Logo'
 import {
   isChunkLoadError,
   pageReload,
@@ -171,6 +172,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return (
       <div className={styles['boundary']}>
         <div className={styles['panel']} role="alert">
+          <Logo />
           <h1 className={styles['title']}>{text.shell.crashTitle}</h1>
           <p className={styles['hint']}>{text.shell.crashHint}</p>
           {surface === 'wall' ? (

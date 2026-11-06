@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Logo } from '../design-system/components/Logo'
 import { EmptyState } from '../design-system/components/EmptyState'
 import { useTranslations } from '../lib/i18n/useTranslations'
 import { useSession } from './useSession'
@@ -24,6 +25,7 @@ export function NotFoundView() {
   return (
     <EmptyState
       as="h1"
+      icon={<Logo decorative />}
       title={t.shell.notFoundTitle}
       description={t.shell.notFoundHint}
       action={<Link to="/">{t.shell.notFoundHome}</Link>}
@@ -53,6 +55,7 @@ export function HostNotFoundView() {
   return (
     <EmptyState
       as="h1"
+      icon={<Logo decorative />}
       title={t.shell.notFoundTitle}
       description={t.shell.notFoundHint}
       action={
