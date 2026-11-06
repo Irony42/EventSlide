@@ -1,5 +1,5 @@
 import { statSync } from 'node:fs'
-import { expect, signInAsHost, test, wallUrl } from '../fixtures/app'
+import { enterJoinName, expect, signInAsHost, test, wallUrl } from '../fixtures/app'
 import { passPrivacyNotice } from '../fixtures/guest'
 import { aClip, hasEncoder } from '../fixtures/media'
 import { fr } from '../../../web/src/lib/i18n/fr'
@@ -56,7 +56,7 @@ const sendClip = async (
   displayName: string,
 ): Promise<void> => {
   await page.goto(app.url(`/join/${joinCode}`))
-  await page.getByLabel(/Votre prénom/i).fill(displayName)
+  await enterJoinName(page, displayName)
   await page.getByRole('button', { name: /Rejoindre/i }).click()
   await page.waitForURL(/\/e\/[^/]+\/upload/)
   await passPrivacyNotice(page)
@@ -241,7 +241,7 @@ test('a guest keeps the part they chose of a video that is too long (spec 16)', 
   const event = await app.seedEvent({ slug: 'video-trop-longue' })
 
   await guest.goto(app.url(`/join/${event.joinCode}`))
-  await guest.getByLabel(/Votre prénom/i).fill('Léa')
+  await enterJoinName(guest, 'Léa')
   await guest.getByRole('button', { name: /Rejoindre/i }).click()
   await guest.waitForURL(/\/e\/[^/]+\/upload/)
   await passPrivacyNotice(guest)
