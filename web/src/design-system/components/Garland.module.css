@@ -1,0 +1,141 @@
+/* The brand's garland, large (sign-in). Colours are brand tokens; the string and the pegs take the
+   ink of the ground. The frame around it clips it: it is wider than a phone on purpose, and the
+   middle of it is what shows. */
+.garland {
+  display: block;
+  inline-size: max(100%, 56rem);
+  max-inline-size: none;
+  block-size: auto;
+  margin-inline-start: 50%;
+  overflow: visible;
+  transform: translateX(-50%);
+  --garland-ink: light-dark(var(--brand-night), var(--brand-cream));
+}
+
+.string {
+  stroke: var(--garland-ink);
+}
+
+.peg {
+  fill: var(--garland-ink);
+}
+
+.sun {
+  fill: var(--brand-sun);
+}
+
+.coral {
+  fill: var(--brand-coral);
+}
+
+.sky {
+  fill: var(--brand-sky);
+}
+
+.pink {
+  fill: var(--brand-pink);
+}
+
+.mint {
+  fill: var(--brand-mint);
+}
+
+/* The swing and the breeze turn around the peg: the invisible circle inside gives each of them a
+   box centred on it. */
+.sway,
+.hang {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+/* Under `prefers-reduced-motion` none of this exists: the garland is still, string tight and
+   every photo hanging. Only transform, opacity and the string's dash offset move. The `animation`
+   shorthand is fine here: the brand kit warns about folding a scroll timeline into it, and this
+   has none. */
+@media (prefers-reduced-motion: no-preference) {
+  .string {
+    stroke-dasharray: 1 2;
+    stroke-dashoffset: 1;
+    animation: draw 0.8s ease-out 0.1s forwards;
+  }
+
+  .drop {
+    animation: fall 0.75s var(--ease-out) both;
+  }
+
+  .drop:nth-of-type(1) {
+    animation-delay: 0.3s;
+  }
+
+  .drop:nth-of-type(2) {
+    animation-delay: 0.38s;
+  }
+
+  .drop:nth-of-type(3) {
+    animation-delay: 0.46s;
+  }
+
+  .drop:nth-of-type(4) {
+    animation-delay: 0.54s;
+  }
+
+  .drop:nth-of-type(5) {
+    animation-delay: 0.62s;
+  }
+
+  .drop:nth-of-type(6) {
+    animation-delay: 0.7s;
+  }
+
+  .drop:nth-of-type(7) {
+    animation-delay: 0.78s;
+  }
+
+  .drop:nth-of-type(8) {
+    animation-delay: 0.86s;
+  }
+
+  .drop:nth-of-type(9) {
+    animation-delay: 0.94s;
+  }
+
+  .sway {
+    animation: sway 4.6s ease-in-out infinite alternate;
+  }
+
+  .drop:nth-of-type(2n) .sway {
+    animation-duration: 5.3s;
+    animation-delay: -1.8s;
+  }
+
+  .drop:nth-of-type(3n) .sway {
+    animation-duration: 3.9s;
+    animation-delay: -3.2s;
+  }
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fall {
+  from {
+    opacity: 0;
+    transform: translateY(-70px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sway {
+  from {
+    transform: rotate(-2.6deg);
+  }
+  to {
+    transform: rotate(2.6deg);
+  }
+}

@@ -13,6 +13,7 @@ import { JoinPage } from '../features/join/JoinPage'
 import { AppShell } from './AppShell'
 import { AccountMenu } from './AccountMenu'
 import { ErrorBoundary } from './ErrorBoundary'
+import { HostHomeLink } from './HostHomeLink'
 import { LanguagePicker } from './LanguagePicker'
 import { HostNotFoundView, NotFoundView } from './NotFoundView'
 import { RequireAuth } from './RequireAuth'
@@ -282,8 +283,11 @@ const HostHeader = () => {
   const signedInArea = useSignedInArea()
   return (
     <div className={styles['hostHeader']}>
-      <LanguagePicker />
-      {signedInArea ? <AccountMenu /> : null}
+      {signedInArea ? <HostHomeLink /> : null}
+      <div className={styles['hostTools']}>
+        <LanguagePicker />
+        {signedInArea ? <AccountMenu /> : null}
+      </div>
     </div>
   )
 }

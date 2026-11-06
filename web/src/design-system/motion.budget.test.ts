@@ -302,6 +302,8 @@ describe('will-change is spent on the wall and nowhere else', () => {
 const ANIMATION_DECLARATION = /(?:^|[;{\s])animation(?:-name)?\s*:/
 
 const REDUCED_MOTION_ANSWERS: Readonly<Record<string, string>> = {
+  // The sign-in garland (brand integration): its fall and sway exist only under no-preference.
+  'design-system/components/Garland.module.css': 'no-preference',
   'design-system/components/Dialog.module.css': 'no-preference',
   'design-system/components/Spinner.module.css': 'reduce-branch',
   'design-system/components/Toast.module.css': 'no-preference',

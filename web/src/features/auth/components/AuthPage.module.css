@@ -26,3 +26,14 @@
   align-items: center;
   gap: var(--space-3);
 }
+
+/* The logo sits at the start of the column. */
+.logo {
+  align-self: flex-start;
+}
+
+/* The garland hangs across the column and is clipped by it: the rest of the string is out of sight. */
+.garland {
+  overflow: hidden;
+  margin-inline: calc(var(--space-5) * -1);
+}

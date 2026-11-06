@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { NewTabLink } from '../../app/NewTabLink'
 import { useAbout } from '../../app/useAbout'
 import { Button } from '../../design-system/components/Button'
+import { Logo } from '../../design-system/components/Logo'
 import { Card } from '../../design-system/components/Card'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import styles from './AboutPage.module.css'
@@ -63,6 +64,7 @@ export function AboutPage() {
 
   return (
     <>
+      <Logo decorative size="sm" className={styles['logo']} />
       {hasHistory ? (
         <Button variant="ghost" size="sm" className={styles['back']} onClick={() => navigate(-1)}>
           {text.about.back}
