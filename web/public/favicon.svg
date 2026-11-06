@@ -1,36 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <title>EventSlide</title>
   <!--
-    A photo landing on top of the pile: the whole product in one mark.
+    The suspended print with its confetti: a photo hung on a string, the whole product in
+    one mark. It is the brand's final tab and app icon (the garland is for the screens).
 
     Geometry only, no font and no raster, so it stays sharp on a retina tab strip and
     as an installed app icon, and it costs one request that the CSP allows because it
-    is served from this origin.
+    is served from this origin. It carries no style element for the same reason: the
+    policy is style-src 'self', and every colour is a fill or stroke attribute.
 
-    The dark is the same literal as index.html's `theme-color`; the light is the sRGB
-    equivalent of the accent token, oklch(72% 0.17 305). They are literals only because
-    a standalone SVG and a webmanifest cannot read a CSS custom property; if a token
-    moves, these move with it. This file, manifest.webmanifest and index.html are the
-    only places in the web app where a raw colour is allowed.
+    The colours are the brand's: cream ground, night ink, coral photo, and the confetti
+    pink, yellow. They are literals only because a standalone SVG and a webmanifest cannot
+    read a CSS custom property; the brand colours live as tokens in the design system for
+    the screens, and if the brand moves, these move with them. This file, the icons of
+    icons/, manifest.webmanifest and index.html are the only places in the web app where a
+    raw colour is allowed. The PNGs in icons/ are rendered from scripts/icon-source.svg,
+    the same drawing on a full square, by npm run build:icons.
 
     Written without a double hyphen anywhere in this comment, and that is not a style
-    note: XML forbids the sequence inside a comment, so naming the CSS custom property
-    the way CSS spells it made the file invalid XML. Every browser accepted it; sharp,
-    which renders the app icons from this mark, refused it outright.
+    note: XML forbids the sequence inside a comment, and sharp refuses such a file.
   -->
-  <rect width="32" height="32" rx="7" fill="#101725" />
-  <rect
-    x="8.5"
-    y="5.5"
-    width="17"
-    height="12"
-    rx="2.5"
-    fill="none"
-    stroke="#be86f9"
-    stroke-width="1.6"
-    opacity="0.45"
-  />
-  <rect x="5" y="11" width="22" height="16" rx="3" fill="#be86f9" />
-  <circle cx="10.5" cy="16" r="1.9" fill="#101725" />
-  <path d="M8 24.5l5.2-6 3.4 3.9 2.6-2.6 4.8 4.7z" fill="#101725" />
+  <rect width="100" height="100" rx="22" fill="#FFF7EC" />
+  <g transform="translate(50 50) scale(.9) translate(-50 -50)">
+    <path d="M10 16Q50 30 90 16" fill="none" stroke="#1B2347" stroke-width="7" stroke-linecap="round" />
+    <g transform="rotate(-7 50 23)">
+      <rect x="22" y="21" width="56" height="68.32" rx="4.48" fill="#FFFFFF" stroke="#1B2347" stroke-width="3.4" />
+      <rect x="27.6" y="26.6" width="44.8" height="44.8" rx="1.792" fill="#FF6B57" />
+    </g>
+    <g transform="rotate(-7 50 23)">
+      <rect x="45" y="14" width="10" height="17" rx="2.4" fill="#1B2347" />
+    </g>
+    <circle cx="11" cy="52" r="6" fill="#FF8FA3" />
+    <rect x="82.5" y="52.75" width="13" height="6.5" rx="3.25" fill="#FFC94D" transform="rotate(-28 89 56)" />
+  </g>
 </svg>
