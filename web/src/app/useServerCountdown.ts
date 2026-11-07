@@ -54,6 +54,8 @@ export const useServerCountdown = (
 /**
  * `true` once `over` has been true for `ms` (the "Défi terminé" banner has had its say).
  * `onGone` runs once, from that timer. The timer is cleared if `over` goes away or on unmount.
+ * `onGone` must be referentially stable (memoised or module-level): it is an effect dependency, so a
+ * new function each render would restart the delay each render.
  */
 export const useGoneAfter = (over: boolean, ms: number, onGone?: () => void): boolean => {
   const [gone, setGone] = useState(false)

@@ -72,7 +72,7 @@
 
 /* `cover` is the crop the mosaic is allowed, for a photograph close to the cell's 5:4: at
    least 70 % of it stays visible. Faces are not detected, so a photograph further from the
-   cell than that is shown whole (`data-fit`, `mosaicFit` in WallLayouts.tsx). */
+   cell than that is shown whole (`data-fit`, `mosaicFit` in mosaicFit.ts). */
 .image {
   inline-size: 100%;
   block-size: 100%;
@@ -143,7 +143,7 @@
  * The print itself: paper with a mat, and a wider one at the foot, which is what makes a
  * polaroid read as a polaroid rather than as a white border.
  *
- * The tilt is a static transform computed from the photo id in `WallLayouts.tsx`, so two
+ * The tilt is a static transform computed from the photo id in `tiltFor` in `wallLayoutMath.ts`, so two
  * projectors turn the same print the same way. It is composition rather than motion and
  * survives `prefers-reduced-motion`; the landing below does not.
  */
@@ -207,7 +207,7 @@
  *
  * `--filmstrip-frames` is a count, not a design value, and it appears in three places
  * that have to agree — the frame's width, the distance the track travels, and
- * `FILMSTRIP_FRAMES` in `WallLayouts.tsx`. Keeping it as one custom property is what
+ * `FILMSTRIP_FRAMES` in `wallLayoutMath.ts`. Keeping it as one custom property is what
  * stops the strip drifting by something other than exactly one frame, which would show
  * as the band creeping out of alignment over an evening.
  */

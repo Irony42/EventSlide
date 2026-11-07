@@ -309,7 +309,6 @@ export function useUploadScreen({ slug, event, privacyNotice }: UploadScreenInpu
     setParticipate,
     caption,
     setCaption,
-
     highlighted,
   }
 }
