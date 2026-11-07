@@ -31,6 +31,18 @@ Choosing:
 If a bug could have been caught in a cheaper ring, add it there **as well as** fixing
 the leak. Regression tests go in the cheapest ring that would have caught it.
 
+## Shared test helpers
+
+- **Ring 4:** `import request from '../testing/request'` (`src/interface/http/testing/request.ts`), never
+  `supertest`. One listening server per app instead of a port per request (Windows runs out of
+  ephemeral ports otherwise). `supertestGuard.test.ts` fails on a value import of `supertest`; its
+  `NOT_MIGRATED_YET` list only shrinks.
+- **Ring 5:** `web/src/testing/setup.ts` clears `localStorage` and `sessionStorage` after every test and
+  sets `findBy*` / `waitFor` to 5 s. `web/src/testing/` has `FakeEventSource`, `deferred()` and
+  `flushPromises()`: use them, do not sleep for real to assert that nothing happened.
+- **Ring 6:** CI retries twice, and `tests/e2e/reporters/failOnFlaky.ts` fails the run when a test only
+  passed on a retry. Fix the flake.
+
 ## Fakes, not mocks
 
 `src/application/testing/` contains real in-memory implementations of every port:

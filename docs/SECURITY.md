@@ -2011,7 +2011,7 @@ Two triggers now, for two kinds of operator:
 | In-process sweep, hourly by default                                                                                       | the application         | the ordinary single-box install — `docker compose up` honours retention with nothing else configured                 |
 | The purge command, `--dry-run` to preview: `node dist/ops/scripts/purge.js` in the image, `npm run purge` from a checkout | cron or a systemd timer | you want the schedule outside the app — then set `RETENTION_SWEEP_INTERVAL_MINUTES=off` — or you need the answer now |
 
-Both run the same use case, so the two can never disagree about what is due. **The one exception is the audit log's own retention** (§17): only the in-process sweep prunes it, so with `RETENTION_SWEEP_INTERVAL_MINUTES=off` and a cron running this command, nothing does yet.
+Both run the same use case, so the two can never disagree about what is due. **They also run the same follow-up**: the command calls `makeRetentionFollowUp` (`src/main/retentionSweeper.ts`), the function the timer calls, so it finalises the offboarded clients and prunes the audit log (§17) too. With `RETENTION_SWEEP_INTERVAL_MINUTES=off` and a cron running this command, the audit log is still pruned. A `--dry-run` runs neither step, and a step that fails makes the command exit non-zero so cron hears about it.
 
 **Both also run the media reconciliation sweep** (§4.1), and the second one has to: the
 switch that moves the schedule to cron is the same switch the container reads to decide
@@ -2920,8 +2920,9 @@ deletes, and shuts it, **inside one transaction**, so the committed state of the
 the gate shut. The gate is a row and not a flag because a non-`TEMP` trigger cannot read a `TEMP`
 table. `scripts/auditPruneScope.test.ts` fails if any other production code names the gate, calls
 `pruneOlderThan`, or reaches `pruneAuditLog`; the use case is deliberately absent from
-`HttpUseCases`. The retention sweep calls it, so **with `RETENTION_SWEEP_INTERVAL_MINUTES=off`
-nothing prunes the audit log** (`npm run purge` does not yet).
+`HttpUseCases`. The retention sweep calls it, and so does `npm run purge` (through `makeRetentionFollowUp`, the
+same function), so **with `RETENTION_SWEEP_INTERVAL_MINUTES=off` a cron running the command still
+prunes the audit log** (a `--dry-run` does not).
 
 **Personal data.** None by construction, **with one exception** (G2-14). The pointer to a person,
 `actor_user_id`, is an opaque id that becomes `NULL` when the account is deleted. The exception is the

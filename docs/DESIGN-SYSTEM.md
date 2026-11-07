@@ -642,7 +642,7 @@ the domain's default. Playlist and layout rules are pure code in
 
 All seven: the playlist window is capped and elements are recycled so an 8-hour run does
 not grow — every layout's element count is bounded by its `slotCount` in
-`src/domain/slideshow/wallLayout.ts`, mirrored as a constant in `WallLayouts.tsx` because
+`src/domain/slideshow/wallLayout.ts`, mirrored as constants in `web/src/features/wall/components/wallLayoutMath.ts` (`MOSAIC_SLOTS`, `COLLAGE_CELLS`, …) because
 the import boundary forbids joining them — and position is derived from the playlist,
 never from `sessionStorage` (1.0 stored it per browser, so two projectors disagreed).
 Position, not composition: the collage's _fill_ is per-screen and resets on a reload, and

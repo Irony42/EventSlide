@@ -207,7 +207,7 @@ export const toModerationPhotoDto = ({
 ```
 
 Every wire shape is declared in `presenters/dto.ts` and mirrored by hand in
-`web/src/lib/api/dto.ts`; `presenters/dtoContract.test.ts` fails when the two disagree.
+`web/src/lib/api/dto/` (one file per audience: account, common, gallery, guest, host, site, wall; `dto.ts` is the barrel); `presenters/dtoContract.test.ts` fails when the two disagree.
 The wire format is a **contract**. Returning the entity means every internal field rename
 becomes a breaking API change, and every internal field becomes a leak. Note what is
 absent: storage keys, absolute paths, uploader IP, raw EXIF.
@@ -220,7 +220,7 @@ absent: storage keys, absolute paths, uploader IP, raw EXIF.
   (`app.use('/api', moderationRoutes(routeDeps))`).
 - Add the route to [docs/API.md](../../../docs/API.md) — method, path, auth, request,
   response, error codes. Kept by hand; an undocumented endpoint is an incomplete one.
-- If the frontend calls it, add the typed function in `web/src/lib/api/`.
+- If the frontend calls it, add the typed function in the `web/src/lib/api/client/` file of its audience (guest, account, site, host, gallery; `client.ts` composes them into `Api`) and the shape in `web/src/lib/api/dto/`.
 
 ## 7. Contract test — supertest, real routes, fake adapters
 
@@ -237,8 +237,13 @@ fakes: a stub would let every cross-event assertion pass while the product leake
 `testing/serverHarness.ts` (`buildServerHarness`) drives the real `buildServer()` instead,
 for what depends on the mount order.
 
+Import `request` from `../testing/request` (`testing/request.ts`), **never** from `supertest`: the
+helper has the same API but keeps one listening server per app and one keep-alive agent, where a bare
+`supertest(app)` binds a port per request and exhausts Windows' ephemeral range in a full run.
+`testing/supertestGuard.test.ts` fails on a value import of `supertest`.
+
 ```ts
-import request from 'supertest'
+import request from '../testing/request'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { moderationRoutes } from './moderationRoutes'
 import { GUEST_COOKIE } from '../middleware/authz'
@@ -420,5 +425,5 @@ subscribers per event.
 - [ ] `asyncHandler` wrapping; no bare async handler.
 - [ ] Failure via `Result` → `sendResult`; no `throw` for expected failures.
 - [ ] DTO presenter; no entity on the wire; no paths, IPs, or EXIF leaked.
-- [ ] Mounted in `server.ts`, documented in `docs/API.md`, typed client in `web/src/lib/api/`.
+- [ ] Mounted in `server.ts`, documented in `docs/API.md`, typed client in `web/src/lib/api/client/`, shapes in `web/src/lib/api/dto/`.
 - [ ] Supertest: happy + 401 + wrong-tenant + wrong-role + 400.

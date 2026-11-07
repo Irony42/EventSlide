@@ -4535,7 +4535,7 @@ rather than data; what differs is who may hold the connection open, and therefor
 learns that anything is happening at this event at all.
 
 It is the channel a moderation console subscribes to, and the console does:
-`api.moderationStreamUrl(slug)` in `web/src/lib/api/client.ts`, used by
+`api.moderationStreamUrl(slug)` in `web/src/lib/api/client/host.ts` (composed into `api` by the barrel `client.ts`), used by
 `web/src/features/moderation/hooks/useModerationQueue.ts`. It used to hold the public
 wall channel instead, which worked only because the frames are identical.
 
@@ -4661,7 +4661,7 @@ themselves stale**; what is left is smaller and sharper than it was written.
 
 The live half: `ModerationPhotoDto` in `src/interface/http/presenters/dto.ts` is the
 row of `GET /api/events/:slug/photos` — the gallery — and carries `byteSize`.
-`ModerationPhotoDto` in `web/src/lib/api/dto.ts` is the row of
+`ModerationPhotoDto` in `web/src/lib/api/dto/host.ts` is the row of
 `ModerationQueueResponse`, i.e. of `GET /api/events/:slug/moderation`, whose server row is
 a **different interface**, `ModerationQueueItemDto` (`dto.ts`), which correctly has no
 `byteSize`. So each declaration is right about the endpoint it actually serves, and the
@@ -4669,7 +4669,7 @@ drift is the shared name: a reader comparing the two finds a field on one side a
 other and cannot tell whether that is a bug. Nothing receives the mismatched bytes today —
 the gallery has no client method at all, which `requestContract.test.ts` records by name in
 `NO_CLIENT_CALLER`. The fix is a rename on the client side to `ModerationQueueItemDto`, in
-`web/src/lib/api/dto.ts` and its referents; it changes no wire format.
+`web/src/lib/api/dto/host.ts` and its referents; it changes no wire format.
 
 Corrected rather than carried forward: `ModerationQueueResponseDto` is **gone** — no
 declaration anywhere — and `GuestListResponseDto` is **not dead**, `eventRoutes.ts` imports
