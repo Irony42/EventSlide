@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApi } from '../../../app/useApi'
-import { currentCsrfToken } from '../../../lib/http'
 import { apiOutboxSender } from '../../../lib/offline/apiSender'
 import { drainOutbox } from '../../../lib/offline/drainOutbox'
 import { isOfflineQueueEnabled } from '../../../lib/offline/killSwitch'
@@ -410,9 +409,6 @@ export const useOutbox = (options: UseOutboxOptions): Outbox => {
             caption,
             missionId,
             challengeId,
-            // Captured now, because the worker that may send this has no
-            // `document.cookie`. See `OutboxEntry.csrfToken`.
-            csrfToken: currentCsrfToken(),
           },
           now(),
         )

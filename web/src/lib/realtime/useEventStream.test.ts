@@ -356,6 +356,50 @@ describe('useEventStream', () => {
     expect(second).toHaveBeenCalledTimes(1)
   })
 
+  describe('a browser retry that never answers', () => {
+    // The hook leaves a CONNECTING stream to the browser so `Last-Event-ID` survives. If that
+    // retry then stalls (a proxy that accepts and never answers) neither `open` nor `error`
+    // comes again and, with nothing armed, an unattended wall stays "not connected" all evening.
+    const RECONNECT_STALL_MS = 90_000
+
+    it('is replaced by a fresh connection once the long watchdog runs out', () => {
+      vi.useFakeTimers()
+      const onDrop = vi.fn()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn(), onDrop }))
+      act(() => latest().emitOpen())
+      const stalled = latest()
+      act(() => stalled.emitDrop())
+
+      act(() => void vi.advanceTimersByTime(RECONNECT_STALL_MS - 1))
+      expect(stalled.closeCount).toBe(0)
+
+      act(() => void vi.advanceTimersByTime(1))
+      expect(stalled.closeCount).toBe(1)
+      act(() => void vi.advanceTimersByTime(1_000))
+      expect(FakeEventSource.instances).toHaveLength(2)
+      expect(onDrop).toHaveBeenCalledTimes(1)
+    })
+
+    it('stands down when the browser’s own retry opens', () => {
+      vi.useFakeTimers()
+      renderHook(() => useEventStream({ url: URL_A, onSignal: vi.fn() }))
+      act(() => latest().emitOpen())
+      const stream = latest()
+      act(() => stream.emitDrop())
+
+      act(() => void vi.advanceTimersByTime(RECONNECT_STALL_MS - 1))
+      act(() => stream.emitOpen())
+      // The open re-arms the ordinary silence watchdog (45 s) and cancels the long one.
+      for (let beat = 0; beat < 8; beat += 1) {
+        act(() => void vi.advanceTimersByTime(15_000))
+        act(() => stream.emitHeartbeat())
+      }
+
+      expect(stream.closeCount).toBe(0)
+      expect(FakeEventSource.instances).toHaveLength(1)
+    })
+  })
+
   describe('telling the page that a connection it had was lost', () => {
     it('says so once when an open connection drops', () => {
       // The page cannot see why: an `EventSource` reports no status, so a stream the

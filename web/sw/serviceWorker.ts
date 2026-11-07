@@ -1,6 +1,7 @@
 import { drainOutbox } from '../src/lib/offline/drainOutbox'
 import { fetchOutboxSender } from '../src/lib/offline/fetchSender'
 import { IndexedDbOutbox } from '../src/lib/offline/indexedDbOutbox'
+import { CSRF_COOKIE, KILL_MESSAGE, OUTBOX_SYNC_TAG } from '../src/lib/offline/names'
 import {
   cacheNameFor,
   isShellRequest,
@@ -35,24 +36,11 @@ import type { OutboxStore } from '../src/lib/offline/outbox'
  * scope and a DOM global scope cannot coexist in one TypeScript program.
  */
 
-/**
- * The Background Sync tag and the kill message, duplicated by value from
- * `web/src/lib/offline/serviceWorker.ts`.
- *
- * Not imported: that module reaches for `navigator` and belongs to the DOM program. A
- * string literal in two places is the cheaper of the two evils, and both ends are
- * pinned by the end-to-end journey rather than by hope.
- */
-const OUTBOX_SYNC_TAG = 'eventslide-outbox'
-const KILL_MESSAGE = 'eventslide:kill'
-
 /** Written by the build; see `injectPrecache` in web/vite.sw.config.ts. */
 declare const __PRECACHE_URLS__: readonly string[]
 declare const __PRECACHE_VERSION__: string
 
 const CACHE_NAME = cacheNameFor(__PRECACHE_VERSION__)
-
-const CSRF_COOKIE = 'es_csrf'
 
 /** `sync` is a Background Sync addition TypeScript's worker library does not declare. */
 interface SyncEvent extends ExtendableEvent {
@@ -73,8 +61,8 @@ const worker = self as unknown as ServiceWorkerGlobalScope
  *
  * A worker has no `document.cookie`. `cookieStore` is the worker-side reader and exists
  * in every browser that implements Background Sync, so on the path this worker is woken
- * for, the live value is there. `null` falls back to the token captured beside the photo
- * — see `OutboxEntry.csrfToken` for why that is sound for a guest.
+ * for, the live value is there. `null` sends no header, and the server's answer decides
+ * (`outcomeForFailure`).
  */
 const readCookieStoreCsrf = async (): Promise<string | null> => {
   // Typed as always present, actually shipped by Chromium alone.

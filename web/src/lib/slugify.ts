@@ -5,8 +5,9 @@
  * character. The host-facing create form previews the slug while they type, and the
  * server derives the same slug when the field is left empty — two implementations that
  * disagree is exactly how "the slug I saw is not the slug I got" happens. Lint forbids
- * importing the domain (the web app talks HTTP only), so `slugify.test.ts` pins this
- * against the very cases the domain's own test asserts.
+ * importing the domain (the web app talks HTTP only), so
+ * `src/interface/http/presenters/webMirrorsContract.test.ts` runs both on one table of cases and
+ * fails when they differ.
  */
 
 /** Published by `Slug` on the server. Here only to bound the preview, never to validate. */

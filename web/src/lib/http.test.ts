@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, asError, http, isAbortError } from './http'
+import {
+  ApiError,
+  JSON_REQUEST_TIMEOUT_MS,
+  UPLOAD_RESPONSE_WAIT_MS,
+  UPLOAD_STALL_MS,
+  asError,
+  http,
+  isAbortError,
+} from './http'
 import { fr } from './i18n/fr'
 import { SESSION_EXPIRED_EVENT } from './sessionExpiry'
 import { TRANSLATIONS, messageForCode } from './i18n/translations'
@@ -128,7 +136,7 @@ class FakeXhr extends EventTarget {
     this.dispatchEvent(new Event('load'))
   }
 
-  drop(kind: 'error' | 'timeout'): void {
+  drop(kind: 'error'): void {
     this.dispatchEvent(new Event(kind))
   }
 
@@ -347,11 +355,19 @@ describe('failures that are not the server’s answer', () => {
     // An admin screen that unmounts mid-save must not leave the write in flight; every
     // verb is cancellable, not only the reads.
     const controller = new AbortController()
-    answerWith(() => jsonBody(200, {}))
+    stubFetch(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          )
+        }),
+    )
 
-    await invoke(controller.signal)
+    const pending = invoke(controller.signal)
+    controller.abort()
 
-    expect(lastRequest().init.signal).toBe(controller.signal)
+    await expect(pending).rejects.toBeInstanceOf(DOMException)
   })
 
   it('hands the caller’s cancellation to the request itself', async () => {
@@ -752,21 +768,18 @@ describe('uploading with progress', () => {
     expect(asApiError(await failed(pending)).code).toBe('unknown')
   })
 
-  it.each(['error', 'timeout'] as const)(
-    'reports a %s during an upload as a network failure the guest can retry',
-    async (kind) => {
-      const pending = http.upload('/api/events/gala/photos', aForm())
+  it('reports an error during an upload as a network failure the guest can retry', async () => {
+    const pending = http.upload('/api/events/gala/photos', aForm())
 
-      pendingUpload().drop(kind)
+    pendingUpload().drop('error')
 
-      // The code, not only the status: the queue offers "Réessayer" on `isNetwork` but
-      // the row's sentence comes from the code, and a guest whose Wi-Fi dropped must be
-      // told to check their network rather than given the generic sentence.
-      const failure = asApiError(await failed(pending))
-      expect(failure.code).toBe('network')
-      expect(failure.isNetwork).toBe(true)
-    },
-  )
+    // The code, not only the status: the queue offers "Réessayer" on `isNetwork` but
+    // the row's sentence comes from the code, and a guest whose Wi-Fi dropped must be
+    // told to check their network rather than given the generic sentence.
+    const failure = asApiError(await failed(pending))
+    expect(failure.code).toBe('network')
+    expect(failure.isNetwork).toBe(true)
+  })
 
   it('reports a cancelled upload as a cancellation, not as a failed one', async () => {
     // The upload queue swallows an AbortError because the row is already gone. An
@@ -956,5 +969,188 @@ describe('announcing an expired session', () => {
       status: 401,
       code: 'auth.required',
     })
+  })
+})
+
+// ----------------------------------------------------------------- timeouts --
+
+const outcomeOf = (call: Promise<unknown>): { settled: boolean; reason: unknown } => {
+  const state = { settled: false, reason: undefined as unknown }
+  call.then(
+    () => {
+      state.settled = true
+    },
+    (cause: unknown) => {
+      state.settled = true
+      state.reason = cause
+    },
+  )
+  return state
+}
+
+/**
+ * A transport that goes quiet without erroring: a captive portal, a saturated access point, a
+ * proxy that accepts the connection and never answers. Without a ceiling the promise never
+ * settles, a loader stays `loading` for ever and the outbox's drain never lets go.
+ *
+ * Fake timers, so "after the budget" and "just before it" are exact and nothing sleeps.
+ */
+describe('a request that goes quiet', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Settles like a real `fetch` that is aborted: rejects with an AbortError, otherwise never. */
+  const hangUntilAborted: FetchHandler = (_url, init) =>
+    new Promise<Response>((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () =>
+        reject(new DOMException('aborted', 'AbortError')),
+      )
+    })
+
+  it('gives up with a network failure once the budget has passed', async () => {
+    stubFetch(hangUntilAborted)
+    const state = outcomeOf(http.get('/api/events/gala/wall'))
+
+    await vi.advanceTimersByTimeAsync(JSON_REQUEST_TIMEOUT_MS - 1)
+    expect(state.settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(state.settled).toBe(true)
+    expect(asApiError(state.reason).isNetwork).toBe(true)
+  })
+
+  it('does not repeat a mutation that timed out', async () => {
+    // The server may have done the work before the answer went missing; only the outbox,
+    // which is idempotent by content, retries a write.
+    stubFetch(hangUntilAborted)
+    const state = outcomeOf(http.post('/api/events/gala/status', { status: 'live' }))
+
+    await vi.advanceTimersByTimeAsync(JSON_REQUEST_TIMEOUT_MS)
+
+    expect(asApiError(state.reason).isNetwork).toBe(true)
+    expect(sent).toHaveLength(1)
+  })
+
+  it('gives up on a response whose body never finishes arriving', async () => {
+    stubFetch(async (_url, init) => {
+      const stalledBody = new Promise<string>((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () =>
+          reject(new DOMException('aborted', 'AbortError')),
+        )
+      })
+      return { status: 200, ok: true, text: () => stalledBody } as unknown as Response
+    })
+    const state = outcomeOf(http.get('/api/events/gala/wall'))
+
+    await vi.advanceTimersByTimeAsync(JSON_REQUEST_TIMEOUT_MS)
+
+    expect(asApiError(state.reason).isNetwork).toBe(true)
+  })
+
+  it('leaves a caller’s own cancellation an AbortError, not a network failure', async () => {
+    stubFetch(hangUntilAborted)
+    const controller = new AbortController()
+    const state = outcomeOf(http.get('/api/events/gala/wall', undefined, controller.signal))
+
+    await vi.advanceTimersByTimeAsync(JSON_REQUEST_TIMEOUT_MS - 1)
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(state.reason).toBeInstanceOf(DOMException)
+  })
+
+  it('does not abort an answer that arrived in time, nor leave its timer behind', async () => {
+    answerWith(() => jsonBody(200, { ok: true }))
+
+    await expect(http.get('/api/events/gala/wall')).resolves.toEqual({ ok: true })
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+})
+
+describe('an upload that goes quiet', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('is given up as a network failure when no byte moves for the stall budget', async () => {
+    const state = outcomeOf(http.upload('/api/events/gala/photos', aForm()))
+
+    await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS - 1)
+    expect(state.settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(state.settled).toBe(true)
+    expect(asApiError(state.reason).isNetwork).toBe(true)
+  })
+
+  it('is never cut for being slow while it keeps progressing', async () => {
+    // Three stall budgets in total, and not one of them fully idle: a total deadline would
+    // have aborted this upload at the first.
+    const state = outcomeOf(http.upload('/api/events/gala/photos', aForm()))
+    const xhr = pendingUpload()
+
+    for (let step = 1; step <= 3; step += 1) {
+      await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS - 1)
+      xhr.reportProgress({ lengthComputable: true, loaded: step * 100, total: 1000 })
+    }
+    expect(state.settled).toBe(false)
+
+    xhr.respond(200, JSON.stringify({ results: [] }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(state.settled).toBe(true)
+    expect(state.reason).toBeUndefined()
+  })
+
+  it('counts movement of an unknown total as progress too', async () => {
+    const state = outcomeOf(http.upload('/api/events/gala/photos', aForm()))
+    const xhr = pendingUpload()
+
+    await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS - 1)
+    xhr.reportProgress({ lengthComputable: false, loaded: 10, total: 0 })
+    await vi.advanceTimersByTimeAsync(UPLOAD_STALL_MS - 1)
+
+    expect(state.settled).toBe(false)
+  })
+
+  it('stops the stall clock once the last byte has gone and waits for the server', async () => {
+    const state = outcomeOf(http.upload('/api/events/gala/photos', aForm()))
+    pendingUpload().upload.dispatchEvent(new Event('load'))
+
+    await vi.advanceTimersByTimeAsync(UPLOAD_RESPONSE_WAIT_MS - 1)
+    expect(state.settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(asApiError(state.reason).isNetwork).toBe(true)
+  })
+
+  it('leaves no timer behind once the server has answered', async () => {
+    const pending = http.upload('/api/events/gala/photos', aForm())
+    pendingUpload().respond(200, JSON.stringify({ results: [] }))
+    await pending
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('leaves no timer behind after a cancellation, which stays a cancellation', async () => {
+    const controller = new AbortController()
+    const state = outcomeOf(
+      http.upload('/api/events/gala/photos', aForm(), { signal: controller.signal }),
+    )
+
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(state.reason).toBeInstanceOf(DOMException)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

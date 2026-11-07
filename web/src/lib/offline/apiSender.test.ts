@@ -52,7 +52,6 @@ const anEntry = (overrides: Partial<OutboxEntry> = {}): OutboxEntry => ({
   attempts: 0,
   lastAttemptAt: null,
   claimedAt: null,
-  csrfToken: 'csrf-1',
   ...overrides,
 })
 

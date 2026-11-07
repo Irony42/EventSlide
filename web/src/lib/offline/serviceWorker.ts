@@ -1,5 +1,6 @@
 import { deleteOutboxDb } from './indexedDbOutbox'
 import { ownCacheNames } from '../pwa/appShell'
+import { KILL_MESSAGE, OUTBOX_SYNC_TAG } from './names'
 
 /**
  * Registering — and, just as importantly, un-registering — the upload worker.
@@ -15,12 +16,7 @@ import { ownCacheNames } from '../pwa/appShell'
  * something worse than that.
  */
 
-/** The Background Sync tag. Shared with `web/sw/serviceWorker.ts` by value, not by
- *  import: the worker is built as its own bundle and shares no module graph. */
-export const OUTBOX_SYNC_TAG = 'eventslide-outbox'
-
-/** Asks an already-installed worker to unregister itself and stop. */
-export const KILL_MESSAGE = 'eventslide:kill'
+export { KILL_MESSAGE, OUTBOX_SYNC_TAG }
 
 /**
  * `ServiceWorkerRegistration.sync` is a living-standard addition TypeScript's DOM

@@ -155,7 +155,8 @@ export const shouldQueue = (status: number): boolean => status === 0 || status >
  * must survive the `404` that follows rather than be deleted by it. `event.quotaExceeded` is absent too — a host can raise a quota, and
  * the twelve-hour expiry is a kinder bound than deletion on the first refusal.
  */
-const TERMINAL_CODES: ReadonlySet<string> = new Set([
+// Exported for `webMirrorsContract.test.ts`, which checks every code is one the server sends.
+export const TERMINAL_CODES: ReadonlySet<string> = new Set([
   // The server looked at these bytes and will not take them.
   'image.unsupportedFormat',
   'image.corrupt',
