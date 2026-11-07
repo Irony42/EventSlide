@@ -111,8 +111,12 @@ describe('the audit log can be pruned only through the pruning use case', () => 
     ])
   })
 
-  it('reaches the pruning use case from the composition root and the retention sweep, and from no route', () => {
+  it('reaches the pruning use case from the composition root, the retention sweep and the purge command, and from no route', () => {
     expect(filesNaming('pruneAuditLog')).toEqual([
+      // The purge command runs the timer's follow-up (`makeRetentionFollowUp`) on demand, so that
+      // `RETENTION_SWEEP_INTERVAL_MINUTES=off` with a cron still prunes the log. It is the one
+      // script allowed to, and the only trigger besides the timer.
+      'scripts/purge.ts',
       'src/main/container.ts',
       'src/main/retentionSweeper.ts',
       'src/main/usecases.ts',
@@ -133,6 +137,6 @@ describe('the audit log can be pruned only through the pruning use case', () => 
       ...filesNaming('pruneAuditLog'),
     ]
 
-    expect(listed.some((path) => path.startsWith('scripts/'))).toBe(false)
+    expect(listed.filter((path) => path.startsWith('scripts/'))).toEqual(['scripts/purge.ts'])
   })
 })
