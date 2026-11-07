@@ -203,10 +203,15 @@ const parse = async <T>(response: Response): Promise<T> => {
  * How long a plain JSON request may take, end to end (the response body included), before it
  * is given up as a network failure.
  *
- * Absolute on purpose here and nowhere near an upload: these bodies are a few kilobytes, so a
- * request that has not finished in half a minute is not slow, it is stuck (a captive portal, a
- * proxy that accepts the connection and never answers). Without a ceiling the promise never
- * settles, `useLoader` stays `loading` for ever and the guest stares at a spinner.
+ * Absolute on purpose, and only for a JSON body: these are a few kilobytes, so a request that has
+ * not finished in half a minute is not slow, it is stuck (a captive portal, a proxy that accepts
+ * the connection and never answers). Without a ceiling the promise never settles, `useLoader`
+ * stays `loading` for ever and the guest stares at a spinner.
+ *
+ * Not applied to a `FormData` body sent through `fetch` (a host's venue photo or logo, up to the
+ * upload size limit): a host on a slow venue uplink must be allowed to finish it. `fetch` has no
+ * upload-progress event, so there is no stall guard to put in its place; the guest's own uploads,
+ * which do have one, go through `upload`.
  */
 export const JSON_REQUEST_TIMEOUT_MS = 30_000
 
@@ -258,10 +263,13 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
   const onCallerAbort = () => controller.abort()
   if (options.signal?.aborted) controller.abort()
   else options.signal?.addEventListener('abort', onCallerAbort, { once: true })
-  const deadline = setTimeout(() => {
-    timedOut = true
-    controller.abort()
-  }, JSON_REQUEST_TIMEOUT_MS)
+  const deadline =
+    options.body instanceof FormData
+      ? undefined
+      : setTimeout(() => {
+          timedOut = true
+          controller.abort()
+        }, JSON_REQUEST_TIMEOUT_MS)
 
   try {
     let response: Response
