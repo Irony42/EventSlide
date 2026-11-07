@@ -4,11 +4,28 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
 import request from 'supertest'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { asEventId, asGuestId, asPhotoId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
 import { createContainer, type Container } from './container'
+
+// The real probe, unless a test sets `diskFree`: the one place the free-space reading can be steered.
+const probe = vi.hoisted(() => ({
+  diskFree: null as ((path: string) => number | null) | null,
+}))
+vi.mock('../infrastructure/system/statfsDiskSpaceChecker', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../infrastructure/system/statfsDiskSpaceChecker')>()
+  return {
+    statfsDiskSpaceChecker: {
+      freeBytes: async (path: string) =>
+        probe.diskFree === null
+          ? original.statfsDiskSpaceChecker.freeBytes(path)
+          : probe.diskFree(path),
+    },
+  }
+})
 
 /**
  * The photo book through the real composition root (spec 04): the book is rendered by the real
@@ -30,6 +47,7 @@ afterEach(async () => {
   container = null
   if (workDir !== null) await rm(workDir, { recursive: true, force: true })
   workDir = null
+  probe.diskFree = null
 })
 
 const csrfOf = (headers: Record<string, unknown>): string => {
@@ -41,7 +59,7 @@ const csrfOf = (headers: Record<string, unknown>): string => {
     : decodeURIComponent(found.slice(CSRF_COOKIE.length + 1).split(';')[0] ?? '')
 }
 
-const scene = async () => {
+const scene = async (diskFree: ((path: string) => number | null) | null = null) => {
   workDir = await mkdtemp(join(tmpdir(), 'eventslide-book-'))
   const mediaRoot = join(workDir, 'media')
   const booted = await createContainer(
@@ -121,6 +139,7 @@ const scene = async () => {
     showCaptions: true,
   })
   expect(queued.ok, JSON.stringify(!queued.ok && queued.error)).toBe(true)
+  probe.diskFree = diskFree
   const worker = booted.albumBookWorker
   if (worker === null) throw new Error('fixture: the books are switched off')
   const drained = await worker.runOnce()
@@ -254,5 +273,39 @@ describe('the photo book, through the real composition root', () => {
     expect(purged.ok, JSON.stringify(!purged.ok && purged.error)).toBe(true)
     expect(existsSync(s.bookFile)).toBe(false)
     expect(s.bookStatus()).toBeNull()
+  })
+})
+
+describe('the photo book worker, when the disk is short', () => {
+  const ENOUGH = 10 ** 12
+
+  it('fails the book when the database directory is short, though the media root has room', async () => {
+    const s = await scene((path) => (path.endsWith('media') ? ENOUGH : 0))
+
+    expect(s.bookStatus()).toBe('failed')
+    expect(existsSync(s.bookFile)).toBe(false)
+  })
+
+  it('fails the book when the media root is short, though the database directory has room', async () => {
+    const s = await scene((path) => (path.endsWith('media') ? 0 : ENOUGH))
+
+    expect(s.bookStatus()).toBe('failed')
+  })
+})
+
+describe('the photo book worker, when the function is off', () => {
+  it('is not built at all', async () => {
+    workDir = await mkdtemp(join(tmpdir(), 'eventslide-book-off-'))
+    container = await createContainer(
+      loadConfig({
+        NODE_ENV: 'test',
+        LOG_LEVEL: 'fatal',
+        DATABASE_PATH: join(workDir, 'eventslide.sqlite'),
+        MEDIA_ROOT: join(workDir, 'media'),
+        BOOK_ENABLED: 'false',
+      }),
+    )
+
+    expect(container.albumBookWorker).toBeNull()
   })
 })
