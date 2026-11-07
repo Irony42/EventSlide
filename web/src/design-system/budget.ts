@@ -126,7 +126,7 @@ export const FRAME_WINDOW = 90
  * "no more than a fifth of a window may come in late", where late meant an interval half
  * again longer than the cadence — a dropped frame. The second said "the wall must deliver
  * more than half the frames its display offered". Both looked reasonable and both were
- * pointed at real walls by `tests/e2e/journeys/frame-budget.spec.ts`, which is what settled
+ * pointed at real walls by `tests/e2e/perf/frame-budget.spec.ts`, which is what settled
  * it:
  *
  * | The wall under measurement                       | frames/s | dropped | delivered |

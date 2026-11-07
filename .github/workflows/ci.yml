@@ -109,8 +109,18 @@ jobs:
       - name: Build the image and check what it promises
         run: bash ./scripts/verify-image.sh
 
-  e2e:
-    name: End-to-end (${{ matrix.project }})
+  e2e-shard:
+    # One runner per (project, shard). The required checks keep their old names, `End-to-end
+    # (<project>)`, and are the `e2e` job below: it waits for every shard of its project and
+    # fails unless all of them passed, so branch protection still gates on the same names.
+    #
+    # Why shards: the heavy projects ran ~210 tests through two workers on one runner, and a
+    # browser that shares its runner with another is where the timing flakes came from (a
+    # WebKit page stops producing frames under load, see playwright.config.ts). Three or four
+    # shards put a third to a quarter of the suite on each runner. `--shard` splits by test
+    # (`fullyParallel`), deterministically for a given selection, so the shards of a project
+    # partition its tests: no test twice, none dropped.
+    name: End-to-end shard (${{ matrix.project }} ${{ matrix.shard }}/${{ matrix.shards }})
     runs-on: ubuntu-latest
     # A job that hangs is held for GitHub's default 360 minutes and blocks the pull request
     # all that time. On 2026-10-23 four end-to-end jobs sat for 20 to 50 minutes in the
@@ -121,28 +131,43 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # firefox-desktop is `grep: /@smoke/` in playwright.config.ts, so it runs four
-        # specs rather than the full journey set — the comment there promises
-        # "cross-browser confidence without tripling every run" and this matrix is where
-        # that promise is either kept or empty. It was empty: the project existed and no
-        # job ever selected it.
-        # chromium-offline runs tests/e2e/offline/ and is the only project that does:
-        # every other one carries testIgnore: '**/offline/**'. Left out of this matrix
-        # it would be a project nothing ever selected, which is the exact failure the
-        # firefox-desktop note above describes.
+        # `shards` per project is the number of runners it is split over; `e2e` below carries
+        # the same numbers and checks it heard from every one, so change both together.
+        # Counts measured with `playwright test --list`: chromium-desktop, chromium-mobile and
+        # webkit-mobile select 209 tests each (3, 3 and 4 shards: about 70, 70 and 52 per runner);
+        # firefox-desktop is `grep: /@smoke/` in playwright.config.ts (19 tests), so it runs a few
+        # specs rather than the full journey set — the comment there promises "cross-browser
+        # confidence without tripling every run" and this matrix is where that promise is either
+        # kept or empty. It was empty once: the project existed and no job ever selected it.
+        # chromium-offline runs tests/e2e/offline/ (4 tests) and is the only project that does:
+        # every other one carries testIgnore for it. Left out of this matrix it would be a project
+        # nothing ever selected, which is the exact failure the firefox-desktop note describes.
         # chromium-client-members runs tests/e2e/security/tenant-isolation.spec.ts alone, on a
-        # server started with EVENT_CREATION=clientMembers and SITE_ADMIN=on — roadmap §10.9:
-        # tenant isolation holds under both creation policies. The other projects run the same
-        # file under the default, anyAccount, so between them the spec runs under both.
-        project:
-          [
-            chromium-desktop,
-            chromium-mobile,
-            webkit-mobile,
-            firefox-desktop,
-            chromium-offline,
-            chromium-client-members,
-          ]
+        # server started with EVENT_CREATION=clientMembers and SITE_ADMIN=on — roadmap §10.9: tenant
+        # isolation holds under both creation policies. The other projects run the same file under
+        # the default, anyAccount, so between them the spec runs under both.
+        # perf is tests/e2e/perf/ (the frame-rate check, roadmap 11.3), one worker on a runner of
+        # its own: a frame rate read while other browsers render beside it is a number about them.
+        # It is a gate like the others.
+        # `workers` is the Playwright worker count of that job. webkit-mobile gets one per runner
+        # because WebKit is the engine that starves under load (a page that stops painting for
+        # seconds, measured at twelve workers, see playwright.config.ts); its four shards leave
+        # each worker about 52 tests instead of the 105 two workers had, so the job is not slower.
+        include:
+          - { project: chromium-desktop, shard: 1, shards: 3, workers: 2 }
+          - { project: chromium-desktop, shard: 2, shards: 3, workers: 2 }
+          - { project: chromium-desktop, shard: 3, shards: 3, workers: 2 }
+          - { project: chromium-mobile, shard: 1, shards: 3, workers: 2 }
+          - { project: chromium-mobile, shard: 2, shards: 3, workers: 2 }
+          - { project: chromium-mobile, shard: 3, shards: 3, workers: 2 }
+          - { project: webkit-mobile, shard: 1, shards: 4, workers: 1 }
+          - { project: webkit-mobile, shard: 2, shards: 4, workers: 1 }
+          - { project: webkit-mobile, shard: 3, shards: 4, workers: 1 }
+          - { project: webkit-mobile, shard: 4, shards: 4, workers: 1 }
+          - { project: firefox-desktop, shard: 1, shards: 1, workers: 2 }
+          - { project: chromium-offline, shard: 1, shards: 1, workers: 2 }
+          - { project: chromium-client-members, shard: 1, shards: 1, workers: 2 }
+          - { project: perf, shard: 1, shards: 1, workers: 1 }
     steps:
       - uses: actions/checkout@v7
 
@@ -194,7 +219,9 @@ jobs:
           timeout 6m npx playwright install "$engine" || timeout 6m npx playwright install "$engine"
 
       - name: Keep the browser's system packages
-        if: steps.apt-cache.outputs.cache-hit != 'true'
+        # Shard 1 only: the shards of a project share one cache key, and several runners saving
+        # it at once would race for it.
+        if: steps.apt-cache.outputs.cache-hit != 'true' && matrix.shard == 1
         uses: actions/cache/save@v6
         with:
           path: ~/apt-archives
@@ -209,7 +236,10 @@ jobs:
         # under it, and ends the step as *failed*, not as the job's cancellation. The slowest
         # healthy job takes 18 minutes.
         timeout-minutes: 45
-        run: npm run test:e2e -- --project=${{ matrix.project }}
+        # `--workers` comes from the matrix (a project's own `workers` in the config still caps
+        # it: perf is one). The reporters in playwright.config.ts run per shard, failOnFlaky
+        # among them: a test that passed only on a retry fails the shard it ran in.
+        run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=${{ matrix.workers }}
 
       - name: Upload report
         # `cancelled()` too: a job cancelled by the job-level bound or by hand still keeps its
@@ -217,11 +247,57 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-${{ matrix.project }}
+          name: playwright-report-${{ matrix.project }}-${{ matrix.shard }}of${{ matrix.shards }}
           path: |
             playwright-report/
             test-results/
           retention-days: 7
+
+  e2e:
+    # The required status checks. Branch protection names `End-to-end (<project>)` for five
+    # projects; the work now happens in `e2e-shard`, so this job keeps those names and answers
+    # for all the shards of its project: green only when every one of the `shards` expected jobs
+    # exists and succeeded.
+    #
+    # `if: always()` and an explicit failure, never a skip: a skipped required check counts as
+    # passing, so when `quality` fails (and every shard is skipped) a skipped gate would let the
+    # merge through on the strength of nothing having run. The shard jobs are found by name through
+    # the API because `needs.e2e-shard.result` is one verdict for the whole matrix, and a red
+    # chromium-mobile shard must not turn the chromium-desktop check red.
+    name: End-to-end (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    needs: e2e-shard
+    if: always()
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { project: chromium-desktop, shards: 3 }
+          - { project: chromium-mobile, shards: 3 }
+          - { project: webkit-mobile, shards: 4 }
+          - { project: firefox-desktop, shards: 1 }
+          - { project: chromium-offline, shards: 1 }
+          - { project: chromium-client-members, shards: 1 }
+          - { project: perf, shards: 1 }
+    steps:
+      - name: Every shard of the project passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECT: ${{ matrix.project }}
+          EXPECTED: ${{ matrix.shards }}
+        run: |
+          conclusions="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name | startswith("End-to-end shard (" + env.PROJECT + " ")) | "\(.name): \(.conclusion)"')"
+          echo "$conclusions"
+          found="$(printf '%s\n' "$conclusions" | grep -c . || true)"
+          passed="$(printf '%s\n' "$conclusions" | grep -c ': success$' || true)"
+          if [ "$found" -ne "$EXPECTED" ] || [ "$passed" -ne "$EXPECTED" ]; then
+            echo "::error::$PROJECT: expected $EXPECTED passing shard(s), found $found job(s) of which $passed passed."
+            exit 1
+          fi
 
   visual:
     # The four baselines under tests/e2e/__screenshots__/ are the only assertion in the

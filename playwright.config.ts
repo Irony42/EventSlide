@@ -20,6 +20,16 @@ import { defineConfig, devices } from '@playwright/test'
 const OFFLINE_JOURNEYS = '**/offline/**'
 
 /**
+ * The frame-rate specs (`tests/e2e/perf/`) run in the `perf` project and nowhere else, so each
+ * one still runs exactly once in gating, and alone: a frame rate measured while another browser
+ * renders on the same machine is a number about the neighbour. Same glob reasoning as above.
+ */
+const PERF_SPECS = '**/perf/**'
+
+/** What every journey project leaves out: the offline specs and the frame-rate specs. */
+const NOT_A_JOURNEY = [OFFLINE_JOURNEYS, PERF_SPECS]
+
+/**
  * The one worker option this suite declares: who may create an event on the server a
  * worker boots (`eventCreation`, see `tests/e2e/fixtures/app.ts`). Typed here so a project's
  * `use` can set it and a misspelt policy is a compile error rather than a server that boots
@@ -99,7 +109,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
   projects: [
     {
       name: 'chromium-desktop',
-      testIgnore: OFFLINE_JOURNEYS,
+      testIgnore: NOT_A_JOURNEY,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
@@ -116,7 +126,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
        */
       name: 'chromium-client-members',
       testMatch: '**/security/tenant-isolation.spec.ts',
-      testIgnore: OFFLINE_JOURNEYS,
+      testIgnore: NOT_A_JOURNEY,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },
@@ -127,13 +137,13 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
       // The guest surface. Most guests at an event are on a phone, so this project
       // runs the upload journeys.
       name: 'chromium-mobile',
-      testIgnore: OFFLINE_JOURNEYS,
+      testIgnore: NOT_A_JOURNEY,
       use: { ...devices['Pixel 7'] },
     },
     {
       // The browser the largest share of guests actually use.
       name: 'webkit-mobile',
-      testIgnore: OFFLINE_JOURNEYS,
+      testIgnore: NOT_A_JOURNEY,
       use: {
         ...devices['iPhone 14'],
         /**
@@ -156,8 +166,23 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
       },
     },
     {
+      /**
+       * The frame-rate check (`tests/e2e/perf/frame-budget.spec.ts`, roadmap 11.3), and the only
+       * project that selects it. A project of its own so that CI can give it a runner to itself
+       * with one worker (`--project=perf`, see ci.yml): the other projects run two workers a
+       * runner and, sharded or not, a browser rendering beside the wall changes the number this
+       * file exists to read. `workers: 1` is the same promise for a local run that selects it
+       * with other projects: it never runs two of its own at once.
+       */
+      name: 'perf',
+      testMatch: PERF_SPECS,
+      workers: 1,
+      fullyParallel: false,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
       name: 'firefox-desktop',
-      testIgnore: OFFLINE_JOURNEYS,
+      testIgnore: NOT_A_JOURNEY,
       use: { ...devices['Desktop Firefox'] },
       // Cross-browser confidence without tripling every run.
       grep: /@smoke/,
