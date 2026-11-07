@@ -32,6 +32,7 @@ import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
 import type { PhotoPage, PhotoRepository } from '../../ports/photoRepository'
+import { authorNamesOf } from '../guests/authorNamesOf'
 import { readChallenge, type ChallengeReading } from '../challenges/readChallenge'
 
 /**
@@ -237,19 +238,15 @@ const resolveAuthorNames = async (
   eventId: Event['id'],
   onWall: readonly Photo[],
 ): Promise<ReadonlyMap<PhotoId, string>> => {
-  const senders = new Map<PhotoId, GuestId>()
-  for (const photo of onWall) {
-    if (photo.author.kind === 'guest') senders.set(photo.id, photo.author.guestId)
-  }
-
-  const names = await guests.findNamesByIds(eventId, [...new Set(senders.values())])
+  const names = await authorNamesOf(guests, eventId, onWall)
 
   const byPhoto = new Map<PhotoId, string>()
-  for (const [photoId, guestId] of senders) {
-    const name = names.get(guestId)
+  for (const photo of onWall) {
+    if (photo.author.kind !== 'guest') continue
+    const name = names.get(photo.author.guestId)
     // Absent means "nobody to name" — anonymous, unknown, or another event's row. The
     // slide simply carries no credit; see `WallPlaylistView.authorNames`.
-    if (name !== undefined) byPhoto.set(photoId, name)
+    if (name !== undefined) byPhoto.set(photo.id, name)
   }
 
   return byPhoto
