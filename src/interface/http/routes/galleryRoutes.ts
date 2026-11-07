@@ -28,7 +28,7 @@ import {
 } from '../schemas/requestSchemas'
 import type { HttpConfig, HttpDeps } from '../types'
 import type { HttpUseCases } from '../useCases'
-import { streamOrAbandon } from './mediaRoutes'
+import { streamOrAbandon } from '../presenters/serveRanged'
 
 /**
  * The shared gallery (roadmap §4.1): **the product's first public read surface.**
@@ -68,7 +68,7 @@ export const GALLERY_UNLOCK_COOKIE = 'es_gallery'
  * `/api`, and not to the signed media URLs under `/api/gallery-media`, which do not need
  * it: a cookie path matches only at a `/` boundary.
  */
-export const GALLERY_COOKIE_PATH = '/api/gallery'
+const GALLERY_COOKIE_PATH = '/api/gallery'
 
 /**
  * The headers every gallery response carries. Exported for the one response that is not

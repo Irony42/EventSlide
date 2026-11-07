@@ -1381,6 +1381,11 @@ describe('the highlight reel routes (spec 08)', () => {
       .set('Range', 'bytes=50-60')
     expect(outside.status).toBe(416)
     expect(outside.headers['content-range']).toBe('bytes */10')
+    expect(outside.headers['accept-ranges']).toBe('bytes')
+    expect(outside.headers['content-type']).toContain('application/json')
+    expect(outside.headers['content-disposition']).toBeUndefined()
+    expect(outside.headers['cache-control']).toBe('no-store')
+    expect(outside.headers['x-content-type-options']).toBe('nosniff')
   })
 
   it('reports a finished montage in the panel read, with its length and size', async () => {

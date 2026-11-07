@@ -374,6 +374,10 @@ describe('GET /api/events/:eventSlug/book.pdf', () => {
     const past = await agent.get('/api/events/mariage/book.pdf').set('Range', 'bytes=500-600')
     expect(past.status).toBe(416)
     expect(past.headers['content-range']).toBe(`bytes */${PDF.length}`)
+    // The refusal is a JSON error, not a PDF: no download type, no attachment name (HTTP-04).
+    expect(past.headers['content-type']).toContain('application/json')
+    expect(past.headers['content-disposition']).toBeUndefined()
+    expect(past.body.error.code).toBe('photo.rangeNotSatisfiable')
   })
 
   it('never serves the book of one event under the slug of another', async () => {

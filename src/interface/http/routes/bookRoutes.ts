@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { DomainError } from '../../../domain/shared/errors'
 import { requireRole } from '../middleware/authz'
 import {
   BOOK_DOWNLOADS_PER_ACCOUNT_PER_MINUTE,
@@ -8,13 +7,12 @@ import {
   bookRequestLimiter,
 } from '../middleware/rateLimit'
 import { withModerator } from '../middleware/scope'
-import { contentRange, parseByteRange, unsatisfiedRange } from '../presenters/byteRange'
 import type { AlbumBookDto } from '../presenters/dto'
 import { toAlbumBookDto } from '../presenters/presenters'
 import { errorBody, sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
+import { serveRanged } from '../presenters/serveRanged'
 import { requestBookBody } from '../schemas/requestSchemas'
 import type { RouteDeps } from '../useCases'
-import { streamOrAbandon } from './mediaRoutes'
 
 /**
  * The photo book, a PDF of the published album (spec 04).
@@ -79,33 +77,15 @@ export const bookRoutes = ({ deps, usecases }: RouteDeps): Router => {
       }
       const file = result.value
 
-      res.setHeader('Content-Type', 'application/pdf')
-      res.setHeader('Content-Disposition', `attachment; filename="${slug}-livre.pdf"`)
-      res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Content-Type-Options', 'nosniff')
-      res.setHeader('Accept-Ranges', 'bytes')
 
-      const verdict = parseByteRange(req.get('range'), file.byteSize)
-      if (verdict.kind === 'unsatisfiable') {
-        res.setHeader('Content-Range', unsatisfiedRange(file.byteSize))
-        res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
-        return
-      }
-
-      if (verdict.kind === 'whole') {
-        res.setHeader('Content-Length', String(file.byteSize))
-      } else {
-        res.status(206)
-        res.setHeader('Content-Range', contentRange(verdict.range, file.byteSize))
-        res.setHeader('Content-Length', String(verdict.range.end - verdict.range.start + 1))
-      }
-
-      await streamOrAbandon(
-        res,
-        req.context.logger,
-        'photo book download failed mid-stream',
-        await file.open(verdict.kind === 'whole' ? undefined : verdict.range),
-      )
+      await serveRanged(req, res, file, {
+        contentType: 'application/pdf',
+        cacheControl: 'no-store',
+        refusalCacheControl: 'no-store',
+        contentDisposition: `attachment; filename="${slug}-livre.pdf"`,
+        failureMessage: 'photo book download failed mid-stream',
+      })
     }),
   )
 

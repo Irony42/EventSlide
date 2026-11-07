@@ -1,16 +1,14 @@
 import { Router } from 'express'
-import { DomainError } from '../../../domain/shared/errors'
 import { asPhotoId } from '../../../domain/shared/ids'
 import { requireRole } from '../middleware/authz'
 import { withModerator } from '../middleware/scope'
 import type { HighlightsDto, PreselectHighlightsResponseDto } from '../presenters/dto'
-import { parseByteRange, unsatisfiedRange } from '../presenters/byteRange'
+import { serveRanged, streamOrAbandon } from '../presenters/serveRanged'
 import { toReelDto } from '../presenters/presenters'
-import { errorBody, sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
+import { sendError, sendJson, sendResult, sendResultNoContent } from '../presenters/send'
 import { photoParams, preselectHighlightsBody } from '../schemas/requestSchemas'
 import type { RouteDeps } from '../useCases'
 import type { ReelDto } from '../presenters/dto'
-import { sendMedia, streamOrAbandon } from './mediaRoutes'
 
 /**
  * The host's favourites and the best-of ZIP (spec 08, PR A).
@@ -122,24 +120,15 @@ export const highlightRoutes = ({ deps, usecases }: RouteDeps): Router => {
 
       const media = result.value
       const etag = `"${media.contentHash.value}-reel"`
-      const verdict = parseByteRange(req.get('range'), media.byteSize)
-      if (verdict.kind === 'unsatisfiable') {
-        res.setHeader('Accept-Ranges', 'bytes')
-        res.setHeader('Content-Range', unsatisfiedRange(media.byteSize))
-        res.setHeader('Cache-Control', 'no-store')
-        res.status(416).json(errorBody(DomainError.invalid('photo.rangeNotSatisfiable')))
-        return
-      }
-      await sendMedia(
-        req,
-        res,
-        media,
-        etag,
-        verdict.kind === 'whole' ? null : verdict.range,
-        'private, no-store',
+      await serveRanged(req, res, media, {
+        contentType: media.contentType,
+        cacheControl: 'private, no-store',
+        refusalCacheControl: 'no-store',
         // Played in the page and saved by the download link, under a name drawn from the slug.
-        `inline; filename="${slug}-souvenir.mp4"`,
-      )
+        contentDisposition: `inline; filename="${slug}-souvenir.mp4"`,
+        etag,
+        failureMessage: 'photo media failed mid-stream',
+      })
     }),
   )
 
