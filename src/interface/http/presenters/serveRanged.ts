@@ -118,6 +118,11 @@ export const serveRanged = async (
   // range being outside the object (answered above, against the size this same read reported).
   const bytes = await source.open(range ?? undefined)
   if (bytes === null) {
+    // A missing file is not the representation: drop what was written for it, or a browser
+    // caches this 404 as the object for a year.
+    res.removeHeader('ETag')
+    res.removeHeader('Cache-Control')
+    res.removeHeader('Content-Disposition')
     sendError(res, DomainError.notFound('photo.mediaMissing'))
     return
   }

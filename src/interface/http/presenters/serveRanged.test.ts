@@ -191,6 +191,9 @@ describe('serveRanged', () => {
     expect(response.status).toBe(404)
     expect(response.body.error.code).toBe('photo.mediaMissing')
     expect(response.headers['content-type']).toContain('application/json')
+    // A missing file is not the representation: nothing may cache it as one for a year.
+    expect(response.headers['cache-control']).toBeUndefined()
+    expect(response.headers['content-disposition']).toBeUndefined()
   })
 
   it('logs under the route message and abandons the connection when the stream breaks', async () => {

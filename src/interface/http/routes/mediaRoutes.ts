@@ -139,7 +139,7 @@ export const mediaRoutes = ({ deps, usecases }: MediaRouteDeps): Router => {
       // **On every answer this route can give, the `416`'s JSON body included.** The
       // stored bytes are always re-encoded, but a browser that sniffs its way to
       // something executable is how an upload becomes stored XSS — and the refusal that
-      // bypasses `sendMedia` was the one response going out without it.
+      // `serveRanged` writes itself was the one response going out without it.
       res.setHeader('X-Content-Type-Options', 'nosniff')
 
       return serveRanged(req, res, media.value, mediaHeaders(media.value, etagFor(media.value)))
