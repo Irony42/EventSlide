@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { GuestUploadPage } from './GuestUploadPage'
 import { rememberGuestSession } from '../../lib/guestSession'
 import { fr } from '../../lib/i18n/fr'
+import type { PrivacyNoticeState } from '../../lib/api/dto'
 import {
   aPrivacyNoticeState,
   aPublicEvent,
@@ -81,6 +82,27 @@ describe('GuestUploadPage: folding the pane', () => {
     // Out of the accessibility tree and the tab order, not merely off screen.
     expect(screen.queryByRole('button', { name: fr.upload.foldPane })).toBeNull()
     expect(screen.getByTestId('upload-composer')).toHaveAttribute('data-folded')
+  })
+  it('takes the fold away when the notice turns out to be unread, as a gated pane is not for folding', async () => {
+    rememberGuestSession({ event: aPublicEvent(), displayName: 'Léa', privacyNotice: null })
+    let answer: (state: PrivacyNoticeState) => void = () => {}
+    const pending = new Promise<PrivacyNoticeState>((resolve) => {
+      answer = resolve
+    })
+    renderWithProviders(<GuestUploadPage />, {
+      api: fakeApi({ privacyNotice: vi.fn(() => pending) }),
+      route: `/e/${SLUG}/upload`,
+      path: '/e/:slug/upload',
+    })
+    expect(fold()).toBeVisible()
+
+    await act(async () => {
+      answer(aPrivacyNoticeState({ acknowledgement: 'none' }))
+      await pending
+    })
+
+    expect(await screen.findByRole('region', { name: fr.upload.noticeTitle })).toBeVisible()
+    expect(screen.queryByRole('button', { name: fr.upload.foldPane })).toBeNull()
   })
 
   it('reopens on a tap and puts the focus on the first useful action', async () => {

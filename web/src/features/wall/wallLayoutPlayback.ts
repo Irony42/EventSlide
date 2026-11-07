@@ -15,7 +15,7 @@ import type { WallLayout } from '../../lib/api/dto'
  * browser from `?layout=` and the `L` key, and `GET /wall` is `.strict()` and refuses the
  * parameter outright (docs/API.md §3). So the server cannot resolve `playsVideo` for us:
  * it does not know, and asking it to would mean giving the event a layout it does not
- * have. `WallLayouts.tsx` already mirrors `slotCount` for the same reason, and says so.
+ * have. `wallLayoutMath.ts` already mirrors `slotCount` for the same reason, and says so.
  *
  * What is different here is that the copy is **guarded**.
  * `src/interface/http/presenters/wallLayoutContract.test.ts` reads this file's table as

@@ -19,7 +19,6 @@ import { parseLocale } from '../../lib/i18n/locale'
 import { messageForCode } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { AMBIANCE_LAYOUT } from './ambianceLayout'
-import { joinCardScale } from './joinCardScale'
 import { ReactionBurst } from './components/ReactionBurst'
 import { WallEmptyState } from './components/WallEmptyState'
 import { WallControls } from './components/WallControls'
@@ -46,18 +45,10 @@ import { useWallOwner } from './hooks/useWallOwner'
 import { useWakeLock } from './hooks/useWakeLock'
 import { useWallKeyboard } from './hooks/useWallKeyboard'
 import { useWallPlaylist } from './hooks/useWallPlaylist'
+import { useWallChrome } from './hooks/useWallChrome'
 import styles from './WallPage.module.css'
 
-/**
- * How long a host's `Q` keeps the corner QR away.
- *
- * Nobody is at the projector to bring it back, and the QR is the one way a late guest gets in:
- * a hiding that outlived the host's attention would cost them their evening, so it undoes
- * itself (MUR-5).
- */
-const DEFAULT_JOIN_CARD = { visible: true, scale: 1, placement: 'bottom-end' } as const
-
-export const QR_HIDDEN_MS = 10 * 60_000
+export { QR_HIDDEN_MS } from './wallChrome'
 
 /** One frozen array, so an empty playlist keeps a stable identity between renders. */
 const NO_ITEMS: readonly WallItemDto[] = []
@@ -291,27 +282,25 @@ export function WallPage() {
   // below it, and an effect would let one photograph go by under a card that just appeared.
   if (cardUp !== (guestbookMessage !== null)) setCardUp(guestbookMessage !== null)
 
-  /**
-   * The invitation, or nothing — never half of it.
-   *
-   * The code and the link arrive together from one presenter, so there is no deployment in
-   * which the server sends one and not the other. Requiring both here is what keeps the
-   * browser from inventing the missing half from `window.location.origin`: that is the
-   * address this projector was opened on rather than the one a guest's phone can reach,
-   * and printing it inside a QR is trap 1 with a different mismatch.
-   */
-  const join =
-    wall?.joinCode !== undefined && wall.joinUrl !== undefined
-      ? { code: wall.joinCode, url: wall.joinUrl }
-      : null
-  /**
-   * Whether the room may still be invited — the server's answer, read from the domain's own
-   * rule. Absent means an older server, which never said otherwise. Once the host has
-   * closed the evening the wall keeps playing, but a QR on it leads to "not open"
-   * (MUR-3), so neither the card, nor the code, nor the missions are drawn.
-   */
-  const acceptsGuests = wall?.acceptsGuests !== false
-  const invitation = acceptsGuests ? join : null
+  // The chrome rules are `wallChrome.ts`'s; this page draws what they say.
+  const {
+    join,
+    acceptsGuests,
+    invitation,
+    shownChallenge,
+    showsChallenge,
+    placement,
+    cardEnabled,
+    showsOverlay,
+    cardScale,
+    stackStart,
+    stackEnd,
+    chrome,
+    hideQr,
+    toggleQr,
+    qrHidden,
+    leaveChallenge,
+  } = useWallChrome(wall, items.length)
 
   /**
    * Four sources, in the order a room means them: the key somebody just pressed, then
@@ -333,13 +322,6 @@ export function WallPage() {
    * It comes back on its own after `QR_HIDDEN_MS`: the projector is unattended, so a wrong
    * dismissal must not last until somebody reloads it.
    */
-  const [qrHidden, setQrHidden] = useState(false)
-  useEffect(() => {
-    if (!qrHidden) return
-    const timer = window.setTimeout(() => setQrHidden(false), QR_HIDDEN_MS)
-    return () => window.clearTimeout(timer)
-  }, [qrHidden])
-
   const serverLayout = wall?.layout
 
   /**
@@ -350,50 +332,10 @@ export function WallPage() {
   const ambianceLayout = eventTheme === null ? null : AMBIANCE_LAYOUT[eventTheme.ambiance]
   useRootGroundHue(eventTheme?.ambiance, eventTheme?.custom)
   const closeHelp = useCallback(() => setHelpOpen(false), [])
-  /**
-   * The timed challenge (spec 10), in every phase of the wall and on the empty wall too: it is a
-   * call to take photographs, so it is withheld only when the room can no longer send any (the
-   * rule `showsMissions` follows). `challengeGone` is the banner saying it has shown "Défi
-   * terminé" for its ten seconds, which is when the room it reserved is given back.
-   */
-  const challenge = wall?.challenge ?? null
-  const [challengeGone, setChallengeGone] = useState<string | null>(null)
-  // Stable, so the banner's ten-second timer is not restarted by every render of the wall.
-  const challengeId = challenge?.id ?? null
-  const leaveChallenge = useCallback(() => setChallengeGone(challengeId), [challengeId])
-  const showsChallenge = acceptsGuests && challenge !== null && challengeGone !== challenge.id
-  const challengeRunning = showsChallenge && challenge.state === 'running'
-  /**
-   * The join card comes back when a challenge starts, even if `Q` put it away: a challenge with
-   * no way to join it means nothing, and the return is the same one the timer makes. Adjusted
-   * while rendering, once per challenge, so the host can still put it away afterwards (it is
-   * held on screen while the challenge runs, whatever the state says).
-   */
-  const [seenChallenge, setSeenChallenge] = useState<string | null>(null)
-  const startedId = challengeRunning ? challenge.id : null
-  if (startedId !== null && startedId !== seenChallenge) {
-    setSeenChallenge(startedId)
-    setQrHidden(false)
-  }
-  /**
-   * The host's card settings (spec 14); an older server sends none, and the defaults are the card
-   * as it always was. `visible` false is the host's permanent switch: no card on a populated
-   * wall, and `Q` has nothing to flip. The empty wall's large invitation ignores it (it is not
-   * this card).
-   */
-  const joinCard = wall?.joinCard ?? DEFAULT_JOIN_CARD
-  const cardEnabled = invitation !== null && joinCard.visible && items.length > 0
-  const showsOverlay = cardEnabled && (!qrHidden || challengeRunning)
-  /** The scale drawn: the host's, lifted to the readability floor of this very link. */
-  const cardScale = invitation === null ? 1 : joinCardScale(joinCard.scale, invitation.url)
-  const placement = joinCard.placement
-  const stackStart = cardEnabled && placement === 'top-start'
-  const stackEnd = cardEnabled && placement === 'top-end'
   // Decision 11-4: while the banner is up the counter is hidden and the new-photo signal is held
   // (its arrivals wait in the reserve and are announced together afterwards).
   const { hold: holdSignal } = newPhotoSignal
   useEffect(() => holdSignal(showsChallenge), [showsChallenge, holdSignal])
-  const chrome = cx(showsOverlay && 'corner', showsChallenge && 'top')
   // `R` is listed only for the owner, who is the only one it does anything for (spec 13, rule 13).
   const shortcutsHelp = `${text.wall.shortcutsHint} ${layoutOrderHint(text)} ${text.wall.soundShortcutHint} ${text.wall.leaveHint}${
     owner === null ? '' : ` ${text.wall.panel.openHint}`
@@ -478,7 +420,7 @@ export function WallPage() {
       // Nothing to put away on a closed event, with no invitation from the server, or on the
       // empty wall (whose full-screen invitation this key does not touch): flipping the flag
       // then would hide the corner card at some later moment for no reason.
-      if (cardEnabled) setQrHidden((hidden) => !hidden)
+      if (cardEnabled) toggleQr()
     },
   })
 
@@ -624,10 +566,10 @@ export function WallPage() {
         <SouvenirCounter count={wall.souvenirCount} />
       ) : null}
 
-      {showsChallenge ? (
+      {shownChallenge !== null ? (
         <WallChallenge
-          key={challenge.id}
-          challenge={challenge}
+          key={shownChallenge.id}
+          challenge={shownChallenge}
           offsetMs={serverOffsetMs}
           onElapsed={refresh}
           onLeave={leaveChallenge}
@@ -648,17 +590,12 @@ export function WallPage() {
       />
 
       {showsOverlay && invitation !== null && !stackStart && !stackEnd ? (
-        <WallOverlay join={invitation} placement={placement} onDismiss={() => setQrHidden(true)} />
+        <WallOverlay join={invitation} placement={placement} onDismiss={hideQr} />
       ) : null}
       {stackStart ? (
         <div className={cx(styles['cornerStack'], styles['cornerStart'])}>
           {showsOverlay && invitation !== null ? (
-            <WallOverlay
-              join={invitation}
-              placement={placement}
-              stacked
-              onDismiss={() => setQrHidden(true)}
-            />
+            <WallOverlay join={invitation} placement={placement} stacked onDismiss={hideQr} />
           ) : null}
           {showsMissions ? <WallMissions missions={missions} stacked /> : null}
         </div>
@@ -666,12 +603,7 @@ export function WallPage() {
       {stackEnd ? (
         <div className={cx(styles['cornerStack'], styles['cornerEnd'])}>
           {showsOverlay && invitation !== null ? (
-            <WallOverlay
-              join={invitation}
-              placement={placement}
-              stacked
-              onDismiss={() => setQrHidden(true)}
-            />
+            <WallOverlay join={invitation} placement={placement} stacked onDismiss={hideQr} />
           ) : null}
           {noticesRegion}
         </div>
@@ -708,9 +640,7 @@ export function WallPage() {
             localLayout:
               layoutOverride === null ? null : { onReset: () => setLayoutOverride(null) },
             sound: { active: wallSound.active, onActivate: wallSound.activate },
-            qr: cardEnabled
-              ? { hidden: qrHidden, onToggle: () => setQrHidden((hidden) => !hidden) }
-              : null,
+            qr: cardEnabled ? { hidden: qrHidden, onToggle: toggleQr } : null,
           }}
         />
       )}
