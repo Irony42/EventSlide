@@ -843,6 +843,73 @@ describe('a token rotated underneath a request', () => {
     },
   )
 
+  /** A refusal as the server words it when it can name the token it compared against. */
+  const mismatchEchoing = (token: unknown) =>
+    jsonBody(403, { error: { code: 'request.csrfMismatch', details: { csrfToken: token } } })
+
+  it('retries with the token the server says the jar holds when document.cookie is stale', async () => {
+    // WebKit after a service-worker fetch: the jar took a token minted for a cookie-less
+    // request while `document.cookie` kept the old value. Re-reading it would send the same
+    // refused header twice (webkit-mobile e2e: join, logo upload, password reset).
+    document.cookie = 'es_csrf=perime'
+    let attempt = 0
+    stubFetch(() => {
+      attempt += 1
+      return Promise.resolve(attempt === 1 ? mismatchEchoing('jar') : jsonBody(200, { ok: true }))
+    })
+
+    await expect(http.post('/api/join', { code: 'abc' })).resolves.toEqual({ ok: true })
+
+    expect(sent).toHaveLength(2)
+    expect(headersOf(requestAt(0))['x-csrf-token']).toBe('perime')
+    expect(headersOf(requestAt(1))['x-csrf-token']).toBe('jar')
+  })
+
+  it.each([
+    ['empty', ''],
+    ['not a string', 42],
+    ['absent', undefined],
+  ])('falls back to the cookie when the echoed token is %s', async (_label, echoed) => {
+    document.cookie = 'es_csrf=perime'
+    let attempt = 0
+    stubFetch(() => {
+      attempt += 1
+      if (attempt > 1) return Promise.resolve(jsonBody(200, { ok: true }))
+      document.cookie = 'es_csrf=frais'
+      return Promise.resolve(mismatchEchoing(echoed))
+    })
+
+    await http.post('/api/events/gala/status', { status: 'live' })
+
+    expect(headersOf(requestAt(1))['x-csrf-token']).toBe('frais')
+  })
+
+  it('still retries only once when the echoed token is refused as well', async () => {
+    document.cookie = 'es_csrf=perime'
+    answerWith(() => mismatchEchoing('jar'))
+
+    const failure = asApiError(await failed(http.post('/api/join', { code: 'abc' })))
+
+    expect(failure.code).toBe('request.csrfMismatch')
+    expect(sent).toHaveLength(2)
+  })
+
+  it('does not trust a token echoed with a missing-token refusal', async () => {
+    document.cookie = 'es_csrf=perime'
+    let attempt = 0
+    stubFetch(() => {
+      attempt += 1
+      if (attempt > 1) return Promise.resolve(jsonBody(200, { ok: true }))
+      return Promise.resolve(
+        jsonBody(403, { error: { code: 'request.csrfMissing', details: { csrfToken: 'jar' } } }),
+      )
+    })
+
+    await http.post('/api/join', { code: 'abc' })
+
+    expect(headersOf(requestAt(1))['x-csrf-token']).toBe('perime')
+  })
+
   it('repeats the body and the path, not just the header', async () => {
     document.cookie = 'es_csrf=perime'
     rotatingRefusal('request.csrfMismatch')
@@ -896,6 +963,24 @@ describe('a token rotated underneath a request', () => {
     await Promise.resolve()
     expect(FakeXhr.instances).toHaveLength(2)
     expect(pendingUpload().headers['x-csrf-token']).toBe('frais')
+    pendingUpload().respond(201, '{"ok":true}')
+
+    await expect(pending).resolves.toEqual({ ok: true })
+  })
+
+  it('repeats an upload with the token the server says the jar holds when document.cookie is stale', async () => {
+    document.cookie = 'es_csrf=perime'
+    const pending = http.upload<{ ok: boolean }>('/api/events/gala/photos', aForm())
+    pendingUpload().respond(
+      403,
+      JSON.stringify({
+        error: { code: 'request.csrfMismatch', details: { csrfToken: 'jar' } },
+      }),
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(FakeXhr.instances).toHaveLength(2)
+    expect(pendingUpload().headers['x-csrf-token']).toBe('jar')
     pendingUpload().respond(201, '{"ok":true}')
 
     await expect(pending).resolves.toEqual({ ok: true })
