@@ -151,6 +151,7 @@ const WEB_FEATURES = [
  * Files that still import another feature, and the reason each is not fixed yet. It is empty:
  * every feature is held, and a new file never joins this list, so the rule is a ratchet.
  */
+/** @type {readonly string[]} */
 const FEATURE_BOUNDARY_LEGACY = []
 
 /**
