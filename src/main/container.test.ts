@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import request from '../interface/http/testing/request'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { asEventId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { migrations } from '../infrastructure/db/migrations'
@@ -42,14 +42,20 @@ import { captureDescriptorOutputWhile } from '../infrastructure/logging/testing/
  */
 
 /**
- * Returns once the wall clock has moved on by two whole milliseconds. The credentials epoch has the
- * resolution of a millisecond, and a person does not sign in and change a password inside one; a
- * fixed 5 ms `setTimeout` only promised that as long as the timer never fires early, which Node can
- * do by about a millisecond on Windows. Reading the clock is what the epoch itself reads.
+ * Moves the clock on by five whole milliseconds. The credentials epoch has the resolution of a
+ * millisecond, and a person does not sign in and change a password inside one. Real time cannot
+ * promise that (a fixed `setTimeout` can fire early, and a loop on the clock is only as fast as the
+ * machine), so the describes that need the ordering freeze `Date` with `freezeTheClock` and step it
+ * here. Only `Date` is faked: the timers, the sockets and the database run on real time.
  */
 const aMomentLater = async (): Promise<void> => {
-  const since = Date.now()
-  while (Date.now() - since < 2) await new Promise((resolve) => setImmediate(resolve))
+  vi.advanceTimersByTime(5)
+  await Promise.resolve()
+}
+
+/** Call it from a `beforeEach`; the `afterEach` of the describe hands the real clock back. */
+const freezeTheClock = (): void => {
+  vi.useFakeTimers({ toFake: ['Date'] })
 }
 
 /** Under the namespace, and reserved by its spelling: no route will ever claim it. */
@@ -1119,6 +1125,10 @@ describe('createContainer: the operator reaches /api/about and the guest notice'
  * the token it was sent.
  */
 describe('createContainer: a forgotten password', () => {
+  beforeEach(freezeTheClock)
+  afterEach(() => {
+    vi.useRealTimers()
+  })
   const OWNER = 'hote@example.org'
   const OLD_PASSWORD = 'un-mot-de-passe-solide'
   const NEW_PASSWORD = 'une-phrase-de-passe-neuve'
@@ -1307,6 +1317,10 @@ describe('createContainer: a forgotten password', () => {
  * the route regenerates it. This is the one test that boots all of it.
  */
 describe('createContainer: sign out everywhere', () => {
+  beforeEach(freezeTheClock)
+  afterEach(() => {
+    vi.useRealTimers()
+  })
   const OWNER = 'hote@example.org'
   const PASSWORD = 'un-mot-de-passe-solide'
   const NEW_PASSWORD = 'une-phrase-de-passe-neuve'
