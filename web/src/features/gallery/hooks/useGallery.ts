@@ -66,6 +66,43 @@ const classify = (cause: unknown): Answer => {
   return { phase: 'failed', failure: cause }
 }
 
+/**
+ * Calls `read` every `everyMs`, one at a time: a tick that finds the previous read still
+ * running asks nothing. The stop function aborts the read in flight and silences its answer.
+ */
+const startRefreshLoop = ({
+  everyMs,
+  read,
+  onFresh,
+  onFailure,
+}: {
+  readonly everyMs: number
+  readonly read: (signal: AbortSignal) => Promise<Loaded>
+  readonly onFresh: (fresh: Loaded) => void
+  readonly onFailure: (cause: unknown) => void
+}): (() => void) => {
+  const stop = new AbortController()
+  let reading = false
+  const timer = setInterval(() => {
+    if (reading) return
+    reading = true
+    read(stop.signal).then(
+      (fresh) => {
+        reading = false
+        if (!stop.signal.aborted) onFresh(fresh)
+      },
+      (cause: unknown) => {
+        reading = false
+        if (!stop.signal.aborted) onFailure(cause)
+      },
+    )
+  }, everyMs)
+  return () => {
+    clearInterval(timer)
+    stop.abort()
+  }
+}
+
 export const useGallery = (
   token: string,
   { refreshEveryMs = GALLERY_REFRESH_MS }: { readonly refreshEveryMs?: number } = {},
@@ -123,7 +160,7 @@ export const useGallery = (
       },
     )
     return () => controller.abort()
-  }, [read, attempt])
+  }, [read, epoch])
 
   const current = answer !== null && answer.epoch === epoch ? answer.value : null
   const loaded = current?.phase === 'ready' ? current.loaded : null
@@ -148,33 +185,21 @@ export const useGallery = (
   // fresh first read resets. See the file comment.
   useEffect(() => {
     if (!ready) return
-    const controller = new AbortController()
-    let reading = false
-    const timer = setInterval(() => {
-      // A slow read is not doubled by the next tick.
-      if (reading) return
-      reading = true
-      read(shownRef.current, controller.signal).then(
-        (fresh) => {
-          reading = false
-          if (alive.current && !controller.signal.aborted) setAnswer({ epoch, value: { phase: 'ready', loaded: fresh } })
-        },
-        (cause: unknown) => {
-          reading = false
-          if (controller.signal.aborted) return
-          // A link that died while the page was open says so; a network blip does not
-          // take the album off the screen — the next tick tries again.
-          const classified = classify(cause)
-          if (alive.current && classified.phase !== 'failed') {
-            setAnswer({ epoch, value: classified })
-          }
-        },
-      )
-    }, refreshEveryMs)
-    return () => {
-      clearInterval(timer)
-      controller.abort()
-    }
+    return startRefreshLoop({
+      everyMs: refreshEveryMs,
+      read: (signal) => read(shownRef.current, signal),
+      onFresh: (fresh) => {
+        if (alive.current) setAnswer({ epoch, value: { phase: 'ready', loaded: fresh } })
+      },
+      onFailure: (cause) => {
+        // A link that died while the page was open says so; a network blip does not
+        // take the album off the screen — the next tick tries again.
+        const classified = classify(cause)
+        if (alive.current && classified.phase !== 'failed') {
+          setAnswer({ epoch, value: classified })
+        }
+      },
+    })
   }, [ready, read, epoch, refreshEveryMs])
 
   const loadMore = useCallback(async () => {

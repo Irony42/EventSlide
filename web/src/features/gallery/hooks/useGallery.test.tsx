@@ -225,9 +225,7 @@ describe('useGallery', () => {
   it('drops the old album when the link changes, instead of showing it under the new one', async () => {
     const OTHER = 'R'.repeat(43)
     const pending = new Promise<ReturnType<typeof aGallery>>(() => {})
-    const gallery = vi.fn<Api['gallery']>(async (token) =>
-      token === TOKEN ? aGallery() : pending,
-    )
+    const gallery = vi.fn<Api['gallery']>(async (token) => (token === TOKEN ? aGallery() : pending))
     const api = fakeApi({ gallery })
     const { result, rerender } = renderHook(({ token }) => useGallery(token), {
       initialProps: { token: TOKEN },

@@ -102,7 +102,7 @@ export const useJoin = (): JoinState => {
   )
 
   const join = useCallback(
-    (input: JoinInput) => {
+    function run(input: JoinInput) {
       // A double-tapped "Rejoindre" on a slow connection would otherwise create two
       // guests for one person, and the second cookie would orphan the first.
       const running = inFlight.current
@@ -133,7 +133,7 @@ export const useJoin = (): JoinState => {
           const next = queued.current
           queued.current = null
           if (next !== null) {
-            joinAgain.current(next)
+            run(next)
             return
           }
           if (input.advance) {
@@ -159,11 +159,6 @@ export const useJoin = (): JoinState => {
     },
     [api, continueToUpload, text],
   )
-
-  const joinAgain = useRef(join)
-  useEffect(() => {
-    joinAgain.current = join
-  }, [join])
 
   return { ...state, join, continueToUpload, leave }
 }
