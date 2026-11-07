@@ -159,7 +159,14 @@ const FEATURE_BOUNDARY_LEGACY = [
   'web/src/features/join/**',
 ]
 
-/** @param {readonly string[]} forbidden The feature folders this file may not import. */
+/**
+ * Scope: static imports only. A dynamic `import()` (router.tsx lazy-loads every page from `app/`,
+ * legitimately) and `vi.mock` paths are not seen by `no-restricted-imports`.
+ * Known and accepted: `app/` is outside the zones on purpose, and `app/AmbiancePreview.tsx`
+ * still composes pieces of `guest-upload` and `wall`; they move to `design-system/` or `lib/`
+ * in the wall and guest-upload lots.
+ * @param {readonly string[]} forbidden The feature folders this file may not import.
+ */
 const featureImportRule = (forbidden) => ({
   // A relative path of ../ steps, then a feature folder (the dots are literal: String.raw).
   regex: String.raw`^(\.\./)+(features/)?(${forbidden.join('|')})(/|$)`,

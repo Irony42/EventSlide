@@ -10,6 +10,9 @@ import { useLocale, useTranslations } from '../lib/i18n/useTranslations'
  * What a guestbook message row needs beyond its text, shared by the host's guestbook panel
  * (`admin/`) and the moderation console's messages tab (`moderation/`), which used to carry a
  * copy each: the badge tone and word of a status, the date format, and the copyable id.
+ *
+ * It lives in `app/` because it joins the design system (badge tone, toast) to the DTO; nothing here
+ * is a rule that `lib/` has to guard.
  */
 type Status = GuestbookQueueItemDto['status']
 

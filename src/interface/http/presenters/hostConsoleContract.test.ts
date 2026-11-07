@@ -120,6 +120,20 @@ describe('the event lifecycle the console draws its buttons from', () => {
     }
   })
 
+  it('offers to reopen a closed event, which the domain allows', () => {
+    expect(canTransitionEvent('closed', 'live')).toBe(true)
+    expect(lifecycle.lifecycleActions('closed', echoText).map((action) => action.to)).toContain(
+      'live',
+    )
+  })
+
+  it('offers to end the evening from a live one, which the domain allows', () => {
+    expect(canTransitionEvent('live', 'closed')).toBe(true)
+    expect(lifecycle.lifecycleActions('live', echoText).map((action) => action.to)).toContain(
+      'closed',
+    )
+  })
+
   it('offers a way to the first move of the evening from the draft', () => {
     expect(lifecycle.lifecycleActions('draft', echoText).map((action) => action.to)).toContain(
       'live',
@@ -162,6 +176,26 @@ describe('the moderation decisions the console puts on a tile', () => {
         // From the queue the only way back that cannot reach the projector is `hide`.
         expect(targetStatusFor(restore.decision)).toBe('hidden')
       }
+    },
+  )
+
+  it.each(
+    legalMoves.filter(
+      ([previous, current]) => previous !== 'pending' && canTransitionPhoto(current, previous),
+    ),
+  )(
+    'offers to take back %s -> %s with the decision that lands exactly on the previous status',
+    (previous, current) => {
+      const expected = MODERATION_DECISIONS.find(
+        (decision) => targetStatusFor(decision) === previous,
+      )
+      // Unlike the checks above, this one cannot pass by offering nothing.
+      expect(expected).toBeDefined()
+      if (previous === 'hidden' && current === 'rejected') return
+      expect(restoring.restoringDecision(previous, current)).toEqual({
+        decision: expected,
+        exact: true,
+      })
     },
   )
 
