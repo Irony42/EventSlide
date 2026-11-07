@@ -103,13 +103,21 @@ export default defineConfig({
        * is achievable and the gate genuinely catches an unhandled rule. Adapters sit
        * lower on purpose: some error branches need a real disk failure to reach, and
        * faking that proves nothing.
+       *
+       * The percentages are ratcheted, up only: each is the level measured on 2026-11-07 by
+       * two identical full runs, rounded down to the integer, and none was ever lowered.
+       * Measured then (statements / branches / functions / lines): infrastructure
+       * 97.21 / 91.61 / 98.54 / 98.09, interface 98.59 / 95.44 / 98.04 / 98.79, web
+       * 97.12 / 92.78 / 97.45 / 98.39. Windows skips a few platform-specific tests that
+       * Linux CI runs, so CI measures at least as much on those files. When a number
+       * rises, raise its gate to the new floor in the same change.
        */
       thresholds: {
         'src/domain/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
         'src/application/**': { statements: 100, branches: 100, functions: 100, lines: 100 },
-        'src/infrastructure/**': { statements: 90, branches: 85, functions: 90, lines: 90 },
-        'src/interface/**': { statements: 95, branches: 90, functions: 95, lines: 95 },
-        'web/src/**': { statements: 85, branches: 80, functions: 85, lines: 85 },
+        'src/infrastructure/**': { statements: 97, branches: 91, functions: 98, lines: 98 },
+        'src/interface/**': { statements: 98, branches: 95, functions: 98, lines: 98 },
+        'web/src/**': { statements: 97, branches: 92, functions: 97, lines: 98 },
 
         /**
          * `scripts/` is a ratchet, not a floor, and the negative numbers are what say

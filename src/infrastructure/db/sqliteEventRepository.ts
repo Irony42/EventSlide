@@ -429,12 +429,10 @@ const settingsOf = (raw: string): EventSettings => {
      * now is a change nobody consented to. An event created after this deploy is written
      * *with* the key and keeps `true`.
      *
-     * **There is no settings control for this yet.** It is not in `EventSettingsPage`, it
-     * is not in `web/src/lib/api/dto.ts`, and `dtoContract.test.ts` exempts
-     * `EventSettingsDto: ['allowClips']` outright — the toggle ships with the web
-     * surfaces, on their own branch. Until it does, the only way to enable video on an
-     * event that predates this deploy is `PATCH /api/events/:slug/settings` with
-     * `{"allowClips": true}`.
+     * The settings form carries a control for it (`EventSettingsPage`, and `allowClips` in
+     * `web/src/lib/api/dto/host.ts`), so a host of an event that predates this deploy can
+     * enable video from the page; `PATCH /api/events/:slug/settings` with
+     * `{"allowClips": true}` does the same.
      *
      * And one consequence worth knowing before it is discovered: this is a **one-way
      * door**. The first save of *any* unrelated setting on a pre-deploy event writes the
