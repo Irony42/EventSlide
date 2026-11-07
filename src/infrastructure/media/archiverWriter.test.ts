@@ -260,6 +260,23 @@ describe('archiverWriter, sources and a client that goes away', () => {
     return iterator
   }
 
+  /**
+   * Waits until the writer has nothing left to do without the client reading. Nothing here
+   * touches the disk or a timer (the sources are in-memory generators and the ZIP is stored,
+   * not deflated), so everything the writer can do runs in microtasks and `nextTick`s, all of
+   * which finish before the next `setImmediate`: a turn in which no counter moved is a writer
+   * that is waiting for the consumer, not one that has not got round to it yet.
+   */
+  const untilStalled = async (counts: Counts): Promise<void> => {
+    let before = JSON.stringify(counts)
+    for (;;) {
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      const after = JSON.stringify(counts)
+      if (after === before) return
+      before = after
+    }
+  }
+
   it('keeps one photograph’s source open at a time, however long the album is', async () => {
     // "One file descriptor is open at a time, not one per entry" is what the gallery's
     // lazy `bytesOf` promises. It is only true if the writer asks for an entry's bytes
@@ -282,7 +299,7 @@ describe('archiverWriter, sources and a client that goes away', () => {
     const { counts, entries: photos } = album(30, 24)
 
     const iterator = await intoTheAlbum(archiverWriter.stream(photos), counts)
-    await new Promise<void>((resolve) => setTimeout(resolve, 100))
+    await untilStalled(counts)
     const seen = { ...counts }
     await iterator.return?.(undefined)
 

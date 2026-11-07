@@ -98,6 +98,10 @@ export const testHttpConfig = (overrides: Partial<HttpConfig> = {}): HttpConfig 
     galleryUnlockPerClient: 10,
     galleryUnlockPerLink: 50,
     eventCreationPerHour: 20,
+    invitationsPerHour: 30,
+    venuePhotosPerHour: 10,
+    bookRequestsPerHour: 20,
+    logosPerHour: 10,
   },
   // Off by default: a real `pino-http` instance would write a JSON line to stdout for
   // every request every HTTP test in this repository makes. `accessLog.test.ts` and

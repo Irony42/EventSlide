@@ -141,6 +141,36 @@ describe('the environment of the end-to-end server', () => {
     expect(loadConfig(env).rateLimits.eventCreationPerHour).toBe(1000)
   })
 
+  it('lifts the four per-account hourly limits, which every test signing in as the one owner would share', () => {
+    const env = serverEnvironment({ ...OPTIONS, host: MACHINE })
+    const { rateLimits } = loadConfig(env)
+
+    expect(env['INVITATION_RATE_LIMIT_PER_HOUR']).toBe('1000')
+    expect(env['VENUE_PHOTO_RATE_LIMIT_PER_HOUR']).toBe('1000')
+    expect(env['BOOK_REQUEST_RATE_LIMIT_PER_HOUR']).toBe('1000')
+    expect(env['LOGO_RATE_LIMIT_PER_HOUR']).toBe('1000')
+    expect({
+      invitations: rateLimits.invitationsPerHour,
+      venuePhotos: rateLimits.venuePhotosPerHour,
+      bookRequests: rateLimits.bookRequestsPerHour,
+      logos: rateLimits.logosPerHour,
+    }).toEqual({ invitations: 1000, venuePhotos: 1000, bookRequests: 1000, logos: 1000 })
+  })
+
+  it('names every per-account hourly limit it raises, so a new one has to be decided', () => {
+    const perHour = Object.keys(serverEnvironment({ ...OPTIONS, host: MACHINE })).filter((name) =>
+      /_RATE_LIMIT_PER_HOUR$/.test(name),
+    )
+
+    expect(perHour.sort()).toEqual([
+      'BOOK_REQUEST_RATE_LIMIT_PER_HOUR',
+      'EVENT_CREATION_RATE_LIMIT_PER_HOUR',
+      'INVITATION_RATE_LIMIT_PER_HOUR',
+      'LOGO_RATE_LIMIT_PER_HOUR',
+      'VENUE_PHOTO_RATE_LIMIT_PER_HOUR',
+    ])
+  })
+
   it('lets a spec override anything, last', () => {
     const env = serverEnvironment({
       ...OPTIONS,

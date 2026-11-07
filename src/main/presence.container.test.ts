@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import request from 'supertest'
+import request from '../interface/http/testing/request'
 import { afterEach, describe, expect, it } from 'vitest'
 import { loadConfig } from '../infrastructure/config/env'
 import { asUserId } from '../domain/shared/ids'
