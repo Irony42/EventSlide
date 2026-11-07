@@ -5,6 +5,7 @@ import { aGuestMission, fakeApi } from '../../../testing/renderWithProviders'
 import { CHALLENGE_POLL_MS, useMissions } from './useMissions'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
+import { deferred } from '../../../testing/deferred'
 
 const SLUG = 'camille-et-sacha'
 
@@ -127,15 +128,6 @@ describe('useMissions', () => {
  * when the guest leaves.
  */
 describe('useMissions: its read', () => {
-  /** A promise the test settles by hand, to hold two reads open at once. */
-  const deferred = <T,>() => {
-    let settle: (value: T) => void = () => {}
-    const promise = new Promise<T>((resolve) => {
-      settle = resolve
-    })
-    return { promise, settle: (value: T) => settle(value) }
-  }
-
   type Mine = { readonly items: readonly ReturnType<typeof aGuestMission>[] }
 
   it('does not let a superseded read replace the current checklist', async () => {
@@ -152,11 +144,11 @@ describe('useMissions: its read', () => {
 
     act(() => result.current.refresh())
     await act(async () => {
-      fresh.settle({ items: [aGuestMission({ id: 'm2', done: true })] })
+      fresh.resolve({ items: [aGuestMission({ id: 'm2', done: true })] })
       await fresh.promise
     })
     await act(async () => {
-      stale.settle({ items: [aGuestMission({ id: 'm1' })] })
+      stale.resolve({ items: [aGuestMission({ id: 'm1' })] })
       await stale.promise
     })
 

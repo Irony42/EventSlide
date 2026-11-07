@@ -11,6 +11,7 @@ import {
   renderWithProviders,
 } from '../../../testing/renderWithProviders'
 import { useWallPlaylist } from './useWallPlaylist'
+import { deferred } from '../../../testing/deferred'
 
 /**
  * The playlist, kept current over an evening on a venue's network.
@@ -58,22 +59,6 @@ function Probe({ slug }: ProbeProps) {
       <button onClick={refresh}>réessayer</button>
     </div>
   )
-}
-
-interface Deferred<T> {
-  readonly promise: Promise<T>
-  readonly resolve: (value: T) => void
-  readonly reject: (cause: unknown) => void
-}
-
-const deferred = <T,>(): Deferred<T> => {
-  let resolve: (value: T) => void = () => undefined
-  let reject: (cause: unknown) => void = () => undefined
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve
-    reject = onReject
-  })
-  return { promise, resolve, reject }
 }
 
 const aWall = (name: string, revision: string): WallResponse =>

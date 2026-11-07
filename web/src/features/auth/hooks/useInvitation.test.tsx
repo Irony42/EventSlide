@@ -11,6 +11,7 @@ import { useInvitationPreview } from './useInvitation'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 import type { InvitationPreviewDto } from '../../../lib/api/dto'
+import { deferred } from '../../../testing/deferred'
 
 /**
  * What a link's preview comes to, as state.
@@ -19,15 +20,6 @@ import type { InvitationPreviewDto } from '../../../lib/api/dto'
  * page cannot tell apart from the outside: which link an answer is for, which request wins on
  * a connection that drops and returns, and that asking again is a wait and not the old answer.
  */
-
-/** A promise the test settles by hand, to hold two reads open at once. */
-const deferred = <T,>() => {
-  let settle: (value: T) => void = () => {}
-  const promise = new Promise<T>((resolve) => {
-    settle = resolve
-  })
-  return { promise, settle: (value: T) => settle(value) }
-}
 
 const wrap = (api: Api) =>
   function Wrapper({ children }: { readonly children: ReactNode }) {
@@ -111,7 +103,7 @@ describe('useInvitationPreview', () => {
 
     expect(result.current.preview.view).toEqual({ kind: 'loading' })
     await act(async () => {
-      retry.settle(preview)
+      retry.resolve(preview)
       await retry.promise
     })
     expect(result.current.preview.view).toEqual({ kind: 'ready', preview })
@@ -133,7 +125,7 @@ describe('useInvitationPreview', () => {
 
     expect(result.current.preview.view).toEqual({ kind: 'loading' })
     await act(async () => {
-      second.settle(anInvitationPreview({ targetName: 'Studio Lune' }))
+      second.resolve(anInvitationPreview({ targetName: 'Studio Lune' }))
       await second.promise
     })
     expect(result.current.preview.view).toMatchObject({
@@ -153,11 +145,11 @@ describe('useInvitationPreview', () => {
 
     rerender({ token: 'lien-2' })
     await act(async () => {
-      fresh.settle(anInvitationPreview({ targetName: 'Studio Lune' }))
+      fresh.resolve(anInvitationPreview({ targetName: 'Studio Lune' }))
       await fresh.promise
     })
     await act(async () => {
-      stale.settle(anInvitationPreview({ targetName: 'Camille et Sacha' }))
+      stale.resolve(anInvitationPreview({ targetName: 'Camille et Sacha' }))
       await stale.promise
     })
 

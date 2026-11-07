@@ -8,6 +8,7 @@ import { aSessionUser, fakeApi } from '../testing/renderWithProviders'
 import type { ReactNode } from 'react'
 import type { Api } from '../lib/api/client'
 import type { SessionResponse } from '../lib/api/dto'
+import { deferred } from '../testing/deferred'
 
 /**
  * `GET /api/auth/me`, as the state every reader under `SessionProvider` shares.
@@ -19,17 +20,6 @@ import type { SessionResponse } from '../lib/api/dto'
  */
 
 const signedIn = (): SessionResponse => ({ authenticated: true, user: aSessionUser() })
-
-/** A promise the test settles by hand, to hold two requests open at once. */
-const deferred = <T,>() => {
-  let settle: (value: T) => void = () => {}
-  let fail: (cause: unknown) => void = () => {}
-  const promise = new Promise<T>((resolve, reject) => {
-    settle = resolve
-    fail = reject
-  })
-  return { promise, settle: (value: T) => settle(value), fail: (cause: unknown) => fail(cause) }
-}
 
 interface Mounted {
   readonly result: { current: ReturnType<typeof useSession> }
@@ -80,11 +70,11 @@ describe('useSession', () => {
 
     act(() => result.current.refresh())
     await act(async () => {
-      fresh.settle(signedIn())
+      fresh.resolve(signedIn())
       await fresh.promise
     })
     await act(async () => {
-      stale.settle({ authenticated: false })
+      stale.resolve({ authenticated: false })
       await stale.promise
     })
 
@@ -100,11 +90,11 @@ describe('useSession', () => {
 
     act(() => result.current.refresh())
     await act(async () => {
-      fresh.settle(signedIn())
+      fresh.resolve(signedIn())
       await fresh.promise
     })
     await act(async () => {
-      stale.fail(new Error('network'))
+      stale.reject(new Error('network'))
       await stale.promise.catch(() => undefined)
     })
 
@@ -123,7 +113,7 @@ describe('useSession', () => {
     const { result } = mount(api)
 
     await act(async () => {
-      aborted.fail(new DOMException('The user aborted a request.', 'AbortError'))
+      aborted.reject(new DOMException('The user aborted a request.', 'AbortError'))
       await aborted.promise.catch(() => undefined)
     })
 

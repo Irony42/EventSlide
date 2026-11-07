@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useLoader } from './useLoader'
 import { fr } from './i18n/fr'
 import { ApiError } from './http'
+import { deferred } from '../testing/deferred'
 
 /**
  * The one read on mount, behind the admin screens, the invitation page and the guest's checklist.
@@ -12,17 +13,6 @@ import { ApiError } from './http'
  * on a venue connection that then delivers both — because a stale answer landing last
  * is invisible in the markup and looks exactly like a server that lost the change.
  */
-
-/** A promise the test settles by hand, to hold two reads open at once. */
-const deferred = <T,>() => {
-  let settle: (value: T) => void = () => {}
-  let fail: (cause: unknown) => void = () => {}
-  const promise = new Promise<T>((resolve, reject) => {
-    settle = resolve
-    fail = reject
-  })
-  return { promise, settle: (value: T) => settle(value), fail: (cause: unknown) => fail(cause) }
-}
 
 /**
  * A stable `load`, as every caller builds with `useCallback` over `useApi()`.
@@ -59,11 +49,11 @@ describe('useLoader', () => {
 
     act(() => result.current.reload())
     await act(async () => {
-      fresh.settle('à jour')
+      fresh.resolve('à jour')
       await fresh.promise
     })
     await act(async () => {
-      stale.settle('périmé')
+      stale.resolve('périmé')
       await stale.promise
     })
 
@@ -79,11 +69,11 @@ describe('useLoader', () => {
 
     act(() => result.current.reload())
     await act(async () => {
-      fresh.settle('à jour')
+      fresh.resolve('à jour')
       await fresh.promise
     })
     await act(async () => {
-      stale.fail(ApiError.network())
+      stale.reject(ApiError.network())
       await stale.promise.catch(() => undefined)
     })
 
@@ -102,7 +92,7 @@ describe('useLoader', () => {
     const { result } = renderHook(() => useLoader(load))
 
     await act(async () => {
-      aborted.fail(new DOMException('The user aborted a request.', 'AbortError'))
+      aborted.reject(new DOMException('The user aborted a request.', 'AbortError'))
       await aborted.promise.catch(() => undefined)
     })
 
@@ -205,7 +195,7 @@ describe('useLoader: how a failure ends', () => {
     expect(result.current.loading).toBe(true)
     expect(result.current.error).toBe(fr.errors.network)
     await act(async () => {
-      retry.settle('là')
+      retry.resolve('là')
       await retry.promise
     })
   })
