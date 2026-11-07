@@ -50,6 +50,45 @@ describe('useJoin', () => {
     })
   })
 
+  it('replays a name submitted while the automatic join is still in flight', async () => {
+    // Never a silent anonymous join: the press used to be swallowed by the double-tap guard.
+    const first = deferred<JoinResponse>()
+    const api = fakeApi({
+      join: vi
+        .fn<Api['join']>()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementation(async () => aJoinResponse({ displayName: 'Léa' })),
+    })
+    const { result } = mount(api)
+
+    act(() => result.current.join({ code: 'H7K2QM', displayName: null, advance: false }))
+    act(() => result.current.join({ code: 'H7K2QM', displayName: 'Léa', advance: true }))
+    expect(api.join).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      first.resolve(aJoinResponse())
+      await first.promise
+    })
+
+    await waitFor(() => expect(api.join).toHaveBeenCalledTimes(2))
+    expect(api.join).toHaveBeenLastCalledWith('H7K2QM', 'Léa')
+  })
+
+  it('does not replay a repeat of the request already in flight', async () => {
+    const first = deferred<JoinResponse>()
+    const api = fakeApi({ join: vi.fn(() => first.promise) })
+    const { result } = mount(api)
+
+    act(() => result.current.join({ code: 'H7K2QM', displayName: 'Léa', advance: false }))
+    act(() => result.current.join({ code: 'H7K2QM', displayName: 'Léa', advance: false }))
+    await act(async () => {
+      first.resolve(aJoinResponse())
+      await first.promise
+    })
+
+    expect(api.join).toHaveBeenCalledTimes(1)
+  })
+
   it('accepts a second attempt once the first has answered', async () => {
     // The guard is a lock on one request, not on the screen: a guest who adds their
     // name after the code resolved is a second, legitimate call.

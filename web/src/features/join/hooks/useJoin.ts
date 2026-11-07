@@ -71,7 +71,9 @@ export const useJoin = (): JoinState => {
   })
 
   const alive = useRef(true)
-  const inFlight = useRef(false)
+  const inFlight = useRef<JoinInput | null>(null)
+  /** The latest different request made while one was in flight: replayed, never dropped. */
+  const queued = useRef<JoinInput | null>(null)
 
   useEffect(() => {
     alive.current = true
@@ -103,13 +105,23 @@ export const useJoin = (): JoinState => {
     (input: JoinInput) => {
       // A double-tapped "Rejoindre" on a slow connection would otherwise create two
       // guests for one person, and the second cookie would orphan the first.
-      if (inFlight.current) return
-      inFlight.current = true
+      const running = inFlight.current
+      if (running !== null) {
+        // A name typed while the automatic submit of a scanned code is pending must not be
+        // lost; only an exact repeat (the double tap) is the thing the guard is for.
+        const repeat =
+          running.displayName === input.displayName &&
+          running.advance === input.advance &&
+          running.code === input.code
+        queued.current = repeat ? queued.current : input
+        return
+      }
+      inFlight.current = input
       setState((previous) => ({ ...previous, phase: 'joining', error: null, errorCode: null }))
 
       api.join(input.code.trim(), input.displayName).then(
         (response) => {
-          inFlight.current = false
+          inFlight.current = null
           // Written before the liveness check: the upload screen needs this even when
           // this component is already gone, which is the normal case on success.
           rememberGuestSession({
@@ -118,6 +130,12 @@ export const useJoin = (): JoinState => {
             privacyNotice: response.privacyNotice,
           })
           if (!alive.current) return
+          const next = queued.current
+          queued.current = null
+          if (next !== null) {
+            joinAgain.current(next)
+            return
+          }
           if (input.advance) {
             continueToUpload(response.event.slug)
             return
@@ -125,7 +143,8 @@ export const useJoin = (): JoinState => {
           setState({ phase: 'resolved', event: response.event, error: null, errorCode: null })
         },
         (cause: unknown) => {
-          inFlight.current = false
+          inFlight.current = null
+          queued.current = null
           if (!alive.current) return
           // The event is kept: a failure while adding a name must not throw the guest
           // back to typing the code they already got right.
@@ -140,6 +159,11 @@ export const useJoin = (): JoinState => {
     },
     [api, continueToUpload, text],
   )
+
+  const joinAgain = useRef(join)
+  useEffect(() => {
+    joinAgain.current = join
+  }, [join])
 
   return { ...state, join, continueToUpload, leave }
 }
