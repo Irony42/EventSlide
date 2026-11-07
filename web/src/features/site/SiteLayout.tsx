@@ -7,7 +7,7 @@ import { EmptyState } from '../../design-system/components/EmptyState'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { messageForError } from '../../lib/i18n/translations'
 import { hereAsFrom } from '../../lib/landing'
-import { useClientLimits } from './adminShared'
+import { useClientLimits } from '../../app/useClientLimits'
 import { StepUpProvider } from './StepUpProvider'
 import styles from './SiteLayout.module.css'
 

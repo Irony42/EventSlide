@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { messageForError } from '../../../lib/i18n/translations'
-import { useLoader } from '../adminShared'
+import { useTranslations } from './i18n/useTranslations'
+import { messageForError } from './i18n/translations'
+import { useLoader } from './useLoader'
 
 /** One page of a listing: the rows, and the cursor of the next page or `null` at the end. */
 export interface Page<Item, Cursor> {

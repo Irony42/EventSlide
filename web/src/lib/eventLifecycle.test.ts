@@ -12,8 +12,8 @@ import {
   statusLabel,
   transitionNotice,
 } from './eventLifecycle'
-import { fr } from '../../lib/i18n/fr'
-import type { EventStatus } from '../../lib/api/dto'
+import { fr } from './i18n/fr'
+import type { EventStatus } from './api/dto'
 
 /**
  * The pins for the transcription in `eventLifecycle.ts`.

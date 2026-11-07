@@ -36,7 +36,7 @@ import {
   isMutable,
   lifecycleActions,
   offersSupport,
-} from './eventLifecycle'
+} from '../../lib/eventLifecycle'
 import { scheduleMoment, upcomingMoves } from './eventSchedule'
 import { bringIntoView } from './bringIntoView'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'

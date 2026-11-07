@@ -1,4 +1,4 @@
-import type { About, CeilingMeterDto, ClientLimitsDto } from '../../lib/api/dto'
+import type { About, CeilingMeterDto, ClientLimitsDto } from './api/dto'
 
 /**
  * What the banner over a client's ceilings is made of (roadmap §10.5; G2-16 / P3-17).

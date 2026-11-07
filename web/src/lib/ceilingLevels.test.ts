@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bannerLevel, contactActionOf, noticeableMeters } from './ceilingLevels'
-import { anAbout, aClientLimits } from '../../testing/renderWithProviders'
-import type { CeilingMeterDto } from '../../lib/api/dto'
+import { anAbout, aClientLimits } from '../testing/renderWithProviders'
+import type { CeilingMeterDto } from './api/dto'
 
 const meter = (level: CeilingMeterDto['level']): CeilingMeterDto => ({
   kind: 'events',
