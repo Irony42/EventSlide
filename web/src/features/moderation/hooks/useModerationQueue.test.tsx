@@ -1150,4 +1150,165 @@ describe('useModerationQueue', () => {
       expect(result.current.items).toHaveLength(1)
     })
   })
+
+  describe('busy counts the decisions in flight', () => {
+    const photos = () => [aModerationPhoto({ id: 'photo-1' }), aModerationPhoto({ id: 'photo-2' })]
+
+    it('stays busy until the last of two decisions has answered (WEB-HOST-06)', async () => {
+      const { endpoints, hold } = heldModerationServer(photos())
+      const api = fakeApi(endpoints)
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(2))
+      const first = hold('moderate')
+      const second = hold('moderate')
+      let firstDone: Promise<void> = Promise.resolve()
+      let secondDone: Promise<void> = Promise.resolve()
+      act(() => {
+        firstDone = result.current.decide('photo-1', 'publish')
+        secondDone = result.current.decide('photo-2', 'publish')
+      })
+      expect(result.current.busy).toBe(true)
+
+      await act(async () => {
+        first.settle()
+        await firstDone
+      })
+      expect(result.current.busy).toBe(true)
+
+      await act(async () => {
+        second.settle()
+        await secondDone
+      })
+      expect(result.current.busy).toBe(false)
+    })
+
+    it('stays busy while an undo is in flight after the decision it undoes answered (WEB-HOST-06)', async () => {
+      const { endpoints, hold } = heldModerationServer(photos())
+      const api = fakeApi(endpoints)
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(2))
+      await act(async () => {
+        await result.current.decide('photo-1', 'publish')
+      })
+      const undoAnswer = hold('moderate')
+      const secondAnswer = hold('moderate')
+      let undone: Promise<void> = Promise.resolve()
+      let decided: Promise<void> = Promise.resolve()
+      act(() => {
+        undone = result.current.undo()
+        decided = result.current.decide('photo-2', 'publish')
+      })
+
+      await act(async () => {
+        secondAnswer.settle()
+        await decided
+      })
+      expect(result.current.busy).toBe(true)
+
+      await act(async () => {
+        undoAnswer.settle()
+        await undone
+      })
+      expect(result.current.busy).toBe(false)
+    })
+  })
+
+  describe('the highlight toggle (WEB-HOST-14)', () => {
+    const published = () => [
+      aModerationPhoto({ id: 'photo-1', status: 'published', highlighted: false }),
+    ]
+
+    it('is not undone by a read that started before the toggle and answers after it', async () => {
+      const stale = deferred<ModerationQueueResponse>()
+      let reads = 0
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => {
+          reads += 1
+          if (reads === 2) return stale.promise
+          return queueOf(published())
+        }),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+      emitSignal('photo.uploaded')
+      await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
+
+      await act(async () => {
+        await result.current.toggleHighlight('photo-1')
+      })
+      expect(result.current.items[0]?.highlighted).toBe(true)
+      await act(async () => {
+        stale.resolve(queueOf(published()))
+        await stale.promise
+      })
+
+      expect(result.current.items[0]?.highlighted).toBe(true)
+    })
+
+    it('ignores a second press while the first is still on the wire', async () => {
+      const answer = deferred<undefined>()
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf(published())),
+        highlightPhoto: vi.fn(() => answer.promise),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+      let first: Promise<void> = Promise.resolve()
+      act(() => {
+        first = result.current.toggleHighlight('photo-1')
+      })
+
+      await act(async () => {
+        await result.current.toggleHighlight('photo-1')
+      })
+
+      expect(api.highlightPhoto).toHaveBeenCalledTimes(1)
+      expect(api.unhighlightPhoto).not.toHaveBeenCalled()
+      expect(result.current.items[0]?.highlighted).toBe(true)
+
+      await act(async () => {
+        answer.resolve(undefined)
+        await first
+      })
+    })
+
+    it('puts the old value back when the request fails', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf(published())),
+        highlightPhoto: vi.fn(async () => {
+          throw ApiError.network()
+        }),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+      await act(async () => {
+        await result.current.toggleHighlight('photo-1')
+      })
+
+      expect(result.current.items[0]?.highlighted).toBe(false)
+    })
+
+    it('lets the host press again after a failed request', async () => {
+      const api = fakeApi({
+        moderationQueue: vi.fn(async () => queueOf(published())),
+        highlightPhoto: vi
+          .fn<Api['highlightPhoto']>()
+          .mockRejectedValueOnce(ApiError.network())
+          .mockResolvedValue(undefined),
+      })
+      const { result } = mount(api)
+      await waitFor(() => expect(result.current.items).toHaveLength(1))
+      await act(async () => {
+        await result.current.toggleHighlight('photo-1')
+      })
+
+      await act(async () => {
+        await result.current.toggleHighlight('photo-1')
+      })
+
+      expect(api.highlightPhoto).toHaveBeenCalledTimes(2)
+      expect(result.current.items[0]?.highlighted).toBe(true)
+    })
+  })
 })
