@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { webApiFiles } from '../testing/webApiSources'
 
 /**
  * The two halves of the wire contract, compared field by field.
@@ -57,7 +58,6 @@ import { describe, expect, it } from 'vitest'
  */
 
 const SERVER = join(process.cwd(), 'src/interface/http/presenters/dto.ts')
-const CLIENT = join(process.cwd(), 'web/src/lib/api/dto.ts')
 
 type Shape = ReadonlyMap<string, string>
 
@@ -80,7 +80,9 @@ const declarations = (path: string): ReadonlyMap<string, Shape> => {
 }
 
 const server = declarations(SERVER)
-const client = declarations(CLIENT)
+const client: ReadonlyMap<string, Shape> = new Map(
+  webApiFiles.dto().flatMap((path) => [...declarations(path)]),
+)
 
 /**
  * Genuine renames across the boundary, which no naming convention can bridge.
