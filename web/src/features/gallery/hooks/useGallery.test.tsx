@@ -197,6 +197,29 @@ describe('useGallery', () => {
     }
   })
 
+  it('asks again on the next tick after a refresh the network dropped', async () => {
+    vi.useFakeTimers()
+    try {
+      const gallery = vi
+        .fn<Api['gallery']>()
+        .mockResolvedValueOnce(aGallery())
+        .mockRejectedValueOnce(ApiError.network())
+        .mockResolvedValue(aGallery())
+      const { result } = mount(fakeApi({ gallery }), 1000)
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(result.current.phase).toBe('ready')
+
+      await act(async () => vi.advanceTimersByTimeAsync(1000))
+      expect(gallery).toHaveBeenCalledTimes(2)
+      await act(async () => vi.advanceTimersByTimeAsync(1000))
+
+      expect(gallery).toHaveBeenCalledTimes(3)
+      expect(result.current.phase).toBe('ready')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('aborts the refresh in flight when the hook goes away', async () => {
     vi.useFakeTimers()
     try {

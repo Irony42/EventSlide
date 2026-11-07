@@ -18,9 +18,10 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  vi.useRealTimers()
-  // The leaving flag is module state: a restored page is the way it is cleared.
+  // The leaving flag is module state: a restored page is the way it is cleared. Done before the
+  // real timers return, so its pending expiry is cleared on the fake clock that created it.
   window.dispatchEvent(new Event('pageshow'))
+  vi.useRealTimers()
 })
 
 describe('isChunkLoadError', () => {
