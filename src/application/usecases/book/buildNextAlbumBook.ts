@@ -140,7 +140,7 @@ export const makeBuildNextAlbumBook = ({
     eventId: EventId,
   ): Promise<{ readonly event: Event; readonly purgeDate: Date | null } | null> => {
     const event = await events.findById(eventId)
-    if (event === null || event.isTakenDown() || event.isClientSuspended()) return null
+    if (event === null || !event.isReachable()) return null
     const context = await clientContextOf(clients, event)
     if (context !== null && !context.ceilings.booksAllowed) return null
     const client = event.clientId === null ? null : await clients.findById(event.clientId)

@@ -326,6 +326,16 @@ export class Event {
   }
 
   /**
+   * Whether this event reaches its guests at all: the operator took neither the event down nor
+   * its client's account away. Written here once; every "dead end, as if it were not there" check
+   * (guest sign-in, invitation preview, gallery links, guestbook, books, reels) asks it, so a
+   * third operator lever is added in one place.
+   */
+  isReachable(): boolean {
+    return !this.isTakenDown() && !this.isClientSuspended()
+  }
+
+  /**
    * Whether the operator holds this event's purge, to preserve evidence. Asked by the retention
    * sweep's query (in SQL, so a held event is never even listed) and by every use case that
    * would destroy something of the event's: the host's purge and the deletion of a photograph.
@@ -641,7 +651,7 @@ export class Event {
    * (`requireGuest`), so this is the second line, for a caller that reaches a use case another way.
    */
   acceptsUploads(): boolean {
-    return !this.isTakenDown() && !this.isClientSuspended() && acceptsUploads(this.props.status)
+    return this.isReachable() && acceptsUploads(this.props.status)
   }
 
   /**
@@ -651,7 +661,7 @@ export class Event {
    * dead end as a code nobody ever issued, and says nothing that confirms the event exists.
    */
   acceptsGuests(): boolean {
-    return !this.isTakenDown() && !this.isClientSuspended() && acceptsGuests(this.props.status)
+    return this.isReachable() && acceptsGuests(this.props.status)
   }
 
   /** The lifecycle serves the wall **and the operator has not taken the event down**. */
