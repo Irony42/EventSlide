@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { configure, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ApiError } from '../lib/http'
 import { AppRoutes } from './router'
@@ -21,14 +21,6 @@ import type { Locale } from '../lib/i18n/locale'
  * Surface: the host and the moderator. Pierre could not find how to create a second event
  * from an event's page: nothing on it led back to `/admin`, where "Nouvel évènement" is.
  */
-
-/**
- * Every route here is a lazy chunk: the first test of a cold worker pays to transform and import
- * the page, which on a loaded runner took longer than findBy's 1000 ms default (the flake of
- * #330, and ~1029 ms locally). Room for an await that resolves as soon as it can costs nothing,
- * and no assertion below is loosened by it.
- */
-configure({ asyncUtilTimeout: 10_000 })
 
 const SLUG = 'camille-et-sacha'
 const NAME = 'Camille & Sacha'

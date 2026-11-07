@@ -8,6 +8,7 @@ import { destinationAfterJoin, useJoin } from './useJoin'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 import type { JoinResponse } from '../../../lib/api/dto'
+import { deferred } from '../../../testing/deferred'
 
 /**
  * Resolving a join code, as state.
@@ -16,15 +17,6 @@ import type { JoinResponse } from '../../../lib/api/dto'
  * guest is doing something a phone makes easy and a desktop does not — pressing twice,
  * and walking away from a page mid-request on venue Wi-Fi.
  */
-
-/** A promise the test settles by hand, to hold the join open across another action. */
-const deferred = <T,>() => {
-  let settle: (value: T) => void = () => {}
-  const promise = new Promise<T>((resolve) => {
-    settle = resolve
-  })
-  return { promise, settle: (value: T) => settle(value) }
-}
 
 const mount = (api: Api) => {
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
@@ -53,7 +45,7 @@ describe('useJoin', () => {
 
     expect(api.join).toHaveBeenCalledTimes(1)
     await act(async () => {
-      pending.settle(aJoinResponse())
+      pending.resolve(aJoinResponse())
       await pending.promise
     })
   })
@@ -83,7 +75,7 @@ describe('useJoin', () => {
 
     unmount()
     await act(async () => {
-      pending.settle(aJoinResponse({ displayName: 'Léa' }))
+      pending.resolve(aJoinResponse({ displayName: 'Léa' }))
       await pending.promise
     })
 

@@ -22,6 +22,7 @@ import type {
   SessionResponse,
   SessionUserDto,
 } from '../../lib/api/dto'
+import { flushPromises } from '../../testing/flushPromises'
 
 const DASHBOARD = 'Tableau de bord'
 const MODERATION = 'Console de modération'
@@ -670,7 +671,7 @@ describe('LoginPage: the landing of a session that is still good (H13), on the d
     await waitFor(() => expect(api.session).toHaveBeenCalled())
     // Let the page settle: an absence checked before it could have appeared proves nothing.
     expect(await screen.findByRole('status')).toHaveTextContent(fr.auth.alreadySignedIn)
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await flushPromises()
 
     expect(api.listEvents).not.toHaveBeenCalled()
   })

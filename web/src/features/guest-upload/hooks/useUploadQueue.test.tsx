@@ -9,6 +9,7 @@ import type { SettledOutcome, UploadOutbox } from './useUploadQueue'
 import type { ReactNode } from 'react'
 import type { Api, UploadInput } from '../../../lib/api/client'
 import type { UploadResponse } from '../../../lib/api/dto'
+import { deferred } from '../../../testing/deferred'
 
 /**
  * The queue is where a guest's photos are won or lost, so it is tested directly
@@ -32,15 +33,6 @@ const duplicated = (photoId: string): UploadResponse => ({
 const refused = (code: string): UploadResponse => ({
   results: [{ index: 0, status: 'rejected', code }],
 })
-
-/** A promise the test releases by hand, to hold an upload open mid-flight. */
-const deferred = () => {
-  let release = (): void => {}
-  const promise = new Promise<void>((resolve) => {
-    release = () => resolve()
-  })
-  return { promise, release: () => release() }
-}
 
 interface MountOptions {
   readonly resize?: (file: File) => Promise<File>
@@ -147,7 +139,7 @@ describe('useUploadQueue', () => {
     expect(result.current.items[0]?.state).toBe('uploading')
 
     await act(async () => {
-      gate.release()
+      gate.resolve()
     })
     await waitFor(() => expect(result.current.items[0]?.state).toBe('done'))
   })
@@ -468,7 +460,7 @@ describe('useUploadQueue', () => {
       'deux.jpg',
       'trois.jpg',
     ])
-    act(() => gate.release())
+    act(() => gate.resolve())
     await waitFor(() => expect(result.current.sending).toBe(false))
   })
 
@@ -488,7 +480,7 @@ describe('useUploadQueue', () => {
     await waitFor(() => expect(sent).toEqual(['un.jpg']))
 
     act(() => result.current.remove(result.current.items[1]?.id ?? ''))
-    act(() => gate.release())
+    act(() => gate.resolve())
 
     await waitFor(() => expect(result.current.sending).toBe(false))
     expect(sent).toEqual(['un.jpg'])
@@ -514,7 +506,7 @@ describe('useUploadQueue', () => {
     await waitFor(() => expect(result.current.items[0]?.state).toBe('preparing'))
 
     act(() => result.current.remove(result.current.items[0]?.id ?? ''))
-    act(() => shrinking.release())
+    act(() => shrinking.resolve())
 
     await waitFor(() => expect(result.current.sending).toBe(false))
     expect(sent).toEqual([])
@@ -597,7 +589,7 @@ describe('useUploadQueue', () => {
 
     act(() => result.current.send(null, null))
     act(() => result.current.send(null, null))
-    act(() => gate.release())
+    act(() => gate.resolve())
 
     await waitFor(() => expect(result.current.sending).toBe(false))
     expect(api.uploadPhotos).toHaveBeenCalledTimes(2)
@@ -910,7 +902,7 @@ describe('useUploadQueue: the batch summary', () => {
     // One has arrived and one is on its way: nothing folds yet.
     expect(result.current.batch.settledOk).toBe(false)
 
-    hold.release()
+    hold.resolve()
     await waitFor(() => expect(result.current.batch.settledOk).toBe(true))
     expect(result.current.batch.arrived).toBe(2)
   })
