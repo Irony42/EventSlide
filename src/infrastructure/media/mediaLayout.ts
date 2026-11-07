@@ -1,4 +1,4 @@
-import type { MediaVariant } from '../../application/ports/mediaStore'
+import type { MediaVariant } from '../../domain/photos/mediaVariant'
 
 /**
  * Where the media store lays an object down, and what it calls it: the one place.

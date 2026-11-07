@@ -284,7 +284,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // **Emptied, not merely created.** Both hold work in progress and nothing else: what
   // survives a restart is what a `SIGKILL`, an OOM kill or a power cut left — up to
   // `MAX_CLIP_BYTES` per interrupted upload, on the disk the byte quota exists to
-  // protect, charged to no event and invisible to `MediaStore.usedBytes`. Nothing else
+  // protect, charged to no event and invisible to `MediaStore.list`. Nothing else
   // would ever collect them: the retention sweep deletes an event's media by content
   // hash, and neither of these files has one.
   //

@@ -4,7 +4,8 @@ import { isVisibleOnWall } from '../../../domain/photos/photoStatus'
 import { DomainError } from '../../../domain/shared/errors'
 import type { EventId, GuestId, PhotoId, UserId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import type { ByteRange, MediaStore, ServedVariant } from '../../ports/mediaStore'
+import type { ByteRange, MediaStore } from '../../ports/mediaStore'
+import type { ServedVariant } from '../../../domain/photos/mediaVariant'
 import type { PhotoRepository } from '../../ports/photoRepository'
 
 /**

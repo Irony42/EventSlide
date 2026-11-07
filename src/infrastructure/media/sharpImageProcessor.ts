@@ -178,14 +178,6 @@ export const createSharpImageProcessor = ({
         // magic-byte result is what decided whether we accept the file at all.
         format: FORMAT_BY_SHARP[metadata.format ?? ''] ?? detected,
         dimensions: dimensions.value,
-        hasAlpha: metadata.hasAlpha === true,
-        exifOrientation: metadata.orientation ?? null,
-        hasMetadata:
-          metadata.exif !== undefined ||
-          metadata.icc !== undefined ||
-          metadata.xmp !== undefined ||
-          metadata.iptc !== undefined,
-        frames,
       })
     },
 

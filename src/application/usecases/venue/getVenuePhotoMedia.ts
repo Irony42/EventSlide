@@ -2,7 +2,8 @@ import type { Event } from '../../../domain/events/event'
 import type { ContentHash } from '../../../domain/photos/contentHash'
 import { DomainError } from '../../../domain/shared/errors'
 import { err, ok, type Result } from '../../../domain/shared/result'
-import { VENUE_GROUND, type ByteRange, type MediaStore } from '../../ports/mediaStore'
+import { type ByteRange, type MediaStore } from '../../ports/mediaStore'
+import { VENUE_GROUND } from '../../../domain/photos/mediaVariant'
 import type { MediaViewer } from '../photos/getPhotoMedia'
 
 /**

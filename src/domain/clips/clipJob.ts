@@ -1,6 +1,6 @@
 import type { Caption } from '../photos/caption'
 import type { ContentHash } from '../photos/contentHash'
-import type { PhotoActor, PhotoAuthor } from '../photos/photo'
+import type { PhotoAuthor } from '../photos/photo'
 import { DomainError } from '../shared/errors'
 import type { ClipJobId, EventId, PhotoId } from '../shared/ids'
 import { err, ok, type Result } from '../shared/result'
@@ -170,20 +170,6 @@ export class ClipJob {
 
   get failureCode(): string | null {
     return this.props.failureCode
-  }
-
-  /**
-   * Whether this is the caller's own clip.
-   *
-   * The same rule `Photo.isAuthoredBy` applies, and it has to be here too: between the
-   * upload and the transcode there is no photo to ask, and "where is my clip" is the one
-   * question a guest has during that window. A host may look at any of them.
-   */
-  isAuthoredBy(actor: PhotoActor): boolean {
-    if (actor.kind === 'guest') {
-      return this.props.author.kind === 'guest' && this.props.author.guestId === actor.guestId
-    }
-    return this.props.author.kind === 'host' && this.props.author.userId === actor.userId
   }
 
   /** Claimable now: queued, and past its backoff. */

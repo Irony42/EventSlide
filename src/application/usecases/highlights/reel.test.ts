@@ -28,6 +28,7 @@ import { makeInvalidateReel, type InvalidateReel } from './invalidateReel'
 import { makeRecoverReels } from './recoverReels'
 import { makeRequestReel, type ReelRequestPolicy } from './requestReel'
 import { makeTranscodeNextReel, type TranscodeNextReel } from './transcodeNextReel'
+import { bytesHeld } from '../../testing/bytesHeld'
 
 const EVENT = asEventId('event-1')
 const OTHER = asEventId('event-2')
@@ -522,7 +523,7 @@ describe('the highlight reel use cases (spec 08)', () => {
         code: 'reel.eventUnavailable',
         willRetry: false,
       })
-      expect(await media.usedBytes(EVENT)).toBe(await bytesOfDisplays())
+      expect(await bytesHeld(media, EVENT)).toBe(await bytesOfDisplays())
     })
 
     it('fails with event.notFound when the event vanished while it rendered', async () => {
@@ -554,7 +555,7 @@ describe('the highlight reel use cases (spec 08)', () => {
 
       expect(result.ok && result.value.kind).toBe('stale')
       expect((await reels.findByEvent(EVENT))?.status).toBe('stale')
-      expect(await media.usedBytes(EVENT)).toBe(await bytesOfDisplays())
+      expect(await bytesHeld(media, EVENT)).toBe(await bytesOfDisplays())
     })
 
     it('does not bring a montage back to life when the invalidation reached the row first', async () => {
@@ -581,7 +582,7 @@ describe('the highlight reel use cases (spec 08)', () => {
       const result = await makeTranscode({ reels: purged })()
 
       expect(result.ok && result.value.kind).toBe('stale')
-      expect(await media.usedBytes(EVENT)).toBe(await bytesOfDisplays())
+      expect(await bytesHeld(media, EVENT)).toBe(await bytesOfDisplays())
     })
 
     it('deletes the file and gives up when the event cannot hold it any more', async () => {
@@ -594,7 +595,7 @@ describe('the highlight reel use cases (spec 08)', () => {
         code: 'event.quotaExceeded',
         willRetry: false,
       })
-      expect(await media.usedBytes(EVENT)).toBe(await bytesOfDisplays())
+      expect(await bytesHeld(media, EVENT)).toBe(await bytesOfDisplays())
     })
 
     it('says client.storageFull when the client cannot hold it', async () => {

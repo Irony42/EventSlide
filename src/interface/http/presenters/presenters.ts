@@ -12,7 +12,7 @@ import type { JoinTarget } from '../../../application/usecases/events/resolveJoi
 import type { Photo } from '../../../domain/photos/photo'
 import type { EventCounts } from '../../../application/ports/eventRepository'
 import type { HostEventSummary } from '../../../application/usecases/events/listEventsForHost'
-import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
+import type { MediaVariant, ServedVariant } from '../../../domain/photos/mediaVariant'
 import type { MediaKind } from '../../../domain/photos/mediaKind'
 import type { AuditPage } from '../../../application/ports/auditLog'
 import type { ClientLimits } from '../../../application/usecases/clients/getClientLimits'

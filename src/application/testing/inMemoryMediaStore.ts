@@ -1,11 +1,6 @@
-import { ALL_MEDIA_VARIANTS } from '../ports/mediaStore'
-import type {
-  ByteRange,
-  MediaMetadata,
-  MediaStore,
-  MediaVariant,
-  StoredObject,
-} from '../ports/mediaStore'
+import { ALL_MEDIA_VARIANTS } from '../../domain/photos/mediaVariant'
+import type { ByteRange, MediaMetadata, MediaStore, StoredObject } from '../ports/mediaStore'
+import type { MediaVariant } from '../../domain/photos/mediaVariant'
 import type { Clock } from '../ports/clock'
 import type { ContentHash } from '../../domain/photos/contentHash'
 import type { EventId } from '../../domain/shared/ids'
@@ -223,14 +218,6 @@ export class InMemoryMediaStore implements MediaStore {
         this.held.delete(key)
       }
     }
-  }
-
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
   }
 
   async listEvents(): Promise<readonly EventId[]> {

@@ -222,13 +222,12 @@ export const clipRoutes = ({
   router.get(
     '/events/:eventSlug/clips/:clipJobId',
     requireGuest(deps),
-    withGuest(async ({ event, guest }, req, res) => {
+    withGuest(async ({ event }, req, res) => {
       const params = clipJobParams.parse(req.params)
 
       const result = await usecases.getClipJob({
         eventId: event.id,
         clipJobId: asClipJobId(params.clipJobId),
-        actor: { kind: 'guest', guestId: guest.id },
       })
 
       sendResult(res, result, (response, view) => {
