@@ -14,7 +14,7 @@ import {
   type CuratedAccent,
 } from '../../../design-system/eventTheme'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { SelectField } from './SelectField'
+import { SelectField } from '../../../design-system/components/SelectField'
 import styles from './ThemeFieldset.module.css'
 import type { EventThemeDto } from '../../../lib/api/dto'
 

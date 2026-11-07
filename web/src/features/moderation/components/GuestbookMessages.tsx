@@ -1,25 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { LoadFailure } from '../../../design-system/components/Async'
-import { Badge, type BadgeTone } from '../../../design-system/components/Badge'
+import { Badge } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { EmptyState } from '../../../design-system/components/EmptyState'
 import { Spinner } from '../../../design-system/components/Spinner'
-import { useToast } from '../../../design-system/components/useToast'
+import { GUESTBOOK_STATUS_TONE, useGuestbookRowFormat } from '../../../app/guestbookRow'
 import { messageForError } from '../../../lib/i18n/translations'
-import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
+import { useTranslations } from '../../../lib/i18n/useTranslations'
 import { decisionWording, inDisplayOrder } from './decisionWording'
 import styles from './GuestbookMessages.module.css'
 import type { GuestbookFilter, GuestbookModeration } from '../hooks/useGuestbookModeration'
 import type { QueueSelection } from '../hooks/useQueueSelection'
-import type { GuestbookQueueItemDto, ModerationDecision } from '../../../lib/api/dto'
-import { copyToClipboard } from '../../../lib/clipboard'
-
-const TONES: Record<GuestbookQueueItemDto['status'], BadgeTone> = {
-  pending: 'warning',
-  published: 'success',
-  rejected: 'danger',
-  hidden: 'neutral',
-}
+import type { ModerationDecision } from '../../../lib/api/dto'
 
 export interface GuestbookMessagesProps {
   readonly guestbook: GuestbookModeration
@@ -41,8 +33,7 @@ export function GuestbookMessages({
   onDecide,
 }: GuestbookMessagesProps) {
   const t = useTranslations()
-  const { locale } = useLocale()
-  const toast = useToast()
+  const { statusLabel, formatDate, copyId, anonymous } = useGuestbookRowFormat()
   const emptyRef = useRef<HTMLDivElement>(null)
   const hadItems = useRef(false)
   const { items, filter } = guestbook
@@ -66,23 +57,6 @@ export function GuestbookMessages({
     { value: 'hidden', label: t.moderation.filterHidden },
   ]
 
-  const statusLabel = (status: GuestbookQueueItemDto['status']): string =>
-    ({
-      pending: t.guestbookHost.statusPending,
-      published: t.guestbookHost.statusPublished,
-      rejected: t.guestbookHost.statusRejected,
-      hidden: t.guestbookHost.statusHidden,
-    })[status]
-
-  const copyId = (id: string) => {
-    void copyToClipboard(id).then((copied) =>
-      copied
-        ? toast.show(t.guestbookHost.idCopied, { tone: 'success' })
-        : toast.show(t.guestbookHost.copyFailed, { tone: 'danger' }),
-    )
-  }
-
-  const formatter = new Intl.DateTimeFormat(locale, { timeStyle: 'short', dateStyle: 'short' })
   const unfiltered = filter === 'pending' || filter === 'all'
 
   let body
@@ -115,7 +89,7 @@ export function GuestbookMessages({
     body = (
       <ul className={styles['list']} aria-label={t.moderation.messagesListLabel}>
         {items.map((item) => {
-          const author = item.authorName ?? t.guestbookHost.anonymous
+          const author = item.authorName ?? anonymous
           const active = selection.focusedId === item.id
           return (
             <li
@@ -134,8 +108,8 @@ export function GuestbookMessages({
               </p>
               <p className={styles['meta']}>
                 <span translate={item.authorName === null ? undefined : 'no'}>{author}</span>
-                <time dateTime={item.createdAt}>{formatter.format(new Date(item.createdAt))}</time>
-                <Badge tone={TONES[item.status]}>{statusLabel(item.status)}</Badge>
+                <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>
+                <Badge tone={GUESTBOOK_STATUS_TONE[item.status]}>{statusLabel(item.status)}</Badge>
                 <button
                   type="button"
                   className={styles['id']}

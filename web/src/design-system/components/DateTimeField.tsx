@@ -1,4 +1,4 @@
-import { Field } from '../../../design-system/components/Field'
+import { Field } from './Field'
 import styles from './DateTimeField.module.css'
 
 export interface DateTimeFieldProps {

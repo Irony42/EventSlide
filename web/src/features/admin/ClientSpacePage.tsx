@@ -15,7 +15,7 @@ import { Async, LoadFailure, Pending } from '../../design-system/components/Asyn
 import { SuspensionScreen } from './components/SuspensionScreen'
 import { useAction } from './hooks/useAction'
 import { useAbout } from '../../app/useAbout'
-import { contactActionOf } from './ceilingLevels'
+import { contactActionOf } from '../../lib/ceilingLevels'
 import { useLoader } from '../../lib/useLoader'
 import styles from './ClientSpacePage.module.css'
 import type {
@@ -179,12 +179,9 @@ function PendingInvitations({ client }: { readonly client: ClientLimitsDto }) {
 
   const approve = (invitation: PendingInvitationDto) => {
     void approval.run(invitation.id, invitation.id).then((result) => {
-      if (!result.ok) {
-        toast.show(result.message, { tone: 'danger' })
-        reload()
-        return
-      }
-      toast.show(t.clientSpace.approved, { tone: 'success' })
+      // Read again either way: a refused approval usually means the list was already out of date.
+      if (result.ok) toast.show(t.clientSpace.approved, { tone: 'success' })
+      else toast.show(result.message, { tone: 'danger' })
       reload()
     })
   }

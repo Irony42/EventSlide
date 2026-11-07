@@ -8,9 +8,9 @@ import type { Api } from '../../../lib/api/client'
 import type { ClientDefaultsDto, OperatorInvitationDto } from '../../../lib/api/dto'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../../lib/i18n/useTranslations'
-import { SelectField } from '../adminShared'
-import { LoadFailure, Pending } from '../adminShared'
-import { useLoader } from '../adminShared'
+import { SelectField } from '../../../design-system/components/SelectField'
+import { LoadFailure, Pending } from '../../../design-system/components/Async'
+import { useLoader } from '../../../lib/useLoader'
 import {
   ceilingsPatch,
   fieldsFromCeilings,

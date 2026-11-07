@@ -4,7 +4,9 @@ import { useToast } from '../../../design-system/components/useToast'
 import { asError, isAbortError } from '../../../lib/http'
 import { messageForError } from '../../../lib/i18n/translations'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { NOTHING_TO_UNDO_MS } from '../lib/optimisticOverlay'
 import { restoringDecision, TARGET_STATUS } from '../lib/restoringDecision'
+import { useOptimisticDecisions } from './useOptimisticDecisions'
 import type { StreamSignal } from '../../../lib/realtime/useEventStream'
 import type { GuestbookQueueItemDto, ModerationDecision, PhotoStatus } from '../../../lib/api/dto'
 
@@ -28,8 +30,6 @@ const ACTIVE_LIMIT = 500
 
 /** The badge alone needs the count, which the server computes from the whole book. */
 const BADGE_LIMIT = 1
-
-const NOTHING_TO_UNDO_MS = 2_500
 
 export interface GuestbookModerationOptions {
   /** The tab is showing: it reads the list. Otherwise only the badge is kept fresh. */
@@ -67,12 +67,6 @@ export interface GuestbookModeration {
   onSignal: (signal: StreamSignal) => void
 }
 
-interface InFlight {
-  readonly status: PhotoStatus
-  /** `null` while the request is out; then the number of reads started by the time it answered. */
-  settledAfterRead: number | null
-}
-
 interface UndoEntry {
   readonly id: string
   readonly restoreWith: ModerationDecision
@@ -103,10 +97,17 @@ export const useGuestbookModeration = (
   const [loading, setLoading] = useState(live)
   const [error, setError] = useState<Error | null>(null)
   const [canUndo, setCanUndo] = useState(false)
-  const [inFlightCount, setInFlightCount] = useState(0)
+  const {
+    busy,
+    startRead,
+    send: sendDecisions,
+    answer: answerDecisions,
+    fail: failDecisions,
+    overlay,
+    beginBusy,
+    endBusy,
+  } = useOptimisticDecisions()
 
-  const inFlightRef = useRef(new Map<string, InFlight>())
-  const readsStartedRef = useRef(0)
   const loadedRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const undoRef = useRef<UndoEntry | null>(null)
@@ -122,7 +123,7 @@ export const useGuestbookModeration = (
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
-      const index = ++readsStartedRef.current
+      const index = startRead()
       const watching = !active && watchPublishedSince !== null
       const query = active
         ? { status: filter, limit: ACTIVE_LIMIT }
@@ -134,17 +135,8 @@ export const useGuestbookModeration = (
         .then((answer) => {
           if (controller.signal.aborted) return
           // A read that started before a decision answers about the message as it was.
-          let pending = answer.pendingCount
-          const rows = answer.items.map((row) => {
-            const held = inFlightRef.current.get(row.id)
-            if (held === undefined) return row
-            if (held.settledAfterRead !== null && index > held.settledAfterRead) {
-              inFlightRef.current.delete(row.id)
-              return row
-            }
-            if (row.status === 'pending' && held.status !== 'pending') pending -= 1
-            return { ...row, status: held.status, allowedDecisions: [] }
-          })
+          const { rows, pendingDelta } = overlay(answer.items, index)
+          const pending = answer.pendingCount + pendingDelta
           loadedRef.current = true
           setPendingCount(Math.max(0, pending))
           if (active) setItems(rows.filter((row) => matches(filter, row.status)))
@@ -164,7 +156,7 @@ export const useGuestbookModeration = (
           if (loud || !loadedRef.current) setError(asError(cause))
         })
     },
-    [api, slug, live, active, filter, watchPublishedSince],
+    [api, slug, live, active, filter, watchPublishedSince, startRead, overlay],
   )
 
   // The first read, and the one after a change of tab or of status: those may show a failure.
@@ -203,8 +195,7 @@ export const useGuestbookModeration = (
       if (slug === undefined) return null
       const target = TARGET_STATUS[decision]
       const before = itemsRef.current.find((row) => row.id === entryId)
-      const held: InFlight = { status: target, settledAfterRead: null }
-      inFlightRef.current.set(entryId, held)
+      const sent = sendDecisions(new Map([[entryId, target]]))
       // Visible at once; the server's answer and the next read correct it.
       setItems((rows) =>
         rows
@@ -214,22 +205,33 @@ export const useGuestbookModeration = (
           .filter((row) => matches(filter, row.status)),
       )
       if (before?.status === 'pending') setPendingCount((n) => Math.max(0, n - 1))
-      setInFlightCount((n) => n + 1)
+      beginBusy()
       try {
         await api.decideGuestbookEntry(slug, entryId, decision)
-        held.settledAfterRead = readsStartedRef.current
+        answerDecisions(sent)
         readRef.current(false)
         return before?.status ?? null
       } catch (cause) {
-        if (inFlightRef.current.get(entryId) === held) inFlightRef.current.delete(entryId)
+        failDecisions(sent)
         toast.show(messageForError(cause, text), { tone: 'danger' })
         readRef.current(false)
         return null
       } finally {
-        setInFlightCount((n) => n - 1)
+        endBusy()
       }
     },
-    [api, slug, filter, toast, text],
+    [
+      api,
+      slug,
+      filter,
+      toast,
+      text,
+      sendDecisions,
+      answerDecisions,
+      failDecisions,
+      beginBusy,
+      endBusy,
+    ],
   )
 
   const decide = useCallback(
@@ -277,7 +279,7 @@ export const useGuestbookModeration = (
       error,
       filter,
       canUndo,
-      busy: inFlightCount > 0,
+      busy,
       setFilter,
       refresh,
       decide,
@@ -293,7 +295,7 @@ export const useGuestbookModeration = (
       error,
       filter,
       canUndo,
-      inFlightCount,
+      busy,
       setFilter,
       refresh,
       decide,

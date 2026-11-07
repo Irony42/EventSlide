@@ -1,6 +1,6 @@
 import type { EventSettingsDto, WallLayout } from '../../lib/api/dto'
 import type { UiText } from '../../lib/i18n/translations'
-import type { SelectOption } from './components/SelectField'
+import type { SelectOption } from '../../design-system/components/SelectField'
 
 /**
  * The wall group of an event's settings, as the settings page and the wall's own panel (spec 13)

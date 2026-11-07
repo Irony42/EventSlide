@@ -44,27 +44,27 @@
 }
 
 .guestPage {
-  composes: page from '../../guest-upload/GuestUploadPage.module.css';
+  composes: page from '../features/guest-upload/GuestUploadPage.module.css';
 }
 
 .guestHeader {
-  composes: header from '../../guest-upload/GuestUploadPage.module.css';
+  composes: header from '../features/guest-upload/GuestUploadPage.module.css';
 }
 
 .guestTitle {
-  composes: title from '../../guest-upload/GuestUploadPage.module.css';
+  composes: title from '../features/guest-upload/GuestUploadPage.module.css';
 }
 
 .guestIntro {
-  composes: intro from '../../guest-upload/GuestUploadPage.module.css';
+  composes: intro from '../features/guest-upload/GuestUploadPage.module.css';
 }
 
 .guestSignature {
-  composes: signature from '../../guest-upload/GuestUploadPage.module.css';
+  composes: signature from '../features/guest-upload/GuestUploadPage.module.css';
 }
 
 .composer {
-  composes: composer from '../../guest-upload/GuestUploadPage.module.css';
+  composes: composer from '../features/guest-upload/GuestUploadPage.module.css';
 }
 
 /* The wall: a 16:9 window onto a stage drawn at the projector's own size. */

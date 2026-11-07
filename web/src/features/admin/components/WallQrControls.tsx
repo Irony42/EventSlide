@@ -8,7 +8,7 @@ import {
   QR_SCALE_MIN,
   QR_SCALE_STEP,
 } from '../wallDisplayOptions'
-import { CheckboxField } from './CheckboxField'
+import { CheckboxField } from '../../../design-system/components/CheckboxField'
 import styles from './WallQrControls.module.css'
 
 type WallSettings = EventSettingsDto['wall']
