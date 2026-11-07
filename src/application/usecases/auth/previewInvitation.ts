@@ -25,7 +25,7 @@ import { makeIsStandingOwner } from '../clients/approvalGate'
  * was written to may know, and a stranger probing links must learn nothing from the
  * difference.
  */
-export const INVITATION_NOT_FOUND_CODE = 'invitation.notFound'
+const INVITATION_NOT_FOUND_CODE = 'invitation.notFound'
 
 export const invitationNotFound = (): DomainError => DomainError.notFound(INVITATION_NOT_FOUND_CODE)
 
