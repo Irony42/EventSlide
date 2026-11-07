@@ -31,7 +31,7 @@ import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
 import type { GuestRepository } from '../../ports/guestRepository'
 import type { MissionRepository } from '../../ports/missionRepository'
-import type { PhotoRepository } from '../../ports/photoRepository'
+import type { PhotoPage, PhotoRepository } from '../../ports/photoRepository'
 import { readChallenge, type ChallengeReading } from '../challenges/readChallenge'
 
 /**
@@ -305,6 +305,68 @@ const mixedScheduleOf = (
         anchorMs: wall.mixedAnchorMs,
       }
 
+/**
+ * The photos on the wall and the playlist built from them, with the interval it runs at — or
+ * the first reason the request cannot be answered. The read is bounded by {@link MAX_CANDIDATES}
+ * and by nothing a caller typed.
+ *
+ * Last of the refusals, and before any credit is looked up: a refused interval or an impossible
+ * window must not have cost a second query first.
+ */
+const readPlaylist = async (
+  photos: PhotoRepository,
+  event: Event,
+  windowSize: number | null,
+  slideIntervalMs: number | null,
+): Promise<
+  Result<{ page: PhotoPage; playlist: Playlist; interval: SlideInterval }, DomainError>
+> => {
+  const page = await photos.list(event.id, { statuses: WALL_STATUSES, limit: MAX_CANDIDATES })
+  const candidates = page.items.map((photo) => ({ id: photo.id, createdAt: photo.createdAt }))
+
+  const playlist = buildPlaylist(candidates, {
+    windowSize: windowSize ?? DEFAULT_WINDOW_SIZE,
+    freshFirst: FRESH_FIRST,
+  })
+  if (!playlist.ok) return playlist
+
+  const wantedMs = slideIntervalMs ?? event.settings.wall.slideIntervalMs
+  const interval = wantedMs === null ? ok(SlideInterval.default()) : SlideInterval.create(wantedMs)
+  if (!interval.ok) return interval
+
+  return ok({ page, playlist: playlist.value, interval: interval.value })
+}
+
+/**
+ * A moment for the guest and a cue for their table, so only for a sender the room can name — an
+ * anonymous photograph gets no line — and only on a complete read (see
+ * {@link WallPlaylistView.firstFromGuest}).
+ */
+const firstFromGuestOf = (
+  page: PhotoPage,
+  authorNames: ReadonlyMap<PhotoId, string>,
+): ReadonlySet<PhotoId> =>
+  page.nextCursor !== null
+    ? new Set<PhotoId>()
+    : new Set(
+        [
+          ...firstStillsOfGuests(
+            page.items.map((photo) => ({
+              id: photo.id,
+              guestId: photo.author.kind === 'guest' ? photo.author.guestId : null,
+              createdAt: photo.createdAt,
+              kind: photo.facet.kind,
+            })),
+          ),
+        ].filter((id) => authorNames.has(id)),
+      )
+
+const joinCardOf = (wall: EventWallSettings): WallPlaylistView['joinCard'] => ({
+  visible: wall.qrVisible,
+  scale: wall.qrScale,
+  placement: wall.qrPlacement,
+})
+
 export const makeGetWallPlaylist =
   ({
     events,
@@ -327,49 +389,23 @@ export const makeGetWallPlaylist =
       return err(DomainError.notFound('event.notFound'))
     }
 
-    const page = await photos.list(event.id, { statuses: WALL_STATUSES, limit: MAX_CANDIDATES })
-    const candidates = page.items.map((photo) => ({ id: photo.id, createdAt: photo.createdAt }))
-
-    const playlist = buildPlaylist(candidates, {
-      windowSize: windowSize ?? DEFAULT_WINDOW_SIZE,
-      freshFirst: FRESH_FIRST,
-    })
-    if (!playlist.ok) return playlist
-
-    const wantedMs = slideIntervalMs ?? event.settings.wall.slideIntervalMs
-    const interval =
-      wantedMs === null ? ok(SlideInterval.default()) : SlideInterval.create(wantedMs)
-    if (!interval.ok) return interval
+    const read = await readPlaylist(photos, event, windowSize, slideIntervalMs)
+    if (!read.ok) return read
+    const { page, playlist, interval } = read.value
 
     const eventLayout = event.settings.wall.layout
     const chosenLayout = layout ?? eventLayout ?? DEFAULT_LAYOUT
 
     // Last, and only once the request is known to be answerable: a refused interval or
     // an impossible window must not have cost a second query first.
-    const inPlaylist = new Set<PhotoId>(playlist.value.items)
+    const inPlaylist = new Set<PhotoId>(playlist.items)
     const authorNames = await resolveAuthorNames(
       guests,
       event.id,
       page.items.filter((photo) => inPlaylist.has(photo.id)),
     )
 
-    // A moment for the guest and a cue for their table, so only for a sender the room can
-    // name — an anonymous photograph gets no line — and only on a complete read.
-    const firstFromGuest =
-      page.nextCursor !== null
-        ? new Set<PhotoId>()
-        : new Set(
-            [
-              ...firstStillsOfGuests(
-                page.items.map((photo) => ({
-                  id: photo.id,
-                  guestId: photo.author.kind === 'guest' ? photo.author.guestId : null,
-                  createdAt: photo.createdAt,
-                  kind: photo.facet.kind,
-                })),
-              ),
-            ].filter((id) => authorNames.has(id)),
-          )
+    const firstFromGuest = firstFromGuestOf(page, authorNames)
 
     // Beside the credits and for the same reason: only once the request is known to be
     // answerable. The whole list, with its counts, in one read — the wall re-reads this
@@ -391,19 +427,15 @@ export const makeGetWallPlaylist =
 
     return ok({
       event,
-      playlist: playlist.value,
+      playlist,
       photos: page.items,
       authorNames,
       firstFromGuest,
-      slideIntervalMs: interval.value.ms,
-      kenBurnsDurationMs: kenBurnsDurationMs(interval.value),
+      slideIntervalMs: interval.ms,
+      kenBurnsDurationMs: kenBurnsDurationMs(interval),
       layout: chosenLayout,
       layoutChosen: eventLayout !== null,
-      joinCard: {
-        visible: event.settings.wall.qrVisible,
-        scale: event.settings.wall.qrScale,
-        placement: event.settings.wall.qrPlacement,
-      },
+      joinCard: joinCardOf(event.settings.wall),
       layoutSpec: wallLayoutSpec(chosenLayout),
       mixed: mixedScheduleOf(event.settings.wall, eventLayout),
       missions: standings.map((row) => ({ ...row, achieved: isAchieved(row.progress) })),
