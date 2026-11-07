@@ -104,8 +104,9 @@ const OUT_OF_MEMORY = /out of memory|cannot allocate memory/i
  * A full disk, an I/O fault or an allocation failure is the box's fault, not the guest's
  * file, and must not tell the guest to try another photo: those are `unexpected` (a
  * server failure) and carry their own code, `image.renderUnavailable`, which the outbox does not
- * treat as terminal (`image.renderFailed` is, so a full disk must never wear it). Everything else, including anything ambiguous, keeps the old verdict
- * `invalid`: a decode error, the pixel limit and a truncated file are all the file.
+ * treat as terminal (`image.renderFailed` is, so a full disk must never wear it). Everything
+ * else, including anything ambiguous, keeps the old verdict `invalid`: a decode error, the pixel
+ * limit and a truncated file are all the file.
  */
 export const renderFailureOf = (cause: unknown): DomainError => {
   const reason = cause instanceof Error ? cause.message.slice(0, 200) : 'unknown'

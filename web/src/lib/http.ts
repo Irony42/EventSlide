@@ -208,12 +208,20 @@ const parse = async <T>(response: Response): Promise<T> => {
  * the connection and never answers). Without a ceiling the promise never settles, `useLoader`
  * stays `loading` for ever and the guest stares at a spinner.
  *
- * Not applied to a `FormData` body sent through `fetch` (a host's venue photo or logo, up to the
- * upload size limit): a host on a slow venue uplink must be allowed to finish it. `fetch` has no
- * upload-progress event, so there is no stall guard to put in its place; the guest's own uploads,
- * which do have one, go through `upload`.
+ * A `FormData` body sent through `fetch` (a host's venue photo or logo, up to the upload size limit)
+ * gets {@link MULTIPART_REQUEST_TIMEOUT_MS} instead: a host on a slow venue uplink must be allowed
+ * to finish it. `fetch` has no upload-progress event, so no stall guard fits; the guest's own
+ * uploads, which do have one, go through `upload`.
  */
 export const JSON_REQUEST_TIMEOUT_MS = 30_000
+
+/**
+ * The absolute ceiling of a multipart request sent through `fetch`: ten minutes, which is
+ * a 25 MB photo at about 350 kbit/s. Long enough that no live connection is cut, short enough that
+ * a stuck one (a captive portal, a proxy that never answers) ends in a network failure rather than
+ * a spinner for ever.
+ */
+export const MULTIPART_REQUEST_TIMEOUT_MS = 600_000
 
 /**
  * How long an upload may go without a single byte moving before it is given up.
@@ -263,13 +271,13 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
   const onCallerAbort = () => controller.abort()
   if (options.signal?.aborted) controller.abort()
   else options.signal?.addEventListener('abort', onCallerAbort, { once: true })
-  const deadline =
-    options.body instanceof FormData
-      ? undefined
-      : setTimeout(() => {
-          timedOut = true
-          controller.abort()
-        }, JSON_REQUEST_TIMEOUT_MS)
+  const deadline = setTimeout(
+    () => {
+      timedOut = true
+      controller.abort()
+    },
+    options.body instanceof FormData ? MULTIPART_REQUEST_TIMEOUT_MS : JSON_REQUEST_TIMEOUT_MS,
+  )
 
   try {
     let response: Response

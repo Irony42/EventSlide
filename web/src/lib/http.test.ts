@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   JSON_REQUEST_TIMEOUT_MS,
+  MULTIPART_REQUEST_TIMEOUT_MS,
   UPLOAD_RESPONSE_WAIT_MS,
   UPLOAD_STALL_MS,
   asError,
@@ -1085,6 +1086,20 @@ describe('a request that goes quiet', () => {
 
     expect(state.settled).toBe(true)
     expect(state.reason).toBeUndefined()
+  })
+
+  it('still ends a multipart PUT that never answers, at its own, much longer ceiling', async () => {
+    stubFetch(hangUntilAborted)
+    const form = new FormData()
+    form.append('photo', new Blob(['x']), 'v.jpg')
+    const state = outcomeOf(http.put('/api/events/gala/venue-photo', form))
+
+    await vi.advanceTimersByTimeAsync(MULTIPART_REQUEST_TIMEOUT_MS - 1)
+    expect(state.settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(state.settled).toBe(true)
+    expect(asApiError(state.reason).isNetwork).toBe(true)
   })
 
   it('does not abort an answer that arrived in time, nor leave its timer behind', async () => {

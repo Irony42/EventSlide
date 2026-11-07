@@ -79,6 +79,21 @@ export const outboxSenderContract = (name: string, harness: SenderHarness): void
       expect(outcome).toEqual({ kind: 'deferred' })
     })
 
+    // The per-file refusals that are not terminal: a host can raise a quota or a limit, a phone
+    // can free some storage, and a refusal with no code says nothing about the file. The photo
+    // stays queued until the twelve-hour or attempt expiry rather than being thrown away.
+    it.each([
+      ['event.quotaExceeded', { index: 0, status: 'rejected', code: 'event.quotaExceeded' }],
+      ['client.storageFull', { index: 0, status: 'rejected', code: 'client.storageFull' }],
+      [
+        'event.photoLimitReached',
+        { index: 0, status: 'rejected', code: 'event.photoLimitReached' },
+      ],
+      ['no code at all', { index: 0, status: 'rejected' }],
+    ])('keeps a photo refused for a reason that may pass: %s', async (_label, result) => {
+      expect(await harness.ok([result])(anEntry())).toEqual({ kind: 'deferred' })
+    })
+
     it('keeps a photo when nothing reached the server', async () => {
       expect(await harness.offline()(anEntry())).toEqual({ kind: 'deferred' })
     })

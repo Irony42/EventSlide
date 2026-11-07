@@ -23,8 +23,8 @@ import { describe, expect, it } from 'vitest'
  * `.ts` file is not read here: telling one from ordinary text there needs a parser, not a
  * pattern, and quoted strings are deliberately blanked in the CSS too (a font name is no colour).
  * Declarations are read line by line, so a `color-mix(` split over lines is flagged
- * even when its tokens sit on a later one: write it on one line. Heights and widths other than `min-*` (an avatar of `48px`) are
- * not touch targets and are not checked.
+ * even when its tokens sit on a later one: write it on one line. Heights and widths other than
+ * `min-*` (an avatar of `48px`) are not touch targets and are not checked.
  *
  * What stays is named in {@link ALLOWED}, each with its reason, and the list is exact in both
  * directions: an entry that no longer matches anything fails too, so it cannot outlive the line
@@ -96,7 +96,7 @@ const PATTERNS: Readonly<Record<Kind, RegExp>> = {
       // A keyword written as a value: not the tail or head of a longer word, a custom property,
       // a class or an id (`.red`, `--red`, `#red`). `transparent`, `currentColor`, `inherit`,
       // `initial` and `unset` are not in the list: they name no colour of their own.
-      String.raw`(?<![\w.#$@-])(?:white|black|${COLOUR_KEYWORDS.join('|')})(?![\w-])`,
+      String.raw`(?<![\w.#$@-])(?:white|black|${COLOUR_KEYWORDS.join('|')})(?![\w(-])`,
     ].join('|'),
     'gi',
   ),
@@ -188,6 +188,7 @@ describe('no raw colour, duration or touch size outside tokens.css', () => {
     expect(kinds('.red { color: var(--red); }')).toEqual([])
     expect(kinds('a { color: var(--danger-red); }')).toEqual([])
     expect(kinds('a { grid-area: tan-box; }')).toEqual([])
+    expect(kinds('a { width: calc(1px * tan(30deg)); }')).toEqual([])
     expect(kinds(withoutStringsAndUrls('a { font-family: "Tan Pearl", serif; }'))).toEqual([])
     expect(kinds(withoutStringsAndUrls('a { background: url(red.png); }'))).toEqual([])
     expect(kinds('a { animation: spin var(--duration-spin) linear; }')).toEqual([])
