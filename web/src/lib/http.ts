@@ -203,12 +203,25 @@ const parse = async <T>(response: Response): Promise<T> => {
  * How long a plain JSON request may take, end to end (the response body included), before it
  * is given up as a network failure.
  *
- * Absolute on purpose here and nowhere near an upload: these bodies are a few kilobytes, so a
- * request that has not finished in half a minute is not slow, it is stuck (a captive portal, a
- * proxy that accepts the connection and never answers). Without a ceiling the promise never
- * settles, `useLoader` stays `loading` for ever and the guest stares at a spinner.
+ * Absolute on purpose, and only for a JSON body: these are a few kilobytes, so a request that has
+ * not finished in half a minute is not slow, it is stuck (a captive portal, a proxy that accepts
+ * the connection and never answers). Without a ceiling the promise never settles, `useLoader`
+ * stays `loading` for ever and the guest stares at a spinner.
+ *
+ * A `FormData` body sent through `fetch` (a host's venue photo or logo, up to the upload size limit)
+ * gets {@link MULTIPART_REQUEST_TIMEOUT_MS} instead: a host on a slow venue uplink must be allowed
+ * to finish it. `fetch` has no upload-progress event, so no stall guard fits; the guest's own
+ * uploads, which do have one, go through `upload`.
  */
 export const JSON_REQUEST_TIMEOUT_MS = 30_000
+
+/**
+ * The absolute ceiling of a multipart request sent through `fetch`: ten minutes, which is
+ * a 25 MB photo at about 350 kbit/s. Long enough that no live connection is cut, short enough that
+ * a stuck one (a captive portal, a proxy that never answers) ends in a network failure rather than
+ * a spinner for ever.
+ */
+export const MULTIPART_REQUEST_TIMEOUT_MS = 600_000
 
 /**
  * How long an upload may go without a single byte moving before it is given up.
@@ -258,10 +271,13 @@ const send = async <T>(method: string, path: string, options: RequestOptions): P
   const onCallerAbort = () => controller.abort()
   if (options.signal?.aborted) controller.abort()
   else options.signal?.addEventListener('abort', onCallerAbort, { once: true })
-  const deadline = setTimeout(() => {
-    timedOut = true
-    controller.abort()
-  }, JSON_REQUEST_TIMEOUT_MS)
+  const deadline = setTimeout(
+    () => {
+      timedOut = true
+      controller.abort()
+    },
+    options.body instanceof FormData ? MULTIPART_REQUEST_TIMEOUT_MS : JSON_REQUEST_TIMEOUT_MS,
+  )
 
   try {
     let response: Response

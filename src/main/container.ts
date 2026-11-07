@@ -1,4 +1,4 @@
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { access, constants, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -59,6 +59,7 @@ import { createPinoLogger } from '../infrastructure/logging/pinoLogger'
 import { nullMailer } from '../infrastructure/mail/nullMailer'
 import { createSmtpMailer } from '../infrastructure/mail/smtpMailer'
 import { systemClock } from '../infrastructure/time/systemClock'
+import { fsStagedUploadStore } from '../infrastructure/system/fsStagedUploadStore'
 import { statfsDiskSpaceChecker } from '../infrastructure/system/statfsDiskSpaceChecker'
 import { evaluateDiskSpace, type DiskSpaceStatus } from '../domain/shared/diskSpaceGuard'
 import type { Logger } from '../application/ports/logger'
@@ -73,7 +74,6 @@ import { SqliteAlbumBookRepository } from '../infrastructure/db/sqliteAlbumBookR
 import { createFsBookFileStore } from '../infrastructure/media/fsBookFileStore'
 import { createPdfBookRenderer } from '../infrastructure/media/pdfBookRenderer'
 import { bookWorkerUseCases } from './usecases.bookWorker'
-import { clipUploadTempDir } from '../interface/http/routes/clipRoutes'
 import {
   createMediaSweeper,
   isTooDangerousToSweep,
@@ -258,6 +258,8 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
   // ---------------------------------------------------------------- storage --
 
   const mediaRoot = resolve(config.storage.mediaRoot)
+  /** Where a clip stages while it uploads: multer writes here and the staged-upload store reads it back. */
+  const clipUploadTempDir = (root: string): string => join(root, '.uploads')
   await mkdir(mediaRoot, { recursive: true })
 
   /**
@@ -753,6 +755,7 @@ export const createContainer = async (config: AppConfig): Promise<Container> => 
     // Narrowed by `HttpDeps` to the one fact the HTTP layer publishes.
     mailer,
     diskSpaceChecker: statfsDiskSpaceChecker,
+    stagedUploads: fsStagedUploadStore,
     config: httpConfig,
   }
 

@@ -479,6 +479,8 @@ export const es: UiText = {
     'image.corrupt': 'Esta foto parece dañada. Pruebe con otra.',
     'image.animated': 'No se aceptan imágenes animadas.',
     'image.renderFailed': 'Esta foto no se ha podido procesar. Pruebe con otra.',
+    'image.renderUnavailable':
+      'Esta foto no se ha podido procesar ahora: el servidor no está disponible momentáneamente. Inténtelo de nuevo en un momento.',
     'upload.tooLarge': 'Esta foto supera el tamaño máximo.',
     'upload.tooManyFiles': 'Demasiadas fotos a la vez. Envíelas en varias tandas.',
 

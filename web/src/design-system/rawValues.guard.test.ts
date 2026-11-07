@@ -9,11 +9,22 @@ import { describe, expect, it } from 'vitest'
  * handful of `700ms` had slipped in. This reads every stylesheet under `web/src` except
  * `tokens.css` and fails on:
  *
- * - a colour written as a hex literal, a colour function (`rgb(`, `hsl(`, `oklch(`, `color(`...)
- *   or the keywords `white` / `black`;
+ * - a colour written as a hex literal, a colour function (`rgb(`, `hsl(`, `oklch(`, `color(`...),
+ *   a CSS named colour (`white`, `red`, `gray`, `rebeccapurple`... the whole list; `transparent`,
+ *   `currentColor`, `inherit`, `initial` and `unset` name no colour and pass), or a `color-mix(`
+ *   whose line holds no `var(` token. A mix of tokens is derived, so it passes; a raw operand in
+ *   one is caught by the other patterns, on its own line;
  * - a time written as a literal (`700ms`, `1.2s`), other than the zero that switches a motion
  *   off (`0s`, `0ms`);
- * - a literal `44px` as a minimum size: the touch target is `var(--touch-min)`.
+ * - a literal `44px` or `2.75rem` as a minimum size: the touch target is `var(--touch-min)`.
+ *
+ * **What is covered is stylesheets, `*.css`, and nothing else.** A colour, a duration or a size
+ * written in a TSX `style={{ ... }}` prop, in an SVG attribute (`fill="red"`) or in a string in a
+ * `.ts` file is not read here: telling one from ordinary text there needs a parser, not a
+ * pattern, and quoted strings are deliberately blanked in the CSS too (a font name is no colour).
+ * Declarations are read line by line, so a `color-mix(` split over lines is flagged
+ * even when its tokens sit on a later one: write it on one line. Heights and widths other than
+ * `min-*` (an avatar of `48px`) are not touch targets and are not checked.
  *
  * What stays is named in {@link ALLOWED}, each with its reason, and the list is exact in both
  * directions: an entry that no longer matches anything fails too, so it cannot outlive the line
@@ -37,21 +48,61 @@ const named = (path: string): string =>
 const withoutCssComments = (css: string): string =>
   css.replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, ' '))
 
+/** Quoted strings and `url(...)` blanked: a font name or an asset path is no colour. */
+const withoutStringsAndUrls = (css: string): string =>
+  css.replace(/url\([^)\n]*\)|"[^"\n]*"|'[^'\n]*'/g, (text) => ' '.repeat(text.length))
+
 const TOKENS_FILE = 'design-system/tokens.css'
 
 const stylesheets = Object.entries(SOURCES)
-  .map(([path, source]) => [named(path), withoutCssComments(source)] as const)
+  .map(
+    ([path, source]) => [named(path), withoutStringsAndUrls(withoutCssComments(source))] as const,
+  )
   .filter(([path]) => path !== TOKENS_FILE)
 
 type Kind = 'colour' | 'duration' | 'touch'
 
+/** The CSS named colours (`white` and `black` are matched on their own). */
+const COLOUR_KEYWORDS: readonly string[] = (
+  'aliceblue antiquewhite aqua aquamarine azure beige bisque blanchedalmond blue blueviolet brown ' +
+  'burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue ' +
+  'darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen ' +
+  'darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray ' +
+  'darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue ' +
+  'firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green ' +
+  'greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush ' +
+  'lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray ' +
+  'lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray ' +
+  'lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon ' +
+  'mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue ' +
+  'mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin ' +
+  'navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen ' +
+  'paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple ' +
+  'rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna ' +
+  'silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle ' +
+  'tomato turquoise violet wheat whitesmoke yellow yellowgreen'
+).split(' ')
+
 /** The pattern each kind of raw value is found by. */
 const PATTERNS: Readonly<Record<Kind, RegExp>> = {
-  colour:
-    /#[0-9a-fA-F]{3,8}(?![\w-])|\b(?:rgba?|hsla?|hwb|oklch|oklab|lch|lab|color)\(|(?<![\w-])(?:white|black)(?![\w-])/g,
+  colour: new RegExp(
+    [
+      String.raw`#[0-9a-fA-F]{3,8}(?![\w-])`,
+      String.raw`\b(?:rgba?|hsla?|hwb|oklch|oklab|lch|lab|color)\(`,
+      // A mix that names no token at all: `color-mix(` with no `var(` after it on its line. A mix of
+      // tokens is derived from the design system, not raw (any raw operand is caught by the other
+      // alternatives on the same line).
+      String.raw`\bcolor-mix\((?:(?!var\().)*$`,
+      // A keyword written as a value: not the tail or head of a longer word, a custom property,
+      // a class or an id (`.red`, `--red`, `#red`). `transparent`, `currentColor`, `inherit`,
+      // `initial` and `unset` are not in the list: they name no colour of their own.
+      String.raw`(?<![\w.#$@-])(?:white|black|${COLOUR_KEYWORDS.join('|')})(?![\w(-])`,
+    ].join('|'),
+    'gi',
+  ),
   // Zero is no duration: `animation-duration: 0s` is how a motion is switched off.
   duration: /(?<![\w.#-])(?!0+(?:\.0+)?m?s)\d*\.?\d+m?s(?![\w%-])/g,
-  touch: /\bmin-(?:height|width|block-size|inline-size)\s*:\s*44px/g,
+  touch: /\bmin-(?:height|width|block-size|inline-size)\s*:\s*(?:44px|2\.75rem)/g,
 }
 
 interface Hit {
@@ -117,12 +168,29 @@ describe('no raw colour, duration or touch size outside tokens.css', () => {
     expect(kinds('a { color: rgb(0 0 0); }')).toEqual(['colour'])
     expect(kinds('a { color: oklch(50% 0 0); }')).toEqual(['colour'])
     expect(kinds('a { color: white; }')).toEqual(['colour'])
+    expect(kinds('a { color: red; }')).toEqual(['colour'])
+    expect(kinds('a { border: 1px solid Gray; }')).toEqual(['colour'])
+    expect(kinds('a { background: rebeccapurple; }')).toEqual(['colour'])
+    expect(kinds('a { background: linear-gradient(silver, tan); }')).toEqual(['colour'])
+    expect(kinds('a { color: color-mix(in srgb, var(--a) 40%, transparent); }')).toEqual([])
+    expect(kinds('a { color: color-mix(in srgb, #fff 40%, #000); }')).toEqual(['colour'])
+    expect(kinds('a { color: color-mix(in srgb, 40%,')).toEqual(['colour'])
+    expect(kinds('a { color: color-mix(in srgb, red, var(--a)); }')).toEqual(['colour'])
+    expect(kinds('a { min-width: 2.75rem; }')).toEqual(['touch'])
     expect(kinds('a { animation: spin 700ms linear; }')).toEqual(['duration'])
     expect(kinds('a { transition: opacity 0.2s; }')).toEqual(['duration'])
     expect(kinds('a { min-height: 44px; }')).toEqual(['touch'])
 
     expect(kinds('a { background: var(--player-ground); }')).toEqual([])
     expect(kinds('a { color: var(--text-white-ish); }')).toEqual([])
+    expect(kinds('a { color: transparent; border-color: currentColor; }')).toEqual([])
+    expect(kinds('a { color: inherit; outline-color: initial; fill: unset; }')).toEqual([])
+    expect(kinds('.red { color: var(--red); }')).toEqual([])
+    expect(kinds('a { color: var(--danger-red); }')).toEqual([])
+    expect(kinds('a { grid-area: tan-box; }')).toEqual([])
+    expect(kinds('a { width: calc(1px * tan(30deg)); }')).toEqual([])
+    expect(kinds(withoutStringsAndUrls('a { font-family: "Tan Pearl", serif; }'))).toEqual([])
+    expect(kinds(withoutStringsAndUrls('a { background: url(red.png); }'))).toEqual([])
     expect(kinds('a { animation: spin var(--duration-spin) linear; }')).toEqual([])
     expect(kinds('a { animation-duration: 0s; }')).toEqual([])
     expect(kinds('a { transition-duration: 0ms; }')).toEqual([])
