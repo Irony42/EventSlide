@@ -13,6 +13,7 @@ import { messageForError } from '../../lib/i18n/translations'
 import { useTranslations } from '../../lib/i18n/useTranslations'
 import { useEventStream, type StreamSignal } from '../../lib/realtime/useEventStream'
 import { useLoader } from '../../lib/useLoader'
+import { photoLabels } from './photoLabels'
 import { allowsModeration } from '../../lib/eventLifecycle'
 import { ConsoleTabs } from './components/ConsoleTabs'
 import type { ConsoleTab } from './components/consoleTabIds'
@@ -217,14 +218,7 @@ export function MobileModerationPage() {
     // "Vidéo" rather than "photo" where it is one: a host who cannot see the screen has
     // to know that what is in hand has fifteen seconds in it before they decide, and the
     // play button below is announced only after they have heard what it is for.
-    const describe = current.kind === 'clip' ? t.moderation.videoAlt : t.moderation.photoAlt
-    const describeWithCaption =
-      current.kind === 'clip' ? t.moderation.videoAltWithCaption : t.moderation.photoAltWithCaption
-    return t.mobileModeration.nowDeciding(
-      current.caption === null
-        ? describe(authorInName)
-        : describeWithCaption(current.caption, authorInName),
-    )
+    return t.mobileModeration.nowDeciding(photoLabels(current, current.kind === 'clip', t).alt)
   }
 
   /** Same guard as `decide`: one decision in flight, and only the message the gesture began on. */
