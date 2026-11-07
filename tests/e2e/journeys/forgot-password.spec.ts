@@ -133,12 +133,8 @@ test('a box with no mail relay offers no way to ask, and says so if the page is 
     // on webkit once the page has moved on (`Network.getResponseBody: Missing content of resource`).
     const served = await page.request.get(app.url('/api/about'))
     expect(served.ok()).toBe(true)
-    const about = (await served.json()) as {
-      features: { forgotPassword: boolean }
-      operator?: unknown
-      links?: unknown
-    }
-    // The premise, read off the wire: this box says it cannot mail.
+    const about = (await served.json()) as { features: { forgotPassword: boolean } }
+    // The premise, the server's answer on a fresh request: this box says it cannot mail.
     expect(about.features.forgotPassword).toBe(false)
     // The response arrives before React has drawn what it says; two frames let it commit, so
     // that the absence below is an absence of the page and not of the time it takes to draw it.
