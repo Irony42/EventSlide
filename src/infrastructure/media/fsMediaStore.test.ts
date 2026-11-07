@@ -1,3 +1,4 @@
+import { bytesHeld } from '../../application/testing/bytesHeld'
 import {
   mkdir,
   mkdtemp,
@@ -30,7 +31,6 @@ const hashOf = (seed: string): ContentHash => {
 const HASH_A = hashOf('a1')
 const HASH_B = hashOf('b2')
 const WEDDING = asEventId('11111111-1111-4111-8111-111111111111')
-const GALA = asEventId('22222222-2222-4222-8222-222222222222')
 
 /** Where the store lays an object down, according to its documented layout. */
 const objectPath = (root: string, eventId: EventId, variant: string, hash: ContentHash): string =>
@@ -150,7 +150,7 @@ describe('fsMediaStore', () => {
     await expect(store.put(eventId, HASH_A, 'display', new Uint8Array([1]))).rejects.toThrow(
       /unsafe event id|outside its root/,
     )
-    await expect(store.usedBytes(eventId)).rejects.toThrow(/unsafe event id|outside its root/)
+    await expect(store.list(eventId)).rejects.toThrow(/unsafe event id|outside its root/)
   })
 
   it('writes nothing outside its root', async () => {
@@ -184,12 +184,12 @@ describe('fsMediaStore', () => {
 
     const shard = HASH_A.value.slice(0, 2)
     expect(await readdir(join(root, WEDDING, 'display', shard))).toEqual([`${HASH_A.value}.jpg`])
-    expect(await store.usedBytes(WEDDING)).toBe(2)
+    expect(await bytesHeld(store, WEDDING)).toBe(2)
   })
 
   it('removes its temporary file when the rename into place fails', async () => {
     // A directory standing where the object belongs makes the rename fail *after* the
-    // temporary file has been written. A leaked `.tmp` is counted by `usedBytes`, so it
+    // temporary file has been written. A leaked `.tmp` is counted by the disk, so it
     // would eat the event's quota with bytes no photo refers to.
     await mkdir(objectPath(root, WEDDING, 'display', HASH_A), { recursive: true })
 
@@ -224,15 +224,6 @@ describe('fsMediaStore', () => {
     expect(await readdir(root)).toEqual([])
   })
 
-  it('surfaces a filesystem failure instead of reporting zero used bytes', async () => {
-    // Zero is the honest answer for an event that stored nothing, so swallowing an
-    // unexpected failure here would silently disable the byte quota and let one event
-    // fill the disk. A file where the event directory belongs makes the listing fail.
-    await writeFile(join(root, GALA), new Uint8Array([1]))
-
-    await expect(store.usedBytes(GALA)).rejects.toThrow()
-  })
-
   it('surfaces a filesystem failure instead of reporting a stored photo as absent', async () => {
     // `null` means "no such photo" and the HTTP layer turns it into a 404. A photo whose
     // bytes are unreadable is a different answer and must not be reported as missing.
@@ -265,29 +256,6 @@ describe('fsMediaStore', () => {
     await unreadableObject('display')
 
     await expect(call(store)).rejects.toThrow()
-  })
-
-  it('skips a file that vanished between the listing and the stat', async () => {
-    // A delete racing the reconciliation job is expected, and the sum is a
-    // reconciliation figure rather than an accounting record — so a file that is gone by
-    // the time it is measured must not fail the whole count.
-    await store.put(WEDDING, HASH_A, 'display', new Uint8Array(100))
-    const shard = HASH_A.value.slice(0, 2)
-    const inShard = join(root, WEDDING, 'display', shard)
-    await symlink(join(inShard, 'already-deleted.jpg'), join(inShard, 'vanished.jpg'), 'junction')
-
-    expect(await store.usedBytes(WEDDING)).toBe(100)
-  })
-
-  it('does not report a partial total when a listed file cannot be measured', async () => {
-    // The other side of the rule above: a file that is gone is skipped, but a file that
-    // cannot be read is not evidence of anything. Under-reporting here hands the event
-    // quota back to a disk that is already full.
-    const eventDirectory = join(root, GALA)
-    await mkdir(eventDirectory, { recursive: true })
-    await symlink(join(eventDirectory, 'a'), join(eventDirectory, 'a'), 'junction')
-
-    await expect(store.usedBytes(GALA)).rejects.toThrow()
   })
 
   it('surfaces a filesystem failure instead of reporting a delete as done', async () => {

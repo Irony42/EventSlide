@@ -4,6 +4,7 @@ import { asEventId } from '../../domain/shared/ids'
 import { mediaStoreContract } from './contracts/mediaStoreContract'
 import { FakeClock } from './fakeClock'
 import { InMemoryMediaStore } from './inMemoryMediaStore'
+import { bytesHeld } from './bytesHeld'
 
 mediaStoreContract('in-memory', async () => ({ store: new InMemoryMediaStore() }))
 
@@ -119,7 +120,7 @@ describe('InMemoryMediaStore', () => {
     await expect(media.deleteEvent(GALA)).rejects.toThrow('media root is read-only')
 
     expect(await media.listEvents()).toEqual([GALA])
-    expect(await media.usedBytes(GALA)).toBe(1)
-    expect(await media.usedBytes(WEDDING)).toBe(0)
+    expect(await bytesHeld(media, GALA)).toBe(1)
+    expect(await bytesHeld(media, WEDDING)).toBe(0)
   })
 })

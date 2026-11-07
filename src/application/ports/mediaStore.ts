@@ -147,13 +147,6 @@ export interface MediaStore {
   deleteEvent(eventId: EventId): Promise<void>
 
   /**
-   * Bytes on disk for the event. Used to reconcile against the quota the database
-   * tracks — if the two disagree, the database is authoritative and the difference is
-   * a leak worth logging.
-   */
-  usedBytes(eventId: EventId): Promise<number>
-
-  /**
    * Every event this store is holding bytes for.
    *
    * The enumeration side of reconciliation, and deliberately asked of the **store**

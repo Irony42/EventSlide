@@ -98,26 +98,6 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
     return candidate
   }
 
-  const directorySize = async (directory: string): Promise<number> => {
-    let total = 0
-    const entries = await readdirOrEmpty(directory, { withFileTypes: true })
-    for (const entry of entries) {
-      const child = join(directory, entry.name)
-      if (entry.isDirectory()) {
-        total += await directorySize(child)
-      } else {
-        try {
-          total += (await stat(child)).size
-        } catch (error) {
-          // A file removed between the listing and the stat. Skipping it is right:
-          // this is a reconciliation figure, not an accounting record.
-          if (!isMissing(error)) throw error
-        }
-      }
-    }
-    return total
-  }
-
   return {
     put: async (eventId, hash, variant, bytes): Promise<void> => {
       const target = pathFor(eventId, hash, variant)
@@ -221,8 +201,6 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
     deleteEvent: async (eventId): Promise<void> => {
       await rm(eventDir(eventId), { recursive: true, force: true })
     },
-
-    usedBytes: async (eventId): Promise<number> => directorySize(eventDir(eventId)),
 
     listEvents: async (): Promise<readonly EventId[]> => {
       const entries = await readdirOrEmpty(absoluteRoot, { withFileTypes: true })

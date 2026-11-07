@@ -953,7 +953,7 @@ export const photoRepositoryContract = (
     it('counts a clip still waiting to be transcoded, which has no photo row at all', async () => {
       // The quota is "bytes on this event's disk", and a staged source is on the disk
       // from the moment it lands. Counting only `photos` under-reports an event by the
-      // whole contents of its queue — and `MediaStore.usedBytes` would then disagree with
+      // whole contents of its queue — and the bytes the media store lists would then disagree with
       // the database by that amount, which the media store's contract says means a leak.
       await repo.save(aPhoto({ id: 'p1', eventId: WEDDING, byteSize: 1_000 }))
       await stageClipBytes(WEDDING, 5_000)

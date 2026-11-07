@@ -531,7 +531,7 @@ const ingestFiles = async (
     }
 
     // Every variant counts against the quota, because every variant is on the disk the
-    // quota exists to protect — and it is what `MediaStore.usedBytes` reconciles with.
+    // quota exists to protect — and it is what the reconciliation of the listed bytes compares with.
     const byteSize =
       rendered.value.original.byteSize +
       rendered.value.display.byteSize +

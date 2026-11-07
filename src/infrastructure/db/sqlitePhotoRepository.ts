@@ -90,7 +90,7 @@ const INSERT_PHOTO = `
  * quota exists to protect from the moment it is accepted, and it has no `photos` row
  * until the transcode succeeds — so counting `photos` alone would under-report an event
  * by the whole contents of the queue, for the whole time the queue is draining, and
- * `MediaStore.usedBytes` would disagree with the database by exactly that amount. The
+ * the bytes the media store lists would disagree with the database by exactly that amount. The
  * media store's contract says that difference means a leak worth logging, so it must not
  * be produced routinely by a feature working correctly.
  *

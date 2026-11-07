@@ -3,6 +3,7 @@ import { ALL_MEDIA_VARIANTS } from '../../ports/mediaStore'
 import type { MediaStore, MediaVariant } from '../../ports/mediaStore'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import { asEventId } from '../../../domain/shared/ids'
+import { bytesHeld } from '../bytesHeld'
 
 /**
  * The shared `MediaStore` contract, run against the filesystem adapter on a temporary
@@ -120,7 +121,7 @@ export const mediaStoreContract = (
         await store.put(WEDDING, HASH_A, 'display', Uint8Array.of(9, 9))
 
         expect([...((await store.read(WEDDING, HASH_A, 'display')) ?? [])]).toEqual([9, 9])
-        expect(await store.usedBytes(WEDDING)).toBe(2)
+        expect(await bytesHeld(store, WEDDING)).toBe(2)
       })
 
       it('writes a copy of what it is given, so the caller reusing its buffer changes nothing', async () => {
@@ -270,7 +271,7 @@ export const mediaStoreContract = (
         for (const variant of ALL_MEDIA_VARIANTS) {
           expect(await store.exists(WEDDING, HASH_A, variant), variant).toBe(false)
         }
-        expect(await store.usedBytes(WEDDING)).toBe(0)
+        expect(await bytesHeld(store, WEDDING)).toBe(0)
       })
 
       it('leaves another digest of the same event, and the same digest of another event, alone', async () => {
@@ -301,7 +302,7 @@ export const mediaStoreContract = (
         await store.deleteEvent(WEDDING)
 
         expect(await store.exists(WEDDING, HASH_A, 'display')).toBe(false)
-        expect(await store.usedBytes(WEDDING)).toBe(0)
+        expect(await bytesHeld(store, WEDDING)).toBe(0)
         expect(await store.list(WEDDING)).toEqual([])
         expect(await store.exists(GALA, HASH_A, 'display')).toBe(true)
       })
@@ -316,25 +317,25 @@ export const mediaStoreContract = (
       })
     })
 
-    describe('what an event occupies', () => {
+    describe('what an event occupies, read through list', () => {
       it('sums every rendition of every digest for one event only', async () => {
         await store.put(WEDDING, HASH_A, 'display', counting(3))
         await store.put(WEDDING, HASH_A, 'thumb', counting(4))
         await store.put(WEDDING, HASH_B, 'source', counting(5))
         await store.put(GALA, HASH_A, 'display', counting(100))
 
-        expect(await store.usedBytes(WEDDING)).toBe(12)
-        expect(await store.usedBytes(GALA)).toBe(100)
+        expect(await bytesHeld(store, WEDDING)).toBe(12)
+        expect(await bytesHeld(store, GALA)).toBe(100)
       })
 
       it('reports zero for an event with no media, and less after a delete', async () => {
-        expect(await store.usedBytes(WEDDING)).toBe(0)
+        expect(await bytesHeld(store, WEDDING)).toBe(0)
 
         await store.put(WEDDING, HASH_A, 'display', counting(3))
         await store.put(WEDDING, HASH_B, 'display', counting(4))
         await store.delete(WEDDING, HASH_A)
 
-        expect(await store.usedBytes(WEDDING)).toBe(4)
+        expect(await bytesHeld(store, WEDDING)).toBe(4)
       })
     })
 

@@ -11,7 +11,7 @@ import { isMissing, readdirOrEmpty } from '../system/fsErrors'
  * `BookFileStore` on the local disk: `<MEDIA_ROOT>/.books/<eventId>.pdf`.
  *
  * **A dot-folder at the root of the media root, on purpose.** `fsMediaStore.listEvents`,
- * `usedBytes` and the backup (`backupArchive.walkFiles`) already skip such folders (`.uploads`,
+ * `list` and the backup (`backupArchive.walkFiles`) already skip such folders (`.uploads`,
  * `.scratch`), so a book, which is a derived file, is neither counted against an event's
  * quota, nor copied into every hourly backup, nor reported as an unreferenced object. The price
  * is that `deleteEvent` does not reach it: the purge deletes the book explicitly.

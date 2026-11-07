@@ -225,14 +225,6 @@ export class InMemoryMediaStore implements MediaStore {
     }
   }
 
-  async usedBytes(eventId: EventId): Promise<number> {
-    let total = 0
-    for (const [key, bytes] of this.objects) {
-      if (key.startsWith(`${eventId}|`)) total += bytes.length
-    }
-    return total
-  }
-
   async listEvents(): Promise<readonly EventId[]> {
     this.refuseIfForbidden('listEvents')
     return [...this.events]

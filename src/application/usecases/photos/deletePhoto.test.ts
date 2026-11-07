@@ -19,6 +19,7 @@ import { FakePhotoRepository } from '../../testing/fakePhotoRepository'
 import { InMemoryMediaStore } from '../../testing/inMemoryMediaStore'
 import { RecordingEventBus } from '../../testing/recordingEventBus'
 import { makeDeletePhoto, type DeletePhoto } from './deletePhoto'
+import { bytesHeld } from '../../testing/bytesHeld'
 
 /**
  * The shared in-memory store, not a local one.
@@ -209,7 +210,7 @@ describe('deletePhoto', () => {
 
     await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
 
-    expect(await media.usedBytes(EVENT)).toBe(0)
+    expect(await bytesHeld(media, EVENT)).toBe(0)
     expect(await media.exists(EVENT, facet.posterHash, 'poster')).toBe(false)
   })
 
@@ -408,7 +409,7 @@ describe('deletePhoto', () => {
 
     await deletePhoto({ eventId: EVENT, photoId: PHOTO, actor: HOST })
 
-    expect(await media.usedBytes(EVENT)).toBe(0)
+    expect(await bytesHeld(media, EVENT)).toBe(0)
     expect(media.variantsOf(EVENT, hash)).toEqual([])
   })
 })

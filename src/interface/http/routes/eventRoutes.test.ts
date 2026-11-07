@@ -2320,8 +2320,8 @@ describe('the host event routes', () => {
 
       await agent.delete(`/api/events/${SLUG}`)
 
-      expect(await world.media.usedBytes(WEDDING)).toBe(0)
-      expect(await world.media.usedBytes(GALA)).toBe(1)
+      expect(await world.media.exists(WEDDING, aPhoto().contentHash, 'original')).toBe(false)
+      expect(await world.media.exists(GALA, aPhoto().contentHash, 'original')).toBe(true)
     })
 
     it('leaves another event untouched', async () => {
