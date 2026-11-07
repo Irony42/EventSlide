@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
  * `eslint-disable` comment turns them off. This guard reads the route sources themselves, so a
  * dynamic `import()`, a deep relative path or a disable comment cannot slip a route past them.
  */
-const dir = import.meta.dirname
+const dir = __dirname
 const routeSources = readdirSync(dir)
   .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
   .map((name) => ({ name, text: readFileSync(join(dir, name), 'utf8') }))
