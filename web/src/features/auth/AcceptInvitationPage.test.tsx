@@ -18,6 +18,7 @@ import {
 import type { Api } from '../../lib/api/client'
 import type { SessionResponse } from '../../lib/api/dto'
 import type { Locale } from '../../lib/i18n/locale'
+import { flushPromises } from '../../testing/flushPromises'
 
 /** A token-shaped value, so a leak of it is something a test can search for. */
 const TOKEN = 'Z7q-Mx0Ld3Tn9VbRk2YcHs8WfAe5GuJi4PoXz1NvB6E'
@@ -775,7 +776,7 @@ describe('AcceptInvitationPage: while the page is open', () => {
       expect(await screen.findByText(/Évènement frais/)).toBeVisible()
 
       settlers.forEach((settle) => settle())
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await flushPromises()
 
       expect(screen.getByText(/Évènement frais/)).toBeVisible()
       expect(screen.queryByText(/Évènement périmé/)).toBeNull()
