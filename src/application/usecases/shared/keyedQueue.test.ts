@@ -15,6 +15,9 @@ const deferred = (): {
   return { promise, resolve, reject }
 }
 
+// A macrotask turn: every pending promise hop has run, however many the queue chains.
+const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
 describe('createKeyedQueue', () => {
   it('runs tasks of one key one after another', async () => {
     const queue = createKeyedQueue()
@@ -28,7 +31,7 @@ describe('createKeyedQueue', () => {
     const second = queue.run('a', async () => {
       log.push('second:start')
     })
-    await Promise.resolve()
+    await settle()
     expect(log).toEqual(['first:start'])
     gate.resolve()
     await Promise.all([first, second])
@@ -52,7 +55,7 @@ describe('createKeyedQueue', () => {
     expect(queue.size).toBe(1)
     gate.resolve()
     await Promise.all([pending, behind])
-    await Promise.resolve()
+    await settle()
     expect(queue.size).toBe(0)
   })
 
@@ -64,12 +67,11 @@ describe('createKeyedQueue', () => {
     const second = queue.run('a', () => g2.promise)
     g1.resolve()
     await first
-    await Promise.resolve()
-    await Promise.resolve()
+    await settle()
     expect(queue.size).toBe(1)
     g2.resolve()
     await second
-    await Promise.resolve()
+    await settle()
     expect(queue.size).toBe(0)
   })
 
@@ -83,7 +85,7 @@ describe('createKeyedQueue', () => {
     gate.reject(new Error('boom'))
     await expect(failing).rejects.toThrow('boom')
     await expect(behind).resolves.toBe('ran')
-    await Promise.resolve()
+    await settle()
     expect(queue.size).toBe(0)
   })
 })

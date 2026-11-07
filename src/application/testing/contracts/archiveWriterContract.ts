@@ -7,8 +7,9 @@ import type { ArchiveEntry, ArchiveWriter } from '../../ports/archiveWriter'
  * listing, or of the entry itself rejects the stream (never a truncated success).
  *
  * Not here: what happens when the consumer goes away (the real writer closes the listing
- * asynchronously, so `archiverWriter.test.ts` waits for it) and the bytes of the archive. The fake emits markers, and `archiverWriter.test.ts` holds
- * the real ZIP's header, compression and dates.
+ * asynchronously, so `archiverWriter.test.ts` waits for it) and the bytes of the archive (the
+ * fake emits markers, and `archiverWriter.test.ts` holds the real ZIP's header, compression and
+ * dates).
  */
 const MODIFIED_AT = new Date('2026-06-20T21:04:11.000Z')
 const CHUNK = new Uint8Array(64 * 1024)
