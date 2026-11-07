@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken, rotateCsrfToken } from './csrf'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'

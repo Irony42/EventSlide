@@ -1,5 +1,5 @@
 import type { Request } from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { asUserId } from '../../../domain/shared/ids'
 import { anEvent, aGuest, AT } from '../../../application/testing/builders'

@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import request from 'supertest'
+import request from './request'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createPinoLogger } from '../../../infrastructure/logging/pinoLogger'
 import { captureAllOutputWhile } from './captureOutput'

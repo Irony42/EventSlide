@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it, vi } from 'vitest'
 import { SESSION_COOKIE, authRoutes } from './authRoutes'
 import { ABSOLUTE_SESSION_LIFETIME_MS, GUEST_COOKIE } from '../middleware/authz'

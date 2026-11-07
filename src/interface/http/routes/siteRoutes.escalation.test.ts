@@ -293,81 +293,96 @@ describe('the operator and the accounts it brought in, on the events of a client
     expect(await differencesFromAStranger(scene)).toEqual([])
   })
 
-  it('tells them what it tells a stranger after every mutation the operator can make', async () => {
-    const scene = await aBoxToSweep()
-    const { act, clientId, site } = scene
-    const accomplice = (await site.repos.users.findByEmail(emailOf(ACCOMPLICE)))?.id ?? ''
+  /**
+   * One case per mutation, each on a box of its own: the sweep replays every route three times, and
+   * all eleven in one test used 60 % of the 10 s budget on an idle machine and timed out under
+   * coverage. A case also names the mutation that broke the guarantee.
+   */
+  const mutations: readonly {
+    readonly name: string
+    readonly run: (scene: Scene, accomplice: string) => PromiseLike<request.Response>
+  }[] = [
+    {
+      name: 'opens another client',
+      run: ({ act }) =>
+        act('post', '/api/site/clients', { clientName: 'Autre', ownerEmail: SECOND }),
+    },
+    {
+      name: 'renames the client',
+      run: ({ act, clientId }) =>
+        act('patch', `/api/site/clients/${clientId}`, { name: 'Jean et Marie, mariés' }),
+    },
+    {
+      name: 'changes its ceilings',
+      run: ({ act, clientId }) =>
+        act('put', `/api/site/clients/${clientId}/ceilings`, {
+          ceilings: { maxEvents: 5 },
+          reason: 'Forfait mis à jour',
+        }),
+    },
+    {
+      name: 'invites somebody into the client, which now waits for an owner',
+      run: ({ act, clientId }) =>
+        act('post', `/api/site/clients/${clientId}/invitations`, {
+          email: SECOND,
+          role: 'member',
+        }),
+    },
+    {
+      name: 'invites itself into the client as an owner',
+      run: ({ act, clientId }) =>
+        act('post', `/api/site/clients/${clientId}/invitations`, {
+          email: ADDRESS.operator,
+          role: 'owner',
+        }),
+    },
+    {
+      name: 'asks for a reset link for the customer’s password',
+      run: ({ act }) => act('post', `/api/site/accounts/${JEAN}/password-reset`),
+    },
+    {
+      name: 'asks for a reset link for the account it invited',
+      run: ({ act }, accomplice) => act('post', `/api/site/accounts/${accomplice}/password-reset`),
+    },
+    {
+      name: 'switches the customer’s account off',
+      run: ({ act }) => act('post', `/api/site/accounts/${JEAN}/disable`),
+    },
+    {
+      name: 'switches it back on, once it was off',
+      run: async ({ act }) => {
+        await act('post', `/api/site/accounts/${JEAN}/disable`)
+        return act('post', `/api/site/accounts/${JEAN}/enable`)
+      },
+    },
+    {
+      name: 'deletes the account it invited',
+      run: ({ act }, accomplice) => act('delete', `/api/site/accounts/${accomplice}`),
+    },
+    {
+      name: 'ends the client’s engagement',
+      run: ({ act, clientId }) =>
+        act('post', `/api/site/clients/${clientId}/offboard`, { graceDays: 30 }),
+    },
+  ]
 
-    const mutations: readonly { readonly name: string; readonly run: () => request.Test }[] = [
-      {
-        name: 'opens another client',
-        run: () => act('post', '/api/site/clients', { clientName: 'Autre', ownerEmail: SECOND }),
-      },
-      {
-        name: 'renames the client',
-        run: () => act('patch', `/api/site/clients/${clientId}`, { name: 'Jean et Marie, mariés' }),
-      },
-      {
-        name: 'changes its ceilings',
-        run: () =>
-          act('put', `/api/site/clients/${clientId}/ceilings`, {
-            ceilings: { maxEvents: 5 },
-            reason: 'Forfait mis à jour',
-          }),
-      },
-      {
-        name: 'invites somebody into the client, which now waits for an owner',
-        run: () =>
-          act('post', `/api/site/clients/${clientId}/invitations`, {
-            email: SECOND,
-            role: 'member',
-          }),
-      },
-      {
-        name: 'invites itself into the client as an owner',
-        run: () =>
-          act('post', `/api/site/clients/${clientId}/invitations`, {
-            email: ADDRESS.operator,
-            role: 'owner',
-          }),
-      },
-      {
-        name: 'asks for a reset link for the customer’s password',
-        run: () => act('post', `/api/site/accounts/${JEAN}/password-reset`),
-      },
-      {
-        name: 'asks for a reset link for the account it invited',
-        run: () => act('post', `/api/site/accounts/${accomplice}/password-reset`),
-      },
-      {
-        name: 'switches the customer’s account off',
-        run: () => act('post', `/api/site/accounts/${JEAN}/disable`),
-      },
-      {
-        name: 'switches it back on',
-        run: () => act('post', `/api/site/accounts/${JEAN}/enable`),
-      },
-      {
-        name: 'deletes the account it invited',
-        run: () => act('delete', `/api/site/accounts/${accomplice}`),
-      },
-      {
-        name: 'ends the client’s engagement',
-        run: () => act('post', `/api/site/clients/${clientId}/offboard`, { graceDays: 30 }),
-      },
-    ]
+  // One fresh box per mutation: each case is a short test of its own instead of one cumulative sweep
+  // that outgrew its time budget. The trade-off is that interactions between mutations on one box
+  // (offboarding after a deletion, a reset after a disable) are no longer replayed here; each
+  // mutation is still checked against a stranger's view on its own.
+  it.each(mutations)(
+    'tells them what it tells a stranger after the operator $name',
+    async ({ name, run }) => {
+      const scene = await aBoxToSweep()
+      const accomplice = (await scene.site.repos.users.findByEmail(emailOf(ACCOMPLICE)))?.id ?? ''
 
-    const failed: string[] = []
-    for (const mutation of mutations) {
-      const response = await mutation.run()
+      const response = await run(scene, accomplice)
+
       // Whatever the answer, a guard's refusal included, the events must have stayed the client's.
-      if (response.status >= 500) failed.push(`${mutation.name}: ${response.status}`)
-      expect(await differencesFromAStranger(scene), `after the operator ${mutation.name}`).toEqual(
-        [],
-      )
-    }
-    expect(failed).toEqual([])
-  })
+      expect(response.status, `the operator ${name}`).toBeLessThan(500)
+      expect(await differencesFromAStranger(scene), `after the operator ${name}`).toEqual([])
+    },
+  )
 
   it('does not make the operator a member of anything, whoever it invited or asked a link for', async () => {
     const scene = await aBoxToSweep()
