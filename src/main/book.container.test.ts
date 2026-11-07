@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import sharp from 'sharp'
 import request from 'supertest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { DiskSpaceChecker } from '../application/ports/diskSpace'
 import { asEventId, asGuestId, asPhotoId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
 import { CSRF_COOKIE, CSRF_HEADER } from '../interface/http/middleware/csrf'
@@ -15,8 +16,7 @@ const probe = vi.hoisted(() => ({
   diskFree: null as ((path: string) => number | null) | null,
 }))
 vi.mock('../infrastructure/system/statfsDiskSpaceChecker', async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import('../infrastructure/system/statfsDiskSpaceChecker')>()
+  const original = await importOriginal<{ statfsDiskSpaceChecker: DiskSpaceChecker }>()
   return {
     statfsDiskSpaceChecker: {
       freeBytes: async (path: string) =>
