@@ -12,8 +12,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  # A newer push to a pull request supersedes the older one. A push to `main` never does: nine of
+  # the last thirty main runs were cancelled by the next merge, so those commits were never
+  # verified end to end and "main is green" was only true of the last one. A push to `main` gets its own
+  # group (its SHA), because a shared group keeps only one pending run and would still drop the
+  # middle one of three quick merges.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Deterministic secrets so the suites behave identically on every runner. These are
@@ -62,6 +67,14 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # The same file ran above with no `dist/` and skipped its block over the real build. With
+      # the build present, and `REQUIRE_BUILT_ASSETS` making a skip a failure, it asserts that
+      # every hashed asset Vite emitted is promoted to immutable caching.
+      - name: Cache rule against the real build
+        env:
+          REQUIRE_BUILT_ASSETS: '1'
+        run: npx vitest run src/interface/http/clientCache.test.ts --project server
 
       - name: Upload coverage
         if: always()
@@ -191,10 +204,17 @@ jobs:
         run: npm run build
 
       - name: Run journeys
+        # Bounds a hung journey (the #320 failure mode): Playwright's own `globalTimeout` (40 min,
+        # playwright.config.ts) stops the run and writes the report; this step bound is the net
+        # under it, and ends the step as *failed*, not as the job's cancellation. The slowest
+        # healthy job takes 18 minutes.
+        timeout-minutes: 45
         run: npm run test:e2e -- --project=${{ matrix.project }}
 
       - name: Upload report
-        if: failure()
+        # `cancelled()` too: a job cancelled by the job-level bound or by hand still keeps its
+        # trace, which is the one thing a hang leaves worth reading.
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.project }}
