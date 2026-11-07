@@ -463,20 +463,25 @@ Learned the hard way. Do not rediscover them.
     `node-gyp rebuild` for it — even though its `prebuilds/win32-x64.node` is what it loads
     at runtime. With no C++ toolchain that fails, and `npm ci` has already emptied
     `node_modules` by then, so a plain `npm ci` in the main checkout leaves **every**
-    worktree without dependencies. Measured on this machine, bringing a stale `sharp` up to
-    the lockfile:
+    worktree without dependencies.
+
+    `package.json` now answers this with `allowScripts`: `better-sqlite3: false` (its
+    prebuild is what runs), and `true` for the three that need their step — `ffmpeg-static`
+    (downloads `ffmpeg.exe`, without which the video path has nothing to transcode with),
+    `bcrypt` (picks its prebuild), `esbuild` (verifies its binary) — plus `fsevents` on
+    macOS. A plain `npm ci` therefore works on this machine (npm 11.19 here; check yours with `npm install-scripts ls`). An npm that does
+    not know the key ignores it and runs every step as before, which is harmless wherever a
+    toolchain exists (CI, the Docker `deps` stage keeps its own). `scripts/installScripts.test.ts`
+    fails when a locked package with an install step has no `allowScripts` entry, so a new
+    native dependency has to be answered by a person; re-ask npm with
+    `npm install-scripts ls` after a dependency change.
+
+    The old two-step install remains valid on an npm without the feature:
 
     ```bash
     npm ci --ignore-scripts
-    npm rebuild ffmpeg-static esbuild bcrypt   # the three that need their install step
+    npm rebuild ffmpeg-static esbuild bcrypt
     ```
-
-    `ffmpeg-static` is the one that matters: its install step downloads `ffmpeg.exe`, and
-    without it the video path has nothing to transcode with. `bcrypt`'s step only picks its
-    prebuild and `esbuild`'s only verifies its binary. The list came from asking npm which
-    installed packages carry an install step, and goes stale with the lockfile — re-ask
-    after a dependency change rather than trusting it:
-    `npm query ":attr(scripts, [install]), :attr(scripts, [postinstall])"`.
 
 ---
 
