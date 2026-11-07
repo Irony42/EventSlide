@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useApi } from '../../../app/useApi'
 import type { SiteClientDto } from '../../../lib/api/dto'
-import { useLoader } from '../adminShared'
+import { useLoader } from '../../../lib/useLoader'
 
 const PAGE = 200
 

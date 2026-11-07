@@ -1,7 +1,6 @@
 import type { ClientRole } from '../../../domain/clients/clientRole'
 import { clientInvitationStillHonourable } from '../../../domain/clients/operatorGuard'
 import { canInviteModerators } from '../../../domain/events/eventRole'
-import { isMutable } from '../../../domain/events/eventStatus'
 import type { TermsOfUse } from '../../../domain/legal/termsOfUse'
 import { DomainError } from '../../../domain/shared/errors'
 import type { ClientId } from '../../../domain/shared/ids'
@@ -26,7 +25,7 @@ import { makeIsStandingOwner } from '../clients/approvalGate'
  * was written to may know, and a stranger probing links must learn nothing from the
  * difference.
  */
-export const INVITATION_NOT_FOUND_CODE = 'invitation.notFound'
+const INVITATION_NOT_FOUND_CODE = 'invitation.notFound'
 
 export const invitationNotFound = (): DomainError => DomainError.notFound(INVITATION_NOT_FOUND_CODE)
 
@@ -151,10 +150,10 @@ export const makeResolveInvitation = ({
 
     const event = await events.findById(target.eventId)
     // Before the status is judged, so that a frozen event's state is not what the answer tells.
-    if (event === null || event.isClientSuspended() || event.isTakenDown()) {
+    if (event === null || !event.isReachable()) {
       return err(invitationNotFound())
     }
-    if (!isMutable(event.status)) {
+    if (!event.allowsEditing()) {
       return err(DomainError.conflict('event.immutable', { status: event.status }))
     }
 

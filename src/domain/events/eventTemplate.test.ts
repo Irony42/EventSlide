@@ -30,11 +30,9 @@ const settingsOf = (key: EventTemplateKey): EventSettingsProps =>
 
 describe('the template catalogue', () => {
   it.each(EVENT_TEMPLATE_KEYS)('%s produces settings the domain accepts', (key) => {
-    // Reaching this at all is most of the assertion: `eventTemplateSettings` resolves
-    // every preset at module load and throws on one the settings rules refuse, so a
-    // catalogue with an out-of-range retention or an illegible accent fails the import
-    // rather than a host's create request.
-    expect(settingsOf(key)).toBeDefined()
+    // The same rules a host's own settings pass through, applied to the preset as a patch. The
+    // real guard is load-time compilation of every preset; this restates it per key.
+    expect(EventSettings.default().with(eventTemplatePatch(key)).ok).toBe(true)
   })
 
   it.each(EVENT_TEMPLATE_KEYS)('%s picks an accent the room can read', (key) => {

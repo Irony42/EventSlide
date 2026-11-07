@@ -112,6 +112,78 @@ const APPLICATION_FORBIDDEN = [
  * did not, and `src/domain` and `src/application` were not held to the rule at all.
  * `scripts/lintBoundaries.test.ts` pins each spelling in each layer.
  */
+/**
+ * The web app shares no source with the server: its wire types are the copies in
+ * `web/src/lib/api/`. Reused by every web block below, because a flat-config block that sets
+ * `no-restricted-imports` replaces the earlier one instead of adding to it.
+ */
+const WEB_NO_SERVER_SOURCE = {
+  group: [
+    '**/src/domain/**',
+    '**/src/application/**',
+    '**/src/infrastructure/**',
+    '**/src/interface/**',
+    '**/src/main/**',
+  ],
+  message:
+    'The web app talks to the server over HTTP only. Its types come from web/src/lib/api/, so the wire format stays an explicit contract.',
+}
+
+/**
+ * The folders of `web/src/features/`. A feature never imports another feature (CLAUDE.md,
+ * `eventslide-ui-component`): what two features need lives in `web/src/lib/`,
+ * `web/src/design-system/` or `web/src/app/`, which every feature may import.
+ */
+const WEB_FEATURES = [
+  'about',
+  'admin',
+  'auth',
+  'gallery',
+  'guest-feed',
+  'guest-upload',
+  'join',
+  'moderation',
+  'site',
+  'wall',
+]
+
+/**
+ * Files that still import another feature, and the reason each is not fixed yet. This list
+ * only shrinks: a new file never joins it, so the rule is a ratchet. Each entry belongs to a
+ * feature outside the host-structure lot (WEB-HOST-04), which could not edit it.
+ */
+const FEATURE_BOUNDARY_LEGACY = [
+  // The wall's host panel reuses the host console's pieces (and the join page reuses the guest
+  // upload's greeting and logo); both folders have their own structure lot.
+  'web/src/features/wall/**',
+  'web/src/features/join/**',
+]
+
+/**
+ * Scope: static imports only. A dynamic `import()` (router.tsx lazy-loads every page from `app/`,
+ * legitimately) and `vi.mock` paths are not seen by `no-restricted-imports`.
+ * Known and accepted: `app/` is outside the zones on purpose, and `app/AmbiancePreview.tsx`
+ * still composes pieces of `guest-upload` and `wall`; they move to `design-system/` or `lib/`
+ * in the wall and guest-upload lots.
+ * @param {readonly string[]} forbidden The feature folders this file may not import.
+ */
+const featureImportRule = (forbidden) => ({
+  // A relative path of ../ steps, then a feature folder (the dots are literal: String.raw).
+  regex: String.raw`^(\.\./)+(features/)?(${forbidden.join('|')})(/|$)`,
+  message:
+    'A feature never imports another feature. Move what both need to web/src/lib/, web/src/design-system/ or web/src/app/.',
+})
+
+/**
+ * The web import rule for files that may not reach `forbidden` features.
+ * @param {readonly string[]} forbidden
+ * @returns {['error', { patterns: object[] }]}
+ */
+const webBoundary = (forbidden) => [
+  'error',
+  { patterns: [WEB_NO_SERVER_SOURCE, featureImportRule(forbidden)] },
+]
+
 const ENV_MESSAGE =
   'process.env is read only by src/infrastructure/config/env.ts. Take the value as configuration instead.'
 
@@ -384,21 +456,27 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            {
-              group: [
-                '**/src/domain/**',
-                '**/src/application/**',
-                '**/src/infrastructure/**',
-                '**/src/interface/**',
-                '**/src/main/**',
-              ],
-              message:
-                'The web app talks to the server over HTTP only. Its types come from web/src/lib/api/, so the wire format stays an explicit contract.',
-            },
-          ],
+          patterns: [WEB_NO_SERVER_SOURCE],
         },
       ],
+    },
+  },
+
+  /* ------------------------------------------------- web feature boundary -- */
+  ...WEB_FEATURES.map((feature) => ({
+    files: [`web/src/features/${feature}/**/*.{ts,tsx}`],
+    ignores: FEATURE_BOUNDARY_LEGACY,
+    rules: {
+      'no-restricted-imports': webBoundary(WEB_FEATURES.filter((other) => other !== feature)),
+    },
+  })),
+  {
+    // The two shared folders sit under every feature: one that imported a feature would make
+    // the dependency a cycle. Tests may read a feature's stylesheet (a contrast check).
+    files: ['web/src/lib/**/*.{ts,tsx}', 'web/src/design-system/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': webBoundary(WEB_FEATURES),
     },
   },
 

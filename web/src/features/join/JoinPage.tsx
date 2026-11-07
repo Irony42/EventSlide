@@ -81,6 +81,12 @@ export function JoinPage() {
   const trimmedName = name.trim()
   const displayName = trimmedName.length > 0 ? trimmedName : null
   const busy = phase === 'joining'
+  /**
+   * A scanned code that has not answered yet. Decided from the route and not from async state,
+   * so the first committed render is already the wait: the name field never shows for a frame
+   * and then vanishes under a guest's thumb.
+   */
+  const resolvingScan = codeFromPath !== undefined && event === null && error === null
 
   const submit = (withName: boolean) => {
     setPressed(true)
@@ -129,7 +135,7 @@ export function JoinPage() {
     </Stack>
   )
 
-  if (event === null && busy && !pressed) {
+  if (event === null && !pressed && (busy || resolvingScan)) {
     return (
       <Card className={styles['card']}>
         <Stack align="center" gap="4">

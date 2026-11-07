@@ -28,7 +28,7 @@ const KEY_BYTES = 32
 const HKDF_LABEL = 'eventslide/mfa-secret/v1'
 
 /** The vault only ever holds one key; a rotation would add a second to this and a second version. */
-export const MFA_KEY_VERSION = 1
+const MFA_KEY_VERSION = 1
 
 export interface AesGcmMfaVaultOptions {
   /** The decoded `MFA_ENCRYPTION_KEY`: 32 bytes or more. */

@@ -9,7 +9,7 @@ import express, {
   type RequestHandler,
   type Response,
 } from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { Logger } from '../../../application/ports/logger'
 import type { UserId } from '../../../domain/shared/ids'

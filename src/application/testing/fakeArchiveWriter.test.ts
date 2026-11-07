@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ArchiveEntry } from '../ports/archiveWriter'
+import { archiveWriterContract } from './contracts/archiveWriterContract'
 import { FakeArchiveWriter, ZIP_LOCAL_FILE_HEADER } from './fakeArchiveWriter'
 
 const MODIFIED = new Date('2026-06-01T10:00:00.000Z')
@@ -133,3 +134,5 @@ describe('FakeArchiveWriter', () => {
     })
   })
 })
+
+archiveWriterContract('fake', () => new FakeArchiveWriter())

@@ -1,4 +1,4 @@
-import type { AlbumBook } from '../../domain/book/albumBook'
+import type { AlbumBook, BookFinish, BookVerdict } from '../../domain/book/albumBook'
 import type { BookStaleReason } from '../../domain/book/albumBookStatus'
 import type { EventId } from '../../domain/shared/ids'
 
@@ -24,6 +24,14 @@ export interface AlbumBookRepository {
 
   /** Writes the book as it now stands. Update-only: a book that was never requested is refused. */
   save(book: AlbumBook): Promise<void>
+
+  /**
+   * The final write of a render, atomic like `ReelRepository.finish`: the row **as it is now** must
+   * still be `running` (the domain decides: `settleBook`), and only then it takes the verdict. No
+   * other call can slip between the read and the write, so a finish can never overwrite a row the
+   * host re-requested or deleted in the meantime.
+   */
+  finish(eventId: EventId, verdict: BookVerdict, now: Date): Promise<BookFinish>
 
   /** The oldest `queued` book, **without** claiming it: what the worker looks at before it decides to wait. */
   findNextQueued(): Promise<AlbumBook | null>

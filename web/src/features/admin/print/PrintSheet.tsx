@@ -2,7 +2,7 @@ import { useEffect, useRef, type CSSProperties } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { LocaleOverride } from '../../../lib/i18n/LocaleProvider'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { joinHost } from '../../wall/joinHost'
+import { joinHost } from '../../../lib/joinHost'
 import {
   PRINT_FORMAT_SPECS,
   LOGO_MAX_SHARE,

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { formatCountdown, remainingMs } from '../../../lib/serverClock'
+import { formatCountdown } from '../../../lib/serverClock'
+import { useGoneAfter, useServerCountdown } from '../../../app/useServerCountdown'
 import type { GuestChallengeDto } from '../../../lib/api/dto'
 import styles from './ChallengeBand.module.css'
 
@@ -30,23 +30,8 @@ export interface ChallengeBandProps {
  */
 export function ChallengeBand({ challenge, offsetMs }: ChallengeBandProps) {
   const t = useTranslations()
-  const [now, setNow] = useState(() => Date.now())
-  const [gone, setGone] = useState(false)
-
-  const left = remainingMs(Date.parse(challenge.endsAt), now, offsetMs)
-  const over = challenge.state === 'ended' || left === 0
-
-  useEffect(() => {
-    if (over) return undefined
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [over])
-
-  useEffect(() => {
-    if (!over) return undefined
-    const timer = setTimeout(() => setGone(true), ENDED_SHOWN_MS)
-    return () => clearTimeout(timer)
-  }, [over])
+  const { leftMs: left, over } = useServerCountdown(challenge, offsetMs)
+  const gone = useGoneAfter(over, ENDED_SHOWN_MS)
 
   if (gone) return null
 

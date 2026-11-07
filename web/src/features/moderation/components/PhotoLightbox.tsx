@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../../design-system/components/Button'
 import { Dialog } from '../../../design-system/components/Dialog'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
+import { photoLabels } from '../photoLabels'
 import type { ModerationDecision, ModerationPhotoDto } from '../../../lib/api/dto'
 import { decisionWording, inDisplayOrder } from './decisionWording'
 import { HighlightToggle } from './HighlightToggle'
@@ -77,17 +78,8 @@ export function PhotoLightbox({
 
   if (photo === null) return null
 
-  const authorInName = photo.authorName ?? t.moderation.anonymousInName
-  const authorLine =
-    photo.authorName === null ? t.moderation.byAnonymous : t.moderation.by(photo.authorName)
   const isClip = photo.kind === 'clip' && photo.videoUrl !== null
-  const alt = isClip
-    ? photo.caption === null
-      ? t.moderation.videoAlt(authorInName)
-      : t.moderation.videoAltWithCaption(photo.caption, authorInName)
-    : photo.caption === null
-      ? t.moderation.photoAlt(authorInName)
-      : t.moderation.photoAltWithCaption(photo.caption, authorInName)
+  const { authorInName, authorLine, alt } = photoLabels(photo, isClip, t)
 
   return (
     <Dialog

@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import express from 'express'
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it, vi } from 'vitest'
 import { accessLog, routePatternFor, type AccessLogOptions } from './accessLog'
 import { requestContext } from './errorHandler'

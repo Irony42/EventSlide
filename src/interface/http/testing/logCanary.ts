@@ -1,5 +1,5 @@
 import type { Express } from 'express'
-import request from 'supertest'
+import request from './request'
 import { mountedRoutes } from './routeTable'
 
 /**

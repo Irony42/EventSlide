@@ -543,6 +543,32 @@ describe('backup and restore', () => {
       expect(await exists(archive)).toBe(false)
     })
 
+    it('skips a media file that vanished while the backup ran, and still writes a valid archive', async () => {
+      const { contentHash } = await seedAnEvening()
+      const vanishing = objectUnder(mediaRoot, EVENT, contentHash, 'thumb')
+
+      // The walk has listed every file when this line lands; the host then deletes one
+      // before the copy reaches it (retention, an orphan sweep) on a live server.
+      const { manifest } = await createBackup({
+        databasePath,
+        mediaRoot,
+        destination: archive,
+        now: NOW,
+        appVersion: '2.0.0',
+        onProgress: (line) => {
+          if (line.includes('media file(s) to copy')) rmSync(vanishing)
+        },
+      })
+
+      const thumbPath = mediaObjectPath(EVENT, contentHash, 'thumb')
+      expect(manifest.skipped).toEqual([`${thumbPath}: vanished while the backup ran`])
+      expect(manifest.counts.mediaFiles).toBe(2)
+      expect(manifest.media.entries.map((entry) => entry.path)).not.toContain(thumbPath)
+      expect(manifest.missingMedia.map((missing) => missing.variant)).toEqual(['thumb'])
+      expect(await exists(join(archive, MEDIA_DIR, ...thumbPath.split('/')))).toBe(false)
+      expect((await verify()).ok).toBe(true)
+    })
+
     it('removes what it wrote when it fails part-way', async () => {
       await seedAnEvening()
 

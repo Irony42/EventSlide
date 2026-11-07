@@ -2,6 +2,7 @@ import { Badge, type BadgeTone } from '../../../design-system/components/Badge'
 import { Button } from '../../../design-system/components/Button'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
 import type { ModerationDecision, ModerationPhotoDto, PhotoStatus } from '../../../lib/api/dto'
+import { photoLabels } from '../photoLabels'
 import { decisionWording, inDisplayOrder } from './decisionWording'
 import { HighlightToggle } from './HighlightToggle'
 import styles from './ModerationCard.module.css'
@@ -75,10 +76,8 @@ export function ModerationCard({
    * The author, as it reads inside "la photo de …". `byAnonymous` is the standalone
    * caption line; using it here would produce "la photo de Invité anonyme".
    */
-  const authorInName = photo.authorName ?? t.moderation.anonymousInName
-  const authorLine =
-    photo.authorName === null ? t.moderation.byAnonymous : t.moderation.by(photo.authorName)
   const isClip = photo.kind === 'clip'
+  const { authorInName, authorLine } = photoLabels(photo, isClip, t)
 
   return (
     <article

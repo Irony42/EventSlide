@@ -78,6 +78,24 @@ describe('JoinPage', () => {
     expect(screen.queryByTestId('host-greeting')).toBeNull()
   })
 
+  it('never offers the name field while a scanned code is being resolved', async () => {
+    // The first committed render used to be the code form, so a guest could type a name into
+    // a field that the full-screen wait then removed. The field seen from inside the first
+    // request is the field a guest could have typed into.
+    const seen: boolean[] = []
+    const api = fakeApi({
+      join: vi.fn(async () => {
+        seen.push(screen.queryByLabelText(/Votre prénom/) !== null)
+        return aJoinResponse({ event: aPublicEvent({ name: 'Kermesse' }) })
+      }),
+    })
+
+    renderJoin('/join/H7K2QM', api)
+
+    await screen.findByRole('heading', { name: fr.join.welcome('Kermesse') })
+    expect(seen).toEqual([false])
+  })
+
   it('says it is working while a scanned code is being resolved', async () => {
     // A guest who scanned a QR code pressed nothing, so an unexplained blank screen
     // reads as a broken link and they put the phone away.

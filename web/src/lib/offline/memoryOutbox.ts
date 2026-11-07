@@ -32,7 +32,6 @@ export class MemoryOutbox implements OutboxStore {
       attempts: 0,
       lastAttemptAt: null,
       claimedAt: null,
-      csrfToken: entry.csrfToken,
     }
     this.entries.push(stored)
     return { entry: stored, evicted: this.evictOverflow(entry.slug) }

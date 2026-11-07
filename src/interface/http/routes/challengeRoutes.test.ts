@@ -1,5 +1,6 @@
 import type { Express } from 'express'
-import request, { type Agent } from 'supertest'
+import request from '../testing/request'
+import type { Agent } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { makeGetChallenge } from '../../../application/usecases/challenges/getChallenge'
 import { makeStartChallenge } from '../../../application/usecases/challenges/startChallenge'

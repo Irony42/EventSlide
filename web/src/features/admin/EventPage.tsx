@@ -36,7 +36,7 @@ import {
   isMutable,
   lifecycleActions,
   offersSupport,
-} from './eventLifecycle'
+} from '../../lib/eventLifecycle'
 import { scheduleMoment, upcomingMoves } from './eventSchedule'
 import { bringIntoView } from './bringIntoView'
 import { useAlbumUrl, useEvent } from './hooks/useEventData'
@@ -225,7 +225,7 @@ export function EventPage() {
                   <Button
                     key={action.to}
                     variant={action.primary ? 'primary' : 'secondary'}
-                    loading={transition.pending === `${event.slug}:${action.to}`}
+                    loading={transition.isPending(`${event.slug}:${action.to}`)}
                     disabled={transition.busy}
                     onClick={() =>
                       transition.request({

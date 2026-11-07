@@ -307,3 +307,89 @@ describe('the ban on ambient time and randomness', { timeout: 60_000 }, () => {
     expect(messages).toHaveLength(2)
   })
 })
+
+describe('a web feature never imports another feature', { timeout: 60_000 }, () => {
+  const FEATURES = [
+    'about',
+    'admin',
+    'auth',
+    'gallery',
+    'guest-feed',
+    'guest-upload',
+    'join',
+    'moderation',
+    'site',
+    'wall',
+  ] as const
+  // The host-structure lot's own folders, which are the ones the rule holds today. The wall and
+  // the join page still import siblings and are listed in the config's legacy ratchet.
+  const HELD = [
+    'about',
+    'admin',
+    'auth',
+    'gallery',
+    'guest-feed',
+    'guest-upload',
+    'moderation',
+    'site',
+  ]
+
+  const message = (path: string, source: string): Promise<readonly string[]> =>
+    messagesOf('no-restricted-imports', path, `import { x } from '${source}'\nvoid x\n`)
+
+  it.each(HELD)(
+    'refuses %s importing every other feature, from a root file and a nested one',
+    async (importer) => {
+      for (const target of FEATURES.filter((feature) => feature !== importer)) {
+        expect(
+          await message(`web/src/features/${importer}/Example.tsx`, `../${target}/Thing`),
+        ).toHaveLength(1)
+        expect(
+          await message(
+            `web/src/features/${importer}/components/Example.tsx`,
+            `../../${target}/Thing`,
+          ),
+        ).toHaveLength(1)
+      }
+    },
+  )
+
+  it.each(FEATURES)('refuses a shared folder importing %s', async (target) => {
+    expect(await message('web/src/lib/example.ts', `../features/${target}/Thing`)).toHaveLength(1)
+    expect(
+      await message(
+        'web/src/design-system/components/Example.tsx',
+        `../../features/${target}/Thing`,
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('still refuses the server source in a feature that has the boundary rule', async () => {
+    expect(
+      await message('web/src/features/admin/Example.tsx', '../../../../src/domain/events/event'),
+    ).toHaveLength(1)
+  })
+
+  it.each([
+    ['a file of its own', 'web/src/features/admin/components/Example.tsx', '../hooks/useAction'],
+    ['a file at its own root', 'web/src/features/auth/Example.tsx', './components/PasswordField'],
+    ['lib', 'web/src/features/admin/components/Example.tsx', '../../../lib/passwordPolicy'],
+    [
+      'lib/about, which is not the about feature',
+      'web/src/features/site/Example.tsx',
+      '../../lib/about/aboutText',
+    ],
+    [
+      'the design system',
+      'web/src/features/moderation/Example.tsx',
+      '../../design-system/components/SelectField',
+    ],
+    [
+      'the app folder',
+      'web/src/features/site/components/Example.tsx',
+      '../../../app/useClientLimits',
+    ],
+  ])('allows a feature importing %s', async (_name, path, source) => {
+    expect(await message(path, source)).toEqual([])
+  })
+})

@@ -1,6 +1,6 @@
 import { EmptyState } from '../../../design-system/components/EmptyState'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import type { ContactAction } from '../ceilingLevels'
+import type { ContactAction } from '../../../lib/ceilingLevels'
 import styles from './SuspensionScreen.module.css'
 
 export interface SuspensionScreenProps {

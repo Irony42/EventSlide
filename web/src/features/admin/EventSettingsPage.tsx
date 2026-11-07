@@ -9,10 +9,10 @@ import { formatDateTime } from '../../lib/format'
 import { LOCALE_NAMES, SUPPORTED_LOCALES, parseLocale, type Locale } from '../../lib/i18n/locale'
 import { useLocale, useTranslations } from '../../lib/i18n/useTranslations'
 import { LoadFailure, Pending } from '../../design-system/components/Async'
-import { CheckboxField } from './components/CheckboxField'
+import { CheckboxField } from '../../design-system/components/CheckboxField'
 import { WallSoundFields } from './components/WallSoundFields'
-import { DateTimeField } from './components/DateTimeField'
-import { SelectField, type SelectOption } from './components/SelectField'
+import { DateTimeField } from '../../design-system/components/DateTimeField'
+import { SelectField, type SelectOption } from '../../design-system/components/SelectField'
 import { ThemeFieldset } from './components/ThemeFieldset'
 import { WallQrControls } from './components/WallQrControls'
 import {
@@ -26,7 +26,7 @@ import {
 import { VenuePhotoField } from './components/VenuePhotoField'
 import { LogoField } from './components/LogoField'
 import { WelcomeMessageField } from './components/WelcomeMessageField'
-import { isMutable } from './eventLifecycle'
+import { isMutable } from '../../lib/eventLifecycle'
 import { toSettingsPatch } from './settingsPayload'
 import { toInstant, toLocalInput } from './eventSchedule'
 // Shared with the create form's template card, so the two screens cannot word the same
@@ -110,52 +110,20 @@ interface ScheduleDraft {
  * typing only when the server's answer genuinely changed underneath them, which is the
  * one case where discarding it is the right thing to do.
  */
-const settingsIdentity = (settings: EventSettingsDto): string =>
-  [
-    settings.moderation,
-    settings.allowCaptions,
-    settings.allowReactions,
-    settings.allowClips,
-    settings.allowGuestbook,
-    settings.guestbookOnWall,
-    settings.allowGuestSelfDelete,
-    settings.guestSelfDeleteGraceSeconds,
-    settings.retentionDays,
-    settings.maxPhotosPerGuest,
-    // The theme is a few values, so it is flattened here like everything else: without
-    // it a host who changed only the colour would have their unsaved choice survive a
-    // background refresh that moved it underneath them.
-    settings.theme.accentHue,
-    settings.theme.fonts,
-    settings.theme.frame,
-    settings.theme.ambiance,
-    settings.theme.custom?.ground ?? '',
-    settings.theme.custom?.groundHue ?? '',
-    settings.theme.custom?.faces ?? '',
-    // The wall's language (roadmap 1.5). Flattened like the theme, and for the same
-    // reason: a host who changed only this would otherwise have their unsaved choice
-    // survive a background refresh that moved it underneath them.
-    settings.wallLanguage,
-    // The wall group (spec 13), for the same reason.
-    settings.wall.layout ?? '',
-    settings.wall.slideIntervalMs ?? '',
-    // The mixed wall (spec 09).
-    settings.wall.mixedEnabled,
-    settings.wall.mixedWallSeconds,
-    settings.wall.mixedSlideshowSeconds,
-    settings.wall.souvenirCounter,
-    settings.wall.newPhotoSignal,
-    settings.wall.freshLane,
-    settings.wall.tilt,
-    settings.wall.showTime,
-    // Spec 12.
-    settings.wall.soundEnabled,
-    settings.wall.soundTone,
-    settings.wall.soundVolume,
-    settings.wall.qrVisible,
-    settings.wall.qrScale,
-    settings.wall.qrPlacement,
-  ].join('|')
+const settingsIdentity = (settings: EventSettingsDto): string => {
+  // Everything the form edits, by serialising the object instead of listing its fields: a
+  // field added to the settings is compared without anyone having to remember a line here
+  // (the list that stood here had already forgotten the welcome message). The two URLs are
+  // left out on purpose: the venue photograph and the logo are their own requests, which
+  // answer with a fresh event, and a refresh they cause must not throw away what is typed.
+  const { theme, brand, ...rest } = settings
+  const { groundUrl: _groundUrl, ...themeWithoutPhoto } = theme
+  return JSON.stringify({
+    ...rest,
+    theme: themeWithoutPhoto,
+    brand: { welcomeMessage: brand?.welcomeMessage ?? null },
+  })
+}
 
 const scheduleIdentity = (event: EventDto): string =>
   `${event.scheduledOpenAt ?? ''}|${event.scheduledCloseAt ?? ''}`

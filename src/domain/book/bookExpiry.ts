@@ -1,5 +1,4 @@
-const DAY_MS = 24 * 60 * 60 * 1000
-
+import { addDays } from '../shared/time'
 /**
  * When a finished book stops being served: `min(doneAt + ttl, purge date)`.
  *
@@ -8,7 +7,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * does not shorten a reading, so the book then lives its whole `ttlDays`.
  */
 export const bookExpiresAt = (doneAt: Date, ttlDays: number, purgeDate: Date | null): Date => {
-  const ttlEnd = new Date(doneAt.getTime() + ttlDays * DAY_MS)
+  const ttlEnd = addDays(doneAt, ttlDays)
   if (purgeDate === null || purgeDate.getTime() <= doneAt.getTime()) return ttlEnd
   return purgeDate.getTime() < ttlEnd.getTime() ? purgeDate : ttlEnd
 }

@@ -18,8 +18,15 @@ export interface ActionState<A extends readonly unknown[], R> {
    * pressed instead of the whole panel.
    */
   readonly run: (key: string, ...args: A) => Promise<ActionResult<R>>
-  readonly pending: string | null
+  /** Whether the write started under `key` has not answered yet. Rows are independent. */
+  readonly isPending: (key: string) => boolean
   readonly busy: boolean
+}
+
+/** The list without the first occurrence of `key` (the run that just answered). */
+const withoutOne = (keys: readonly string[], key: string): readonly string[] => {
+  const at = keys.indexOf(key)
+  return at < 0 ? keys : [...keys.slice(0, at), ...keys.slice(at + 1)]
 }
 
 /**
@@ -32,21 +39,25 @@ export const useAction = <A extends readonly unknown[], R>(
   action: (...args: A) => Promise<R>,
 ): ActionState<A, R> => {
   const t = useTranslations()
-  const [pending, setPending] = useState<string | null>(null)
+  // Every key still running, one entry per run: two rows pressed together are both pending,
+  // and the first to answer must not re-enable the other.
+  const [pending, setPending] = useState<readonly string[]>([])
 
   const run = useCallback(
     async (key: string, ...args: A): Promise<ActionResult<R>> => {
-      setPending(key)
+      setPending((current) => [...current, key])
       try {
         return { ok: true, value: await action(...args) }
       } catch (cause) {
         return { ok: false, message: messageForError(cause, t) }
       } finally {
-        setPending(null)
+        setPending((current) => withoutOne(current, key))
       }
     },
     [action, t],
   )
 
-  return { run, pending, busy: pending !== null }
+  const isPending = useCallback((key: string) => pending.includes(key), [pending])
+
+  return { run, isPending, busy: pending.length > 0 }
 }

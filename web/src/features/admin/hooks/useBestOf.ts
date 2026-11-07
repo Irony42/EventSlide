@@ -1,9 +1,10 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useApi } from '../../../app/useApi'
 import { ApiError } from '../../../lib/http'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
 import type { HighlightsDto, PreselectHighlightsResponse, ReelDto } from '../../../lib/api/dto'
 import { useAction, type ActionState } from './useAction'
+import { usePollWhile } from './usePollWhile'
 import { useRevalidateWhenVisible } from './useRevalidateWhenVisible'
 
 /**
@@ -48,13 +49,7 @@ export const useBestOf = (slug: string): LoaderState<BestOfRead> => {
     state.data === null || state.data === 'unsupported' ? null : (state.data.reel ?? null)
   const making = reel?.status === 'queued' || reel?.status === 'running'
   const { reload } = state
-  useEffect(() => {
-    if (!making) return undefined
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') reload()
-    }, REEL_POLL_MS)
-    return () => clearInterval(timer)
-  }, [making, reload])
+  usePollWhile(making, REEL_POLL_MS, reload)
   return state
 }
 

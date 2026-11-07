@@ -10,7 +10,7 @@ import { ADMIN_HOME, forcedByGate, fromOf } from '../../lib/landing'
 import { AuthForm } from './components/AuthForm'
 import { useChangePassword } from './hooks/useAuthActions'
 import { useResolveLanding } from './hooks/useLanding'
-import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
+import { PASSWORD_MIN_LENGTH } from '../../lib/passwordPolicy'
 
 /**
  * Surface: the host's laptop. Reached on purpose, or forced by

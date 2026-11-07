@@ -8,6 +8,7 @@ import { destinationAfterJoin, useJoin } from './useJoin'
 import type { ReactNode } from 'react'
 import type { Api } from '../../../lib/api/client'
 import type { JoinResponse } from '../../../lib/api/dto'
+import { deferred } from '../../../testing/deferred'
 
 /**
  * Resolving a join code, as state.
@@ -16,15 +17,6 @@ import type { JoinResponse } from '../../../lib/api/dto'
  * guest is doing something a phone makes easy and a desktop does not — pressing twice,
  * and walking away from a page mid-request on venue Wi-Fi.
  */
-
-/** A promise the test settles by hand, to hold the join open across another action. */
-const deferred = <T,>() => {
-  let settle: (value: T) => void = () => {}
-  const promise = new Promise<T>((resolve) => {
-    settle = resolve
-  })
-  return { promise, settle: (value: T) => settle(value) }
-}
 
 const mount = (api: Api) => {
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
@@ -53,9 +45,48 @@ describe('useJoin', () => {
 
     expect(api.join).toHaveBeenCalledTimes(1)
     await act(async () => {
-      pending.settle(aJoinResponse())
+      pending.resolve(aJoinResponse())
       await pending.promise
     })
+  })
+
+  it('replays a name submitted while the automatic join is still in flight', async () => {
+    // Never a silent anonymous join: the press used to be swallowed by the double-tap guard.
+    const first = deferred<JoinResponse>()
+    const api = fakeApi({
+      join: vi
+        .fn<Api['join']>()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementation(async () => aJoinResponse({ displayName: 'Léa' })),
+    })
+    const { result } = mount(api)
+
+    act(() => result.current.join({ code: 'H7K2QM', displayName: null, advance: false }))
+    act(() => result.current.join({ code: 'H7K2QM', displayName: 'Léa', advance: true }))
+    expect(api.join).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      first.resolve(aJoinResponse())
+      await first.promise
+    })
+
+    await waitFor(() => expect(api.join).toHaveBeenCalledTimes(2))
+    expect(api.join).toHaveBeenLastCalledWith('H7K2QM', 'Léa')
+  })
+
+  it('does not replay a repeat of the request already in flight', async () => {
+    const first = deferred<JoinResponse>()
+    const api = fakeApi({ join: vi.fn(() => first.promise) })
+    const { result } = mount(api)
+
+    act(() => result.current.join({ code: 'H7K2QM', displayName: 'Léa', advance: false }))
+    act(() => result.current.join({ code: 'H7K2QM', displayName: 'Léa', advance: false }))
+    await act(async () => {
+      first.resolve(aJoinResponse())
+      await first.promise
+    })
+
+    expect(api.join).toHaveBeenCalledTimes(1)
   })
 
   it('accepts a second attempt once the first has answered', async () => {
@@ -83,7 +114,7 @@ describe('useJoin', () => {
 
     unmount()
     await act(async () => {
-      pending.settle(aJoinResponse({ displayName: 'Léa' }))
+      pending.resolve(aJoinResponse({ displayName: 'Léa' }))
       await pending.promise
     })
 

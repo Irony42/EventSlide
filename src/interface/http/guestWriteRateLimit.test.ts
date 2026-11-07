@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from './testing/request'
 import { describe, expect, it } from 'vitest'
 import { AT, aGuest, anEvent, anEventSettings, aUser } from '../../application/testing/builders'
 import {

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+import { webApiFiles } from '../testing/webApiSources'
 import { DEFAULT_EVENT_LANGUAGE, EVENT_LANGUAGES } from '../../../domain/events/eventLanguage'
 
 /**
@@ -20,7 +21,6 @@ import { DEFAULT_EVENT_LANGUAGE, EVENT_LANGUAGES } from '../../../domain/events/
  */
 
 const LOCALE = join(process.cwd(), 'web/src/lib/i18n/locale.ts')
-const DTO = join(process.cwd(), 'web/src/lib/api/dto.ts')
 
 const sourceOf = (path: string): ts.SourceFile =>
   ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.ES2022, true)
@@ -90,7 +90,9 @@ const defaultLocale = (): string | null => {
   return found
 }
 
-const wireLanguages = unionMembers(sourceOf(DTO), 'EventLanguage')
+const wireLanguages = webApiFiles
+  .dto()
+  .flatMap((path) => unionMembers(sourceOf(path), 'EventLanguage'))
 
 describe('the language vocabulary', () => {
   it('found all three declarations at all', () => {

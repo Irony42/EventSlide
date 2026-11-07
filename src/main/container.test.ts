@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import request from 'supertest'
+import request from '../interface/http/testing/request'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { asEventId, asUserId } from '../domain/shared/ids'
 import { loadConfig } from '../infrastructure/config/env'
@@ -40,6 +40,17 @@ import { captureDescriptorOutputWhile } from '../infrastructure/logging/testing/
  * object under test. Its timers are built and never started here — `index.ts` starts
  * them — so nothing runs behind the requests and the ledger reads.
  */
+
+/**
+ * Returns once the wall clock has moved on by two whole milliseconds. The credentials epoch has the
+ * resolution of a millisecond, and a person does not sign in and change a password inside one; a
+ * fixed 5 ms `setTimeout` only promised that as long as the timer never fires early, which Node can
+ * do by about a millisecond on Windows. Reading the clock is what the epoch itself reads.
+ */
+const aMomentLater = async (): Promise<void> => {
+  const since = Date.now()
+  while (Date.now() - since < 2) await new Promise((resolve) => setImmediate(resolve))
+}
 
 /** Under the namespace, and reserved by its spelling: no route will ever claim it. */
 const NEVER_A_SITE_ROUTE = '/api/site/__never-a-route__'
@@ -1229,9 +1240,7 @@ describe('createContainer: a forgotten password', () => {
       .set(CSRF_HEADER, csrf)
       .send({ email: OWNER })
     await vi.waitFor(() => expect(relay.messages).toHaveLength(1))
-    // The credentials epoch has the resolution of a millisecond; a person does not sign in
-    // and reset a password in the same one.
-    await new Promise((resolve) => setTimeout(resolve, 5))
+    await aMomentLater()
 
     await agent
       .post('/api/auth/password-reset/confirm')
@@ -1255,7 +1264,7 @@ describe('createContainer: a forgotten password', () => {
       .set(CSRF_HEADER, csrf)
       .send({ token: tokenIn(relay), password: NEW_PASSWORD })
       .expect(204)
-    await new Promise((resolve) => setTimeout(resolve, 5))
+    await aMomentLater()
 
     const fresh = await login(app, NEW_PASSWORD)
 
@@ -1336,9 +1345,6 @@ describe('createContainer: sign out everywhere', () => {
 
   const isSignedIn = async (agent: ReturnType<typeof request.agent>): Promise<boolean> =>
     (await agent.get('/api/auth/me')).body.authenticated === true
-
-  /** The epoch has the resolution of a millisecond; a person does not do two things in one. */
-  const aMomentLater = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5))
 
   it('signs the other device out and keeps this one', async () => {
     const { app } = await bootOwner()

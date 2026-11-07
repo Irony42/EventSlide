@@ -39,8 +39,6 @@ export interface GuestPrincipal {
   readonly eventId: EventId
 }
 
-export type Principal = UserPrincipal | GuestPrincipal
-
 /**
  * Everything the authorization middleware resolved, attached to the request.
  *

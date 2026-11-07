@@ -27,6 +27,13 @@ import { CountingClientRepository } from '../../testing/countingClientRepository
  * deliberately does not exist yet.
  */
 
+/** The first row, or a failure that says what was missing: a guard that cannot pass silently. */
+const firstOf = <T>(rows: readonly T[], what: string): T => {
+  const row = rows[0]
+  if (row === undefined) throw new Error(`expected a ${what}, found none`)
+  return row
+}
+
 const EVENT = asEventId('event-1')
 const GUEST: PhotoAuthor = { kind: 'guest', guestId: asGuestId('guest-1') }
 const HOST: PhotoAuthor = { kind: 'host', userId: asUserId('user-1') }
@@ -190,9 +197,7 @@ describe('uploadClip', () => {
 
       await upload()
 
-      const job = clips.all[0]
-      expect(job).toBeDefined()
-      if (job === undefined) return
+      const job = firstOf(clips.all, 'staged clip job')
       expect(await media.exists(EVENT, job.sourceHash, 'source')).toBe(true)
     })
 
@@ -397,8 +402,7 @@ describe('uploadClip', () => {
       expect(clips.all).toHaveLength(1)
       // The one surviving job's source is still on the disk for the worker to read.
       expect(media.objectCount).toBe(1)
-      const staged = clips.all[0]
-      expect(staged).toBeDefined()
+      const staged = firstOf(clips.all, 'staged clip job')
       for (const result of [first, second]) {
         expect(result?.ok === true && result.value.clipJobId).toBe(staged?.id)
       }
@@ -433,9 +437,7 @@ describe('uploadClip', () => {
       const bytes = aClipFile()
       const first = await upload(bytes)
       expect(first.ok).toBe(true)
-      const job = clips.all[0]
-      expect(job).toBeDefined()
-      if (job === undefined) return
+      const job = firstOf(clips.all, 'staged clip job')
       const claimed = job.claim(clock.now())
       expect(claimed.ok).toBe(true)
       if (!claimed.ok) return
@@ -459,9 +461,7 @@ describe('uploadClip', () => {
       seedEvent()
       const bytes = aClipFile()
       await upload(bytes)
-      const job = clips.all[0]
-      expect(job).toBeDefined()
-      if (job === undefined) return
+      const job = firstOf(clips.all, 'staged clip job')
       const claimed = job.claim(clock.now())
       expect(claimed.ok).toBe(true)
       if (!claimed.ok) return
@@ -471,6 +471,27 @@ describe('uploadClip', () => {
       await clips.save(done.value)
       // The photo row was never created here, which is exactly the state a deleted clip
       // leaves behind.
+
+      const again = await upload(bytes)
+
+      expect(again.ok && again.value.duplicate).toBe(false)
+    })
+
+    it('sends the clip again when the photo of its finished job belongs to another event', async () => {
+      // A `done` job only blocks the dedupe while its photo is on *this* event's wall. A photo
+      // that resolves to another event is not the guest's clip here, so the bytes are staged anew.
+      seedEvent()
+      const bytes = aClipFile()
+      await upload(bytes)
+      const job = firstOf(clips.all, 'staged clip job')
+      const claimed = job.claim(clock.now())
+      expect(claimed.ok).toBe(true)
+      if (!claimed.ok) return
+      const done = claimed.value.succeed(clock.now())
+      expect(done.ok).toBe(true)
+      if (!done.ok) return
+      await clips.save(done.value)
+      photos.seed(aPhoto({ id: job.photoId, eventId: 'event-2', clip: {} }))
 
       const again = await upload(bytes)
 
@@ -539,9 +560,7 @@ describe('uploadClip', () => {
       build(1)
       const first = await upload(aClipFile('one'))
       expect(first.ok).toBe(true)
-      const job = clips.all[0]
-      expect(job).toBeDefined()
-      if (job === undefined) return
+      const job = firstOf(clips.all, 'staged clip job')
       const claimed = job.claim(clock.now())
       expect(claimed.ok).toBe(true)
       if (!claimed.ok) return
@@ -650,9 +669,7 @@ describe('uploadClip', () => {
       expect(clips.all).toHaveLength(1)
       // One source on the disk: the admitted one, and nothing else.
       expect(media.objectCount).toBe(1)
-      const staged = clips.all[0]
-      expect(staged).toBeDefined()
-      if (staged === undefined) return
+      const staged = firstOf(clips.all, 'staged clip job')
       expect(await media.exists(EVENT, staged.sourceHash, 'source')).toBe(true)
     })
 
@@ -843,9 +860,7 @@ describe('uploadClip', () => {
       seedEvent()
       const bytes = aClipFile()
       await upload(bytes)
-      const job = clips.all[0]
-      expect(job).toBeDefined()
-      if (job === undefined) return
+      const job = firstOf(clips.all, 'staged clip job')
 
       let current = job
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {

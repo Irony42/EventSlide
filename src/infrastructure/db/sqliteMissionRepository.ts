@@ -196,9 +196,11 @@ export class SqliteMissionRepository implements MissionRepository {
     // Update first, insert only if it matched nothing — the shape `SqlitePhotoRepository`
     // already uses. `created_at` is deliberately not in the update: a corrected prompt is
     // the same row and must keep its place in the host's order.
-    this.db.transaction(() => {
-      if (update.run(bindings).changes === 0) insert.run(bindings)
-    })()
+    this.db
+      .transaction(() => {
+        if (update.run(bindings).changes === 0) insert.run(bindings)
+      })
+      .immediate()
   }
 
   async delete(eventId: EventId, missionId: MissionId): Promise<void> {

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createRetentionSweeper, type RetentionSweeperDeps } from './retentionSweeper'
+import {
+  createRetentionSweeper,
+  makeRetentionFollowUp,
+  type RetentionSweeperDeps,
+} from './retentionSweeper'
 import { FakeClock } from '../application/testing/fakeClock'
 import { asClientId, asEventId } from '../domain/shared/ids'
 import { CapturingLogger, type LoggedLine } from '../application/testing/capturingLogger'
@@ -709,5 +713,49 @@ describe('createRetentionSweeper: the end of an offboarding (G2-14 part 3)', () 
 
     expect(outcome.status).toBe('failed')
     expect(finalized).toBe(1)
+  })
+})
+
+describe('makeRetentionFollowUp: the steps after a purge, shared with `npm run purge`', () => {
+  it('finalises the offboarded clients before it prunes the audit log', async () => {
+    // A finalisation writes audit lines, and the prune that follows should read them.
+    const order: string[] = []
+    const followUp = makeRetentionFollowUp({
+      finalizeOffboardedClients: async () => {
+        order.push('finalize')
+        return nothingFinalized
+      },
+      pruneAuditLog: async () => {
+        order.push('prune')
+        return nothingPruned
+      },
+      logger: new CapturingLogger(),
+    })
+
+    await followUp()
+
+    expect(order).toEqual(['finalize', 'prune'])
+  })
+
+  it('still prunes when finalising throws, and never rejects', async () => {
+    const logger = new CapturingLogger()
+    let pruned = false
+    const followUp = makeRetentionFollowUp({
+      finalizeOffboardedClients: async () => {
+        throw new Error('database is locked')
+      },
+      pruneAuditLog: async () => {
+        pruned = true
+        return nothingPruned
+      },
+      logger,
+    })
+
+    await expect(followUp()).resolves.toBeUndefined()
+
+    expect(pruned).toBe(true)
+    expect(at(logger.lines, 'error').map((line) => line.message)).toEqual([
+      'offboarded clients could not be finalised',
+    ])
   })
 })

@@ -600,7 +600,9 @@ test('320x568, text at 200%: the summary line wraps, and nothing is wider than t
 
   // Every control of the line has its own box, inside the screen.
   for (const name of [fr.upload.queueViewMine, fr.upload.queueDetails, fr.upload.queueDismiss]) {
-    const box = await page.getByRole('button', { name }).boundingBox()
+    const control = page.getByRole('button', { name })
+    await expect(control).toBeVisible()
+    const box = await control.boundingBox()
     expect(box, name).not.toBeNull()
     expect(box?.x ?? -1).toBeGreaterThanOrEqual(0)
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320)

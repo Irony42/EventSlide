@@ -6,7 +6,7 @@ import { useLocale } from '../../lib/i18n/useTranslations'
 import { AuthActions, AuthPage } from './components/AuthPage'
 import { AuthForm } from './components/AuthForm'
 import { useConfirmPasswordReset } from './hooks/usePasswordReset'
-import { PASSWORD_MIN_LENGTH } from './passwordPolicy'
+import { PASSWORD_MIN_LENGTH } from '../../lib/passwordPolicy'
 
 /**
  * `/password/reset/:token` (roadmap G2-08 / G2-10): choose a new password with the mailed link.

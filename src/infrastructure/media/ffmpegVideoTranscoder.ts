@@ -12,7 +12,8 @@ import { Dimensions } from '../../domain/photos/dimensions'
 import { DomainError } from '../../domain/shared/errors'
 import { err, ok, type Result } from '../../domain/shared/result'
 import { detectVideoContainer } from './magicBytes'
-import { startProcess, type RunProcessOptions, type RunResult } from './runProcess'
+import { createChildRunner } from './childRunner'
+import type { RunProcessOptions, RunResult } from './runProcess'
 import type { FfmpegPaths } from './ffmpegBinaries'
 
 /**
@@ -241,9 +242,9 @@ export const createFfmpegVideoTranscoder = ({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   stallMs = DEFAULT_STALL_MS,
 }: FfmpegTranscoderOptions): FfmpegVideoTranscoder => {
-  const running = new Set<{ kill: () => void }>()
+  const children = createChildRunner(env)
 
-  const run = async (
+  const run = (
     binary: string,
     args: readonly string[],
     /**
@@ -259,15 +260,7 @@ export const createFfmpegVideoTranscoder = ({
      * same minimal environment, with no per-call escape hatch back to the server's own.
      */
     bounds: Omit<RunProcessOptions, 'binary' | 'args' | 'env'>,
-  ): Promise<RunResult> => {
-    const process_ = startProcess({ binary, args, env, ...bounds })
-    running.add(process_)
-    try {
-      return await process_.finished
-    } finally {
-      running.delete(process_)
-    }
-  }
+  ): Promise<RunResult> => children.run(binary, args, bounds)
 
   /** A scratch directory of its own per call, removed on **every** exit path. */
   const withScratch = async <T>(work: (directory: string) => Promise<T>): Promise<T> => {
@@ -676,7 +669,7 @@ export const createFfmpegVideoTranscoder = ({
     },
 
     close: () => {
-      for (const child of [...running]) child.kill()
+      children.close()
     },
   }
 }

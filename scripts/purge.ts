@@ -2,16 +2,17 @@
  * `npm run purge` and `npm run purge -- --dry-run` — in the image,
  * `node dist/ops/scripts/purge.js [--dry-run]`.
  *
- * The retention sweep, on demand. The same use case the server runs on a timer
- * (`src/main/retentionSweeper.ts`), so the two can never drift apart: this is a
- * different trigger, not a second implementation.
+ * The retention sweep, on demand. The purge is the same use case the server runs on a timer
+ * (`src/main/retentionSweeper.ts`), and the steps that follow it — finalising offboarded
+ * clients, then pruning the audit log — are the very function the timer calls
+ * (`makeRetentionFollowUp`), not a copy: this is a different trigger, not a second
+ * implementation, so an operator who set `RETENTION_SWEEP_INTERVAL_MINUTES=off` gets the
+ * whole sweep from this command. On top of that it reconciles the media store, which on that
+ * deployment nothing else does (see `reconcile` below).
  *
- * **One thing the timer does that this command does not: it prunes the audit log**
- * (`pruneAuditLog`, roadmap §10.8). Calling it from here is a few lines, but this file runs
- * `main()` on import, so nothing can drive it from a test, and the coverage ratchet in
- * `vitest.config.ts` forbids adding untested lines to `scripts/`. Making it testable first,
- * the way `backup.ts` exports `run`, is the follow-up; until then an operator who sets
- * `RETENTION_SWEEP_INTERVAL_MINUTES=off` has nothing pruning the audit log.
+ * `run(argv, env)` is exported and returns an exit code, the way `backup.ts` does, so the
+ * command can be driven from a test; the thin entry at the bottom only runs when this file is
+ * the program.
  *
  * Two operators want this. The one whose schedule belongs to cron or a systemd timer
  * rather than to the application — they set `RETENTION_SWEEP_INTERVAL_MINUTES=off` and
@@ -20,27 +21,37 @@
  *
  * **Export before you purge.** This deletes; there is no undo and no second take on a
  * wedding album. `--dry-run` lists exactly what a real run would remove, and answers
- * nothing else: it touches no file and no row.
+ * nothing else: it opens the database read-only, so it changes no row and no byte of the database file (a WAL database may still get empty -wal/-shm side files), and a
+ * path that does not exist is refused rather than created.
  *
  * Safe to run while the server is up. The deletions are per-event and
  * `MediaStore.deleteEvent` is idempotent, so the worst a race with the in-process sweep
  * produces is an event reported as failed here because the other run had already removed
  * it — the album is gone either way, and the next sweep reconciles anything left.
  */
+import { existsSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { makePruneAuditLog } from '../src/application/usecases/audit/pruneAuditLog'
+import { makeFinalizeOffboardedClients } from '../src/application/usecases/clients/finalizeOffboardedClients'
 import { makePurgeExpiredEvents } from '../src/application/usecases/events/purgeExpiredEvents'
 import { makeSweepOrphanedMedia } from '../src/application/usecases/media/sweepOrphanedMedia'
 import type { LogContext, Logger } from '../src/application/ports/logger'
 import { loadMaintenanceConfig } from '../src/infrastructure/config/env'
 import { closeDatabase, openDatabase } from '../src/infrastructure/db/connection'
+import { SqliteAccountHoldings } from '../src/infrastructure/db/sqliteAccountHoldings'
+import { SqliteAuditLog } from '../src/infrastructure/db/sqliteAuditLog'
+import { SqliteClientRepository } from '../src/infrastructure/db/sqliteClientRepository'
 import { SqliteClipJobRepository } from '../src/infrastructure/db/sqliteClipJobRepository'
 import { SqliteReelRepository } from '../src/infrastructure/db/sqliteReelRepository'
 import { SqliteEventRepository } from '../src/infrastructure/db/sqliteEventRepository'
 import { SqlitePhotoRepository } from '../src/infrastructure/db/sqlitePhotoRepository'
+import { SqliteUserRepository } from '../src/infrastructure/db/sqliteUserRepository'
+import { createFsBookFileStore } from '../src/infrastructure/media/fsBookFileStore'
 import { createFsMediaStore } from '../src/infrastructure/media/fsMediaStore'
 import { systemClock } from '../src/infrastructure/time/systemClock'
 import { isTooDangerousToSweep, MEDIA_SWEEP_MIN_AGE_MS } from '../src/main/mediaSweeper'
+import { makeRetentionFollowUp } from '../src/main/retentionSweeper'
 
 /** The sweep wants a `Logger`; on a terminal that is the console. */
 const consoleLogger: Logger = {
@@ -51,12 +62,15 @@ const consoleLogger: Logger = {
   child: () => consoleLogger,
 }
 
-const main = async (): Promise<number> => {
-  const dryRun = process.argv.includes('--dry-run')
+const execute = async (
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv | undefined,
+): Promise<number> => {
+  const dryRun = argv.includes('--dry-run')
 
   // Only the config module reads the environment; it has already resolved these, and it
   // refuses to hand them over at all if anything else is misconfigured.
-  const config = loadMaintenanceConfig()
+  const config = loadMaintenanceConfig(env)
   const databasePath = config.storage.databasePath
   // Resolved exactly as the container resolves it, so the CLI and the server address the
   // same directory when MEDIA_ROOT is relative.
@@ -71,11 +85,57 @@ const main = async (): Promise<number> => {
   if (dryRun) console.log('  mode:       dry run, nothing will be deleted')
   console.log('')
 
-  const db = openDatabase({ path: databasePath })
+  // A purge works on a database the server has already created. A path that does not exist is
+  // a typo or the wrong box: opening it would create an empty database there, report a
+  // missing schema, and give a hint that is wrong.
+  if (!existsSync(databasePath)) {
+    console.error(`Purge failed: there is no database at ${databasePath}.`)
+    console.error(
+      'Check DATABASE_PATH. The server creates the database the first time it starts; this command never does.',
+    )
+    return 1
+  }
+
+  // A dry run opens the database read-only: "changes no row" is then enforced by
+  // SQLite and not only promised.
+  const db = openDatabase({ path: databasePath, readonly: dryRun })
   try {
     const events = new SqliteEventRepository(db)
     const media = createFsMediaStore({ root: mediaRoot })
     const now = systemClock.now()
+
+    /**
+     * **The steps the timer runs after its purge, from the same function.** It never rejects;
+     * it reports a step that failed on the logger, and this wrapper turns that into an exit
+     * code so a cron job hears about it. Not run on a dry run: that answers the listing only.
+     */
+    let followUpErrors = 0
+    const followUpLogger: Logger = {
+      ...consoleLogger,
+      error: (message: string, context?: LogContext) => {
+        followUpErrors += 1
+        consoleLogger.error(message, context)
+      },
+      child: () => followUpLogger,
+    }
+    const followUp = async (): Promise<boolean> => {
+      await makeRetentionFollowUp({
+        finalizeOffboardedClients: makeFinalizeOffboardedClients({
+          clients: new SqliteClientRepository(db),
+          users: new SqliteUserRepository(db),
+          holdings: new SqliteAccountHoldings(db),
+          audit: new SqliteAuditLog(db),
+          clock: systemClock,
+        }),
+        pruneAuditLog: makePruneAuditLog({
+          audit: new SqliteAuditLog(db),
+          clock: systemClock,
+          retentionDays: config.audit.retentionDays,
+        }),
+        logger: followUpLogger,
+      })()
+      return followUpErrors > 0
+    }
 
     /**
      * **The media reconciliation sweep, because on this box nothing else runs it.**
@@ -149,8 +209,12 @@ const main = async (): Promise<number> => {
       console.log(
         'Only closed or archived events with a retention period (their own, or their client’s ceiling) reach this list; an event still running is never due.',
       )
-      if (!dryRun) await reconcile()
-      return 0
+      if (dryRun) return 0
+      // Nothing to purge is not nothing to do: offboarded clients whose albums went earlier
+      // are finalised here, and the audit log ages whether or not an event is due.
+      const failed = await followUp()
+      await reconcile()
+      return failed ? 1 : 0
     }
 
     console.log(`Due for purge (${due.length}):`)
@@ -174,6 +238,8 @@ const main = async (): Promise<number> => {
     const purge = makePurgeExpiredEvents({
       events,
       media,
+      // Deleted with the album, as the timer does: the book PDF is the album's own file.
+      bookFiles: createFsBookFileStore(mediaRoot),
       clock: systemClock,
       capNoticeDays,
     })
@@ -181,6 +247,7 @@ const main = async (): Promise<number> => {
     const report = await purge()
 
     console.log(`Purged ${report.purged.length} event(s).`)
+    const followUpFailed = await followUp()
     await reconcile()
 
     if (report.failed.length > 0) {
@@ -190,25 +257,30 @@ const main = async (): Promise<number> => {
       for (const id of report.failed) console.error(`  ${id}`)
       console.error('')
       console.error(
-        'Their photos are still on disk and their rows are still in the database. Check that',
+        'Their files may still be on disk, and a row that could not be deleted is still in the',
       )
-      console.error(`the disk is writable and not full: ${mediaRoot}`)
-      console.error('Nothing is lost; the next run retries them.')
+      console.error(`database. Check that the disk is writable and not full: ${mediaRoot}`)
+      console.error(
+        'The next run retries them, and the media reconciliation collects leftover files.',
+      )
       return 1
     }
 
-    return 0
+    return followUpFailed ? 1 : 0
   } finally {
     // Checkpoints the WAL, so the database file on disk is self-contained afterwards.
     closeDatabase(db)
   }
 }
 
-main()
-  .then((code) => {
-    process.exitCode = code
-  })
-  .catch((error: unknown) => {
+/**
+ * The whole command, as a function of its arguments and environment. Exported and returning an
+ * exit code so a test can drive it; it never calls `process.exit`.
+ */
+export const run = async (argv: readonly string[], env?: NodeJS.ProcessEnv): Promise<number> => {
+  try {
+    return await execute(argv, env)
+  } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error(`Purge failed: ${message}`)
     if (message.includes('no such table')) {
@@ -219,5 +291,13 @@ main()
           'migrations, or run `npm run db:migrate` from a source checkout.',
       )
     }
-    process.exitCode = 1
+    return 1
+  }
+}
+
+/** Run as a program, and not when a test imports `run` (see `backup.ts`). */
+if (require.main === module) {
+  void run(process.argv.slice(2)).then((code) => {
+    process.exitCode = code
   })
+}

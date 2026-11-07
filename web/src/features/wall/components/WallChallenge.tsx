@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { VisuallyHidden } from '../../../design-system/components/VisuallyHidden'
 import { cx } from '../../../design-system/classNames'
 import { useTranslations } from '../../../lib/i18n/useTranslations'
-import { formatCountdown, remainingMs } from '../../../lib/serverClock'
+import { formatCountdown } from '../../../lib/serverClock'
+import { useGoneAfter, useServerCountdown } from '../../../app/useServerCountdown'
 import type { WallChallengeDto } from '../../../lib/api/dto'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import styles from './WallChallenge.module.css'
@@ -54,32 +55,13 @@ export interface WallChallengeProps {
 export function WallChallenge({ challenge, offsetMs, onElapsed, onLeave }: WallChallengeProps) {
   const text = useTranslations()
   const reducedMotion = usePrefersReducedMotion()
-  const [now, setNow] = useState(() => Date.now())
-  const [gone, setGone] = useState(false)
-
-  const left = remainingMs(Date.parse(challenge.endsAt), now, offsetMs)
-  // By the server's word, or by the clock a moment before the server has been asked again.
-  const over = challenge.state === 'ended' || left === 0
+  const { leftMs: left, over } = useServerCountdown(challenge, offsetMs)
   const stillRunning = challenge.state === 'running'
-
-  useEffect(() => {
-    if (over) return undefined
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [over])
+  const gone = useGoneAfter(over, ENDED_SHOWN_MS, onLeave)
 
   useEffect(() => {
     if (over && stillRunning) onElapsed()
   }, [over, stillRunning, onElapsed])
-
-  useEffect(() => {
-    if (!over) return undefined
-    const timer = setTimeout(() => {
-      setGone(true)
-      onLeave()
-    }, ENDED_SHOWN_MS)
-    return () => clearTimeout(timer)
-  }, [over, onLeave])
 
   if (gone) return null
 

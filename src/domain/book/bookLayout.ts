@@ -3,9 +3,6 @@ import type { Dimensions, Orientation } from '../photos/dimensions'
 export const BOOK_LAYOUTS = ['one', 'four'] as const
 export type BookLayout = (typeof BOOK_LAYOUTS)[number]
 
-export const isBookLayout = (value: unknown): value is BookLayout =>
-  typeof value === 'string' && (BOOK_LAYOUTS as readonly string[]).includes(value)
-
 export const PHOTOS_PER_PAGE: Readonly<Record<BookLayout, number>> = { one: 1, four: 4 }
 
 /** Pages that carry photographs. The last one may be incomplete. */
@@ -15,23 +12,6 @@ export const photoPageCount = (layout: BookLayout, photoCount: number): number =
 /** Cover + photo pages + closing page; 0 for no photo (there is no book to estimate). */
 export const estimatePageCount = (layout: BookLayout, photoCount: number): number =>
   photoCount < 1 ? 0 : photoPageCount(layout, photoCount) + 2
-
-export type BookPage =
-  | { readonly kind: 'cover' }
-  | { readonly kind: 'photos'; readonly first: number; readonly count: number }
-  | { readonly kind: 'end' }
-
-/** The whole book as a list of pages, photographs addressed by their index in the listing. */
-export const paginate = (layout: BookLayout, photoCount: number): readonly BookPage[] => {
-  if (photoCount < 1) return []
-  const perPage = PHOTOS_PER_PAGE[layout]
-  const pages: BookPage[] = [{ kind: 'cover' }]
-  for (let first = 0; first < photoCount; first += perPage) {
-    pages.push({ kind: 'photos', first, count: Math.min(perPage, photoCount - first) })
-  }
-  pages.push({ kind: 'end' })
-  return pages
-}
 
 export type PageOrientation = 'portrait' | 'landscape'
 

@@ -1,4 +1,5 @@
-import request, { type Agent } from 'supertest'
+import request from '../testing/request'
+import type { Agent } from 'supertest'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_EVENT_THEME } from '../../../domain/events/eventTheme'
 import { DomainError } from '../../../domain/shared/errors'
@@ -444,6 +445,12 @@ describe('the host logo routes', () => {
       const response = await request(world.app).get(url).set('Range', 'bytes=9999999-')
 
       expect(response.status).toBe(416)
+      expect(response.headers['content-range']).toMatch(/^bytes \*\/\d+$/)
+      expect(response.headers['accept-ranges']).toBe('bytes')
+      // A refusal is a JSON error, not the picture: no type, validator or disposition of the object.
+      expect(response.headers['content-type']).toContain('application/json')
+      expect(response.headers['content-disposition']).toBeUndefined()
+      expect(response.headers['x-content-type-options']).toBe('nosniff')
     })
 
     it('does not serve a draft event to the public or a guest, but does to its host', async () => {

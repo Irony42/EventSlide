@@ -1,6 +1,6 @@
 import type { Server } from 'node:http'
 import type { Express } from 'express'
-import request from 'supertest'
+import request from './request'
 import type { AuthenticateUser } from '../../../application/usecases/auth/authenticateUser'
 import { DomainError } from '../../../domain/shared/errors'
 import { asUserId } from '../../../domain/shared/ids'

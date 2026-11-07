@@ -2,7 +2,7 @@ import type { DomainError } from '../../../domain/shared/errors'
 import type { UserId } from '../../../domain/shared/ids'
 import { ok, type Result } from '../../../domain/shared/result'
 import { EmailAddress } from '../../../domain/users/emailAddress'
-import { Password, type PasswordContext } from '../../../domain/users/password'
+import { Password, passwordContextFor } from '../../../domain/users/password'
 import { User } from '../../../domain/users/user'
 import type { Clock } from '../../ports/clock'
 import type { IdGenerator } from '../../ports/idGenerator'
@@ -31,10 +31,6 @@ export interface BootstrapOwnerDeps {
 export type BootstrapOwner = (
   input: BootstrapOwnerInput,
 ) => Promise<Result<BootstrapOwnerOutcome, DomainError>>
-
-/** `exactOptionalPropertyTypes` forbids handing the context an explicit `undefined`. */
-const passwordContext = (email: EmailAddress, displayName: string | null): PasswordContext =>
-  displayName === null ? { email: email.value } : { email: email.value, displayName }
 
 /**
  * Create the first owner, on the first run, and never again.
@@ -68,7 +64,7 @@ export const makeBootstrapOwner =
     // are exactly the values a first-run credential ends up being.
     const parsedPassword = Password.create(
       password,
-      passwordContext(parsedEmail.value, displayName),
+      passwordContextFor(parsedEmail.value, displayName),
     )
     if (!parsedPassword.ok) return parsedPassword
 

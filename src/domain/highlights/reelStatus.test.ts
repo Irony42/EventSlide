@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  REEL_STATUSES,
-  canGoStale,
-  canTransition,
-  holdsOutputBytes,
-  isActive,
-  isReelStatus,
-} from './reelStatus'
+import { REEL_STATUSES, canGoStale, canTransition, isActive, isReelStatus } from './reelStatus'
 
 describe('reel status machine', () => {
   it.each([
@@ -42,10 +35,6 @@ describe('reel status machine', () => {
 
   it('a failed reel has nothing to spoil, the others do', () => {
     expect(REEL_STATUSES.filter(canGoStale)).toEqual(['queued', 'running', 'done'])
-  })
-
-  it('only a finished or a stale reel holds a file against the quota', () => {
-    expect(REEL_STATUSES.filter(holdsOutputBytes)).toEqual(['done', 'stale'])
   })
 
   it('recognises its own statuses and nothing else', () => {

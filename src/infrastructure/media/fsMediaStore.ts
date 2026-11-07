@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { mkdir, rename, rm, stat, unlink, writeFile, readFile, readdir } from 'node:fs/promises'
+import { mkdir, rename, rm, stat, unlink, writeFile, readFile } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type {
@@ -12,6 +12,7 @@ import type {
 import { ALL_MEDIA_VARIANTS } from '../../application/ports/mediaStore'
 import { ContentHash } from '../../domain/photos/contentHash'
 import { asEventId, type EventId } from '../../domain/shared/ids'
+import { isMissing, readdirOrEmpty } from '../system/fsErrors'
 import { CONTENT_TYPE, EXTENSION, mediaObjectPath } from './mediaLayout'
 
 /**
@@ -97,21 +98,9 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
     return candidate
   }
 
-  const isMissing = (error: unknown): boolean =>
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === 'ENOENT'
-
   const directorySize = async (directory: string): Promise<number> => {
     let total = 0
-    let entries
-    try {
-      entries = await readdir(directory, { withFileTypes: true })
-    } catch (error) {
-      if (isMissing(error)) return 0
-      throw error
-    }
+    const entries = await readdirOrEmpty(directory, { withFileTypes: true })
     for (const entry of entries) {
       const child = join(directory, entry.name)
       if (entry.isDirectory()) {
@@ -146,8 +135,8 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
       } catch (error) {
         await unlink(temporary).catch(() => {
           // Best effort. A `.tmp` left here is not addressable, so `list` will not name
-          // it and `sweepOrphanedMedia` will not collect it either — it survives until
-          // the event is purged. Failing the upload over it would still be worse.
+          // it, but `list` does reap one older than an hour as it walks (see there), so it
+          // does not stay forever. Failing the upload over it would still be worse.
         })
         throw error
       }
@@ -236,13 +225,7 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
     usedBytes: async (eventId): Promise<number> => directorySize(eventDir(eventId)),
 
     listEvents: async (): Promise<readonly EventId[]> => {
-      let entries
-      try {
-        entries = await readdir(absoluteRoot, { withFileTypes: true })
-      } catch (error) {
-        if (isMissing(error)) return []
-        throw error
-      }
+      const entries = await readdirOrEmpty(absoluteRoot, { withFileTypes: true })
       return entries
         .filter((entry) => entry.isDirectory())
         // `.uploads` and `.scratch` live here too and are not events. `SAFE_SEGMENT`
@@ -257,13 +240,7 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
 
       for (const variant of ALL_MEDIA_VARIANTS) {
         const variantDir = join(eventDir(eventId), variant)
-        let shards
-        try {
-          shards = await readdir(variantDir, { withFileTypes: true })
-        } catch (error) {
-          if (isMissing(error)) continue
-          throw error
-        }
+        const shards = await readdirOrEmpty(variantDir, { withFileTypes: true })
 
         for (const shard of shards.filter((entry) => entry.isDirectory())) {
           const shardDir = join(variantDir, shard.name)
@@ -272,13 +249,7 @@ export const createFsMediaStore = ({ root }: FsMediaStoreOptions): MediaStore =>
           // and it runs on the same schedule as the sweep. Without this an ordinary purge
           // landing mid-walk threw out of `list`, the event was reported as failed, and
           // the operator got a warning about routine behaviour.
-          let files
-          try {
-            files = await readdir(shardDir, { withFileTypes: true })
-          } catch (error) {
-            if (isMissing(error)) continue
-            throw error
-          }
+          const files = await readdirOrEmpty(shardDir, { withFileTypes: true })
 
           for (const file of files) {
             if (!file.isFile()) continue

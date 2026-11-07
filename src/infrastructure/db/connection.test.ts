@@ -90,6 +90,15 @@ describe('openDatabase', () => {
 
     expect(() => reader.prepare(`INSERT INTO note (body) VALUES ('x')`).run()).toThrow(/readonly/i)
   })
+
+  it('refuses a read-only open of a missing path and creates neither the file nor its directory', () => {
+    // A read-only open is a promise not to change anything: a typo in the path must
+    // not leave an empty database (and its parent directory) behind.
+    expect(() => open({ readonly: true })).toThrow()
+
+    expect(existsSync(file)).toBe(false)
+    expect(existsSync(join(directory, 'data'))).toBe(false)
+  })
 })
 
 describe('closeDatabase', () => {

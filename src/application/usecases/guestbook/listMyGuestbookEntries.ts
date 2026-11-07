@@ -7,7 +7,6 @@ import { err, ok, type Result } from '../../../domain/shared/result'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
 import type { GuestbookRepository } from '../../ports/guestbookRepository'
-import { isReachableByGuests } from './createGuestbookEntry'
 
 /**
  * A guest's own messages and whether a new one would be taken (spec 01).
@@ -53,7 +52,7 @@ export const makeListMyGuestbookEntries =
   ({ events, guestbook, clock }: ListMyGuestbookEntriesDeps): ListMyGuestbookEntries =>
   async ({ eventId, guestId }) => {
     const event = await events.findById(eventId)
-    if (event === null || !isReachableByGuests(event)) {
+    if (event === null || !event.isReachable()) {
       return err(DomainError.notFound('event.notFound'))
     }
 

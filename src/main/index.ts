@@ -16,9 +16,10 @@ import { installShutdown } from './shutdown'
  *     hardcoded admin/password account, which `initDatabase()` recreated on every boot.
  *  4. Build the HTTP app, then listen.
  *  5. Install the shutdown handlers.
- *  6. Start the two sweeps: retention, the only thing in the process that acts on an
- *     event's `retentionDays` on its own, and scheduling, the only thing that acts on a
- *     scheduled opening or closing.
+ *  6. Start the background jobs, each behind its own switch: retention (the only thing that
+ *     acts on an event's `retentionDays` on its own), the media reconciliation, scheduling
+ *     (the only thing that acts on a scheduled opening or closing), the clip and album-book
+ *     workers, and the upload-reservation reaper.
  */
 
 const bootstrap = async (): Promise<void> => {

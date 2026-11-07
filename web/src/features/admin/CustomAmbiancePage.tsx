@@ -13,10 +13,10 @@ import {
   THEME_GROUNDS,
 } from '../../design-system/eventTheme'
 import { useTranslations } from '../../lib/i18n/useTranslations'
-import { AmbiancePreview } from './components/AmbiancePreview'
+import { AmbiancePreview } from '../../app/AmbiancePreview'
 import { VenuePhotoField } from './components/VenuePhotoField'
 import { draftIdentity, draftTheme, HUE_MAX, HUE_MIN, initialCustom } from './customAmbianceDraft'
-import { isMutable } from './eventLifecycle'
+import { isMutable } from '../../lib/eventLifecycle'
 import { useSaveSettings } from './hooks/useEventActions'
 import { useEvent } from './hooks/useEventData'
 import { toSettingsPatch } from './settingsPayload'

@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { EventEmitter } from 'node:events'
+import type { spawn } from 'node:child_process'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { minimalChildEnv, runProcess, startProcess } from './runProcess'
 
 /**
@@ -327,5 +329,76 @@ describe('minimalChildEnv', () => {
 
   it('defaults to this process\u2019s own platform, which is what every production caller relies on', () => {
     expect(minimalChildEnv({ path: 'anything' })).toEqual(minimalChildEnv({ path: 'anything' }, process.platform))
+  })
+})
+
+describe('startProcess escalation, on a fake child so it holds on every OS', () => {
+  /**
+   * `child.kill('SIGTERM')` ends a real child unconditionally on Windows, so the test
+   * above cannot tell whether the SIGKILL escalation exists there. A fake child that
+   * ignores SIGTERM can, and the grace period is driven by fake timers, not slept.
+   */
+  class FakeChild extends EventEmitter {
+    readonly stdout = new EventEmitter()
+    readonly stderr = new EventEmitter()
+    exitCode: number | null = null
+    signalCode: NodeJS.Signals | null = null
+    readonly signals: Array<NodeJS.Signals | number | undefined> = []
+    kill(signal?: NodeJS.Signals | number): boolean {
+      this.signals.push(signal)
+      return true
+    }
+  }
+
+  const startFake = (killGraceMs: number) => {
+    const child = new FakeChild()
+    const fakeSpawn = (() => child) as unknown as typeof spawn
+    const running = startProcess(
+      {
+        binary: NODE,
+        args: [],
+        env: {},
+        timeoutMs: 100,
+        stallMs: 10_000,
+        killGraceMs,
+      },
+      { spawn: fakeSpawn },
+    )
+    return { child, running }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('sends SIGTERM at the deadline and SIGKILL once the grace has passed', async () => {
+    vi.useFakeTimers()
+    const { child, running } = startFake(1_000)
+
+    await vi.advanceTimersByTimeAsync(99)
+    expect(child.signals).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(child.signals).toEqual(['SIGTERM'])
+    await vi.advanceTimersByTimeAsync(999)
+    expect(child.signals).toEqual(['SIGTERM'])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(child.signals).toEqual(['SIGTERM', 'SIGKILL'])
+
+    child.emit('close', null, 'SIGKILL')
+    const result = await running.finished
+    expect(result.failure).toBe('timedOut')
+  })
+
+  it('does not escalate once the child has gone', async () => {
+    vi.useFakeTimers()
+    const { child, running } = startFake(1_000)
+
+    await vi.advanceTimersByTimeAsync(100)
+    child.exitCode = 0
+    child.emit('close', 0, null)
+    await running.finished
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    expect(child.signals).toEqual(['SIGTERM'])
   })
 })

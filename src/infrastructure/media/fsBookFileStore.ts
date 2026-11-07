@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, open, readdir, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, open, rename, rm, stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import type { BookFileStore } from '../../application/ports/bookFileStore'
 import { DomainError } from '../../domain/shared/errors'
 import { asEventId, type EventId } from '../../domain/shared/ids'
+import { isMissing, readdirOrEmpty } from '../system/fsErrors'
 
 /**
  * `BookFileStore` on the local disk: `<MEDIA_ROOT>/.books/<eventId>.pdf`.
@@ -20,9 +21,6 @@ import { asEventId, type EventId } from '../../domain/shared/ids'
 
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const BOOK_FILE = /^([A-Za-z0-9][A-Za-z0-9._-]{0,127})\.pdf$/
-
-const isMissing = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && (error as { code?: string }).code === 'ENOENT'
 
 export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
   const booksDir = resolve(mediaRoot, '.books')
@@ -89,13 +87,7 @@ export const createFsBookFileStore = (mediaRoot: string): BookFileStore => {
     },
 
     list: async () => {
-      let names: string[]
-      try {
-        names = await readdir(booksDir)
-      } catch (error) {
-        if (isMissing(error)) return []
-        throw error
-      }
+      const names = await readdirOrEmpty(booksDir)
       return names.flatMap((name) => {
         const match = BOOK_FILE.exec(name)
         return match?.[1] === undefined ? [] : [asEventId(match[1])]

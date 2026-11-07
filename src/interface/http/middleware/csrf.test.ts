@@ -1,4 +1,4 @@
-import request from 'supertest'
+import request from '../testing/request'
 import { describe, expect, it } from 'vitest'
 import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken, requireCsrfToken, rotateCsrfToken } from './csrf'
 import { buildHarness, type Harness } from '../testing/middlewareHarness'
@@ -9,6 +9,16 @@ const harness = (secureCookie = false): Harness =>
     routes: (app) => {
       app.use(issueCsrfToken({ secureCookie }))
       app.get('/read', (_req, res) => {
+        res.json({ ok: true })
+      })
+      // A static file, and an API route whose name happens to end in an extension.
+      app.get('/assets/index-abc123.js', (_req, res) => {
+        res.type('js').send('export {}')
+      })
+      app.get('/manifest.webmanifest', (_req, res) => {
+        res.type('application/manifest+json').send('{}')
+      })
+      app.get('/api/photos/cover.jpg', (_req, res) => {
         res.json({ ok: true })
       })
       // The same read, but behind the gate — which is how `server.ts` mounts it, on
@@ -84,6 +94,28 @@ describe('issueCsrfToken', () => {
     const second = await request(subject.app).get('/read').set('Cookie', `${CSRF_COOKIE}=${token}`)
 
     expect(setCookies(second.headers)).toEqual([])
+  })
+
+  it('never issues one from a static file, which could only overwrite the token the page holds', async () => {
+    // WebKit's service-worker fetches of the shell (the HTML, then the manifest and each
+    // chunk) can go out without the cookie jar. A token minted on each of those replaced the
+    // one the page had already read from `document.cookie`, so the guest's next POST
+    // carried the old value against the new cookie: `request.csrfMismatch`, twice, and the
+    // join form never moved on (webkit-mobile e2e, three CI runs). The document and the API
+    // are the only responses a client reads a token for.
+    const subject = harness()
+
+    const script = await request(subject.app).get('/assets/index-abc123.js')
+    const manifest = await request(subject.app).get('/manifest.webmanifest')
+
+    expect(setCookies(script.headers)).toEqual([])
+    expect(setCookies(manifest.headers)).toEqual([])
+  })
+
+  it('still issues one from an API route whose name has an extension', async () => {
+    const response = await request(harness().app).get('/api/photos/cover.jpg')
+
+    expect(tokenFrom(response.headers).length).toBeGreaterThan(20)
   })
 })
 

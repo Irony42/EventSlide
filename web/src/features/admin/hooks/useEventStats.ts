@@ -4,6 +4,7 @@ import type { EventStatsResponse } from '../../../lib/api/dto'
 import { ApiError } from '../../../lib/http'
 import { useEventStream, type StreamSignal } from '../../../lib/realtime/useEventStream'
 import { useLoader, type LoaderState } from '../../../lib/useLoader'
+import { usePollWhile } from './usePollWhile'
 import { useRevalidateWhenVisible } from './useRevalidateWhenVisible'
 
 /**
@@ -58,12 +59,7 @@ export const useEventStats = (slug: string): LoaderState<EventStatsResponse> => 
   useRevalidateWhenVisible(refresh)
 
   // The slow read, only while someone can see the page.
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') refresh()
-    }, SLOW_REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [refresh])
+  usePollWhile(true, SLOW_REFRESH_MS, refresh)
 
   // Signals open a five-second window; whatever arrives inside it is the same one read.
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null)

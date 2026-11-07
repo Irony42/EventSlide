@@ -1,6 +1,7 @@
 import type { Event } from '../events/event'
 import { retentionApplies } from '../events/eventStatus'
 import type { Client } from './client'
+import { addDays } from '../shared/time'
 
 /**
  * When an event's media may first be deleted, with its client's ceilings in the picture
@@ -86,10 +87,6 @@ export const purgeDeadline = (
 
   return earliest(candidates)
 }
-
-const MS_PER_DAY = 24 * 60 * 60 * 1_000
-
-const addDays = (at: Date, days: number): Date => new Date(at.getTime() + days * MS_PER_DAY)
 
 /** The later of an instant and one that may not exist. */
 const later = (at: Date, floor: Date | null): Date =>

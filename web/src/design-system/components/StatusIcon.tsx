@@ -1,5 +1,6 @@
 import { cx } from '../classNames'
 import styles from './StatusIcon.module.css'
+import { CROSS_PATH } from './iconPaths'
 
 export type StatusTone = 'neutral' | 'success' | 'danger' | 'warning' | 'accent'
 
@@ -24,8 +25,7 @@ const PATHS: Record<StatusTone, string> = {
   // Check
   success: 'M6.4 11.7 3.1 8.4l1.2-1.2 2.1 2.1 5.3-5.3 1.2 1.2z',
   // Cross
-  danger:
-    'M4.2 3.1 8 6.9l3.8-3.8 1.1 1.1L9.1 8l3.8 3.8-1.1 1.1L8 9.1l-3.8 3.8-1.1-1.1L6.9 8 3.1 4.2z',
+  danger: CROSS_PATH,
   // Bang
   warning: 'M7.2 2.8h1.6l-.25 6.4H7.45zM8 11a1.1 1.1 0 1 1 0 2.2A1.1 1.1 0 0 1 8 11z',
   // Dot on a stem: an "i" without depending on a font

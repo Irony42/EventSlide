@@ -8,24 +8,11 @@ import type { EventStatsResponse } from '../../lib/api/dto'
 import { ApiError } from '../../lib/http'
 import { fr } from '../../lib/i18n/fr'
 import { anEventStats, fakeApi, renderWithProviders } from '../../testing/renderWithProviders'
-
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-  readyState = 0
-  constructor(readonly url: string) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-  close(): void {
-    this.readyState = 2
-  }
-}
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
 const emitSignal = (type: string): void => {
-  const instance = FakeEventSource.instances[FakeEventSource.instances.length - 1]
-  if (instance === undefined) throw new Error('the page opened no stream')
   act(() => {
-    instance.dispatchEvent(new MessageEvent('change', { data: JSON.stringify({ type }) }))
+    FakeEventSource.latest('the page').emitSignal(type)
   })
 }
 
@@ -56,7 +43,7 @@ const busy = (overrides: Partial<EventStatsResponse> = {}): EventStatsResponse =
 
 describe('EventStatsPage', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 

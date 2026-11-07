@@ -5,23 +5,23 @@
   /* A ring rather than a filled shape: the gap is what reads as motion at a glance. */
   border: 2px solid currentColor;
   border-top-color: transparent;
-  animation: spin 700ms var(--ease-linear) infinite;
+  animation: spin var(--duration-spin) var(--ease-linear) infinite;
 }
 
 .sm {
-  width: 0.875rem;
-  height: 0.875rem;
+  width: var(--spinner-sm);
+  height: var(--spinner-sm);
 }
 
 .md {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: var(--spinner-md);
+  height: var(--spinner-md);
 }
 
 .lg {
-  width: 2rem;
-  height: 2rem;
-  border-width: 3px;
+  width: var(--spinner-lg);
+  height: var(--spinner-lg);
+  border-width: var(--spinner-ring-lg);
 }
 
 @keyframes spin {
@@ -37,8 +37,7 @@
  */
 @media (prefers-reduced-motion: reduce) {
   .spinner {
-    animation: pulse 1.2s var(--ease-in-out) infinite alternate !important;
-    animation-duration: 1.2s !important;
+    animation: pulse var(--duration-pulse) var(--ease-in-out) infinite alternate !important;
     border-top-color: currentColor;
     border-right-color: transparent;
   }

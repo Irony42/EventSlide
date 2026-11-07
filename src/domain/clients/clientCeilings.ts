@@ -1,5 +1,6 @@
 import { DomainError } from '../shared/errors'
 import { err, ok, type Result } from '../shared/result'
+import { addDays } from '../shared/time'
 
 /**
  * What an operator lets one client do (roadmap §10.5), expressed once so every write
@@ -89,7 +90,6 @@ export const MIN_RETENTION_DAYS = 1
 export const MAX_RETENTION_DAYS = 3650
 export const MIN_LIVE_DAYS = 1
 export const MAX_LIVE_DAYS = 365
-const MS_PER_DAY = 24 * 60 * 60 * 1_000
 
 const isPositiveInteger = (value: number): boolean => Number.isInteger(value) && value > 0
 
@@ -395,7 +395,7 @@ export class ClientCeilings {
   /** When an event opened at `openedAt` must close itself, or `null` for no deadline. */
   liveDeadline(openedAt: Date): Date | null {
     if (this.props.maxLiveDays === null) return null
-    return new Date(openedAt.getTime() + this.props.maxLiveDays * MS_PER_DAY)
+    return addDays(openedAt, this.props.maxLiveDays)
   }
 
   /**

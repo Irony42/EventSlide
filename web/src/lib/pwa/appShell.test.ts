@@ -21,6 +21,26 @@ const ORIGIN = 'https://photos.example'
 
 const aRequest = (url: string, init?: RequestInit): Request => new Request(url, init)
 
+/**
+ * A request the way a browser builds one for a page the user navigates to. `new Request` cannot
+ * produce `mode: 'navigate'` (the constructor refuses it), so the real request is wrapped and only
+ * that one property is overridden.
+ */
+const aNavigation = (url: string): Request => {
+  const real = new Request(url)
+  return new Proxy(real, {
+    get(target, property) {
+      if (property === 'mode') return 'navigate'
+      const value: unknown = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+}
+
+const offline = async (): Promise<Response> => {
+  throw new TypeError('Failed to fetch')
+}
+
 describe('isShellRequest', () => {
   it('answers for a page a guest is navigating to', () => {
     expect(isShellRequest(aRequest(`${ORIGIN}/e/mariage/upload`), ORIGIN)).toBe(true)
@@ -125,7 +145,7 @@ describe('respondFromShell', () => {
       new URL(request.url).pathname === '/' ? new Response('shell') : undefined,
     )
 
-    const response = await respondFromShell(aRequest(`${ORIGIN}/e/mariage/upload`), {
+    const response = await respondFromShell(aNavigation(`${ORIGIN}/e/mariage/upload`), {
       fetch: async () => {
         throw new TypeError('Failed to fetch')
       },
@@ -133,6 +153,20 @@ describe('respondFromShell', () => {
     })
 
     expect(await response.text()).toBe('shell')
+  })
+
+  it('does not answer an uncached script or stylesheet with the shell document', async () => {
+    // A lazy chunk is not in the precache. Answering it with index.html makes the browser
+    // report a MIME error ("expected a JavaScript module, got text/html"), which the crash
+    // recovery reads as a stale bundle. A plain network failure is the truthful answer.
+    const onlyTheShell = async (request: Request) =>
+      new URL(request.url).pathname === '/' ? new Response('<html>shell</html>') : undefined
+
+    for (const path of ['/assets/AdminConsole-9f.js', '/assets/app-1.css', '/icons/logo.png']) {
+      await expect(
+        respondFromShell(aRequest(`${ORIGIN}${path}`), { fetch: offline, match: onlyTheShell }),
+      ).rejects.toThrow(TypeError)
+    }
   })
 
   it('lets the browser show its own offline page when nothing is cached', async () => {

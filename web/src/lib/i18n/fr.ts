@@ -1868,6 +1868,8 @@ export const fr = {
       'Si vous perdez votre téléphone, chacun de ces dix codes vous ouvre la porte une fois. Notez-les maintenant : ils ne seront plus affichés.',
     recoveryCodesCopy: 'Copier les codes',
     recoveryCodesCopied: 'Codes copiés.',
+    recoveryCodesCopyFailed:
+      'Copie impossible ici : sélectionnez les codes et copiez-les vous-même.',
     recoveryCodesSaved: 'J’ai noté mes codes',
     securityEnabled: 'La vérification en deux étapes est active sur ce compte.',
     securityManageIntro:
@@ -2621,6 +2623,7 @@ export const fr = {
     invitationLinkLabel: 'Lien d’invitation',
     copyLink: 'Copier le lien',
     linkCopied: 'Lien copié.',
+    linkCopyFailed: 'Copie impossible ici : sélectionnez le lien et copiez-le vous-même.',
     invitationValidUntil: (date: string) => `Valable jusqu’au ${date}.`,
 
     ceilingsLegend: 'Limites',

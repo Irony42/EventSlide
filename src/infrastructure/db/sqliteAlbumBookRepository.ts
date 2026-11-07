@@ -1,6 +1,14 @@
 import { z } from 'zod'
 import type { AlbumBookRepository } from '../../application/ports/albumBookRepository'
-import { invalidateBook, startBook, type AlbumBook } from '../../domain/book/albumBook'
+import {
+  finishOf,
+  invalidateBook,
+  settleBook,
+  startBook,
+  type AlbumBook,
+  type BookFinish,
+  type BookVerdict,
+} from '../../domain/book/albumBook'
 import {
   isAlbumBookStatus,
   isBookFailureCode,
@@ -165,6 +173,19 @@ export class SqliteAlbumBookRepository implements AlbumBookRepository {
     if (result.changes === 0) {
       throw new Error('AlbumBookRepository.save: no book was requested for this event')
     }
+  }
+
+  async finish(eventId: EventId, verdict: BookVerdict, now: Date): Promise<BookFinish> {
+    return this.db
+      .transaction((): BookFinish => {
+        const book = this.read(eventId)
+        if (book === null) return 'superseded'
+        const settled = settleBook(book, verdict, now)
+        if (!settled.ok) return 'superseded'
+        this.write(settled.value)
+        return finishOf(settled.value)
+      })
+      .immediate()
   }
 
   async findNextQueued(): Promise<AlbumBook | null> {

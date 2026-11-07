@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { photoRefusalFor, storageRefusalFor } from './admission'
+import { admissionRefusalError, photoRefusalFor, storageRefusalFor } from './admission'
 
 const EVENT = { quotaBytes: 1_000, usedBytes: 400 }
 const CLIENT = { maxBytes: 5_000, usedBytes: 4_900 }
@@ -94,6 +94,32 @@ describe('photoRefusalFor', () => {
     expect(photoRefusalFor(photo(0, 9_999), 3, EVENT, CLIENT)).toEqual({
       reason: 'quotaExceeded',
       remaining: 600,
+    })
+  })
+})
+
+describe('admissionRefusalError', () => {
+  it('names what the event has left, and what the request needed', () => {
+    const error = admissionRefusalError({ reason: 'quotaExceeded', remaining: 40 }, 90)
+    expect(error).toMatchObject({
+      kind: 'quotaExceeded',
+      code: 'event.quotaExceeded',
+      details: { remaining: 40, required: 90 },
+    })
+  })
+
+  it('never tells a guest how full the client is', () => {
+    const error = admissionRefusalError({ reason: 'clientStorageFull', remaining: 7 }, 90)
+    expect(error).toMatchObject({ kind: 'quotaExceeded', code: 'client.storageFull' })
+    expect(error.details).toEqual({ required: 90 })
+  })
+
+  it('reports how many photos the author already holds', () => {
+    const error = admissionRefusalError({ reason: 'photoLimitReached', already: 5 }, 90)
+    expect(error).toMatchObject({
+      kind: 'quotaExceeded',
+      code: 'event.photoLimitReached',
+      details: { already: 5 },
     })
   })
 })

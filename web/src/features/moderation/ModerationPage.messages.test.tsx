@@ -13,28 +13,12 @@ import {
 import { fr } from '../../lib/i18n/fr'
 import type { Api } from '../../lib/api/client'
 import type { EventDto, GuestbookQueueItemDto } from '../../lib/api/dto'
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
 /** The messages tab of the console (spec 15), from the host's side of the laptop. */
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readyState = 0
-
-  constructor(readonly url: string) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.readyState = 2
-  }
-}
-
 const emitSignal = (type: string): void => {
-  const instance = FakeEventSource.instances[FakeEventSource.instances.length - 1]
-  if (instance === undefined) throw new Error('the console opened no stream')
   act(() => {
-    instance.dispatchEvent(new MessageEvent('change', { data: JSON.stringify({ type }) }))
+    FakeEventSource.latest('the console').emitSignal(type)
   })
 }
 
@@ -83,7 +67,7 @@ const openMessages = async (): Promise<void> => {
 
 describe('ModerationPage, messages tab', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 
