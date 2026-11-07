@@ -10,7 +10,6 @@ import type { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
 import { GUESTBOOK_TEXT_MAX_LENGTH } from '../../../domain/guestbook/guestbookText'
 import type { JoinTarget } from '../../../application/usecases/events/resolveJoinCode'
 import type { Photo } from '../../../domain/photos/photo'
-import type { User } from '../../../domain/users/user'
 import type { EventCounts } from '../../../application/ports/eventRepository'
 import type { HostEventSummary } from '../../../application/usecases/events/listEventsForHost'
 import type { MediaVariant, ServedVariant } from '../../../application/ports/mediaStore'
@@ -539,13 +538,6 @@ export const toRenamedGuestDto = (guest: Guest): RenamedGuestDto => ({
   displayName: guest.label(),
 })
 
-export const toSessionUserDto = (user: User): SessionUserDto => ({
-  userId: user.id,
-  email: user.email.value,
-  displayName: user.displayName,
-  mustChangePassword: user.mustChangePassword,
-})
-
 // ------------------------------------------- moderation routes --
 
 export interface ModerationQueueItemDtoInput {
@@ -637,9 +629,8 @@ export const toTopPhotoDto = ({ photo, slug, counts, total }: TopPhotoDtoInput):
 /**
  * What a successful login answers with.
  *
- * Takes the use case's `AuthenticatedUser` and not the `User` entity, which is why
- * {@link toSessionUserDto} cannot serve here: `authenticateUser` deliberately returns
- * an identity and nothing else, so the entity never reaches the HTTP layer at all
+ * Takes the use case's `AuthenticatedUser` and not the `User` entity: `authenticateUser`
+ * deliberately returns an identity and nothing else, so the entity never reaches the HTTP layer at all
  * (docs/adr/0004-remove-passport.md). This is the one response that can carry a fresh
  * `displayName`, because it is the one moment the row was read.
  */
