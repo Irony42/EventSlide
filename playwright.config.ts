@@ -30,6 +30,33 @@ const PERF_SPECS = '**/perf/**/*.spec.ts'
 const NOT_A_JOURNEY = [OFFLINE_JOURNEYS, PERF_SPECS]
 
 /**
+ * `@quarantine`: a test known to be flaky, kept running but out of the gate (policy and exit
+ * criteria: docs/TESTING.md §9). Tag it in its title like `@smoke`:
+ * `test('does the thing @quarantine', ...)`.
+ *
+ * Every project carries `...selection()`, and the reason it is per project rather than one
+ * top-level `grepInvert` is that Playwright takes a project's own `grep` *instead of* the
+ * top-level one, so `firefox-desktop`'s `@smoke` filter would have let a quarantined smoke test
+ * back into the gate. Gating runs exclude the tag; `E2E_QUARANTINE=only` (the non-blocking
+ * `quarantine` job in ci.yml) selects only it, on the projects it belongs to.
+ * `scripts/e2eQuarantine.test.ts` asks each project what it selects under both modes.
+ */
+const QUARANTINE = /@quarantine/
+const QUARANTINE_ONLY = process.env['E2E_QUARANTINE'] === 'only'
+
+/** A project's test selection: its own `required` filter (`@smoke`), and the quarantine rule. */
+function selection(required?: RegExp): { grep?: RegExp; grepInvert?: RegExp } {
+  if (QUARANTINE_ONLY) {
+    return {
+      grep: required
+        ? new RegExp(`(?=.*${required.source})(?=.*${QUARANTINE.source})`)
+        : QUARANTINE,
+    }
+  }
+  return { grepInvert: QUARANTINE, ...(required ? { grep: required } : {}) }
+}
+
+/**
  * The one worker option this suite declares: who may create an event on the server a
  * worker boots (`eventCreation`, see `tests/e2e/fixtures/app.ts`). Typed here so a project's
  * `use` can set it and a misspelt policy is a compile error rather than a server that boots
@@ -60,7 +87,14 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
   },
 
   reporter: process.env['CI']
-    ? [['github'], ['html', { open: 'never' }], ['list'], ['./tests/e2e/reporters/failOnFlaky.ts']]
+    ? [
+        ['github'],
+        ['html', { open: 'never' }],
+        ['list'],
+        // Per-test outcomes for scripts/flakeRate.ts; CI uploads the file (playwright-json-*).
+        ['json', { outputFile: 'playwright-json/report.json' }],
+        ['./tests/e2e/reporters/failOnFlaky.ts'],
+      ]
     : [['html', { open: 'never' }], ['list']],
 
   use: {
@@ -109,6 +143,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
   projects: [
     {
       name: 'chromium-desktop',
+      ...selection(),
       testIgnore: NOT_A_JOURNEY,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -125,6 +160,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
        * and skip under the other.
        */
       name: 'chromium-client-members',
+      ...selection(),
       testMatch: '**/security/tenant-isolation.spec.ts',
       testIgnore: NOT_A_JOURNEY,
       use: {
@@ -137,6 +173,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
       // The guest surface. Most guests at an event are on a phone, so this project
       // runs the upload journeys.
       name: 'chromium-mobile',
+      ...selection(),
       testIgnore: NOT_A_JOURNEY,
       use: { ...devices['Pixel 7'] },
     },
@@ -175,6 +212,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
        * with other projects: it never runs two of its own at once.
        */
       name: 'perf',
+      ...selection(),
       testMatch: PERF_SPECS,
       workers: 1,
       fullyParallel: false,
@@ -182,10 +220,10 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
     },
     {
       name: 'firefox-desktop',
+      ...selection(/@smoke/),
       testIgnore: NOT_A_JOURNEY,
       use: { ...devices['Desktop Firefox'] },
-      // Cross-browser confidence without tripling every run.
-      grep: /@smoke/,
+      // Cross-browser confidence without tripling every run: the `@smoke` subset, via selection().
     },
     {
       /**
@@ -203,6 +241,7 @@ export default defineConfig<object, { eventCreation: EventCreation }>({
        * no assertion depends on it.
        */
       name: 'chromium-offline',
+      ...selection(),
       testDir: './tests/e2e/offline',
       use: { ...devices['Pixel 7'] },
     },

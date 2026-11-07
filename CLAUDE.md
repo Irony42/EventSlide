@@ -191,7 +191,8 @@ Rules:
   SQLite file and media root, no network stubbing, no `waitForTimeout`. A test that passes
   only on a CI retry fails the run (`tests/e2e/reporters/failOnFlaky.ts`). CI shards the heavy
   projects over several runners, and the frame-rate specs (`tests/e2e/perf/`) run alone in the `perf`
-  project; see `docs/TESTING.md` §9.
+  project. A known flake is tagged `@quarantine` (out of the gate, run by a non-blocking job, one
+  issue each), and a pull request that changes a spec repeats it five times; see `docs/TESTING.md` §9.
 - **Component tests start from `web/src/testing/setup.ts`**: it clears `localStorage` and
   `sessionStorage` after each test and gives `findBy*` / `waitFor` a 5 s timeout. Reuse
   `FakeEventSource`, `deferred` and `flushPromises` from `web/src/testing/` instead of writing a

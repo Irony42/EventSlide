@@ -610,6 +610,34 @@ tests/e2e/
 - **The CI matrices are guarded.** `scripts/ciShards.test.ts` checks that the `e2e-shard` and `e2e` matrices of
   `ci.yml` carry the same projects and shard counts (shards numbered 1..n) and that every project of
   `playwright.config.ts` is in them: a project in neither is a project nothing gates.
+- **Quarantine: a known flake leaves the gate and keeps running.** Tag the test in its title,
+  `test('does the thing @quarantine', ...)` (a describe title works too). Every project of
+  `playwright.config.ts` carries `grepInvert: /@quarantine/`, so the gating shards, the `e2e`
+  aggregate and `npm run test:e2e` skip it, `firefox-desktop`'s `@smoke` subset included
+  (`scripts/e2eQuarantine.test.ts` asks each project what it selects). The `quarantine` job of `ci.yml`
+  (`E2E_QUARANTINE=only`, `continue-on-error`, in no required check) runs only those tests on the
+  projects they belong to; locally, `E2E_QUARANTINE=only npx playwright test --project=<p>`. Policy:
+  1. One open GitHub issue per quarantined test, labelled `flaky`, linked in a comment above the
+     test with its date. No issue, no quarantine. Nothing is quarantined automatically.
+  2. Quarantine is for a test whose failure is understood to be unrelated to the change in front
+     of you and cannot be fixed in that pull request. Never to get green.
+  3. Exit: fix it, then remove the tag in the same pull request once the `quarantine` job's
+     flake-rate summary shows it clean (no `flaky`, no `failed`) over at least 20 runs on the
+     projects it belongs to, or delete the test if it no longer earns its seconds. A test that stays
+     quarantined for more than 30 days is reviewed at the next release: fix, delete, or say why not.
+     No test is quarantined today.
+- **Flake rate per test.** In CI the config also writes `playwright-json/report.json`; every shard
+  prints a table of its non-clean tests in the job summary and uploads the file
+  (`playwright-json-<project>-<i>of<n>`, 30 days). `npx tsx scripts/flakeRate.ts [--all] <report.json>...`
+  adds up any number of reports into `{passed, flaky, failed, rate}` per test (rate is
+  `(flaky + failed) / runs`, flakiest first): `gh run download --pattern 'playwright-json-*'` over a
+  few runs answers "what flaked this week".
+- **A pull request that changes a spec repeats it.** The `repeat-changed-specs` job (pull requests
+  only, not a required check) runs the changed `tests/e2e/**/*.spec.ts` with `--repeat-each=5
+--retries=0` on `chromium-desktop`, `webkit-mobile` and, for `offline/` specs, `chromium-offline`
+  (`scripts/changedSpecs.ts` picks the files; `perf/` and `visual/` specs are left to their own jobs;
+  no changed spec means the job passes after a note). It diffs against the pull request's own base,
+  so a stacked pull request is compared with its parent. One failure in five is the finding.
 - **`page.waitForTimeout()` is banned** and lint rejects it; use
   `await expect(locator).toBeVisible({ timeout: 10_000 })`. A fixed sleep in an
   SSE-driven app is both flaky and slow — the single largest source of e2e flake here.
