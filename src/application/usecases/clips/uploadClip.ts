@@ -5,6 +5,7 @@ import type { ClipJobStatus } from '../../../domain/clips/clipJobStatus'
 import { Caption } from '../../../domain/photos/caption'
 import { ContentHash } from '../../../domain/photos/contentHash'
 import type { PhotoAuthor } from '../../../domain/photos/photo'
+import { admissionRefusalError } from '../../../domain/events/admission'
 import { DomainError } from '../../../domain/shared/errors'
 import type { ClipJobId, EventId, PhotoId } from '../../../domain/shared/ids'
 import { err, ok, type Result } from '../../../domain/shared/result'
@@ -118,14 +119,8 @@ const refusalError = (refusal: ClipRefusal, byteSize: number): DomainError => {
       // this event's own — rather than assuming it was the former.
       return clipQueueFull(refusal.depth, refusal.maxDepth)
     case 'quotaExceeded':
-      return DomainError.quotaExceeded('event.quotaExceeded', {
-        remaining: refusal.remaining,
-        required: byteSize,
-      })
     case 'clientStorageFull':
-      // No `remaining`: it is what the client's other events have left too, and a guest of
-      // one event has no business reading how full its neighbours are.
-      return DomainError.quotaExceeded('client.storageFull', { required: byteSize })
+      return admissionRefusalError(refusal, byteSize)
   }
 }
 

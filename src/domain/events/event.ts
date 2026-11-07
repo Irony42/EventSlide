@@ -17,8 +17,7 @@ import {
   servesWall,
   type EventStatus,
 } from './eventStatus'
-
-const MS_PER_DAY = 24 * 60 * 60 * 1_000
+import { addDays } from '../shared/time'
 
 export interface EventProps {
   readonly id: EventId
@@ -323,6 +322,16 @@ export class Event {
    */
   isTakenDown(): boolean {
     return this.takenDownAt !== null
+  }
+
+  /**
+   * Whether this event reaches its guests at all: the operator took neither the event down nor
+   * its client's account away. Written here once; every "dead end, as if it were not there" check
+   * (guest sign-in, invitation preview, gallery links, guestbook, books, reels) asks it, so a
+   * third operator lever is added in one place.
+   */
+  isReachable(): boolean {
+    return !this.isTakenDown() && !this.isClientSuspended()
   }
 
   /**
@@ -641,7 +650,7 @@ export class Event {
    * (`requireGuest`), so this is the second line, for a caller that reaches a use case another way.
    */
   acceptsUploads(): boolean {
-    return !this.isTakenDown() && !this.isClientSuspended() && acceptsUploads(this.props.status)
+    return this.isReachable() && acceptsUploads(this.props.status)
   }
 
   /**
@@ -651,7 +660,7 @@ export class Event {
    * dead end as a code nobody ever issued, and says nothing that confirms the event exists.
    */
   acceptsGuests(): boolean {
-    return !this.isTakenDown() && !this.isClientSuspended() && acceptsGuests(this.props.status)
+    return this.isReachable() && acceptsGuests(this.props.status)
   }
 
   /** The lifecycle serves the wall **and the operator has not taken the event down**. */
@@ -777,7 +786,7 @@ export class Event {
 
     const closedAt = this.props.closedAt
     if (closedAt === null) return null
-    return new Date(closedAt.getTime() + retentionDays * MS_PER_DAY)
+    return addDays(closedAt, retentionDays)
   }
 
   // -------------------------------------------------------------------- helpers --

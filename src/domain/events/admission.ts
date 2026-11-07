@@ -1,3 +1,4 @@
+import { DomainError } from '../shared/errors'
 import { allowsAnotherPhoto, fitsInQuota, remainingQuota } from './quota'
 
 /**
@@ -74,4 +75,29 @@ export const photoRefusalFor = (
   }
 
   return storageRefusalFor(photo.byteSize, event, client)
+}
+
+/**
+ * What a refusal at the door is answered with: the codes the wire carries, written once so the
+ * photo and clip paths cannot drift.
+ *
+ * `quotaExceeded` names what the event has left; `clientStorageFull` deliberately does not, since
+ * it is what the client's **other** events have left too and a guest of one event has no business
+ * reading how full its neighbours are.
+ */
+export const admissionRefusalError = (
+  refusal: PhotoCapRefusal | StorageRefusal,
+  requiredBytes: number,
+): DomainError => {
+  switch (refusal.reason) {
+    case 'quotaExceeded':
+      return DomainError.quotaExceeded('event.quotaExceeded', {
+        remaining: refusal.remaining,
+        required: requiredBytes,
+      })
+    case 'clientStorageFull':
+      return DomainError.quotaExceeded('client.storageFull', { required: requiredBytes })
+    case 'photoLimitReached':
+      return DomainError.quotaExceeded('event.photoLimitReached', { already: refusal.already })
+  }
 }

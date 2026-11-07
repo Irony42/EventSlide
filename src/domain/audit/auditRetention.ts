@@ -1,3 +1,4 @@
+import { addDays } from '../shared/time'
 /**
  * How long the audit log keeps a row (roadmap §10.8; paid plan P3-07, `AUDIT_RETENTION_DAYS`).
  *
@@ -18,8 +19,6 @@ export const AUDIT_RETENTION_MIN_DAYS = 365
 export const AUDIT_RETENTION_DEFAULT_DAYS = 365
 export const AUDIT_RETENTION_MAX_DAYS = 3650
 
-const MS_PER_DAY = 24 * 60 * 60 * 1_000
-
 export const isValidAuditRetentionDays = (days: number): boolean =>
   Number.isInteger(days) && days >= AUDIT_RETENTION_MIN_DAYS && days <= AUDIT_RETENTION_MAX_DAYS
 
@@ -33,5 +32,4 @@ export const isValidAuditRetentionDays = (days: number): boolean =>
  *
  * The caller has already refused an invalid `days` ({@link isValidAuditRetentionDays}).
  */
-export const auditRetentionCutoff = (now: Date, days: number): Date =>
-  new Date(now.getTime() - days * MS_PER_DAY)
+export const auditRetentionCutoff = (now: Date, days: number): Date => addDays(now, -days)

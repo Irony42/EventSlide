@@ -1,4 +1,3 @@
-import type { Event } from '../../../domain/events/event'
 import { GuestbookEntry } from '../../../domain/guestbook/guestbookEntry'
 import { GuestbookText } from '../../../domain/guestbook/guestbookText'
 import { acceptsGuestbookEntries } from '../../../domain/guestbook/guestbookWindow'
@@ -59,15 +58,11 @@ export type CreateGuestbookEntry = (
   input: CreateGuestbookEntryInput,
 ) => Promise<Result<CreatedGuestbookEntry, DomainError>>
 
-/** Whether this event reaches its guests at all: the operator's two levers, as `authenticateGuest` reads them. */
-export const isReachableByGuests = (event: Event): boolean =>
-  !event.isTakenDown() && !event.isClientSuspended()
-
 export const makeCreateGuestbookEntry =
   ({ events, guestbook, ids, bus, clock }: CreateGuestbookEntryDeps): CreateGuestbookEntry =>
   async ({ eventId, guestId, text }) => {
     const event = await events.findById(eventId)
-    if (event === null || !isReachableByGuests(event)) {
+    if (event === null || !event.isReachable()) {
       return err(DomainError.notFound('event.notFound'))
     }
 

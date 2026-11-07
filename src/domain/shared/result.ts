@@ -31,6 +31,3 @@ export const flatMap = <T, U, E>(
   result: Result<T, E>,
   next: (value: T) => Result<U, E>,
 ): Result<U, E> => (result.ok ? next(result.value) : result)
-
-export const unwrapOr = <T, E>(result: Result<T, E>, fallback: T): T =>
-  result.ok ? result.value : fallback

@@ -6,6 +6,3 @@
 export const STATS_METRICS = ['galleryViews', 'galleryArchiveDownloads'] as const
 
 export type StatsMetric = (typeof STATS_METRICS)[number]
-
-export const isStatsMetric = (value: string): value is StatsMetric =>
-  STATS_METRICS.some((metric) => metric === value)
