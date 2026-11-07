@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  REEL_STATUSES,
-  canGoStale,
-  canTransition,
-  isActive,
-  isReelStatus,
-} from './reelStatus'
+import { REEL_STATUSES, canGoStale, canTransition, isActive, isReelStatus } from './reelStatus'
 
 describe('reel status machine', () => {
   it.each([

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Dimensions } from '../photos/dimensions'
-import {
-  containInBox,
-  estimatePageCount,
-  pageOrientationFor,
-  photoPageCount,
-} from './bookLayout'
+import { containInBox, estimatePageCount, pageOrientationFor, photoPageCount } from './bookLayout'
 
 const dims = (w: number, h: number): Dimensions => {
   const r = Dimensions.create(w, h)

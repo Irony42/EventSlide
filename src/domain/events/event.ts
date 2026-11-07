@@ -17,8 +17,7 @@ import {
   servesWall,
   type EventStatus,
 } from './eventStatus'
-
-const MS_PER_DAY = 24 * 60 * 60 * 1_000
+import { addDays } from '../shared/time'
 
 export interface EventProps {
   readonly id: EventId
@@ -787,7 +786,7 @@ export class Event {
 
     const closedAt = this.props.closedAt
     if (closedAt === null) return null
-    return new Date(closedAt.getTime() + retentionDays * MS_PER_DAY)
+    return addDays(closedAt, retentionDays)
   }
 
   // -------------------------------------------------------------------- helpers --

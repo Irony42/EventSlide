@@ -19,6 +19,7 @@ import type { IdGenerator } from '../../ports/idGenerator'
 import type { Logger } from '../../ports/logger'
 import type { Mailer } from '../../ports/mailer'
 import type { SecretTokens } from '../../ports/secretTokens'
+import { MS_PER_DAY } from '../../../domain/shared/time'
 
 /** What an invitation is to, and what to call it in the mail. */
 export type InvitedPlace = InvitationTarget & {
@@ -74,8 +75,6 @@ export interface IssueInvitationDeps {
 export type IssueInvitation = (
   input: IssueInvitationInput,
 ) => Promise<Result<IssuedInvitation, DomainError>>
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * Writes an invitation link to an address and gets it to its owner — **by mail when the box
@@ -231,7 +230,7 @@ export const makeIssueInvitation = ({
                 place.kind === 'event'
                   ? { kind: 'event', name: place.name }
                   : { kind: 'client', name: place.name, role: place.role },
-              lifetimeDays: ACCOUNT_TOKEN_LIFETIME_MS.invitation / DAY_MS,
+              lifetimeDays: ACCOUNT_TOKEN_LIFETIME_MS.invitation / MS_PER_DAY,
             }),
           )
           if (sent.ok) {

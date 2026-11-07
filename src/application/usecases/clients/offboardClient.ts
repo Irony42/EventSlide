@@ -8,11 +8,10 @@ import type { AuditRecorder } from '../../ports/auditLog'
 import type { ClientRepository } from '../../ports/clientRepository'
 import type { Clock } from '../../ports/clock'
 import type { EventRepository } from '../../ports/eventRepository'
+import { addDays } from '../../../domain/shared/time'
 
 /** Between a day and a year: a window to export in, and a client that is not kept for ever. */
 export const OFFBOARD_GRACE_DAYS = { min: 1, max: 365 } as const
-
-const DAY_MS = 86_400_000
 
 export interface OffboardClientInput {
   readonly clientId: ClientId
@@ -111,6 +110,6 @@ export const makeOffboardClient =
 
     await audit.record(entry.value)
     for (const event of moved) await events.save(event)
-    await clients.save(client.offboard(at, new Date(at.getTime() + graceDays * DAY_MS)))
+    await clients.save(client.offboard(at, addDays(at, graceDays)))
     return ok(undefined)
   }
