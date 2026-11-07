@@ -166,4 +166,80 @@ describe('useGallery', () => {
     // The unlock ran out between two pages: back to the password form, not an error.
     expect(result.current.phase).toBe('locked')
   })
+
+  it('does not start a second refresh while a slow one is still in flight', async () => {
+    vi.useFakeTimers()
+    try {
+      let release: (value: ReturnType<typeof aGallery>) => void = () => undefined
+      const gallery = vi
+        .fn<Api['gallery']>()
+        .mockResolvedValueOnce(aGallery())
+        .mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              release = resolve
+            }),
+        )
+      const { result } = mount(fakeApi({ gallery }), 1000)
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(result.current.phase).toBe('ready')
+
+      await act(async () => vi.advanceTimersByTimeAsync(3000))
+
+      // One first read, one refresh that has not answered: the two later ticks asked nothing.
+      expect(gallery).toHaveBeenCalledTimes(2)
+      release(aGallery())
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      await act(async () => vi.advanceTimersByTimeAsync(1000))
+      expect(gallery).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('aborts the refresh in flight when the hook goes away', async () => {
+    vi.useFakeTimers()
+    try {
+      const signals: (AbortSignal | undefined)[] = []
+      const gallery = vi
+        .fn<Api['gallery']>()
+        .mockResolvedValueOnce(aGallery())
+        .mockImplementation((_token, signal) => {
+          signals.push(signal)
+          return new Promise(() => {})
+        })
+      const { result, unmount } = mount(fakeApi({ gallery }), 1000)
+      await act(async () => vi.advanceTimersByTimeAsync(0))
+      expect(result.current.phase).toBe('ready')
+      await act(async () => vi.advanceTimersByTimeAsync(1000))
+      expect(signals).toHaveLength(1)
+
+      unmount()
+
+      expect(signals[0]?.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('drops the old album when the link changes, instead of showing it under the new one', async () => {
+    const OTHER = 'R'.repeat(43)
+    const pending = new Promise<ReturnType<typeof aGallery>>(() => {})
+    const gallery = vi.fn<Api['gallery']>(async (token) =>
+      token === TOKEN ? aGallery() : pending,
+    )
+    const api = fakeApi({ gallery })
+    const { result, rerender } = renderHook(({ token }) => useGallery(token), {
+      initialProps: { token: TOKEN },
+      wrapper: ({ children }: { readonly children: ReactNode }) => (
+        <ApiProvider api={api}>{children}</ApiProvider>
+      ),
+    })
+    await waitFor(() => expect(result.current.phase).toBe('ready'))
+
+    rerender({ token: OTHER })
+
+    expect(result.current.phase).toBe('loading')
+    expect(result.current.items).toEqual([])
+  })
 })
