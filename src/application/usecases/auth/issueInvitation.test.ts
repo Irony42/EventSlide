@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { asClientId, asEventId, asUserId } from '../../../domain/shared/ids'
 import { err } from '../../../domain/shared/result'
 import {
@@ -372,11 +372,17 @@ describe('issueInvitation', () => {
 
     it('do not make another address wait for them', async () => {
       const log: string[] = []
+      // The slow address's relay stays open until the test lets it go, so "the other one did not
+      // wait" is read from what happened while it was still open, not from how long a timer ran.
+      let releaseSlow: () => void = () => undefined
+      const slowRelay = new Promise<void>((resolve) => {
+        releaseSlow = resolve
+      })
       const gated: Mailer = {
         canDeliver: true,
         send: async (mail) => {
           log.push(`start ${mail.to.value}`)
-          await new Promise((resolve) => setTimeout(resolve, 20))
+          if (mail.to.value === 'lent@example.test') await slowRelay
           log.push(`end ${mail.to.value}`)
           return mailer.send(mail)
         },
@@ -386,7 +392,11 @@ describe('issueInvitation', () => {
       const to = (email: string) =>
         once({ email, locale: 'fr', place: EVENT_PLACE, createdBy: asUserId('user-host') })
 
-      await Promise.all([to('lent@example.test'), to('rapide@example.test')])
+      const both = Promise.all([to('lent@example.test'), to('rapide@example.test')])
+      await vi.waitFor(() => expect(log).toContain('end rapide@example.test'))
+      expect(log).not.toContain('end lent@example.test')
+      releaseSlow()
+      await both
 
       // The second address reached the relay before the first one finished: the queue is
       // per address, not one for the whole box.
