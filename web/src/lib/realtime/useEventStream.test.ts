@@ -1,82 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useEventStream, type StreamSignal } from './useEventStream'
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
-/**
- * A controllable stand-in for `EventSource`.
- *
- * jsdom implements no `EventSource`, and a real one would need a server. This is the
- * same category of double as the `IntersectionObserver` stub in
- * `web/src/testing/setup.ts`: it stands in for a browser API and stubs no application
- * code, so what is under test — one connection, backoff, cleanup, frame parsing —
- * stays real.
- *
- * It extends `EventTarget`, so `addEventListener` and `dispatchEvent` are the
- * platform's own rather than a hand-rolled registry that could disagree with them.
- */
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readyState = 0
-  closeCount = 0
-
-  constructor(
-    readonly url: string,
-    readonly init?: EventSourceInit,
-  ) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.closeCount += 1
-    this.readyState = 2
-  }
-
-  /** The server answered and the stream is live. */
-  emitOpen(): void {
-    this.readyState = 1
-    this.dispatchEvent(new Event('open'))
-  }
-
-  emitFrame(data: string): void {
-    this.dispatchEvent(new MessageEvent('change', { data }))
-  }
-
-  emitSignal(type: string): void {
-    this.emitFrame(JSON.stringify({ type }))
-  }
-
-  /** The server's named heartbeat: the pipe is alive and nothing has happened. */
-  emitHeartbeat(): void {
-    this.dispatchEvent(new MessageEvent('ping', { data: '{}' }))
-  }
-
-  /** A dropped connection the browser is already retrying by itself. */
-  emitDrop(): void {
-    this.readyState = 0
-    this.dispatchEvent(new Event('error'))
-  }
-
-  /** A refusal the browser will not retry: a 500, or the wrong content type. */
-  emitRefusal(): void {
-    this.readyState = 2
-    this.dispatchEvent(new Event('error'))
-  }
-}
-
-const latest = (): FakeEventSource => {
-  const instance = FakeEventSource.instances[FakeEventSource.instances.length - 1]
-  if (instance === undefined) throw new Error('no connection was opened')
-  return instance
-}
+/** The shared `EventSource` stand-in; what is under test here is one connection, backoff, cleanup, frame parsing. */
+const latest = (): FakeEventSource => FakeEventSource.latest('the hook')
 
 const URL_A = '/api/events/camille-et-sacha/stream'
 const URL_B = '/api/events/gala/stream'
 
 describe('useEventStream', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 

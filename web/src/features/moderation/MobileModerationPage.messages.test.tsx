@@ -11,23 +11,9 @@ import {
 import { fr } from '../../lib/i18n/fr'
 import type { Api } from '../../lib/api/client'
 import type { GuestbookQueueItemDto, ModerationDecision } from '../../lib/api/dto'
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
 /** The messages tab of the phone console (spec 15). */
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readyState = 0
-
-  constructor(readonly url: string) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.readyState = 2
-  }
-}
-
 const SLUG = 'camille-et-sacha'
 /** jsdom measures the card at zero, so the commit distance is its 56 px floor. */
 const FAR = 120
@@ -89,7 +75,7 @@ const drag = (dx: number, dy: number): void => {
 
 describe('MobileModerationPage, messages tab', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 

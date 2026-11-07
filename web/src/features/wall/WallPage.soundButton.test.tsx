@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fr } from '../../lib/i18n/fr'
 import {
@@ -39,15 +39,21 @@ const renderWall = () => {
   })
 }
 
-const idle = () => new Promise((resolve) => setTimeout(resolve, CURSOR_IDLE_MS + 300))
+/** The pointer lies still for exactly the idle delay, on the fake clock: no real wait, no margin. */
+const idle = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(CURSOR_IDLE_MS)
+  })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
 describe('the wall sound button on a screen without a pointer (spec 12)', () => {
   it('stays reachable on a touch screen, where no pointer ever moves', async () => {
     hover(true)
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     renderWall()
     const name = fr.wall.soundActivate
     await screen.findByRole('button', { name })
@@ -59,6 +65,7 @@ describe('the wall sound button on a screen without a pointer (spec 12)', () => 
 
   it('still goes away with the idle cursor where there is a mouse', async () => {
     hover(false)
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     renderWall()
     const name = fr.wall.soundActivate
     await screen.findByRole('button', { name })

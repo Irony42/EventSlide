@@ -13,6 +13,7 @@ import {
 } from '../../testing/renderWithProviders'
 import type { Api } from '../../lib/api/client'
 import type { ModerationPhotoDto, ModerationQueueResponse } from '../../lib/api/dto'
+import { FakeEventSource } from '../../testing/fakeEventSource'
 
 /**
  * The console a host uses standing up, with one thumb.
@@ -24,34 +25,15 @@ import type { ModerationPhotoDto, ModerationQueueResponse } from '../../lib/api/
  *
  * The stream is driven through a stand-in for `EventSource`, as in
  * `ModerationPage.test.tsx`: what matters is that a signal makes the console refetch,
- * not that a socket can be opened. The stand-in is duplicated rather than shared,
- * because `web/src/testing/` is a file several branches write to at once.
+ * not that a socket can be opened. The stand-in is the shared
+ * `web/src/testing/fakeEventSource.ts`.
  */
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readyState = 0
-
-  constructor(readonly url: string) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.readyState = 2
-  }
-}
-
-const stream = (): FakeEventSource => {
-  const instance = FakeEventSource.instances[FakeEventSource.instances.length - 1]
-  if (instance === undefined) throw new Error('the console opened no stream')
-  return instance
-}
+const stream = (): FakeEventSource => FakeEventSource.latest('the console')
 
 /** What the server sends when something in the event changed. Never data. */
 const emitSignal = (type: string): void => {
   act(() => {
-    stream().dispatchEvent(new MessageEvent('change', { data: JSON.stringify({ type }) }))
+    stream().emitSignal(type)
   })
 }
 
@@ -101,7 +83,7 @@ const swipe = (to: number): void => {
 
 describe('MobileModerationPage', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 
@@ -608,7 +590,7 @@ describe('MobileModerationPage', () => {
  */
 describe('a clip on the phone', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 

@@ -15,6 +15,8 @@ import type {
   ModerationPhotoDto,
   ModerationQueueResponse,
 } from '../../../lib/api/dto'
+import { FakeEventSource } from '../../../testing/fakeEventSource'
+import { deferred } from '../../../testing/deferred'
 
 /** The query `api.moderationQueue` takes, which defaults to `{}` in the client. */
 type ModerationQuery = Parameters<Api['moderationQueue']>[1]
@@ -28,27 +30,10 @@ type ModerationQuery = Parameters<Api['moderationQueue']>[1]
  * address with no event in it — and none of those has a button to press.
  */
 
-class FakeEventSource extends EventTarget {
-  static instances: FakeEventSource[] = []
-
-  readyState = 0
-
-  constructor(readonly url: string) {
-    super()
-    FakeEventSource.instances.push(this)
-  }
-
-  close(): void {
-    this.readyState = 2
-  }
-}
-
 /** What the server sends when something in the event changed. Never data. */
 const emitSignal = (type: string): void => {
-  const instance = FakeEventSource.instances[FakeEventSource.instances.length - 1]
-  if (instance === undefined) throw new Error('the console opened no stream')
   act(() => {
-    instance.dispatchEvent(new MessageEvent('change', { data: JSON.stringify({ type }) }))
+    FakeEventSource.latest('the console').emitSignal(type)
   })
 }
 
@@ -58,17 +43,6 @@ const queueOf = (
   items: readonly ModerationPhotoDto[],
   pendingCount = items.filter((item) => item.status === 'pending').length,
 ): ModerationQueueResponse => ({ items, pendingCount, nextCursor: null })
-
-/** A promise the test settles by hand, to hold a fetch open across another render. */
-const deferred = <T,>() => {
-  let settle: (value: T) => void = () => {}
-  let fail: (cause: unknown) => void = () => {}
-  const promise = new Promise<T>((resolve, reject) => {
-    settle = resolve
-    fail = reject
-  })
-  return { promise, settle: (value: T) => settle(value), fail: (cause: unknown) => fail(cause) }
-}
 
 const mountFor = (api: Api, slug: string | undefined, options: ModerationQueueOptions = {}) => {
   const wrapper = ({ children }: { readonly children: ReactNode }) => (
@@ -86,7 +60,7 @@ const mountWithoutEvent = (api: Api) => mountFor(api, undefined)
 
 describe('useModerationQueue', () => {
   beforeEach(() => {
-    FakeEventSource.instances = []
+    FakeEventSource.reset()
     vi.stubGlobal('EventSource', FakeEventSource)
   })
 
@@ -447,7 +421,7 @@ describe('useModerationQueue', () => {
     act(() => result.current.setFilter('published'))
     await waitFor(() => expect(result.current.items).toHaveLength(1))
     await act(async () => {
-      pending.settle(queueOf([aModerationPhoto({ id: 'photo-pending' })]))
+      pending.resolve(queueOf([aModerationPhoto({ id: 'photo-pending' })]))
       await pending.promise
     })
 
@@ -466,7 +440,7 @@ describe('useModerationQueue', () => {
     act(() => result.current.setFilter('published'))
     await waitFor(() => expect(result.current.items).toHaveLength(1))
     await act(async () => {
-      pending.fail(ApiError.network())
+      pending.reject(ApiError.network())
       await pending.promise.catch(() => undefined)
     })
 
@@ -482,7 +456,7 @@ describe('useModerationQueue', () => {
     const { result } = mount(api)
 
     await act(async () => {
-      aborted.fail(new DOMException('The user aborted a request.', 'AbortError'))
+      aborted.reject(new DOMException('The user aborted a request.', 'AbortError'))
       await aborted.promise.catch(() => undefined)
     })
 
@@ -639,7 +613,7 @@ describe('useModerationQueue', () => {
     expect(result.current.items[0]?.status).toBe('published')
     expect(result.current.items[0]?.allowedDecisions).toEqual([])
 
-    answer.fail(new ApiError(409, 'photo.illegalTransition'))
+    answer.reject(new ApiError(409, 'photo.illegalTransition'))
     await act(async () => {
       await pending
     })
@@ -922,8 +896,8 @@ describe('useModerationQueue', () => {
       await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
 
       await act(async () => {
-        request.settle()
-        signalRead.settle(queueOf([aModerationPhoto({ id: 'photo-1' })]))
+        request.resolve()
+        signalRead.resolve(queueOf([aModerationPhoto({ id: 'photo-1' })]))
         await pending
       })
 
@@ -932,7 +906,7 @@ describe('useModerationQueue', () => {
 
       await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(3))
       await act(async () => {
-        followingRead.settle(queueOf([aModerationPhoto({ id: 'photo-1', status: 'published' })]))
+        followingRead.resolve(queueOf([aModerationPhoto({ id: 'photo-1', status: 'published' })]))
         await followingRead.promise
       })
       expect(result.current.items[0]?.allowedDecisions).toEqual(['reject', 'hide'])
@@ -951,7 +925,7 @@ describe('useModerationQueue', () => {
       act(() => {
         pending = result.current.decide('photo-2', 'publish')
       })
-      request.fail(new ApiError(409, 'photo.illegalTransition'))
+      request.reject(new ApiError(409, 'photo.illegalTransition'))
       await act(async () => {
         await pending
       })
@@ -992,14 +966,14 @@ describe('useModerationQueue', () => {
       emitSignal('photo.uploaded')
       await waitFor(() => expect(api.moderationQueue).toHaveBeenCalledTimes(2))
       await act(async () => {
-        request.settle({ applied: [], skipped: ['photo-1'] })
-        signalRead.settle(queueOf([aModerationPhoto({ id: 'photo-1' })]))
+        request.resolve({ applied: [], skipped: ['photo-1'] })
+        signalRead.resolve(queueOf([aModerationPhoto({ id: 'photo-1' })]))
         await pending
       })
 
       expect(result.current.items[0]?.status).toBe('pending')
       expect(result.current.items[0]?.allowedDecisions).toEqual(['publish', 'reject'])
-      followingRead.settle(queueOf([aModerationPhoto({ id: 'photo-1' })]))
+      followingRead.resolve(queueOf([aModerationPhoto({ id: 'photo-1' })]))
     })
 
     it('forgets a photo the batch skipped, which the server did not decide', async () => {
