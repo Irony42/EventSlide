@@ -26,6 +26,9 @@ const SLUG = 'mariage-de-camille'
  * One container for the whole file: booting it (migrations, the bootstrap owner's password hash)
  * is most of what a scene costs, and it is what made each test slow enough to meet its budget
  * under load. Every test still gets an event of its own, so none sees another's photographs.
+ * Keep it that way: one event per test, and no assertion on a global count (users, books, purge
+ * totals), since the database and the media root are now shared and such a count would depend on
+ * the order the tests run in.
  * `afterAll` has nothing in flight to wait for: the worker is never started here and `scene`
  * awaits every render, so the directory is quiet when it is removed.
  */

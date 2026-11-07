@@ -297,11 +297,12 @@ export const eventCreationLimiter = (perHour: number): RateLimitRequestHandler =
  * nothing about **how many inboxes** a host can reach, and every invitation is a mail from the
  * box's own sender address that names the host's event. This bounds that: thirty an hour is
  * three events' worth of helpers, and a host does not write thirty a minute.
- * Thirty an hour by default, `INVITATION_RATE_LIMIT_PER_HOUR`.
  *
  * Keyed by account, for the reason {@link eventCreationLimiter} gives: an office behind one
  * address is the legitimate case, and a colleague's burst must not lock a host out. After
  * `requireRole`, which is what puts the account on the request.
+ *
+ * Thirty an hour by default, `INVITATION_RATE_LIMIT_PER_HOUR`.
  */
 export const invitationIssueLimiter = (perHour: number): RateLimitRequestHandler =>
   windowLimiter({ windowMs: 60 * 60_000, limit: perHour, code: 'rate.limited', key: accountKey })
